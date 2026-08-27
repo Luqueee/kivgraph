@@ -35,6 +35,48 @@ reported still hold, and one of them was strengthened: the tree builds for
 is the one that was verified, and `go build`, `go vet` and `staticcheck` are
 all clean for that GOOS.
 
+## What the product does there
+
+The suite is not the product, so the product was run: a real `kivgraph.exe`,
+built on the host with the `ladybug` tag against the pinned Windows library.
+
+|step|result|
+|---|---|
+|`version`|`0.8.1`|
+|`init --repository demo=... --languages go`|writes config and registry|
+|`index --full`|**PASS**, generation `000001` published|
+|`doctor`|**PASS**, every check|
+|`daemon --addr 127.0.0.1:7777`|listens on HTTP *and* on the socket|
+|MCP `initialize` + `tools/list` over HTTP|200, twelve tools|
+|`find_symbol` over HTTP|`greet/greet.go:4`|
+|MCP `initialize` over the `AF_UNIX` socket|answered|
+|`stop`|**fails**: `procstat: this platform cannot enumerate processes`|
+
+So the whole indexing path works -- Go loading, fact normalisation, staging,
+the native bulk load, the integrity check, the hot snapshot, the golden probes
+and the atomic publish -- and so does serving, over both transports. The
+symbol came back as `greet/greet.go:4`, with the slash the canonical form
+wants, which is the normalisation fix confirmed from the outside.
+
+`stop` is the one user-facing command that is broken rather than unsupported,
+and `doctor` reports the missing supervisor as `PASS (unsupported: install one
+with kivgraph daemon install)` -- advice that cannot work there, which is worth
+fixing before anyone reads it as a suggestion.
+
+### The runtime the bundle will have to carry
+
+`kivgraph.exe` would not start at all until the Microsoft Visual C++
+redistributable was installed: exit `0xC0000135`, `STATUS_DLL_NOT_FOUND`.
+`lbug_shared.dll` is built with MSVC and Windows Server 2022 ships none of
+`vcruntime140.dll`, `vcruntime140_1.dll` or `msvcp140.dll`.
+
+This has no analogue on the platforms that ship today -- the C++ runtime a
+Linux or macOS host needs is already there -- so a Windows bundle has to
+either carry those three DLLs beside `lbug_shared.dll` or state the
+redistributable as a prerequisite and check for it. ADR 0026 records that the
+bundle carries no system standard libraries; on Windows that sentence stops
+being free.
+
 ## The shape of the work
 
 The single most useful thing measured is that **almost none of this was
@@ -121,10 +163,20 @@ in an ADR.
 
 ### Two things have never been exercised
 
-- **The socket ACL.** `withPrivateUmask` is a documented no-op off Unix, so
-  the daemon's socket inherits its directory's ACL and the comment beside it --
-  "the socket carries the whole graph, so it is the owner's alone" -- stops
-  being true. No run has reached it: the daemon has not started on Windows.
+- **The socket ACL, which is narrower than this document first claimed.** The
+  daemon has now started, and `daemon.sock`, `daemon.token` and `daemon.json`
+  were measured: `SYSTEM`, `BUILTIN\Administrators` and the owner, with no
+  entry for `Everyone` or `Users`. That is close to the `0600` the Unix path
+  sets, so the earlier warning that the graph is published to any local
+  account was wrong as stated.
+
+  What survives of it is conditional and still real. The ACL is inherited from
+  the state directory, which sits under the user's profile by default and is
+  private because *that* is. `withPrivateUmask` is still a no-op off Unix, so
+  nothing in the daemon narrows anything: point the state directory at a
+  location with a permissive ACL and the socket takes it, where the Unix path
+  would still create the socket `0600` wherever it was told to. The daemon
+  makes no claim of its own about who may connect.
 - **`RunDetached`.** Its test fixture is a `#!/bin/sh` script, and Windows has
   no interpreter for a `#!` line. The file is Unix-only now, so the code under
   test is unverified there. What is unportable is the fixture, not the code.
@@ -187,7 +239,11 @@ Four differences are structural rather than cosmetic:
 
 ## What is left, in order
 
-1. **Finish the long tail,** knowing that most of what is left is not a
+1. **Fix `stop`, and the advice `doctor` gives.** `stop` is the only
+   user-facing command that fails rather than declines, and `doctor` currently
+   tells a Windows operator to run `kivgraph daemon install`, which cannot
+   work. Both follow from `procstat`.
+2. **Finish the long tail,** knowing that most of what is left is not a
    defect. Roughly a third of the remaining failures are tests exercising
    client integrations, which `integrations.NewManager` refuses outright on
    anything but darwin and linux, and updates, which are refused because no
@@ -202,15 +258,17 @@ Four differences are structural rather than cosmetic:
    `procstat.Process` carries `Args` because callers use it to tell a `serve`
    from an `index`. Whether an image name is enough to stop the right process
    is a question worth answering before writing it.
-2. **Decide the framing cancellation.** The pipe deadlock, in an ADR. Nothing
+3. **Decide the framing cancellation.** The pipe deadlock, in an ADR. Nothing
    downstream is trustworthy while a stuck worker cannot be given up on.
-3. **Decide the socket, and start the daemon.** Explicit DACL or named pipe,
-   and then a run that actually reaches it.
-4. **Decide the supervisor,** which decides the installer.
-5. **Then distribution,** and an ADR recording what `windows/amd64` support
-   does and does not include.
+4. **Decide whether the daemon should narrow its own socket.** It has been
+   reached now, and the inherited ACL was private -- but only because the
+   state directory was. An explicit DACL would make that a property of the
+   daemon rather than of where it was pointed.
+5. **Decide the supervisor,** which decides the installer.
+6. **Then distribution,** including the Visual C++ runtime, and an ADR
+   recording what `windows/amd64` support does and does not include.
 
-Steps 2 through 4 are three decisions, and every one of them is about what
+Steps 3 through 5 are three decisions, and every one of them is about what
 Windows should be promised rather than about how to write it.
 
 ## Reproducing this
