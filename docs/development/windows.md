@@ -12,9 +12,17 @@ that a real host had to confirm it. A real host did, and disagreed with the
 optimism while confirming the shape: the code compiled clean and then failed
 184 of its own tests. Everything below is measured on that host.
 
-Thirty-one of those failures are left, and what they are made of matters more
-than the count -- roughly half are tests exercising features the product
+Twenty-seven of those failures are left, and what they are made of matters
+more than the count -- roughly half are tests exercising features the product
 refuses on Windows on purpose. The section on what is left says which.
+
+The count is not monotonic and that is worth reading rather than smoothing.
+It rose from 31 to 34 when `stop` stopped pretending it could ask a process to
+exit, because four tests asserted an escalation that does not happen there;
+and `procstat` turned red the run after it was implemented, because a test
+that spawned `/bin/sh` had been skipping for a different reason and started
+running. Each fix reached the next thing wrong, which is what a suite is
+supposed to do and what a falling number would have hidden.
 
 ## What this rests on
 
@@ -30,6 +38,10 @@ times, with the fixes between the runs.
 |4|program names, `HOME`, path order|31|38|
 |5|manifest containment, `doctor`|32|33|
 |6|assertions a platform cannot answer|34|31|
+|7|`procstat`, and an honest `stop`|35|34|
+|8|closing the event log|35|28|
+|9|the worker's pipe, `ResidentBytes`|35|28|
+|10|a child both platforms have|36|27|
 
 Before any of that, the compile results the first version of this document
 reported still hold, and one of them was strengthened: the tree builds for
@@ -134,34 +146,42 @@ ships to -- which is exactly why a compile gate cannot find them and why the
 
 |cause|count|
 |---|---|
-|client integrations, refused by `NewManager` on purpose|13|
+|client integrations, refused by `NewManager` on purpose|10|
 |the host's Python, not the port|3|
 |`update`, refused because no Windows release exists|2|
-|`procstat` and signal-0 liveness, unimplemented|2|
-|deleting a file something still holds open|2|
-|everything else, one apiece|9|
+|path separators in configuration and hook commands|3|
+|POSIX mode bits|2|
+|everything else, one apiece|7|
 
 The first two rows are not defects and the third follows from a decision
-nobody has made yet, so a little over half of what is left is waiting on
-somebody to say what Windows should be promised rather than on somebody to
-write something.
+already taken in ADR 0079 and not yet implemented, so a little over half of
+what is left is waiting on somebody to say what Windows should be promised
+rather than on somebody to write something.
+
+The deadlock is gone: `internal/tsworker` was costing whatever the test
+timeout was -- 1500 seconds on the first run -- and passes in three.
 
 ## What is still open
 
-### One thing needs a decision, not a primitive
+### The deadlock, and what fixing it cost
 
-`internal/tsworker` deadlocks. `TestReadFrameHonoursDeadlineAndCancellationOnAPipe`
-blocks in `syscall.readFile` and never returns; the package costs whatever the
-test timeout is set to. The name states the cause: Go on Windows does not
-associate the handles from `os.Pipe` with its I/O completion port, so a read
-deadline cannot interrupt a blocked read there.
+~~`internal/tsworker` deadlocks.~~ **Fixed**, and the shape of it is worth
+keeping. `*os.File` carries `SetReadDeadline` on every platform and answers
+`os.ErrNoDeadline` for a handle the runtime cannot poll; `armDeadline`
+discarded that error and `NewReader` decided it could interrupt a read by
+asserting that the method existed. The reader claimed a capability it did not
+have, and a blocked read never returned. `NewReader` probes now.
 
-This is not a test defect. `ReadFrame`'s cancellation is what the supervisor
-uses to give up on a worker that has stopped answering, so the contract itself
-is unimplementable on Windows as written. The options are a named pipe, which
-Windows *does* poll, or closing the handle from another goroutine, which is
-cruder and changes what a caller can retry. Both are design changes and belong
-in an ADR.
+The transport is a named pipe there, because Go cannot associate the handles
+`os.Pipe` returns on Windows with its completion port and a pipe opened
+overlapped is pollable. ADR 0079 called this a transport change; it is also an
+exposure change, and that was not in the decision. An anonymous pipe is
+reachable only through a handle somebody inherited. A named one is an object
+every local process can enumerate, and these frames carry the graph. So it
+carries `FILE_FLAG_FIRST_PIPE_INSTANCE` against a squatted name,
+`PIPE_REJECT_REMOTE_CLIENTS` against SMB, a single instance, and a DACL naming
+this user by SID, SYSTEM and the administrators -- which is most of the work
+decision 3 asks for on the daemon's socket, done here first.
 
 ### Two things have never been exercised
 

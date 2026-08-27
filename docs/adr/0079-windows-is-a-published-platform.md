@@ -55,7 +55,18 @@ A process this cannot open is skipped rather than reported, which is the trade
 the Linux implementation already makes with an unreadable `cmdline`: a process
 it cannot read is not one it could have signalled.
 
-**2. Worker framing moves to a named pipe on Windows.** Go does not associate
+**2. Worker framing moves to a named pipe on Windows.** *Done, and it cost
+one thing this decision did not price.* A named pipe is not only a transport
+with different polling behaviour; it is an object in a namespace every local
+process can enumerate, where the anonymous pipe it replaces was reachable only
+through an inherited handle. The frames carry the graph, so the implementation
+narrows it back -- first-instance, no remote clients, one instance, and a DACL
+naming this user by SID -- which is most of what decision 3 asks for on the
+socket, written here first and testable there.
+
+The original reasoning follows and still holds.
+
+ Go does not associate
 the handles from `os.Pipe` with its I/O completion port, so a read deadline
 cannot interrupt a blocked read and `ReadFrame`'s cancellation -- which is how
 the supervisor gives up on a worker that stopped answering -- is
