@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -1789,6 +1790,18 @@ func inspectDoctorDirectory(path string) (bool, string) {
 	}
 	if !info.IsDir() {
 		return false, "not a directory"
+	}
+	// Whether the directory is the owner's alone is a question with no answer
+	// on a platform that does not keep POSIX mode bits. Go reports every
+	// directory on Windows as 0777, so asking here would fail every state
+	// directory on every machine, and a check that cannot be wrong is not a
+	// check -- it is a permanent red that teaches an operator to ignore the
+	// whole report. What the platform does have is an ACL, which nothing here
+	// sets yet, so the honest answer names the gap instead of asserting either
+	// side of it. workspace.validateDirectoryPermissions already declines the
+	// same question for the same reason.
+	if runtime.GOOS == "windows" {
+		return true, path + " (privacy unchecked: this platform keeps an ACL, not mode bits)"
 	}
 	if info.Mode().Perm()&0o077 != 0 {
 		return false, fmt.Sprintf("permissions %04o are broader than 0700", info.Mode().Perm())

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Luqueee/kivgraph/internal/executable"
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/goloader"
 	"github.com/Luqueee/kivgraph/internal/goworkspace"
@@ -1151,16 +1152,21 @@ func TestRequestedTypeScriptPackagesGathersEveryRequest(t *testing.T) {
 // file without an execute bit, would otherwise be handed to exec and fail
 // later with an error that names neither.
 func TestSiblingExecutableAcceptsOnlyARunnableFile(t *testing.T) {
-	executable, err := os.Executable()
+	selfPath, err := os.Executable()
 	if err != nil {
 		t.Skipf("this platform cannot name the running executable: %v", err)
 	}
-	directory := filepath.Dir(executable)
+	directory := filepath.Dir(selfPath)
+	// The fixture is written under the name this platform stores a program
+	// as, because that is half of what the function under test resolves: on
+	// Windows a file called "kivgraph-sibling-runnable" is not a program and
+	// the mode this writes it with says nothing about whether it is.
 	runnable := "kivgraph-sibling-runnable"
-	if err := os.WriteFile(filepath.Join(directory, runnable), []byte("#!/bin/sh\n"), 0o755); err != nil {
+	runnablePath := filepath.Join(directory, executable.Name(runnable))
+	if err := os.WriteFile(runnablePath, []byte("#!/bin/sh\n"), 0o755); err != nil {
 		t.Skipf("the directory holding the test binary is not writable: %v", err)
 	}
-	t.Cleanup(func() { _ = os.Remove(filepath.Join(directory, runnable)) })
+	t.Cleanup(func() { _ = os.Remove(runnablePath) })
 	plain := "kivgraph-sibling-plain"
 	if err := os.WriteFile(filepath.Join(directory, plain), []byte("not runnable\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
@@ -1173,7 +1179,7 @@ func TestSiblingExecutableAcceptsOnlyARunnableFile(t *testing.T) {
 	t.Cleanup(func() { _ = os.Remove(filepath.Join(directory, directoryName)) })
 
 	path, found := siblingExecutable(runnable)
-	if !found || path != filepath.Join(directory, runnable) {
+	if !found || path != runnablePath {
 		t.Fatalf("siblingExecutable(runnable) = %q, %v, want the sibling path and true", path, found)
 	}
 	for _, name := range [...]string{plain, directoryName, "kivgraph-sibling-absent"} {
