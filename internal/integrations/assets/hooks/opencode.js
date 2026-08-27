@@ -9,7 +9,7 @@
 
 import { spawn } from "node:child_process"
 
-const EXECUTABLE = "__KIVGRAPH_EXECUTABLE__"
+const EXECUTABLE = __KIVGRAPH_EXECUTABLE__
 
 // DEADLINE_MS bounds a gate that never answers.
 //

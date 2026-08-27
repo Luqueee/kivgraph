@@ -27,6 +27,10 @@ func testManager(t *testing.T) (Manager, string, string) {
 }
 
 func TestInstallJSONIsIdempotentAndBacksUpOnRemoval(t *testing.T) {
+	// The mode is the claim here, and only a platform that keeps one can
+	// answer it. Where it does not, the file is narrowed with an ACL and
+	// asserting 0600 would assert what Go reports about every file there.
+	testsupport.SkipWithoutModeBits(t)
 	manager, home, _ := testManager(t)
 	path := filepath.Join(home, ".claude.json")
 

@@ -132,6 +132,10 @@ func TestAnEndpointRefusesProjectScope(t *testing.T) {
 // TestAnInstalledEndpointIsWhatTheClientReads closes the loop through the real
 // writer: a hand-built map proves the shape, not that it survives the file.
 func TestAnInstalledEndpointIsWhatTheClientReads(t *testing.T) {
+	// The mode is the claim here, and only a platform that keeps one can
+	// answer it. Where it does not, the file is narrowed with an ACL and
+	// asserting 0600 would assert what Go reports about every file there.
+	testsupport.SkipWithoutModeBits(t)
 	manager, home, _ := endpointManager(t)
 
 	if _, err := manager.InstallMCP(TargetClaudeCode, ScopeUser, false, false); err != nil {

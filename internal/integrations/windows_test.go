@@ -1,6 +1,7 @@
 package integrations
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -172,4 +173,40 @@ func contains(haystack, needle string) bool {
 		}
 	}
 	return false
+}
+
+// The OpenCode shim is JavaScript, and a Windows path is mostly backslashes.
+// JavaScript does not refuse an escape it does not know -- it drops the
+// backslash -- so a path pasted into a string literal is corrupted quietly and
+// the shim fails later, at the moment the editor calls a binary that is not
+// there. The escapes that do something are the ones worth naming.
+func TestThePluginDoesNotCorruptAPathWithBackslashes(t *testing.T) {
+	for name, executable := range map[string]string{
+		"a backspace escape": `C:\bin\kivgraph.exe`,
+		"a newline escape":   `C:\next\kivgraph.exe`,
+		"a tab escape":       `C:\tools\kivgraph.exe`,
+		"an unknown escape":  `C:\opt\kivgraph.exe`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			// The manager is built directly rather than through New, which
+			// would absolutise a Windows path against the working directory
+			// of whatever platform is running the test. What is under test is
+			// how pluginBody puts a path into JavaScript, not how New decides
+			// what the path is.
+			manager := Manager{executable: executable, goos: "windows"}
+			body := string(manager.pluginBody())
+			if contains(body, executablePlaceholder) {
+				t.Fatal("the plugin still carries its placeholder")
+			}
+			// The encoded form is what a JavaScript parser turns back into the
+			// path. Asserting the raw path would pass on the corruption.
+			encoded, err := json.Marshal(executable)
+			if err != nil {
+				t.Fatalf("Marshal() error = %v", err)
+			}
+			if !contains(body, string(encoded)) {
+				t.Fatalf("plugin does not carry %s; it would name a different file", encoded)
+			}
+		})
+	}
 }

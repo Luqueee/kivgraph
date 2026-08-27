@@ -22,7 +22,7 @@ func TestOurOwnStdioEntryIsMigratedWithoutForce(t *testing.T) {
 	path := filepath.Join(home, ".claude.json")
 	// Written by hand in the shape a previous install produced, so the fixture
 	// demonstrates the real starting state rather than a guess at it.
-	previous := []byte(`{"mcpServers":{"kivgraph":{"args":["serve"],"command":"` + executable + `"}},"custom":true}` + "\n")
+	previous := []byte(`{"mcpServers":{"kivgraph":{"args":["serve"],"command":"` + escapedPath(t, executable) + `"}},"custom":true}` + "\n")
 	if err := os.WriteFile(path, previous, 0o600); err != nil {
 		t.Fatalf("write the previous entry: %v", err)
 	}
@@ -153,7 +153,7 @@ func TestCodexReplacesTheTableRatherThanAppending(t *testing.T) {
 		t.Fatalf("mkdir: %v", err)
 	}
 	path := filepath.Join(codex, "config.toml")
-	previous := "model = \"o3\"\n\n[mcp_servers.kivgraph]\ncommand = \"" + executable + "\"\nargs = [\"serve\"]\n"
+	previous := "model = \"o3\"\n\n[mcp_servers.kivgraph]\ncommand = \"" + escapedPath(t, executable) + "\"\nargs = [\"serve\"]\n"
 	if err := os.WriteFile(path, []byte(previous), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
