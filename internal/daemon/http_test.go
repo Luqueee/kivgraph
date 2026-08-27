@@ -16,6 +16,7 @@ import (
 
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 	"github.com/Luqueee/kivgraph/internal/metrics"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
 // startHTTP runs a daemon's HTTP half over a temporary state directory and
@@ -409,6 +410,12 @@ func TestTheTokenSurvivesARestart(t *testing.T) {
 // every client configured with the old token; the warning fixes neither, and
 // says so.
 func TestALeakyTokenFileIsNamedRatherThanReplaced(t *testing.T) {
+	// The leak this names is a mode bit, so the warning exists only where one
+	// means something. Where it does not, the daemon narrows the file with an
+	// ACL instead and has nothing to warn about -- and warning anyway, on
+	// every token on every host, would be the always-red line an operator
+	// learns to scroll past.
+	testsupport.SkipWithoutModeBits(t)
 	directory := shortTempDir(t)
 	if err := os.MkdirAll(directory, 0o700); err != nil {
 		t.Fatalf("mkdir: %v", err)

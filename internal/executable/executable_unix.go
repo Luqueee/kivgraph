@@ -19,4 +19,14 @@ func IsProgram(info fs.FileInfo) bool {
 
 // BaseName returns the name a program is called by, given the path it is
 // stored at. Here the two are the same.
-func BaseName(path string) string { return filepath.Base(path) }
+//
+// The empty path is answered with the empty name rather than with what
+// filepath.Base makes of it, which is ".". A comparison against "." would
+// match a program called that and nothing else, which is a worse answer than
+// no answer.
+func BaseName(path string) string {
+	if path == "" {
+		return ""
+	}
+	return filepath.Base(path)
+}

@@ -9,6 +9,8 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+
+	"github.com/Luqueee/kivgraph/internal/privateobject"
 )
 
 // pipeBufferBytes is what the kernel keeps for one direction of the pipe. It is
@@ -37,7 +39,9 @@ var pipeSequence atomic.Uint64
 //   - FILE_FLAG_FIRST_PIPE_INSTANCE, so a process that guessed the name cannot
 //     have created it first and be holding the end the child will connect to.
 //   - PIPE_REJECT_REMOTE_CLIENTS, so the object is not reachable over SMB.
-//   - A DACL naming this user, SYSTEM and the administrators, and nobody else.
+//   - A DACL naming this user, SYSTEM and the administrators, and nobody else,
+//     which is privateobject's business because the daemon's socket needs the
+//     same sentence.
 //
 // One instance is allowed, so the child is the only thing that can connect at
 // all.
@@ -47,7 +51,7 @@ func interruptibleOutputPipe() (parent, child *os.File, err error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	attributes, err := privatePipeAttributes()
+	attributes, err := privateobject.Attributes()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -70,24 +74,4 @@ func interruptibleOutputPipe() (parent, child *os.File, err error) {
 		return nil, nil, fmt.Errorf("open the worker pipe: %w", err)
 	}
 	return os.NewFile(uintptr(server), name), os.NewFile(uintptr(client), name), nil
-}
-
-// privatePipeAttributes builds the descriptor that keeps the pipe the owner's.
-//
-// The user is named by SID rather than by a well-known alias so the rule says
-// what it means on a machine whose account names are not the English ones.
-func privatePipeAttributes() (*windows.SecurityAttributes, error) {
-	user, err := windows.GetCurrentProcessToken().GetTokenUser()
-	if err != nil {
-		return nil, fmt.Errorf("read this process's user: %w", err)
-	}
-	// P denies inheritance, so nothing broader upstream is added to this.
-	definition := "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;" + user.User.Sid.String() + ")"
-	descriptor, err := windows.SecurityDescriptorFromString(definition)
-	if err != nil {
-		return nil, fmt.Errorf("build the worker pipe descriptor: %w", err)
-	}
-	attributes := &windows.SecurityAttributes{SecurityDescriptor: descriptor}
-	attributes.Length = uint32(unsafe.Sizeof(*attributes))
-	return attributes, nil
 }

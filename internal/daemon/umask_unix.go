@@ -26,3 +26,12 @@ func withPrivateUmask(body func() error) error {
 	defer syscall.Umask(previous)
 	return body()
 }
+
+// narrowSocket has nothing left to do: withPrivateUmask already decided who
+// may reach the socket, before it existed rather than after, which is the
+// order that leaves no window.
+func narrowSocket(string) error { return nil }
+
+// modeBitsAreEvidence reports whether a file's reported mode says anything
+// about who can read it. Here it is the whole story.
+const modeBitsAreEvidence = true

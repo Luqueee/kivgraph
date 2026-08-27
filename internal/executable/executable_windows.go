@@ -13,7 +13,10 @@ import (
 // extension that makes it one. A caller that already spelled the extension
 // gets its name back rather than "kivgraph.exe.exe".
 func Name(base string) string {
-	if extension := filepath.Ext(base); extension != "" && isProgramExtension(extension) {
+	if base == "" {
+		return ""
+	}
+	if extension := filepath.Ext(base); isProgramExtension(extension) {
 		return base
 	}
 	return base + ".exe"
@@ -64,6 +67,9 @@ func isProgramExtension(extension string) bool {
 // Only a program extension is removed. A file called "graph.db" keeps its
 // suffix, because that suffix is part of what it is called.
 func BaseName(path string) string {
+	if path == "" {
+		return ""
+	}
 	base := filepath.Base(path)
 	if extension := filepath.Ext(base); isProgramExtension(extension) {
 		return strings.TrimSuffix(base, extension)

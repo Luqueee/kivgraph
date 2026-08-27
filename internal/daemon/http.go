@@ -107,7 +107,13 @@ func loadOrCreateToken(directory string, warn func(string)) (string, error) {
 	path := TokenPath(directory)
 	switch info, err := os.Lstat(path); {
 	case err == nil:
-		if mode := info.Mode().Perm(); mode&0o077 != 0 && warn != nil {
+		// The mode is only evidence where the platform keeps one. Go reports
+		// every file on Windows as 0666, so asking here would warn about every
+		// token on every host -- and a warning that is always printed is one
+		// an operator learns to scroll past, which is the opposite of what
+		// this line is for. What guards the file there is the ACL
+		// writePrivateFile sets.
+		if mode := info.Mode().Perm(); modeBitsAreEvidence && mode&0o077 != 0 && warn != nil {
 			warn(fmt.Sprintf("%s is mode %#o: any user on this host can read the token that opens the graph", path, mode))
 		}
 		raw, err := os.ReadFile(path)
@@ -295,6 +301,14 @@ func writePrivateFile(path string, content []byte) error {
 	// an earlier run keeps whatever it had. Fix it before it is renamed into
 	// place, not after: after is the window.
 	if err := os.Chmod(temporary, 0o600); err != nil {
+		_ = os.Remove(temporary)
+		return fmt.Errorf("restrict %s: %w", temporary, err)
+	}
+	// The mode above is the whole answer on Unix and none of it where the
+	// platform keeps an ACL instead. Narrowing the temporary rather than the
+	// published name keeps the property this function is named for: the file
+	// is private before it has the name a reader looks for, never after.
+	if err := narrowSocket(temporary); err != nil {
 		_ = os.Remove(temporary)
 		return fmt.Errorf("restrict %s: %w", temporary, err)
 	}

@@ -19,6 +19,18 @@ func Directory(path string) error {
 	if err != nil {
 		return err
 	}
+	// The name is checked on both platforms or on neither. Off Unix this has
+	// to look, because there is no directory flush to attempt and a caller
+	// naming a file would otherwise be told its write was made durable by a
+	// call that did nothing. Here the flush would succeed on a regular file
+	// and mean something else, which is the same lie one layer down.
+	info, statErr := directory.Stat()
+	if statErr != nil {
+		return errors.Join(statErr, directory.Close())
+	}
+	if !info.IsDir() {
+		return errors.Join(&os.PathError{Op: "syncdir", Path: path, Err: os.ErrInvalid}, directory.Close())
+	}
 	syncErr := directory.Sync()
 	closeErr := directory.Close()
 	return errors.Join(syncErr, closeErr)
