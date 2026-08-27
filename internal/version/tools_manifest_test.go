@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -25,10 +26,11 @@ type toolManifest struct {
 			SHA256 string `json:"sha256"`
 		} `json:"license_files"`
 		Platforms []struct {
-			Target string `json:"target"`
-			Asset  string `json:"asset"`
-			URL    string `json:"url"`
-			SHA256 string `json:"sha256"`
+			Target        string `json:"target"`
+			Asset         string `json:"asset"`
+			URL           string `json:"url"`
+			SHA256        string `json:"sha256"`
+			ArchiveFormat string `json:"archive_format"`
 		} `json:"platforms"`
 	} `json:"tools"`
 }
@@ -50,8 +52,8 @@ func TestToolManifestPinsEveryDistributionTarget(t *testing.T) {
 	if err := json.Unmarshal(data, &manifest); err != nil {
 		t.Fatalf("decode %q: %v", path, err)
 	}
-	if manifest.SchemaVersion != 1 {
-		t.Fatalf("schema_version = %d, want 1", manifest.SchemaVersion)
+	if manifest.SchemaVersion != 2 {
+		t.Fatalf("schema_version = %d, want 2", manifest.SchemaVersion)
 	}
 	if len(manifest.Tools) == 0 {
 		t.Fatal("the manifest pins no tool")
@@ -60,7 +62,7 @@ func TestToolManifestPinsEveryDistributionTarget(t *testing.T) {
 	digest := regexp.MustCompile(`^[0-9a-f]{64}$`)
 	commit := regexp.MustCompile(`^[0-9a-f]{40}$`)
 	// The distribution targets of the project, and only those.
-	wanted := map[string]bool{"linux/amd64": false, "darwin/arm64": false}
+	wanted := map[string]bool{"linux/amd64": false, "darwin/arm64": false, "windows/amd64": false}
 
 	for _, tool := range manifest.Tools {
 		if tool.Name == "" || tool.Version == "" || tool.Release == "" {
@@ -93,6 +95,19 @@ func TestToolManifestPinsEveryDistributionTarget(t *testing.T) {
 			wanted[platform.Target] = true
 			if !digest.MatchString(platform.SHA256) {
 				t.Errorf("%s %s: sha256 %q is not a digest", tool.Name, platform.Target, platform.SHA256)
+			}
+			// The archive format is per platform because the platforms
+			// disagree, so every one has to state its own: a missing field
+			// would be read as an unknown format and stop the fetch, and a
+			// field that disagreed with the asset's own suffix would stop it
+			// later and less clearly.
+			switch platform.ArchiveFormat {
+			case "gz", "zip":
+				if suffix := "." + platform.ArchiveFormat; !strings.HasSuffix(platform.Asset, suffix) {
+					t.Errorf("%s %s: asset %q is not a %s", tool.Name, platform.Target, platform.Asset, platform.ArchiveFormat)
+				}
+			default:
+				t.Errorf("%s %s: archive_format %q is not one this project can extract", tool.Name, platform.Target, platform.ArchiveFormat)
 			}
 			if platform.Asset == "" || platform.URL == "" {
 				t.Errorf("%s %s: asset or URL missing", tool.Name, platform.Target)
