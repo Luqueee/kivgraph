@@ -27,7 +27,7 @@ set -euo pipefail
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$repo_root"
 
-floor=${KIVGRAPH_COVERAGE_FLOOR:-79.0}
+floor=${KIVGRAPH_COVERAGE_FLOOR:-79.5}
 
 # The analyzers are checked before the suite runs, not after, and their absence
 # is a failure rather than a note.
