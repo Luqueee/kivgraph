@@ -19,9 +19,9 @@ import Viewer from "../components/landing/Viewer.astro";
 
 // The order is the argument, and it runs in one direction: you cannot name it
 // yet -> here is a symbol I want to change -> here is what a resolved graph
-// says about it -> here is the measurement -> here is why a text search cannot say the same thing -> here is
-// what a name really is -> the relationships cross repositories -> it plugs
-// into the agent you already run -> install it.
+// says about it -> here is the measurement -> here is why a text search cannot
+// say the same thing -> here is what a name really is -> the relationships
+// cross repositories -> it plugs into the agent you already run -> install it.
 //
 // The first band is unnumbered on purpose. It answers the question a visitor
 // arrives with rather than one of the questions the numbered argument makes,
@@ -45,11 +45,11 @@ export const prerender = true;
   <main id="main">
     <Hero />
     <AskWithoutName />
-    <Section index="01" title="what your agent can ask" id="proof">
-      <ProductProof />
-    </Section>
-    <Section index="02" title="less context, same exact answer" id="measured">
+    <Section index="01" title="less context, same exact answer" id="measured">
       <Measured />
+    </Section>
+    <Section index="02" title="what your agent can ask" id="proof">
+      <ProductProof />
     </Section>
     <Section
       index="03"
