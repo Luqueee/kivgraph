@@ -141,3 +141,20 @@ func TestRunMCPInstallInteractiveCanCancel(t *testing.T) {
 		t.Fatalf("cancelled interactive install wrote configuration: %v", err)
 	}
 }
+
+// TestSkillCompletesOnlyTargetsItAccepts is the sibling of the hook regression:
+// pressing tab offered claude-desktop, which reads no local skill directory and
+// which `skill install` then refuses. A completion is a promise about what the
+// next word may be.
+func TestSkillCompletesOnlyTargetsItAccepts(t *testing.T) {
+	candidates := completionCandidates([]string{"skill", "install", "--target", ""})
+	if len(candidates) != len(integrations.SkillTargets()) {
+		t.Fatalf("completion offers %q, want the %d targets that take a skill",
+			candidates, len(integrations.SkillTargets()))
+	}
+	for _, candidate := range candidates {
+		if candidate == string(integrations.TargetClaudeDesktop) {
+			t.Fatal("completion offers claude-desktop, which skill install refuses")
+		}
+	}
+}

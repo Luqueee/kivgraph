@@ -537,10 +537,14 @@ func integrationCommand(kind, operation string) commandSpec {
 
 // targetNamesFor answers the vocabulary one family's --target accepts.
 func targetNamesFor(kind string) func() []string {
-	if kind == "hook" {
+	switch kind {
+	case "hook":
 		return hookTargetNames
+	case "skill":
+		return skillTargetNames
+	default:
+		return integrationTargetNames
 	}
-	return integrationTargetNames
 }
 
 // allCommands is the table every reader walks, longest invocation first so a
@@ -676,6 +680,12 @@ func integrationTargetNames() []string {
 // complete a word the command then refuses.
 func hookTargetNames() []string {
 	return targetNamesOf(integrations.HookTargets())
+}
+
+// skillTargetNames are the targets `skill --target` completes to. Claude
+// Desktop reads no local skill directory.
+func skillTargetNames() []string {
+	return targetNamesOf(integrations.SkillTargets())
 }
 
 func targetNamesOf(targets []integrations.Target) []string {
