@@ -324,7 +324,7 @@ func TestCommitsHaveIdenticalTreesRefusesWhatIsNotAnObjectID(t *testing.T) {
 // what keeps a poll that observed no movement from spawning a process. A nil
 // context is the caller that has none to offer and must not be a crash.
 func TestCommitsHaveIdenticalTreesAnswersTheSameCommitWithoutGit(t *testing.T) {
-	//nolint:staticcheck // the nil context is the input under test.
+	//lint:ignore SA1012 the nil context is the input under test.
 	if !CommitsHaveIdenticalTrees(nil, t.TempDir(), gitHeadTestCommit, gitHeadTestCommit) {
 		t.Fatal("CommitsHaveIdenticalTrees(same commit) = false, want true")
 	}
