@@ -572,6 +572,47 @@ curl -o /dev/null -w '%{http_code}\n' \
   https://eu-assets.i.posthog.com/array/<key>/config.js   # 200 if it is EU
 ```
 
+### The key that was not this project's
+
+That check is in this document because the host ran the wrong key for a while,
+and the wrong key was **valid** -- which is the only reason it cost anything.
+`landing/.env` held `phc_BQNTzBtbbV5F...` next to
+`PUBLIC_POSTHOG_HOST=https://eu.i.posthog.com`, and the pair answers the
+question on its own:
+
+|probe|result|
+|---|---|
+|`us-assets.i.posthog.com/array/<key>/config.js`|`200`|
+|`eu-assets.i.posthog.com/array/<key>/config.js`|`404`|
+
+It is a **US Cloud** key, and it was deployed against the **EU** ingest host.
+Nothing in the build, the browser or the panel says so: the library boots, the
+key is well formed, and the events go to a deployment that has never heard of
+that token. A key being real is not the same as a key being *this project's*,
+and only the region probe separates the two.
+
+What the panel cannot answer, and this document will not guess: **which project
+owns it.** The MCP authenticates against the EU organisation `kivgraph`, which
+holds exactly one project -- `259316`, `phc_rYqAazYSMhxX...`. US Cloud is a
+separate deployment with separate accounts, so an EU credential cannot
+enumerate it. The owning project is not identifiable from here.
+
+Whether it *received* anything from `kivgraph.dev` is a different question and
+it does have an answer: **no**, because the events were never addressed to the
+deployment it lives on. They were posted to `eu.i.posthog.com`, which returns
+`404` for that token. The US project cannot have been given data this
+deployment never sent it. The confirming half -- reading zero events in that
+project -- is the half that cannot be run without access to it.
+
+The EU project's own history agrees. Its first event ever is
+`2026-08-27T14:51:59Z`, three minutes after the corrected key was written
+(`14:48:18`) and rebuilt (`14:48:53`). Before the fix, neither project was
+collecting: one was not being written to and the other was not being reached.
+
+The lesson is the ordering, not the incident. **Check the region before
+accepting a key, not after wondering why the dashboard is empty** -- an empty
+dashboard looks identical to an unvisited site.
+
 ## MANUAL SETUP REQUIRED
 
 What follows **cannot be done from the repository**. These are changes in the
@@ -614,6 +655,27 @@ guard intact and blows up in the second `map`.
 So the order is: deploy, press each copy button once on
 `https://kivgraph.dev/`, check in *Events* that the names appear, and only then
 create the goals by choosing them from the list.
+
+**Verified on 2026-08-27.** The five goals exist on the main property and all
+five carry `{"type": "event", "value": "<the event name>"}` -- not a route. The
+trap above did fire when they were first created and was corrected in place:
+every one has an `updatedAt` later than its `createdAt`. What the card is
+called is not evidence, so the check is the parameters and not the name:
+
+```text
+umami_list_reports(websiteId=<main property>, type=goal)
+-> parameters.type == "event" and parameters.value == the event name
+```
+
+A goal reading `{"type": "url", "value": "/"}` is the failure, and it is
+invisible from the dashboard.
+
+A sixth goal existed that this document says should not: **`github_click`**,
+created the same afternoon. It pointed at its event correctly, so it counted --
+which is the problem, because counting interest as conversion is what inflates
+the rate. It was **deleted on 2026-08-27** and the five above are what remains.
+No data was lost: the event is still recorded and still visible in *Events*,
+which is exactly what the micro level in the table above asks for.
 
 ### 1b. The AI crawler property and its variables
 
