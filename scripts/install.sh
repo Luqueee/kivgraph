@@ -165,6 +165,7 @@ extract_release_checksum() {
 }
 
 archive_checksum_name="$archive_name.sha256"
+# check: archive-digest
 extract_release_checksum "$checksums_path" "$archive_name" \
   "$download_parent/$archive_checksum_name" ||
   fail "release publishes no $archive_name for $host_system/$host_machine"
@@ -179,6 +180,7 @@ tar --list --file "$archive_path" >"$archive_entries" ||
   fail 'release archive cannot be listed'
 tar --list --verbose --file "$archive_path" >"$archive_types" ||
   fail 'release archive entry metadata cannot be listed'
+# check: entry-paths
 while IFS= read -r name; do
   case "$name" in
     "$bundle_name"|"$bundle_name"/*) ;;
@@ -188,6 +190,7 @@ while IFS= read -r name; do
     ''|/*|*\\*|..|../*|*/../*|*/..) fail "release archive contains unsafe path: $name" ;;
   esac
 done <"$archive_entries"
+# check: entry-types
 while IFS= read -r entry; do
   case "${entry:0:1}" in
     '-'|'d') ;;
@@ -198,14 +201,18 @@ tar --extract --file "$archive_path" --directory "$extract_root" \
   --no-same-owner --no-same-permissions
 bundle="$extract_root/$bundle_name"
 [[ -d "$bundle" ]] || fail "release archive is missing $bundle_name/"
+# check: no-symlinks
 [[ -z "$(find -L "$bundle" -type l -print -quit)" ]] ||
   fail 'release bundle contains symbolic links'
+# check: bundle-checksums
 verify_checksums "$bundle" SHA256SUMS || fail 'bundle checksum verification failed'
+# check: required-programs
 [[ -x "$bundle/bin/kivgraph" ]] || fail 'bundle is missing bin/kivgraph'
 [[ -x "$bundle/bin/kivgraph-ts-worker" ]] || fail 'bundle is missing bin/kivgraph-ts-worker'
 installed_version=$("$bundle/bin/kivgraph" version)
 [[ "$installed_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] ||
   fail "bundle reported invalid version: $installed_version"
+# check: version-match
 if [[ -n "$requested_version" && "${requested_version#v}" != "$installed_version" ]]; then
   fail "bundle version $installed_version does not match $requested_version"
 fi
@@ -239,6 +246,7 @@ create_launcher() {
   created_launchers+=("$launcher")
 }
 
+# check: launcher-ownership
 validate_launcher "$bin_dir/kivgraph" "$install_root/bin/kivgraph"
 validate_launcher "$bin_dir/kivgraph-ts-worker" "$install_root/bin/kivgraph-ts-worker"
 

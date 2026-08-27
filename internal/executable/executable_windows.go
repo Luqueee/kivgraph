@@ -99,12 +99,18 @@ func Candidates(base string) []string {
 	if strings.TrimSpace(list) == "" {
 		list = ".COM;.EXE;.BAT;.CMD"
 	}
+	// The extension is lowercased. PATHEXT is conventionally upper case and
+	// the filesystem does not care, but Name writes ".exe", and a caller
+	// holding one of these and comparing it against one of those would find
+	// two spellings of the same file unequal. That is not hypothetical: it is
+	// what the invariant test between the two functions caught, after
+	// siblingExecutable started returning a path nobody could match.
 	candidates := make([]string, 0, 4)
 	for _, extension := range strings.Split(list, ";") {
 		if extension = strings.TrimSpace(extension); extension == "" {
 			continue
 		}
-		candidates = append(candidates, base+extension)
+		candidates = append(candidates, base+strings.ToLower(extension))
 	}
 	return candidates
 }

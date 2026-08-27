@@ -195,9 +195,11 @@ binding_version=$(go list -m -f '{{.Version}}' github.com/LadybugDB/go-ladybug)
 [[ -n "$binding_version" ]] || fail "could not determine LadybugDB Go binding version"
 
 rm -rf "$output_dir"
+# lib/ is created only where something goes in it. An empty directory in a
+# bundle is a claim about a layout, and on the platform whose library sits
+# beside the executable it would be the wrong claim.
 mkdir -p \
   "$output_dir/bin" \
-  "$output_dir/lib" \
   "$output_dir/grammars" \
   "$output_dir/licenses/third-party" \
   "$output_dir/skills/kivgraph" \
@@ -315,6 +317,7 @@ assert_single_runpath() {
 
 assert_single_runpath
 
+mkdir -p "$output_dir/$native_library_subdir"
 install -m 0755 "$native_library" "$output_dir/$native_library_subdir/$native_library_name"
 
 # On the platform with no search path to declare, adjacency is the contract, so
@@ -441,10 +444,13 @@ snapshot_row_format=$(jq -er '.snapshot_row_format' <<<"$version_json") ||
 grammar_sha256=$(sha256_of "$output_dir/grammars/manifest.json")
 rust_analyzer_version=$(jq -r '.tools[] | select(.name=="rust-analyzer") | .version' "$root/tools/manifest.json")
 rust_analyzer_release=$(jq -r '.tools[] | select(.name=="rust-analyzer") | .release' "$root/tools/manifest.json")
-rust_analyzer_sha256=$(sha256_of "$output_dir/bin/rust-analyzer")
+rust_analyzer_sha256=$(sha256_of "$output_dir/bin/rust-analyzer$program_suffix")
 tools_sha256=$(sha256_of "$output_dir/tools/manifest.json")
 ladybug_sha256=$(sha256_of "$output_dir/$native_library_subdir/$native_library_name")
-artifact_dirs=(bin lib worker grammars licenses skills tools)
+artifact_dirs=(bin worker grammars licenses skills tools)
+if [[ "$native_library_subdir" == lib ]]; then
+  artifact_dirs+=(lib)
+fi
 if [[ "$web_assets" == true ]]; then
   artifact_dirs+=(web)
 fi

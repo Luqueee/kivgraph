@@ -75,9 +75,11 @@ func TestPathExtIsMatchedWithoutRegardToCase(t *testing.T) {
 func TestCandidatesCoverEveryProgramExtensionThePlatformRuns(t *testing.T) {
 	t.Setenv("PATHEXT", ".COM;.EXE;.BAT;.CMD")
 	got := executable.Candidates("kivgraph-ts-worker")
+	// Lower case, whatever PATHEXT says: the filesystem does not care and
+	// Name writes lower case, so a caller comparing the two must not have to.
 	want := []string{
-		"kivgraph-ts-worker.COM", "kivgraph-ts-worker.EXE",
-		"kivgraph-ts-worker.BAT", "kivgraph-ts-worker.CMD",
+		"kivgraph-ts-worker.com", "kivgraph-ts-worker.exe",
+		"kivgraph-ts-worker.bat", "kivgraph-ts-worker.cmd",
 	}
 	if len(got) != len(want) {
 		t.Fatalf("Candidates() = %v, want %v", got, want)
@@ -91,7 +93,7 @@ func TestCandidatesCoverEveryProgramExtensionThePlatformRuns(t *testing.T) {
 
 func TestCandidatesFollowANarrowedPathExt(t *testing.T) {
 	t.Setenv("PATHEXT", ".EXE")
-	if got := executable.Candidates("kivgraph"); len(got) != 1 || got[0] != "kivgraph.exe" && got[0] != "kivgraph.EXE" {
+	if got := executable.Candidates("kivgraph"); len(got) != 1 || got[0] != "kivgraph.exe" {
 		t.Fatalf("Candidates() = %v, want only what this machine says it runs", got)
 	}
 }
