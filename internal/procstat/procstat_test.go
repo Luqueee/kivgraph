@@ -35,7 +35,12 @@ func TestResidentBytesReportsAnotherProcess(t *testing.T) {
 	if !supported() {
 		t.Skipf("resident set size is not reported on %s", runtime.GOOS)
 	}
-	command := exec.Command("/bin/sh", "-c", "read line")
+	// The child is this test binary, held open on a read it will never get an
+	// answer to. It replaces `/bin/sh -c "read line"`, which is a program on
+	// exactly one of the platforms this now runs on -- and which made the case
+	// look portable while it was being skipped for a different reason.
+	command := exec.Command(os.Args[0])
+	command.Env = append(os.Environ(), procstatChildEnv+"=1")
 	stdin, err := command.StdinPipe()
 	if err != nil {
 		t.Fatalf("StdinPipe(): %v", err)
@@ -88,4 +93,19 @@ func TestInvocationSplitsProgramAndCommand(t *testing.T) {
 	if program, command := (Process{}).Invocation(); program != "" || command != "" {
 		t.Fatalf("empty invocation = %q/%q, want both empty", program, command)
 	}
+}
+
+// procstatChildEnv turns a run of this binary into the child a test needs
+// rather than a second run of the suite.
+const procstatChildEnv = "KIVGRAPH_PROCSTAT_CHILD"
+
+func TestMain(m *testing.M) {
+	if os.Getenv(procstatChildEnv) != "" {
+		// Block until the parent closes the pipe, which is the whole of what
+		// the child has to do: exist, and hold enough memory to be measured.
+		var one [1]byte
+		_, _ = os.Stdin.Read(one[:])
+		os.Exit(0)
+	}
+	os.Exit(m.Run())
 }
