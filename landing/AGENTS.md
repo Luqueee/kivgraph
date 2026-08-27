@@ -257,6 +257,20 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
   el informe un número que ninguna visita produjo. El vocabulario, los goals y
   la convención UTM viven en `docs/development/analytics.md`; un evento nuevo se
   añade ahí antes que en el código.
+- **Lo que arranca pm2 es `server.mjs`, no el entry del adaptador**, y la razón
+  es medible: un middleware de Astro ve **una** de siete rutas -- sólo la no
+  prerenderizada-- porque el handler estático contesta las demás antes de que
+  exista el pipeline SSR. `server.mjs` importa el `handler` que el propio
+  adaptador exporta y lo envuelve, así que estáticos, el `301` de barra final y
+  el 404 salen del mismo sitio de siempre; lo único que añade es ver cada
+  petición. Ahí vive el detector de agentes de IA.
+- Los crawlers de IA van a una **segunda propiedad de Umami** y jamás a la
+  principal: un bot no puede mover visitantes, rebote, duración ni una tasa de
+  conversión que describe personas. El filtro de bots de Umami se queda
+  encendido en las dos, y por eso el sender se identifica como
+  `kivgraph-landing/1.0` en vez de falsear la cabecera. El registro de agentes
+  es `src/ai-agents.mjs`, cada fila con la fuente oficial y su fecha, y el resto
+  está en `docs/development/analytics.md`.
 - El JSON-LD del sitio es **un** grafo: la landing publica
   `SoftwareApplication` en `<site>/#software` y `WebSite` en `<site>/#website`, y
   cada página de documentación emite un `TechArticle` que los referencia por

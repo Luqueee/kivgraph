@@ -265,6 +265,125 @@ objetivo.
 La medida de laboratorio del hero vive en otro sitio y responde otra pregunta:
 `landing/AGENTS.md`, sección *Movimiento*.
 
+## Agentes de IA: la segunda propiedad
+
+Dos fenómenos distintos, dos datasets. La propiedad principal describe
+**personas**; los crawlers y agentes de IA van a una segunda propiedad y no
+tocan visitantes, rebote, duración, journeys ni conversión de la primera. El
+filtro de bots de Umami se queda **encendido** en las dos.
+
+### Por qué no es un middleware de Astro
+
+Porque no ve nada. Medido sobre el build: un middleware en `src/middleware.ts`
+recibió **una** de siete rutas -- `/raw/docs/cli.md`, la única no
+prerenderizada -- y se perdió `/`, `/docs/cli/`, `/install/`, `/robots.txt`,
+`/sitemap-0.xml` y el 404. El handler estático del adaptador contesta esas
+antes de que exista el pipeline SSR, y son justo las que pide un crawler.
+
+Lo que sí ve todo es `landing/server.mjs`, que es lo que arranca pm2 en lugar
+del entry del adaptador. No reimplementa nada: importa el `handler` que el
+propio adaptador exporta -- `createStandaloneHandler`, con estáticos, el `301`
+de barra final y el 404 -- y lo envuelve en un `http.createServer`. Verificado a
+través del wrapper: `/`, `/docs/cli/`, `/robots.txt` y `/sitemap-0.xml` en
+`200`, y `/docs/cli` en `301` a la canónica.
+
+### El registro de agentes
+
+`landing/src/ai-agents.mjs`. Plain ESM por la misma razón que `site.mjs`: lo
+consume un proceso Node pelado que Vite nunca transforma.
+
+**Cada identificador salió de la documentación del operador**, con la fuente y
+la fecha al lado. Añadir un agente es una fila ahí y un caso en
+`ai-agents.test.mjs`; ningún otro sitio del repositorio nombra un agente.
+
+|proveedor|agentes|categoría|verificación publicada|
+|---|---|---|---|
+|OpenAI|`OAI-SearchBot`|`search`|rangos IP (`searchbot.json`)|
+|OpenAI|`ChatGPT-User`|`user_fetch`|rangos IP (`chatgpt-user.json`)|
+|OpenAI|`GPTBot`|`training`|rangos IP (`gptbot.json`)|
+|Anthropic|`Claude-SearchBot`|`search`|ninguna publicada|
+|Anthropic|`Claude-User`|`user_fetch`|ninguna publicada|
+|Anthropic|`ClaudeBot`|`training`|ninguna publicada|
+|Perplexity|`PerplexityBot`|`search`|rangos IP (`perplexitybot.json`)|
+|Perplexity|`Perplexity-User`|`user_fetch`|rangos IP (`perplexity-user.json`)|
+
+Tres cosas que el registro hace a propósito y conviene no deshacer:
+
+- **Los UA de OpenAI llevan un Chrome completo dentro.** Su cadena real empieza
+  por `Mozilla/5.0 (Macintosh; ...) Chrome/131.0.0.0 Safari/537.36` y el token
+  va al final. Un matcher que comprobase «¿es Chrome?» antes que el token
+  archivaría los tres como humanos.
+- **Un bot genérico no es IA.** `Googlebot`, `Bingbot`, `Discordbot`, `curl` y
+  un navegador caen a `null`. Convertir cualquier bot en bot de IA vaciaría de
+  sentido el segundo dataset entero.
+- **`Google-Extended` no está, y su ausencia es el punto.** Es un token de
+  `robots.txt` que controla si Google puede usar contenido ya rastreado para
+  entrenar Gemini; la documentación de crawlers de Google no le asigna ningún
+  user agent HTTP, así que nunca llega en una petición. Inventar tráfico de
+  Gemini a partir de él sería fabricar una cifra.
+
+`unknown_ai` es la cuarta categoría: un operador que este fichero conoce
+enviando un agente que no. Es un hallazgo, no una clasificación, y la señal de
+que hace falta una fila nueva.
+
+### Verificación
+
+Hoy es `user_agent` y el evento lo dice: `verified: false`. Nadie resuelve DNS
+ni compara rangos en el camino de la petición, porque eso sí costaría latencia.
+
+OpenAI y Perplexity **publican ficheros CIDR** -- están en el registro -- así que
+subir esto a `ip_range` es posible más adelante y fuera de banda: descargar los
+JSON con caché y comparar. Anthropic no publica ninguno, así que una fila de
+Claude no puede pasar de ser una afirmación. Mentir sobre eso sería peor que no
+verificar.
+
+### Qué se envía, y qué no
+
+Un evento `ai_crawler_request` a la propiedad de crawlers, con
+`provider`, `agent`, `category`, `path`, `method`, `status` y `verified`.
+
+**No se envía** la IP, ninguna cookie, ninguna cabecera de autorización, la
+query string ni el cuerpo. El user agent completo se queda **sólo** en el log
+local: es lo que permite convertir un `unknown_ai` en una fila del registro, y
+describe un robot y no a una persona.
+
+El sender se identifica como `kivgraph-landing/1.0`, neutro y honesto. Umami
+descarta lo que parece un bot, y lo que reportamos **es** un bot: falsear la
+cabecera sería spoofing, y apagar el filtro globalmente expondría la propiedad
+principal justo a la contaminación que todo esto evita.
+
+### Ruido
+
+- **Assets fuera.** `/_astro/`, `/pagefind/`, el favicon, el manifest y todo lo
+  que termina en extensión de asset no generan fila.
+- **Dentro a propósito:** `robots.txt`, `llms.txt`, `llms-full.txt`, los
+  sitemaps y `/raw/**.md`. No son páginas, pero son **cómo** un agente descubre
+  y lee este sitio, y un crawler que empieza por `llms.txt` se comporta distinto
+  de uno que recorre el sitemap.
+- **Deduplicación de 15 minutos** por par (agente, ruta). Medido: cuatro
+  peticiones a la misma ruta producen **un** evento. No es sampling -- que
+  tiraría filas al azar y haría insignificante el recuento de un agente poco
+  frecuente -- y el log local sigue teniendo las cuatro.
+
+### Nada de esto bloquea una respuesta
+
+`fire-and-forget` con timeout de 2 s, dentro de `response.on("finish")`, y todo
+fallo se traga. Medido con Umami apuntando a un puerto muerto: `/docs/cli/`
+contesta en **0,6-0,9 ms**. Si Umami se cae, `kivgraph.dev` sirve igual.
+
+### Log local
+
+Una línea JSON por detección en `stdout`, que es donde pm2 ya recoge:
+
+```json
+{"ai_agent":true,"ai_provider":"openai","ai_agent_name":"OAI-SearchBot",
+ "ai_category":"search","ai_verification":"user_agent","verified":false,
+ "method":"GET","path":"/docs/cli/","status":200,"at":"..."}
+```
+
+Es la fuente de verdad que sobrevive a que Umami esté caído o a que un evento
+se deduplique, y no añade un segundo sistema de logging.
+
 ## MANUAL SETUP REQUIRED
 
 Lo que sigue **no se puede hacer desde el repositorio**. Son cambios en el
@@ -286,6 +405,63 @@ kivgraph -> Goals*, crear:
 `github_click` se deja **fuera** de los goals a propósito: es interés, y
 contarlo como conversión inflaría la tasa con clics que no llevan a instalar
 nada.
+
+### 1b. La propiedad de crawlers de IA y sus variables
+
+*Settings -> Websites -> Add website*, con nombre
+`kivgraph.dev - AI Crawlers` y dominio `kivgraph.dev`. Copiar el **Website ID**
+y ponerlo en `landing/.env` **del host**, junto a las dos que ya hay:
+
+```env
+KIVGRAPH_UMAMI_URL=https://analytics.luqueee.dev
+KIVGRAPH_UMAMI_AI_WEBSITE_ID=<el id de la propiedad de crawlers>
+```
+
+Nunca el id de la propiedad principal: mezclarlos es justo lo que esta
+separación existe para impedir. Como el par de la web, **falla cerrado**: con
+una de las dos ausentes no se envía nada, así que en desarrollo está apagado.
+`KIVGRAPH_UMAMI_AI_TRACKING=off` lo desactiva sin borrar nada.
+
+Estas dos las lee `server.mjs` en el arranque; **no** son variables de build, así
+que basta con reiniciar:
+
+```bash
+pm2 restart kivgraph-landing
+pm2 logs kivgraph-landing --lines 5   # la primera línea dice ai_tracking: true
+```
+
+### 1c. Los informes de la propiedad de crawlers
+
+Todo sale de un solo evento, `ai_crawler_request`, filtrando por sus campos.
+
+|informe|filtro|qué contesta|
+|---|---|---|
+|**AI Crawlers Overview**|ninguno|desglose por proveedor, agente, categoría y ruta|
+|**Search AI Crawlers**|`category = search`|quién te está indexando para citarte|
+|**AI User Fetches**|`category = user_fetch`|**qué pide alguien a su asistente**|
+|**Training Crawlers**|`category = training`|quién recoge para entrenar|
+|**Provider x page**|`provider = openai` + `path`|qué lee cada proveedor|
+
+`user_fetch` es el que más dice: es intención humana llegando por una máquina, y
+es lo que se compara con los referrals de IA de la propiedad principal.
+
+### 1d. Referrals de IA, en la propiedad principal
+
+No hace falta nada nuevo: el referrer ya se recoge y las query strings también.
+En *Referrers*, filtrar por `chatgpt.com`, `perplexity.ai`, `claude.ai`,
+`gemini.google.com` y `copilot.microsoft.com`; y en los parámetros, por
+`utm_source=chatgpt.com`, que es lo que ChatGPT añade a los enlaces que muestra.
+
+La correlación que se busca no la calcula Umami, y no hace falta que lo haga:
+
+```text
+OAI-SearchBot  ->  /docs/tools/find-by-intent/     (propiedad de crawlers)
+        ...semanas después...
+referrer chatgpt.com  ->  /docs/tools/find-by-intent/   (propiedad principal)
+```
+
+Las dos mitades comparten la **ruta**, que es la columna por la que se cruzan a
+mano, igual que con Search Console.
 
 ### 2. El dominio del sitio en Umami
 
