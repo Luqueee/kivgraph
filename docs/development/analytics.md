@@ -367,10 +367,43 @@ the body. The full user agent stays **only** in the local log: it is what makes
 it possible to turn an `unknown_ai` into a registry row, and it describes a
 robot and not a person.
 
-The sender identifies itself as `kivgraph-landing/1.0`, neutral and honest.
-Umami discards what looks like a bot, and what we report **is** a bot: faking
-the header would be spoofing, and turning the filter off globally would expose
-the main property to exactly the contamination all of this avoids.
+**The sender's `User-Agent` is the empty string, and that is the finding, not a
+detail.** The reasoning that produced the first value was wrong, and it cost
+the crawler property a day of silence.
+
+It used to send `kivgraph-landing/1.0 (+https://kivgraph.dev)` -- neutral and
+honest -- on the assumption that Umami's collector rejects a `User-Agent` that
+*looks like* a crawler. It does not. It runs `isbot` over the sender's own
+header, and `isbot` treats **anything that is not a recognisable browser** as a
+bot. Measured against the instance on a throwaway property, every honest
+identifier was discarded and only one value was recorded:
+
+|sender `User-Agent`|collector|
+|---|---|
+|`kivgraph-landing/1.0 (+https://kivgraph.dev)`|`{"beep":"boop"}`, discarded|
+|`kivgraph-landing/1.0`, `kivgraph-landing`, `kivgraph`|discarded|
+|`node` -- what `undici` sends on its own|discarded|
+|**the empty string**|**recorded**|
+|a browser user agent|recorded, and it would be spoofing|
+
+It fails **invisibly**, which is the part worth remembering. Umami answers
+`200`, so the reporter's `catch` has no error to catch. The local detection log
+is written either way. And `ai_tracking` on the startup line still says `true`,
+because the variables really are set -- that flag reports configuration, not
+delivery. Eighty detections were logged and nothing arrived, with no signal
+anywhere. **A detection in the log and `ai_tracking: true` together still do
+not prove Umami received anything.** Only the property does.
+
+Deleting the header is not the same fix as emptying it: `undici` substitutes
+its own `User-Agent: node`, which `isbot` matches. The empty value has to be
+written down, and `landing/src/ai-report.test.mjs` asserts both halves on the
+wire rather than on the constant.
+
+An empty `User-Agent` claims nothing and impersonates nobody; the agent being
+reported travels as normalised metadata in the payload, where it belongs.
+`DISABLE_BOT_CHECK` on the instance was the other way out and it is the wrong
+one: it is global, so it would drop the filter on the main property too, which
+is exactly the contamination all of this avoids.
 
 ### Noise
 
