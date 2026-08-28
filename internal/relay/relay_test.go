@@ -3,6 +3,7 @@ package relay
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -21,9 +22,9 @@ const testToken = "a-token-the-daemon-published"
 // which HTTP methods it was asked, which is how the standalone-SSE invariant
 // is checked: that stream is a GET and nothing else here is.
 type fakeDaemon struct {
-	server  *httptest.Server
-	mu      sync.Mutex
-	methods []string
+	server   *httptest.Server
+	mu       sync.Mutex
+	requests []string
 }
 
 func startFakeDaemon(t *testing.T, serverVersion string) *fakeDaemon {
@@ -39,10 +40,12 @@ func startFakeDaemon(t *testing.T, serverVersion string) *fakeDaemon {
 	fake := &fakeDaemon{}
 	handler := sdkmcp.NewStreamableHTTPHandler(
 		func(*http.Request) *sdkmcp.Server { return server }, nil)
-	fake.server = httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		fake.mu.Lock()
-		fake.methods = append(fake.methods, request.Method)
-		fake.mu.Unlock()
+	// Mounted at the path the real daemon uses, and only there, because the
+	// difference between the two GETs this file cares about is the path: the
+	// reachability probe asks for one the daemon does not serve, and the
+	// standalone SSE stream would ask for this one.
+	mux := http.NewServeMux()
+	mux.Handle(daemon.MCPPath, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		// The token is the only thing that separates this daemon from whatever
 		// else can bind a loopback port, so it is checked here too.
 		if request.Header.Get("Authorization") != daemon.BearerHeader(testToken) {
@@ -51,19 +54,25 @@ func startFakeDaemon(t *testing.T, serverVersion string) *fakeDaemon {
 		}
 		handler.ServeHTTP(writer, request)
 	}))
+	fake.server = httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		fake.mu.Lock()
+		fake.requests = append(fake.requests, request.Method+" "+request.URL.Path)
+		fake.mu.Unlock()
+		mux.ServeHTTP(writer, request)
+	}))
 	t.Cleanup(fake.server.Close)
 	return fake
 }
 
 func (fake *fakeDaemon) endpoint() daemon.Endpoint {
-	return daemon.Endpoint{URL: fake.server.URL, Token: testToken, PID: 4242}
+	return daemon.Endpoint{URL: fake.server.URL + daemon.MCPPath, Token: testToken, PID: 4242}
 }
 
-func (fake *fakeDaemon) sawMethod(method string) bool {
+func (fake *fakeDaemon) saw(method, path string) bool {
 	fake.mu.Lock()
 	defer fake.mu.Unlock()
-	for _, seen := range fake.methods {
-		if seen == method {
+	for _, seen := range fake.requests {
+		if seen == method+" "+path {
 			return true
 		}
 	}
@@ -109,7 +118,7 @@ func TestARelayForwardsAToolItKnowsNothingAbout(t *testing.T) {
 	response, err := session.CallTool(context.Background(),
 		&sdkmcp.CallToolParams{Name: "graph_status", Arguments: map[string]any{}})
 	if err != nil {
-		t.Fatalf("CallTool through the relay: %v", err)
+		t.Fatalf("CallTool(graph_status) through the relay: %v", err)
 	}
 	text, ok := response.Content[0].(*sdkmcp.TextContent)
 	if !ok || text.Text != "answered by the daemon" {
@@ -141,12 +150,15 @@ func TestTheRelayOpensNoStandaloneStream(t *testing.T) {
 	session, _ := connectThroughRelay(t, fake, "9.9.9")
 	if _, err := session.CallTool(context.Background(),
 		&sdkmcp.CallToolParams{Name: "graph_status", Arguments: map[string]any{}}); err != nil {
-		t.Fatalf("CallTool through the relay: %v", err)
+		t.Fatalf("CallTool(graph_status) through the relay: %v", err)
 	}
-	if !fake.sawMethod(http.MethodPost) {
+	if !fake.saw(http.MethodPost, daemon.MCPPath) {
 		t.Fatal("the daemon saw no POST, so this proves nothing about the GET")
 	}
-	if fake.sawMethod(http.MethodGet) {
+	// A GET elsewhere is the reachability probe and is meant to be there; a GET
+	// on the MCP path is the standalone stream, and that is the one the relay
+	// cannot service.
+	if fake.saw(http.MethodGet, daemon.MCPPath) {
 		t.Fatal("the relay opened the standalone SSE stream, which it cannot service")
 	}
 }
@@ -200,7 +212,7 @@ func TestTheRelayServesADaemonThatNamesNoVersion(t *testing.T) {
 	session, _ := connectThroughRelay(t, fake, "0.9.1")
 	if _, err := session.CallTool(context.Background(),
 		&sdkmcp.CallToolParams{Name: "graph_status", Arguments: map[string]any{}}); err != nil {
-		t.Fatalf("CallTool through the relay: %v", err)
+		t.Fatalf("CallTool(graph_status) through the relay: %v", err)
 	}
 }
 
@@ -248,4 +260,53 @@ type countingTransport struct{ connects int }
 func (transport *countingTransport) Connect(context.Context) (sdkmcp.Connection, error) {
 	transport.connects++
 	return nil, errors.New("the agent must not have been connected")
+}
+
+// TestAListenerThatAnswersNothingIsUnreachable is why the probe is an HTTP
+// request and not a TCP dial.
+//
+// A process that accepts the connection and never answers passes a dial. The
+// agent's own handshake would then be the first thing to find out -- with no
+// timeout on it, because an MCP session has to be able to sit idle, and with
+// stdio already consumed so there is nothing left to fall back to. The
+// difference between the two probes is a hang and a fallback.
+func TestAListenerThatAnswersNothingIsUnreachable(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+
+	var held []net.Conn
+	var mu sync.Mutex
+	go func() {
+		for {
+			accepted, acceptErr := listener.Accept()
+			if acceptErr != nil {
+				return
+			}
+			// Held open and answered with nothing, which is the whole fixture:
+			// closing it would be a refusal a dial could already see.
+			mu.Lock()
+			held = append(held, accepted)
+			mu.Unlock()
+		}
+	}()
+	t.Cleanup(func() {
+		mu.Lock()
+		defer mu.Unlock()
+		for _, open := range held {
+			_ = open.Close()
+		}
+	})
+
+	endpoint := daemon.Endpoint{URL: "http://" + listener.Addr().String(), Token: testToken}
+	started := time.Now()
+	if err := Reachable(context.Background(), endpoint); !errors.Is(err, ErrDaemonUnreachable) {
+		t.Fatalf("Reachable() = %v, want it to wrap ErrDaemonUnreachable", err)
+	}
+	// And it gave up on its own deadline rather than on the caller's patience.
+	if waited := time.Since(started); waited > 4*reachTimeout {
+		t.Fatalf("the probe waited %s, which is not bounded by reachTimeout (%s)", waited, reachTimeout)
+	}
 }

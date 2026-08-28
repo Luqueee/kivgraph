@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"net/url"
 	"sync"
@@ -41,8 +40,8 @@ var ErrDaemonUnreachable = errors.New("relay: no daemon answered the published e
 var ErrVersionSkew = errors.New("relay: the daemon runs a different kivgraph release")
 
 // reachTimeout bounds the probe that decides between relaying and serving in
-// process. It is short on purpose: the answer is "is a socket accepting", and
-// a client is waiting on the handshake behind it.
+// process. It is short on purpose: a client is waiting on the handshake behind
+// it, and the question is only whether something answers HTTP here.
 const reachTimeout = 2 * time.Second
 
 // Run serves one MCP session by forwarding it to a running daemon, holding no
@@ -124,25 +123,47 @@ func Reachable(ctx context.Context, endpoint daemon.Endpoint) error {
 // that was killed: a relay that believed it would consume the agent's
 // handshake before finding out, and by then there is no falling back.
 //
-// A dial is not proof it is *our* daemon -- another process can hold the port.
-// The bearer token is what settles that, one request later, and by then the
-// session is committed. The window is narrow and declared rather than closed:
-// closing it costs a full handshake before the agent's own.
+// It asks for a path the daemon does not serve, which is every path but
+// `/mcp`, and accepts any status at all. That is deliberate on three counts: it
+// opens no session, it cannot be mistaken for the standalone SSE stream a GET
+// on `/mcp` would start, and a 404 arrives with its headers immediately
+// whatever the daemon is busy with.
+//
+// A TCP dial was not enough, and the difference is a hang rather than a
+// fallback. A listener that accepts and never answers passes a dial, and the
+// agent's own handshake is then the first thing to find out -- with no timeout
+// on it, because an MCP session must be able to sit idle, and with stdio
+// already consumed so there is nothing left to fall back to.
+//
+// What it still does not prove is that this is *our* daemon: another process
+// can hold the port and answer 404 as readily. The bearer token settles that
+// one request later, and by then the session is committed. That window is
+// declared rather than closed, because closing it costs a full authenticated
+// handshake before the agent's own.
 func reachable(ctx context.Context, endpoint daemon.Endpoint) error {
 	parsed, err := url.Parse(endpoint.URL)
 	if err != nil {
 		return fmt.Errorf("%w: %q: %w", ErrDaemonUnreachable, endpoint.URL, err)
 	}
-	host := parsed.Host
-	if host == "" {
-		return fmt.Errorf("%w: %q names no host", ErrDaemonUnreachable, endpoint.URL)
+	if parsed.Host == "" || parsed.Scheme == "" {
+		return fmt.Errorf("%w: %q names no host to reach", ErrDaemonUnreachable, endpoint.URL)
 	}
-	dialer := net.Dialer{Timeout: reachTimeout}
-	connection, err := dialer.DialContext(ctx, "tcp", host)
+	probeCtx, cancel := context.WithTimeout(ctx, reachTimeout)
+	defer cancel()
+	// Deliberately not daemon.MCPPath: that is the one path where a GET means
+	// "open the stream this relay cannot service".
+	probe := (&url.URL{Scheme: parsed.Scheme, Host: parsed.Host, Path: "/"}).String()
+	request, err := http.NewRequestWithContext(probeCtx, http.MethodGet, probe, nil)
 	if err != nil {
-		return fmt.Errorf("%w: %s: %w", ErrDaemonUnreachable, host, err)
+		return fmt.Errorf("%w: %q: %w", ErrDaemonUnreachable, endpoint.URL, err)
 	}
-	return connection.Close()
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return fmt.Errorf("%w: %s: %w", ErrDaemonUnreachable, parsed.Host, err)
+	}
+	// The body is not read: Do has already returned the headers, which is the
+	// whole of the answer.
+	return response.Body.Close()
 }
 
 // pipe copies messages one way until either end stops, showing each to inspect

@@ -205,11 +205,13 @@ superficie MCP el suyo en `internal/mcp/AGENTS.md`.
 
 ## Generaciones, publicación y snapshots
 
-- `kivgraph serve` y `kivgraph ui` siguen la generación publicada: cargan el
-  HotSnapshot al arrancar y republican cuando el puntero `CURRENT` avanza, sin
+- `kivgraph ui`, y `kivgraph serve` **cuando contesta él mismo**, siguen la
+  generación publicada y republican cuando el puntero `CURRENT` avanza, sin
   coordinarse con nadie -- `SnapshotStore.Publish` solo acepta una generación
   estrictamente más nueva. Un `index --full` en otra terminal no puede dejar a
-  un servidor sirviendo un grafo que ya no existe en disco.
+  un servidor sirviendo un grafo que ya no existe en disco. Un `serve` que hace
+  de relé no abre store, ni seguidor, ni resync: no tiene grafo que seguir, y el
+  que contesta es el demonio.
 - La publicación de una generación toma un `flock` sobre el propio store. El
   mutex del `Store` sólo ordena las goroutines de un proceso, y un directorio
   de estado lo comparten un `index --full`, un `index_project` de un cliente y
