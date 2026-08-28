@@ -35,6 +35,21 @@ survives the gap, and a stored delta would have lost it.
 an asset with `--clobber` replaces it, and a replaced asset is a different
 asset whose counter starts at zero.
 
+## No branch may be named `metrics/anything`
+
+Git stores a branch as a file under `refs/heads/`, so `refs/heads/metrics` and
+`refs/heads/metrics/download-series` cannot both exist: one is a file where the
+other needs a directory. A branch under `metrics/` fetches with
+
+```
+cannot lock ref 'refs/remotes/origin/metrics': 'refs/remotes/origin/metrics/x'
+exists; cannot create 'refs/remotes/origin/metrics'
+```
+
+and the fix is `git remote prune origin` once the offending branch is gone.
+This branch is the data, so the namespace is spent: name working branches
+something else.
+
 ## Reading it
 
 From a checkout of `main`, with this branch cloned anywhere:

@@ -91,8 +91,12 @@ jobs:
             git -C "$work" switch -q -c metrics
           else
             git -C "$work" switch -q --orphan metrics
-            cp .github/metrics-branch-README.md "$work/README.md"
           fi
+
+          # Copied on every run and not only when the branch is created: the
+          # template lives on `main`, and an edit there would otherwise never
+          # reach the branch it describes.
+          cp .github/metrics-branch-README.md "$work/README.md"
 
           mkdir -p "$work/downloads"
           today="$work/downloads/$day.json"

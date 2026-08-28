@@ -506,6 +506,129 @@ One JSON line per detection on `stdout`, which is where pm2 already collects:
 It is the source of truth that survives Umami being down or an event being
 deduplicated, and it does not add a second logging system.
 
+## First runs: the third property
+
+A download is not a person, and an install is not a visit. Counting the
+downloads is Layer 0 of `docs/adr/0083-a-download-is-not-a-person.md`: it
+touches no client, reads GitHub's own counters and is deployed. This section
+is Layer 1 -- the one ping that says a version arrived on a machine and ran
+there.
+
+**Nothing below is emitted yet.** It is written here first because that is
+this document's own rule: an event is added here before it is added to the
+code. `LUQUE-2232` carries the emitters and their gates.
+
+### The event
+
+One event, `first_run`, on a third property, `kivgraph FIRST RUNS`, with five
+flat string fields:
+
+- **`emitter`** -- `installer` or `binary`. Which of two different facts this
+  row is;
+- **`version`** -- the version that arrived, `0.9.1`, validated against the
+  published version pattern;
+- **`platform`** -- `linux-amd64`, `darwin-arm64` or `windows-amd64`. The same
+  vocabulary the release assets use, so Layer 0 and Layer 1 can be read side
+  by side instead of being joined by hand;
+- **`channel`** -- `installer`, `mcpb`, `archive` or `source`. How the binary
+  got there. It is what makes the `.mcpb` share of the volume visible from the
+  client side, where the download counters cannot see it;
+- **`transport`** -- `stdio` or `daemon`, and absent from an `installer` row,
+  because an installer has not started a server and reporting a default it did
+  not choose would be inventing data.
+
+`first_run` is the one event name that does not obey `<object>_<action>`. The
+object *is* the event, and `run_first` would satisfy the shape at the cost of
+being unsearchable by the name everyone will use.
+
+### Why two emitters, and why the field cannot be dropped
+
+An installer that finished and a binary that started are different facts, and
+the second does not follow from the first: a bundle can be installed and never
+launched. Without `emitter` the property would report an installer's success
+as a first run, which is exactly the claim ADR 0083 spends its length
+refusing. Only the `binary` rows answer *how many machines ran it*.
+
+And a `.mcpb` never runs `install.sh` -- the MCP client unpacks the bundle and
+launches the binary -- so instrumenting the installer alone would give clean
+data about the `5 %` of the volume that arrives through it and nothing about
+the `39 %` that arrives as a bundle.
+
+### What is measured is the first run of a version
+
+The marker lives under the state directory, not the bundle root: an update
+replaces the bundle, so a marker there would fire again on every update.
+Calling the number *installations* would be a claim the marker cannot support.
+
+It is created with `O_CREATE|O_EXCL` and only the process that created it
+sends. Reading the marker and then writing it would let a whole burst find it
+absent and report before any of them had created it -- and stdio starts
+bursts: ADR 0069 measured `69` starts of `serve` with `8` alive at once. That
+is one install turning into as many pings as the client happened to spawn.
+
+### What is not sent
+
+No identifier of ours, no repository name, no path, no hostname, no user name,
+nothing about the code that was indexed, and no address stored by us.
+
+**Identity is Umami's, and this repository mints none.** Umami derives a
+visitor from a daily-rotating hash of website id, hostname, address and user
+agent, so *unique visitors per day* is already distinct machines and the
+address itself is never stored.
+
+That has one load-bearing consequence: **the endpoint has to forward the
+caller's address to the collector**. Without it every install on earth
+collapses into one visitor -- the landing server itself. And since
+`REPORTER_HEADERS` forces `User-Agent: ""` to survive the collector's `isbot`
+filter, the address is the *only* discriminator left, so a corporate NAT
+counts as one person. That is the bias every web analytics carries, and it is
+written here rather than discovered in a report.
+
+### The endpoint, and the bounds on the number
+
+`POST /api/telemetry/first-run`, in `landing/server.mjs` because the reporter,
+the `User-Agent` finding it depends on and the fail-closed configuration pair
+are already there; an Astro route would need a second copy of all three.
+
+It is public, so the number is worth exactly its bounds: validation against
+the closed sets above and the published version pattern, a dedupe window per
+address, version **and `emitter`**, and `204` on every path so that probing it
+teaches nothing.
+
+The `emitter` in that key is the easy one to leave out. An installer that has
+just finished and the first run that follows it carry the same address and the
+same version seconds apart, so a window keyed on those two alone would discard
+the second -- precisely the `binary` row the property exists to collect.
+
+The window does **not** buy the headline number. Under a daily-rotating hash
+one address reinstalling in a loop is already **one** unique visitor, so
+repetition inflates the event count and never the visitor count. The window
+bounds events and write volume; validation is what stops a forged `version`
+from inventing a row no release ever produced.
+
+### Nothing may reach stdout, and stdio decides that
+
+`kivgraph serve` runs the MCP surface over stdio, where one stray byte on
+stdout corrupts the session; the daemon serves the same surface over HTTP,
+where it does not. The ping is shared code, so it obeys the stricter of the
+two everywhere: a goroutine with a short timeout, failures dropped, and the
+first-run notice on stderr. A test that does not try to write to stdout will
+not notice the day this stops being true.
+
+### Off by a variable, on both ends
+
+`KIVGRAPH_TELEMETRY=0` in the environment stops the client sending. The server
+half fails closed the way the other two properties do: without its website id
+nothing is forwarded, so a development landing cannot write to the dataset.
+
+### What has to be verified before this measures anything
+
+That Umami honours the forwarded address is **wire behaviour, not documented
+contract**, and it is the same shape of risk as the `User-Agent` finding: it
+would fail with `200`, `{"beep":"boop"}` and nothing written. It gets the same
+treatment -- a check against the instance on a throwaway property, before the
+emitters are believed.
+
 ## PostHog: the behaviour, not the acquisition
 
 Umami and PostHog **do not overlap and do not compete**. Each answers questions
@@ -952,6 +1075,32 @@ causation, do not infer Google keywords from PostHog, do not assume that
 `direct` is direct access, and do not compare absolute Umami and PostHog
 figures without considering that they measure in different ways.
 ```
+
+### 1i. The first-runs property and its variables
+
+*Settings -> Websites -> Add website*, name `kivgraph FIRST RUNS`, domain
+`kivgraph.dev`. Its id goes in the **host's** `landing/.env` beside the others:
+
+```env
+KIVGRAPH_UMAMI_FIRST_RUN_WEBSITE_ID=<the first-runs property's id>
+```
+
+Never the main property's id, and never the crawler property's: three
+questions, three datasets, and an install landing in the site's property moves
+visitors, bounce and the conversion rate that describes people. It fails
+closed like the other pair -- without the id nothing is forwarded -- and
+`KIVGRAPH_UMAMI_FIRST_RUN_TRACKING=off` disables it without deleting anything.
+
+Read by `server.mjs` at startup, so no rebuild is needed to change it. The pm2
+warning in **1b** applies unchanged: `restart` reuses the saved process
+definition, and the startup line is what says which entry is running.
+
+The reports worth having are one per emitter, because the two must never be
+added up: *first runs by platform* filtered to `emitter = binary`, which is
+the machines number, and *installs by channel* filtered to
+`emitter = installer`, which is the installer's own success rate. A third,
+`transport` on the `binary` rows, is the only measurement of how often the
+stdio entry ends up serving in process rather than relaying.
 
 ### 2. The site's domain in Umami
 
