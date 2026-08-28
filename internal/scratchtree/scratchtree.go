@@ -154,19 +154,51 @@ func materialiseFromGit(ctx context.Context, source, root string) error {
 	return overlayWorkingTree(ctx, source, root)
 }
 
+// extractTar writes an archive into root and lets nothing out of it.
+//
+// The archive is `git archive` over a **registered repository**, which is
+// third-party content: a repository can carry a symlink pointing anywhere, and
+// nothing stops one from carrying an entry designed to escape. Three shapes
+// have to be refused, and only the first is the obvious one.
+//
+//  1. An entry named `../../etc/passwd`. securePath rejects it.
+//  2. A symlink whose target is **absolute** -- `evil -> /etc`. The first
+//     version of this joined the link target onto the entry's directory to
+//     test it, and filepath.Join cleans an absolute operand away:
+//     Join("a", "/etc") is "a/etc", which passes every containment check. The
+//     symlink was then created pointing at /etc, and a later entry named
+//     `a/evil/passwd` wrote through it. That is the hole CodeQL found, and
+//     the reason nothing here creates a symlink at all any more: an inner
+//     link is materialised as a copy of its content by materialiseLinks, so
+//     the class of escape cannot occur rather than being defended against.
+//  3. A regular entry written **through** a symlinked parent, whether that
+//     symlink came from an earlier entry or already existed. The name is
+//     clean, so no test on the name can see it; the parent directory has to
+//     be resolved.
 func extractTar(stream io.Reader, root string) error {
 	reader := tar.NewReader(stream)
+	// The prefix every path written below has to carry. It is computed once
+	// and compared inline at each sink rather than inside a helper: a
+	// containment test that lives one call away is one a reader -- and a
+	// static analyser -- has to take on faith.
+	prefix := filepath.Clean(root) + string(os.PathSeparator)
+	// A symlink is recorded and materialised after the loop, because its
+	// target may not have been written yet.
+	var links []recordedLink
 	for {
 		header, err := reader.Next()
 		if errors.Is(err, io.EOF) {
-			return nil
+			return materialiseLinks(root, prefix, links)
 		}
 		if err != nil {
 			return err
 		}
-		target, err := securePath(root, header.Name)
-		if err != nil {
+		if err := refuseEscapingName(header.Name); err != nil {
 			return err
+		}
+		target := filepath.Join(root, filepath.Clean(filepath.FromSlash(header.Name)))
+		if !strings.HasPrefix(target, prefix) {
+			return fmt.Errorf("scratchtree: entry %q escapes the tree", header.Name)
 		}
 		switch header.Typeflag {
 		case tar.TypeDir:
@@ -175,6 +207,9 @@ func extractTar(stream io.Reader, root string) error {
 			}
 		case tar.TypeReg:
 			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+				return err
+			}
+			if err := parentStaysInside(root, target); err != nil {
 				return err
 			}
 			file, err := os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY,
@@ -190,21 +225,116 @@ func extractTar(stream io.Reader, root string) error {
 				return err
 			}
 		case tar.TypeSymlink:
-			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-				return err
-			}
-			// A symlink out of the tree is not reproduced. The analyzer would
-			// follow it back into the repository, which is the one thing this
-			// package exists to prevent.
-			if _, err := securePath(root, filepath.Join(filepath.Dir(header.Name), header.Linkname)); err != nil {
+			// An absolute target is refused before anything is joined,
+			// because joining is what hides it: Join("a", "/etc") is "a/etc".
+			// A relative one is kept for the second pass, which is the only
+			// place a link can be resolved against a tree that exists.
+			if absoluteLinkname(header.Linkname) {
 				continue
 			}
-			_ = os.Remove(target)
-			if err := os.Symlink(header.Linkname, target); err != nil {
-				return err
-			}
+			links = append(links, recordedLink{target: target, linkname: header.Linkname})
 		}
 	}
+}
+
+// recordedLink is a symlink entry waiting for the second pass.
+type recordedLink struct{ target, linkname string }
+
+// materialiseLinks turns each recorded symlink into a **copy of what it points
+// at**, and never into a symlink.
+//
+// The tree is a build input, not something a person reads, and a build cares
+// about the bytes behind a path rather than about how the path is spelled. So
+// nothing here calls os.Symlink, and the entire class of archive-symlink
+// escape -- a link to /etc followed by an entry written through it -- cannot
+// occur rather than being defended against. That is worth the one thing it
+// costs: a build that inspects link-ness sees a regular file.
+//
+// A link out of the tree, or onto a directory, or onto something that is not
+// there, is simply absent. A repository may legitimately contain any of the
+// three, and reproducing them is what this package exists to avoid.
+func materialiseLinks(root, prefix string, links []recordedLink) error {
+	for _, entry := range links {
+		resolved := filepath.Clean(
+			filepath.Join(filepath.Dir(entry.target), filepath.FromSlash(entry.linkname)))
+		if !strings.HasPrefix(resolved, prefix) {
+			continue
+		}
+		info, err := os.Lstat(resolved)
+		if err != nil || !info.Mode().IsRegular() {
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(entry.target), 0o755); err != nil {
+			return err
+		}
+		if err := parentStaysInside(root, entry.target); err != nil {
+			return err
+		}
+		data, err := os.ReadFile(resolved)
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(entry.target, data, info.Mode().Perm()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// absoluteLinkname reports whether a symlink target names a location rather
+// than a neighbour.
+//
+// It covers the Windows drive and UNC spellings too, which are absolute in the
+// sense that matters here even on a platform whose filepath.IsAbs says
+// otherwise: an archive is written on one machine and extracted on another.
+func absoluteLinkname(linkname string) bool {
+	trimmed := strings.TrimSpace(linkname)
+	return trimmed == "" ||
+		filepath.IsAbs(filepath.FromSlash(trimmed)) ||
+		strings.HasPrefix(trimmed, "/") ||
+		strings.ContainsRune(trimmed, ':') ||
+		strings.HasPrefix(trimmed, `\`)
+}
+
+// symlinkStaysInside is the same rule extractTar applies inline, exposed so a
+// test can state it directly over the shapes that matter.
+func symlinkStaysInside(root, target, linkname string) bool {
+	if absoluteLinkname(linkname) {
+		return false
+	}
+	resolved := filepath.Clean(
+		filepath.Join(filepath.Dir(target), filepath.FromSlash(linkname)))
+	return strings.HasPrefix(resolved, filepath.Clean(root)+string(os.PathSeparator))
+}
+
+// parentStaysInside resolves the directory a write is about to land in and
+// refuses one that leaves the tree through a symlink. A clean entry name says
+// nothing about this: the escape is in the directory, not in the name.
+func parentStaysInside(root, target string) error {
+	realRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return fmt.Errorf("scratchtree: resolve tree root: %w", err)
+	}
+	parent, err := filepath.EvalSymlinks(filepath.Dir(target))
+	if err != nil {
+		return fmt.Errorf("scratchtree: resolve %q: %w", filepath.Dir(target), err)
+	}
+	if !contains(realRoot, parent) {
+		return fmt.Errorf("scratchtree: %q resolves outside the tree", target)
+	}
+	return nil
+}
+
+// contains reports whether path is root or sits under it. It is a prefix test
+// on cleaned absolute paths, which is the shape that actually holds after
+// filepath.Join has normalised its operands.
+func contains(root, path string) bool {
+	root = filepath.Clean(root)
+	path = filepath.Clean(path)
+	if path == root {
+		return true
+	}
+	return strings.HasPrefix(path, root+string(filepath.Separator))
 }
 
 // overlayWorkingTree copies over what the working tree changed since HEAD, so
@@ -299,13 +429,32 @@ func excludedPath(path string) bool {
 
 // securePath refuses a path that would land outside the tree. A tar entry is
 // attacker-controlled in the general case and `../` is the classic way out.
+//
+// It tests the joined result and not only the entry name. The two are almost
+// always the same answer, and the one time they are not is the one that
+// matters.
 func securePath(root, name string) (string, error) {
-	cleaned := filepath.Clean(filepath.FromSlash(name))
-	if filepath.IsAbs(cleaned) || cleaned == ".." ||
-		strings.HasPrefix(cleaned, ".."+string(filepath.Separator)) {
+	if err := refuseEscapingName(name); err != nil {
+		return "", err
+	}
+	target := filepath.Join(root, filepath.Clean(filepath.FromSlash(name)))
+	if !strings.HasPrefix(target, filepath.Clean(root)+string(os.PathSeparator)) {
 		return "", fmt.Errorf("scratchtree: entry %q escapes the tree", name)
 	}
-	return filepath.Join(root, cleaned), nil
+	return target, nil
+}
+
+// refuseEscapingName rejects an entry name that names a location rather than a
+// path inside the archive. `../` is the classic way out; an absolute name and
+// the Windows spellings are the rest of it.
+func refuseEscapingName(name string) error {
+	cleaned := filepath.Clean(filepath.FromSlash(name))
+	if filepath.IsAbs(cleaned) || strings.HasPrefix(name, "/") ||
+		cleaned == ".." || strings.HasPrefix(cleaned, ".."+string(filepath.Separator)) ||
+		strings.ContainsRune(name, ':') || strings.HasPrefix(name, `\`) {
+		return fmt.Errorf("scratchtree: entry %q escapes the tree", name)
+	}
+	return nil
 }
 
 func within(candidate, root string) bool {

@@ -60,9 +60,19 @@ way; only the cost differs.
   because the index has to outlive the tree.
 - The tar stream is read in process rather than piped to a `tar` binary:
   Windows is a published platform and does not reliably have one.
-- A tar entry that would land outside the tree is refused, and a symlink whose
-  target escapes it is not reproduced -- following one back into the
-  repository is exactly what this prevents.
+- The archive is third-party content -- it is `git archive` over a registered
+  repository -- and three escapes are refused, not one. A traversal name is
+  the obvious shape. A symlink with an **absolute** target is the one that got
+  through: the first version joined the link target onto the entry's
+  directory to test it, and `filepath.Join("a", "/etc")` is `"a/etc"`, which
+  passes every containment check. And a write **through** a symlinked parent
+  has a clean name, so no test on the name can see it; the parent is resolved
+  with `EvalSymlinks` before anything is written. And nothing creates a
+  symlink at all: a link that stays inside the tree is materialised as a copy
+  of its content, so the class cannot occur rather than being defended
+  against. A link is legitimate content -- this repository's `CLAUDE.md` is
+  one -- and a build reads the bytes behind a path, so the only thing that
+  costs is a build that inspects link-ness.
 - `TestRunLeavesTheRepositoryUntouched` indexes a fixture **in place** and
   compares the tree before and after. Every other end-to-end test copies first,
   which is what a test may do and also what hid the defect.
