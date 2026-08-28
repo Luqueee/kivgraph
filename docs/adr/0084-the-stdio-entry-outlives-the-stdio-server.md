@@ -8,12 +8,31 @@
   same two transports
 - **Changes the CLI surface:** yes -- `serve` stops loading a graph in the
   common case, and may install a supervisor
+- **Implementation:** `LUQUE-2233`; nothing in *Decision* is built
+
+## Where the numbers come from
+
+Every figure below is quoted rather than produced here, and each has one
+source:
+
+- **The eight-client tables, idle and answering.**
+  `benchmarks/daemon-cost/report.md`, schema `daemon-cost-v3`, measured
+  `2026-08-23` on the `workspace` corpus at `108,737` symbols with a
+  `77.6 MB` snapshot.
+- **`69` starts of `serve` with `8` alive, and `48` of `51` silent.** The
+  event log of a machine in use, counted by ADR 0067 and ADR 0069.
+- **The release-page shares, `39 %` and `5 %`.** ADR 0083, from
+  `gh api repos/Luqueee/kivgraph/releases --paginate` on `2026-08-28`.
+- **The workspace of today and the live daemon.** `graph_status` and
+  `/proc/<pid>/smaps_rollup` of the running daemon, both read
+  `2026-08-28`. This is one machine on one day, not a corpus: it bounds
+  the prize, and the prototype in `LUQUE-2233` is what measures it.
 
 ## Context
 
 ADR 0069 made the daemon the default and measured why: at eight clients,
 `77`-`81 MB` of private pages against `10`-`13`, peaks of `179`-`186`
-against `26`-`29`, and `38`-`55 ms` to connect against `1,6`-`2,0`.
+against `26`-`29`, and `38`-`55 ms` to connect against `1.6`-`2.0`.
 
 Those are ADR 0069's case for the daemon and they are **not** this ADR's
 case for the relay. ADR 0067 takes most of the idle half of them back, for
@@ -43,6 +62,12 @@ So the stdio **entry** is permanent. The stdio **server** is not, and it is
 the one that costs.
 
 ## Decision
+
+**Nothing in this section is built, and the status above is gated.** The
+present tense states what the relay, the provisioning, the skew refusal and
+the fallback **must** do if the prototype clears the floor; `LUQUE-2233`
+carries the work, and until its first commit reports a number none of this
+describes a running system.
 
 `serve` stops serving. It becomes a relay between the client's stdio and
 the daemon's Streamable HTTP endpoint, and it loads no graph.
@@ -112,7 +137,14 @@ message** rather than restarting a daemon other clients are using.
 
 A platform with no supervisor has no daemon to reach, and provisioning can
 fail. In both cases `serve` does what it does today: it serves the surface
-in its own process. Nothing gets worse than the current state on any path.
+in its own process, and **on those two paths** nothing gets worse than the
+current state.
+
+The claim stops there, because one path does get a failure it did not have:
+a `serve` and a daemon at different versions are refused where today they
+cannot meet, since today there is only one process. That is the trade in
+*Version skew refuses* above, taken deliberately, and it is the one place
+this design is not a superset of the current behaviour.
 
 `transport` on the ADR 0083 ping is what says how often that happens, and
 the ordering is what makes the number mean anything. **Shipping the
@@ -127,41 +159,41 @@ that decides whether the next step is worth taking.
 
 ADR 0067 already took the snapshot off the idle path, and that changes the
 size of this prize. `benchmarks/daemon-cost/report.md` records the before
-and after: an idle `serve` fell from `33,9 MB` per client to `9,8`-`10,7`.
+and after: an idle `serve` fell from `33.9 MB` per client to `9.8`-`10.7`.
 So the `77`-`81 MB` that eight idle clients cost is **not** a snapshot. It
 is a per-process floor of about `10 MB`, eight times over -- and a relay is
 the same binary with the same Go runtime, so it pays a floor of its own.
 
 | load | `serve` per client | daemon per client | share |
 | --- | ---: | ---: | --- |
-| no calls | `9,8`-`10,7 MB` | ~`0 MB` | `48` of `51` |
-| `8` calls | `38,4`-`39,5 MB` | `0,63`-`0,95 MB` | |
-| `2.000` calls | `66,1`-`66,2 MB` | `11,1`-`13,3 MB` | |
+| no calls | `9.8`-`10.7 MB` | ~`0 MB` | `48` of `51` |
+| `8` calls | `38.4`-`39.5 MB` | `0.63`-`0.95 MB` | |
+| `2,000` calls | `66.1`-`66.2 MB` | `11.1`-`13.3 MB` | |
 
 The relay turns the middle row into its own floor, which is a large
 saving, and the top row into the difference between two floors, which may
 be nothing. The top row is where `48` of `51` sessions live.
 
 **And that table is measured on a corpus that no longer exists.**
-`daemon-cost` ran on `37` repositories and `108.737` symbols with a
-`77,6 MB` snapshot. A workspace in use today, read from `graph_status`,
-is `53` repositories, `229` packages, `6.418` files, **`177.790` symbols**
-and `528.603` edges: `1,6` times the symbols the benchmark measured.
+`daemon-cost` ran on `37` repositories and `108,737` symbols with a
+`77.6 MB` snapshot. A workspace in use today, read from `graph_status`,
+is `53` repositories, `229` packages, `6,418` files, **`177,790` symbols**
+and `528,603` edges: `1.6` times the symbols the benchmark measured.
 
 The daemon serving that workspace, after `23` hours and `136` tool calls,
 reads:
 
 | metric | value | what it is |
 | --- | ---: | --- |
-| `Rss` | `294.484 kB` | ~`287 MB` |
-| `Private_Dirty` | `224.316 kB` | anonymous heap, not reclaimable |
-| `Private_Clean` | `67.152 kB` | the mapped snapshot, clean |
-| `Shared_Clean` | `3.016 kB` | |
-| `Swap` | `17.668 kB` | |
+| `Rss` | `294,484 kB` | ~`287 MB` |
+| `Private_Dirty` | `224,316 kB` | anonymous heap, not reclaimable |
+| `Private_Clean` | `67,152 kB` | the mapped snapshot, clean |
+| `Shared_Clean` | `3,016 kB` | |
+| `Swap` | `17,668 kB` | |
 
 The snapshot behaves exactly as `daemon-cost` described it: mapped, clean,
 cheap. The `219 MB` is heap, and it is **not** a leak -- scaling the
-benchmark's `163`-`174 MB` daemon at `2.000` calls by the same `1,6` gives
+benchmark's `163`-`174 MB` daemon at `2,000` calls by the same `1.6` gives
 `260`-`280 MB`, which is where this process sits after `136` calls. The
 daemon's cost tracks the size of the graph, not the number of questions.
 
@@ -175,7 +207,7 @@ on this corpus, and that prediction is half of what the prototype checks.
 
 **The case still rests on one unmeasured number: what a relay process
 costs at rest.** What changed is the gap it has to clear. Against an idle
-`serve` at `9,8`-`10,7 MB` a floor of `8 MB` would save `4 MB` across
+`serve` at `9.8`-`10.7 MB` a floor of `8 MB` would save `4 MB` across
 eight clients and there would be nothing here worth building. Against a
 working client on a real workspace the same floor is competing with
 something two orders of magnitude larger.
@@ -221,7 +253,7 @@ decision is withdrawn and the stdio server stays.
   provision. The provisioning is behind a lock, and the losers wait for
   `endpointDeadline` rather than each installing a supervisor.
 - The relay adds a process spawn and an HTTP handshake to every session.
-  Whether that lands nearer `1,6`-`2,0 ms` or nearer the `38`-`55` it
+  Whether that lands nearer `1.6`-`2.0 ms` or nearer the `38`-`55` it
   replaces is measured with the floor, by the same prototype, before any
   of this ships.
 - A platform with no supervisor keeps the cost ADR 0069 measured, in full.

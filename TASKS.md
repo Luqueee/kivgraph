@@ -18066,8 +18066,10 @@ Cuatro decisiones tomadas, y la cuarta es la que ordena el trabajo:
   demonio por construcción. El relé compara al conectar y falla con un mensaje
   en vez de reiniciar un demonio que otros están usando.
 - **El fallback en proceso se queda, y se mide.** Plataforma sin supervisor, o
-  provisionado fallido: `serve` hace lo de hoy. Ningún camino queda peor que
-  ahora.
+  provisionado fallido: `serve` hace lo de hoy, y **en esos dos caminos** nada
+  queda peor que ahora. La afirmación se para ahí: la negativa por skew es un
+  fallo que hoy no existe, porque hoy no hay dos procesos que puedan
+  discrepar. Es el precio del punto anterior, no un descuido.
 
 **La trampa del orden, y por eso el fallback no va primero:** enviar el fallback
 sin el provisionado no habría medido nada. Ninguna instalación por `.mcpb`
