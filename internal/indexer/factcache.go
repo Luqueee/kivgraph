@@ -570,6 +570,37 @@ func (cache *factCache) withRegistry(inputs analysisInputs, repositories []works
 	cache.semanticRegistry = hex.EncodeToString(semanticSum[:])
 }
 
+// pythonProducerFingerprint identifies the Python producer this pass would
+// actually run, or says there is none.
+//
+// The producer is resolved by the loader that runs it rather than named here.
+// Fingerprinting `python-worker/index.py` by hand left the exact adapter
+// unwatched: editing it changed no key, so a rebuild reused the facts of the
+// previous producer and published a generation the current code would not
+// produce. That is the defect `e0d8d52` fixed and this keeps fixed.
+//
+// Absent is a stable fact, and this used to be a timestamp. The Python worker
+// is a file this repository ships, so it was reasoned that failing to find it
+// meant something was broken -- but ProducerFile also returns nothing when
+// `python3` is simply not on the machine, which is ordinary. The whole
+// analyzer fingerprint is one value for the pass, so that timestamp switched
+// the fact cache off for **every** language on any machine without Python.
+// The Java and C# indexers had the same defect and were fixed first; this is
+// the same rule, and the reason `binary` below keeps its timestamp is that an
+// unreadable identity is not the same thing as an absent tool.
+//
+// A Python repository on a machine with no Python is isolated by
+// analyzerNotInstalled and its facts are never stored, so `absent` cannot
+// serve anything wrongly.
+func pythonProducerFingerprint(options FullOptions) string {
+	producer := pythonloader.ProducerFile(options.PythonIndexer, options.PythonAnalyzer,
+		options.PythonAnalyzerMode, options.PythonPath, options.WorkingDirectory)
+	if producer == "" {
+		return "absent"
+	}
+	return fileFingerprint(producer)
+}
+
 // javaIndexerFingerprint identifies the Java producer, or says there is none.
 //
 // It is a function of its own so a test can measure it. The property that
@@ -794,22 +825,16 @@ func analyzerFingerprint(options FullOptions) string {
 		options.CSharpIncludeTests, options.CSharpIncludeGenerated, options.CSharpSkipRestore,
 		strings.TrimSpace(options.CSharpTargetDirectory))
 	fmt.Fprintf(hash, "csharp-indexer=%s\x00", cSharpIndexerFingerprint(options))
-	// The producer this pass would actually run, resolved by the loader that
-	// runs it. Fingerprinting `python-worker/index.py` by hand left the exact
-	// adapter unwatched: editing it changed no key, so a rebuild reused the
-	// facts of the previous producer and published a generation the current
-	// code would not produce.
-	if producer := pythonloader.ProducerFile(options.PythonIndexer, options.PythonAnalyzer,
-		options.PythonAnalyzerMode, options.PythonPath, options.WorkingDirectory); producer != "" {
-		fmt.Fprintf(hash, "python-worker=%s\x00", fileFingerprint(producer))
-	} else {
-		// Unknown identity is not a licence to reuse anything.
-		fmt.Fprintf(hash, "python-worker=unknown-%d\x00", time.Now().UnixNano())
-	}
+	fmt.Fprintf(hash, "python-worker=%s\x00", pythonProducerFingerprint(options))
 	if executable, err := os.Executable(); err == nil {
 		fmt.Fprintf(hash, "binary=%s\x00", fileFingerprint(executable))
 	} else {
-		// Unknown identity is not a licence to reuse anything.
+		// A timestamp here is right, and it is the distinction the three
+		// producer fingerprints above turn on. os.Executable failing does not
+		// mean this build has no identity; it means the identity could not be
+		// read, and serving one build's facts to another is exactly what this
+		// hash exists to prevent. Unknown is not absent, and only absent is a
+		// fact that repeats.
 		fmt.Fprintf(hash, "binary=unknown-%d\x00", time.Now().UnixNano())
 	}
 	fmt.Fprintf(hash, "goenv=%s\x00", goEnvironmentFingerprint())
@@ -824,12 +849,23 @@ func analyzerFingerprint(options FullOptions) string {
 // checks against is source under GOROOT, and which versions the build list
 // selects is the go command's answer, not this binary's. A toolchain upgrade
 // changes both without changing a byte of Kivgraph.
+// An absent toolchain and a broken one are not the same answer, and this is
+// the contributor where the difference costs the most. Kivgraph is published
+// as a binary: a user who indexes a Java or a TypeScript repository has no
+// reason to install Go, and a timestamp here switched their fact cache off
+// entirely, for every language, on every pass. `go` missing from the PATH is a
+// determinate fact that repeats, so it fingerprints as `absent`.
+//
+// A `go` that is present and fails is the other case and keeps the timestamp:
+// something about the toolchain could not be read, and a pass with Go units
+// must not guess at an identity it could not establish.
 func goEnvironmentFingerprint() string {
+	if _, err := exec.LookPath("go"); err != nil {
+		return "absent"
+	}
 	output, err := exec.Command("go", "env",
 		"GOVERSION", "GOROOT", "GOFLAGS", "GOMODCACHE", "GOPATH", "GOPRIVATE").Output()
 	if err != nil {
-		// No toolchain identity means no entry is reusable: a pass with
-		// no Go units is unaffected, and one with them must not guess.
 		return fmt.Sprintf("unknown-%d", time.Now().UnixNano())
 	}
 	return strings.Join(strings.Fields(string(output)), "\x00")
