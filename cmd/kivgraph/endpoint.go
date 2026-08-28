@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/daemon"
 	"github.com/Luqueee/kivgraph/internal/eventlog"
+	"github.com/Luqueee/kivgraph/internal/filelock"
 	"github.com/Luqueee/kivgraph/internal/integrations"
 	"github.com/Luqueee/kivgraph/internal/logging"
 	"github.com/Luqueee/kivgraph/internal/relay"
@@ -25,7 +27,7 @@ import (
 // that needs it, so coming up is a bind and a token, not an index. Five seconds
 // is generous for that and short enough that a daemon which cannot bind reports
 // instead of hanging the command.
-const endpointDeadline = 5 * time.Second
+var endpointDeadline = 5 * time.Second
 
 // stateDirectory is where a configuration keeps its generation, and therefore
 // which daemon it belongs to.
@@ -235,7 +237,12 @@ const serveInProcessEnv = "KIVGRAPH_SERVE_IN_PROCESS"
 // answered where one said it would. The last is the fallback ADR 0084 promised
 // for a platform with no supervisor, and on those two paths nothing is worse
 // than it was.
-func relayToTheDaemon(ctx context.Context, command string, loaded config.Loaded) (bool, error) {
+func relayToTheDaemon(
+	ctx context.Context,
+	command, configPath string,
+	loaded config.Loaded,
+	provision daemonProvisioner,
+) (bool, error) {
 	if command != "serve" {
 		return false, nil
 	}
@@ -244,20 +251,22 @@ func relayToTheDaemon(ctx context.Context, command string, loaded config.Loaded)
 		logger.Info("serving in process because "+serveInProcessEnv+" is set", "command", command)
 		return false, nil
 	}
-	endpoint, err := daemon.ReadEndpoint(stateDirectory(loaded))
-	if err != nil {
-		// A daemon writes this before it serves, so its absence is the answer
-		// and not a failure to get one.
-		return false, nil
-	}
-	// Probed here rather than left to the relay, because only this side can
-	// fall back: once the relay has read the agent's handshake there is no
-	// in-process server left to hand it to. A daemon that dies between this
-	// dial and the connection is a declared race -- the relay fails, and the
-	// client that spawned this process starts another.
-	if err := relay.Reachable(ctx, endpoint); err != nil {
-		logger.Info("serving in process: no daemon answered", "command", command, "reason", err)
-		return false, nil
+	// Probed rather than trusted, and here rather than inside the relay,
+	// because only this side can fall back: once the relay has read the
+	// agent's handshake there is no in-process server left to hand it to. A
+	// daemon that dies between this probe and the connection is a declared
+	// race -- the relay fails, and the client that spawned this process starts
+	// another.
+	endpoint, answering := reachableDaemon(ctx, loaded)
+	if !answering {
+		if provision == nil {
+			return false, nil
+		}
+		provisioned, ok := provision(ctx, command, configPath, loaded, logger)
+		if !ok {
+			return false, nil
+		}
+		endpoint = provisioned
 	}
 
 	events := openEventLog(loaded.Config, os.Stderr)
@@ -277,4 +286,157 @@ func relayToTheDaemon(ctx context.Context, command string, loaded config.Loaded)
 	}()
 	logger.Info("relaying to the daemon", "command", command, "endpoint", endpoint.URL)
 	return true, relay.Run(ctx, endpoint)
+}
+
+// provisionLockName is the file a burst of relays contends on.
+//
+// It lives in the state directory because that is what a daemon belongs to:
+// two configurations get two daemons, so they must be allowed to provision at
+// the same time without seeing each other.
+const provisionLockName = "daemon-provision.lock"
+
+// reachableDaemon answers the daemon of this configuration, if one is
+// answering right now.
+func reachableDaemon(ctx context.Context, loaded config.Loaded) (daemon.Endpoint, bool) {
+	endpoint, err := daemon.ReadEndpoint(stateDirectory(loaded))
+	if err != nil {
+		// A daemon writes this before it serves, so its absence is the answer
+		// and not a failure to get one.
+		return daemon.Endpoint{}, false
+	}
+	if err := relay.Reachable(ctx, endpoint); err != nil {
+		return daemon.Endpoint{}, false
+	}
+	return endpoint, true
+}
+
+// daemonProvisioner installs a supervised daemon for this configuration and
+// answers its endpoint, or declines.
+//
+// It is injected for the reason `supervisedDaemonRestart` is: a test must never
+// reach the developer's own supervisor. This one is sharper still -- before it
+// was a parameter, two tests of the *decline* paths were running `systemctl`
+// against the real user manager to arrive at "no", which is a side effect no
+// test may have and which a passing suite said nothing about.
+//
+// A nil provisioner installs nothing, which is what every caller that is not
+// `serve` wants.
+type daemonProvisioner func(
+	ctx context.Context,
+	command, configPath string,
+	loaded config.Loaded,
+	logger *slog.Logger,
+) (daemon.Endpoint, bool)
+
+// provisionDaemon installs the supervisor for this configuration's daemon and
+// waits for it to publish an endpoint, so that a `.mcpb` installation gets the
+// daemon it can never be configured for.
+//
+// It is not `ensureDaemon` above, which serves the integration commands: that
+// one is an operator asking for a daemon and is entitled to fail loudly at
+// them. This one runs unattended inside a server a client spawned, so every
+// way it can decline ends in serving as before rather than in an error nobody
+// is there to read.
+//
+// The principle is `ensureConfiguration`'s and was argued there: an MCP client
+// spawns its servers itself, so a server that exits because nobody ran a
+// terminal command reports only that it failed. This is the same trade one
+// step further out.
+//
+// **It acts only when no unit is installed at all.** An installed unit whose
+// daemon is not answering is somebody who ran `kivgraph stop`, and starting it
+// again would make that command unable to stop anything -- which is the exact
+// argument ADR 0068 gives for why the unit is `Restart=on-failure` and not
+// `Restart=always`. A hand-edited unit is left alone for the reason `Status`
+// reports rather than repairs it, and a platform with no supervisor is the
+// fallback ADR 0084 promised.
+//
+// Everything it declines is `false` with no error: the caller then serves in
+// process, which is what it did before any of this existed.
+func provisionDaemon(
+	ctx context.Context,
+	command, configPath string,
+	loaded config.Loaded,
+	logger *slog.Logger,
+) (daemon.Endpoint, bool) {
+	spec, err := supervisorSpec(configPath, supervisorOptions{})
+	if err != nil {
+		logger.Info("serving in process: no daemon could be described",
+			"command", command, "reason", err)
+		return daemon.Endpoint{}, false
+	}
+	report, err := supervisor.Status(spec)
+	if err != nil || report.State != supervisor.StateAbsent {
+		logger.Info("serving in process: not installing a daemon",
+			"command", command, "state", string(report.State), "detail", report.Detail)
+		return daemon.Endpoint{}, false
+	}
+
+	// Eight editors starting at once all find no daemon. Without this they run
+	// eight `systemctl daemon-reload`s to arrive at the one daemon systemd was
+	// going to start anyway; the losers wait for that daemon instead. The lock
+	// is advisory and the kernel drops it if the holder dies, so a relay killed
+	// mid-install does not leave the next one waiting forever.
+	lock, held, err := filelock.Acquire(filepath.Join(stateDirectory(loaded), provisionLockName))
+	if err != nil {
+		logger.Info("serving in process: could not take the provisioning lock",
+			"command", command, "reason", err)
+		return daemon.Endpoint{}, false
+	}
+	if !held {
+		endpoint, ok := awaitDaemon(ctx, loaded)
+		if !ok {
+			logger.Info("serving in process: another server is installing the daemon",
+				"command", command, "waited", endpointDeadline)
+		}
+		return endpoint, ok
+	}
+	defer func() {
+		if err := lock.Release(); err != nil {
+			writeWarning(os.Stderr, "serve: release the provisioning lock: %v", err)
+		}
+	}()
+
+	installed, err := supervisor.Install(spec)
+	if err != nil {
+		logger.Info("serving in process: the daemon could not be installed",
+			"command", command, "reason", err)
+		return daemon.Endpoint{}, false
+	}
+	endpoint, ok := awaitDaemon(ctx, loaded)
+	if !ok {
+		logger.Warn("serving in process: the installed daemon published no endpoint",
+			"command", command, "label", installed.Label, "waited", endpointDeadline)
+		return daemon.Endpoint{}, false
+	}
+	// Said once, and out loud. A machine that installed a `.mcpb` extension
+	// acquires a supervised background service it never asked for in a
+	// terminal, so the line that tells it so also names the way out.
+	logger.Info("installed a background daemon for this configuration; remove it with \"kivgraph daemon remove\"",
+		"command", command, "label", installed.Label, "unit", installed.Path)
+	return endpoint, true
+}
+
+// awaitDaemon waits for a daemon to publish an endpoint and answer on it.
+//
+// It polls rather than watching, because the thing being waited for is another
+// process binding a port and writing a file, and there is no readiness signal
+// between them. `endpointDeadline` is what bounds it: a supervisor starts the
+// daemon asynchronously, and since ADR 0067 coming up is a bind and a token
+// rather than an index.
+func awaitDaemon(ctx context.Context, loaded config.Loaded) (daemon.Endpoint, bool) {
+	deadline := time.Now().Add(endpointDeadline)
+	for {
+		if endpoint, ok := reachableDaemon(ctx, loaded); ok {
+			return endpoint, true
+		}
+		if time.Now().After(deadline) || ctx.Err() != nil {
+			return daemon.Endpoint{}, false
+		}
+		select {
+		case <-ctx.Done():
+			return daemon.Endpoint{}, false
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
 }

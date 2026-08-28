@@ -5,16 +5,20 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/daemon"
+	"github.com/Luqueee/kivgraph/internal/filelock"
 	"github.com/Luqueee/kivgraph/internal/integrations"
+	"github.com/Luqueee/kivgraph/internal/supervisor"
 	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
@@ -314,14 +318,14 @@ func TestRelayToTheDaemonDeclinesWithoutOne(t *testing.T) {
 	// One: this is not `serve`. The daemon is the thing being relayed *to*, and
 	// `ui` serves HTTP from a snapshot of its own.
 	for _, command := range []string{"daemon", "ui"} {
-		if relayed, err := relayToTheDaemon(context.Background(), command, loaded); relayed || err != nil {
+		if relayed, err := relayToTheDaemon(context.Background(), command, "", loaded, nil); relayed || err != nil {
 			t.Fatalf("%s relayed=%t err=%v, want false and nil", command, relayed, err)
 		}
 	}
 
 	// Two: no endpoint published. A daemon writes that file before it serves,
 	// so its absence is the answer and not a failure to get one.
-	if relayed, err := relayToTheDaemon(context.Background(), "serve", loaded); relayed || err != nil {
+	if relayed, err := relayToTheDaemon(context.Background(), "serve", "", loaded, nil); relayed || err != nil {
 		t.Fatalf("with no endpoint: relayed=%t err=%v, want false and nil", relayed, err)
 	}
 
@@ -329,7 +333,7 @@ func TestRelayToTheDaemonDeclinesWithoutOne(t *testing.T) {
 	// misbehaves has no way back that does not involve stopping the daemon
 	// every other client is using.
 	t.Setenv(serveInProcessEnv, "1")
-	if relayed, err := relayToTheDaemon(context.Background(), "serve", loaded); relayed || err != nil {
+	if relayed, err := relayToTheDaemon(context.Background(), "serve", "", loaded, nil); relayed || err != nil {
 		t.Fatalf("with %s set: relayed=%t err=%v, want false and nil", serveInProcessEnv, relayed, err)
 	}
 }
@@ -363,7 +367,155 @@ func TestRelayToTheDaemonDeclinesAStaleEndpoint(t *testing.T) {
 		t.Fatalf("write endpoint: %v", err)
 	}
 
-	if relayed, err := relayToTheDaemon(context.Background(), "serve", loaded); relayed || err != nil {
+	if relayed, err := relayToTheDaemon(context.Background(), "serve", "", loaded, nil); relayed || err != nil {
 		t.Fatalf("with a stale endpoint: relayed=%t err=%v, want false and nil", relayed, err)
 	}
+}
+
+// shortenEndpointDeadline keeps a test that waits for a daemon from waiting the
+// five seconds a real one is allowed.
+func shortenEndpointDeadline(t *testing.T) {
+	t.Helper()
+	previous := endpointDeadline
+	endpointDeadline = 100 * time.Millisecond
+	t.Cleanup(func() { endpointDeadline = previous })
+}
+
+// initialisedHome gives a test its own configuration and returns it.
+func initialisedHome(t *testing.T) config.Loaded {
+	t.Helper()
+	home := t.TempDir()
+	testsupport.SetHome(t, home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	if _, err := config.Initialize(config.InitOptions{}); err != nil {
+		t.Fatalf("config.Initialize: %v", err)
+	}
+	loaded, err := config.Load("")
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+	return loaded
+}
+
+// A daemon that answers is what keeps the supervisor out of the path: the
+// provisioner is only reached when this returns false. The relay itself is not
+// driven from here, because running it would take this process's stdin -- what
+// happens after the decision is `internal/relay`'s own suite and the binary's
+// smoke test.
+func TestReachableDaemonAnswersForALiveEndpoint(t *testing.T) {
+	loaded := initialisedHome(t)
+	directory := stateDirectory(loaded)
+	if err := os.MkdirAll(directory, 0o755); err != nil {
+		t.Fatalf("create state directory: %v", err)
+	}
+	answering := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(answering.Close)
+	encoded, err := json.Marshal(daemon.Endpoint{URL: answering.URL + daemon.MCPPath, Token: "t", PID: 4242})
+	if err != nil {
+		t.Fatalf("encode endpoint: %v", err)
+	}
+	if err := os.WriteFile(daemon.EndpointPath(directory), encoded, 0o600); err != nil {
+		t.Fatalf("write endpoint: %v", err)
+	}
+
+	endpoint, answered := reachableDaemon(context.Background(), loaded)
+	if !answered {
+		t.Fatal("a daemon that answers was read as absent")
+	}
+	if endpoint.URL != answering.URL+daemon.MCPPath {
+		t.Fatalf("endpoint = %q, want the published one", endpoint.URL)
+	}
+}
+
+// TestProvisionDaemonLeavesAStoppedDaemonStopped is the guarantee that keeps
+// `kivgraph stop` meaning something.
+//
+// A unit that exists and whose daemon is not answering is somebody who stopped
+// it. Starting it again would make that command unable to stop anything, which
+// is the same argument ADR 0068 gives for why the unit is `Restart=on-failure`
+// and not `Restart=always`.
+//
+// The state constructed here is `stale`, because rendering an `installed` unit
+// from outside `internal/supervisor` would need a renderer exported for a test.
+// The branch is one condition over `Status` -- anything but `absent` declines --
+// and `Status` telling its three states apart has its own test there.
+func TestProvisionDaemonLeavesAStoppedDaemonStopped(t *testing.T) {
+	loaded := initialisedHome(t)
+	spec, err := supervisorSpec("", supervisorOptions{})
+	if err != nil {
+		t.Fatalf("supervisorSpec: %v", err)
+	}
+	report, err := supervisor.Status(spec)
+	if err != nil {
+		t.Fatalf("supervisor.Status: %v", err)
+	}
+	if report.State == supervisor.StateUnsupported {
+		t.Skip("this platform has no supervisor to leave alone")
+	}
+	if err := os.MkdirAll(filepath.Dir(report.Path), 0o755); err != nil {
+		t.Fatalf("create the unit directory: %v", err)
+	}
+	if err := os.WriteFile(report.Path, []byte("edited by hand\n"), 0o644); err != nil {
+		t.Fatalf("write the unit: %v", err)
+	}
+
+	// Nothing is executed on this path, which is what makes it safe to run
+	// here: it declines on what Status read off the disk.
+	if _, ok := provisionDaemon(context.Background(), "serve", "", loaded, testLogger()); ok {
+		t.Fatal("a daemon somebody had stopped was provisioned again")
+	}
+}
+
+// TestProvisionDaemonWaitsForTheProcessThatWonTheRace is the burst: eight
+// editors start at once and all find no daemon. Without the lock they run eight
+// `systemctl daemon-reload`s to arrive at the one daemon systemd was going to
+// start anyway.
+func TestProvisionDaemonWaitsForTheProcessThatWonTheRace(t *testing.T) {
+	shortenEndpointDeadline(t)
+	loaded := initialisedHome(t)
+	spec, err := supervisorSpec("", supervisorOptions{})
+	if err != nil {
+		t.Fatalf("supervisorSpec: %v", err)
+	}
+	report, err := supervisor.Status(spec)
+	if err != nil {
+		t.Fatalf("supervisor.Status: %v", err)
+	}
+	// Without this the test would pass on a platform that declines at Status,
+	// long before it reaches the lock this exists to exercise.
+	if report.State == supervisor.StateUnsupported {
+		t.Skip("this platform has no supervisor, so nothing contends for the lock")
+	}
+	directory := stateDirectory(loaded)
+	if err := os.MkdirAll(directory, 0o755); err != nil {
+		t.Fatalf("create state directory: %v", err)
+	}
+	// Somebody else is installing: they hold the lock.
+	held, acquired, err := filelock.Acquire(filepath.Join(directory, provisionLockName))
+	if err != nil || !acquired {
+		t.Fatalf("hold the provisioning lock: %t, %v", acquired, err)
+	}
+	t.Cleanup(func() { _ = held.Release() })
+
+	started := time.Now()
+	// It waits for the winner's daemon rather than installing a second
+	// supervisor, and gives up on the deadline when no daemon appears.
+	if _, ok := provisionDaemon(context.Background(), "serve", "", loaded, testLogger()); ok {
+		t.Fatalf("the loser of the race provisioned a daemon of its own (state %q, unit %q)",
+			report.State, report.Path)
+	}
+	if waited := time.Since(started); waited < endpointDeadline {
+		t.Fatalf("it waited %s, which is less than the %s a winner is given", waited, endpointDeadline)
+	}
+	// And it installed nothing, which is the assertion that would catch a
+	// loser that took the lock's answer as advice.
+	if _, err := os.Stat(report.Path); !os.IsNotExist(err) {
+		t.Fatalf("the loser wrote a unit at %q (stat error %v)", report.Path, err)
+	}
+}
+
+func testLogger() *slog.Logger {
+	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }

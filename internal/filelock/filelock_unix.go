@@ -1,6 +1,6 @@
 //go:build unix
 
-package indexing
+package filelock
 
 import (
 	"fmt"
@@ -10,21 +10,15 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// writerLock is the exclusive right to rebuild the graph of one state
-// directory.
-//
-// It is an advisory lock on a file, not a daemon electing a leader: the
-// publisher/follower split already exists, so whoever holds this rebuilds and
-// everyone else notices through the CURRENT pointer they were following
-// anyway. The kernel releases it if the holder dies, which is the property a
-// pid file cannot offer.
-type writerLock struct {
+// Lock is one process's exclusive claim on a path.
+type Lock struct {
 	file *os.File
 }
 
-// acquireWriterLock takes the lock without waiting. A false return is not an
-// error: it means another process is already rebuilding the same graph.
-func acquireWriterLock(path string) (*writerLock, bool, error) {
+// Acquire takes the lock without waiting. A false return is not an error: it
+// means another process holds it, which is the answer a caller wants rather
+// than a delay it did not ask for.
+func Acquire(path string) (*Lock, bool, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, false, fmt.Errorf("create lock directory: %w", err)
 	}
@@ -42,10 +36,10 @@ func acquireWriterLock(path string) (*writerLock, bool, error) {
 		}
 		return nil, false, fmt.Errorf("lock %q: %w", path, err)
 	}
-	return &writerLock{file: file}, true, nil
+	return &Lock{file: file}, true, nil
 }
 
-func (lock *writerLock) release() error {
+func (lock *Lock) Release() error {
 	if lock == nil || lock.file == nil {
 		return nil
 	}

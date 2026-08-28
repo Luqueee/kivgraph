@@ -159,6 +159,12 @@ func Reachable(ctx context.Context, endpoint daemon.Endpoint) error {
 // on it, because an MCP session must be able to sit idle, and with stdio
 // already consumed so there is nothing left to fall back to.
 //
+// It is stricter than `daemon.Reachable`, which dials, and the two are kept
+// apart on purpose: that one decides whether to write a url into a client's
+// configuration, where a listener that never answers surfaces later as a failed
+// call the client can report. Here it would surface as a hang with nothing left
+// to fall back to.
+//
 // What it still does not prove is that this is *our* daemon: another process
 // can hold the port and answer 404 as readily. The bearer token settles that
 // one request later, and by then the session is committed. That window is

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Luqueee/kivgraph/internal/filelock"
 	"github.com/Luqueee/kivgraph/internal/testsupport"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
@@ -365,11 +366,11 @@ func TestResyncSkipsWhenTheContentIsUnchanged(t *testing.T) {
 
 func TestResyncYieldsToAnotherWriter(t *testing.T) {
 	lockPath := filepath.Join(testsupport.TempDir(t), "resync.lock")
-	held, acquired, err := acquireWriterLock(lockPath)
+	held, acquired, err := filelock.Acquire(lockPath)
 	if err != nil || !acquired {
-		t.Fatalf("acquireWriterLock() = %v, %t, %v", held, acquired, err)
+		t.Fatalf("filelock.Acquire() = %v, %t, %v", held, acquired, err)
 	}
-	t.Cleanup(func() { _ = held.release() })
+	t.Cleanup(func() { _ = held.Release() })
 
 	repository := gitFixture(t, "alpha", "main", "1111111111111111111111111111111111111111")
 	harness := startResync(t, ResyncOptions{
@@ -384,28 +385,7 @@ func TestResyncYieldsToAnotherWriter(t *testing.T) {
 	harness.clock.Advance(time.Minute)
 	harness.awaitNoBatch(t)
 
-	if err := held.release(); err != nil {
-		t.Fatalf("release() error = %v", err)
-	}
-}
-
-func TestAcquireWriterLockIsExclusiveAndReleasable(t *testing.T) {
-	path := filepath.Join(testsupport.TempDir(t), "resync.lock")
-	first, acquired, err := acquireWriterLock(path)
-	if err != nil || !acquired {
-		t.Fatalf("first acquireWriterLock() = %t, %v", acquired, err)
-	}
-	if _, second, err := acquireWriterLock(path); err != nil || second {
-		t.Fatalf("second acquireWriterLock() = %t, %v, want refused without error", second, err)
-	}
-	if err := first.release(); err != nil {
-		t.Fatalf("release() error = %v", err)
-	}
-	third, acquired, err := acquireWriterLock(path)
-	if err != nil || !acquired {
-		t.Fatalf("acquireWriterLock() after release = %t, %v", acquired, err)
-	}
-	if err := third.release(); err != nil {
+	if err := held.Release(); err != nil {
 		t.Fatalf("release() error = %v", err)
 	}
 }
