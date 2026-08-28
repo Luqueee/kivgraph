@@ -129,7 +129,7 @@ func main() {
 		// The options are read inside the runner, not here: runConfiguredServe
 		// parses the flag set before it calls back, so this closure sees what
 		// the command line said rather than the zero value.
-		if err := runConfiguredServe(ctx, "serve", os.Args[2:], serveFlagSet(&configPath, &options), &configPath, &options, func(ctx context.Context, _ config.Loaded, store *hotsnapshot.SnapshotStore, indexer indexing.ProjectIndexer, events *eventlog.Writer) error {
+		if err := runConfiguredServe(ctx, "serve", os.Args[2:], serveFlagSet(&configPath, &options), &configPath, &options, provisionDaemon, func(ctx context.Context, _ config.Loaded, store *hotsnapshot.SnapshotStore, indexer indexing.ProjectIndexer, events *eventlog.Writer) error {
 			return mcpserver.RunWithMetricsAndSnapshotStoreAndIndexerOptions(ctx, toolMetricsRegistry(events), store, indexer,
 				mcpserver.ServerOptions{ExposeUnavailableTools: options.Introspection})
 		}); err != nil {
@@ -146,7 +146,11 @@ func main() {
 		configPath := ""
 		var options daemonOptions
 		flags := daemonFlagSet(&configPath, &options)
-		if err := runConfiguredServe(ctx, "daemon", os.Args[2:], flags, &configPath, nil,
+		// The daemon is the thing being relayed *to*, so it provisions
+		// nothing: relayToTheDaemon declines on the command name before it
+		// ever asks, and naming the real provisioner here would say
+		// otherwise.
+		if err := runConfiguredServe(ctx, "daemon", os.Args[2:], flags, &configPath, nil, nil,
 			runDaemon(logger, &options)); err != nil {
 			logger.Error("MCP daemon stopped with error", "command", "daemon", "error", err)
 			os.Exit(1)
@@ -459,6 +463,15 @@ func runConfiguredServe(
 	// the caller: taking it by value would read the zero value of a struct
 	// the command line has not been applied to yet.
 	options *serveOptions,
+	// provision installs a supervised daemon when none is answering, and it
+	// is a parameter for the reason daemonProvisioner already is: a test must
+	// never reach the developer's own supervisor. It was reaching it -- this
+	// function named the real one, so every test of it installed a launchd
+	// agent or a systemd unit pointed at a directory the test was about to
+	// delete, and left the registration behind when it did. Two hundred of
+	// them accumulated on one workstation before a CI run tripped over the
+	// deletion race and said so.
+	provision daemonProvisioner,
 	runMCP configuredMCPRunner,
 ) error {
 	if ctx == nil {
@@ -487,7 +500,7 @@ func runConfiguredServe(
 	// none of the three: it holds no graph, so there is no generation to
 	// follow and no branch change to answer. Paying for them would put back
 	// exactly the per-client cost the relay exists to remove.
-	if relayed, err := relayToTheDaemon(ctx, command, *configPath, loaded, provisionDaemon,
+	if relayed, err := relayToTheDaemon(ctx, command, *configPath, loaded, provision,
 		options != nil && options.Introspection); relayed {
 		return err
 	}
