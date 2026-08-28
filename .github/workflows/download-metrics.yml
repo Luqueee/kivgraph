@@ -36,6 +36,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          # This job pushes with a token it passes explicitly, so the checkout
+          # has no reason to leave credentials in the runner's git config for
+          # every later step to inherit.
+          persist-credentials: false
 
       # The reader runs before the writer. This job is the only consumer of
       # the series, so a reader that has started counting a replaced asset as

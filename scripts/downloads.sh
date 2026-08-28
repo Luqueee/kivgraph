@@ -35,8 +35,28 @@ fetchReleases() {
   if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
     gh api "repos/$repository/releases" --paginate
   else
-    curl -fsS "https://api.github.com/repos/$repository/releases?per_page=100"
+    curlReleases
   fi | jq -s 'add // []'
+}
+
+# curlReleases walks the pages itself, because the fallback has no `--paginate`.
+#
+# Stopping at the first hundred releases would not merely truncate the
+# photograph: an asset missing from one snapshot and present in the next is
+# indistinguishable from an asset published between them, so it contributes its
+# whole cumulative total to that day. A truncated read does not lose history,
+# it invents traffic.
+curlReleases() {
+  local page=1 body
+  while :; do
+    body="$(curl -fsS "https://api.github.com/repos/$repository/releases?per_page=100&page=$page")"
+    printf '%s\n' "$body"
+    [[ "$(jq 'length' <<<"$body")" -eq 100 ]] || break
+    page=$((page + 1))
+    # The loop ends on a short page. This is the guard for the day the API
+    # stops giving one, so a runaway read fails instead of never returning.
+    ((page <= 20)) || die "the releases API returned 20 full pages: refusing to keep asking"
+  done
 }
 
 runJq() {

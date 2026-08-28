@@ -91,10 +91,13 @@ machine fetching an asset seven times from seven machines fetching it once.
 Two layers. They answer different questions and neither is a step towards
 the other.
 
-**Nothing below is built.** The present tense states what each layer
-**must** do, not what it does; `LUQUE-2232` carries the work and its gates.
-A reader asking whether a control is deployed should read the task, not
-this section.
+**Layer 0 is built; Layer 1 is not.** The present tense states what each
+layer **must** do. Layer 0 does it: `scripts/downloads.jq`,
+`scripts/downloads.sh` and `.github/workflows/download-metrics.yml` are
+deployed, and where the implementation taught this section something the
+section says so. Nothing in Layer 1 exists. `LUQUE-2232` carries the rest
+and its gates, and a reader asking whether a control is deployed should
+read the task rather than this section.
 
 ### Layer 0 -- the series, with no client involvement
 
