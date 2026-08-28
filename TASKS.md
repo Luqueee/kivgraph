@@ -18394,7 +18394,40 @@ reiniciar por el supervisor y **no** señalar el pid; otro que vea a `serve` y
 `ui` seguir intactos; y la comprobación a mano de que tras un `update` el
 demonio contesta ya con la versión nueva, que es la que se falló hoy.
 
-**Estado:** TODO.
+**Hecho.** `supervisor.Restart` en las cuatro plataformas
+-- `systemctl --user restart`, `launchctl kickstart -k`, `schtasks /End` más
+`/Run`, y el rechazo declarado donde no hay supervisor-- y `update` lo usa antes
+de ofrecer nada. `serve` y `ui` no cambian.
+
+**Dos cosas que la ficha no había previsto.**
+
+La primera: **la mitad del defecto no se arregla con código.** Un demonio que
+nadie supervisa se puede parar y nada lo devuelve, así que el consejo de correr
+`kivgraph stop` sigue siendo malo para él. Lo que se hace es decirlo -- «one of
+those is a daemon no supervisor owns»-- y nombrar `kivgraph daemon install`,
+que es lo único que convierte el consejo en cierto.
+
+La segunda: **cuatro caminos son «aquí no hay nada que reiniciar» y ninguno es
+un fallo.** Sin configuración, sin endpoint publicado, con un demonio que no
+está entre los procesos viejos, y con una unidad ausente, editada a mano o en
+una plataforma sin supervisor. Los cuatro devuelven pid cero y `nil`, porque un
+error se imprimiría como un reinicio fallido en máquinas donde el comando ya
+funcionaba. El primero apareció escribiendo el test: `config.Load("")` falla en
+una máquina que nunca corrió `init`, y ahí un `kivgraph daemon --config` de otro
+sitio no es asunto de este `update`.
+
+Y el demonio se identifica **por el pid que publicó**, nunca por su línea de
+comando: dos directorios de estado son dos demonios, y reiniciar el otro
+tumbaría un grafo que ese `update` no tocó.
+
+**Verificado a mano** contra el demonio vivo de esta máquina, que es el gate que
+la ficha pedía: `Status` responde `installed` para el spec que `update`
+construye, `Restart` devuelve `systemd restarted it on the executable now on
+disk`, y el endpoint se republica con pid nuevo -- `3385907` a `3417890`. Lo
+único que no cubre ningún test es `os.Executable()` devolviendo la ruta del
+binario instalado, que es su contrato.
+
+**Estado:** hecho.
 
 ## LUQUE-2235 - La negativa por diseño contada como fallo
 

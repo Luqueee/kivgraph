@@ -132,6 +132,31 @@ func remove(spec Spec) (Report, error) {
 	return Report{State: StateAbsent, Label: label, Path: path, Detail: "the unit was disabled and removed"}, nil
 }
 
+func restart(spec Spec) (Report, error) {
+	label, path, err := planPath(spec)
+	if err != nil {
+		return Report{}, err
+	}
+	// restart and not stop-then-start: systemd does both without a window in
+	// which the unit is loaded and nothing is running, and a `start` that
+	// raced the shutdown would be refused rather than queued.
+	//
+	// No daemon-reload first. The unit file is not what changed -- `update`
+	// replaced the executable it points at -- and reloading would hide an
+	// operator's hand edit by picking it up silently, which is exactly what
+	// status reports as stale rather than repairing.
+	if err := run("systemctl", "--user", "restart", label+".service"); err != nil {
+		return Report{State: StateInstalled, Label: label, Path: path},
+			fmt.Errorf("supervisor: systemctl restart: %w", err)
+	}
+	return Report{
+		State:  StateInstalled,
+		Label:  label,
+		Path:   path,
+		Detail: "systemd restarted it on the executable now on disk",
+	}, nil
+}
+
 func status(spec Spec) (Report, error) {
 	label, path, err := planPath(spec)
 	if err != nil {

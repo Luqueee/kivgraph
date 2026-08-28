@@ -16,6 +16,10 @@ func remove(spec Spec) (Report, error) {
 	return unsupported(spec)
 }
 
+func restart(spec Spec) (Report, error) {
+	return unsupported(spec)
+}
+
 func status(spec Spec) (Report, error) {
 	report, _ := unsupported(spec)
 	// Status is a question, not a request: on a platform with no supervisor the

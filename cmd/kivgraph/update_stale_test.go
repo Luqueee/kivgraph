@@ -33,7 +33,7 @@ func TestUpdateReportsTheProcessesLeftOnTheOldRelease(t *testing.T) {
 	}}
 	var stdout, stderr bytes.Buffer
 	if code := runUpdateWithRunner(nil, nil, &stdout, &stderr,
-		installedRunner(), fixture.list, fixture.signal, true); code != 0 {
+		installedRunner(), fixture.list, fixture.signal, nil, true); code != 0 {
 		t.Fatalf("runUpdateWithRunner(, true) = %d, stderr=%q", code, stderr.String())
 	}
 	output := stdout.String()
@@ -65,7 +65,7 @@ func TestUpdateStopsTheOldProcessesWhenAsked(t *testing.T) {
 	}
 	var stdout, stderr bytes.Buffer
 	if code := runUpdateWithRunner([]string{"--stop"}, nil, &stdout, &stderr,
-		installedRunner(), fixture.list, fixture.signal, true); code != 0 {
+		installedRunner(), fixture.list, fixture.signal, nil, true); code != 0 {
 		t.Fatalf("runUpdateWithRunner(, true) = %d, stderr=%q", code, stderr.String())
 	}
 	if got := strings.Join(fixture.signals, ","); got != "31:terminated" {
@@ -81,7 +81,7 @@ func TestUpdateStopsTheOldProcessesWhenAsked(t *testing.T) {
 func TestUpdateSaysNothingWhenNoProcessIsStale(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	if code := runUpdateWithRunner(nil, nil, &stdout, &stderr,
-		installedRunner(), noProcesses, nil, true); code != 0 {
+		installedRunner(), noProcesses, nil, nil, true); code != 0 {
 		t.Fatalf("runUpdateWithRunner(, true) = %d, stderr=%q", code, stderr.String())
 	}
 	if got, want := stdout.String(), "kivgraph updated: "+version.Value+" -> 9.9.9\n"; got != want {
@@ -95,7 +95,7 @@ func TestUpdateSucceedsWhenTheProcessListIsUnavailable(t *testing.T) {
 	list := func() ([]procstat.Process, error) { return nil, procstat.ErrProcessListUnsupported }
 	var stdout, stderr bytes.Buffer
 	if code := runUpdateWithRunner(nil, nil, &stdout, &stderr,
-		installedRunner(), list, nil, true); code != 0 {
+		installedRunner(), list, nil, nil, true); code != 0 {
 		t.Fatalf("runUpdateWithRunner(, true) = %d, want 0 (stderr=%q)", code, stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "kivgraph updated: ") {
@@ -120,7 +120,7 @@ func TestUpdateCheckDoesNotTouchProcesses(t *testing.T) {
 				LatestVersion:   "9.9.9",
 				UpdateAvailable: true,
 			}, nil
-		}, fixture.list, fixture.signal, true); code != 0 {
+		}, fixture.list, fixture.signal, nil, true); code != 0 {
 		t.Fatalf("runUpdateWithRunner(, true) = %d, stderr=%q", code, stderr.String())
 	}
 	if strings.Contains(stdout.String(), "update.stale") {

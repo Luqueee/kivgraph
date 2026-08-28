@@ -2,12 +2,16 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/Luqueee/kivgraph/internal/config"
+	"github.com/Luqueee/kivgraph/internal/daemon"
+	"github.com/Luqueee/kivgraph/internal/procstat"
 	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
@@ -124,4 +128,69 @@ func writeSupervisorConfig(t *testing.T, home string) string {
 		t.Fatalf("Initialize() error = %v", err)
 	}
 	return configPath
+}
+
+// TestRestartSupervisedDaemonReportsNothingToDoRatherThanFailing covers the
+// four ways `update` learns there is nothing here a supervisor owns.
+//
+// All four answer with a zero pid and no error, and that is the contract
+// `restartTheDaemon` reads: an error would print a warning about a daemon
+// nobody has, on machines where this command already worked. None of the four
+// executes a supervisor, which is why they can be tested at all -- the fifth
+// branch, the one that restarts, needs a real systemd or launchd and is
+// covered by the smoke test of the binary.
+func TestRestartSupervisedDaemonReportsNothingToDoRatherThanFailing(t *testing.T) {
+	home := t.TempDir()
+	testsupport.SetHome(t, home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	stale := []procstat.Process{kivgraphProcess(999, "daemon")}
+
+	// One: no configuration at all. A machine that never ran `init` has no
+	// daemon of this state directory, whatever `kivgraph daemon` it is running
+	// with a --config somewhere else.
+	if _, pid, err := restartSupervisedDaemon(stale); err != nil || pid != 0 {
+		t.Fatalf("with no configuration: pid=%d err=%v, want 0 and nil", pid, err)
+	}
+
+	if _, err := config.Initialize(config.InitOptions{}); err != nil {
+		t.Fatalf("config.Initialize: %v", err)
+	}
+	loaded, err := config.Load("")
+	if err != nil {
+		t.Fatalf("config.Load after init: %v", err)
+	}
+	directory := stateDirectory(loaded)
+
+	// Two: no endpoint published. The daemon writes the file before it serves
+	// and removes it when it stops, so its absence is the answer rather than a
+	// failure to get one.
+	if _, pid, err := restartSupervisedDaemon(stale); err != nil || pid != 0 {
+		t.Fatalf("with no endpoint: pid=%d err=%v, want 0 and nil", pid, err)
+	}
+
+	if err := os.MkdirAll(directory, 0o755); err != nil {
+		t.Fatalf("create state directory: %v", err)
+	}
+	encoded, err := json.Marshal(daemon.Endpoint{URL: "http://127.0.0.1:9/mcp", Token: "t", PID: 999})
+	if err != nil {
+		t.Fatalf("encode endpoint: %v", err)
+	}
+	if err := os.WriteFile(daemon.EndpointPath(directory), encoded, 0o600); err != nil {
+		t.Fatalf("write endpoint: %v", err)
+	}
+
+	// Three: a published daemon that is not one of the stale processes. It is
+	// already answering from the release this update installed, or it belongs
+	// to another state directory; restarting it would take down a graph this
+	// update never touched.
+	if _, pid, err := restartSupervisedDaemon([]procstat.Process{kivgraphProcess(11, "daemon")}); err != nil || pid != 0 {
+		t.Fatalf("with the daemon absent from the targets: pid=%d err=%v, want 0 and nil", pid, err)
+	}
+
+	// Four: it is stale, and no unit is installed for it. Nobody owns it, so
+	// the caution meant for a process a client spawned is the right one here
+	// after all, and the caller keeps its question.
+	if _, pid, err := restartSupervisedDaemon(stale); err != nil || pid != 0 {
+		t.Fatalf("with no unit installed: pid=%d err=%v, want 0 and nil", pid, err)
+	}
 }

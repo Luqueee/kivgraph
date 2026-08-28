@@ -232,3 +232,57 @@ func TestAPathNeedingQuotingSurvives(t *testing.T) {
 		}
 	}
 }
+
+// TestRestartingAnUnownedUnitChangesNothing fixes the contract `kivgraph
+// update` rests on. Restart is a request and not a question, so it could have
+// returned ErrUnsupportedPlatform the way Install and Remove do -- but a caller
+// facing a daemon nobody supervises has something else to do about it and has
+// to be told which case it is, not handed an error that reads as a failure to
+// restart something that was there.
+//
+// The states below are also the ones where nothing may be executed: a stale
+// unit is an operator's hand edit, and restarting through it would start
+// whatever they wrote instead of what this spec describes.
+func TestRestartingAnUnownedUnitChangesNothing(t *testing.T) {
+	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
+		t.Skipf("this platform has no supervisor: %s", runtime.GOOS)
+	}
+	home := t.TempDir()
+	testsupport.SetHome(t, home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	spec := testSpec(t.TempDir())
+
+	absent, err := Restart(spec)
+	if err != nil {
+		t.Fatalf("Restart() on a clean home error = %v", err)
+	}
+	if absent.State != StateAbsent {
+		t.Fatalf("Restart() on a clean home = %q, want %q", absent.State, StateAbsent)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(absent.Path), 0o755); err != nil {
+		t.Fatalf("create unit directory: %v", err)
+	}
+	if err := os.WriteFile(absent.Path, []byte("edited by hand\n"), 0o644); err != nil {
+		t.Fatalf("write unit: %v", err)
+	}
+	stale, err := Restart(spec)
+	if err != nil {
+		t.Fatalf("Restart() over an edited unit error = %v", err)
+	}
+	if stale.State != StateStale {
+		t.Fatalf("Restart() over an edited unit = %q, want %q", stale.State, StateStale)
+	}
+}
+
+// An incomplete spec is refused before anything is read, the same way Install,
+// Remove and Status refuse it: the executable and the state directory are
+// absolute paths in the installed file and neither can be inferred later.
+func TestRestartingAnIncompleteSpecIsRefused(t *testing.T) {
+	if _, err := Restart(Spec{StateDirectory: t.TempDir()}); !errors.Is(err, ErrIncompleteSpec) {
+		t.Fatalf("Restart() without an executable error = %v, want %v", err, ErrIncompleteSpec)
+	}
+	if _, err := Restart(Spec{Executable: "/opt/kivgraph/bin/kivgraph"}); !errors.Is(err, ErrIncompleteSpec) {
+		t.Fatalf("Restart() without a state directory error = %v, want %v", err, ErrIncompleteSpec)
+	}
+}

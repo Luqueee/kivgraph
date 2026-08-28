@@ -114,6 +114,28 @@ un dueño del proceso, el defecto habría dependido de que alguien recordara un
 integración que instalara un supervisor como efecto colateral sería una sorpresa
 grande para algo que hoy sólo edita el fichero de configuración de un cliente.
 
+## Lo que el dueño hizo posible, y tardó en cobrarse
+
+El ADR 0069 vendió «un `update` que reinicia en vez de matar ocho» como una de
+las dos cosas que sólo un demonio permite, y `update` no hacía ninguna de las
+dos: listaba el demonio junto a los `serve` y ofrecía pararlo. Seguir esa oferta
+era peor que ignorarla. `stop` pide primero por las buenas, el demonio sale con
+`0`, y la unidad de arriba **deja en paz una salida limpia** a propósito -- así
+que cuanto mejor se portaba el demonio, más seguro se quedaba parado.
+
+`supervisor.Restart` es lo que faltaba, y es exactamente la distinción que esta
+decisión estableció: **un demonio supervisado no es un proceso de cliente**.
+`update` lo reinicia por su dueño -- `systemctl --user restart`,
+`launchctl kickstart -k`, `schtasks /End` seguido de `/Run`-- y deja `serve` y
+`ui` como estaban, porque para ellos la cautela de no matar nada en silencio
+sigue siendo la correcta. Lo identifica por el pid que el demonio publicó y
+nunca por su línea de comando: dos directorios de estado son dos demonios, y
+reiniciar el otro tumbaría un grafo que ese `update` no tocó. Ver `LUQUE-2234`.
+
+Lo que **no** cambia es la unidad. Subirla a `Restart=always` habría arreglado
+el síntoma rompiendo `kivgraph stop`, que existe para que una parada a propósito
+se quede parada. El arreglo vive en `update`, no en lo que se instala.
+
 ## Limitaciones declaradas
 
 - Los números de arriba son de `benchmarks/daemon-cost` sobre `workspace` en
@@ -124,6 +146,7 @@ grande para algo que hoy sólo edita el fichero de configuración de un cliente.
   distribución.
 - El demonio no habla `sd_notify`, así que la unit es `Type=simple`. Declarar
   `notify` haría a systemd esperar una señal de listo que nunca llega.
-- `Install` y `Remove` invocan `launchctl` y `systemctl`, así que sus tests
-  cubren el renderizado, `Status` y `Remove` de algo ausente; el ciclo completo
-  se comprueba con el humo del binario, no en la suite.
+- `Install`, `Remove` y `Restart` invocan `launchctl` y `systemctl`, así que sus
+  tests cubren el renderizado, `Status`, y el `Remove` y el `Restart` de algo
+  que nadie supervisa -- los dos casos en los que no se ejecuta nada. El ciclo
+  completo se comprueba con el humo del binario, no en la suite.

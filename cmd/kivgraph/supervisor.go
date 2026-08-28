@@ -5,10 +5,13 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
+	"slices"
 
 	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/daemon"
+	"github.com/Luqueee/kivgraph/internal/procstat"
 	"github.com/Luqueee/kivgraph/internal/supervisor"
 )
 
@@ -67,6 +70,68 @@ func supervisorSpec(configPath string, options supervisorOptions) (supervisor.Sp
 		Address:        address,
 		AllowRemote:    options.AllowRemote,
 	}, nil
+}
+
+// restartSupervisedDaemon puts the supervised daemon of the default
+// configuration back on the executable that is now on disk, and says which pid
+// was answering from the replaced one.
+//
+// `update` replaces the bundle in place, so the path in the installed unit
+// still resolves and the image behind it does not. ADR 0069 sells "an `update`
+// that restarts instead of killing eight" as one of the two things only a
+// daemon allows, and until this existed the command did neither: it listed the
+// daemon beside the `serve` processes and offered to stop it.
+//
+// The daemon is identified by the pid it published, never by its command line.
+// Two state directories have two daemons, and restarting the wrong one would
+// take a graph down that this update never touched.
+//
+// Four outcomes are "nothing to do here", and all four return a zero pid
+// rather than an error, because each leaves the caller's existing behaviour
+// correct: no configuration at all, no endpoint file, a daemon that is not
+// among the stale processes, and a unit that is absent, stale or on a platform
+// with no supervisor.
+//
+// The default configuration and not a flag: `update` takes no `--config`, and
+// neither does `stop`. A daemon installed against another configuration
+// produces a unit whose contents differ, `Status` reports it stale, and this
+// falls back to what the command did before -- conservative, and it says so.
+func restartSupervisedDaemon(targets []procstat.Process) (string, int, error) {
+	loaded, err := config.Load("")
+	if err != nil {
+		// A machine with no configuration of its own has no daemon of this
+		// state directory either: the stale process in the list was started
+		// with a --config somewhere else, and its graph is not the one this
+		// update is about. A configuration that exists and cannot be read is a
+		// different thing and is reported.
+		if errors.Is(err, fs.ErrNotExist) {
+			return "", 0, nil
+		}
+		return "", 0, fmt.Errorf("read the configuration: %w", err)
+	}
+	endpoint, err := daemon.ReadEndpoint(stateDirectory(loaded))
+	if err != nil {
+		// The endpoint is written before the daemon serves and removed when it
+		// stops, so its absence is the answer rather than a failure to get one.
+		return "", 0, nil
+	}
+	if !slices.ContainsFunc(targets, func(target procstat.Process) bool {
+		return target.PID == endpoint.PID
+	}) {
+		return "", 0, nil
+	}
+	spec, err := supervisorSpec("", supervisorOptions{})
+	if err != nil {
+		return "", 0, err
+	}
+	report, err := supervisor.Restart(spec)
+	if err != nil {
+		return report.Label, endpoint.PID, err
+	}
+	if report.State != supervisor.StateInstalled {
+		return "", 0, nil
+	}
+	return report.Label, endpoint.PID, nil
 }
 
 // runSupervisorCommand executes `daemon install`, `daemon remove` and
