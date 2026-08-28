@@ -1,0 +1,131 @@
+name: Download metrics
+
+# One cumulative photograph of the release counters a day, stored on the
+# orphan branch `metrics`.
+#
+# Scheduled, and therefore unreliable by design: GitHub disables a scheduled
+# workflow after sixty days without repository activity, and a scheduled run
+# can be delayed or dropped when the account is busy. That is why the stored
+# record is the running total and not the traffic since yesterday -- a missed
+# day is recovered by the next photograph, and a stored delta would not be.
+#
+# It writes to a branch of its own so the history of the measurement never
+# lands in the history the release tags are cut from.
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: download-metrics
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    name: Photograph the release counters
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # A fork inherits the schedule and would push a series of its own
+    # repository into its own branch, which is noise nobody asked for.
+    if: github.repository == 'Luqueee/kivgraph'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # This job pushes with a token it passes explicitly, so the checkout
+          # has no reason to leave credentials in the runner's git config for
+          # every later step to inherit.
+          persist-credentials: false
+
+      # The reader runs before the writer. This job is the only consumer of
+      # the series, so a reader that has started counting a replaced asset as
+      # traffic -- or clamping real traffic to zero -- has no other way to say
+      # so than by failing here.
+      - name: Check the reader against known series
+        run: scripts/downloads.sh selftest
+
+      - name: Photograph the counters
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KIVGRAPH_REPOSITORY: ${{ github.repository }}
+        run: scripts/downloads.sh snapshot > "$RUNNER_TEMP/snapshot.json"
+
+      - name: Refuse a photograph that classified nothing
+        run: |
+          assets=$(jq '.assets | length' "$RUNNER_TEMP/snapshot.json")
+          if [ "$assets" -eq 0 ]; then
+            echo "the releases API answered with no assets: storing that would" >&2
+            echo "read as a day the whole world downloaded nothing." >&2
+            exit 1
+          fi
+          unclassified=$(jq -r '[.assets[] | select(.class == "other") | .asset] | unique | join(", ")' \
+            "$RUNNER_TEMP/snapshot.json")
+          if [ -n "$unclassified" ]; then
+            echo "::warning::unclassified release assets: $unclassified -- teach scripts/downloads.jq about them"
+          fi
+
+      - name: Store the day
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          day=$(jq -r '.captured_at | split("T")[0]' "$RUNNER_TEMP/snapshot.json")
+          work=$(mktemp -d)
+
+          # A scratch clone rather than a checkout of the branch, because the
+          # scripts this job runs come from the default branch and `metrics`
+          # has none of them: it is an orphan holding data and nothing else.
+          git -C "$work" init -q
+          git -C "$work" remote add origin \
+            "https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY"
+          git -C "$work" config user.name "github-actions[bot]"
+          git -C "$work" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git -C "$work" fetch -q --depth 1 origin metrics 2>/dev/null; then
+            git -C "$work" checkout -q FETCH_HEAD
+            git -C "$work" switch -q -c metrics
+          else
+            git -C "$work" switch -q --orphan metrics
+            cp .github/metrics-branch-README.md "$work/README.md"
+          fi
+
+          mkdir -p "$work/downloads"
+          today="$work/downloads/$day.json"
+
+          # A day on which nothing was downloaded still gets its own
+          # photograph. "We looked and the counters had not moved" is a fact,
+          # and skipping the commit would fold that day into the next row,
+          # where it would read as a longer interval rather than as a measured
+          # zero.
+          #
+          # What is skipped is a *re-run* of a day already photographed whose
+          # counters have not moved since, because the only difference left
+          # would be `captured_at`. Comparing the assets rather than the file
+          # is the whole point: the timestamp changes on every run, so a
+          # comparison of the file would never be equal and this guard would
+          # be dead code that always fell through.
+          if [ -f "$today" ] &&
+            [ "$(jq -cS .assets "$today")" = "$(jq -cS .assets "$RUNNER_TEMP/snapshot.json")" ]; then
+            echo "today is already photographed and the counters have not moved since"
+            exit 0
+          fi
+
+          # Re-running on a day that already has a photograph otherwise
+          # replaces it: the record is the state of the counters, so the later
+          # reading is the better one.
+          cp "$RUNNER_TEMP/snapshot.json" "$today"
+          git -C "$work" add -A
+          git -C "$work" commit -q -m "Photograph the release counters on $day"
+          git -C "$work" push -q origin metrics
+
+      - name: Show the series this run leaves behind
+        run: |
+          work=$(mktemp -d)
+          git clone -q --depth 1 --branch metrics \
+            "https://github.com/$GITHUB_REPOSITORY" "$work"
+          scripts/downloads.sh series "$work/downloads" | tee -a "$GITHUB_STEP_SUMMARY"

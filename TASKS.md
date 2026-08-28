@@ -18135,7 +18135,32 @@ workflow visto correr en verde sobre la rama antes de programarlo. El test del
 emisor tiene que ver fallar el caso de stdout: un ping que escriba en stdout
 rompe la sesión MCP y ningún test que no lo intente lo va a notar.
 
-**Estado:** TODO.
+**Commit 1 -- capa 0, hecho.** `scripts/downloads.jq` con la clasificación y la
+derivación, `scripts/downloads.sh` reescrito encima con `now`, `snapshot`,
+`series` y `selftest`, y `.github/workflows/download-metrics.yml` escribiendo
+una foto acumulada al día en la rama huérfana `metrics`.
+
+Dos cosas que salieron de construirlo y no estaban en la ficha:
+
+- **el id del asset distingue el reinicio de la mentira.** `--clobber` no pone
+  el contador a cero: sustituye el asset por otro, con id nuevo, cuyo contador
+  empieza en cero. Así que una sustitución no se recorta -- su total entero es
+  tráfico, porque ese contador arrancó después de la foto anterior --, y lo
+  único perdido es lo que el asset viejo se llevó entre la foto y su
+  sustitución. El recorte queda para la bajada con el id intacto, que es la
+  que nada explica: aporta cero y se anota como `unexplained`. Recortar una
+  anomalía en silencio es así como una fuente rota sigue pareciendo sana. La ADR
+  0083 decía sólo "recorta y anota"; queda corregida;
+- **la primera fila de la serie no es un día.** Sin nada de lo que restar, es
+  todo lo descargado desde siempre: `132` hoy. Va marcada `first_snapshot`, con
+  `days_covered` nulo, para que nadie la sume a una tasa.
+
+`selftest` corre en el propio workflow antes de fotografiar, porque el
+workflow es el único consumidor y un lector que ha empezado a contar mal no
+tiene otra forma de decirlo. Se comprobó por mutación que las tres afirmaciones
+que no son una resta fallan si se rompen.
+
+**Estado:** commit 1 hecho; faltan 2, 3 y 4.
 
 
 ## LUQUE-2233 - `serve` deja de servir
