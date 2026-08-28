@@ -16,6 +16,26 @@ import (
 
 const serverName = "kivgraph"
 
+// ServerOptions carries the choices a caller makes about the *shape* of the
+// surface, as opposed to what answers from it. The zero value is the surface
+// every existing constructor builds, so a caller that has nothing to say says
+// nothing.
+type ServerOptions struct {
+	// ExposeUnavailableTools registers the query tools even when no
+	// generation is published.
+	//
+	// It exists for the inspectors and registries that read a tool catalogue
+	// before anybody has indexed anything: they can only score what
+	// tools/list returns, and the fail-closed handshake of ADR 0067 returns
+	// nothing to score. It changes what is *listed* and nothing else. There
+	// is still no graph, so every tool it exposes refuses with
+	// INDEX_NOT_READY until one is published, index_project stays behind the
+	// same consent gate, and the handshake still carries the repair
+	// instructions -- telling a client a graph exists when none does would be
+	// the one lie this option must not tell.
+	ExposeUnavailableTools bool
+}
+
 // NewServer creates the Kivgraph MCP server with no graph source.
 func NewServer() *sdkmcp.Server {
 	return newServer(nil, nil, nil)
@@ -24,7 +44,7 @@ func NewServer() *sdkmcp.Server {
 // NewServerWithIndexer creates a server that also exposes the explicit
 // permission-gated index_project mutation.
 func NewServerWithIndexer(indexer indexing.ProjectIndexer) *sdkmcp.Server {
-	return newServerWithIndexer(nil, nil, nil, indexer)
+	return newServerWithIndexer(nil, nil, nil, indexer, ServerOptions{})
 }
 
 // NewServerWithObserver creates the server without a graph source and observes
@@ -57,7 +77,7 @@ func NewServerWithSnapshotStoreAndIndexer(
 	snapshotStore *hotsnapshot.SnapshotStore,
 	indexer indexing.ProjectIndexer,
 ) *sdkmcp.Server {
-	return newServerWithIndexer(nil, snapshotStore, nil, indexer)
+	return newServerWithIndexer(nil, snapshotStore, nil, indexer, ServerOptions{})
 }
 
 // NewServerWithObserverAndSnapshotStore creates the snapshot-backed server and
@@ -79,7 +99,7 @@ func NewServerWithMetricsAndSnapshotStoreAndIndexer(
 	snapshotStore *hotsnapshot.SnapshotStore,
 	indexer indexing.ProjectIndexer,
 ) *sdkmcp.Server {
-	return newServerWithIndexer(nil, snapshotStore, registry, indexer)
+	return newServerWithIndexer(nil, snapshotStore, registry, indexer, ServerOptions{})
 }
 
 // NewServerWithObserverAndMetricsAndSnapshotStore combines the legacy latency
@@ -92,8 +112,20 @@ func NewServerWithObserverAndMetricsAndSnapshotStore(
 	return newServer(observer, snapshotStore, registry)
 }
 
+// NewServerWithMetricsAndSnapshotStoreAndIndexerOptions is the configured
+// server with the surface options applied. ServerOptions{} builds exactly what
+// NewServerWithMetricsAndSnapshotStoreAndIndexer builds.
+func NewServerWithMetricsAndSnapshotStoreAndIndexerOptions(
+	registry *metrics.Registry,
+	snapshotStore *hotsnapshot.SnapshotStore,
+	indexer indexing.ProjectIndexer,
+	options ServerOptions,
+) *sdkmcp.Server {
+	return newServerWithIndexer(nil, snapshotStore, registry, indexer, options)
+}
+
 func newServer(observer tools.Observer, snapshotStore *hotsnapshot.SnapshotStore, registry *metrics.Registry) *sdkmcp.Server {
-	return newServerWithIndexer(observer, snapshotStore, registry, nil)
+	return newServerWithIndexer(observer, snapshotStore, registry, nil, ServerOptions{})
 }
 
 func newServerWithIndexer(
@@ -101,6 +133,7 @@ func newServerWithIndexer(
 	snapshotStore *hotsnapshot.SnapshotStore,
 	registry *metrics.Registry,
 	indexer indexing.ProjectIndexer,
+	options ServerOptions,
 ) *sdkmcp.Server {
 	// A server with no published generation completes the handshake, publishes no
 	// query tool and says how to repair itself. It is the one shape a client can
@@ -112,6 +145,12 @@ func newServerWithIndexer(
 	// including the ones that go on to ask nothing at all, which is most of
 	// them. See ADR 0067.
 	published := snapshotStore.Available()
+	// What is listed and what is true are two different questions, and only
+	// the first one this option answers. A client told the graph is healthy
+	// when nothing is published would route its work to tools that cannot
+	// answer and read the refusals as broken tools; the repair instructions
+	// are what let it act instead.
+	exposeQueries := published || options.ExposeUnavailableTools
 	instructions := serverInstructions
 	if !published {
 		instructions = staleServerInstructions
@@ -142,12 +181,28 @@ func newServerWithIndexer(
 	// The snapshot's own metadata is not observed here for the same reason: it
 	// would require the graph. The loader records it when it runs, which is also
 	// the moment the numbers become true of this process.
-	if !published {
+	if !exposeQueries {
 		// index_project is the exception: it is how a client without a graph
 		// builds one, and it needs no graph to run.
 		tools.RegisterIndexProject(server, indexer, callObserver)
 		return server
 	}
+	registerQueryTools(server, observer, snapshotStore, registry, callObserver)
+	tools.RegisterIndexProject(server, indexer, callObserver)
+	return server
+}
+
+// registerQueryTools adds the read-only surface. It is one function so that the
+// catalogue an inspector reads without a graph is the same catalogue a client
+// gets with one: two lists would drift, and a schema copied for inspection
+// would describe a tool nobody serves.
+func registerQueryTools(
+	server *sdkmcp.Server,
+	observer tools.Observer,
+	snapshotStore *hotsnapshot.SnapshotStore,
+	registry *metrics.Registry,
+	callObserver tools.CallObserver,
+) {
 	tools.RegisterGraphStatusWithObserverAndSnapshotStoreAndMetrics(server, observer, snapshotStore, nil, registry, callObserver)
 	tools.RegisterListRepositoriesWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
 	tools.RegisterFindSymbolWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
@@ -159,8 +214,6 @@ func newServerWithIndexer(
 	tools.RegisterFindCrossRepoConsumersWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
 	tools.RegisterTraceDependenciesWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
 	tools.RegisterGetBlastRadiusWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
-	tools.RegisterIndexProject(server, indexer, callObserver)
-	return server
 }
 
 // Run serves one MCP session over the process stdin/stdout transport with a
@@ -209,8 +262,22 @@ func RunWithMetricsAndSnapshotStoreAndIndexer(
 	snapshotStore *hotsnapshot.SnapshotStore,
 	indexer indexing.ProjectIndexer,
 ) error {
+	return RunWithMetricsAndSnapshotStoreAndIndexerOptions(ctx, registry, snapshotStore, indexer, ServerOptions{})
+}
+
+// RunWithMetricsAndSnapshotStoreAndIndexerOptions is the same session with the
+// surface options applied. ServerOptions{} serves exactly what
+// RunWithMetricsAndSnapshotStoreAndIndexer serves.
+func RunWithMetricsAndSnapshotStoreAndIndexerOptions(
+	ctx context.Context,
+	registry *metrics.Registry,
+	snapshotStore *hotsnapshot.SnapshotStore,
+	indexer indexing.ProjectIndexer,
+	options ServerOptions,
+) error {
 	if registry == nil {
 		registry = metrics.NewRegistry()
 	}
-	return NewServerWithMetricsAndSnapshotStoreAndIndexer(registry, snapshotStore, indexer).Run(ctx, &sdkmcp.StdioTransport{})
+	server := NewServerWithMetricsAndSnapshotStoreAndIndexerOptions(registry, snapshotStore, indexer, options)
+	return server.Run(ctx, &sdkmcp.StdioTransport{})
 }

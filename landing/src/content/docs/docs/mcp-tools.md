@@ -94,6 +94,37 @@ publishing tools that answer `INDEX_NOT_READY` to everything would teach the
 agent that the tools do not work. See
 [Troubleshooting](/mcp/troubleshooting/).
 
+### Inspecting the catalog before there is an index
+
+`kivgraph serve --introspection` publishes the complete tool catalog even when
+no generation exists. It is meant for MCP inspectors, registries and
+development tooling that need to read tool definitions before a repository has
+been indexed, and that have nothing to read when the handshake publishes
+nothing.
+
+```bash
+kivgraph serve --introspection --config ~/.config/kivgraph/config.yaml
+```
+
+It is not the configuration to give a client. What it changes is what is
+*listed*:
+
+- it does not create an index, and starting it publishes no generation;
+- every read tool it lists still answers `INDEX_NOT_READY` until one is
+  published — `graph_status` is the exception it always was, and reports an
+  empty graph rather than refusing;
+- `index_project` stays behind the same consent gate and answers
+  `PERMISSION_REQUIRED` without approval;
+- the handshake still carries the rebuild instructions, because what a client
+  is told depends on the graph and not on this flag;
+- the definitions are the ones a published server serves, not a schema-only
+  copy;
+- `kivgraph serve` without the flag is unchanged.
+
+Only `serve` has the flag. A `serve` given it answers from its own process
+rather than relaying to a running daemon, since the catalog it is being asked
+about is its own.
+
 ## One channel per response
 
 No tool publishes an `outputSchema`. With one, the SDK marshals the typed

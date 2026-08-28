@@ -80,7 +80,8 @@ func main() {
 			return
 		case interceptsLongRunning("serve", os.Args[1:]):
 			configPath := ""
-			writeCommandHelp(os.Stdout, "serve", serveFlagSet(&configPath))
+			var options serveOptions
+			writeCommandHelp(os.Stdout, "serve", serveFlagSet(&configPath, &options))
 			return
 		case interceptsLongRunning("daemon", os.Args[1:]):
 			configPath := ""
@@ -124,8 +125,13 @@ func main() {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		configPath := ""
-		if err := runConfiguredServe(ctx, "serve", os.Args[2:], serveFlagSet(&configPath), &configPath, func(ctx context.Context, _ config.Loaded, store *hotsnapshot.SnapshotStore, indexer indexing.ProjectIndexer, events *eventlog.Writer) error {
-			return mcpserver.RunWithMetricsAndSnapshotStoreAndIndexer(ctx, toolMetricsRegistry(events), store, indexer)
+		var options serveOptions
+		// The options are read inside the runner, not here: runConfiguredServe
+		// parses the flag set before it calls back, so this closure sees what
+		// the command line said rather than the zero value.
+		if err := runConfiguredServe(ctx, "serve", os.Args[2:], serveFlagSet(&configPath, &options), &configPath, &options, func(ctx context.Context, _ config.Loaded, store *hotsnapshot.SnapshotStore, indexer indexing.ProjectIndexer, events *eventlog.Writer) error {
+			return mcpserver.RunWithMetricsAndSnapshotStoreAndIndexerOptions(ctx, toolMetricsRegistry(events), store, indexer,
+				mcpserver.ServerOptions{ExposeUnavailableTools: options.Introspection})
 		}); err != nil {
 			logger.Error("MCP server stopped with error", "command", "serve", "error", err)
 			os.Exit(1)
@@ -140,7 +146,7 @@ func main() {
 		configPath := ""
 		var options daemonOptions
 		flags := daemonFlagSet(&configPath, &options)
-		if err := runConfiguredServe(ctx, "daemon", os.Args[2:], flags, &configPath,
+		if err := runConfiguredServe(ctx, "daemon", os.Args[2:], flags, &configPath, nil,
 			runDaemon(logger, &options)); err != nil {
 			logger.Error("MCP daemon stopped with error", "command", "daemon", "error", err)
 			os.Exit(1)
@@ -395,10 +401,23 @@ func uiFlagSet(configPath, address *string) *flag.FlagSet {
 	return flags
 }
 
-func serveFlagSet(configPath *string) *flag.FlagSet {
+// serveOptions carries the flags only serve has. It is a struct rather than a
+// loose bool so the next one does not thread another argument through the help,
+// the completion and the runner all over again.
+type serveOptions struct {
+	// Introspection lists the query tools before a generation exists. It
+	// creates no index and relaxes no check: what it changes is the
+	// catalogue an inspector reads, and every tool it lists still refuses
+	// with INDEX_NOT_READY until something is published.
+	Introspection bool
+}
+
+func serveFlagSet(configPath *string, options *serveOptions) *flag.FlagSet {
 	flags := flag.NewFlagSet("serve", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	flags.StringVar(configPath, "config", "", "configuration file")
+	flags.BoolVar(&options.Introspection, "introspection", false,
+		"expose the complete MCP tool catalog even when no index is available")
 	return flags
 }
 
@@ -436,6 +455,10 @@ func runConfiguredServe(
 	args []string,
 	flags *flag.FlagSet,
 	configPath *string,
+	// options is a pointer because it is filled by the parse below, not by
+	// the caller: taking it by value would read the zero value of a struct
+	// the command line has not been applied to yet.
+	options *serveOptions,
 	runMCP configuredMCPRunner,
 ) error {
 	if ctx == nil {
@@ -464,7 +487,8 @@ func runConfiguredServe(
 	// none of the three: it holds no graph, so there is no generation to
 	// follow and no branch change to answer. Paying for them would put back
 	// exactly the per-client cost the relay exists to remove.
-	if relayed, err := relayToTheDaemon(ctx, command, *configPath, loaded, provisionDaemon); relayed {
+	if relayed, err := relayToTheDaemon(ctx, command, *configPath, loaded, provisionDaemon,
+		options != nil && options.Introspection); relayed {
 		return err
 	}
 	store, err := openConfiguredSnapshot(ctx, loaded)

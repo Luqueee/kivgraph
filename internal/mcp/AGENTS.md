@@ -26,6 +26,22 @@ declarado en la raíz.
   `instructions`. Un cliente lanza el proceso él mismo, así que salir se lee como
   una caída, y publicar tools que contestan `INDEX_NOT_READY` a todo enseña al
   agente que las tools no funcionan.
+- La única excepción se pide a mano y no la pide un cliente:
+  `ServerOptions{ExposeUnavailableTools: true}` -- que es lo que enciende
+  `kivgraph serve --introspection`-- lista el catálogo entero sin generación,
+  para el inspector o el registro que sólo puede puntuar lo que devuelve
+  `tools/list`. Cambia qué se lista y nada más: no crea índice, no fabrica un
+  grafo, las tools siguen contestando `INDEX_NOT_READY`, `index_project` sigue
+  tras su puerta de consentimiento y el handshake sigue llevando las
+  instrucciones de reparación, porque la disponibilidad -- y no la opción-- es lo
+  que decide qué se le dice al cliente. `ServerOptions{}` es el comportamiento de
+  siempre, así que el valor cero no puede convertirse en la excepción por
+  descuido; lo fija `TestColdStartStillPublishesOnlyTheRepair`.
+- Las registraciones de las tools de consulta viven en `registerQueryTools` y
+  sólo ahí. Un catálogo que se puntúa desde fuera y otro que se sirve serían dos
+  listas que derivan, y lo que se puntuaría no sería lo que se sirve; lo fija
+  `TestIntrospectionServesTheSameToolDefinitions`, que compara descripción y
+  esquema tool a tool entre las dos formas.
 - Lo que un anfitrión mantiene residente es el nombre de la tool y su
   descripción, no su esquema: Oh My Pi lee el esquema bajo demanda y Claude Code
   lo difiere. Ahí vive el enrutado -contra qué alternativa nativa compite cada

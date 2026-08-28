@@ -34,6 +34,27 @@ handshake, publica cero tools de consulta y pone el comando de reconstrucción e
 una caída; y publicar once tools que contestan `INDEX_NOT_READY` a todo enseña al
 agente que las tools no funcionan.
 
+**Salvo que se pida lo contrario.** `kivgraph serve --introspection` publica el
+catálogo entero sin generación. No es para un cliente: el argumento de arriba
+sigue siendo cierto para el agente que va a llamar. Es para el inspector, el
+registro o la herramienta de desarrollo que sólo puede leer lo que devuelve
+`tools/list`, y que ante un handshake vacío no tiene nada que puntuar.
+
+Lo que la opción cambia es qué se **lista**, y nada más. No crea un índice, no
+fabrica un grafo vacío, no relaja ninguna comprobación de espacio en disco y no
+toca la puerta de consentimiento de `index_project`. Las once tools que expone
+siguen contestando `INDEX_NOT_READY` hasta que haya generación -- `graph_status`
+es la excepción de siempre, porque la tool que explica por qué las demás se
+niegan no puede negarse ella-- y el handshake sigue llevando las instrucciones
+de reparación: decirle al cliente que hay grafo cuando no lo hay sería la única
+mentira que esta opción no puede permitirse. Las definiciones son las mismas que
+sirve una `serve` con generación, no una copia sólo de esquema: es lo que hace
+que lo que se puntúa sea lo que se sirve.
+
+Y no la hereda nadie: `serve` es la única superficie que la tiene. El demonio
+construye un servidor por sesión aceptada y nada pidió introspección ahí. Una
+`serve` que se relaya al demonio tampoco la aplica, porque no construye servidor.
+
 ## 2. Qué lleva una fila
 
 Una fila lleva **lo que el agente puede usar y con qué pedir la siguiente**: un

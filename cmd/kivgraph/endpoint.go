@@ -233,15 +233,16 @@ const serveInProcessEnv = "KIVGRAPH_SERVE_IN_PROCESS"
 //
 // Every way of declining returns false and no error, because each leaves the
 // caller's existing behaviour correct: this is `daemon` or `ui` rather than
-// `serve`, the escape hatch is set, no daemon published an endpoint, or nothing
-// answered where one said it would. The last is the fallback ADR 0084 promised
-// for a platform with no supervisor, and on those two paths nothing is worse
-// than it was.
+// `serve`, the escape hatch is set, `--introspection` asked about this server
+// in particular, no daemon published an endpoint, or nothing answered where one
+// said it would. The last is the fallback ADR 0084 promised for a platform with
+// no supervisor, and on those two paths nothing is worse than it was.
 func relayToTheDaemon(
 	ctx context.Context,
 	command, configPath string,
 	loaded config.Loaded,
 	provision daemonProvisioner,
+	introspection bool,
 ) (bool, error) {
 	if command != "serve" {
 		return false, nil
@@ -249,6 +250,16 @@ func relayToTheDaemon(
 	logger := logging.New(os.Stderr)
 	if os.Getenv(serveInProcessEnv) != "" {
 		logger.Info("serving in process because "+serveInProcessEnv+" is set", "command", command)
+		return false, nil
+	}
+	// Four: --introspection asks what *this* server publishes, and a daemon
+	// that nobody asked for introspection would answer a different question --
+	// with no generation published, by publishing no query tool at all, which
+	// is precisely the state the flag exists to look past. Relaying it would
+	// be a silent no-op, and a flag that does nothing is worse than one that
+	// is refused.
+	if introspection {
+		logger.Info("serving in process because --introspection asks what this server publishes", "command", command)
 		return false, nil
 	}
 	// Probed rather than trusted, and here rather than inside the relay,
