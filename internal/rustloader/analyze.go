@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
-	"github.com/Luqueee/kivgraph/internal/rustloader/scipwire"
+	"github.com/Luqueee/kivgraph/internal/scip/scipwire"
 	"github.com/Luqueee/kivgraph/internal/syntax"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )

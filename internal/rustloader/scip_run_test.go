@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/Luqueee/kivgraph/internal/executable"
-	"github.com/Luqueee/kivgraph/internal/rustloader/scipwire"
+	"github.com/Luqueee/kivgraph/internal/scip/scipwire"
 	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
