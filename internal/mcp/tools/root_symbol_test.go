@@ -248,3 +248,45 @@ func TestResolveDeclarationByNameSaysWhenANameIsOnlyMentioned(t *testing.T) {
 		t.Fatalf("error = %q, want it to separate a mention from an absence", err.Error())
 	}
 }
+
+// TestANameThatIsNotASymbolIsSentToFindByIntent covers both ways a bare name
+// comes back empty, because they are two returns and only a shared helper keeps
+// them saying the same thing.
+//
+// One is a name the string arena never interned. The other is a name it did --
+// a repository name, a path, a kind -- that no symbol carries, which reaches a
+// different return eighty lines down. Over five days these were `dart`,
+// `posthog`, `playw` and `HEAD`: search terms, not identifiers, from a caller
+// using a symbol lookup as grep. The answer they got named no next step, while
+// the neighbour that handles a narrowed qualified name has named one since it
+// was written.
+func TestANameThatIsNotASymbolIsSentToFindByIntent(t *testing.T) {
+	snapshot := selectorSnapshot(t)
+	for _, testCase := range [...]struct {
+		name   string
+		symbol string
+	}{
+		{name: "a name the arena never interned", symbol: "Absent"},
+		// Interned as a repository name and carried by no symbol, which is the
+		// second return.
+		{name: "a name the arena holds that no symbol carries", symbol: "alpha"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			_, _, err := resolveDeclarationByName(snapshot, testCase.symbol, "", "")
+			if err == nil {
+				t.Fatalf("resolveDeclarationByName(%q) resolved a name no symbol carries", testCase.symbol)
+			}
+			if code := ErrorCode(err); code != CodeSymbolNotFound {
+				t.Fatalf("%q: code = %q, want %q: this is still a failure to answer",
+					testCase.symbol, code, CodeSymbolNotFound)
+			}
+			// Against the registration constant, not a literal: an error that
+			// routes to a tool the server does not publish sends the question
+			// to a call that fails.
+			if !strings.Contains(err.Error(), findByIntentToolName) {
+				t.Fatalf("%q: error = %q, want it to name %s, the tool that answers this question",
+					testCase.symbol, err.Error(), findByIntentToolName)
+			}
+		})
+	}
+}

@@ -132,6 +132,10 @@ func newServerWithIndexer(
 				SnapshotID:        observation.SnapshotID,
 				SnapshotAgeMS:     observation.SnapshotAgeMS,
 				Err:               observation.Err,
+				// Classified here because this is the seam where the tool
+				// vocabulary is still in scope: `internal/metrics` cannot
+				// import `tools`, since `tools` imports it.
+				Refused: tools.IsRefusal(observation.Err),
 			})
 		}
 	}

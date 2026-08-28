@@ -10,6 +10,7 @@ import (
 
 	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/eventlog"
+	"github.com/Luqueee/kivgraph/internal/mcp/tools"
 )
 
 // toolStatsOptions carries the flags of `kivgraph tool-stats`.
@@ -70,7 +71,11 @@ func runToolStats(args []string, stdout, stderr io.Writer) int {
 		writeCommandError(stderr, "tool-stats: %v", err)
 		return 1
 	}
-	summary := eventlog.Summarize(events)
+	// The refusal codes come from the package that owns them. Without them
+	// this table scored the answer ADR 0077 designed as a failure, and
+	// `find_references` read 22.2% over five days when its real failure rate
+	// was 42% -- a number that invites a hunt for a bug that is not there.
+	summary := eventlog.Summarize(events, tools.RefusalCodes()...)
 
 	if options.JSONOutput {
 		encoded, err := json.MarshalIndent(summary, "", "  ")
@@ -92,24 +97,27 @@ func writeToolStats(stdout io.Writer, summary eventlog.Summary, path string) {
 		return
 	}
 
-	const header = "%-30s %7s %7s %7s %8s %9s %9s %9s\n"
+	const header = "%-30s %7s %7s %8s %7s %8s %9s %9s %9s\n"
 	fmt.Fprintf(stdout, styles.dim+header+styles.reset,
-		"TOOL", "CALLS", "OK", "FAIL", "OK%", "MEAN", "P95", "MAX")
+		"TOOL", "CALLS", "OK", "REFUSED", "FAIL", "OK%", "MEAN", "P95", "MAX")
 	for _, entry := range summary.Tools {
 		rate := "-"
 		if share, known := entry.SuccessRate(); known {
 			rate = fmt.Sprintf("%.1f%%", share*100)
 		}
-		// Only a failing row is coloured. A table where every line is
-		// painted tells a reader nothing about which line to read.
+		// Only a failing row is coloured, and a refusal is not one. A table
+		// where every line is painted tells a reader nothing about which line
+		// to read, and painting the designed answer is the same mistake in
+		// colour that counting it as a failure was in arithmetic.
 		prefix, suffix := "", ""
 		if entry.Failed > 0 {
 			prefix, suffix = styles.warning, styles.reset
 		}
-		fmt.Fprintf(stdout, prefix+"%-30s %7d %7d %7d %8s %9s %9s %9s"+suffix+"\n",
+		fmt.Fprintf(stdout, prefix+"%-30s %7d %7d %8d %7d %8s %9s %9s %9s"+suffix+"\n",
 			entry.Tool,
 			entry.Calls,
 			entry.OK,
+			entry.Refused,
 			entry.Failed,
 			rate,
 			formatLogDuration(entry.Mean),
@@ -119,8 +127,8 @@ func writeToolStats(stdout io.Writer, summary eventlog.Summary, path string) {
 	}
 
 	fmt.Fprintln(stdout, "")
-	writeInfo(stdout, "tool-stats: calls=%d ok=%d failed=%d window=%s",
-		summary.Calls, summary.OK, summary.Failed, toolStatsWindow(summary))
+	writeInfo(stdout, "tool-stats: calls=%d ok=%d refused=%d failed=%d window=%s",
+		summary.Calls, summary.OK, summary.Refused, summary.Failed, toolStatsWindow(summary))
 	// The last failure of each tool is the line that turns a count into
 	// something actionable, and a count alone has sent people to grep for it.
 	for _, entry := range summary.Tools {

@@ -434,3 +434,33 @@ func benchmarkObserveAll(b *testing.B, registry *Registry) {
 		registry.ObserveLadybug(ladybug)
 	}
 }
+
+// TestObserveQueryCountsARefusalApartFromAFailure fixes the split in the live
+// registry, which is what graph_status reads back.
+//
+// Disjoint, not additive: a refusal counted in both columns would leave
+// `errors` the number it already was, and the separation would be decoration.
+// The classification arrives on the observation because the vocabulary of tool
+// codes belongs to internal/mcp/tools, which imports this package.
+func TestObserveQueryCountsARefusalApartFromAFailure(t *testing.T) {
+	registry := NewRegistry()
+	registry.ObserveQuery(QueryObservation{ToolName: "find_references", Returned: 3})
+	registry.ObserveQuery(QueryObservation{
+		ToolName: "find_references", Err: errors.New("AMBIGUOUS_SYMBOL: several"), Refused: true,
+	})
+	registry.ObserveQuery(QueryObservation{
+		ToolName: "find_references", Err: errors.New("SYMBOL_NOT_FOUND: posthog"),
+	})
+
+	metrics := registry.Report().Queries["find_references"]
+	if metrics.Calls != 3 || metrics.Errors != 1 || metrics.Refusals != 1 {
+		t.Fatalf("QueryMetrics = calls %d errors %d refusals %d, want 3, 1 and 1",
+			metrics.Calls, metrics.Errors, metrics.Refusals)
+	}
+	// A call that answered is neither, whatever the flag says: Refused is read
+	// only where there is an error to classify.
+	registry.ObserveQuery(QueryObservation{ToolName: "find_symbol", Returned: 1, Refused: true})
+	if answered := registry.Report().Queries["find_symbol"]; answered.Refusals != 0 || answered.Errors != 0 {
+		t.Fatalf("an answered call was counted: errors %d refusals %d", answered.Errors, answered.Refusals)
+	}
+}

@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -112,8 +113,41 @@ func (event Event) Duration() (time.Duration, bool) {
 }
 
 // Failed reports whether the event describes work that did not answer.
+//
+// A refusal is one of these: it returns no rows, so it takes the error path and
+// is recorded here as one. Telling the two apart is the reader's job and needs
+// the tool vocabulary, which this package does not have -- see ErrorCode and
+// Summarize.
 func (event Event) Failed() bool {
 	return event.Status == StatusError || event.Level == LevelError
+}
+
+// ErrorCode is the stable code a failed tool call carries.
+//
+// It is read back out of Error rather than kept in a field of its own, which
+// is the shape the writer chose on purpose: a tool failure is rendered as
+// "CODE: message", so the classification already survives in the file. That
+// makes it readable from logs written before anything knew to classify them,
+// which is the only reason the five-day measurement in LUQUE-2235 can be
+// checked against the code that answers it.
+func (event Event) ErrorCode() string {
+	// A code with no colon after it is the other shape the renderer produces:
+	// ToolError.Error() answers the code alone when the message is empty. A
+	// parser that required the separator would drop exactly those, and drop
+	// them into the failure column, which is the thing this exists to stop.
+	code := event.Error
+	if separator := strings.Index(code, ":"); separator >= 0 {
+		code = code[:separator]
+	}
+	if code == "" {
+		return ""
+	}
+	for _, letter := range code {
+		if (letter < 'A' || letter > 'Z') && letter != '_' {
+			return ""
+		}
+	}
+	return code
 }
 
 // WithDuration returns the event carrying elapsed, in milliseconds.
