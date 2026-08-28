@@ -7,6 +7,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/Luqueee/kivgraph/internal/filelock"
 	"github.com/Luqueee/kivgraph/internal/storage/generation"
 	"github.com/Luqueee/kivgraph/internal/watcher"
 	"github.com/Luqueee/kivgraph/internal/workspace"
@@ -204,7 +205,7 @@ func resyncBatch(ctx context.Context, options ResyncOptions, batch []RepositoryM
 		}
 	}
 
-	lock, acquired, err := acquireWriterLock(options.LockPath)
+	lock, acquired, err := filelock.Acquire(options.LockPath)
 	if err != nil {
 		return false, fmt.Errorf("acquire resync lock: %w", err)
 	}
@@ -212,7 +213,7 @@ func resyncBatch(ctx context.Context, options ResyncOptions, batch []RepositoryM
 		return false, nil
 	}
 	defer func() {
-		if closeErr := lock.release(); closeErr != nil {
+		if closeErr := lock.Release(); closeErr != nil {
 			report(options.OnError, fmt.Errorf("release resync lock: %w", closeErr))
 		}
 	}()

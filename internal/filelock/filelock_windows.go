@@ -1,6 +1,6 @@
 //go:build windows
 
-package indexing
+package filelock
 
 import (
 	"errors"
@@ -11,17 +11,15 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// writerLock is the exclusive right to rebuild the graph of one state
-// directory.
+// Lock is one process's exclusive claim on a path.
 //
-// This is the Windows counterpart of the flock in resync_lock_unix.go. What
+// This is the Windows counterpart of the flock in filelock_unix.go. What
 // carries over is the whole reason the lock exists: LockFileEx excludes other
-// processes, and Windows drops the lock when the holder's last handle closes,
-// so a crashed rebuild does not leave the graph locked forever. That is the
-// property the comment on the unix side says a pid file cannot offer, and it
-// is why this is written against the platform's own primitive instead of being
-// stubbed out.
-type writerLock struct {
+// processes, and Windows drops it when the holder's last handle closes, so a
+// crashed holder does not leave the path locked forever. That is the property
+// the package doc says a pid file cannot offer, and it is why this is written
+// against the platform's own primitive instead of being stubbed out.
+type Lock struct {
 	file *os.File
 }
 
@@ -33,9 +31,9 @@ type writerLock struct {
 // locking past the end of a file is legal exactly so that this works.
 const lockedRegionBytes = 1
 
-// acquireWriterLock takes the lock without waiting. A false return is not an
-// error: it means another process is already rebuilding the same graph.
-func acquireWriterLock(path string) (*writerLock, bool, error) {
+// Acquire takes the lock without waiting. A false return is not an error: it
+// means another process holds it.
+func Acquire(path string) (*Lock, bool, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, false, fmt.Errorf("create lock directory: %w", err)
 	}
@@ -51,8 +49,8 @@ func acquireWriterLock(path string) (*writerLock, bool, error) {
 	if lockErr != nil {
 		closeErr := file.Close()
 		// LOCKFILE_FAIL_IMMEDIATELY reports a range somebody else holds as a
-		// violation instead of waiting for it, so this is the "already
-		// rebuilding" answer and not a failure to lock.
+		// violation instead of waiting for it, so this is the "somebody else
+		// has it" answer and not a failure to lock.
 		if errors.Is(lockErr, windows.ERROR_LOCK_VIOLATION) {
 			if closeErr != nil {
 				return nil, false, fmt.Errorf("close lock file %q: %w", path, closeErr)
@@ -61,10 +59,10 @@ func acquireWriterLock(path string) (*writerLock, bool, error) {
 		}
 		return nil, false, fmt.Errorf("lock %q: %w", path, lockErr)
 	}
-	return &writerLock{file: file}, true, nil
+	return &Lock{file: file}, true, nil
 }
 
-func (lock *writerLock) release() error {
+func (lock *Lock) Release() error {
 	if lock == nil || lock.file == nil {
 		return nil
 	}

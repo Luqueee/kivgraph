@@ -359,9 +359,10 @@ func TestAClientHangingUpIsNotAnError(t *testing.T) {
 func TestASessionThatBreaksIsStillAnError(t *testing.T) {
 	broken := errors.New("the daemon stopped answering mid-session")
 	if endOfSession(broken) == nil {
-		t.Fatal("a real failure was reported as a session that simply ended")
+		t.Fatalf("endOfSession(%v) = nil: a real failure was reported as a session that simply ended", broken)
 	}
-	if err := endOfSession(fmt.Errorf("relaying: %w", ErrVersionSkew)); err == nil {
-		t.Fatal("a version-skew refusal was swallowed as a clean end")
+	refused := fmt.Errorf("relaying: %w", ErrVersionSkew)
+	if endOfSession(refused) == nil {
+		t.Fatalf("endOfSession(%v) = nil: a version-skew refusal was swallowed as a clean end", refused)
 	}
 }

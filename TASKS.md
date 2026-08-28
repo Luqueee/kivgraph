@@ -18313,12 +18313,49 @@ a mano y un test que lo fije.
 
    Lo que **no** lleva: la documentación de `landing/` y el aviso de primer
    arranque siguen sin mencionar que hay un servicio detrás. Es el commit 4.
-3. El provisionado: `ensureDaemon` junto a `ensureConfiguration`, con el lock de
-   la ráfaga -- ocho relés a la vez encuentran los ocho que no hay demonio -- y
-   los perdedores esperando a `endpointDeadline` en vez de instalar ocho
-   supervisores. **No sale sin respuesta a qué pasa con la unidad cuando alguien
-   borra la extensión `.mcpb`:** el formato no tiene hooks de desinstalación, así
-   que hoy se quedaría apuntando a un binario que ya no existe.
+3. **El provisionado. HECHO**, y la pregunta que lo bloqueaba se contestó
+   midiendo, no razonando.
+
+   **La respuesta era peor de lo que la ficha suponía, y era un defecto de hoy.**
+   Una unidad cuyo `ExecStart` apunta a un binario borrado **reintentaba para
+   siempre**: `NRestarts=140` y subiendo, un `exec` cada dos segundos. El límite
+   por defecto -- cinco arranques por diez segundos, con `RestartSec=2`-- se
+   sienta exactamente en su propia frontera y no dispara. Salió aparte porque es
+   correcto por sí solo; con la ventana en `30s` la unidad se rinde en cinco y
+   queda en `failed`. Se vio funcionando en el humo de este commit: el demonio de
+   prueba que no podía enlazar puerto acabó en «Start request repeated too
+   quickly» en vez de girar.
+
+   **Sólo actúa cuando no hay unidad instalada.** Una unidad que existe y cuyo
+   demonio no contesta es alguien que ejecutó `kivgraph stop`, y volver a
+   arrancarla dejaría ese comando sin poder parar nada -- que es el mismo
+   argumento por el que la unidad es `Restart=on-failure` y no `always`. Una
+   editada a mano se deja igual, por el motivo por el que `Status` la informa en
+   vez de repararla.
+
+   **El provisionador se inyecta**, como el reinicio de `LUQUE-2234`, y por un
+   motivo que salió de escribirlo: dos tests míos de los caminos de **declinar**
+   estaban ejecutando `systemctl` contra el gestor de usuario real para llegar a
+   un «no». No instalaron nada porque `HOME` iba redirigido, pero es un efecto
+   que un test no puede tener y la suite en verde no decía nada de él.
+
+   **El `flock` salió a `internal/filelock`** en vez de hacer una tercera copia;
+   `internal/indexing` lo usa desde ahí. `internal/storage/generation` conserva
+   la suya, con otro contrato -- toma el lock o falla, donde ésta declina sin
+   esperar--, y queda anotado.
+
+   **Y un hallazgo que contradice al ADR 0068 en una frase:** «dos
+   configuraciones apuntando a directorios distintos obtienen demonios
+   distintos» vale para el socket y **no para el puerto**. `daemon` enlaza
+   `127.0.0.1:7788` fijo, así que dos configuraciones no pueden tener demonio
+   supervisado a la vez con la dirección por defecto: la segunda no enlaza,
+   agota el límite de arranque, y su `serve` contesta en proceso. Se ve en el
+   fallback y no en silencio, y `daemon install --addr` es la salida. No se
+   arregla aquí.
+
+   El aviso de que hay un servicio en segundo plano ya sale por `stderr` con el
+   comando para quitarlo. La documentación de `landing/` sigue sin decirlo: es
+   el commit 4.
 4. `build-mcpb.sh` y la documentación: el `.mcpb` sigue declarando `serve`, pero
    `serve` ya no significa lo mismo, y el aviso de primer arranque tiene que
    decir que hay un servicio en segundo plano.
@@ -18341,9 +18378,8 @@ la condición de que haya commit 2 -- **cumplido**: `results.json`,
 `go test ./...`, `go vet ./...` y `make lint-ladybug`; y el smoke test del
 binario contra un demonio vivo y contra ninguno.
 
-**Estado:** commits 1 y 2 hechos. Quedan el 3 -- el provisionado, que no sale
-sin respuesta a qué pasa con la unidad cuando alguien borra la extensión
-`.mcpb`-- y el 4.
+**Estado:** commits 1, 2 y 3 hechos. Queda el 4: `build-mcpb.sh` y la
+documentación de `landing/`.
 
 ## LUQUE-2234 - Un `update` que no reinicia el demonio, y un consejo que lo apaga
 

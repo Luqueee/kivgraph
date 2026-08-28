@@ -464,7 +464,7 @@ func runConfiguredServe(
 	// none of the three: it holds no graph, so there is no generation to
 	// follow and no branch change to answer. Paying for them would put back
 	// exactly the per-client cost the relay exists to remove.
-	if relayed, err := relayToTheDaemon(ctx, command, loaded); relayed {
+	if relayed, err := relayToTheDaemon(ctx, command, *configPath, loaded, provisionDaemon); relayed {
 		return err
 	}
 	store, err := openConfiguredSnapshot(ctx, loaded)
