@@ -192,22 +192,25 @@ func TestToolStatsSeparatesTheDesignedRefusalFromAFailure(t *testing.T) {
 	}
 }
 
-// A tool that only ever refused has failed nothing, and the table must not
-// paint it. Colouring the designed answer is the same mistake in colour that
-// counting it as a failure was in arithmetic.
-func TestToolStatsDoesNotColourARowThatOnlyRefused(t *testing.T) {
-	configPath := writeEventStore(t,
-		toolCallEvent(0, "find_references", 10*time.Millisecond,
-			"AMBIGUOUS_SYMBOL: \"Status\" has 71 declarations in 8 repositories"),
-	)
+// A tool that only ever refused has failed nothing, so it offers nothing to
+// act on and nothing for the table to paint. Both follow from `Failed`, and
+// this pins it at zero -- which is the input the colour rule reads.
+//
+// The escape sequences themselves are not asserted, and cannot be from here:
+// `styleFor` colours only an *os.File that is a terminal, and a buffer is
+// neither. Giving it a seam that a test could open would be a function in
+// production code that exists only for a test, which this repository forbids.
+func TestARowThatOnlyRefusedOffersNothingToActOn(t *testing.T) {
+	const refusal = "AMBIGUOUS_SYMBOL: \"Status\" has 71 declarations in 8 repositories"
+	configPath := writeEventStore(t, toolCallEvent(0, "find_references", 10*time.Millisecond, refusal))
 	var stdout, stderr bytes.Buffer
 	if code := runToolStats([]string{"--config", configPath}, &stdout, &stderr); code != 0 {
 		t.Fatalf("runToolStats() = %d, stderr=%q", code, stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "refused=1 failed=0") {
-		t.Fatalf("the refusal was not separated:\n%s", stdout.String())
+		t.Fatalf("%q was not separated from a failure:\n%s", refusal, stdout.String())
 	}
 	if strings.Contains(stdout.String(), "tool-stats.failure:") {
-		t.Fatalf("a row that failed nothing reported a failure:\n%s", stdout.String())
+		t.Fatalf("%q was reported as something to act on:\n%s", refusal, stdout.String())
 	}
 }

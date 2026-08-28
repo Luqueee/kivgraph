@@ -136,6 +136,9 @@ func TestErrorCodeReadsTheCodeTheWriterEncoded(t *testing.T) {
 	}{
 		{`AMBIGUOUS_SYMBOL: "Status" has 71 declarations`, "AMBIGUOUS_SYMBOL"},
 		{`SYMBOL_NOT_FOUND: name "posthog" was not found`, "SYMBOL_NOT_FOUND"},
+		// The renderer's other shape: ToolError.Error() answers the code alone
+		// when the message is empty, so there is no separator to find.
+		{"AMBIGUOUS_SYMBOL", "AMBIGUOUS_SYMBOL"},
 		// Nothing to read, and each for a different reason: no separator, a
 		// message that is not a code, and a colon with nothing before it. A
 		// loose parser would turn every one of these into a code that some

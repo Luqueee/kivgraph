@@ -274,13 +274,15 @@ func TestANameThatIsNotASymbolIsSentToFindByIntent(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			_, _, err := resolveDeclarationByName(snapshot, testCase.symbol, "", "")
 			if err == nil {
-				t.Fatal("resolveDeclarationByName() resolved a name no symbol carries")
+				t.Fatalf("resolveDeclarationByName(%q) resolved a name no symbol carries", testCase.symbol)
 			}
 			if code := ErrorCode(err); code != CodeSymbolNotFound {
-				t.Fatalf("code = %q, want %q: this is still a failure to answer", code, CodeSymbolNotFound)
+				t.Fatalf("%q: code = %q, want %q: this is still a failure to answer",
+					testCase.symbol, code, CodeSymbolNotFound)
 			}
 			if !strings.Contains(err.Error(), "find_by_intent") {
-				t.Fatalf("error = %q, want it to name the tool that answers this question", err.Error())
+				t.Fatalf("%q: error = %q, want it to name the tool that answers this question",
+					testCase.symbol, err.Error())
 			}
 		})
 	}

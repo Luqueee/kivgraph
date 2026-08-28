@@ -131,11 +131,17 @@ func (event Event) Failed() bool {
 // which is the only reason the five-day measurement in LUQUE-2235 can be
 // checked against the code that answers it.
 func (event Event) ErrorCode() string {
-	separator := strings.Index(event.Error, ":")
-	if separator <= 0 {
+	// A code with no colon after it is the other shape the renderer produces:
+	// ToolError.Error() answers the code alone when the message is empty. A
+	// parser that required the separator would drop exactly those, and drop
+	// them into the failure column, which is the thing this exists to stop.
+	code := event.Error
+	if separator := strings.Index(code, ":"); separator >= 0 {
+		code = code[:separator]
+	}
+	if code == "" {
 		return ""
 	}
-	code := event.Error[:separator]
 	for _, letter := range code {
 		if (letter < 'A' || letter > 'Z') && letter != '_' {
 			return ""
