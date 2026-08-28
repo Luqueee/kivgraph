@@ -116,14 +116,22 @@ jobs:
           if [ -f "$today" ] &&
             [ "$(jq -cS .assets "$today")" = "$(jq -cS .assets "$RUNNER_TEMP/snapshot.json")" ]; then
             echo "today is already photographed and the counters have not moved since"
-            exit 0
+          else
+            # Re-running on a day that already has a photograph otherwise
+            # replaces it: the record is the state of the counters, so the
+            # later reading is the better one.
+            cp "$RUNNER_TEMP/snapshot.json" "$today"
           fi
 
-          # Re-running on a day that already has a photograph otherwise
-          # replaces it: the record is the state of the counters, so the later
-          # reading is the better one.
-          cp "$RUNNER_TEMP/snapshot.json" "$today"
+          # The commit is decided by the index and not by the counters, because
+          # the photograph is not the only thing this run can change: an edited
+          # README reaches the branch on a day nothing was downloaded, and
+          # returning early before this would have thrown it away.
           git -C "$work" add -A
+          if git -C "$work" diff --cached --quiet; then
+            echo "nothing to store: same counters, same README"
+            exit 0
+          fi
           git -C "$work" commit -q -m "Photograph the release counters on $day"
           git -C "$work" push -q origin metrics
 

@@ -533,9 +533,14 @@ flat string fields:
 - **`channel`** -- `installer`, `mcpb`, `archive` or `source`. How the binary
   got there. It is what makes the `.mcpb` share of the volume visible from the
   client side, where the download counters cannot see it;
-- **`transport`** -- `stdio` or `daemon`, and absent from an `installer` row,
-  because an installer has not started a server and reporting a default it did
-  not choose would be inventing data.
+- **`transport`** -- `stdio` or `daemon` on a `binary` row, and **absent** on
+  an `installer` one, because an installer has not started a server and
+  reporting a default it did not choose would be inventing data. It is
+  required on the rows that have it: a `binary` row without a transport is
+  refused rather than defaulted.
+
+One machine installing one version therefore produces **at most two rows**,
+one per emitter, and they are never added together.
 
 `first_run` is the one event name that does not obey `<object>_<action>`. The
 object *is* the event, and `run_first` would satisfy the shape at the cost of
@@ -551,10 +556,19 @@ refusing. Only the `binary` rows answer *how many machines ran it*.
 
 And a `.mcpb` never runs `install.sh` -- the MCP client unpacks the bundle and
 launches the binary -- so instrumenting the installer alone would give clean
-data about the `5 %` of the volume that arrives through it and nothing about
-the `39 %` that arrives as a bundle.
+data about a twentieth of the volume and nothing about the largest share of
+it. The split is counted in `LUQUE-2232` over the releases API from `v0.1.0`
+to `v0.9.1`: `39 %` of downloads were `.mcpb` and `5 %` were the installers,
+and Layer 0 now keeps that number current instead of quoting it.
 
 ### What is measured is the first run of a version
+
+**The marker governs the `binary` emitter and nothing else.** An installer has
+no marker: it reports once per successful run, and a reader who runs it three
+times sends three, which the endpoint's window collapses. Sharing one marker
+between the two emitters would be the bug the dedupe key already avoids --
+whichever emitter got there first would suppress the other's row, and the two
+rows are the two different facts this property exists to keep apart.
 
 The marker lives under the state directory, not the bundle root: an update
 replaces the bundle, so a marker there would fire again on every update.
@@ -563,8 +577,9 @@ Calling the number *installations* would be a claim the marker cannot support.
 It is created with `O_CREATE|O_EXCL` and only the process that created it
 sends. Reading the marker and then writing it would let a whole burst find it
 absent and report before any of them had created it -- and stdio starts
-bursts: ADR 0069 measured `69` starts of `serve` with `8` alive at once. That
-is one install turning into as many pings as the client happened to spawn.
+bursts: `docs/adr/0069-el-demonio-es-el-defecto.md` measured `69` starts of
+`serve` with `8` alive at once, over one session of one client. That is one
+install turning into as many pings as the client happened to spawn.
 
 ### What is not sent
 

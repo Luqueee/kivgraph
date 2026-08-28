@@ -10,15 +10,17 @@ source to find out what a future version will report.
 
 ## The one thing that will be reported
 
-A single event, once per version, per machine: **this version started here for
-the first time**.
+A single event: **this version arrived here and ran**. One machine installing
+one version produces at most two of them -- one when an installer finishes,
+one when the binary starts for the first time -- and they are never added
+together, because a bundle can be installed and never launched.
 
 It carries five fields and nothing else:
 
 | field | values | what it says |
 | --- | --- | --- |
 | `emitter` | `installer`, `binary` | whether an install finished or a binary started |
-| `version` | `0.9.1` | which version |
+| `version` | `MAJOR.MINOR.PATCH`, as in `0.9.1` | which version |
 | `platform` | `linux-amd64`, `darwin-arm64`, `windows-amd64` | which build |
 | `channel` | `installer`, `mcpb`, `archive`, `source` | how it got there |
 | `transport` | `stdio`, `daemon` | which arrangement served, on `binary` rows only |
@@ -44,8 +46,9 @@ no version of it that carries more.
 ## Why the ping exists at all
 
 Download counts cannot answer it. GitHub counts a download when a URL is
-fetched, and three of every release's downloads are our own release
-automation verifying the checksums it just published. A directory mirroring a
+fetched, and some of every release's downloads are our own: the release job
+publishes three bundles to a package registry, which fetches each one back to
+verify the checksum it was given. A directory mirroring a
 registry looks exactly like a person installing, and a bundle can be
 downloaded and never run.
 
@@ -59,13 +62,14 @@ export KIVGRAPH_TELEMETRY=0
 ```
 
 Set anywhere the process can see it -- your shell, the MCP client's `env`
-block, the systemd unit -- and nothing is sent. There is no second switch and
-no partial mode.
+block, the systemd unit -- and nothing is sent. There is no second switch on
+your side and no partial mode.
 
-The installers take the same variable:
+The installers take the same variable. It has to reach the **shell**, not the
+download:
 
 ```sh
-KIVGRAPH_TELEMETRY=0 curl -fsSL https://kivgraph.dev/install.sh | sh
+curl -fsSL https://kivgraph.dev/install.sh | KIVGRAPH_TELEMETRY=0 sh
 ```
 
 Turning it off costs you nothing: no feature checks it, and no behaviour
