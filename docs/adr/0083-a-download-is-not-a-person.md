@@ -1,6 +1,6 @@
 # ADR 0083: a download is not a person
 
-- **Status:** accepted as a design; nothing in *Decision* is implemented
+- **Status:** accepted; Layer 0 is implemented, Layer 1 is still a design
 - **Date:** 2026-08-28
 - **Implementation:** `LUQUE-2232`
 
@@ -115,6 +115,20 @@ loses that day permanently.
 `--clobber`, above. The reader clamps the delta at zero and records the
 reset as its own fact, so a re-published tag reads as a gap in the series
 and not as people un-downloading a file.
+
+Building it found the sharper form of that invariant. The snapshot stores
+the asset id next to the count, and `--clobber` changes it: a replaced
+asset is a *different* asset whose counter starts at zero. So a
+replacement is not clamped -- its whole total is traffic, because that
+counter started after the previous photograph, and only what the old asset
+took between the photograph and its replacement is lost. Clamping is left
+for a count that fell with the id unchanged, which nothing here explains;
+that one contributes zero and is recorded as `unexplained`, because
+silently clamping an anomaly is how a broken source keeps looking healthy.
+
+The classification and the derivation live in `scripts/downloads.jq`,
+included by both readers, so the workflow that writes the series and the
+command that shows today cannot come to disagree about what a `bundle` is.
 
 Layer 0 also fixes the classification the table above uses -- `bundle`,
 `checksums`, `installer`, `mcpb` -- and names one KPI: downloads of the
