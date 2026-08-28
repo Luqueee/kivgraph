@@ -166,8 +166,15 @@ separately, and only the `binary` rows answer *how many machines ran it*.
 **The endpoint is public, so the number is worth exactly its bounds.**
 Strict validation against the closed sets of platform, channel and
 transport and the published version pattern, an in-process dedupe window
-per address and version, and `204` on every path so probing it teaches
-nothing.
+per address, version **and `emitter`**, and `204` on every path so probing
+it teaches nothing.
+
+The `emitter` in that key is load-bearing and easy to leave out. An
+installer that has just finished and the first run that follows it carry
+the same address and the same version, seconds apart: a window keyed on
+those two alone would discard the second, which is precisely the `binary`
+row the property exists to collect. The field that separates the two
+aggregates has to separate their deduplication too.
 
 What the dedupe window does **not** buy is the headline number, and saying
 otherwise would misread the identity above: under a daily-rotating hash one

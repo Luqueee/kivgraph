@@ -18091,7 +18091,10 @@ supervisor, y máquina sin configuración --, y tres son silenciosos. Y
 
 El endpoint es público, así que el número vale lo que valgan sus límites:
 validación estricta contra los conjuntos cerrados de plataforma y canal y el
-patrón de versión publicada, ventana de deduplicación por dirección y versión, y
+patrón de versión publicada, ventana de deduplicación por dirección, versión
+**y `emitter`** -- sin ese tercer término, el instalador que acaba de terminar y
+el primer arranque que le sigue comparten dirección y versión con segundos de
+diferencia, y la ventana se comería justo la fila `binary` que queremos --, y
 `204` en todos los caminos para que sondearlo no enseñe nada.
 
 **Cómo se cierra:** cuatro commits, en este orden.
