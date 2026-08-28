@@ -86,16 +86,22 @@ func supervisorSpec(configPath string, options supervisorOptions) (supervisor.Sp
 // Two state directories have two daemons, and restarting the wrong one would
 // take a graph down that this update never touched.
 //
-// Five outcomes are "nothing was restarted", and none of them is an error,
-// because each leaves the caller's existing behaviour correct: no
-// configuration at all, no endpoint file, a daemon that is not among the stale
-// processes, no unit installed, and a platform with no supervisor.
+// Nothing here is an error, and what the outcomes differ in is what they let
+// the caller say afterwards.
 //
-// A sixth is different and says so through Owned: a unit that exists and was
-// edited by hand. Nothing is restarted through it -- that would start whatever
-// the operator wrote instead of what this spec describes -- but a supervisor
-// does own that daemon, and the caller must not go on to advise installing
-// one.
+// Three establish nothing and answer `ownershipUnknown`: no configuration to
+// locate this daemon by, no readable endpoint to identify it with, and a stale
+// daemon that is not the one this configuration published. In all three the
+// `kivgraph daemon` in the list may well be another state directory's, already
+// supervised, and advising its operator to install a supervisor would be a
+// guess.
+//
+// Two establish that nobody has it -- no unit, or a platform with none to
+// install -- which is the only case the caller's advice fits.
+//
+// And one is supervised without being restarted: a unit that exists and was
+// edited by hand. Nothing is restarted through it, because that would start
+// whatever the operator wrote instead of what this spec describes.
 //
 // The default configuration and not a flag: `update` takes no `--config`, and
 // neither does `stop`. A daemon installed against another configuration
@@ -110,38 +116,47 @@ func restartSupervisedDaemon(targets []procstat.Process) (daemonRestart, error) 
 		// update is about. A configuration that exists and cannot be read is a
 		// different thing and is reported.
 		if errors.Is(err, fs.ErrNotExist) {
-			return daemonRestart{}, nil
+			return daemonRestart{Ownership: ownershipUnknown}, nil
 		}
-		return daemonRestart{}, fmt.Errorf("read the configuration: %w", err)
+		return daemonRestart{Ownership: ownershipUnknown}, fmt.Errorf("read the configuration: %w", err)
 	}
 	endpoint, err := daemon.ReadEndpoint(stateDirectory(loaded))
 	if err != nil {
-		// The endpoint is written before the daemon serves and removed when it
-		// stops, so its absence is the answer rather than a failure to get one.
-		return daemonRestart{}, nil
+		// A daemon writes this before it serves, so no endpoint means this
+		// configuration has none running and the stale process belongs to
+		// another one. A file that exists and cannot be read lands here too,
+		// and answers the same: unknown, not unowned.
+		return daemonRestart{Ownership: ownershipUnknown}, nil
 	}
 	if !slices.ContainsFunc(targets, func(target procstat.Process) bool {
 		return target.PID == endpoint.PID
 	}) {
-		return daemonRestart{}, nil
+		return daemonRestart{Ownership: ownershipUnknown}, nil
 	}
 	spec, err := supervisorSpec("", supervisorOptions{})
 	if err != nil {
-		return daemonRestart{}, err
+		return daemonRestart{Ownership: ownershipUnknown}, err
 	}
 	report, err := supervisor.Restart(spec)
 	if err != nil {
-		return daemonRestart{Label: report.Label, PID: endpoint.PID, Owned: true}, err
+		return daemonRestart{
+			Label: report.Label, PID: endpoint.PID, Ownership: ownershipSupervised,
+		}, err
 	}
 	switch report.State {
 	case supervisor.StateInstalled:
-		return daemonRestart{Label: report.Label, PID: endpoint.PID, Owned: true}, nil
+		return daemonRestart{
+			Label: report.Label, PID: endpoint.PID, Ownership: ownershipSupervised,
+		}, nil
 	case supervisor.StateStale:
-		return daemonRestart{Label: report.Label, Owned: true, Detail: report.Detail}, nil
+		return daemonRestart{
+			Label: report.Label, Ownership: ownershipSupervised, Detail: report.Detail,
+		}, nil
 	}
-	// Absent or unsupported: nobody owns this daemon, so the caution meant for
-	// a process a client spawned is the right one here after all.
-	return daemonRestart{}, nil
+	// Absent or unsupported, over a daemon this configuration published and
+	// this update found stale: nobody owns it, and the caution meant for a
+	// process a client spawned is the right one here after all.
+	return daemonRestart{Ownership: ownershipNone}, nil
 }
 
 // runSupervisorCommand executes `daemon install`, `daemon remove` and

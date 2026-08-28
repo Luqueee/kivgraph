@@ -25,7 +25,7 @@ func TestUpdateRestartsTheSupervisedDaemonInsteadOfOfferingToStopIt(t *testing.T
 		kivgraphProcess(52, "serve"),
 	}}
 	restart := func([]procstat.Process) (daemonRestart, error) {
-		return daemonRestart{Label: testLabel, PID: 51, Owned: true}, nil
+		return daemonRestart{Label: testLabel, PID: 51, Ownership: ownershipSupervised}, nil
 	}
 
 	var stdout, stderr bytes.Buffer
@@ -59,7 +59,7 @@ func TestUpdateRestartsTheSupervisedDaemonInsteadOfOfferingToStopIt(t *testing.T
 func TestUpdateAsksNothingWhenTheDaemonWasTheOnlyStaleProcess(t *testing.T) {
 	fixture := &stopFixture{processes: []procstat.Process{kivgraphProcess(91, "daemon")}}
 	restart := func([]procstat.Process) (daemonRestart, error) {
-		return daemonRestart{Label: testLabel, PID: 91, Owned: true}, nil
+		return daemonRestart{Label: testLabel, PID: 91, Ownership: ownershipSupervised}, nil
 	}
 
 	var stdout, stderr bytes.Buffer
@@ -118,7 +118,7 @@ func TestUpdateDoesNotConsultTheSupervisorWithoutADaemon(t *testing.T) {
 func TestUpdateKeepsTheDaemonWhenItsRestartFails(t *testing.T) {
 	fixture := &stopFixture{processes: []procstat.Process{kivgraphProcess(71, "daemon")}}
 	restart := func([]procstat.Process) (daemonRestart, error) {
-		return daemonRestart{Label: testLabel, PID: 71, Owned: true},
+		return daemonRestart{Label: testLabel, PID: 71, Ownership: ownershipSupervised},
 			errors.New("systemctl restart: exit status 1")
 	}
 
@@ -149,9 +149,9 @@ func TestUpdateReportsAHandEditedUnitWithoutAdvisingAnInstall(t *testing.T) {
 	fixture := &stopFixture{processes: []procstat.Process{kivgraphProcess(101, "daemon")}}
 	restart := func([]procstat.Process) (daemonRestart, error) {
 		return daemonRestart{
-			Label:  testLabel,
-			Owned:  true,
-			Detail: "the installed unit describes a different daemon: reinstall to replace it",
+			Label:     testLabel,
+			Ownership: ownershipSupervised,
+			Detail:    "the installed unit describes a different daemon: reinstall to replace it",
 		}, nil
 	}
 
@@ -180,7 +180,9 @@ func TestUpdateReportsAHandEditedUnitWithoutAdvisingAnInstall(t *testing.T) {
 // and nothing can bring it back.
 func TestUpdateWarnsThatStoppingAnUnownedDaemonLeavesNone(t *testing.T) {
 	fixture := &stopFixture{processes: []procstat.Process{kivgraphProcess(81, "daemon")}}
-	restart := func([]procstat.Process) (daemonRestart, error) { return daemonRestart{}, nil }
+	restart := func([]procstat.Process) (daemonRestart, error) {
+		return daemonRestart{Ownership: ownershipNone}, nil
+	}
 
 	var stdout, stderr bytes.Buffer
 	if code := runUpdateWithRunner(nil, nil, &stdout, &stderr,
@@ -196,5 +198,33 @@ func TestUpdateWarnsThatStoppingAnUnownedDaemonLeavesNone(t *testing.T) {
 		if !strings.Contains(output, want) {
 			t.Fatalf("update output lost %q:\n%s", want, output)
 		}
+	}
+}
+
+// A stale `kivgraph daemon` this configuration cannot identify -- no endpoint
+// of its own, or one published by another state directory -- establishes
+// nothing. It is still listed, and it gets no advice: the daemon in front of
+// the operator may already be supervised somewhere else, and telling them to
+// install a supervisor would be a guess dressed as a finding.
+func TestUpdateAdvisesNothingAboutADaemonItCannotIdentify(t *testing.T) {
+	fixture := &stopFixture{processes: []procstat.Process{kivgraphProcess(111, "daemon")}}
+	restart := func([]procstat.Process) (daemonRestart, error) {
+		return daemonRestart{Ownership: ownershipUnknown}, nil
+	}
+
+	var stdout, stderr bytes.Buffer
+	if code := runUpdateWithRunner(nil, nil, &stdout, &stderr,
+		installedRunner(), fixture.list, fixture.signal, restart, true); code != 0 {
+		t.Fatalf("runUpdateWithRunner = %d, stderr=%q", code, stderr.String())
+	}
+	output := stdout.String()
+	if !strings.Contains(output, "update.stale: pid=111") {
+		t.Fatalf("an unidentified daemon stopped being reported:\n%s", output)
+	}
+	if strings.Contains(output, "no supervisor owns") {
+		t.Fatalf("update claimed nobody owns a daemon it could not identify:\n%s", output)
+	}
+	if strings.Contains(output, "owns this daemon") {
+		t.Fatalf("update named an owner it never established:\n%s", output)
 	}
 }
