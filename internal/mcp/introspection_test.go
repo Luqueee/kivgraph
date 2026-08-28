@@ -173,23 +173,23 @@ func TestEveryIntrospectedToolRefusesWithoutAGraph(t *testing.T) {
 				Name: name, Arguments: arguments,
 			})
 			if err != nil {
-				t.Fatalf("CallTool(%q) transport error = %v", name, err)
+				t.Fatalf("CallTool(%q, %#v) transport error = %v", name, arguments, err)
 			}
 			text := contentText(t, result)
 			if name == "graph_status" {
 				if result.IsError {
-					t.Fatalf("graph_status refused: %s", text)
+					t.Fatalf("CallTool(%q, %#v) refused: %s", name, arguments, text)
 				}
 				if !strings.Contains(text, `"status":"empty"`) {
-					t.Fatalf("graph_status without a generation = %s, want an empty status", text)
+					t.Fatalf("CallTool(%q, %#v) without a generation = %s, want an empty status", name, arguments, text)
 				}
 				return
 			}
 			if !result.IsError {
-				t.Fatalf("%s answered without a graph: %s", name, text)
+				t.Fatalf("CallTool(%q, %#v) answered without a graph: %s", name, arguments, text)
 			}
 			if !strings.Contains(text, "INDEX_NOT_READY") {
-				t.Fatalf("%s refused with %q, want INDEX_NOT_READY", name, text)
+				t.Fatalf("CallTool(%q, %#v) refused with %q, want INDEX_NOT_READY", name, arguments, text)
 			}
 		})
 	}

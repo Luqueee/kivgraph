@@ -86,10 +86,11 @@ takes a path defers to the shell's own file completion.
 
 `serve --introspection` publishes the complete MCP tool catalog even when no
 generation exists, for the inspectors and registries that read tool definitions
-before anything has been indexed. It creates no index and relaxes no check: the
-read tools it lists answer `INDEX_NOT_READY` until a generation is published,
-and `index_project` stays behind its consent gate. Plain `serve` is unchanged,
-and this is not the configuration to give a client. See
+before anything has been indexed. It creates no index and relaxes no check:
+graph-dependent query tools answer `INDEX_NOT_READY` until a generation is
+published, while `graph_status` reports an empty graph status. `index_project`
+stays behind its consent gate. Plain `serve` is unchanged, and this is not the
+configuration to give a client. See
 [MCP tools](/docs/mcp-tools/).
 
 ## Builds without the viewer

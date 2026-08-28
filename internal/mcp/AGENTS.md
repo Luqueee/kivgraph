@@ -31,12 +31,13 @@ declarado en la raíz.
   `kivgraph serve --introspection`-- lista el catálogo entero sin generación,
   para el inspector o el registro que sólo puede puntuar lo que devuelve
   `tools/list`. Cambia qué se lista y nada más: no crea índice, no fabrica un
-  grafo, las tools siguen contestando `INDEX_NOT_READY`, `index_project` sigue
-  tras su puerta de consentimiento y el handshake sigue llevando las
-  instrucciones de reparación, porque la disponibilidad -- y no la opción-- es lo
-  que decide qué se le dice al cliente. `ServerOptions{}` es el comportamiento de
-  siempre, así que el valor cero no puede convertirse en la excepción por
-  descuido; lo fija `TestColdStartStillPublishesOnlyTheRepair`.
+  grafo, las tools de consulta que dependen del grafo siguen contestando
+  `INDEX_NOT_READY` y `graph_status` informa de un estado de grafo vacío;
+  `index_project` sigue tras su puerta de consentimiento y el handshake sigue
+  llevando las instrucciones de reparación, porque la disponibilidad -- y no la
+  opción-- es lo que decide qué se le dice al cliente. `ServerOptions{}` es el
+  comportamiento de siempre, así que el valor cero no puede convertirse en la
+  excepción por descuido; lo fija `TestColdStartStillPublishesOnlyTheRepair`.
 - Las registraciones de las tools de consulta viven en `registerQueryTools` y
   sólo ahí. Un catálogo que se puntúa desde fuera y otro que se sirve serían dos
   listas que derivan, y lo que se puntuaría no sería lo que se sirve; lo fija
