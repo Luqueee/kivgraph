@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -165,13 +166,21 @@ func TestRestartSupervisedDaemonReportsNothingToDoRatherThanFailing(t *testing.T
 		}
 		return stdout.String()
 	}
-	unadvised := func(t *testing.T, when, output string) {
+	// The pid is named rather than merely present. Case three lists one daemon
+	// and publishes another, so a loose check would pass over exactly the
+	// confusion this test exists to catch.
+	unadvised := func(t *testing.T, when string, pid int, output string) {
 		t.Helper()
-		if !strings.Contains(output, "update.stale: pid=") {
-			t.Fatalf("%s: the stale daemon stopped being reported:\n%s", when, output)
+		if !strings.Contains(output, fmt.Sprintf("update.stale: pid=%d", pid)) {
+			t.Fatalf("%s: pid=%d stopped being reported:\n%s", when, pid, output)
 		}
 		if strings.Contains(output, "no supervisor owns") {
 			t.Fatalf("%s: update claimed nobody owns a daemon it could not identify:\n%s", when, output)
+		}
+		// Asserted apart from the line above, which today contains both: a
+		// message split in two later must not take the guard with it.
+		if strings.Contains(output, "kivgraph daemon install") {
+			t.Fatalf("%s: update advised installing a supervisor it never ruled out:\n%s", when, output)
 		}
 		if strings.Contains(output, "owns this daemon") {
 			t.Fatalf("%s: update named an owner it never established:\n%s", when, output)
@@ -182,7 +191,7 @@ func TestRestartSupervisedDaemonReportsNothingToDoRatherThanFailing(t *testing.T
 	// One: no configuration at all. A machine that never ran `init` has no
 	// daemon of this state directory, whatever `kivgraph daemon` it is running
 	// with a --config somewhere else.
-	unadvised(t, "with no configuration", run(t, stale))
+	unadvised(t, "with no configuration", 999, run(t, stale))
 
 	if _, err := config.Initialize(config.InitOptions{}); err != nil {
 		t.Fatalf("config.Initialize: %v", err)
@@ -196,7 +205,7 @@ func TestRestartSupervisedDaemonReportsNothingToDoRatherThanFailing(t *testing.T
 	// Two: no endpoint published. A daemon writes that file before it serves,
 	// so its absence says this configuration has none running -- not that the
 	// process in the list is unowned.
-	unadvised(t, "with no endpoint", run(t, stale))
+	unadvised(t, "with no endpoint", 999, run(t, stale))
 
 	if err := os.MkdirAll(directory, 0o755); err != nil {
 		t.Fatalf("create state directory: %v", err)
@@ -212,7 +221,7 @@ func TestRestartSupervisedDaemonReportsNothingToDoRatherThanFailing(t *testing.T
 	// Three: a published daemon that is not the stale one. The process in the
 	// list belongs to another state directory and may already be supervised
 	// there, so advising an install would be a guess dressed as a finding.
-	unadvised(t, "with the daemon absent from the targets", run(t, kivgraphProcess(11, "daemon")))
+	unadvised(t, "with the daemon absent from the targets", 11, run(t, kivgraphProcess(11, "daemon")))
 
 	// Four is the one case that establishes something: this configuration
 	// published the daemon, its pid is one of the stale processes, and no unit
