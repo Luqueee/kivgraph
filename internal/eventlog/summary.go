@@ -1,6 +1,7 @@
 package eventlog
 
 import (
+	"slices"
 	"sort"
 	"time"
 )
@@ -14,9 +15,14 @@ import (
 // pays for the sample once, so it can answer the question a mean hides -- a
 // tool whose median is fast and whose tail is not.
 type ToolSummary struct {
-	Tool     string        `json:"tool"`
-	Calls    int           `json:"calls"`
-	OK       int           `json:"ok"`
+	Tool  string `json:"tool"`
+	Calls int    `json:"calls"`
+	OK    int    `json:"ok"`
+	// Refused is the count of calls that declined by design. It is its own
+	// column and not a subtraction from Failed, because the two do not mean
+	// the same thing in either direction: a refusal that rises is people
+	// asking about common names, which is the tool working.
+	Refused  int           `json:"refused"`
 	Failed   int           `json:"failed"`
 	Mean     time.Duration `json:"mean_ns"`
 	Median   time.Duration `json:"median_ns"`
@@ -38,17 +44,24 @@ func (summary ToolSummary) SuccessRate() (float64, bool) {
 // Summary is the whole aggregation, ordered so a reader sees the busiest tool
 // first and so two runs over the same events render identically.
 type Summary struct {
-	Tools  []ToolSummary `json:"tools"`
-	Calls  int           `json:"calls"`
-	OK     int           `json:"ok"`
-	Failed int           `json:"failed"`
-	First  time.Time     `json:"first,omitempty"`
-	Last   time.Time     `json:"last,omitempty"`
+	Tools   []ToolSummary `json:"tools"`
+	Calls   int           `json:"calls"`
+	OK      int           `json:"ok"`
+	Refused int           `json:"refused"`
+	Failed  int           `json:"failed"`
+	First   time.Time     `json:"first,omitempty"`
+	Last    time.Time     `json:"last,omitempty"`
 }
 
 // Summarize aggregates the tool events among events. Events of another kind are
 // ignored, so a caller may hand it an unfiltered read.
-func Summarize(events []Event) Summary {
+//
+// refusals are the error codes that mean the call declined by design rather
+// than failed. They are a parameter because the vocabulary belongs to the tool
+// surface and this package is below it; a caller that passes none gets the
+// count that sums the two, which is what every caller got before the split and
+// is the number LUQUE-2235 exists to stop publishing.
+func Summarize(events []Event, refusals ...string) Summary {
 	type accumulator struct {
 		summary   ToolSummary
 		durations []time.Duration
@@ -67,13 +80,21 @@ func Summarize(events []Event) Summary {
 		}
 		entry.summary.Calls++
 		summary.Calls++
-		if event.Failed() {
+		switch {
+		case event.Failed() && slices.Contains(refusals, event.ErrorCode()):
+			entry.summary.Refused++
+			summary.Refused++
+			// LastFail is deliberately left alone. It is what a reader is
+			// pointed at to act on, and pointing them at the answer the tool
+			// was designed to give is how a count sends someone to grep for a
+			// bug that is not there -- which is the whole of LUQUE-2235.
+		case event.Failed():
 			entry.summary.Failed++
 			summary.Failed++
 			if event.Error != "" {
 				entry.summary.LastFail = event.Error
 			}
-		} else {
+		default:
 			entry.summary.OK++
 			summary.OK++
 		}

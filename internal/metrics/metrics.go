@@ -77,6 +77,15 @@ type QueryObservation struct {
 	SnapshotID        *uint64
 	SnapshotAgeMS     *int64
 	Err               error
+	// Refused says this Err is a refusal the tool surface designed rather than
+	// a failure, and it is set by the caller because the vocabulary of tool
+	// codes belongs to `internal/mcp/tools` -- which imports this package.
+	//
+	// Without it the two are one number, and they do not mean the same thing
+	// in either direction: a refusal that rises is people asking about common
+	// names, which is the tool working, and one that falls says nothing a
+	// SYMBOL_NOT_FOUND falling would say.
+	Refused bool
 }
 
 // QueryMetrics is the cumulative view for one tool. Latency is retained as
@@ -84,6 +93,7 @@ type QueryObservation struct {
 type QueryMetrics struct {
 	Calls             uint64        `json:"calls"`
 	Errors            uint64        `json:"errors"`
+	Refusals          uint64        `json:"refusals"`
 	Results           uint64        `json:"results"`
 	Truncated         uint64        `json:"truncated"`
 	UnresolvedRelated uint64        `json:"unresolved_related"`
@@ -176,6 +186,7 @@ type Report struct {
 type queryCounter struct {
 	calls             atomic.Uint64
 	errors            atomic.Uint64
+	refusals          atomic.Uint64
 	results           atomic.Uint64
 	truncated         atomic.Uint64
 	unresolvedRelated atomic.Uint64
@@ -208,7 +219,14 @@ func (r *Registry) ObserveQuery(observation QueryObservation) {
 	counter := r.queryCounter(observation.ToolName)
 	counter.calls.Add(1)
 	if observation.Err != nil {
-		counter.errors.Add(1)
+		// Disjoint on purpose. A refusal counted in both columns would make
+		// `errors` the number it already was, and the split would be
+		// decoration.
+		if observation.Refused {
+			counter.refusals.Add(1)
+		} else {
+			counter.errors.Add(1)
+		}
 	}
 	if observation.Returned > 0 {
 		counter.results.Add(uint64(observation.Returned))
@@ -369,6 +387,7 @@ func (r *Registry) ReportAt(now time.Time) Report {
 		queries[name] = QueryMetrics{
 			Calls:             counter.calls.Load(),
 			Errors:            counter.errors.Load(),
+			Refusals:          counter.refusals.Load(),
 			Results:           counter.results.Load(),
 			Truncated:         counter.truncated.Load(),
 			UnresolvedRelated: counter.unresolvedRelated.Load(),

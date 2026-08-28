@@ -46,7 +46,7 @@ func TestToolStatsReportsCostAndFailures(t *testing.T) {
 	for _, want := range []string{
 		"TOOL", "CALLS", "OK", "FAIL", "MEAN", "P95", "MAX",
 		"find_references", "find_symbol",
-		"calls=4 ok=3 failed=1",
+		"calls=4 ok=3 refused=0 failed=1",
 		// The last failure is what turns a count into something actionable.
 		"tool-stats.failure: find_references: CURSOR_INVALID: stale",
 	} {
@@ -146,5 +146,68 @@ func TestToolStatsFailsOnAnUnreadableConfiguration(t *testing.T) {
 	args := []string{"--config", filepath.Join(t.TempDir(), "absent.yaml")}
 	if code := runToolStats(args, &stdout, &stderr); code != 1 {
 		t.Fatalf("runToolStats() = %d, want 1 (stderr=%q)", code, stderr.String())
+	}
+}
+
+// TestToolStatsSeparatesTheDesignedRefusalFromAFailure is the measurement
+// LUQUE-2235 was opened over, reduced to five events.
+//
+// `find_references` read 22.2% success over five days and the number invited a
+// hunt for a bug that is not there: 29 of its 63 "failures" were the ambiguity
+// refusal ADR 0077 designed as the *good* answer, which names the candidates
+// for 129 tokens where the find_symbol it replaced cost 750. It leaves through
+// the error path because it returns no rows, so every counter reading that path
+// scored it as a failure.
+func TestToolStatsSeparatesTheDesignedRefusalFromAFailure(t *testing.T) {
+	configPath := writeEventStore(t,
+		toolCallEvent(0, "find_references", 10*time.Millisecond, ""),
+		toolCallEvent(time.Second, "find_references", 12*time.Millisecond,
+			"AMBIGUOUS_SYMBOL: \"Transport\" has 6 declarations in 2 repositories"),
+		toolCallEvent(2*time.Second, "find_references", 11*time.Millisecond,
+			"AMBIGUOUS_SYMBOL: \"Status\" has 71 declarations in 8 repositories"),
+		toolCallEvent(3*time.Second, "find_references", 20*time.Millisecond,
+			"SYMBOL_NOT_FOUND: name \"posthog\" was not found"),
+	)
+	var stdout, stderr bytes.Buffer
+	if code := runToolStats([]string{"--config", configPath}, &stdout, &stderr); code != 0 {
+		t.Fatalf("runToolStats() = %d, stderr=%q", code, stderr.String())
+	}
+	output := stdout.String()
+	for _, want := range []string{
+		"REFUSED",
+		// One answered, two refused, one failed. Summed, this row read 1 of 4.
+		"calls=4 ok=1 refused=2 failed=1",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("runToolStats() output lost %q:\n%s", want, output)
+		}
+	}
+	// The actionable line points at the failure, never at the answer. Pointing
+	// a reader at a refusal is how a count sends someone looking for a bug.
+	if !strings.Contains(output, "tool-stats.failure: find_references: SYMBOL_NOT_FOUND") {
+		t.Fatalf("the last real failure stopped being reported:\n%s", output)
+	}
+	if strings.Contains(output, "tool-stats.failure: find_references: AMBIGUOUS_SYMBOL") {
+		t.Fatalf("a refusal was reported as the last failure:\n%s", output)
+	}
+}
+
+// A tool that only ever refused has failed nothing, and the table must not
+// paint it. Colouring the designed answer is the same mistake in colour that
+// counting it as a failure was in arithmetic.
+func TestToolStatsDoesNotColourARowThatOnlyRefused(t *testing.T) {
+	configPath := writeEventStore(t,
+		toolCallEvent(0, "find_references", 10*time.Millisecond,
+			"AMBIGUOUS_SYMBOL: \"Status\" has 71 declarations in 8 repositories"),
+	)
+	var stdout, stderr bytes.Buffer
+	if code := runToolStats([]string{"--config", configPath}, &stdout, &stderr); code != 0 {
+		t.Fatalf("runToolStats() = %d, stderr=%q", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "refused=1 failed=0") {
+		t.Fatalf("the refusal was not separated:\n%s", stdout.String())
+	}
+	if strings.Contains(stdout.String(), "tool-stats.failure:") {
+		t.Fatalf("a row that failed nothing reported a failure:\n%s", stdout.String())
 	}
 }

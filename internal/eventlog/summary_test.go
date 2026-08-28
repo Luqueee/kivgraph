@@ -123,3 +123,96 @@ func TestSummarizeCountsUntimedCalls(t *testing.T) {
 		t.Fatalf("summary invented a latency: %+v", entry)
 	}
 }
+
+// TestErrorCodeReadsTheCodeTheWriterEncoded is what makes a log written before
+// anything classified refusals still classifiable. The writer renders a tool
+// failure as "CODE: message" on purpose -- its own comment says the
+// classification survives without a field of its own -- and this is the other
+// half of that decision.
+func TestErrorCodeReadsTheCodeTheWriterEncoded(t *testing.T) {
+	for _, testCase := range []struct {
+		rendered string
+		want     string
+	}{
+		{`AMBIGUOUS_SYMBOL: "Status" has 71 declarations`, "AMBIGUOUS_SYMBOL"},
+		{`SYMBOL_NOT_FOUND: name "posthog" was not found`, "SYMBOL_NOT_FOUND"},
+		// Nothing to read, and each for a different reason: no separator, a
+		// message that is not a code, and a colon with nothing before it. A
+		// loose parser would turn every one of these into a code that some
+		// future RefusalCodes could match.
+		{"", ""},
+		{"something went wrong", ""},
+		{"read config: no such file", ""},
+		{": leading", ""},
+		{"lower_case: message", ""},
+	} {
+		if got := (Event{Error: testCase.rendered}).ErrorCode(); got != testCase.want {
+			t.Fatalf("Event{Error: %q}.ErrorCode() = %q, want %q", testCase.rendered, got, testCase.want)
+		}
+	}
+}
+
+// TestSummarizeSeparatesARefusalFromAFailure is the arithmetic LUQUE-2235 was
+// opened over. The two live in one column until a caller names the codes, and
+// summed they made find_references read 22.2% when its real failure rate was
+// 42% -- a number that invites a hunt for a bug that is not there.
+func TestSummarizeSeparatesARefusalFromAFailure(t *testing.T) {
+	base := time.Date(2026, 8, 21, 13, 10, 0, 0, time.UTC)
+	failed := func(offset time.Duration, rendered string) Event {
+		return Event{
+			Time: base.Add(offset), Kind: KindTool, Tool: "find_references",
+			Level: LevelError, Status: StatusError, Error: rendered,
+		}
+	}
+	events := []Event{
+		{Time: base, Kind: KindTool, Tool: "find_references", Status: StatusOK},
+		failed(time.Second, `AMBIGUOUS_SYMBOL: "Status" has 71 declarations`),
+		failed(2*time.Second, `SYMBOL_NOT_FOUND: name "posthog" was not found`),
+	}
+
+	// Without the vocabulary the two are one number, which is what every
+	// caller got before this and what the measurement reported.
+	if summed := Summarize(events); summed.Failed != 2 || summed.Refused != 0 {
+		t.Fatalf("Summarize() without codes = failed %d refused %d, want 2 and 0",
+			summed.Failed, summed.Refused)
+	}
+
+	summary := Summarize(events, "AMBIGUOUS_SYMBOL")
+	if summary.Calls != 3 || summary.OK != 1 || summary.Refused != 1 || summary.Failed != 1 {
+		t.Fatalf("Summarize() = calls %d ok %d refused %d failed %d, want 3, 1, 1 and 1",
+			summary.Calls, summary.OK, summary.Refused, summary.Failed)
+	}
+	entry := summary.Tools[0]
+	if entry.OK != 1 || entry.Refused != 1 || entry.Failed != 1 {
+		t.Fatalf("the tool row = ok %d refused %d failed %d, want 1, 1 and 1",
+			entry.OK, entry.Refused, entry.Failed)
+	}
+	// The three columns still account for every call: a refusal moved out of
+	// Failed rather than being counted twice.
+	if entry.OK+entry.Refused+entry.Failed != entry.Calls {
+		t.Fatalf("the columns do not sum to the calls: %+v", entry)
+	}
+	// LastFail points at what to act on. A refusal there sends a reader
+	// looking for a bug in the answer the tool was designed to give.
+	if entry.LastFail != `SYMBOL_NOT_FOUND: name "posthog" was not found` {
+		t.Fatalf("LastFail = %q, want the failure and not the refusal", entry.LastFail)
+	}
+}
+
+// A tool whose only non-OK call was a refusal has failed nothing, so it must
+// offer nothing to act on: the last-failure line is the one that turns a count
+// into a search.
+func TestSummarizeLeavesNoFailureToActOnWhenOnlyARefusalHappened(t *testing.T) {
+	base := time.Date(2026, 8, 21, 13, 10, 0, 0, time.UTC)
+	entry := Summarize([]Event{{
+		Time: base, Kind: KindTool, Tool: "find_references",
+		Level: LevelError, Status: StatusError,
+		Error: `AMBIGUOUS_SYMBOL: "Status" has 71 declarations`,
+	}}, "AMBIGUOUS_SYMBOL").Tools[0]
+	if entry.Failed != 0 || entry.Refused != 1 {
+		t.Fatalf("the row = refused %d failed %d, want 1 and 0", entry.Refused, entry.Failed)
+	}
+	if entry.LastFail != "" {
+		t.Fatalf("a row that failed nothing offered %q to act on", entry.LastFail)
+	}
+}

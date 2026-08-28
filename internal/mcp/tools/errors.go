@@ -3,6 +3,7 @@ package tools
 import (
 	"errors"
 	"fmt"
+	"slices"
 )
 
 // Stable tool error codes are part of the public MCP contract. Clients must
@@ -72,6 +73,34 @@ func WrapToolError(code, message string, cause error) *ToolError {
 func ErrIndexNotReady() *ToolError {
 	return NewToolError(CodeIndexNotReady,
 		"no graph is published yet: index a project with index_project, or run \"kivgraph index --full\"")
+}
+
+// RefusalCodes are the codes a tool returns when declining *is* the good
+// answer, rather than the report of one that could not be produced.
+//
+// There is one today and ADR 0077 designed it. An ambiguous name is answered by
+// naming the candidates, which costs `129` tokens where the `find_symbol` it
+// replaced cost `750`, and the caller narrows by copying one of them. It leaves
+// through the error path because it returns no rows -- and that is what needed
+// separating, because every counter that reads the error path was scoring the
+// good answer as a failure. Measured over five days, `29` of `find_references`'
+// `63` "failures" were this.
+//
+// It is a list and not a constant so a second designed refusal has one place to
+// join, and so the readers that classify -- `tool-stats`, and the bridge into
+// `internal/metrics` -- read the vocabulary from the package that owns it
+// instead of restating it.
+func RefusalCodes() []string {
+	return []string{CodeAmbiguousSymbol}
+}
+
+// IsRefusal reports whether err is one of those: an answer, not a failure.
+func IsRefusal(err error) bool {
+	code := ErrorCode(err)
+	if code == "" {
+		return false
+	}
+	return slices.Contains(RefusalCodes(), code)
 }
 
 // ErrorCode returns the stable public code carried by err, or an empty string

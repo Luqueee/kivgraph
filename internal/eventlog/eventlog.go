@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -112,8 +113,35 @@ func (event Event) Duration() (time.Duration, bool) {
 }
 
 // Failed reports whether the event describes work that did not answer.
+//
+// A refusal is one of these: it returns no rows, so it takes the error path and
+// is recorded here as one. Telling the two apart is the reader's job and needs
+// the tool vocabulary, which this package does not have -- see ErrorCode and
+// Summarize.
 func (event Event) Failed() bool {
 	return event.Status == StatusError || event.Level == LevelError
+}
+
+// ErrorCode is the stable code a failed tool call carries.
+//
+// It is read back out of Error rather than kept in a field of its own, which
+// is the shape the writer chose on purpose: a tool failure is rendered as
+// "CODE: message", so the classification already survives in the file. That
+// makes it readable from logs written before anything knew to classify them,
+// which is the only reason the five-day measurement in LUQUE-2235 can be
+// checked against the code that answers it.
+func (event Event) ErrorCode() string {
+	separator := strings.Index(event.Error, ":")
+	if separator <= 0 {
+		return ""
+	}
+	code := event.Error[:separator]
+	for _, letter := range code {
+		if (letter < 'A' || letter > 'Z') && letter != '_' {
+			return ""
+		}
+	}
+	return code
 }
 
 // WithDuration returns the event carrying elapsed, in milliseconds.
