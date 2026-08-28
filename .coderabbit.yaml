@@ -28,6 +28,59 @@ reviews:
   collapse_walkthrough: false
   poem: false
 
+  # Every finishing touch needs a human to tick a checkbox or type a command,
+  # so none of them fires on an ordinary pull request. Docstrings and unit
+  # tests open a follow-up pull request, which is a diff to read and not a
+  # commit to this branch, so they stay at their default.
+  #
+  # resolve_merge_conflict is the one that is off, and it is off because of
+  # what it does rather than what it writes: it commits a resolution to the
+  # branch. A conflict resolved wrong in this repository does not fail a
+  # build -- it publishes a generation missing edges, which is the class of
+  # defect the whole verification section exists to catch and the one nothing
+  # catches after the fact.
+  finishing_touches:
+    resolve_merge_conflict:
+      enabled: false
+
+  # The review is read, so what it costs is attention. These six produce text
+  # nobody here acts on: a sequence diagram of a change whose author wrote it,
+  # and five features that assume a team and an issue tracker. The backlog is
+  # TASKS.md and the reviewer is one person.
+  sequence_diagrams: false
+  suggested_labels: false
+  suggested_reviewers: false
+  related_issues: false
+  related_prs: false
+  assess_linked_issues: false
+
+  pre_merge_checks:
+    # Docstring coverage measured against a threshold is the wrong question
+    # here. A comment in this codebase says why a line exists and carries the
+    # measurement that settled it, or it is not written; a percentage rewards
+    # the restatement of a signature, which is worse than the silence it
+    # replaces because it looks like documentation.
+    docstrings:
+      mode: "off"
+
+    title:
+      mode: warning
+      requirements: |
+        Conventional Commits, in English: `type(scope): subject`.
+
+        Types in use: feat, fix, docs, chore, test, perf, build, refactor, ci,
+        plus bench and audit for measurements and qualifications.
+
+        The scope is the subsystem -- indexing, mcp, rustloader, typescript,
+        cli, web, landing, release -- and is omitted when the change cuts
+        across them.
+
+        The subject is imperative and lowercase after the colon, and stays
+        under 80 characters.
+
+    description:
+      mode: warning
+
   auto_review:
     enabled: true
     # A draft is work in progress; reviewing it spends the budget on code the
@@ -220,3 +273,28 @@ reviews:
 
 chat:
   auto_reply: true
+  art: false
+
+# The path_instructions above were written by hand, and every one of them
+# restates a contract that AGENTS.md already states. That is the second copy
+# this repository warns about in half a dozen places: two lists of the same
+# rule, one of which gets updated. Pointing CodeRabbit at the AGENTS.md files
+# themselves means it reads what a contributor reads, and a contract changed
+# in one place changes for the reviewer too.
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "AGENTS.md"
+      - "**/AGENTS.md"
+
+  # Corrections carry between pull requests. The scope is pinned rather than
+  # left at `auto`, which resolves by visibility: this repository is public
+  # today, and making it private would silently move what it has learned to
+  # organisation scope.
+  learnings:
+    scope: local
+  issues:
+    scope: local
+  pull_requests:
+    scope: local
