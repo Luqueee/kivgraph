@@ -47,6 +47,22 @@ func planPath(spec Spec) (string, string, error) {
 // the daemon back when it dies and leaves a clean exit alone. RestartSec keeps a
 // daemon that cannot bind from spinning.
 //
+// StartLimitIntervalSec is here because the default cannot trip against this
+// RestartSec, and the default is what "on-failure" quietly means without it.
+// Measured on 2026-08-28 against a unit whose ExecStart names a binary that no
+// longer exists: with the defaults -- 5 starts per 10s -- systemd reached
+// NRestarts=140 and was still going, one exec attempt every two seconds and two
+// journal lines each, with no end. Five starts at two-second spacing is exactly
+// ten seconds, so the limit sits on its own boundary and never fires. Widening
+// the window to 30s makes the same unit give up at NRestarts=5 and land in
+// `failed`, which costs nothing and shows up in `systemctl --user status`.
+//
+// A daemon that failed to start five times in half a minute will not be fixed
+// by a sixth attempt, so this is the better behaviour on its own terms. It is
+// also what makes it safe to install a unit naming a binary somebody else can
+// delete: a `.mcpb` extension removes its own directory and the format has no
+// uninstall hook, so nothing here gets to clean up first.
+//
 // Type=simple, not notify: the daemon does not speak sd_notify, and claiming it
 // does would make systemd wait for a readiness signal that never arrives.
 func unit(spec Spec) string {
@@ -58,7 +74,9 @@ func unit(spec Spec) string {
 	var body strings.Builder
 	body.WriteString("[Unit]\n")
 	body.WriteString("Description=Kivgraph MCP daemon for " + spec.StateDirectory + "\n")
-	body.WriteString("Documentation=https://kivgraph.dev/docs/cli\n\n")
+	body.WriteString("Documentation=https://kivgraph.dev/docs/cli\n")
+	body.WriteString("StartLimitIntervalSec=30\n")
+	body.WriteString("StartLimitBurst=5\n\n")
 	body.WriteString("[Service]\n")
 	body.WriteString("Type=simple\n")
 	body.WriteString("ExecStart=" + strings.Join(quoted, " ") + "\n")
