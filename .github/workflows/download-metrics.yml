@@ -95,15 +95,31 @@ jobs:
           fi
 
           mkdir -p "$work/downloads"
-          # Re-running on a day that already has a photograph replaces it: the
-          # record is the state of the counters, so the later reading is the
-          # better one.
-          cp "$RUNNER_TEMP/snapshot.json" "$work/downloads/$day.json"
-          git -C "$work" add -A
-          if git -C "$work" diff --cached --quiet; then
-            echo "the counters have not moved since the last photograph"
+          today="$work/downloads/$day.json"
+
+          # A day on which nothing was downloaded still gets its own
+          # photograph. "We looked and the counters had not moved" is a fact,
+          # and skipping the commit would fold that day into the next row,
+          # where it would read as a longer interval rather than as a measured
+          # zero.
+          #
+          # What is skipped is a *re-run* of a day already photographed whose
+          # counters have not moved since, because the only difference left
+          # would be `captured_at`. Comparing the assets rather than the file
+          # is the whole point: the timestamp changes on every run, so a
+          # comparison of the file would never be equal and this guard would
+          # be dead code that always fell through.
+          if [ -f "$today" ] &&
+            [ "$(jq -cS .assets "$today")" = "$(jq -cS .assets "$RUNNER_TEMP/snapshot.json")" ]; then
+            echo "today is already photographed and the counters have not moved since"
             exit 0
           fi
+
+          # Re-running on a day that already has a photograph otherwise
+          # replaces it: the record is the state of the counters, so the later
+          # reading is the better one.
+          cp "$RUNNER_TEMP/snapshot.json" "$today"
+          git -C "$work" add -A
           git -C "$work" commit -q -m "Photograph the release counters on $day"
           git -C "$work" push -q origin metrics
 
