@@ -233,9 +233,11 @@ Against a direct HTTP session at `0.04`-`0.13 MB` per client, that floor
 is the entire price of keeping the stdio entry the `.mcpb` format forces.
 
 Those ranges are what three passes measured and not confidence intervals,
-and the idle row is the one that moves: a later pass fell below it at
-`8.30` and `2.54 MB`. The gate still clears and the answering row does not
-move at all. `benchmarks/relay-cost/report.md` has the dispersion.
+and the idle row is the one that moves: a later pass fell `5 %` and `13 %`
+below it, at `8.30` and `2.54 MB`, and the gate still clears. The
+answering row moved `0.4 %` -- `68.66` against `68.94`-`70.28` -- and its
+saving of `59.77` landed inside the published range.
+`benchmarks/relay-cost/report.md` has the dispersion.
 
 Both halves of the prediction above hold. The corpus is `1.71` times the
 one `daemon-cost` used and the answering row rose `1.77` times; the idle

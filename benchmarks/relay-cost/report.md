@@ -115,11 +115,15 @@ cliente y ninguno cambia de signo.
 
 **Y el rango de las tablas es lo que midieron tres pasadas, no un intervalo de
 confianza.** Una cuarta corrida posterior, ya con el arnés arreglado, dio
-`8,30` MB/cli de `serve` ocioso y `2,54` de ahorro: por debajo de los
-`8,76`-`9,15` y `2,93`-`4,24` publicados. La puerta sigue pasada -- `2,54` está
-sobre `1` -- y la fila que contesta ni se movió: `68,66` contra
-`68,94`-`70,28`. Quien necesite un límite ocioso y no una magnitud tiene que
-correr más pasadas de las tres que hay aquí.
+`8,30` MB/cli de `serve` ocioso y `2,54` de ahorro: un `5 %` y un `13 %` por
+debajo del extremo bajo de los `8,76`-`9,15` y `2,93`-`4,24` publicados. La
+puerta sigue pasada, porque `2,54` está sobre `1`.
+
+La fila que contesta se movió mucho menos, y en la cifra que decide no se movió
+del rango: `68,66` MB/cli de `serve` contra `68,94`-`70,28` es un `0,4 %` por
+debajo, y su ahorro de `59,77` cae **dentro** de los `59,26`-`61,54`
+publicados. Quien necesite un límite ocioso y no una magnitud tiene que correr
+más pasadas de las tres que hay aquí.
 
 ## Lo que esto no contesta
 
