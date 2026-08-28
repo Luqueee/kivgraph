@@ -27,7 +27,7 @@ Every failure the tool surface returns carries a stable code and a human-readabl
 The client lists one tool, `index_project`, and nothing else. The session instructions read:
 
 ```text
-Kivgraph has no published graph. When exposed for introspection, graph-dependent query tools return INDEX_NOT_READY while graph_status reports an empty graph status. Run "kivgraph index --full" to build one, then restart this server. Until then, use the host's own search and file tools.
+Kivgraph has no published graph, so no query tool can answer from one. Run "kivgraph index --full" to build one, then restart this server. Until then, use the host's own search and file tools.
 ```
 
 **Cause**
