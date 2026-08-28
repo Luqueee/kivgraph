@@ -162,6 +162,37 @@ func Remove(spec Spec) (Report, error) {
 	return remove(spec)
 }
 
+// Restart asks the supervisor to bring the daemon back on the executable that
+// is on disk now.
+//
+// It exists because `kivgraph update` replaces the bundle in place: the path
+// in the installed unit is the same, but the image behind it is not, and a
+// daemon that was already running keeps answering from the one that was
+// swapped out.
+//
+// Stopping it instead is worse than doing nothing, and gets worse the better
+// the daemon behaves. Both supervisors are configured on purpose to leave a
+// clean exit alone -- systemd's `Restart=on-failure`, launchd's `KeepAlive`
+// with `SuccessfulExit` false -- so a daemon asked politely to stop shuts down
+// properly, exits zero, and stays down. Only the supervisor puts it back, and
+// only this asks it to.
+//
+// A spec whose unit is absent, stale or unsupported is not restarted and is
+// not an error: the Report says which, and a caller that has something else to
+// do about an unsupervised process needs to be told rather than failed. That
+// is the same contract Status has, for the same reason -- unlike Install and
+// Remove, there is nothing here to refuse to do.
+func Restart(spec Spec) (Report, error) {
+	if err := spec.validate(); err != nil {
+		return Report{}, err
+	}
+	report, err := status(spec)
+	if err != nil || report.State != StateInstalled {
+		return report, err
+	}
+	return restart(spec)
+}
+
 // Status reports what is installed without changing anything.
 func Status(spec Spec) (Report, error) {
 	if err := spec.validate(); err != nil {

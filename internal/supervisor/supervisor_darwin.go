@@ -144,6 +144,29 @@ func remove(spec Spec) (Report, error) {
 	return Report{State: StateAbsent, Label: label, Path: path, Detail: "the agent was unloaded and removed"}, nil
 }
 
+func restart(spec Spec) (Report, error) {
+	label, path, err := planPath(spec)
+	if err != nil {
+		return Report{}, err
+	}
+	// kickstart -k ends the running process and starts it again from the
+	// definition launchd already has loaded. A bootout/bootstrap pair would
+	// also reload the plist, which is not what a restart means here: the file
+	// on disk is the one Restart just verified, and re-reading it would let a
+	// hand edit take effect without anyone being told.
+	target := "gui/" + strconv.Itoa(os.Getuid()) + "/" + label
+	if err := run("launchctl", "kickstart", "-k", target); err != nil {
+		return Report{State: StateInstalled, Label: label, Path: path},
+			fmt.Errorf("supervisor: launchctl kickstart: %w", err)
+	}
+	return Report{
+		State:  StateInstalled,
+		Label:  label,
+		Path:   path,
+		Detail: "launchd restarted it on the executable now on disk",
+	}, nil
+}
+
 func status(spec Spec) (Report, error) {
 	label, path, err := planPath(spec)
 	if err != nil {

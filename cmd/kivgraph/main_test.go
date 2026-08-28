@@ -100,7 +100,7 @@ func TestRunUpdateCheckUsesReleaseRunner(t *testing.T) {
 		}, nil
 	}
 
-	if got := runUpdateWithRunner([]string{"--check"}, nil, &stdout, &stderr, runner, noProcesses, nil, true); got != 0 {
+	if got := runUpdateWithRunner([]string{"--check"}, nil, &stdout, &stderr, runner, noProcesses, nil, nil, true); got != 0 {
 		t.Fatalf("runUpdateWithRunner(, true) exit code = %d, stderr=%q", got, stderr.String())
 	}
 	if !called {
@@ -128,7 +128,7 @@ func TestRunUpdateReportsInstalledRelease(t *testing.T) {
 		}, nil
 	}
 
-	if got := runUpdateWithRunner(nil, nil, &stdout, &stderr, runner, noProcesses, nil, true); got != 0 {
+	if got := runUpdateWithRunner(nil, nil, &stdout, &stderr, runner, noProcesses, nil, nil, true); got != 0 {
 		t.Fatalf("runUpdateWithRunner(, true) exit code = %d, stderr=%q", got, stderr.String())
 	}
 	if got, want := stdout.String(), "kivgraph updated: "+version.Value+" -> 0.1.1\n"; got != want {

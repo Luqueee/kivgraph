@@ -236,6 +236,28 @@ func remove(spec Spec) (Report, error) {
 	return Report{State: StateAbsent, Label: label, Path: path, Detail: "the task was ended and deleted"}, nil
 }
 
+func restart(spec Spec) (Report, error) {
+	label, path, err := planPath(spec)
+	if err != nil {
+		return Report{}, err
+	}
+	// /End before /Run, because the definition carries
+	// MultipleInstancesPolicy IgnoreNew: a /Run against a task already running
+	// is discarded, and the process still holding the replaced image would
+	// survive a restart that reported success.
+	_ = run("schtasks", "/End", "/TN", label)
+	if err := run("schtasks", "/Run", "/TN", label); err != nil {
+		return Report{State: StateInstalled, Label: label, Path: path},
+			fmt.Errorf("supervisor: schtasks /Run: %w", err)
+	}
+	return Report{
+		State:  StateInstalled,
+		Label:  label,
+		Path:   path,
+		Detail: "the task was ended and started again on the executable now on disk",
+	}, nil
+}
+
 func status(spec Spec) (Report, error) {
 	label, path, err := planPath(spec)
 	if err != nil {

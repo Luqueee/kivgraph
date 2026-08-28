@@ -712,8 +712,58 @@ func runWithSnapshotBuilder(args []string, stdout, stderr io.Writer, diagnose st
 type updateRunner func(context.Context, update.Options) (update.Result, error)
 
 func runUpdate(args []string, stdout, stderr io.Writer) int {
-	return runUpdateWithRunner(args, os.Stdin, stdout, stderr, update.Run, procstat.List, signalProcess, gracefulStopSupported)
+	return runUpdateWithRunner(args, os.Stdin, stdout, stderr, update.Run,
+		procstat.List, signalProcess, restartSupervisedDaemon, gracefulStopSupported)
 }
+
+// daemonOwnership is what `update` managed to establish about who owns the
+// stale daemon, which is a different question from whether one was restarted.
+//
+// Three states and not a boolean, because the advice printed under the process
+// list -- install a supervisor, or stopping this leaves you with none -- is
+// only true of one of them, and a boolean made every case that could not be
+// established read as the one where it was.
+type daemonOwnership int
+
+const (
+	// ownershipUnknown is the answer whenever nothing was established: no
+	// configuration to locate the daemon by, no endpoint to identify it with,
+	// or a stale daemon that is not the one this configuration publishes.
+	// Nothing is restarted and nothing is advised.
+	ownershipUnknown daemonOwnership = iota
+	// ownershipNone means it was established that no supervisor has this
+	// daemon: it published an endpoint, its pid is one of the stale processes,
+	// and no unit exists for it. This is the only state the advice fits.
+	ownershipNone
+	// ownershipSupervised means a supervisor has it, whether or not it came
+	// back: a unit somebody edited by hand and a restart that failed are both
+	// this, and telling either operator to install a supervisor would say the
+	// one thing that is not true.
+	ownershipSupervised
+)
+
+// daemonRestart is what `update` learned about the one stale process a
+// supervisor might own.
+type daemonRestart struct {
+	// Label names the unit, when there is one.
+	Label string
+	// PID is the daemon that was restarted, zero when none was.
+	PID int
+	// Ownership is who has it, as far as this could be established.
+	Ownership daemonOwnership
+	// Detail is why a supervised daemon was not restarted, when nothing failed.
+	Detail string
+}
+
+// supervisedDaemonRestart puts the supervised daemon among the stale processes
+// back on the executable that is now on disk.
+//
+// It is injected for two reasons: a test must never reach the developer's own
+// supervisor -- `update` is the command whose defect was that it reached
+// nothing -- and the outcome that matters is the one no CI runner can produce,
+// a machine where systemd or launchd owns the daemon. A nil restarter consults
+// no supervisor at all.
+type supervisedDaemonRestart func(targets []procstat.Process) (daemonRestart, error)
 
 // updateOptions carries the flags of `kivgraph update`.
 type updateOptions struct {
@@ -739,6 +789,7 @@ func runUpdateWithRunner(
 	runner updateRunner,
 	list processLister,
 	signal processSignaller,
+	restart supervisedDaemonRestart,
 	graceful bool,
 ) int {
 	var options updateOptions
@@ -773,7 +824,7 @@ func runUpdateWithRunner(
 		return 1
 	}
 	writeSuccess(stdout, "kivgraph updated: %s -> %s", result.CurrentVersion, result.LatestVersion)
-	return stopStaleProcesses(stdin, stdout, stderr, list, signal, options.StopStale, result.LatestVersion, graceful)
+	return stopStaleProcesses(stdin, stdout, stderr, list, signal, restart, options.StopStale, result.LatestVersion, graceful)
 }
 
 // stopStaleProcesses offers to end the servers that outlived the bundle they
@@ -787,11 +838,16 @@ func runUpdateWithRunner(
 // Refusing to stop anything is the default whenever the answer cannot be asked
 // for: these are processes a client owns, and ending one silently would look to
 // that client exactly like a crash.
+//
+// That caution is right for `serve` and `ui` and wrong for the daemon, which is
+// the one process here with an owner -- ADR 0068 gave it one -- so a supervised
+// daemon is restarted before the rest are offered up. See restartTheDaemon.
 func stopStaleProcesses(
 	stdin io.Reader,
 	stdout, stderr io.Writer,
 	list processLister,
 	signal processSignaller,
+	restart supervisedDaemonRestart,
 	stopStale bool,
 	release string,
 	graceful bool,
@@ -807,10 +863,15 @@ func stopStaleProcesses(
 	if len(targets) == 0 {
 		return 0
 	}
+	targets, ownership := restartTheDaemon(targets, restart, stdout, stderr)
+	if len(targets) == 0 {
+		return 0
+	}
 	writeWarning(stdout, "update: %d process(es) still run the release this update replaced", len(targets))
 	for _, target := range targets {
 		writeInfo(stdout, "update.stale: pid=%d %s", target.PID, target.Command())
 	}
+	warnAboutAnUnownedDaemon(stdout, targets, ownership)
 	if !stopStale {
 		if !promptYes(stdin, stdout, fmt.Sprintf("stop them now so they answer from %s?", release)) {
 			writeInfo(stdout, "update: nothing was stopped; run \"kivgraph stop\" when the clients can reconnect")
@@ -824,6 +885,76 @@ func stopStaleProcesses(
 	}
 	writeSuccess(stdout, "update.stop: %d process(es) stopped, %d killed", len(targets)-killed, killed)
 	return 0
+}
+
+// restartTheDaemon deals with the one stale process that has an owner, and
+// returns the targets that are left for the question below it.
+//
+// It runs before anything is printed, so a machine whose only stale process was
+// the supervised daemon says nothing about processes at all: there is nothing
+// left for the operator to decide.
+func restartTheDaemon(
+	targets []procstat.Process,
+	restart supervisedDaemonRestart,
+	stdout, stderr io.Writer,
+) (remaining []procstat.Process, ownership daemonOwnership) {
+	// A caller with no restarter establishes nothing, which is not the same as
+	// establishing that nobody supervises this.
+	if restart == nil || !slices.ContainsFunc(targets, isDaemonProcess) {
+		return targets, ownershipUnknown
+	}
+	outcome, err := restart(targets)
+	if err != nil {
+		writeWarning(stderr, "update: the supervised daemon was not restarted: %v", err)
+		return targets, outcome.Ownership
+	}
+	if outcome.PID == 0 {
+		// A supervised daemon that was not restarted is a unit somebody edited
+		// by hand: reported rather than repaired, which is the same answer
+		// `daemon status` gives, and the reason the daemon is still stale.
+		if outcome.Ownership == ownershipSupervised {
+			writeWarning(stdout, "update: %s owns this daemon and could not be used: %s",
+				outcome.Label, outcome.Detail)
+		}
+		return targets, outcome.Ownership
+	}
+	writeSuccess(stdout, "update.daemon: %s restarted; pid=%d was answering from the replaced release",
+		outcome.Label, outcome.PID)
+	remaining = make([]procstat.Process, 0, len(targets))
+	for _, target := range targets {
+		if target.PID != outcome.PID {
+			remaining = append(remaining, target)
+		}
+	}
+	return remaining, ownershipSupervised
+}
+
+// warnAboutAnUnownedDaemon says why "run kivgraph stop" is bad advice for one
+// of the processes just listed.
+//
+// `stop` asks politely first, and both supervisors leave a clean exit alone on
+// purpose -- systemd's `Restart=on-failure`, launchd's `KeepAlive` with
+// `SuccessfulExit` false. For a daemon nobody supervises there is nothing to
+// leave alone and nothing to bring it back either, so following that advice
+// ends with no daemon rather than with a new one. The better the daemon
+// behaves, the more certainly it stays down.
+//
+// It says this only where it was established, which is the point of the
+// parameter. A daemon whose unit exists but is hand-edited, or whose restart
+// failed, is supervised, and telling its operator to install a supervisor
+// would be the one wrong thing to say. A daemon nothing could be established
+// about gets no advice at all, because the advice would be a guess.
+func warnAboutAnUnownedDaemon(stdout io.Writer, targets []procstat.Process, ownership daemonOwnership) {
+	if ownership != ownershipNone || !slices.ContainsFunc(targets, isDaemonProcess) {
+		return
+	}
+	writeWarning(stdout, "update: one of those is a daemon no supervisor owns, so stopping it "+
+		"leaves none running; \"kivgraph daemon install\" gives it an owner that starts it again")
+}
+
+func isDaemonProcess(process procstat.Process) bool {
+	_, command := process.Invocation()
+	return command == "daemon"
 }
 
 // promptYes asks a yes-or-no question and defaults to no.

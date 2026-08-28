@@ -114,6 +114,28 @@ un dueño del proceso, el defecto habría dependido de que alguien recordara un
 integración que instalara un supervisor como efecto colateral sería una sorpresa
 grande para algo que hoy sólo edita el fichero de configuración de un cliente.
 
+## Lo que el dueño hizo posible, y tardó en cobrarse
+
+El ADR 0069 vendió «un `update` que reinicia en vez de matar ocho» como una de
+las dos cosas que sólo un demonio permite, y `update` no hacía ninguna de las
+dos: listaba el demonio junto a los `serve` y ofrecía pararlo. Seguir esa oferta
+era peor que ignorarla. `stop` pide primero por las buenas, el demonio sale con
+`0`, y la unidad de arriba **deja en paz una salida limpia** a propósito -- así
+que cuanto mejor se portaba el demonio, más seguro se quedaba parado.
+
+`supervisor.Restart` es lo que faltaba, y es exactamente la distinción que esta
+decisión estableció: **un demonio supervisado no es un proceso de cliente**.
+`update` lo reinicia por su dueño -- `systemctl --user restart`,
+`launchctl kickstart -k`, `schtasks /End` seguido de `/Run`-- y deja `serve` y
+`ui` como estaban, porque para ellos la cautela de no matar nada en silencio
+sigue siendo la correcta. Lo identifica por el pid que el demonio publicó y
+nunca por su línea de comando: dos directorios de estado son dos demonios, y
+reiniciar el otro tumbaría un grafo que ese `update` no tocó. Ver `LUQUE-2234`.
+
+Lo que **no** cambia es la unidad. Subirla a `Restart=always` habría arreglado
+el síntoma rompiendo `kivgraph stop`, que existe para que una parada a propósito
+se quede parada. El arreglo vive en `update`, no en lo que se instala.
+
 ## Limitaciones declaradas
 
 - Los números de arriba son de `benchmarks/daemon-cost` sobre `workspace` en
@@ -124,6 +146,18 @@ grande para algo que hoy sólo edita el fichero de configuración de un cliente.
   distribución.
 - El demonio no habla `sd_notify`, así que la unit es `Type=simple`. Declarar
   `notify` haría a systemd esperar una señal de listo que nunca llega.
-- `Install` y `Remove` invocan `launchctl` y `systemctl`, así que sus tests
-  cubren el renderizado, `Status` y `Remove` de algo ausente; el ciclo completo
-  se comprueba con el humo del binario, no en la suite.
+- `Install`, `Remove` y `Restart` invocan una herramienta externa en cada
+  plataforma -- `systemctl` en Linux, `launchctl` en macOS y `schtasks` en
+  Windows, donde `Restart` es `/End` seguido de `/Run`--, así que sus tests
+  cubren lo que no la invoca: el renderizado de las tres unidades, `Status`, y
+  el `Remove` y el `Restart` de algo que nadie supervisa. El ciclo completo se
+  comprueba con el humo del binario, y **sólo en Linux y macOS**, que son donde
+  corre. Lo que la suite afirma de Windows es el renderizado.
+- En Windows, `Status` compara el fichero de definición y comprueba que la
+  tarea está registrada, pero **no lee la definición registrada**. Una tarea que
+  alguien editó en el planificador sin tocar el fichero se informa como
+  `installed`, así que `Restart` la reiniciaría. Es una propiedad de `Status`
+  que comparten `Install` y `Remove`, no de `Restart`; cerrarla sería leer
+  `schtasks /Query /XML` y comparar las acciones, y no se ha hecho porque nadie
+  ha comprobado aquí qué forma devuelve esa orden -- y un fixture que no
+  demuestra el caso real no demuestra nada.

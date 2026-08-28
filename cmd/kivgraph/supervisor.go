@@ -5,10 +5,13 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
+	"slices"
 
 	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/daemon"
+	"github.com/Luqueee/kivgraph/internal/procstat"
 	"github.com/Luqueee/kivgraph/internal/supervisor"
 )
 
@@ -67,6 +70,93 @@ func supervisorSpec(configPath string, options supervisorOptions) (supervisor.Sp
 		Address:        address,
 		AllowRemote:    options.AllowRemote,
 	}, nil
+}
+
+// restartSupervisedDaemon puts the supervised daemon of the default
+// configuration back on the executable that is now on disk, and says which pid
+// was answering from the replaced one.
+//
+// `update` replaces the bundle in place, so the path in the installed unit
+// still resolves and the image behind it does not. ADR 0069 sells "an `update`
+// that restarts instead of killing eight" as one of the two things only a
+// daemon allows, and until this existed the command did neither: it listed the
+// daemon beside the `serve` processes and offered to stop it.
+//
+// The daemon is identified by the pid it published, never by its command line.
+// Two state directories have two daemons, and restarting the wrong one would
+// take a graph down that this update never touched.
+//
+// Nothing here is an error, and what the outcomes differ in is what they let
+// the caller say afterwards.
+//
+// Three establish nothing and answer `ownershipUnknown`: no configuration to
+// locate this daemon by, no readable endpoint to identify it with, and a stale
+// daemon that is not the one this configuration published. In all three the
+// `kivgraph daemon` in the list may well be another state directory's, already
+// supervised, and advising its operator to install a supervisor would be a
+// guess.
+//
+// Two establish that nobody has it -- no unit, or a platform with none to
+// install -- which is the only case the caller's advice fits.
+//
+// And one is supervised without being restarted: a unit that exists and was
+// edited by hand. Nothing is restarted through it, because that would start
+// whatever the operator wrote instead of what this spec describes.
+//
+// The default configuration and not a flag: `update` takes no `--config`, and
+// neither does `stop`. A daemon installed against another configuration
+// produces a unit whose contents differ, `Status` reports it stale, and this
+// falls back to what the command did before -- conservative, and it says so.
+func restartSupervisedDaemon(targets []procstat.Process) (daemonRestart, error) {
+	loaded, err := config.Load("")
+	if err != nil {
+		// A machine with no configuration of its own has no daemon of this
+		// state directory either: the stale process in the list was started
+		// with a --config somewhere else, and its graph is not the one this
+		// update is about. A configuration that exists and cannot be read is a
+		// different thing and is reported.
+		if errors.Is(err, fs.ErrNotExist) {
+			return daemonRestart{Ownership: ownershipUnknown}, nil
+		}
+		return daemonRestart{Ownership: ownershipUnknown}, fmt.Errorf("read the configuration: %w", err)
+	}
+	endpoint, err := daemon.ReadEndpoint(stateDirectory(loaded))
+	if err != nil {
+		// A daemon writes this before it serves, so no endpoint means this
+		// configuration has none running and the stale process belongs to
+		// another one. A file that exists and cannot be read lands here too,
+		// and answers the same: unknown, not unowned.
+		return daemonRestart{Ownership: ownershipUnknown}, nil
+	}
+	if !slices.ContainsFunc(targets, func(target procstat.Process) bool {
+		return target.PID == endpoint.PID
+	}) {
+		return daemonRestart{Ownership: ownershipUnknown}, nil
+	}
+	spec, err := supervisorSpec("", supervisorOptions{})
+	if err != nil {
+		return daemonRestart{Ownership: ownershipUnknown}, err
+	}
+	report, err := supervisor.Restart(spec)
+	if err != nil {
+		return daemonRestart{
+			Label: report.Label, PID: endpoint.PID, Ownership: ownershipSupervised,
+		}, err
+	}
+	switch report.State {
+	case supervisor.StateInstalled:
+		return daemonRestart{
+			Label: report.Label, PID: endpoint.PID, Ownership: ownershipSupervised,
+		}, nil
+	case supervisor.StateStale:
+		return daemonRestart{
+			Label: report.Label, Ownership: ownershipSupervised, Detail: report.Detail,
+		}, nil
+	}
+	// Absent or unsupported, over a daemon this configuration published and
+	// this update found stale: nobody owns it, and the caution meant for a
+	// process a client spawned is the right one here after all.
+	return daemonRestart{Ownership: ownershipNone}, nil
 }
 
 // runSupervisorCommand executes `daemon install`, `daemon remove` and

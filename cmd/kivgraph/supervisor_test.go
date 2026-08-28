@@ -2,12 +2,17 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
+	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/Luqueee/kivgraph/internal/config"
+	"github.com/Luqueee/kivgraph/internal/daemon"
+	"github.com/Luqueee/kivgraph/internal/procstat"
 	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
@@ -124,4 +129,118 @@ func writeSupervisorConfig(t *testing.T, home string) string {
 		t.Fatalf("Initialize() error = %v", err)
 	}
 	return configPath
+}
+
+// TestRestartSupervisedDaemonReportsNothingToDoRatherThanFailing drives the
+// real restarter -- config, endpoint file and supervisor status against a
+// temporary home -- through `update`, and asserts what the operator is told.
+//
+// Four inputs and no restart in any of them, because none of the four can
+// execute a supervisor. What separates them is the advice underneath, which is
+// the whole point of the ownership states: three establish nothing and must
+// say nothing, and only the fourth establishes that this daemon has no owner.
+//
+// None of them may fail the command either. An error would print a failed
+// restart on machines where `update` already worked, and the first of the four
+// is the machine that never ran `init`.
+func TestRestartSupervisedDaemonReportsNothingToDoRatherThanFailing(t *testing.T) {
+	home := t.TempDir()
+	testsupport.SetHome(t, home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+
+	// run drives `update` with the real restarter over one stale daemon and
+	// returns what an operator would read. Every failure it can produce names
+	// the scenario, because four inputs reach this helper and the exit code
+	// alone does not say which of them was on the machine.
+	run := func(t *testing.T, when string, pid int) string {
+		t.Helper()
+		fixture := &stopFixture{processes: []procstat.Process{kivgraphProcess(pid, "daemon")}}
+		var stdout, stderr bytes.Buffer
+		if code := runUpdateWithRunner(nil, nil, &stdout, &stderr,
+			installedRunner(), fixture.list, fixture.signal, restartSupervisedDaemon, true); code != 0 {
+			t.Fatalf("%s (pid=%d): runUpdateWithRunner = %d, stderr=%q", when, pid, code, stderr.String())
+		}
+		if got := strings.Join(fixture.signals, ","); got != "" {
+			t.Fatalf("%s (pid=%d): update signalled %q while restarting nothing", when, pid, got)
+		}
+		if strings.Contains(stdout.String(), "update.daemon: ") {
+			t.Fatalf("%s (pid=%d): update reported a restart it could not have performed:\n%s",
+				when, pid, stdout.String())
+		}
+		return stdout.String()
+	}
+	// The pid is named rather than merely present. Case three lists one daemon
+	// and publishes another, so a loose check would pass over exactly the
+	// confusion this test exists to catch.
+	unadvised := func(t *testing.T, when string, pid int, output string) {
+		t.Helper()
+		if !strings.Contains(output, fmt.Sprintf("update.stale: pid=%d", pid)) {
+			t.Fatalf("%s: pid=%d stopped being reported:\n%s", when, pid, output)
+		}
+		if strings.Contains(output, "no supervisor owns") {
+			t.Fatalf("%s: update claimed nobody owns a daemon it could not identify:\n%s", when, output)
+		}
+		// Asserted apart from the line above, which today contains both: a
+		// message split in two later must not take the guard with it.
+		if strings.Contains(output, "kivgraph daemon install") {
+			t.Fatalf("%s: update advised installing a supervisor it never ruled out:\n%s", when, output)
+		}
+		if strings.Contains(output, "owns this daemon") {
+			t.Fatalf("%s: update named an owner it never established:\n%s", when, output)
+		}
+	}
+	// The pid the endpoint below publishes, and therefore the one a stale
+	// daemon has to carry for this configuration to recognise it as its own.
+	const published = 999
+
+	// One: no configuration at all. A machine that never ran `init` has no
+	// daemon of this state directory, whatever `kivgraph daemon` it is running
+	// with a --config somewhere else.
+	unadvised(t, "with no configuration", published, run(t, "with no configuration", published))
+
+	if _, err := config.Initialize(config.InitOptions{}); err != nil {
+		t.Fatalf("config.Initialize: %v", err)
+	}
+	loaded, err := config.Load("")
+	if err != nil {
+		t.Fatalf("config.Load after init: %v", err)
+	}
+	directory := stateDirectory(loaded)
+
+	// Two: no endpoint published. A daemon writes that file before it serves,
+	// so its absence says this configuration has none running -- not that the
+	// process in the list is unowned.
+	unadvised(t, "with no endpoint", published, run(t, "with no endpoint", published))
+
+	if err := os.MkdirAll(directory, 0o755); err != nil {
+		t.Fatalf("create state directory: %v", err)
+	}
+	encoded, err := json.Marshal(daemon.Endpoint{URL: "http://127.0.0.1:9/mcp", Token: "t", PID: published})
+	if err != nil {
+		t.Fatalf("encode endpoint: %v", err)
+	}
+	if err := os.WriteFile(daemon.EndpointPath(directory), encoded, 0o600); err != nil {
+		t.Fatalf("write endpoint: %v", err)
+	}
+
+	// Three: a published daemon that is not the stale one. The process in the
+	// list belongs to another state directory and may already be supervised
+	// there, so advising an install would be a guess dressed as a finding.
+	unadvised(t, "with the daemon absent from the targets", 11,
+		run(t, "with the daemon absent from the targets", 11))
+
+	// Four is the one case that establishes something: this configuration
+	// published the daemon, its pid is one of the stale processes, and no unit
+	// exists for it. Nobody owns it, and that is the only state in which the
+	// advice below is true.
+	output := run(t, "with no unit installed", published)
+	for _, want := range []string{
+		fmt.Sprintf("update.stale: pid=%d", published),
+		"daemon no supervisor owns",
+		"kivgraph daemon install",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("with no unit installed, the output lost %q:\n%s", want, output)
+		}
+	}
 }
