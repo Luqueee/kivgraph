@@ -7,7 +7,7 @@ coding agents**. It builds a canonical semantic code graph across multiple
 registered repositories and answers questions about symbols, repository
 relationships, callers, dependencies and change impact.
 
-https://github.com/user-attachments/assets/43e2792b-79fe-4112-aafe-349e859d1521
+https://github.com/user-attachments/assets/b8410905-323d-4caf-9d7b-57c50ffca48c
 
 <p align="center">
   <em><code>kivgraph ui</code> — read-only 3D view of the published graph.</em>
