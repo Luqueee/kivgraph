@@ -259,10 +259,17 @@ func resolveDeclarationByName(
 // This is `31` of the `63` non-answers that measurement counted -- more than
 // the ambiguity refusal, and unlike it a real failure to answer. It stays one.
 // What changes is that it costs the caller one more call instead of a guess.
+//
+// The tool is named through its registration constant and not as a literal.
+// An error that routes to a tool the server does not publish is not a wording
+// problem -- `internal/mcp/AGENTS.md` says it of the skill and it is true of
+// every message that names one: it sends the question to a call that fails.
+// Building the sentence from the constant is what makes a rename impossible to
+// get half-done.
 func errNameNotFound(name string) *ToolError {
 	return NewToolError(CodeSymbolNotFound, fmt.Sprintf(
-		"name %q was not found; if it names a topic rather than a symbol, call find_by_intent with it as a keyword",
-		name,
+		"name %q was not found; if it names a topic rather than a symbol, call %s with it as a keyword",
+		name, findByIntentToolName,
 	))
 }
 

@@ -280,9 +280,12 @@ func TestANameThatIsNotASymbolIsSentToFindByIntent(t *testing.T) {
 				t.Fatalf("%q: code = %q, want %q: this is still a failure to answer",
 					testCase.symbol, code, CodeSymbolNotFound)
 			}
-			if !strings.Contains(err.Error(), "find_by_intent") {
-				t.Fatalf("%q: error = %q, want it to name the tool that answers this question",
-					testCase.symbol, err.Error())
+			// Against the registration constant, not a literal: an error that
+			// routes to a tool the server does not publish sends the question
+			// to a call that fails.
+			if !strings.Contains(err.Error(), findByIntentToolName) {
+				t.Fatalf("%q: error = %q, want it to name %s, the tool that answers this question",
+					testCase.symbol, err.Error(), findByIntentToolName)
 			}
 		})
 	}
