@@ -86,17 +86,22 @@ func supervisorSpec(configPath string, options supervisorOptions) (supervisor.Sp
 // Two state directories have two daemons, and restarting the wrong one would
 // take a graph down that this update never touched.
 //
-// Four outcomes are "nothing to do here", and all four return a zero pid
-// rather than an error, because each leaves the caller's existing behaviour
-// correct: no configuration at all, no endpoint file, a daemon that is not
-// among the stale processes, and a unit that is absent, stale or on a platform
-// with no supervisor.
+// Five outcomes are "nothing was restarted", and none of them is an error,
+// because each leaves the caller's existing behaviour correct: no
+// configuration at all, no endpoint file, a daemon that is not among the stale
+// processes, no unit installed, and a platform with no supervisor.
+//
+// A sixth is different and says so through Owned: a unit that exists and was
+// edited by hand. Nothing is restarted through it -- that would start whatever
+// the operator wrote instead of what this spec describes -- but a supervisor
+// does own that daemon, and the caller must not go on to advise installing
+// one.
 //
 // The default configuration and not a flag: `update` takes no `--config`, and
 // neither does `stop`. A daemon installed against another configuration
 // produces a unit whose contents differ, `Status` reports it stale, and this
 // falls back to what the command did before -- conservative, and it says so.
-func restartSupervisedDaemon(targets []procstat.Process) (string, int, error) {
+func restartSupervisedDaemon(targets []procstat.Process) (daemonRestart, error) {
 	loaded, err := config.Load("")
 	if err != nil {
 		// A machine with no configuration of its own has no daemon of this
@@ -105,33 +110,38 @@ func restartSupervisedDaemon(targets []procstat.Process) (string, int, error) {
 		// update is about. A configuration that exists and cannot be read is a
 		// different thing and is reported.
 		if errors.Is(err, fs.ErrNotExist) {
-			return "", 0, nil
+			return daemonRestart{}, nil
 		}
-		return "", 0, fmt.Errorf("read the configuration: %w", err)
+		return daemonRestart{}, fmt.Errorf("read the configuration: %w", err)
 	}
 	endpoint, err := daemon.ReadEndpoint(stateDirectory(loaded))
 	if err != nil {
 		// The endpoint is written before the daemon serves and removed when it
 		// stops, so its absence is the answer rather than a failure to get one.
-		return "", 0, nil
+		return daemonRestart{}, nil
 	}
 	if !slices.ContainsFunc(targets, func(target procstat.Process) bool {
 		return target.PID == endpoint.PID
 	}) {
-		return "", 0, nil
+		return daemonRestart{}, nil
 	}
 	spec, err := supervisorSpec("", supervisorOptions{})
 	if err != nil {
-		return "", 0, err
+		return daemonRestart{}, err
 	}
 	report, err := supervisor.Restart(spec)
 	if err != nil {
-		return report.Label, endpoint.PID, err
+		return daemonRestart{Label: report.Label, PID: endpoint.PID, Owned: true}, err
 	}
-	if report.State != supervisor.StateInstalled {
-		return "", 0, nil
+	switch report.State {
+	case supervisor.StateInstalled:
+		return daemonRestart{Label: report.Label, PID: endpoint.PID, Owned: true}, nil
+	case supervisor.StateStale:
+		return daemonRestart{Label: report.Label, Owned: true, Detail: report.Detail}, nil
 	}
-	return report.Label, endpoint.PID, nil
+	// Absent or unsupported: nobody owns this daemon, so the caution meant for
+	// a process a client spawned is the right one here after all.
+	return daemonRestart{}, nil
 }
 
 // runSupervisorCommand executes `daemon install`, `daemon remove` and

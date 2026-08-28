@@ -148,8 +148,8 @@ func TestRestartSupervisedDaemonReportsNothingToDoRatherThanFailing(t *testing.T
 	// One: no configuration at all. A machine that never ran `init` has no
 	// daemon of this state directory, whatever `kivgraph daemon` it is running
 	// with a --config somewhere else.
-	if _, pid, err := restartSupervisedDaemon(stale); err != nil || pid != 0 {
-		t.Fatalf("with no configuration: pid=%d err=%v, want 0 and nil", pid, err)
+	if outcome, err := restartSupervisedDaemon(stale); err != nil || outcome.PID != 0 || outcome.Owned {
+		t.Fatalf("with no configuration: pid=%d owned=%t err=%v, want 0, false and nil", outcome.PID, outcome.Owned, err)
 	}
 
 	if _, err := config.Initialize(config.InitOptions{}); err != nil {
@@ -164,8 +164,8 @@ func TestRestartSupervisedDaemonReportsNothingToDoRatherThanFailing(t *testing.T
 	// Two: no endpoint published. The daemon writes the file before it serves
 	// and removes it when it stops, so its absence is the answer rather than a
 	// failure to get one.
-	if _, pid, err := restartSupervisedDaemon(stale); err != nil || pid != 0 {
-		t.Fatalf("with no endpoint: pid=%d err=%v, want 0 and nil", pid, err)
+	if outcome, err := restartSupervisedDaemon(stale); err != nil || outcome.PID != 0 || outcome.Owned {
+		t.Fatalf("with no endpoint: pid=%d owned=%t err=%v, want 0, false and nil", outcome.PID, outcome.Owned, err)
 	}
 
 	if err := os.MkdirAll(directory, 0o755); err != nil {
@@ -183,14 +183,14 @@ func TestRestartSupervisedDaemonReportsNothingToDoRatherThanFailing(t *testing.T
 	// already answering from the release this update installed, or it belongs
 	// to another state directory; restarting it would take down a graph this
 	// update never touched.
-	if _, pid, err := restartSupervisedDaemon([]procstat.Process{kivgraphProcess(11, "daemon")}); err != nil || pid != 0 {
-		t.Fatalf("with the daemon absent from the targets: pid=%d err=%v, want 0 and nil", pid, err)
+	if outcome, err := restartSupervisedDaemon([]procstat.Process{kivgraphProcess(11, "daemon")}); err != nil || outcome.PID != 0 || outcome.Owned {
+		t.Fatalf("with the daemon absent from the targets: pid=%d owned=%t err=%v, want 0, false and nil", outcome.PID, outcome.Owned, err)
 	}
 
 	// Four: it is stale, and no unit is installed for it. Nobody owns it, so
 	// the caution meant for a process a client spawned is the right one here
 	// after all, and the caller keeps its question.
-	if _, pid, err := restartSupervisedDaemon(stale); err != nil || pid != 0 {
-		t.Fatalf("with no unit installed: pid=%d err=%v, want 0 and nil", pid, err)
+	if outcome, err := restartSupervisedDaemon(stale); err != nil || outcome.PID != 0 || outcome.Owned {
+		t.Fatalf("with no unit installed: pid=%d owned=%t err=%v, want 0, false and nil", outcome.PID, outcome.Owned, err)
 	}
 }

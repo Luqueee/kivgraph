@@ -146,7 +146,18 @@ se quede parada. El arreglo vive en `update`, no en lo que se instala.
   distribución.
 - El demonio no habla `sd_notify`, así que la unit es `Type=simple`. Declarar
   `notify` haría a systemd esperar una señal de listo que nunca llega.
-- `Install`, `Remove` y `Restart` invocan `launchctl` y `systemctl`, así que sus
-  tests cubren el renderizado, `Status`, y el `Remove` y el `Restart` de algo
-  que nadie supervisa -- los dos casos en los que no se ejecuta nada. El ciclo
-  completo se comprueba con el humo del binario, no en la suite.
+- `Install`, `Remove` y `Restart` invocan una herramienta externa en cada
+  plataforma -- `systemctl` en Linux, `launchctl` en macOS y `schtasks` en
+  Windows, donde `Restart` es `/End` seguido de `/Run`--, así que sus tests
+  cubren lo que no la invoca: el renderizado de las tres unidades, `Status`, y
+  el `Remove` y el `Restart` de algo que nadie supervisa. El ciclo completo se
+  comprueba con el humo del binario, y **sólo en Linux y macOS**, que son donde
+  corre. Lo que la suite afirma de Windows es el renderizado.
+- En Windows, `Status` compara el fichero de definición y comprueba que la
+  tarea está registrada, pero **no lee la definición registrada**. Una tarea que
+  alguien editó en el planificador sin tocar el fichero se informa como
+  `installed`, así que `Restart` la reiniciaría. Es una propiedad de `Status`
+  que comparten `Install` y `Remove`, no de `Restart`; cerrarla sería leer
+  `schtasks /Query /XML` y comparar las acciones, y no se ha hecho porque nadie
+  ha comprobado aquí qué forma devuelve esa orden -- y un fixture que no
+  demuestra el caso real no demuestra nada.

@@ -24,7 +24,9 @@ func TestUpdateRestartsTheSupervisedDaemonInsteadOfOfferingToStopIt(t *testing.T
 		kivgraphProcess(51, "daemon"),
 		kivgraphProcess(52, "serve"),
 	}}
-	restart := func([]procstat.Process) (string, int, error) { return testLabel, 51, nil }
+	restart := func([]procstat.Process) (daemonRestart, error) {
+		return daemonRestart{Label: testLabel, PID: 51, Owned: true}, nil
+	}
 
 	var stdout, stderr bytes.Buffer
 	if code := runUpdateWithRunner(nil, nil, &stdout, &stderr,
@@ -56,7 +58,9 @@ func TestUpdateRestartsTheSupervisedDaemonInsteadOfOfferingToStopIt(t *testing.T
 // told to run `kivgraph stop`, which is the advice that leaves it with none.
 func TestUpdateAsksNothingWhenTheDaemonWasTheOnlyStaleProcess(t *testing.T) {
 	fixture := &stopFixture{processes: []procstat.Process{kivgraphProcess(91, "daemon")}}
-	restart := func([]procstat.Process) (string, int, error) { return testLabel, 91, nil }
+	restart := func([]procstat.Process) (daemonRestart, error) {
+		return daemonRestart{Label: testLabel, PID: 91, Owned: true}, nil
+	}
 
 	var stdout, stderr bytes.Buffer
 	if code := runUpdateWithRunner(nil, nil, &stdout, &stderr,
@@ -84,9 +88,9 @@ func TestUpdateDoesNotConsultTheSupervisorWithoutADaemon(t *testing.T) {
 		kivgraphProcess(62, "ui"),
 	}}
 	consulted := false
-	restart := func([]procstat.Process) (string, int, error) {
+	restart := func([]procstat.Process) (daemonRestart, error) {
 		consulted = true
-		return "", 0, nil
+		return daemonRestart{}, nil
 	}
 
 	var stdout, stderr bytes.Buffer
@@ -113,8 +117,9 @@ func TestUpdateDoesNotConsultTheSupervisorWithoutADaemon(t *testing.T) {
 // the new release when it is answering from the old one.
 func TestUpdateKeepsTheDaemonWhenItsRestartFails(t *testing.T) {
 	fixture := &stopFixture{processes: []procstat.Process{kivgraphProcess(71, "daemon")}}
-	restart := func([]procstat.Process) (string, int, error) {
-		return testLabel, 71, errors.New("systemctl restart: exit status 1")
+	restart := func([]procstat.Process) (daemonRestart, error) {
+		return daemonRestart{Label: testLabel, PID: 71, Owned: true},
+			errors.New("systemctl restart: exit status 1")
 	}
 
 	var stdout, stderr bytes.Buffer
@@ -130,6 +135,44 @@ func TestUpdateKeepsTheDaemonWhenItsRestartFails(t *testing.T) {
 	if !strings.Contains(stdout.String(), "update.stale: pid=71") {
 		t.Fatalf("a daemon that was not restarted stopped being reported:\n%s", stdout.String())
 	}
+	// A supervisor does own this one. Advising an install would say the single
+	// thing that is not true about it.
+	if strings.Contains(stdout.String(), "no supervisor owns") {
+		t.Fatalf("a failed restart was reported as a daemon nobody supervises:\n%s", stdout.String())
+	}
+}
+
+// A unit somebody edited by hand is reported, never restarted through -- that
+// would start what the operator wrote instead of what the spec describes -- and
+// it is still owned, so the advice about installing a supervisor stays away.
+func TestUpdateReportsAHandEditedUnitWithoutAdvisingAnInstall(t *testing.T) {
+	fixture := &stopFixture{processes: []procstat.Process{kivgraphProcess(101, "daemon")}}
+	restart := func([]procstat.Process) (daemonRestart, error) {
+		return daemonRestart{
+			Label:  testLabel,
+			Owned:  true,
+			Detail: "the installed unit describes a different daemon: reinstall to replace it",
+		}, nil
+	}
+
+	var stdout, stderr bytes.Buffer
+	if code := runUpdateWithRunner(nil, nil, &stdout, &stderr,
+		installedRunner(), fixture.list, fixture.signal, restart, true); code != 0 {
+		t.Fatalf("runUpdateWithRunner = %d, stderr=%q", code, stderr.String())
+	}
+	output := stdout.String()
+	for _, want := range []string{
+		testLabel + " owns this daemon and could not be used",
+		"reinstall to replace it",
+		"update.stale: pid=101",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("update output lost %q:\n%s", want, output)
+		}
+	}
+	if strings.Contains(output, "no supervisor owns") {
+		t.Fatalf("a daemon with a unit was reported as one without:\n%s", output)
+	}
 }
 
 // The advice printed under the list is wrong for a daemon nobody supervises,
@@ -137,7 +180,7 @@ func TestUpdateKeepsTheDaemonWhenItsRestartFails(t *testing.T) {
 // and nothing can bring it back.
 func TestUpdateWarnsThatStoppingAnUnownedDaemonLeavesNone(t *testing.T) {
 	fixture := &stopFixture{processes: []procstat.Process{kivgraphProcess(81, "daemon")}}
-	restart := func([]procstat.Process) (string, int, error) { return "", 0, nil }
+	restart := func([]procstat.Process) (daemonRestart, error) { return daemonRestart{}, nil }
 
 	var stdout, stderr bytes.Buffer
 	if code := runUpdateWithRunner(nil, nil, &stdout, &stderr,
