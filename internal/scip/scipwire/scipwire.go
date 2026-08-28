@@ -130,6 +130,59 @@ type SymbolInformation struct {
 	Signature       string
 	EnclosingSymbol string
 	Documentation   []string
+	// Relationships are what this symbol declares about another one:
+	// implementing an interface, extending a class, overriding a method.
+	// They are the only place SCIP states a type hierarchy, and they carry no
+	// position -- the relation is a property of the declaration, so a consumer
+	// that needs evidence uses the declaration's own range.
+	Relationships []Relationship
+}
+
+// Relationship is one edge SymbolInformation declares to another symbol.
+//
+// The flags are not exclusive and a producer may set several. `is_definition`
+// exists in the schema and scip-java does not set it; it is decoded anyway so
+// a reader can tell an absent flag from one this decoder dropped.
+type Relationship struct {
+	Symbol           string
+	IsReference      bool
+	IsImplementation bool
+	IsTypeDefinition bool
+	IsDefinition     bool
+}
+
+func decodeRelationship(data []byte) (Relationship, error) {
+	var relationship Relationship
+	err := eachField(data, func(field int32, value fieldValue) error {
+		switch field {
+		case 1:
+			name, err := value.text()
+			if err != nil {
+				return err
+			}
+			relationship.Symbol = name
+		case 2, 3, 4, 5:
+			flag, err := value.number()
+			if err != nil {
+				return err
+			}
+			switch field {
+			case 2:
+				relationship.IsReference = flag != 0
+			case 3:
+				relationship.IsImplementation = flag != 0
+			case 4:
+				relationship.IsTypeDefinition = flag != 0
+			case 5:
+				relationship.IsDefinition = flag != 0
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return Relationship{}, err
+	}
+	return relationship, nil
 }
 
 // Decode reads an index. Unknown fields are skipped, malformed ones are
@@ -335,6 +388,16 @@ func decodeSymbolInformation(data []byte) (SymbolInformation, error) {
 				return err
 			}
 			symbol.Documentation = append(symbol.Documentation, documentation)
+		case 4:
+			bytes, err := value.bytes()
+			if err != nil {
+				return err
+			}
+			relationship, err := decodeRelationship(bytes)
+			if err != nil {
+				return err
+			}
+			symbol.Relationships = append(symbol.Relationships, relationship)
 		case 5:
 			kind, err := value.number()
 			if err != nil {

@@ -201,6 +201,12 @@ func NormalizeSemantic(ctx context.Context, repository workspace.Repository, pay
 	if name == "" || payload.Language == "" {
 		return Set{}, fmt.Errorf("%w: semantic repository and language are required", ErrInvalidFacts)
 	}
+	// A language with no provenance of its own would be published stamped
+	// with another language's, which is the one defect none of the gates
+	// downstream can see. Refuse it here, where the caller can be named.
+	if definitionProvenance(payload.Language) == "" || useProvenance(payload.Language, "") == "" {
+		return Set{}, fmt.Errorf("%w: semantic language %q has no provenance", ErrInvalidFacts, payload.Language)
+	}
 	root := repository.RealPath
 	if root == "" {
 		root = repository.Path
@@ -464,18 +470,40 @@ func semanticDirectiveEvidence(
 	}, true
 }
 
+// definitionProvenance and useProvenance say where a semantic fact came from.
+//
+// They are a table with no default on purpose. They used to be `if Dart, else
+// Python`, so a language added to this normaliser and forgotten here published
+// every one of its edges stamped PYTHON_INDEXER_*: a legal provenance that the
+// integrity catalogue accepts, the golden probes pass and nothing reads back.
+// An unknown language now yields the empty provenance, and NormalizeSemantic
+// refuses such a payload at its door -- Set.Validate would not catch it,
+// because it only rejects an empty provenance under an EXACT confidence and
+// DEFINES is StructuralCertain.
 func definitionProvenance(language Language) Provenance {
-	if language == LanguageDart {
+	switch language {
+	case LanguageDart:
 		return DartAnalyzerDefinition
+	case LanguagePython:
+		return PythonIndexerDefinition
+	case LanguageJava:
+		return JavaScipDefinition
+	default:
+		return ""
 	}
-	return PythonIndexerDefinition
 }
 
 func useProvenance(language Language, kind any) Provenance {
-	if language == LanguageDart {
+	switch language {
+	case LanguageDart:
 		return DartAnalyzerUse
+	case LanguagePython:
+		return PythonIndexerUse
+	case LanguageJava:
+		return JavaScipUse
+	default:
+		return ""
 	}
-	return PythonIndexerUse
 }
 
 func firstNonEmptySemantic(values ...string) string {

@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/Luqueee/kivgraph/internal/executable"
-	"github.com/Luqueee/kivgraph/internal/rustloader/scipwire"
+	"github.com/Luqueee/kivgraph/internal/scip/scipwire"
 )
 
 // RunErrorKind classifies a failure of the external indexer. Every kind maps

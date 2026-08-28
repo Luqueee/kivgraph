@@ -30,6 +30,7 @@ const (
 	defaultFactCachePath = "~/.local/state/kivgraph/factcache"
 	defaultSyntheticWork = "~/.local/state/kivgraph/go.work"
 	defaultRustTargetDir = "~/.local/state/kivgraph/rust-target"
+	defaultJavaTargetDir = "~/.local/state/kivgraph/java-target"
 	defaultEventLogPath  = "~/.local/state/kivgraph/events.jsonl"
 
 	maximumConfiguredDepth = 5
@@ -75,6 +76,7 @@ type Config struct {
 	Rust       RustConfig       `yaml:"rust"`
 	Python     PythonConfig     `yaml:"python"`
 	Dart       DartConfig       `yaml:"dart"`
+	Java       JavaConfig       `yaml:"java"`
 	Telemetry  TelemetryConfig  `yaml:"telemetry"`
 	Logging    LoggingConfig    `yaml:"logging"`
 }
@@ -366,6 +368,27 @@ type DartConfig struct {
 	MaximumAnalysisTime Duration `yaml:"maximum_analysis_time"`
 }
 
+// JavaConfig controls the scip-java based indexer.
+//
+// Java is indexed by building it: scip-java drives the repository's own build
+// tool with the SemanticDB javac plugin attached. That is what makes its edges
+// type-checked, and it is why this configuration has a target directory and a
+// time limit that the other semantic languages do not need.
+type JavaConfig struct {
+	IndexerCommand string `yaml:"indexer_command"`
+	// BuildTool is empty by default: scip-java detects Maven, Gradle, sbt and
+	// mill on its own, and naming one is for a repository that carries two.
+	BuildTool        string `yaml:"build_tool"`
+	MaximumWorkers   int    `yaml:"maximum_workers"`
+	IncludeTests     bool   `yaml:"include_tests"`
+	IncludeGenerated bool   `yaml:"include_generated"`
+	// TargetDirectory is where the indexer writes its SemanticDB output and
+	// its index. It defaults outside every indexed repository, like
+	// rust.target_directory, because a pass must not modify what it reads.
+	TargetDirectory  string   `yaml:"target_directory"`
+	MaximumIndexTime Duration `yaml:"maximum_index_time"`
+}
+
 // TelemetryConfig controls metrics and tracing.
 type TelemetryConfig struct {
 	Metrics bool `yaml:"metrics"`
@@ -511,6 +534,14 @@ func DefaultConfig() Config {
 			WaitForAnalysis:     true,
 			MaximumAnalysisTime: Duration(5 * time.Minute),
 		},
+		Java: JavaConfig{
+			IndexerCommand:   "scip-java",
+			MaximumWorkers:   1,
+			IncludeTests:     false,
+			IncludeGenerated: false,
+			TargetDirectory:  defaultJavaTargetDir,
+			MaximumIndexTime: Duration(20 * time.Minute),
+		},
 		Telemetry: TelemetryConfig{
 			Metrics: true,
 			Traces:  false,
@@ -545,6 +576,7 @@ func stateBesideConfig(configPath string, ownRegistry bool) (*Config, error) {
 	configuration.Indexing.FactCachePath = filepath.Join(state, "factcache")
 	configuration.Go.SyntheticWorkFile = filepath.Join(state, "go.work")
 	configuration.Rust.TargetDirectory = filepath.Join(state, "rust-target")
+	configuration.Java.TargetDirectory = filepath.Join(state, "java-target")
 	configuration.Logging.EventLogPath = filepath.Join(state, "events.jsonl")
 	if ownRegistry {
 		configuration.Workspace.RepositoriesFile = filepath.Join(directory, "repositories.yaml")
@@ -940,6 +972,7 @@ func expandConfigPaths(configuration *Config, base string) error {
 		{"storage.backups_path", &configuration.Storage.BackupsPath},
 		{"go.synthetic_work_file", &configuration.Go.SyntheticWorkFile},
 		{"rust.target_directory", &configuration.Rust.TargetDirectory},
+		{"java.target_directory", &configuration.Java.TargetDirectory},
 		{"indexing.fact_cache_path", &configuration.Indexing.FactCachePath},
 		{"logging.event_log_path", &configuration.Logging.EventLogPath},
 	}
@@ -974,6 +1007,7 @@ func validateConfig(configuration Config) error {
 		"storage.backups_path":        configuration.Storage.BackupsPath,
 		"go.synthetic_work_file":      configuration.Go.SyntheticWorkFile,
 		"rust.target_directory":       configuration.Rust.TargetDirectory,
+		"java.target_directory":       configuration.Java.TargetDirectory,
 		"logging.event_log_path":      configuration.Logging.EventLogPath,
 	} {
 		if !filepath.IsAbs(value) {
@@ -1115,6 +1149,23 @@ func validateConfig(configuration Config) error {
 	if configuration.Dart.MaximumAnalysisTime <= 0 {
 		return errors.New("config.dart.maximum_analysis_time: must be positive")
 	}
+	if strings.TrimSpace(configuration.Java.IndexerCommand) == "" {
+		return errors.New("config.java.indexer_command: must not be empty")
+	}
+	if configuration.Java.MaximumWorkers < 1 {
+		return fmt.Errorf("config.java.maximum_workers: must be positive, got %d", configuration.Java.MaximumWorkers)
+	}
+	if configuration.Java.MaximumIndexTime <= 0 {
+		return errors.New("config.java.maximum_index_time: must be positive")
+	}
+	// The build tool is optional, but a value that scip-java does not accept
+	// would fail every Java repository at the end of a pass rather than here.
+	switch strings.ToLower(strings.TrimSpace(configuration.Java.BuildTool)) {
+	case "", "maven", "gradle", "sbt", "mill", "bazel":
+	default:
+		return fmt.Errorf("config.java.build_tool: unsupported build tool %q, want maven, gradle, sbt, mill or bazel",
+			configuration.Java.BuildTool)
+	}
 	if configuration.Logging.Format != "json" && configuration.Logging.Format != "text" {
 		return fmt.Errorf("config.logging.format: unsupported format %q, want json or text", configuration.Logging.Format)
 	}
@@ -1180,7 +1231,7 @@ func validateRepositories(repositories RepositoriesFile) error {
 // used to be accepted by `init` and only rejected by the rebuild, hours later
 // and in another process.
 func SupportedLanguages() []string {
-	return []string{"go", "typescript", "javascript", "ts", "js", "rust", "rs", "python", "py", "dart"}
+	return []string{"go", "typescript", "javascript", "ts", "js", "rust", "rs", "python", "py", "dart", "java"}
 }
 
 // SupportedLanguage reports whether the indexer can analyse a repository that

@@ -72,6 +72,13 @@ type FullOptions struct {
 	DartPackageConfig       string
 	DartWaitForAnalysis     bool
 	DartMaximumAnalysisTime time.Duration
+	JavaIndexerCommand      string
+	JavaBuildTool           string
+	JavaMaximumWorkers      int
+	JavaIncludeTests        bool
+	JavaIncludeGenerated    bool
+	JavaTargetDirectory     string
+	JavaMaximumIndexTime    time.Duration
 	WorkingDirectory        string
 	// CacheMode and CacheDirectory configure the fact cache: whether a
 	// unit may be served from the facts a previous pass stored, and where
@@ -140,6 +147,13 @@ func OptionsFromConfig(configuration config.Config) FullOptions {
 		DartPackageConfig:                 configuration.Dart.PackageConfig,
 		DartWaitForAnalysis:               configuration.Dart.WaitForAnalysis,
 		DartMaximumAnalysisTime:           time.Duration(configuration.Dart.MaximumAnalysisTime),
+		JavaIndexerCommand:                configuration.Java.IndexerCommand,
+		JavaBuildTool:                     configuration.Java.BuildTool,
+		JavaMaximumWorkers:                configuration.Java.MaximumWorkers,
+		JavaIncludeTests:                  configuration.Java.IncludeTests,
+		JavaIncludeGenerated:              configuration.Java.IncludeGenerated,
+		JavaTargetDirectory:               configuration.Java.TargetDirectory,
+		JavaMaximumIndexTime:              time.Duration(configuration.Java.MaximumIndexTime),
 		CacheMode:                         indexer.CacheMode(configuration.Indexing.FactCache),
 		CacheDirectory:                    configuration.Indexing.FactCachePath,
 		Root:                              filepath.Dir(configuration.Storage.DatabasePath),
@@ -224,6 +238,13 @@ func RunFull(ctx context.Context, options FullOptions) (FullResult, error) {
 		DartPackageConfig:                 options.DartPackageConfig,
 		DartWaitForAnalysis:               options.DartWaitForAnalysis,
 		DartMaximumAnalysisTime:           options.DartMaximumAnalysisTime,
+		JavaIndexerCommand:                options.JavaIndexerCommand,
+		JavaBuildTool:                     options.JavaBuildTool,
+		JavaMaximumWorkers:                options.JavaMaximumWorkers,
+		JavaIncludeTests:                  options.JavaIncludeTests,
+		JavaIncludeGenerated:              options.JavaIncludeGenerated,
+		JavaTargetDirectory:               options.JavaTargetDirectory,
+		JavaMaximumIndexTime:              options.JavaMaximumIndexTime,
 		WorkingDirectory:                  options.WorkingDirectory,
 		CacheMode:                         options.CacheMode,
 		CacheDirectory:                    options.CacheDirectory,

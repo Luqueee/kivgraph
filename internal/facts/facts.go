@@ -30,6 +30,9 @@ const (
 	LanguagePython Language = "python"
 	// LanguageDart marks facts produced by the Dart analysis-server loader.
 	LanguageDart Language = "dart"
+	// LanguageJava marks facts produced by the SCIP loader over the index
+	// scip-java emits.
+	LanguageJava Language = "java"
 )
 
 // Confidence is the trust level of an edge, as defined by the plan.
@@ -104,6 +107,11 @@ const (
 	DartAnalyzerDefinition  Provenance = "DART_ANALYZER_DEF"
 	DartAnalyzerUse         Provenance = "DART_ANALYZER_USE"
 	DartSyntaxCall          Provenance = "DART_SYNTAX_CALL"
+	// JavaScipDefinition and JavaScipUse mark facts read from the SCIP index
+	// scip-java produces. The index is emitted by the SemanticDB javac
+	// plugin, so its targets are resolved by the compiler itself.
+	JavaScipDefinition Provenance = "JAVA_SCIP_DEF"
+	JavaScipUse        Provenance = "JAVA_SCIP_USE"
 
 	TreeSitterSyntax Provenance = "TREE_SITTER_SYNTAX"
 	PackageManifest  Provenance = "PACKAGE_MANIFEST"

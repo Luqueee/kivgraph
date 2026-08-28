@@ -41,6 +41,10 @@ const (
 	defaultTypeScriptWorkerLimit = 3
 	defaultPythonWorkerLimit     = 3
 	defaultDartWorkerLimit       = 2
+	// defaultJavaWorkerLimit is one: scip-java drives the project's own build
+	// tool, and two Maven or Gradle daemons on one machine compete for the
+	// same local repository and the same heap.
+	defaultJavaWorkerLimit = 1
 )
 
 // ProgressPhase names the unit of work a progress event belongs to.
@@ -57,6 +61,12 @@ const (
 	PhasePython ProgressPhase = "python"
 	// PhaseDart is one Dart package repository.
 	PhaseDart ProgressPhase = "dart"
+	// PhaseJava is one Java repository.
+	PhaseJava ProgressPhase = "java"
+	// PhaseSemantic names a semantic unit whose language has no phase of its
+	// own. Nothing reaches it today; it exists so an unnamed language reports
+	// progress under a truthful label instead of another language's.
+	PhaseSemantic ProgressPhase = "semantic"
 	// PhaseMerge is the final sort and validation of the merged fact set.
 	PhaseMerge ProgressPhase = "merge"
 )
@@ -146,7 +156,19 @@ type FullOptions struct {
 	DartPackageConfig       string
 	DartWaitForAnalysis     bool
 	DartMaximumAnalysisTime time.Duration
-	WorkingDirectory        string
+	JavaIndexerCommand      string
+	JavaBuildTool           string
+	JavaMaximumWorkers      int
+	JavaIncludeTests        bool
+	JavaIncludeGenerated    bool
+	// JavaTargetDirectory is where scip-java writes its SemanticDB output and
+	// its index. It lives outside every indexed repository for the reason
+	// RustTargetDirectory does: the analyzer's output is not the repository's
+	// source, and an index that leaves artefacts behind has modified what it
+	// came to read.
+	JavaTargetDirectory  string
+	JavaMaximumIndexTime time.Duration
+	WorkingDirectory     string
 	// CacheMode selects whether a unit may be served from its stored
 	// facts. Empty is CacheOff.
 	CacheMode CacheMode
@@ -254,6 +276,11 @@ type FullReport struct {
 	DartReferences              int
 	DartUnresolved              int
 	DartRepositoriesNotLoaded   int
+	JavaRepositories            int
+	JavaSymbols                 int
+	JavaReferences              int
+	JavaUnresolved              int
+	JavaRepositoriesNotLoaded   int
 	// EdgesWithoutProvider counts the edges the merge dropped because the
 	// repository that provides the target does not publish its declaration.
 	// Each one is declared as an unresolved reference with the position that
@@ -317,6 +344,7 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 	rustRepositories := repositoriesForRust(repositories)
 	pythonRepositories := repositoriesForPython(repositories)
 	dartRepositories := repositoriesForLanguage(repositories, "dart")
+	javaRepositories := repositoriesForLanguage(repositories, "java")
 	if options.DartIncludeSDK {
 		sdkRoot, sdkErr := dartloader.SDKRoot(options.DartSDKPath)
 		if sdkErr != nil {
@@ -336,6 +364,7 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 		RustRepositories:       len(rustRepositories),
 		PythonRepositories:     len(pythonRepositories),
 		DartRepositories:       len(dartRepositories),
+		JavaRepositories:       len(javaRepositories),
 	}
 	typeScriptDiscovered, err := discoverTypeScriptPackages(
 		ctx, typeScriptRepositories, options.TypeScriptIncludeUnclaimedSources)
@@ -402,7 +431,7 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 			for _, module := range modulesByRepository[repository.Name] {
 				goUnits = append(goUnits, analysisUnit{
 					repository: repository, module: module,
-					workFile: workFiles[module.ModulePath], isGo: true,
+					workFile: workFiles[module.ModulePath], kind: unitGo,
 				})
 			}
 		}
@@ -412,6 +441,7 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 	units = append(units, rustAnalysisUnits(rustUnits)...)
 	units = append(units, semanticUnits(pythonRepositories, facts.LanguagePython)...)
 	units = append(units, semanticUnits(dartRepositories, facts.LanguageDart)...)
+	units = append(units, semanticUnits(javaRepositories, facts.LanguageJava)...)
 	results, cacheReport, err := analyse(ctx, options, units, analysisInputs{
 		moduleRegistry:     moduleRegistry,
 		conflictingModules: conflictingModules,
@@ -437,8 +467,8 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 		for key, target := range result.composed {
 			composed[key] = target
 		}
-		switch {
-		case unit.isGo:
+		switch unit.kind {
+		case unitGo:
 			report.GoLoads++
 			report.GoModules++
 			if result.notLoaded {
@@ -452,7 +482,7 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 			report.GoDefinitions += result.definitions
 			report.GoReferences += result.references
 			report.GoUnresolved += result.unresolved
-		case unit.isRust:
+		case unitRust:
 			report.RustWorkspaces++
 			report.RustCrates += len(unit.rust.crates)
 			if result.notLoaded {
@@ -462,20 +492,8 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 			report.RustSymbols += result.symbols
 			report.RustReferences += result.references
 			report.RustUnresolved += result.unresolved
-		case unit.isPython:
-			report.PythonSymbols += result.symbols
-			report.PythonReferences += result.references
-			report.PythonUnresolved += result.unresolved
-			if result.notLoaded {
-				report.PythonRepositoriesNotLoaded++
-			}
-		case unit.isDart:
-			report.DartSymbols += result.symbols
-			report.DartReferences += result.references
-			report.DartUnresolved += result.unresolved
-			if result.notLoaded {
-				report.DartRepositoriesNotLoaded++
-			}
+		case unitSemantic:
+			report.addSemantic(unit.language, result)
 		default:
 			report.TypeScriptSymbols += result.symbols
 			report.TypeScriptReferences += result.references
@@ -1162,19 +1180,43 @@ func collectTypeScriptFacts(
 	return payload, nil
 }
 
+// unitKind is what a unit is, and it is one field rather than a bool per
+// language on purpose.
+//
+// Every dispatch over a unit used to be a `switch { case unit.isGo: ...
+// default: }` whose default was TypeScript, spread over nine sites in two
+// files. A unit built without its flag was not a compile error and not a
+// runtime error: it was analysed as a TypeScript package. Adding the third
+// semantic language meant finding all nine by hand, and the language that
+// found eight of them would have published a graph that looked right.
+//
+// The zero value is deliberately not a language. It is the one value
+// analyseUnit refuses, so the failure that used to be a misroute is now a
+// stopped pass that names the unit.
+type unitKind uint8
+
+const (
+	unitUnspecified unitKind = iota
+	unitGo
+	unitTypeScript
+	unitRust
+	// unitSemantic is every language that arrives through
+	// facts.SemanticPayload. They differ by `language`, never by kind: the
+	// pass schedules, caches and merges them identically, and the only code
+	// that asks which one it is, is the loader switch in indexSemantic.
+	unitSemantic
+)
+
 // analysisUnit is one independent piece of work: a Go module, a TypeScript
-// package or a Cargo workspace. Nothing in a unit reads another unit's state,
-// which is what lets them run at the same time.
+// package, a Cargo workspace or a semantic repository. Nothing in a unit reads
+// another unit's state, which is what lets them run at the same time.
 type analysisUnit struct {
 	repository workspace.Repository
 	module     goworkspace.Module
 	pkg        typeScriptPackageUnit
 	rust       rustWorkspaceUnit
 	workFile   string
-	isGo       bool
-	isRust     bool
-	isPython   bool
-	isDart     bool
+	kind       unitKind
 	language   facts.Language
 }
 
@@ -1187,12 +1229,12 @@ type analysisUnit struct {
 // slowest unit ends, and starting that one late adds its whole duration to
 // the tail.
 func (unit analysisUnit) weight() int {
-	switch {
-	case unit.isGo:
+	switch unit.kind {
+	case unitGo:
 		return len(unit.module.PackagePatterns)
-	case unit.isRust:
+	case unitRust:
 		return unit.rust.files
-	case unit.isPython, unit.isDart:
+	case unitSemantic:
 		return countSemanticFiles(unit.repository, unit.language)
 	default:
 		return len(unit.pkg.packageValue.SourceRoots) + unit.pkg.files
@@ -1200,15 +1242,52 @@ func (unit analysisUnit) weight() int {
 }
 
 func (unit analysisUnit) detail() string {
-	switch {
-	case unit.isGo:
+	switch unit.kind {
+	case unitGo:
 		return unit.module.ModulePath
-	case unit.isRust:
+	case unitRust:
 		return rustUnitDetail(unit.rust)
-	case unit.isPython, unit.isDart:
+	case unitSemantic:
 		return string(unit.language)
 	default:
 		return unit.pkg.packageValue.Name
+	}
+}
+
+// addSemantic folds one semantic unit's result into the counters of its
+// language.
+//
+// It is one switch, here, rather than a case per language in the merge loop.
+// The counters are still flat fields because `index --full --json` publishes
+// them by name and that shape is a compatibility surface; what moved is the
+// number of places that have to learn a language, from five to one.
+func (report *FullReport) addSemantic(language facts.Language, result analysisResult) {
+	var symbols, references, unresolved, notLoaded *int
+	switch language {
+	case facts.LanguagePython:
+		symbols, references, unresolved, notLoaded =
+			&report.PythonSymbols, &report.PythonReferences,
+			&report.PythonUnresolved, &report.PythonRepositoriesNotLoaded
+	case facts.LanguageDart:
+		symbols, references, unresolved, notLoaded =
+			&report.DartSymbols, &report.DartReferences,
+			&report.DartUnresolved, &report.DartRepositoriesNotLoaded
+	case facts.LanguageJava:
+		symbols, references, unresolved, notLoaded =
+			&report.JavaSymbols, &report.JavaReferences,
+			&report.JavaUnresolved, &report.JavaRepositoriesNotLoaded
+	default:
+		// A semantic unit whose language has no counters would be indexed
+		// and then reported as nothing, which reads as a language with no
+		// code. indexSemantic refuses the same language, so this is
+		// unreachable rather than tolerant.
+		return
+	}
+	*symbols += result.symbols
+	*references += result.references
+	*unresolved += result.unresolved
+	if result.notLoaded {
+		*notLoaded++
 	}
 }
 
@@ -1596,7 +1675,9 @@ type analysisInputs struct {
 func typeScriptUnits(packages []typeScriptPackageUnit) []analysisUnit {
 	units := make([]analysisUnit, 0, len(packages))
 	for _, packageUnit := range packages {
-		units = append(units, analysisUnit{repository: packageUnit.repository, pkg: packageUnit})
+		units = append(units, analysisUnit{
+			repository: packageUnit.repository, pkg: packageUnit, kind: unitTypeScript,
+		})
 	}
 	return units
 }
@@ -1631,17 +1712,16 @@ func analyse(
 	}
 	cache.trees.withProviders(inputs.typeScriptPackages)
 	cache.withRegistry(inputs, options.Repositories)
-	var goQueue, typeScriptQueue, rustQueue, pythonQueue, dartQueue []int
+	var goQueue, typeScriptQueue, rustQueue []int
+	semanticQueues := map[facts.Language][]int{}
 	for index, unit := range units {
-		switch {
-		case unit.isGo:
+		switch unit.kind {
+		case unitGo:
 			goQueue = append(goQueue, index)
-		case unit.isRust:
+		case unitRust:
 			rustQueue = append(rustQueue, index)
-		case unit.isPython:
-			pythonQueue = append(pythonQueue, index)
-		case unit.isDart:
-			dartQueue = append(dartQueue, index)
+		case unitSemantic:
+			semanticQueues[unit.language] = append(semanticQueues[unit.language], index)
 		default:
 			typeScriptQueue = append(typeScriptQueue, index)
 		}
@@ -1654,8 +1734,9 @@ func analyse(
 	byWeight(goQueue)
 	byWeight(rustQueue)
 	byWeight(typeScriptQueue)
-	byWeight(pythonQueue)
-	byWeight(dartQueue)
+	for _, queue := range semanticQueues {
+		byWeight(queue)
+	}
 
 	group, groupCtx := errgroup.WithContext(ctx)
 	report := serializedProgress(options.Progress)
@@ -1702,8 +1783,19 @@ func analyse(
 	run(goQueue, goLoadLimit(options), PhaseGo)
 	run(rustQueue, rustWorkspaceLimit(options), PhaseRust)
 	run(typeScriptQueue, typeScriptWorkerLimit(options), PhaseTypeScript)
-	run(pythonQueue, pythonWorkerLimit(options), PhasePython)
-	run(dartQueue, dartWorkerLimit(options), PhaseDart)
+	// Each semantic language drains its own queue under its own budget: the
+	// analyzers are separate processes with separate costs, and one of them
+	// saturating the machine is what a per-language limit exists to stop.
+	// The order is fixed rather than the map's, so a pass schedules the same
+	// way twice.
+	for _, language := range semanticSchedule {
+		queue := semanticQueues[language]
+		if len(queue) == 0 {
+			continue
+		}
+		limit, phase := semanticBudget(options, language)
+		run(queue, limit, phase)
+	}
 
 	if err := group.Wait(); err != nil {
 		return nil, cache.report(), err
@@ -1720,16 +1812,22 @@ func analyseUnit(
 	unit analysisUnit,
 	inputs analysisInputs,
 ) (analysisResult, error) {
-	switch {
-	case unit.isGo:
+	switch unit.kind {
+	case unitGo:
 		return indexGoModule(ctx, options, unit,
 			inputs.moduleRegistry, inputs.conflictingModules, inputs.planConflicts)
-	case unit.isRust:
+	case unitRust:
 		return indexRustWorkspace(ctx, options, unit, inputs.crateRegistry, inputs.parsers)
-	case unit.isPython, unit.isDart:
+	case unitSemantic:
 		return indexSemantic(ctx, options, unit)
-	default:
+	case unitTypeScript:
 		return indexTypeScriptPackage(ctx, options, unit, inputs.typeScriptPackages)
+	default:
+		// The default used to be TypeScript, so a unit built without its
+		// kind was analysed as a TypeScript package and published facts
+		// nobody asked for. A pass that cannot say what a unit is stops.
+		return analysisResult{}, fmt.Errorf(
+			"analysis unit for repository %q has no kind", unit.repository.Name)
 	}
 }
 
@@ -1784,4 +1882,33 @@ func dartWorkerLimit(options FullOptions) int {
 		return options.DartMaximumWorkers
 	}
 	return defaultDartWorkerLimit
+}
+
+func javaWorkerLimit(options FullOptions) int {
+	if options.JavaMaximumWorkers > 0 {
+		return options.JavaMaximumWorkers
+	}
+	return defaultJavaWorkerLimit
+}
+
+// semanticSchedule fixes the order the semantic languages are dispatched in.
+// A map range would reorder the queues between runs, and the pass is required
+// to schedule the same corpus the same way twice.
+var semanticSchedule = []facts.Language{
+	facts.LanguagePython, facts.LanguageDart, facts.LanguageJava,
+}
+
+// semanticBudget is the worker limit and progress phase of one semantic
+// language.
+func semanticBudget(options FullOptions, language facts.Language) (int, ProgressPhase) {
+	switch language {
+	case facts.LanguagePython:
+		return pythonWorkerLimit(options), PhasePython
+	case facts.LanguageDart:
+		return dartWorkerLimit(options), PhaseDart
+	case facts.LanguageJava:
+		return javaWorkerLimit(options), PhaseJava
+	default:
+		return 1, PhaseSemantic
+	}
 }

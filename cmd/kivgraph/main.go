@@ -1050,6 +1050,13 @@ func writeIndexSummary(stdout io.Writer, indexReport indexer.FullReport) {
 		indexReport.DartReferences,
 		indexReport.DartUnresolved,
 	)
+	writeInfo(stdout, "index.java: repositories=%d not_loaded=%d symbols=%d references=%d unresolved=%d",
+		indexReport.JavaRepositories,
+		indexReport.JavaRepositoriesNotLoaded,
+		indexReport.JavaSymbols,
+		indexReport.JavaReferences,
+		indexReport.JavaUnresolved,
+	)
 }
 
 func runIndexFull(args []string, stdout, stderr io.Writer) int {
@@ -1611,6 +1618,7 @@ func runDoctorToolchains(stdout io.Writer, report func(string, bool, string), co
 	needsRust := false
 	needsPython := false
 	needsDart := false
+	needsJava := false
 	for _, repository := range repositories {
 		for _, language := range repository.Languages {
 			switch strings.ToLower(strings.TrimSpace(language)) {
@@ -1624,6 +1632,8 @@ func runDoctorToolchains(stdout io.Writer, report func(string, bool, string), co
 				needsPython = true
 			case "dart":
 				needsDart = true
+			case "java":
+				needsJava = true
 			}
 		}
 	}
@@ -1638,6 +1648,7 @@ func runDoctorToolchains(stdout io.Writer, report func(string, bool, string), co
 	reportRustToolchain(report, configuration, needsRust)
 	reportPythonToolchain(report, configuration, needsPython)
 	reportExternalToolchain(report, "dart", configuration.Dart.AnalyzerCommand, needsDart)
+	reportExternalToolchain(report, "java", configuration.Java.IndexerCommand, needsJava)
 }
 
 func reportPythonToolchain(report func(string, bool, string), configuration config.Config, needed bool) {

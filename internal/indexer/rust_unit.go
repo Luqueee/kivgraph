@@ -501,7 +501,7 @@ func rustAnalysisUnits(units []rustWorkspaceUnit) []analysisUnit {
 	analysisUnits := make([]analysisUnit, 0, len(units))
 	for _, unit := range units {
 		analysisUnits = append(analysisUnits, analysisUnit{
-			repository: unit.repository, rust: unit, isRust: true,
+			repository: unit.repository, rust: unit, kind: unitRust,
 		})
 	}
 	return analysisUnits

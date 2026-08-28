@@ -97,7 +97,7 @@ superficie MCP el suyo en `internal/mcp/AGENTS.md`.
   sinks de progreso-. Construirla dos veces es cómo `index_project` acabó sin
   nombrar ningún campo de Rust y fallando con «the Rust analyzer command is
   required» sobre la misma configuración que el CLI indexaba sin problema.
-  Su resultado informa de los contadores de los tres lenguajes: un lenguaje
+  Su resultado informa de los contadores de los seis lenguajes: un lenguaje
   ausente del informe se lee como un lenguaje sin código.
 - Un nombre de paquete TypeScript declarado por varios manifests es una
   ambigüedad, no un repositorio roto: ningún manifest lo provee, ambos salen
@@ -169,7 +169,7 @@ superficie MCP el suyo en `internal/mcp/AGENTS.md`.
   `hotsnapshot.EvidenceRecord` lleva clave, los dos ficheros, clase y
   procedencia, y el vano observado se queda en el grafo canónico. Así que
   ninguna tool puede abrir el texto que justifica una arista, en ninguno de los
-  cinco lenguajes: una fila de `find_references` usa el rango del símbolo y su
+  seis lenguajes: una fila de `find_references` usa el rango del símbolo y su
   `evidence_kind` sale de la procedencia. Es un hueco declarado, no un defecto
   a arreglar de paso: proyectarlo sube la versión del formato de filas del
   snapshot -- una superficie de compatibilidad-- y hoy ningún consumidor lo
