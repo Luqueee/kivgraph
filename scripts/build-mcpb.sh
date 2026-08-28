@@ -149,8 +149,10 @@ cp -R "$bundle/." "$staging/server/"
 # the agent's handshake is read, which is the only moment an in-process server
 # is still available to hand it to: a relay that fails afterwards fails the
 # command. The bundle cannot express any of it: manifest 0.3 describes a local
-# process and its runtime, with no field for a url, which is exactly why the
-# entry stays stdio and the server moved.
+# process and its runtime through `server.mcp_config`, and has no field for a
+# server url or a remote transport -- the urls it does define name the author
+# and the repository. That is exactly why the entry stays stdio and the server
+# moved.
 #
 # `${__dirname}` is substituted by the installing client with the absolute path
 # of the unpacked extension. A relative command would be resolved against the
