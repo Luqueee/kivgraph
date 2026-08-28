@@ -80,6 +80,41 @@ func TestCollectReadsBundleManifest(t *testing.T) {
 	}
 }
 
+// A slim bundle carries no Rust engine, and its manifest says exactly that with
+// a null rather than by naming a binary it never installed. The absence has to
+// survive as an absence: this is the same output as a development binary, where
+// whatever answers for Rust came off the PATH and is not part of this build.
+func TestCollectReadsASlimBundleThatCarriesNoEngine(t *testing.T) {
+	root := t.TempDir()
+	executable := writeBundleFixtureWithTools(t, root, "null")
+
+	provenance, err := Collect(executable, t.TempDir())
+	if err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	if provenance.RustAnalyzer != nil {
+		t.Fatalf("rust analyzer = %q, want nil: the bundle installed none", *provenance.RustAnalyzer)
+	}
+	// The rest of the manifest is unaffected: a bundle without the engine is
+	// still a bundle, and reporting it as a development checkout would lose the
+	// commit, the toolchain and the grammar digest it does carry.
+	if provenance.Commit == nil || provenance.Node == nil || provenance.Grammars.SHA256 == nil {
+		t.Fatalf("slim provenance lost the rest of the bundle: %#v", provenance)
+	}
+
+	encoded, err := json.Marshal(provenance)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(encoded, &decoded); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if value, present := decoded["rust_analyzer"]; !present || value != nil {
+		t.Fatalf("encoded rust_analyzer = %#v (present %v), want an explicit null", value, present)
+	}
+}
+
 func TestCollectFallsBackWithoutBundleManifest(t *testing.T) {
 	provenance, err := Collect(filepath.Join(t.TempDir(), "bin", "kivgraph"), t.TempDir())
 	if err != nil {
@@ -233,6 +268,24 @@ func TestCollectRejectsABundleManifestForAnotherRelease(t *testing.T) {
 
 func writeBundleFixture(t *testing.T, root string) string {
 	t.Helper()
+	return writeBundleFixtureWithTools(t, root, fmt.Sprintf(`{
+    "manifest": "tools/manifest.json",
+    "sha256": "%s",
+    "rust_analyzer": {
+      "version": "2026-08-10.1",
+      "release": "0.3.3008-standalone",
+      "binary": "bin/rust-analyzer",
+      "sha256": "%s"
+    }
+  }`, strings.Repeat("d", 64), strings.Repeat("e", 64)))
+}
+
+// writeBundleFixtureWithTools writes a bundle whose tools block is whatever the
+// caller hands it. It is a parameter because a slim bundle writes `null` there:
+// it installs no engine, so it names none, and that manifest still has to be one
+// this binary reads.
+func writeBundleFixtureWithTools(t *testing.T, root, toolsJSON string) string {
+	t.Helper()
 	grammarPath := filepath.Join(root, "grammars", "manifest.json")
 	if err := os.MkdirAll(filepath.Dir(grammarPath), 0o755); err != nil {
 		t.Fatalf("mkdir grammar fixture: %v", err)
@@ -256,21 +309,12 @@ func writeBundleFixture(t *testing.T, root string) string {
   "ladybugdb": {"core": "v0.13.1", "binding": "v0.13.1", "archive_sha256": "%s", "library_sha256": "%s"},
   "schema": {"canonical": 3, "snapshot_row_format": 3},
   "resolver_version": "resolver-v9",
-  "tools": {
-    "manifest": "tools/manifest.json",
-    "sha256": "%s",
-    "rust_analyzer": {
-      "version": "2026-08-10.1",
-      "release": "0.3.3008-standalone",
-      "binary": "bin/rust-analyzer",
-      "sha256": "%s"
-    }
-  },
+  "tools": %s,
   "grammars": {"manifest": "grammars/manifest.json", "sha256": "grammar-sha-placeholder"},
   "artifacts": []
 }`,
 		Value, runtime.GOOS, runtime.GOARCH, strings.Repeat("a", 40), strings.Repeat("b", 64), strings.Repeat("c", 64),
-		strings.Repeat("d", 64), strings.Repeat("e", 64))
+		toolsJSON)
 	manifest = strings.Replace(manifest, "grammar-sha-placeholder", grammarSHA, 1)
 	manifestPath := filepath.Join(root, "manifest.json")
 	if err := os.WriteFile(manifestPath, []byte(manifest), 0o600); err != nil {
