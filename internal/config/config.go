@@ -24,14 +24,15 @@ const (
 	defaultConfigFile       = "~/.config/kivgraph/config.yaml"
 	defaultRepositoriesFile = "~/.config/kivgraph/repositories.yaml"
 
-	defaultDatabasePath  = "~/.local/state/kivgraph/graph.lbdb"
-	defaultSnapshotsPath = "~/.local/state/kivgraph/snapshots"
-	defaultBackupsPath   = "~/.local/state/kivgraph/backups"
-	defaultFactCachePath = "~/.local/state/kivgraph/factcache"
-	defaultSyntheticWork = "~/.local/state/kivgraph/go.work"
-	defaultRustTargetDir = "~/.local/state/kivgraph/rust-target"
-	defaultJavaTargetDir = "~/.local/state/kivgraph/java-target"
-	defaultEventLogPath  = "~/.local/state/kivgraph/events.jsonl"
+	defaultDatabasePath    = "~/.local/state/kivgraph/graph.lbdb"
+	defaultSnapshotsPath   = "~/.local/state/kivgraph/snapshots"
+	defaultBackupsPath     = "~/.local/state/kivgraph/backups"
+	defaultFactCachePath   = "~/.local/state/kivgraph/factcache"
+	defaultSyntheticWork   = "~/.local/state/kivgraph/go.work"
+	defaultRustTargetDir   = "~/.local/state/kivgraph/rust-target"
+	defaultJavaTargetDir   = "~/.local/state/kivgraph/java-target"
+	defaultCSharpTargetDir = "~/.local/state/kivgraph/csharp-target"
+	defaultEventLogPath    = "~/.local/state/kivgraph/events.jsonl"
 
 	maximumConfiguredDepth = 5
 )
@@ -77,6 +78,7 @@ type Config struct {
 	Python     PythonConfig     `yaml:"python"`
 	Dart       DartConfig       `yaml:"dart"`
 	Java       JavaConfig       `yaml:"java"`
+	CSharp     CSharpConfig     `yaml:"csharp"`
 	Telemetry  TelemetryConfig  `yaml:"telemetry"`
 	Logging    LoggingConfig    `yaml:"logging"`
 }
@@ -389,6 +391,27 @@ type JavaConfig struct {
 	MaximumIndexTime Duration `yaml:"maximum_index_time"`
 }
 
+// CSharpConfig controls the scip-dotnet based indexer.
+//
+// Like Java, C# is indexed by building it: scip-dotnet runs `dotnet restore`
+// and drives Roslyn over a solution or project.
+type CSharpConfig struct {
+	IndexerCommand string `yaml:"indexer_command"`
+	// Project names the .sln or .csproj to index. Empty discovers one, and a
+	// solution wins over a project because it is what the compiler builds.
+	Project          string `yaml:"project"`
+	MaximumWorkers   int    `yaml:"maximum_workers"`
+	IncludeTests     bool   `yaml:"include_tests"`
+	IncludeGenerated bool   `yaml:"include_generated"`
+	// SkipRestore is off by default. An index built without a restore loses
+	// every symbol that comes from a package, which reads as a repository
+	// with fewer dependencies rather than an index that could not resolve
+	// them.
+	SkipRestore      bool     `yaml:"skip_restore"`
+	TargetDirectory  string   `yaml:"target_directory"`
+	MaximumIndexTime Duration `yaml:"maximum_index_time"`
+}
+
 // TelemetryConfig controls metrics and tracing.
 type TelemetryConfig struct {
 	Metrics bool `yaml:"metrics"`
@@ -542,6 +565,15 @@ func DefaultConfig() Config {
 			TargetDirectory:  defaultJavaTargetDir,
 			MaximumIndexTime: Duration(20 * time.Minute),
 		},
+		CSharp: CSharpConfig{
+			IndexerCommand:   "scip-dotnet",
+			MaximumWorkers:   1,
+			IncludeTests:     false,
+			IncludeGenerated: false,
+			SkipRestore:      false,
+			TargetDirectory:  defaultCSharpTargetDir,
+			MaximumIndexTime: Duration(20 * time.Minute),
+		},
 		Telemetry: TelemetryConfig{
 			Metrics: true,
 			Traces:  false,
@@ -577,6 +609,7 @@ func stateBesideConfig(configPath string, ownRegistry bool) (*Config, error) {
 	configuration.Go.SyntheticWorkFile = filepath.Join(state, "go.work")
 	configuration.Rust.TargetDirectory = filepath.Join(state, "rust-target")
 	configuration.Java.TargetDirectory = filepath.Join(state, "java-target")
+	configuration.CSharp.TargetDirectory = filepath.Join(state, "csharp-target")
 	configuration.Logging.EventLogPath = filepath.Join(state, "events.jsonl")
 	if ownRegistry {
 		configuration.Workspace.RepositoriesFile = filepath.Join(directory, "repositories.yaml")
@@ -973,6 +1006,7 @@ func expandConfigPaths(configuration *Config, base string) error {
 		{"go.synthetic_work_file", &configuration.Go.SyntheticWorkFile},
 		{"rust.target_directory", &configuration.Rust.TargetDirectory},
 		{"java.target_directory", &configuration.Java.TargetDirectory},
+		{"csharp.target_directory", &configuration.CSharp.TargetDirectory},
 		{"indexing.fact_cache_path", &configuration.Indexing.FactCachePath},
 		{"logging.event_log_path", &configuration.Logging.EventLogPath},
 	}
@@ -1008,6 +1042,7 @@ func validateConfig(configuration Config) error {
 		"go.synthetic_work_file":      configuration.Go.SyntheticWorkFile,
 		"rust.target_directory":       configuration.Rust.TargetDirectory,
 		"java.target_directory":       configuration.Java.TargetDirectory,
+		"csharp.target_directory":     configuration.CSharp.TargetDirectory,
 		"logging.event_log_path":      configuration.Logging.EventLogPath,
 	} {
 		if !filepath.IsAbs(value) {
@@ -1166,6 +1201,15 @@ func validateConfig(configuration Config) error {
 		return fmt.Errorf("config.java.build_tool: unsupported build tool %q, want maven, gradle, sbt, mill or bazel",
 			configuration.Java.BuildTool)
 	}
+	if strings.TrimSpace(configuration.CSharp.IndexerCommand) == "" {
+		return errors.New("config.csharp.indexer_command: must not be empty")
+	}
+	if configuration.CSharp.MaximumWorkers < 1 {
+		return fmt.Errorf("config.csharp.maximum_workers: must be positive, got %d", configuration.CSharp.MaximumWorkers)
+	}
+	if configuration.CSharp.MaximumIndexTime <= 0 {
+		return errors.New("config.csharp.maximum_index_time: must be positive")
+	}
 	if configuration.Logging.Format != "json" && configuration.Logging.Format != "text" {
 		return fmt.Errorf("config.logging.format: unsupported format %q, want json or text", configuration.Logging.Format)
 	}
@@ -1231,7 +1275,7 @@ func validateRepositories(repositories RepositoriesFile) error {
 // used to be accepted by `init` and only rejected by the rebuild, hours later
 // and in another process.
 func SupportedLanguages() []string {
-	return []string{"go", "typescript", "javascript", "ts", "js", "rust", "rs", "python", "py", "dart", "java"}
+	return []string{"go", "typescript", "javascript", "ts", "js", "rust", "rs", "python", "py", "dart", "java", "csharp", "cs"}
 }
 
 // SupportedLanguage reports whether the indexer can analyse a repository that

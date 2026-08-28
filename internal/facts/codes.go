@@ -89,6 +89,8 @@ const (
 	CodeDartSyntaxCall
 	CodeJavaScipDefinition
 	CodeJavaScipUse
+	CodeCSharpScipDefinition
+	CodeCSharpScipUse
 )
 
 var edgeKindCodes = map[EdgeKind]uint8{
@@ -151,6 +153,8 @@ var provenanceCodes = map[Provenance]uint8{
 	DartSyntaxCall:             CodeDartSyntaxCall,
 	JavaScipDefinition:         CodeJavaScipDefinition,
 	JavaScipUse:                CodeJavaScipUse,
+	CSharpScipDefinition:       CodeCSharpScipDefinition,
+	CSharpScipUse:              CodeCSharpScipUse,
 }
 
 // reverse builds the decoding table of a coding table. The tables are

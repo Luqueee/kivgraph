@@ -12,7 +12,7 @@ manifest_path = Path("testdata/semantic-coverage/manifest.json")
 manifest = json.loads(manifest_path.read_text())
 if manifest.get("version") != 1:
     raise SystemExit("unsupported semantic coverage manifest version")
-expected = {"go", "typescript", "python", "dart", "java"}
+expected = {"go", "typescript", "python", "dart", "java", "csharp"}
 actual = set(manifest.get("languages", {}))
 if actual != expected:
     raise SystemExit(f"coverage languages = {sorted(actual)}, want {sorted(expected)}")
@@ -33,7 +33,7 @@ for language, entry in manifest["languages"].items():
 print(f"semantic coverage manifest: {len(actual)} languages, all entries present")
 PY
 
-go test ./internal/goloader ./internal/facts ./internal/indexer ./internal/indexing ./internal/pythonloader ./internal/dartloader ./internal/scip ./internal/javaloader
+go test ./internal/goloader ./internal/facts ./internal/indexer ./internal/indexing ./internal/pythonloader ./internal/dartloader ./internal/scip ./internal/javaloader ./internal/csharploader
 
 pnpm --dir ts-worker check
 pnpm --dir ts-worker build
@@ -73,6 +73,17 @@ if ! command -v mvn >/dev/null 2>&1; then
   exit 1
 fi
 go test ./internal/javaloader -run 'TestRun(AgainstTheFixture)|TestRecordedIndexMatchesTheToolchain' -count=1
+
+# C# needs the SDK: scip-dotnet runs `dotnet restore` and drives Roslyn.
+if ! command -v scip-dotnet >/dev/null 2>&1; then
+  echo "scip-dotnet is required for exact C# coverage" >&2
+  exit 1
+fi
+if ! command -v dotnet >/dev/null 2>&1; then
+  echo ".NET SDK is required for exact C# coverage: scip-dotnet runs dotnet restore" >&2
+  exit 1
+fi
+go test ./internal/csharploader -run 'TestRunAgainstTheFixture|TestRecordedIndexMatchesTheToolchain' -count=1
 
 find python-worker/__pycache__ -type f -name '*.pyc' -delete 2>/dev/null || true
 rmdir python-worker/__pycache__ 2>/dev/null || true

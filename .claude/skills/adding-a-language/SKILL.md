@@ -47,7 +47,7 @@ shorter than it was. Assume there are more.
 | --- | --- | --- |
 | The producer emits | `facts.SemanticPayload` as JSON | whatever it likes |
 | Graph semantics written by | `facts.NormalizeSemantic` | you |
-| Who took it | Python, Dart, Java | Go, TypeScript, Rust |
+| Who took it | Python, Dart, Java, C# | Go, TypeScript, Rust |
 | Cost | `internal/pythonloader/loader.go` is `178` lines, `python-worker/index.py` is `258` | `internal/facts/golang.go` is `747` lines, `typescript.go` `937`, `rust.go` `534` -- each with its own `Input`, `Report`, unit type, cache branch and counters, on top of a loader |
 | Contract | `docs/protocol/semantic-facts-v1.md` | none; it is code |
 
@@ -69,7 +69,27 @@ And check `internal/scip` before writing a loader at all. If the language has a
 SCIP indexer -- `scip-java`, `scip-python`, `scip-ruby`, `scip-dotnet`,
 `scip-clang`, or `rust-analyzer scip` -- the conversion to a payload is already
 written, and the language is a loader that runs an indexer and names a package.
-Java is `internal/javaloader/loader.go`, and it is `~230` lines. See ADR 0080.
+Java is `internal/javaloader/loader.go` at `~230` lines and C# is `~300`. See
+ADR 0080 and ADR 0081.
+
+**But a SCIP language is not free, and the way it is not free is worth
+knowing.** The format is shared; almost nothing else is. Adding C# found three
+bugs in the bridge that were shaped like Java and that no second *Java-family*
+language could have exposed:
+
+- `addressable` excluded a symbol whose package and version were both `.`,
+  which is a package qualifier in scip-java and **every local symbol** in
+  scip-dotnet. It dropped the whole language.
+- Parameters were `local N` in scip-java and fully qualified symbols in
+  scip-dotnet, so the same concept was a node in one language and absent in
+  the other.
+- scip-dotnet emits no `enclosing_range`, no `SymbolInformation.Kind` and no
+  signature. Spans are reconstructed, kinds fall back to the descriptor suffix,
+  and the stable-key discriminator falls back to the descriptor path.
+
+So: before assuming a producer behaves, **dump one of its indexes and read
+it**. Every one of those was a five-minute discovery and a silent, plausible
+graph if missed.
 
 ## The four decisions you cannot take back
 
@@ -132,7 +152,7 @@ nothing for the alias, and the watcher then did not see a change to a `.py` or
 a `.dart` file as a source change at all.
 
 If the language gets an alias in `SupportedLanguages()`
-(`internal/config/config.go:1233`), it gets a row here under each spelling.
+(`internal/config/config.go:1277`), it gets a row here under each spelling.
 
 Separately, `moduleSymbolExtensions` in `internal/facts/module_symbol.go:32`
 decides what is stripped from a module symbol's qualified name. It is
@@ -167,7 +187,7 @@ What the files want, which the list of names does not say:
 | `internal/facts/module_symbol.go` | the extension |
 | `internal/facts/semantic.go` | `definitionProvenance`, `useProvenance`, and the identity branch if the language is file-scoped |
 | `internal/<lang>loader/` | the new package: run the producer, decode, check version and language, set `Authoritative` |
-| `internal/scip/` | nothing, if the producer emits SCIP: `Convert` already writes the payload. Give it the language, the repository, the package and a file reader |
+| `internal/scip/` | nothing, if the producer emits SCIP: `Convert` already writes the payload. Give it the language, the repository, the package and a file reader -- then check what your producer actually sets, because the bridge tolerates absences but cannot invent them |
 | `internal/indexer/semantic.go` | `semanticSourceExtensions`, the `indexSemantic` switch, `semanticRequestedPackage` if an import prefix has to be stripped |
 | `internal/indexer/full.go` | the partition, the `units` append, the report counters, `semanticSchedule`, `semanticBudget`, a progress phase and a worker limit |
 | `internal/indexer/factcache.go` | three separate duties -- see below |
@@ -183,7 +203,7 @@ What the files want, which the list of names does not say:
 | `testdata/<lang>/` | the fixtures the manifest names |
 | `scripts/build-bundle.sh` | only if a worker script ships |
 | `.github/workflows/ci.yml` | the toolchain, or the tests skip and the suite still goes green |
-| `docs/adr/00XX-*.md` | a new analyzer boundary is an architecture change; the next number is `0081` |
+| `docs/adr/00XX-*.md` | a new analyzer boundary is an architecture change; the next number is `0082` |
 
 `internal/agenthook/languages.go` needs nothing. It is a thin name over
 `config.SourceExtensions`, and it is thin precisely because it used to be the
@@ -210,13 +230,15 @@ dispatch sites. What it does touch is a set of tables, all in
 `internal/indexer/full.go` and `internal/indexer/semantic.go`:
 
 ```bash
-git grep -n 'LanguageJava' -- internal/indexer/ | grep -v _test
+git grep -n 'LanguageJava\|LanguageCSharp' -- internal/indexer/ | grep -v _test
 ```
 
 `semanticSourceExtensions`, the `indexSemantic` switch, `addSemantic`,
 `semanticSchedule`, `semanticBudget`, `semanticRequestedPackage` if an import
 prefix has to be stripped, plus the partition and the `units` append in `Full`,
-a `ProgressPhase` and a worker limit. Call it eight or nine places rather than
+a `ProgressPhase` and a worker limit. A language with more than one accepted
+spelling also needs `dedupeRepositories` on its partition, or a repository that
+declares both is indexed twice. Call it eight or nine places rather than
 four -- the win is not that there are fewer, it is that every one of them is a
 table or a switch with an explicit default, so a miss is a compile error, an
 empty count or a named failure instead of another language's facts.
@@ -275,7 +297,7 @@ expected = {"go", "typescript", "python", "dart"}
 at least ten entries. This one is honest: it fails loudly and immediately.
 
 Note what it also says: **Rust is not in that set.** The coverage gate covers
-four languages, not five. Do not read a green `semantic-coverage` as a
+six languages and Rust is not one of them. Do not read a green `semantic-coverage` as a
 statement about Rust, and do not treat its absence as permission to skip yours.
 
 `internal/mcp/surface_test.go:333` asserts the server instructions mention
@@ -349,10 +371,10 @@ then looks in three places in order -- the working directory, the source tree
 relative to `runtime.Caller`, and `../worker/` beside the executable. Copy all
 three or the bundled binary cannot find its own producer.
 
-`doctor` reports each toolchain separately (`cmd/kivgraph/main.go:1615`, `runDoctorToolchains`), and
+`doctor` reports each toolchain separately (`cmd/kivgraph/main.go:1622`, `runDoctorToolchains`), and
 the rule it implements is worth keeping: **a toolchain nobody installed is a
 fact about this machine, not about the code.** `analyzerNotInstalled`
-(`internal/indexer/semantic.go:90`) isolates the repository with `not_loaded=1`
+(`internal/indexer/semantic.go:93`) isolates the repository with `not_loaded=1`
 and lets the others index. A language that aborts the whole pass because its
 analyzer is missing is a defect -- that one already happened, five repositories
 deep, four of which had nothing to do with Dart.

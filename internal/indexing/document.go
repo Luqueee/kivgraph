@@ -89,9 +89,14 @@ func SummaryFromReport(report indexer.FullReport) IndexSummary {
 		JavaSymbols:                 report.JavaSymbols,
 		JavaReferences:              report.JavaReferences,
 		JavaUnresolved:              report.JavaUnresolved,
+		CSharpRepositories:          report.CSharpRepositories,
+		CSharpSymbols:               report.CSharpSymbols,
+		CSharpReferences:            report.CSharpReferences,
+		CSharpUnresolved:            report.CSharpUnresolved,
 		PythonRepositoriesNotLoaded: report.PythonRepositoriesNotLoaded,
 		DartRepositoriesNotLoaded:   report.DartRepositoriesNotLoaded,
 		JavaRepositoriesNotLoaded:   report.JavaRepositoriesNotLoaded,
+		CSharpRepositoriesNotLoaded: report.CSharpRepositoriesNotLoaded,
 	}
 }
 

@@ -8,8 +8,8 @@ compatibility: Requires the Kivgraph MCP server registered as `kivgraph`.
 # Kivgraph
 
 Use the `kivgraph` MCP server when the task needs evidence from the indexed
-Go, TypeScript, Rust, Python, Dart or Java repositories rather than a text-only
-search.
+Go, TypeScript, Rust, Python, Dart, Java or C# repositories rather than a
+text-only search.
 
 ## Workflow
 
@@ -87,7 +87,7 @@ need what they hold, which is not usually.
    exists at all. It reports the snapshot, its age, repository coverage and
    whether a repository moved since it was indexed.
 
-Python, Dart and Java notes:
+Python, Dart, Java and C# notes:
 
 - Python facts from the bundled AST worker are `CANDIDATE`; do not upgrade them
   to `EXACT` from a matching name. `analyzer_mode: exact` requires the
@@ -110,6 +110,15 @@ Python, Dart and Java notes:
   A supertype outside the indexed repositories -- `java.lang.Enum` under every
   enum -- produces no edge and no unresolved row, because nothing in the source
   says it.
+- C# facts come from `scip-dotnet`, which drives Roslyn, so they are
+  type-checked too. Two differences from Java are declared, not accidental:
+  every type relation is `EXTENDS` rather than `IMPLEMENTS`, because the
+  producer does not say whether a target is an interface; and declaration
+  spans are reconstructed from position, because it emits no enclosing range.
+  Sources under `obj/` and `bin/` are build output and are not in the graph.
+- Indexing Java or C# **builds** the code, and the build never runs inside the
+  repository: Kivgraph materialises the working tree elsewhere and removes it
+  afterwards, so a pass leaves the repository exactly as it found it.
 
 ## Choosing a view
 

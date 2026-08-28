@@ -31,6 +31,8 @@ var languageExtensions = map[string][]string{
 	"py":         {".py", ".pyi"},
 	"dart":       {".dart"},
 	"java":       {".java"},
+	"csharp":     {".cs"},
+	"cs":         {".cs"},
 }
 
 // SourceExtensions is every file extension the named languages are written in,

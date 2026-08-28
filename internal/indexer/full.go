@@ -45,6 +45,9 @@ const (
 	// tool, and two Maven or Gradle daemons on one machine compete for the
 	// same local repository and the same heap.
 	defaultJavaWorkerLimit = 1
+	// defaultCSharpWorkerLimit is one for the reason Java's is: scip-dotnet
+	// runs `dotnet restore`, and two restores share one package cache.
+	defaultCSharpWorkerLimit = 1
 )
 
 // ProgressPhase names the unit of work a progress event belongs to.
@@ -63,6 +66,8 @@ const (
 	PhaseDart ProgressPhase = "dart"
 	// PhaseJava is one Java repository.
 	PhaseJava ProgressPhase = "java"
+	// PhaseCSharp is one C# repository.
+	PhaseCSharp ProgressPhase = "csharp"
 	// PhaseSemantic names a semantic unit whose language has no phase of its
 	// own. Nothing reaches it today; it exists so an unnamed language reports
 	// progress under a truthful label instead of another language's.
@@ -166,9 +171,17 @@ type FullOptions struct {
 	// RustTargetDirectory does: the analyzer's output is not the repository's
 	// source, and an index that leaves artefacts behind has modified what it
 	// came to read.
-	JavaTargetDirectory  string
-	JavaMaximumIndexTime time.Duration
-	WorkingDirectory     string
+	JavaTargetDirectory    string
+	JavaMaximumIndexTime   time.Duration
+	CSharpIndexerCommand   string
+	CSharpProject          string
+	CSharpMaximumWorkers   int
+	CSharpIncludeTests     bool
+	CSharpIncludeGenerated bool
+	CSharpSkipRestore      bool
+	CSharpTargetDirectory  string
+	CSharpMaximumIndexTime time.Duration
+	WorkingDirectory       string
 	// CacheMode selects whether a unit may be served from its stored
 	// facts. Empty is CacheOff.
 	CacheMode CacheMode
@@ -281,6 +294,11 @@ type FullReport struct {
 	JavaReferences              int
 	JavaUnresolved              int
 	JavaRepositoriesNotLoaded   int
+	CSharpRepositories          int
+	CSharpSymbols               int
+	CSharpReferences            int
+	CSharpUnresolved            int
+	CSharpRepositoriesNotLoaded int
 	// EdgesWithoutProvider counts the edges the merge dropped because the
 	// repository that provides the target does not publish its declaration.
 	// Each one is declared as an unresolved reference with the position that
@@ -345,6 +363,9 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 	pythonRepositories := repositoriesForPython(repositories)
 	dartRepositories := repositoriesForLanguage(repositories, "dart")
 	javaRepositories := repositoriesForLanguage(repositories, "java")
+	cSharpRepositories := repositoriesForLanguage(repositories, "csharp")
+	cSharpRepositories = append(cSharpRepositories, repositoriesForLanguage(repositories, "cs")...)
+	cSharpRepositories = dedupeRepositories(cSharpRepositories)
 	if options.DartIncludeSDK {
 		sdkRoot, sdkErr := dartloader.SDKRoot(options.DartSDKPath)
 		if sdkErr != nil {
@@ -365,6 +386,7 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 		PythonRepositories:     len(pythonRepositories),
 		DartRepositories:       len(dartRepositories),
 		JavaRepositories:       len(javaRepositories),
+		CSharpRepositories:     len(cSharpRepositories),
 	}
 	typeScriptDiscovered, err := discoverTypeScriptPackages(
 		ctx, typeScriptRepositories, options.TypeScriptIncludeUnclaimedSources)
@@ -442,6 +464,7 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 	units = append(units, semanticUnits(pythonRepositories, facts.LanguagePython)...)
 	units = append(units, semanticUnits(dartRepositories, facts.LanguageDart)...)
 	units = append(units, semanticUnits(javaRepositories, facts.LanguageJava)...)
+	units = append(units, semanticUnits(cSharpRepositories, facts.LanguageCSharp)...)
 	results, cacheReport, err := analyse(ctx, options, units, analysisInputs{
 		moduleRegistry:     moduleRegistry,
 		conflictingModules: conflictingModules,
@@ -1276,6 +1299,10 @@ func (report *FullReport) addSemantic(language facts.Language, result analysisRe
 		symbols, references, unresolved, notLoaded =
 			&report.JavaSymbols, &report.JavaReferences,
 			&report.JavaUnresolved, &report.JavaRepositoriesNotLoaded
+	case facts.LanguageCSharp:
+		symbols, references, unresolved, notLoaded =
+			&report.CSharpSymbols, &report.CSharpReferences,
+			&report.CSharpUnresolved, &report.CSharpRepositoriesNotLoaded
 	default:
 		// A semantic unit whose language has no counters would be indexed
 		// and then reported as nothing, which reads as a language with no
@@ -1891,11 +1918,38 @@ func javaWorkerLimit(options FullOptions) int {
 	return defaultJavaWorkerLimit
 }
 
+func cSharpWorkerLimit(options FullOptions) int {
+	if options.CSharpMaximumWorkers > 0 {
+		return options.CSharpMaximumWorkers
+	}
+	return defaultCSharpWorkerLimit
+}
+
+// dedupeRepositories keeps the first occurrence of each repository.
+//
+// A language with more than one accepted spelling is selected once per
+// spelling, and a repository that declares both `csharp` and `cs` would
+// otherwise be indexed twice: two units, one cache identity, and a merge that
+// sees every symbol declared in two places.
+func dedupeRepositories(repositories []workspace.Repository) []workspace.Repository {
+	seen := make(map[string]struct{}, len(repositories))
+	result := make([]workspace.Repository, 0, len(repositories))
+	for _, repository := range repositories {
+		if _, exists := seen[repository.Name]; exists {
+			continue
+		}
+		seen[repository.Name] = struct{}{}
+		result = append(result, repository)
+	}
+	return result
+}
+
 // semanticSchedule fixes the order the semantic languages are dispatched in.
 // A map range would reorder the queues between runs, and the pass is required
 // to schedule the same corpus the same way twice.
 var semanticSchedule = []facts.Language{
 	facts.LanguagePython, facts.LanguageDart, facts.LanguageJava,
+	facts.LanguageCSharp,
 }
 
 // semanticBudget is the worker limit and progress phase of one semantic
@@ -1908,6 +1962,8 @@ func semanticBudget(options FullOptions, language facts.Language) (int, Progress
 		return dartWorkerLimit(options), PhaseDart
 	case facts.LanguageJava:
 		return javaWorkerLimit(options), PhaseJava
+	case facts.LanguageCSharp:
+		return cSharpWorkerLimit(options), PhaseCSharp
 	default:
 		return 1, PhaseSemantic
 	}

@@ -209,6 +209,11 @@ func convertDocument(
 		})
 	}
 
+	// A producer that supplies no enclosing range leaves every declaration
+	// spanning its own name, so nothing contains anything and every reference
+	// falls to the module symbol. Rebuild the spans before they are used.
+	declarations = reconstructEnclosingRanges(declarations, offsets)
+
 	for _, entry := range declarations {
 		identity, err := parseSymbol(entry.symbol)
 		if err != nil {

@@ -79,6 +79,14 @@ type FullOptions struct {
 	JavaIncludeGenerated    bool
 	JavaTargetDirectory     string
 	JavaMaximumIndexTime    time.Duration
+	CSharpIndexerCommand    string
+	CSharpProject           string
+	CSharpMaximumWorkers    int
+	CSharpIncludeTests      bool
+	CSharpIncludeGenerated  bool
+	CSharpSkipRestore       bool
+	CSharpTargetDirectory   string
+	CSharpMaximumIndexTime  time.Duration
 	WorkingDirectory        string
 	// CacheMode and CacheDirectory configure the fact cache: whether a
 	// unit may be served from the facts a previous pass stored, and where
@@ -154,6 +162,14 @@ func OptionsFromConfig(configuration config.Config) FullOptions {
 		JavaIncludeGenerated:              configuration.Java.IncludeGenerated,
 		JavaTargetDirectory:               configuration.Java.TargetDirectory,
 		JavaMaximumIndexTime:              time.Duration(configuration.Java.MaximumIndexTime),
+		CSharpIndexerCommand:              configuration.CSharp.IndexerCommand,
+		CSharpProject:                     configuration.CSharp.Project,
+		CSharpMaximumWorkers:              configuration.CSharp.MaximumWorkers,
+		CSharpIncludeTests:                configuration.CSharp.IncludeTests,
+		CSharpIncludeGenerated:            configuration.CSharp.IncludeGenerated,
+		CSharpSkipRestore:                 configuration.CSharp.SkipRestore,
+		CSharpTargetDirectory:             configuration.CSharp.TargetDirectory,
+		CSharpMaximumIndexTime:            time.Duration(configuration.CSharp.MaximumIndexTime),
 		CacheMode:                         indexer.CacheMode(configuration.Indexing.FactCache),
 		CacheDirectory:                    configuration.Indexing.FactCachePath,
 		Root:                              filepath.Dir(configuration.Storage.DatabasePath),
@@ -245,6 +261,14 @@ func RunFull(ctx context.Context, options FullOptions) (FullResult, error) {
 		JavaIncludeGenerated:              options.JavaIncludeGenerated,
 		JavaTargetDirectory:               options.JavaTargetDirectory,
 		JavaMaximumIndexTime:              options.JavaMaximumIndexTime,
+		CSharpIndexerCommand:              options.CSharpIndexerCommand,
+		CSharpProject:                     options.CSharpProject,
+		CSharpMaximumWorkers:              options.CSharpMaximumWorkers,
+		CSharpIncludeTests:                options.CSharpIncludeTests,
+		CSharpIncludeGenerated:            options.CSharpIncludeGenerated,
+		CSharpSkipRestore:                 options.CSharpSkipRestore,
+		CSharpTargetDirectory:             options.CSharpTargetDirectory,
+		CSharpMaximumIndexTime:            options.CSharpMaximumIndexTime,
 		WorkingDirectory:                  options.WorkingDirectory,
 		CacheMode:                         options.CacheMode,
 		CacheDirectory:                    options.CacheDirectory,

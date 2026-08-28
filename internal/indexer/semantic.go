@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/Luqueee/kivgraph/internal/csharploader"
 	"github.com/Luqueee/kivgraph/internal/dartloader"
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/javaloader"
@@ -39,6 +40,7 @@ var semanticSourceExtensions = map[facts.Language]map[string]bool{
 	facts.LanguagePython: {".py": true, ".pyi": true},
 	facts.LanguageDart:   {".dart": true},
 	facts.LanguageJava:   {".java": true},
+	facts.LanguageCSharp: {".cs": true},
 }
 
 // semanticSkippedDirectories are the analyzer and build outputs a source count
@@ -47,6 +49,7 @@ var semanticSourceExtensions = map[facts.Language]map[string]bool{
 var semanticSkippedDirectories = map[string]bool{
 	".git": true, ".dart_tool": true, "build": true, ".venv": true,
 	"venv": true, "__pycache__": true, "target": true, ".gradle": true,
+	"bin": true, "obj": true,
 }
 
 func countSemanticFiles(repository workspace.Repository, language facts.Language) int {
@@ -117,6 +120,17 @@ func indexSemantic(ctx context.Context, options FullOptions, unit analysisUnit) 
 			IncludeTests:     options.JavaIncludeTests,
 			IncludeGenerated: options.JavaIncludeGenerated,
 			MaximumIndexTime: options.JavaMaximumIndexTime,
+		})
+	case facts.LanguageCSharp:
+		payload, err = csharploader.Run(ctx, csharploader.Options{
+			Command:          options.CSharpIndexerCommand,
+			Project:          options.CSharpProject,
+			TargetDirectory:  options.CSharpTargetDirectory,
+			Repository:       unit.repository,
+			IncludeTests:     options.CSharpIncludeTests,
+			IncludeGenerated: options.CSharpIncludeGenerated,
+			MaximumIndexTime: options.CSharpMaximumIndexTime,
+			SkipRestore:      options.CSharpSkipRestore,
 		})
 	case facts.LanguageDart:
 		payload, err = dartloader.RunWithOptions(ctx, dartloader.Options{
@@ -254,6 +268,13 @@ func semanticRequestedPackage(language facts.Language, requested string) string 
 	case facts.LanguagePython:
 		if dot := strings.IndexByte(requested, '.'); dot >= 0 {
 			requested = requested[:dot]
+		}
+	case facts.LanguageCSharp:
+		// scip-dotnet writes `.` for a package the project declares and a
+		// real assembly name for one it consumed, so the last segment is the
+		// assembly a registered repository would be named after.
+		if slash := strings.LastIndexByte(requested, '/'); slash >= 0 {
+			requested = requested[slash+1:]
 		}
 	case facts.LanguageJava:
 		// A SCIP package identity is `<manager>/<group>/<artifact>`, and the

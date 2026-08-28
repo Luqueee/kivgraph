@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/Luqueee/kivgraph/internal/config"
+	"github.com/Luqueee/kivgraph/internal/csharploader"
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/goworkspace"
 	"github.com/Luqueee/kivgraph/internal/javaloader"
@@ -388,6 +389,8 @@ var semanticManifestNames = []string{
 	filepath.Join(".dart_tool", "package_config.json"),
 	"pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle",
 	"settings.gradle.kts", "gradle.properties", "build.sbt",
+	"Directory.Build.props", "Directory.Packages.props", "NuGet.config",
+	"global.json", "packages.lock.json",
 }
 
 // unitIdentity names what the entry is about, never what it read.
@@ -594,14 +597,37 @@ func javaIndexerExecutable(options FullOptions) string {
 	return fields[0]
 }
 
+// cSharpIndexerFingerprint identifies the C# producer, or says there is none.
+// Absent is a stable fact for the reason it is for scip-java: a third-party
+// tool most machines do not have, and a timestamp would turn the whole
+// analyzer fingerprint into a value that never repeats, which switches the
+// fact cache off for every language at once.
+func cSharpIndexerFingerprint(options FullOptions) string {
+	resolved, err := exec.LookPath(cSharpIndexerExecutable(options))
+	if err != nil {
+		return "absent"
+	}
+	return fileFingerprint(resolved)
+}
+
+// cSharpIndexerExecutable resolves the same first field the loader runs.
+func cSharpIndexerExecutable(options FullOptions) string {
+	fields := strings.Fields(strings.TrimSpace(options.CSharpIndexerCommand))
+	if len(fields) == 0 {
+		return csharploader.DefaultCommand
+	}
+	return fields[0]
+}
+
 // semanticRegistryLanguages are the spellings a registry entry may use for a
 // language that resolves cross-repository targets after the merge. A language
 // missing here leaves the semantic registry unchanged when a repository is
 // registered, so an unresolved reference would never become the edge it should.
 var semanticRegistryLanguages = map[string]bool{
 	string(facts.LanguagePython): true, "py": true,
-	string(facts.LanguageDart): true,
-	string(facts.LanguageJava): true,
+	string(facts.LanguageDart):   true,
+	string(facts.LanguageJava):   true,
+	string(facts.LanguageCSharp): true, "cs": true,
 }
 
 func semanticRegistryName(trees *fingerprintMemo, repositories []workspace.Repository) string {
@@ -763,6 +789,11 @@ func analyzerFingerprint(options FullOptions) string {
 	// A Java repository on such a machine is isolated by analyzerNotInstalled
 	// and its facts are never stored, so there is nothing to serve wrongly.
 	fmt.Fprintf(hash, "java-indexer=%s\x00", javaIndexerFingerprint(options))
+	fmt.Fprintf(hash, "csharp=%s\x00csharp-project=%s\x00csharp-tests=%t\x00csharp-generated=%t\x00csharp-restore=%t\x00csharp-target=%s\x00",
+		strings.TrimSpace(options.CSharpIndexerCommand), strings.TrimSpace(options.CSharpProject),
+		options.CSharpIncludeTests, options.CSharpIncludeGenerated, options.CSharpSkipRestore,
+		strings.TrimSpace(options.CSharpTargetDirectory))
+	fmt.Fprintf(hash, "csharp-indexer=%s\x00", cSharpIndexerFingerprint(options))
 	// The producer this pass would actually run, resolved by the loader that
 	// runs it. Fingerprinting `python-worker/index.py` by hand left the exact
 	// adapter unwatched: editing it changed no key, so a rebuild reused the
