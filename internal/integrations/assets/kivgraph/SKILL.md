@@ -8,7 +8,8 @@ compatibility: Requires the Kivgraph MCP server registered as `kivgraph`.
 # Kivgraph
 
 Use the `kivgraph` MCP server when the task needs evidence from the indexed
-Go, TypeScript, Rust, Python or Dart repositories rather than a text-only search.
+Go, TypeScript, Rust, Python, Dart or Java repositories rather than a text-only
+search.
 
 ## Workflow
 
@@ -86,7 +87,7 @@ need what they hold, which is not usually.
    exists at all. It reports the snapshot, its age, repository coverage and
    whether a repository moved since it was indexed.
 
-Python and Dart notes:
+Python, Dart and Java notes:
 
 - Python facts from the bundled AST worker are `CANDIDATE`; do not upgrade them
   to `EXACT` from a matching name. `analyzer_mode: exact` requires the
@@ -95,6 +96,13 @@ Python and Dart notes:
 - Dart facts come from the Dart Analysis Server. Local project navigation is
   authoritative, while imports outside the indexed project may be
   `UNRESOLVED`.
+- Java facts come from the SCIP index `scip-java` emits, which is produced by
+  `javac` itself, so their targets are type-checked. The JDK and every
+  dependency outside the indexed repositories stay `UNRESOLVED`: they are not
+  in the graph, and an edge to them would claim a declaration nobody observed.
+  A member the compiler synthesises -- a `record` accessor -- is referenced
+  without ever being declared, and is reported `DEFINITION_NOT_INDEXED` rather
+  than as an unresolved import.
 
 ## Choosing a view
 

@@ -33,6 +33,17 @@
         "stubs", "typing", "unresolved-diagnostics"
       ]
     },
+    "java": {
+      "analyzer": "scip-java (SemanticDB javac plugin) through the SCIP bridge",
+      "fixture": "testdata/java/coverage",
+      "test": "internal/javaloader/coverage_test.go",
+      "capabilities": [
+        "files", "packages", "imports", "classes", "interfaces", "enums",
+        "records", "inheritance", "generics", "methods", "constructors",
+        "fields", "overloads", "callbacks", "cross-file-references",
+        "unresolved-diagnostics"
+      ]
+    },
     "dart": {
       "analyzer": "Dart analysis server",
       "fixture": "testdata/dart/advanced",

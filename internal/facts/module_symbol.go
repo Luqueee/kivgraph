@@ -32,7 +32,7 @@ const ModuleSymbolKind = "module"
 var moduleSymbolExtensions = []string{
 	".d.ts", ".ts", ".tsx", ".mts", ".cts",
 	".js", ".jsx", ".mjs", ".cjs",
-	".go", ".rs", ".dart", ".py",
+	".go", ".rs", ".dart", ".py", ".java",
 }
 
 // moduleQualifiedName names a file's module scope the way an import would:

@@ -142,6 +142,8 @@ var canonicalProvenanceValues = []facts.Provenance{
 	facts.DartAnalyzerDefinition,
 	facts.DartAnalyzerUse,
 	facts.DartSyntaxCall,
+	facts.JavaScipDefinition,
+	facts.JavaScipUse,
 }
 
 // exactConfidenceValues is the subset of canonicalConfidenceValues that

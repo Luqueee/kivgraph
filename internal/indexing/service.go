@@ -79,6 +79,10 @@ type IndexSummary struct {
 	DartSymbols            int `json:"dart_symbols"`
 	DartReferences         int `json:"dart_references"`
 	DartUnresolved         int `json:"dart_unresolved"`
+	JavaRepositories       int `json:"java_repositories"`
+	JavaSymbols            int `json:"java_symbols"`
+	JavaReferences         int `json:"java_references"`
+	JavaUnresolved         int `json:"java_unresolved"`
 	// The not-loaded counters are the ones that keep silence from reading as
 	// coverage. A repository or module whose facts are absent contributes zero
 	// symbols, and zero symbols is also what a language with no code
@@ -93,6 +97,7 @@ type IndexSummary struct {
 	GoModulesNotLoaded          int `json:"go_modules_not_loaded"`
 	PythonRepositoriesNotLoaded int `json:"python_repositories_not_loaded"`
 	DartRepositoriesNotLoaded   int `json:"dart_repositories_not_loaded"`
+	JavaRepositoriesNotLoaded   int `json:"java_repositories_not_loaded"`
 }
 
 // ProjectIndexer is the mutation boundary used by the MCP tool. The caller

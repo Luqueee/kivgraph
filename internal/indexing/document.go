@@ -85,8 +85,13 @@ func SummaryFromReport(report indexer.FullReport) IndexSummary {
 		DartSymbols:                 report.DartSymbols,
 		DartReferences:              report.DartReferences,
 		DartUnresolved:              report.DartUnresolved,
+		JavaRepositories:            report.JavaRepositories,
+		JavaSymbols:                 report.JavaSymbols,
+		JavaReferences:              report.JavaReferences,
+		JavaUnresolved:              report.JavaUnresolved,
 		PythonRepositoriesNotLoaded: report.PythonRepositoriesNotLoaded,
 		DartRepositoriesNotLoaded:   report.DartRepositoriesNotLoaded,
+		JavaRepositoriesNotLoaded:   report.JavaRepositoriesNotLoaded,
 	}
 }
 

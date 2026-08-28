@@ -406,7 +406,7 @@ que ejecutar. Termina con código `1` sólo cuando algún hallazgo es `blocking`
 es decir cuando un repositorio o un paquete no aporta nada. `--json` emite el
 informe entero con el `code` estable de cada hallazgo.
 
-Python y Dart se activan igual que los demás lenguajes:
+Python, Dart y Java se activan igual que los demás lenguajes:
 
 ```yaml
 python:
@@ -429,6 +429,14 @@ dart:
   package_config: auto
   wait_for_analysis: true
   maximum_analysis_time: 5m
+java:
+  indexer_command: scip-java
+  build_tool: ""
+  maximum_workers: 1
+  include_tests: false
+  include_generated: false
+  target_directory: ~/.local/state/kivgraph/java-target
+  maximum_index_time: 20m
 ```
 
 El worker Python incluido recorre `.py` y `.pyi`, conserva símbolos e imports
@@ -450,6 +458,25 @@ alternativas, prefijo y modo diferido en el payload. Por defecto se excluyen
 `test/`, `integration_test/` y nombres generados (`.g.dart`, `.freezed.dart`,
 etc.); se pueden incluir con las opciones correspondientes.
 
+Java se indexa **construyéndolo**: `scip-java` ejecuta el build del propio
+repositorio -- Maven, Gradle, sbt o mill -- con el plugin SemanticDB de `javac`
+enganchado, así que sus destinos los resuelve el compilador y sus aristas son
+`EXACT_TYPECHECKED`. De ahí salen las dos opciones que los demás lenguajes no
+necesitan: `target_directory`, que vive fuera de todo repositorio indexado como
+`rust.target_directory`, y `maximum_index_time`, que acota un build que no
+termina. `build_tool` vacío deja que `scip-java` lo detecte, que es lo que hace
+bien; nombrarlo es para un repositorio que lleva dos.
+
+Y una consecuencia que conviene saber antes de registrar un repositorio Java:
+**el build escribe su propio directorio dentro del repositorio**. `--targetroot`
+saca de ahí la salida SemanticDB, pero el `target/` de Maven y el `build/` de
+Gradle son del build, no de Kivgraph, y una pasada los deja detrás. El JDK y
+toda dependencia fuera de los repositorios registrados quedan `UNRESOLVED`; un
+miembro que sintetiza el compilador -- el accesor de un `record` -- se declara
+`DEFINITION_NOT_INDEXED`, que no es lo mismo que un import sin resolver. Hoy no
+se publica jerarquía de tipos Java: las `relationships` de SCIP no se leen, y
+es un hueco declarado en el ADR 0080, no una aproximación.
+
 Cuando una importación Python o Dart nombra exactamente un único paquete de
 otro repositorio registrado, la pasada añade `PACKAGE_DEPENDS_ON`. Esa arista
 demuestra dependencia de paquete, no uso de un símbolo concreto. Para una
@@ -457,7 +484,7 @@ arista de símbolo cross-repository el proveedor semántico debe entregar una
 identidad explícita del destino.
 
 La matriz verificable de capacidades está en
-`testdata/semantic-coverage/manifest.json`. Para validar que las cuatro rutas
+`testdata/semantic-coverage/manifest.json`. Para validar que las cinco rutas
 semánticas tienen fixtures y tests ejecutables usa:
 
 ```bash

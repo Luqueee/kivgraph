@@ -12,6 +12,7 @@ import (
 
 	"github.com/Luqueee/kivgraph/internal/dartloader"
 	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/javaloader"
 	"github.com/Luqueee/kivgraph/internal/pythonloader"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
@@ -19,9 +20,33 @@ import (
 func semanticUnits(repositories []workspace.Repository, language facts.Language) []analysisUnit {
 	units := make([]analysisUnit, 0, len(repositories))
 	for _, repository := range repositories {
-		units = append(units, analysisUnit{repository: repository, language: language, isPython: language == facts.LanguagePython, isDart: language == facts.LanguageDart})
+		units = append(units, analysisUnit{
+			repository: repository, language: language, kind: unitSemantic,
+		})
 	}
 	return units
+}
+
+// semanticSourceExtensions is what each semantic language is written in, for
+// the file count that estimates a unit's weight.
+//
+// It is deliberately not config.SourceExtensions: that table is keyed by the
+// spellings a configuration may declare, and this one is keyed by the language
+// of a fact. A language absent here weighs zero and is scheduled last, which
+// is wrong but not incorrect; a language absent from the table above publishes
+// nothing at all.
+var semanticSourceExtensions = map[facts.Language]map[string]bool{
+	facts.LanguagePython: {".py": true, ".pyi": true},
+	facts.LanguageDart:   {".dart": true},
+	facts.LanguageJava:   {".java": true},
+}
+
+// semanticSkippedDirectories are the analyzer and build outputs a source count
+// must not walk into. They are named per language rather than pooled so a
+// directory one language treats as source is not skipped for it.
+var semanticSkippedDirectories = map[string]bool{
+	".git": true, ".dart_tool": true, "build": true, ".venv": true,
+	"venv": true, "__pycache__": true, "target": true, ".gradle": true,
 }
 
 func countSemanticFiles(repository workspace.Repository, language facts.Language) int {
@@ -35,14 +60,12 @@ func countSemanticFiles(repository workspace.Repository, language facts.Language
 			return nil
 		}
 		if entry.IsDir() {
-			switch entry.Name() {
-			case ".git", ".dart_tool", "build", ".venv", "venv", "__pycache__":
+			if semanticSkippedDirectories[entry.Name()] {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		ext := strings.ToLower(filepath.Ext(path))
-		if (language == facts.LanguagePython && (ext == ".py" || ext == ".pyi")) || (language == facts.LanguageDart && ext == ".dart") {
+		if semanticSourceExtensions[language][strings.ToLower(filepath.Ext(path))] {
 			total++
 		}
 		return nil
@@ -85,6 +108,16 @@ func indexSemantic(ctx context.Context, options FullOptions, unit analysisUnit) 
 			IncludeGenerated: options.PythonIncludeGenerated,
 			IncludeExternal:  options.PythonIncludeExternal,
 		}, unit.repository, options.WorkingDirectory)
+	case facts.LanguageJava:
+		payload, err = javaloader.Run(ctx, javaloader.Options{
+			Command:          options.JavaIndexerCommand,
+			BuildTool:        options.JavaBuildTool,
+			TargetDirectory:  options.JavaTargetDirectory,
+			Repository:       unit.repository,
+			IncludeTests:     options.JavaIncludeTests,
+			IncludeGenerated: options.JavaIncludeGenerated,
+			MaximumIndexTime: options.JavaMaximumIndexTime,
+		})
 	case facts.LanguageDart:
 		payload, err = dartloader.RunWithOptions(ctx, dartloader.Options{
 			Command:             options.DartAnalyzer,
@@ -221,6 +254,14 @@ func semanticRequestedPackage(language facts.Language, requested string) string 
 	case facts.LanguagePython:
 		if dot := strings.IndexByte(requested, '.'); dot >= 0 {
 			requested = requested[:dot]
+		}
+	case facts.LanguageJava:
+		// A SCIP package identity is `<manager>/<group>/<artifact>`, and the
+		// artifact is what a registered repository is named after. Matching
+		// on the whole identity would never find a provider, because it
+		// carries the group and the version of the consumer's view.
+		if slash := strings.LastIndexByte(requested, '/'); slash >= 0 {
+			requested = requested[slash+1:]
 		}
 	}
 	return requested

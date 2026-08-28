@@ -22,6 +22,7 @@ import (
 	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/goworkspace"
+	"github.com/Luqueee/kivgraph/internal/javaloader"
 	"github.com/Luqueee/kivgraph/internal/pythonloader"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
@@ -376,15 +377,41 @@ func (cache *factCache) prune(maximumAge time.Duration) {
 	}
 }
 
+// semanticManifestNames are the files whose content changes what a semantic
+// analyzer answers about a repository. A manifest a language reads and this
+// list does not name is a file that can be edited without invalidating
+// anything, so the pass would serve the previous manifest's facts.
+var semanticManifestNames = []string{
+	"pyproject.toml", "setup.py", "setup.cfg", "requirements.txt",
+	"Pipfile", "Pipfile.lock", "poetry.lock", "uv.lock",
+	"pubspec.yaml", "pubspec.lock", "analysis_options.yaml",
+	filepath.Join(".dart_tool", "package_config.json"),
+	"pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle",
+	"settings.gradle.kts", "gradle.properties", "build.sbt",
+}
+
 // unitIdentity names what the entry is about, never what it read.
+//
+// It had no branch for Rust, and the fallthrough was TypeScript: every Rust
+// workspace was keyed `typescript\x00<repository>\x00` with an empty package
+// name, because a Rust unit carries no TypeScript package. One workspace per
+// repository hid it -- the identity was wrong but unique. Two workspaces in
+// one repository shared an entry, and the second was served the first's facts.
 func unitIdentity(unit analysisUnit) string {
-	if unit.isGo {
+	switch unit.kind {
+	case unitGo:
 		return "go\x00" + unit.repository.Name + "\x00" + unit.module.ModulePath
-	}
-	if unit.isPython || unit.isDart {
+	case unitRust:
+		return "rust\x00" + unit.repository.Name + "\x00" + unit.rust.workspace.RootPath
+	case unitSemantic:
 		return string(unit.language) + "\x00" + unit.repository.Name + "\x00" + unit.repository.RealPath
+	case unitTypeScript:
+		return "typescript\x00" + unit.repository.Name + "\x00" + unit.pkg.packageValue.Name
+	default:
+		// An entry keyed on a unit nobody can name would be served to
+		// whatever collided with it next.
+		return "unspecified\x00" + unit.repository.Name
 	}
-	return "typescript\x00" + unit.repository.Name + "\x00" + unit.pkg.packageValue.Name
 }
 
 // describeInputs lists everything the unit's facts depend on.
@@ -405,7 +432,7 @@ func (cache *factCache) describeInputs(
 		})
 	}
 
-	if unit.isGo {
+	if unit.kind == unitGo {
 		// Every module of the workspace group, not only this one: modules
 		// share a synthetic workspace exactly when one reaches the other,
 		// so a sibling's source is this module's type information.
@@ -418,7 +445,7 @@ func (cache *factCache) describeInputs(
 		add(inputRegistry, goRegistryInput)
 		return described
 	}
-	if unit.isRust {
+	if unit.kind == unitRust {
 		// The whole workspace is the unit: the analyzer loads it as one, and
 		// a sibling crate's source is this crate's type information.
 		add(inputTree, unit.rust.workspace.RootPath)
@@ -435,16 +462,16 @@ func (cache *factCache) describeInputs(
 		add(inputRegistry, rustRegistryInput)
 		return described
 	}
-	if unit.isPython || unit.isDart {
+	if unit.kind == unitSemantic {
 		root := unit.repository.RealPath
 		if root == "" {
 			root = unit.repository.Path
 		}
 		add(inputTree, root)
-		for _, name := range []string{"pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", "Pipfile", "Pipfile.lock", "poetry.lock", "uv.lock", "pubspec.yaml", "pubspec.lock", "analysis_options.yaml", filepath.Join(".dart_tool", "package_config.json")} {
+		for _, name := range semanticManifestNames {
 			add(inputFile, filepath.Join(root, name))
 		}
-		if unit.isDart && strings.TrimSpace(options.DartPackageConfig) != "" && options.DartPackageConfig != "auto" {
+		if unit.language == facts.LanguageDart && strings.TrimSpace(options.DartPackageConfig) != "" && options.DartPackageConfig != "auto" {
 			packageConfig := options.DartPackageConfig
 			if !filepath.IsAbs(packageConfig) {
 				packageConfig = filepath.Join(root, packageConfig)
@@ -540,12 +567,33 @@ func (cache *factCache) withRegistry(inputs analysisInputs, repositories []works
 	cache.semanticRegistry = hex.EncodeToString(semanticSum[:])
 }
 
+// javaIndexerExecutable resolves the same first field the loader runs, so the
+// fingerprint is keyed on the file the pass would actually execute. Two
+// resolution rules is how a cache ends up keyed on a file nobody runs.
+func javaIndexerExecutable(options FullOptions) string {
+	fields := strings.Fields(strings.TrimSpace(options.JavaIndexerCommand))
+	if len(fields) == 0 {
+		return javaloader.DefaultCommand
+	}
+	return fields[0]
+}
+
+// semanticRegistryLanguages are the spellings a registry entry may use for a
+// language that resolves cross-repository targets after the merge. A language
+// missing here leaves the semantic registry unchanged when a repository is
+// registered, so an unresolved reference would never become the edge it should.
+var semanticRegistryLanguages = map[string]bool{
+	string(facts.LanguagePython): true, "py": true,
+	string(facts.LanguageDart): true,
+	string(facts.LanguageJava): true,
+}
+
 func semanticRegistryName(trees *fingerprintMemo, repositories []workspace.Repository) string {
 	entries := make([]string, 0)
 	for _, repository := range repositories {
 		semantic := false
 		for _, language := range repository.Languages {
-			if strings.EqualFold(strings.TrimSpace(language), string(facts.LanguagePython)) || strings.EqualFold(strings.TrimSpace(language), string(facts.LanguageDart)) {
+			if semanticRegistryLanguages[strings.ToLower(strings.TrimSpace(language))] {
 				semantic = true
 				break
 			}
@@ -678,6 +726,21 @@ func analyzerFingerprint(options FullOptions) string {
 		strings.TrimSpace(options.TypeScriptWorker), options.TypeScriptIncludeUnclaimedSources)
 	fmt.Fprintf(hash, "python=%s\x00python-analyzer=%s\x00python-mode=%s\x00python-path=%s\x00python-tests=%t\x00python-generated=%t\x00python-external=%t\x00", strings.TrimSpace(options.PythonIndexer), strings.TrimSpace(options.PythonAnalyzer), strings.TrimSpace(options.PythonAnalyzerMode), strings.TrimSpace(options.PythonPath), options.PythonIncludeTests, options.PythonIncludeGenerated, options.PythonIncludeExternal)
 	fmt.Fprintf(hash, "dart=%s\x00dart-sdk=%s\x00dart-generated=%t\x00dart-tests=%t\x00dart-external=%t\x00dart-sdk-index=%t\x00dart-package-config=%s\x00dart-wait=%t\x00dart-time=%s\x00", strings.TrimSpace(options.DartAnalyzer), strings.TrimSpace(options.DartSDKPath), options.DartIncludeGenerated, options.DartIncludeTests, options.DartIncludeExternal, options.DartIncludeSDK, strings.TrimSpace(options.DartPackageConfig), options.DartWaitForAnalysis, options.DartMaximumAnalysisTime)
+	fmt.Fprintf(hash, "java=%s\x00java-build-tool=%s\x00java-tests=%t\x00java-generated=%t\x00java-target=%s\x00",
+		strings.TrimSpace(options.JavaIndexerCommand), strings.TrimSpace(options.JavaBuildTool),
+		options.JavaIncludeTests, options.JavaIncludeGenerated,
+		strings.TrimSpace(options.JavaTargetDirectory))
+	// The Java producer is an executable this repository does not ship, so
+	// what identifies it is the binary the PATH resolves today. A scip-java
+	// upgraded in place emits a different index from the same sources, and an
+	// entry written by the old one describes a graph this pass would not
+	// produce.
+	if resolved, err := exec.LookPath(javaIndexerExecutable(options)); err == nil {
+		fmt.Fprintf(hash, "java-indexer=%s\x00", fileFingerprint(resolved))
+	} else {
+		// Unknown identity is not a licence to reuse anything.
+		fmt.Fprintf(hash, "java-indexer=unknown-%d\x00", time.Now().UnixNano())
+	}
 	// The producer this pass would actually run, resolved by the loader that
 	// runs it. Fingerprinting `python-worker/index.py` by hand left the exact
 	// adapter unwatched: editing it changed no key, so a rebuild reused the
