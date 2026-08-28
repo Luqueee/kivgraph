@@ -9,6 +9,11 @@ about using them: which tool answers which question, how to name a symbol, and
 how to read what comes back. Per-tool arguments live under
 [`/docs/mcp-tools/`](/docs/mcp-tools/) and on each tool's own page.
 
+Which process answers does not change any of that. `serve` normally forwards
+the session to a daemon and holds no graph itself, so the tools, the arguments
+and the envelopes below are the same either way; what changes is what it costs.
+[Registering a client](/docs/mcp/clients/) has that part.
+
 ## What the server tells your agent
 
 The `initialize` result carries an `instructions` string. This is it, literally:

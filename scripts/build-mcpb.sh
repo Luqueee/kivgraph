@@ -139,9 +139,20 @@ mkdir -p "$staging/server"
 # preserves the executable bits the bundle set.
 cp -R "$bundle/." "$staging/server/"
 
-# `serve` is the MCP server over stdio -- the same command `kivgraph mcp
-# install` writes into a client configuration, so a reader who installs the
-# bundle and a reader who installs the binary run the identical process.
+# `serve` is the stdio entry -- the same command `kivgraph mcp install` writes
+# into a client configuration, so a reader who installs the bundle and a reader
+# who installs the binary run the identical process.
+#
+# It is not necessarily the server any more. Since ADR 0084 `serve` forwards the
+# session to a daemon, installing one if this machine has no supervised daemon
+# yet, and answers in process when it finds neither. That choice is made before
+# the agent's handshake is read, which is the only moment an in-process server
+# is still available to hand it to: a relay that fails afterwards fails the
+# command. The bundle cannot express any of it: manifest 0.3 describes a local
+# process and its runtime through `server.mcp_config`, and has no field for a
+# server url or a remote transport -- the urls it does define name the author
+# and the repository. That is exactly why the entry stays stdio and the server
+# moved.
 #
 # `${__dirname}` is substituted by the installing client with the absolute path
 # of the unpacked extension. A relative command would be resolved against the

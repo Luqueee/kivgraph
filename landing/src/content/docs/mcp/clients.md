@@ -191,9 +191,16 @@ by the client that spawns it, but a url pointing at a daemon nobody restarts
 takes every client down at once. `kivgraph daemon status` says whether one is
 installed and where its unit lives, and `kivgraph daemon remove` takes it out.
 
-The unit is per state directory, so two configurations can hold two supervised
-daemons without either replacing the other. Nothing supervises a daemon you
-start by hand with `kivgraph daemon &`; it dies with the shell that launched it.
+The unit is keyed by the state directory and not by the configuration file, so
+two configurations that keep their graph in different places get two units and
+neither replaces the other -- but two that share a state directory share one
+unit, and installing the second overwrites the first with its own `--config`.
+The **address** is keyed by nothing at all: the daemon binds `127.0.0.1:7788`
+unless you tell it otherwise, so the second one to start cannot bind and gives
+up. Two supervised daemons on one machine need a free address given to at
+least one of them, as in `kivgraph daemon install --addr 127.0.0.1:7789`. Nothing supervises a
+daemon you start by hand with `kivgraph daemon &`; it dies with the shell that
+launched it.
 
 The url and its token come from `~/.local/state/kivgraph/daemon.json`, mode
 `0600`. HTTP is the door that matters: no MCP client configuration dials a unix
@@ -256,7 +263,32 @@ the entry is not there, the command reports `absent` and does nothing.
 ## After registering
 
 The client launches `kivgraph serve` itself and speaks MCP over stdio. `serve`
-opens no HTTP port; the graph viewer is a separate opt-in command.
+listens on no port; the graph viewer is a separate opt-in command.
+
+**`serve` is usually not the server.** It forwards the session to the daemon
+and holds no graph of its own, which is what makes a stdio registration cost
+what a shared one costs. Measured on a workspace of `186,159` symbols in
+`benchmarks/relay-cost`: a `serve` answering questions holds `68.9`-`70.3 MB`
+per client where a forwarding one holds `8.7`-`9.8`, and eight of them peak at
+`2.5 GB` against `0.44`.
+
+If this machine has no supervised daemon, `serve` installs one and says so on
+stderr, naming `kivgraph daemon remove`. It installs nothing when a unit
+already exists: a unit whose daemon is not running is a daemon you stopped, and
+starting it again would leave `kivgraph stop` unable to stop anything.
+
+Four things make it answer from its own graph instead, and none is an error:
+no daemon is published, nothing answers where one says it is, a platform has no
+supervisor to install, or `KIVGRAPH_SERVE_IN_PROCESS` is set. The last is the
+way out if the forwarding path misbehaves and you do not want to stop the
+daemon other clients are using.
+
+One case fails loudly rather than falling back: a daemon running a **different
+kivgraph release**. The `.mcpb` bundle carries its own binary while the state
+directory comes from the configuration, so two installations share a daemon by
+construction, and restarting it would take the graph away from whoever else is
+using it. The message names both versions; `kivgraph update` restarts a
+supervised daemon onto the installed release.
 
 With no published generation, `serve` still completes the handshake. It exposes
 only `index_project`, and its `instructions` tell the agent to run

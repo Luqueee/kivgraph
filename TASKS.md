@@ -18356,9 +18356,22 @@ a mano y un test que lo fije.
    El aviso de que hay un servicio en segundo plano ya sale por `stderr` con el
    comando para quitarlo. La documentación de `landing/` sigue sin decirlo: es
    el commit 4.
-4. `build-mcpb.sh` y la documentación: el `.mcpb` sigue declarando `serve`, pero
-   `serve` ya no significa lo mismo, y el aviso de primer arranque tiene que
-   decir que hay un servicio en segundo plano.
+4. **`build-mcpb.sh` y la documentación. HECHO.** El manifiesto sigue
+   declarando `serve` porque no puede declarar otra cosa -- la versión 0.3
+   describe un proceso local y su runtime, sin campo para una url--, y el
+   comentario que decía que `serve` **es** el servidor ahora dice que es la
+   entrada y que el servidor se mudó.
+
+   En `landing/`: qué hace `serve` hoy, los cuatro caminos en los que contesta
+   él mismo -- ninguno es un error--, el escape, y la negativa por skew con las
+   dos versiones y la salida. El aviso de primer arranque ya salía por `stderr`
+   desde el commit 3, con el comando para quitarlo.
+
+   **Y una frase de la documentación que era falsa**, encontrada al medir el
+   commit 3: «two configurations can hold two supervised daemons without either
+   replacing the other». Vale para la unidad y no para la dirección -- el
+   demonio enlaza `127.0.0.1:7788` fijo--, así que el segundo no arranca. Ahora
+   lo dice y nombra `daemon install --addr`.
 
 **Archivos previstos:**
 
@@ -18378,8 +18391,7 @@ la condición de que haya commit 2 -- **cumplido**: `results.json`,
 `go test ./...`, `go vet ./...` y `make lint-ladybug`; y el smoke test del
 binario contra un demonio vivo y contra ninguno.
 
-**Estado:** commits 1, 2 y 3 hechos. Queda el 4: `build-mcpb.sh` y la
-documentación de `landing/`.
+**Estado:** hecho, los cuatro commits.
 
 ## LUQUE-2234 - Un `update` que no reinicia el demonio, y un consejo que lo apaga
 
