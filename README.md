@@ -1,5 +1,7 @@
 # Kivgraph
 
+[![kivgraph MCP server](https://glama.ai/mcp/servers/Luqueee/kivgraph/badges/score.svg)](https://glama.ai/mcp/servers/Luqueee/kivgraph)
+
 Kivgraph is a local **cross-repository code intelligence MCP server for AI
 coding agents**. It builds a canonical semantic code graph across multiple
 registered repositories and answers questions about symbols, repository
