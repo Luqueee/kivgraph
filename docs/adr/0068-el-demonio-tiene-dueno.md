@@ -147,19 +147,46 @@ se quede parada. El arreglo vive en `update`, no en lo que se instala.
 - El demonio no habla `sd_notify`, así que la unit es `Type=simple`. Declarar
   `notify` haría a systemd esperar una señal de listo que nunca llega.
 - **Una unidad cuyo ejecutable ya no existe reintentaba para siempre**, y el
-  límite por defecto no podía pararla. Medido el `2026-08-28` sobre una unidad
-  con un `ExecStart` que apunta a un binario borrado: con `StartLimitBurst=5`,
-  `StartLimitIntervalSec=10s` y `RestartSec=2` llegó a `NRestarts=140` y seguía
-  -- cinco arranques separados dos segundos son exactamente diez, así que el
-  límite se sienta en su propia frontera y no dispara nunca. Con la ventana en
-  `30s` la misma unidad se rinde en `NRestarts=5` y queda en `failed`. La unidad
-  declara ahora las dos directivas, y el guardia que lo fija comprueba la
-  **relación** y no los literales, porque el defecto eran dos literales que se
-  cancelaban.
-- **launchd no se puede acotar igual, y no está medido.** `KeepAlive` no tiene
-  cuenta máxima: su `ThrottleInterval` sólo espacia los reintentos, diez
-  segundos por defecto, así que un agente cuyo binario desapareció reintenta
-  indefinidamente. Aquí no hay macOS con el que comprobarlo. El planificador de
+  límite por defecto no podía pararla. Cinco arranques separados dos segundos
+  son exactamente diez, así que el límite se sentaba en su propia frontera y no
+  disparaba nunca. La unidad declara ahora las dos directivas, y el guardia que
+  lo fija comprueba la **relación** y no los literales, porque el defecto eran
+  dos literales que se cancelaban.
+
+  Medido el `2026-08-28` en `linux 6.12.94+deb13-amd64` con `systemd` de usuario
+  (`systemd --user`, `systemctl` de Debian 13), sobre una unidad de usar y tirar
+  puesta en `~/.config/systemd/user/` con este cuerpo -- lo único que cambia
+  entre las dos pasadas son las dos directivas de `[Unit]`:
+
+  ```ini
+  [Unit]
+  Description=Probe: what systemd does with a missing ExecStart
+  # segunda pasada: StartLimitIntervalSec=30 y StartLimitBurst=5
+  [Service]
+  Type=simple
+  ExecStart=/tmp/relaycost/a-binary-that-was-deleted daemon
+  Restart=on-failure
+  RestartSec=2
+  ```
+
+  ```bash
+  systemctl --user daemon-reload
+  systemctl --user start kivgraph-orphan-probe.service
+  systemctl --user show kivgraph-orphan-probe.service \
+    -p ActiveState -p SubState -p Result -p NRestarts
+  ```
+
+  |ventana|`NRestarts`|estado final|
+  |---|---:|---|
+  |`10s`, el defecto|`140` y subiendo|`activating`/`auto-restart`, sin fin|
+  |`30s`|`5`|`failed`|
+
+- **launchd no se puede acotar igual, y esto no está medido.** Lo que dice su
+  documentación es que `KeepAlive` no lleva cuenta máxima y que
+  `ThrottleInterval` -- diez segundos por defecto-- sólo espacia los reintentos;
+  de ahí se sigue que un agente cuyo binario desapareció reintentaría
+  indefinidamente, pero **nadie lo ha ejecutado**: aquí no hay macOS. Queda como
+  hipótesis leída de la documentación, no como observación. El planificador de
   Windows sí venía acotado de origen -- `RestartOnFailure` con `Count=3`--, que
   es justo lo que a Linux le faltaba.
 - `Install`, `Remove` y `Restart` invocan una herramienta externa en cada

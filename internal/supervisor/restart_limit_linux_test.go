@@ -44,10 +44,14 @@ func TestTheStartLimitCanActuallyTrip(t *testing.T) {
 	}
 }
 
-// TestTheUnitStillComesBackFromACrash keeps the bound above from turning into a
-// unit that gives up on the thing it exists to survive: a daemon that died once
-// has to come back, which is the promise ADR 0068 rests on.
-func TestTheUnitStillComesBackFromACrash(t *testing.T) {
+// TestTheRenderedUnitStillAsksForARestart keeps the bound above from turning
+// into a unit that gives up on the thing it exists to survive: a daemon that
+// died once has to come back, which is the promise ADR 0068 rests on.
+//
+// It reads the rendered directives and starts nothing. Watching systemd recover
+// a real daemon is the binary's smoke test, not this suite -- these two lines
+// are what a wrong edit would take out, and they are checkable without one.
+func TestTheRenderedUnitStillAsksForARestart(t *testing.T) {
 	rendered := unit(testSpec(t.TempDir()))
 	if !strings.Contains(rendered, "Restart=on-failure") {
 		t.Fatalf("the unit no longer restarts on failure:\n%s", rendered)
@@ -68,7 +72,8 @@ func unitInteger(t *testing.T, rendered, directive string) int {
 		}
 		parsed, err := strconv.Atoi(strings.TrimSuffix(value, "s"))
 		if err != nil {
-			t.Fatalf("%s=%q is not a number of seconds: %v", directive, value, err)
+			t.Fatalf("%s=%q is not a number of seconds: %v\nrendered unit:\n%s",
+				directive, value, err, rendered)
 		}
 		return parsed
 	}
