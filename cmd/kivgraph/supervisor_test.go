@@ -148,21 +148,24 @@ func TestRestartSupervisedDaemonReportsNothingToDoRatherThanFailing(t *testing.T
 	testsupport.SetHome(t, home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 
-	// run drives `update` with the real restarter over the given stale
-	// processes and returns what an operator would read.
-	run := func(t *testing.T, stale ...procstat.Process) string {
+	// run drives `update` with the real restarter over one stale daemon and
+	// returns what an operator would read. Every failure it can produce names
+	// the scenario, because four inputs reach this helper and the exit code
+	// alone does not say which of them was on the machine.
+	run := func(t *testing.T, when string, pid int) string {
 		t.Helper()
-		fixture := &stopFixture{processes: stale}
+		fixture := &stopFixture{processes: []procstat.Process{kivgraphProcess(pid, "daemon")}}
 		var stdout, stderr bytes.Buffer
 		if code := runUpdateWithRunner(nil, nil, &stdout, &stderr,
 			installedRunner(), fixture.list, fixture.signal, restartSupervisedDaemon, true); code != 0 {
-			t.Fatalf("runUpdateWithRunner = %d, stderr=%q", code, stderr.String())
+			t.Fatalf("%s (pid=%d): runUpdateWithRunner = %d, stderr=%q", when, pid, code, stderr.String())
 		}
 		if got := strings.Join(fixture.signals, ","); got != "" {
-			t.Fatalf("update signalled %q while restarting nothing", got)
+			t.Fatalf("%s (pid=%d): update signalled %q while restarting nothing", when, pid, got)
 		}
 		if strings.Contains(stdout.String(), "update.daemon: ") {
-			t.Fatalf("update reported a restart it could not have performed:\n%s", stdout.String())
+			t.Fatalf("%s (pid=%d): update reported a restart it could not have performed:\n%s",
+				when, pid, stdout.String())
 		}
 		return stdout.String()
 	}
@@ -186,12 +189,14 @@ func TestRestartSupervisedDaemonReportsNothingToDoRatherThanFailing(t *testing.T
 			t.Fatalf("%s: update named an owner it never established:\n%s", when, output)
 		}
 	}
-	stale := kivgraphProcess(999, "daemon")
+	// The pid the endpoint below publishes, and therefore the one a stale
+	// daemon has to carry for this configuration to recognise it as its own.
+	const published = 999
 
 	// One: no configuration at all. A machine that never ran `init` has no
 	// daemon of this state directory, whatever `kivgraph daemon` it is running
 	// with a --config somewhere else.
-	unadvised(t, "with no configuration", 999, run(t, stale))
+	unadvised(t, "with no configuration", published, run(t, "with no configuration", published))
 
 	if _, err := config.Initialize(config.InitOptions{}); err != nil {
 		t.Fatalf("config.Initialize: %v", err)
@@ -205,12 +210,12 @@ func TestRestartSupervisedDaemonReportsNothingToDoRatherThanFailing(t *testing.T
 	// Two: no endpoint published. A daemon writes that file before it serves,
 	// so its absence says this configuration has none running -- not that the
 	// process in the list is unowned.
-	unadvised(t, "with no endpoint", 999, run(t, stale))
+	unadvised(t, "with no endpoint", published, run(t, "with no endpoint", published))
 
 	if err := os.MkdirAll(directory, 0o755); err != nil {
 		t.Fatalf("create state directory: %v", err)
 	}
-	encoded, err := json.Marshal(daemon.Endpoint{URL: "http://127.0.0.1:9/mcp", Token: "t", PID: 999})
+	encoded, err := json.Marshal(daemon.Endpoint{URL: "http://127.0.0.1:9/mcp", Token: "t", PID: published})
 	if err != nil {
 		t.Fatalf("encode endpoint: %v", err)
 	}
@@ -221,15 +226,16 @@ func TestRestartSupervisedDaemonReportsNothingToDoRatherThanFailing(t *testing.T
 	// Three: a published daemon that is not the stale one. The process in the
 	// list belongs to another state directory and may already be supervised
 	// there, so advising an install would be a guess dressed as a finding.
-	unadvised(t, "with the daemon absent from the targets", 11, run(t, kivgraphProcess(11, "daemon")))
+	unadvised(t, "with the daemon absent from the targets", 11,
+		run(t, "with the daemon absent from the targets", 11))
 
 	// Four is the one case that establishes something: this configuration
 	// published the daemon, its pid is one of the stale processes, and no unit
 	// exists for it. Nobody owns it, and that is the only state in which the
 	// advice below is true.
-	output := run(t, stale)
+	output := run(t, "with no unit installed", published)
 	for _, want := range []string{
-		"update.stale: pid=999",
+		fmt.Sprintf("update.stale: pid=%d", published),
 		"daemon no supervisor owns",
 		"kivgraph daemon install",
 	} {
