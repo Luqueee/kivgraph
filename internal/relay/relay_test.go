@@ -3,6 +3,7 @@ package relay
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -308,5 +309,59 @@ func TestAListenerThatAnswersNothingIsUnreachable(t *testing.T) {
 	// And it gave up on its own deadline rather than on the caller's patience.
 	if waited := time.Since(started); waited > 4*reachTimeout {
 		t.Fatalf("the probe waited %s, which is not bounded by reachTimeout (%s)", waited, reachTimeout)
+	}
+}
+
+// TestAClientHangingUpIsNotAnError is the normal end of every MCP session, and
+// it was being reported as a failure.
+//
+// The agent exits, its end of the stream closes, and the read that was waiting
+// on it returns EOF. Handing that back made `serve` exit non-zero and log an
+// error on the ordinary path -- which is what a client shows its user as a
+// server that crashed. Measured before the fix: exit code 1 and
+// `msg="MCP server stopped with error" error="EOF"` on a session that did
+// nothing but say goodbye.
+func TestAClientHangingUpIsNotAnError(t *testing.T) {
+	fake := startFakeDaemon(t, "9.9.9")
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	clientSide, relaySide := sdkmcp.NewInMemoryTransports()
+	outcome := make(chan error, 1)
+	go func() { outcome <- run(ctx, fake.endpoint(), relaySide, "9.9.9") }()
+
+	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "agent", Version: "1.0.0"}, nil)
+	session, err := client.Connect(ctx, clientSide, nil)
+	if err != nil {
+		t.Fatalf("connect through the relay: %v", err)
+	}
+	if _, err := session.CallTool(ctx,
+		&sdkmcp.CallToolParams{Name: "graph_status", Arguments: map[string]any{}}); err != nil {
+		t.Fatalf("CallTool(graph_status) through the relay: %v", err)
+	}
+	if err := session.Close(); err != nil {
+		t.Fatalf("the agent could not close its session: %v", err)
+	}
+
+	select {
+	case err := <-outcome:
+		if err != nil {
+			t.Fatalf("the relay reported %v when the client simply went away", err)
+		}
+	case <-ctx.Done():
+		t.Fatal("the relay never returned after the client closed")
+	}
+}
+
+// TestASessionThatBreaksIsStillAnError keeps the fix above from swallowing what
+// it is supposed to let through: a relay that stopped for a reason has to say
+// so, or `serve` exits zero on a daemon that refused it.
+func TestASessionThatBreaksIsStillAnError(t *testing.T) {
+	broken := errors.New("the daemon stopped answering mid-session")
+	if endOfSession(broken) == nil {
+		t.Fatal("a real failure was reported as a session that simply ended")
+	}
+	if err := endOfSession(fmt.Errorf("relaying: %w", ErrVersionSkew)); err == nil {
+		t.Fatal("a version-skew refusal was swallowed as a clean end")
 	}
 }
