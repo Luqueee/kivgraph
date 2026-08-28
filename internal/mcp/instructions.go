@@ -34,8 +34,16 @@ Where it loses: a rare name in a single small repository is cheaper to grep, and
 // to be told what to do; a server that publishes tools it cannot answer with
 // teaches the agent that the tools do not work.
 //
-// It describes the graph-dependent query tools rather than saying none is
+// It says no query tool can answer *from a graph* rather than that none is
 // exposed, because one shape does expose them: `serve --introspection` lists
-// the catalogue for an inspector that has nothing else to read. Those tools
-// return INDEX_NOT_READY, while graph_status reports an empty graph status.
-const staleServerInstructions = `Kivgraph has no published graph. When exposed for introspection, graph-dependent query tools return INDEX_NOT_READY while graph_status reports an empty graph status. Run "kivgraph index --full" to build one, then restart this server. Until then, use the host's own search and file tools.`
+// the catalogue for an inspector that has nothing else to read. The sentence
+// stays true of graph_status too, which answers that the graph is empty rather
+// than answering from one.
+//
+// What it must not do is explain that shape. This is the routing card every
+// client reads at handshake, truncated at 2 KB and the only text that survives
+// schema deferral; introspection is a mode no client will ever be in, and
+// spending the budget on it is how a paragraph that routes becomes a paragraph
+// that is skipped. What a client needs here is the one command that repairs
+// this.
+const staleServerInstructions = `Kivgraph has no published graph, so no query tool can answer from one. Run "kivgraph index --full" to build one, then restart this server. Until then, use the host's own search and file tools.`

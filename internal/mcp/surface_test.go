@@ -343,6 +343,41 @@ func TestServerInstructionsRouteWithoutVolatileFacts(t *testing.T) {
 	}
 }
 
+// TestStaleInstructionsRouteToTheRepair guards the other routing card, and it
+// is a gap rather than a symmetry: the healthy one had a test and this one had
+// none, so a paragraph that grew an explanation of a mode no client can be in
+// passed every gate.
+//
+// It is read by every client whose graph is missing, truncated at the same 2 KB
+// and surviving the same schema deferral, and there is exactly one thing such a
+// client can do about its state. A card that spends its budget on anything else
+// is a card that gets skipped.
+func TestStaleInstructionsRouteToTheRepair(t *testing.T) {
+	session := connectToServer(t, NewServerWithSnapshotStore(hotsnapshot.NewSnapshotStore(nil)))
+	initResult := session.InitializeResult()
+	if initResult == nil {
+		t.Fatal("InitializeResult() = nil")
+	}
+	instructions := initResult.Instructions
+	if !strings.Contains(instructions, "kivgraph index --full") {
+		t.Fatalf("instructions = %q, want the command that repairs this", instructions)
+	}
+	// The healthy card is the budget this one is measured against: the state
+	// with one action available cannot cost more to describe than the state
+	// with eleven tools to route between.
+	if len(instructions) > len(serverInstructions) {
+		t.Fatalf("the stale card is %d bytes against the routing card's %d; it has one action to name",
+			len(instructions), len(serverInstructions))
+	}
+	// `--introspection` is a mode a client is never in. It changes what an
+	// inspector can list and nothing a client can act on, so naming it here
+	// spends the one paragraph that survives deferral on the one reader who
+	// cannot use it.
+	if strings.Contains(instructions, "introspection") {
+		t.Fatalf("instructions = %q, want no mention of a mode no client is in", instructions)
+	}
+}
+
 func toolNames(listed []*sdkmcp.Tool) []string {
 	names := make([]string, 0, len(listed))
 	for _, tool := range listed {
