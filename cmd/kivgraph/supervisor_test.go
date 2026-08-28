@@ -130,29 +130,59 @@ func writeSupervisorConfig(t *testing.T, home string) string {
 	return configPath
 }
 
-// TestRestartSupervisedDaemonReportsNothingToDoRatherThanFailing covers the
-// four ways `update` finds nothing to restart, and the line between them.
+// TestRestartSupervisedDaemonReportsNothingToDoRatherThanFailing drives the
+// real restarter -- config, endpoint file and supervisor status against a
+// temporary home -- through `update`, and asserts what the operator is told.
 //
-// All four answer with a zero pid and no error -- an error would print a failed
-// restart on machines where this command already worked -- but they do not
-// answer the same thing about ownership, and that is what decides whether the
-// caller may advise installing a supervisor. Three establish nothing. Only the
-// fourth establishes that nobody has it. None of them executes a supervisor,
-// which is why they can be tested at all: the fifth branch, the one that
-// restarts, needs a real systemd or launchd and is covered by the smoke test of
-// the binary.
+// Four inputs and no restart in any of them, because none of the four can
+// execute a supervisor. What separates them is the advice underneath, which is
+// the whole point of the ownership states: three establish nothing and must
+// say nothing, and only the fourth establishes that this daemon has no owner.
+//
+// None of them may fail the command either. An error would print a failed
+// restart on machines where `update` already worked, and the first of the four
+// is the machine that never ran `init`.
 func TestRestartSupervisedDaemonReportsNothingToDoRatherThanFailing(t *testing.T) {
 	home := t.TempDir()
 	testsupport.SetHome(t, home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
-	stale := []procstat.Process{kivgraphProcess(999, "daemon")}
+
+	// run drives `update` with the real restarter over the given stale
+	// processes and returns what an operator would read.
+	run := func(t *testing.T, stale ...procstat.Process) string {
+		t.Helper()
+		fixture := &stopFixture{processes: stale}
+		var stdout, stderr bytes.Buffer
+		if code := runUpdateWithRunner(nil, nil, &stdout, &stderr,
+			installedRunner(), fixture.list, fixture.signal, restartSupervisedDaemon, true); code != 0 {
+			t.Fatalf("runUpdateWithRunner = %d, stderr=%q", code, stderr.String())
+		}
+		if got := strings.Join(fixture.signals, ","); got != "" {
+			t.Fatalf("update signalled %q while restarting nothing", got)
+		}
+		if strings.Contains(stdout.String(), "update.daemon: ") {
+			t.Fatalf("update reported a restart it could not have performed:\n%s", stdout.String())
+		}
+		return stdout.String()
+	}
+	unadvised := func(t *testing.T, when, output string) {
+		t.Helper()
+		if !strings.Contains(output, "update.stale: pid=") {
+			t.Fatalf("%s: the stale daemon stopped being reported:\n%s", when, output)
+		}
+		if strings.Contains(output, "no supervisor owns") {
+			t.Fatalf("%s: update claimed nobody owns a daemon it could not identify:\n%s", when, output)
+		}
+		if strings.Contains(output, "owns this daemon") {
+			t.Fatalf("%s: update named an owner it never established:\n%s", when, output)
+		}
+	}
+	stale := kivgraphProcess(999, "daemon")
 
 	// One: no configuration at all. A machine that never ran `init` has no
 	// daemon of this state directory, whatever `kivgraph daemon` it is running
 	// with a --config somewhere else.
-	if outcome, err := restartSupervisedDaemon(stale); err != nil || outcome.PID != 0 || outcome.Ownership != ownershipUnknown {
-		t.Fatalf("with no configuration: pid=%d ownership=%d err=%v, want 0, unknown and nil", outcome.PID, outcome.Ownership, err)
-	}
+	unadvised(t, "with no configuration", run(t, stale))
 
 	if _, err := config.Initialize(config.InitOptions{}); err != nil {
 		t.Fatalf("config.Initialize: %v", err)
@@ -163,12 +193,10 @@ func TestRestartSupervisedDaemonReportsNothingToDoRatherThanFailing(t *testing.T
 	}
 	directory := stateDirectory(loaded)
 
-	// Two: no endpoint published. The daemon writes the file before it serves
-	// and removes it when it stops, so its absence is the answer rather than a
-	// failure to get one.
-	if outcome, err := restartSupervisedDaemon(stale); err != nil || outcome.PID != 0 || outcome.Ownership != ownershipUnknown {
-		t.Fatalf("with no endpoint: pid=%d ownership=%d err=%v, want 0, unknown and nil", outcome.PID, outcome.Ownership, err)
-	}
+	// Two: no endpoint published. A daemon writes that file before it serves,
+	// so its absence says this configuration has none running -- not that the
+	// process in the list is unowned.
+	unadvised(t, "with no endpoint", run(t, stale))
 
 	if err := os.MkdirAll(directory, 0o755); err != nil {
 		t.Fatalf("create state directory: %v", err)
@@ -181,23 +209,23 @@ func TestRestartSupervisedDaemonReportsNothingToDoRatherThanFailing(t *testing.T
 		t.Fatalf("write endpoint: %v", err)
 	}
 
-	// Three: a published daemon that is not one of the stale processes. It is
-	// already answering from the release this update installed, or it belongs
-	// to another state directory; restarting it would take down a graph this
-	// update never touched.
-	if outcome, err := restartSupervisedDaemon([]procstat.Process{kivgraphProcess(11, "daemon")}); err != nil || outcome.PID != 0 || outcome.Ownership != ownershipUnknown {
-		t.Fatalf("with the daemon absent from the targets: pid=%d ownership=%d err=%v, want 0, unknown and nil", outcome.PID, outcome.Ownership, err)
-	}
+	// Three: a published daemon that is not the stale one. The process in the
+	// list belongs to another state directory and may already be supervised
+	// there, so advising an install would be a guess dressed as a finding.
+	unadvised(t, "with the daemon absent from the targets", run(t, kivgraphProcess(11, "daemon")))
 
 	// Four is the one case that establishes something: this configuration
 	// published the daemon, its pid is one of the stale processes, and no unit
 	// exists for it. Nobody owns it, and that is the only state in which the
-	// caller may advise installing a supervisor.
-	outcome, err := restartSupervisedDaemon(stale)
-	if err != nil || outcome.PID != 0 {
-		t.Fatalf("with no unit installed: pid=%d err=%v, want 0 and nil", outcome.PID, err)
-	}
-	if outcome.Ownership != ownershipNone {
-		t.Fatalf("with no unit installed: ownership=%d, want %d (none)", outcome.Ownership, ownershipNone)
+	// advice below is true.
+	output := run(t, stale)
+	for _, want := range []string{
+		"update.stale: pid=999",
+		"daemon no supervisor owns",
+		"kivgraph daemon install",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("with no unit installed, the output lost %q:\n%s", want, output)
+		}
 	}
 }
