@@ -18251,14 +18251,32 @@ a mano y un test que lo fije.
 
 **Cómo se cierra:** cuatro commits, y el primero puede cancelar los otros tres.
 
-1. **El prototipo y su medida, antes que nada.** Cuarenta líneas que conectan
-   las dos `Connection` y no hacen nada más, medidas con `benchmarks/daemon-cost`
-   **sobre un corpus del tamaño actual** y no el de agosto. Devuelve tres
-   números: el suelo residente del relé, un `serve` que contesta a su lado -- que
-   nadie ha medido sobre `177.790` símbolos -- y spawn más handshake contra los
-   `38`-`55 ms` que sustituye. **Si el suelo no abre hueco, la ficha se cierra
-   aquí y el servidor stdio se queda.** No es una verificación al final, es la
-   condición de que exista el resto.
+1. **El prototipo y su medida. HECHO** (`benchmarks/relay-cost`, commit
+   `34cbe1a`, generación `000091`, `186.159` símbolos, tres pasadas por carga).
+   El suelo abre hueco y la ficha sigue. El relé cuesta `4,63`-`5,83 MB` por
+   cliente ocioso contra `8,76`-`9,15` de un `serve`, y `8,74`-`9,78`
+   contestando contra `68,94`-`70,28`: un ahorro de `2,93`-`4,24` y de
+   `59,26`-`61,54` respectivamente, sobre un umbral de `1 MB` escrito en el
+   arnés y guardado junto a la medida.
+
+   **Tres cosas que cambian lo que hay que escribir después.**
+
+   La primera: **el argumento no es la carga que predomina.** Ocioso el relé
+   sólo gana desde el quinto cliente -- el cruce de las rectas cae en
+   `4,83`-`6,02` -- y a ocho ahorra `10`-`15 MB`. Contestando gana desde el
+   segundo (`1,42`-`1,49`) y ahorra `400 MB` de residente y `2,1 GB` de pico.
+   Quien defienda la ficha por el caso de `48` de `51` está defendiendo la
+   mitad pequeña.
+
+   La segunda: **la tercera pregunta tenía la premisa caducada.** Un `serve` de
+   hoy conecta en `6,7`-`8,2 ms`, no en los `38`-`55` del ADR 0069, porque el
+   ADR 0067 ya sacó la carga del arranque. El relé conecta en `3,8`-`5,0`, que
+   son `3 ms` y no son un argumento. La espera se mudó a la primera respuesta:
+   `525`-`543 ms` en un `serve` contra `14,5`-`17,7` en el relé.
+
+   La tercera: **las dos mitades de la predicción del ADR se cumplen.** El
+   corpus es `1,71` veces el de `daemon-cost` y la fila que contesta subió
+   `1,77` veces; la ociosa no subió. Lo que escala con el grafo es contestar.
 2. El relé de verdad y el fallback, con el test de la SSE en solitario y el de
    skew de versión. No provisiona nada todavía y se puede cerrar solo.
 3. El provisionado: `ensureDaemon` junto a `ensureConfiguration`, con el lock de
@@ -18279,15 +18297,17 @@ internal/mcp/relay.go
 internal/mcp/relay_test.go
 internal/daemon/endpoint.go
 docs/adr/0084-the-stdio-entry-outlives-the-stdio-server.md
-benchmarks/relay-cost/report.md
+benchmarks/relay-cost/report.md   (hecho)
+benchmarks/relay-cost/prototype/main.go   (hecho)
 ```
 
 **Gates:** el benchmark del commit 1 guardado en `benchmarks/relay-cost/`, que es
-la condición de que haya commit 2; `go test ./...`, `go vet ./...` y
-`make lint-ladybug`; y el smoke test del binario contra un demonio vivo y contra
-ninguno.
+la condición de que haya commit 2 -- **cumplido**: `results.json`,
+`results-idle.json` y `report.md`, con `proceed: true` en las dos cargas--;
+`go test ./...`, `go vet ./...` y `make lint-ladybug`; y el smoke test del
+binario contra un demonio vivo y contra ninguno.
 
-**Estado:** TODO.
+**Estado:** commit 1 hecho y la puerta pasada. Quedan los commits 2, 3 y 4.
 
 ## LUQUE-2234 - Un `update` que no reinicia el demonio, y un consejo que lo apaga
 

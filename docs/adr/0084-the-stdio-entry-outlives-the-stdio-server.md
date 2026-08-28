@@ -1,14 +1,15 @@
 # ADR 0084: the stdio entry outlives the stdio server
 
-- **Status:** accepted in shape, gated on the relay's own process floor
-  being measured first
+- **Status:** accepted -- the gate is measured and clears, in
+  `benchmarks/relay-cost`
 - **Date:** 2026-08-28
 - **Revises:** ADR 0066, ADR 0069
 - **Changes the MCP protocol:** no -- the same surface, reached over the
   same two transports
 - **Changes the CLI surface:** yes -- `serve` stops loading a graph in the
   common case, and may install a supervisor
-- **Implementation:** `LUQUE-2233`; nothing in *Decision* is built
+- **Implementation:** `LUQUE-2233`; commit 1 is measured, nothing in
+  *Decision* is built
 
 ## Where the numbers come from
 
@@ -27,6 +28,10 @@ source:
   `/proc/<pid>/smaps_rollup` of the running daemon, both read
   `2026-08-28`. This is one machine on one day, not a corpus: it bounds
   the prize, and the prototype in `LUQUE-2233` is what measures it.
+- **Everything the relay costs.** `benchmarks/relay-cost`, schema
+  `relay-cost-v1`, measured `2026-08-28` on generation `000091` at
+  `186,159` symbols with a `140.1 MB` snapshot. Three passes per load;
+  the published artifact is the median by the `serve` slope.
 
 ## Context
 
@@ -205,31 +210,45 @@ a working client near the daemon's own footprint rather than near the
 the `323`-`330 MB` in the table. Nobody has measured an answering `serve`
 on this corpus, and that prediction is half of what the prototype checks.
 
-**The case still rests on one unmeasured number: what a relay process
-costs at rest.** What changed is the gap it has to clear, and the
-arithmetic has two readings that do not agree.
+**The case rested on one unmeasured number -- what a relay process costs
+at rest -- and it is now measured.** The arithmetic above had two readings
+that did not agree: counting the daemon as new cost, an `8 MB` floor saved
+`1.4`-`11.6 MB` across eight idle clients and was not worth building,
+while a `4 MB` floor saved `33`-`44` and was; counting the daemon as
+already running, that same `8 MB` floor saved `1.8`-`2.7 MB` each.
 
-Counting the daemon as new cost, eight idle clients are `78.4`-`85.6 MB`
-today. With a relay they become the daemon's `10`-`13` plus eight floors:
-an `8 MB` floor gives `74`-`77 MB`, a saving of `1.4`-`11.6`, which is not
-worth building; a `4 MB` floor gives `42`-`45 MB`, a saving of `33`-`44`,
-which is.
+`benchmarks/relay-cost` ran the three arrangements over this generation at
+`1`, `2`, `4` and `8` clients, three passes per load, and records the gate
+next to the number rather than leaving it to whoever quotes the file.
 
-Counting the daemon as already running -- which ADR 0069 made the default,
-so on most machines it is -- the comparison is per client, and that same
-`8 MB` floor saves `1.8`-`2.7 MB` each, `14.4`-`21.6` across eight.
+| load | `serve` | relay | saved |
+|---|---:|---:|---:|
+| no calls | `8.76`-`9.15 MB`/client | `4.63`-`5.83` | `2.93`-`4.24` |
+| `8` calls | `68.94`-`70.28 MB`/client | `8.74`-`9.78` | `59.26`-`61.54` |
 
-Every one of those numbers turns on the floor, which is why it is measured
-before anything else is written. Against a working client on a real
-workspace the same floor competes with something two orders of magnitude
-larger, and there the two readings agree.
+A relay process on its own costs `4.2`-`5.6 MB` per client and does not
+move with the load, which is what a process holding no graph should do.
+Against a direct HTTP session at `0.04`-`0.13 MB` per client, that floor
+is the entire price of keeping the stdio entry the `.mcpb` format forces.
 
-That is why the status above is gated, and why the work starts with a
-forty-line prototype that connects and does nothing, measured by
-`benchmarks/daemon-cost` **on a corpus this size** and not on the one from
-August. It reports two numbers: the relay's resident floor, and an
-answering `serve` beside it. If the floor does not clear the gap, this
-decision is withdrawn and the stdio server stays.
+Both halves of the prediction above hold. The corpus is `1.71` times the
+one `daemon-cost` used and the answering row rose `1.77` times; the idle
+row did not rise at all -- `9.8`-`10.7 MB`/client then against
+`8.76`-`9.15` now. What scales with the graph is answering, not starting.
+
+**The eight-megabyte reading was the wrong worry, and the right one is
+underneath it.** The measured floor is half of `8 MB`, so the pessimistic
+arithmetic does not describe this relay. What that arithmetic got right is
+which load is thin: at rest the relay saves `10`-`15 MB` across eight
+clients and **loses below five**, because the daemon behind it is a fixed
+cost with too few clients to spread over. The fitted crossover is
+`4.8`-`6.0` clients at rest against `1.42`-`1.49` answering, and at rest
+is where `48` of `51` sessions live.
+
+So the case for this decision is the answering session and not the median
+one: `575`-`584 MB` against `175`-`183` at eight clients, and a peak of
+`2,531`-`2,540 MB` against `437`-`445`. Anyone defending the relay on the
+load that predominates is defending `10`-`15 MB`.
 
 ## Consequences
 
@@ -239,8 +258,9 @@ decision is withdrawn and the stdio server stays.
   graph in memory. The entry stays stdio and the token stays on disk.
 - One process per client remains, and what it saves is bounded by its own
   floor rather than by the snapshot -- ADR 0067 removed that from the idle
-  path already. The saving is large under load and may be negligible at
-  rest.
+  path already. Measured, the saving is `59`-`62 MB` per client answering
+  and `2.9`-`4.2` at rest, where it needs five clients before it saves
+  anything at all.
 - A machine that installs the `.mcpb` acquires a supervised background
   service it did not ask for in a terminal. That is stated in the
   first-run notice ADR 0083 already introduces, and `mcp remove` takes it
@@ -264,9 +284,13 @@ decision is withdrawn and the stdio server stays.
 - A burst of clients starting at once all find no daemon and all try to
   provision. The provisioning is behind a lock, and the losers wait for
   `endpointDeadline` rather than each installing a supervisor.
-- The relay adds a process spawn and an HTTP handshake to every session.
-  Whether that lands nearer `1.6`-`2.0 ms` or nearer the `38`-`55` it
-  replaces is measured with the floor, by the same prototype, before any
-  of this ships.
+- The relay adds a process spawn and an HTTP handshake to every session,
+  and the premise of this bullet was stale. A `serve` today connects in
+  `6.7`-`8.2 ms`, not the `38`-`55` ADR 0069 measured: ADR 0067 collected
+  that already by making the load lazy. The relay connects in
+  `3.8`-`5.0 ms`, a saving of `3 ms` that is an argument for nothing. The
+  wait did not disappear, it moved -- the first answer costs a `serve`
+  `525`-`543 ms` against the relay's `14.5`-`17.7`, and that is where the
+  latency case actually is.
 - A platform with no supervisor keeps the cost ADR 0069 measured, in full.
   None of the three published platforms is one.
