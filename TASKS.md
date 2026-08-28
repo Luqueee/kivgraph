@@ -17976,3 +17976,158 @@ verde deja fuera toda clase que `staticcheck` añada después, en silencio.
 `U1000` sigue siendo la excepción, y no por ruidosa sino porque **bajo esta
 build no se puede contestar**: sus `20` falsos son símbolos cuyo llamante vive
 tras el tag. Vive en `make lint-ladybug`, donde la respuesta es cero.
+
+## LUQUE-2232 - Cuánta gente, y no cuántas descargas
+
+**Dependencias:** ninguna. La decisión está en `docs/adr/0083-a-download-is-not-a-person.md`.
+
+El recuento cuando se abrió la ficha, de `v0.1.0` a `v0.9.1`, por clase de asset:
+
+|clase|descargas|reparto|
+|---|---:|---:|
+|`.mcpb`|`46`|`39 %`|
+|`.tar.gz` / `.zip`|`36`|`31 %`|
+|`SHA256SUMS`|`29`|`25 %`|
+|`install.sh` / `install.ps1`|`6`|`5 %`|
+
+Y `v0.9.1`, horas después de publicarse:
+
+|asset|n|asset|n|
+|---|---:|---|---:|
+|`kivgraph-linux-amd64.mcpb`|`10`|`kivgraph-linux-amd64.tar.gz`|`0`|
+|`kivgraph-windows-amd64.mcpb`|`9`|`kivgraph-windows-amd64.zip`|`0`|
+|`kivgraph-darwin-arm64.mcpb`|`8`|`kivgraph-darwin-arm64.tar.gz`|`0`|
+|`install.sh`|`0`|`SHA256SUMS`|`0`|
+
+**La trampa, y por eso esto es una ficha y no un workflow:** el número que
+parece adopción es justo el que más se parece a un robot. `27` descargas en un
+día repartidas casi a partes iguales entre tres plataformas no las hace gente
+-- la gente se concentra en la suya --, y al menos tres por release son
+nuestras: el job `registry` publica los tres `.mcpb` como paquetes con
+`fileSha256` y el registro descarga cada URL para verificarlo. CI no descarga
+sus propios assets, así que el resto es externo y el contador no puede decir si
+externo significa una persona o un directorio replicando el registro.
+
+Y hay una segunda: **`--clobber` pone el contador a cero.** El paso de publicación
+sube todos los assets con `--clobber`, que sustituye el asset, y un asset
+sustituido es otro asset con su contador a cero. Reejecutar `publish` sobre un
+tag existente baja un número que toda la documentación describe como monótono.
+
+La consecuencia para el plan: `install.sh` mueve el `5 %` del volumen, así que
+instrumentar sólo el instalador daría datos limpios de casi nada. Un `.mcpb` no
+ejecuta `install.sh` -- lo desempaqueta el cliente MCP y arranca el binario --,
+así que el `39 %` sólo lo puede contar el binario.
+
+**Capa 0 -- la serie, sin tocar el cliente.**
+
+Workflow programado que fotografía la API de releases a diario y escribe un
+JSON por día en una rama huérfana `metrics`. Dos invariantes deciden si el
+almacén sirve:
+
+- **la foto es acumulada y los deltas se derivan al leer.** GitHub desactiva los
+  workflows programados tras sesenta días sin actividad, así que un día perdido
+  es lo esperable y no la excepción: una foto acumulada lo sobrevive porque la
+  siguiente sigue llevando el total, y un delta guardado pierde ese día para
+  siempre;
+- **una bajada es un reinicio de contador, nunca tráfico negativo.** Eso es
+  `--clobber`. El lector recorta el delta en cero y anota el reinicio como
+  hecho propio.
+
+La clasificación -- `bundle`, `checksums`, `installer`, `mcpb` -- se fija aquí,
+y el KPI es la clase `bundle` por plataforma y por día. `scripts/downloads.sh`
+pasa a ser la vista en vivo sobre esa misma clasificación, no una segunda
+opinión.
+
+**Capa 1 -- un ping, dos emisores, un endpoint.**
+
+`POST https://kivgraph.dev/api/telemetry/install` con `version`, `platform`,
+`channel` y `transport`, desde `install.sh`/`install.ps1` tras una instalación
+verificada, y desde el binario en el primer arranque de cada versión.
+
+El endpoint vive en `landing/server.mjs` porque el reporter, el hallazgo de
+`User-Agent: ""` frente a `isbot` y el par de configuración que falla cerrado ya
+están ahí; una ruta de Astro necesitaría una segunda copia de los tres. Va a una
+**tercera propiedad**, `kivgraph INSTALLS`, por lo mismo que existe la de
+crawlers: una instalación no es una visita, y mezclarlas mueve visitantes,
+rebote y la conversión que describe personas.
+
+Tres cosas que se rompen en silencio si no se escriben:
+
+- **no se acuña ningún identificador.** El visitante lo deriva Umami de un hash
+  con rotación diaria de id de sitio, host, dirección y user agent, así que
+  *visitantes únicos por día* ya son máquinas distintas y la dirección no se
+  guarda. Pero eso obliga a que **el endpoint reenvíe la dirección de quien
+  llama**: sin ella todas las instalaciones del mundo colapsan en un visitante,
+  el propio servidor de la landing. Y como `REPORTER_HEADERS` fuerza el
+  `User-Agent` vacío, la dirección es el único discriminante que queda: un NAT
+  corporativo cuenta como una persona;
+- **el marcador de primer arranque vive en el directorio de estado, no en el
+  bundle.** Una actualización sustituye el bundle, así que un marcador ahí
+  volvería a disparar en cada `update`. Lo que se mide es *el primer arranque de
+  una versión*, y llamarlo instalaciones sería una afirmación que el marcador no
+  sostiene;
+- **y el marcador es un check-and-set**, porque stdio arranca muchos procesos a
+  la vez: el ADR 0069 midió `69` arranques de `serve` con `8` vivos
+  simultáneamente. Leer el marcador y luego escribirlo deja que toda una ráfaga
+  lo encuentre ausente y reporte antes de que ninguno lo haya creado, que es
+  convertir una instalación en tantos pings como procesos lanzara el cliente. Se
+  crea con `O_CREATE|O_EXCL` y sólo envía quien lo creó;
+- **nada puede llegar a stdout, y lo decide el más estricto de los dos
+  transportes.** `kivgraph serve` corre la superficie MCP sobre
+  `sdkmcp.StdioTransport`, donde un byte suelto en stdout corrompe la sesión; el
+  demonio sirve la misma superficie por Streamable HTTP, donde no. El ping es
+  código compartido, así que obedece la regla de stdio en los dos: goroutine con
+  timeout corto, fallos tirados, y el aviso de primer arranque por stderr.
+
+**Por qué `transport` es un campo y no una nota:** el ADR 0069 hizo del demonio
+el defecto y nadie midió si se cobró. `resolveTransport` sigue escribiendo stdio
+en cuatro casos declarados -- `--stdio`, scope de proyecto, plataforma sin
+supervisor, y máquina sin configuración --, y tres son silenciosos. Y
+`scripts/build-mcpb.sh:171` declara `serve` en el manifiesto, así que el canal
+`.mcpb` -- el `39 %` del volumen -- es stdio entero.
+
+El endpoint es público, así que el número vale lo que valgan sus límites:
+validación estricta contra los conjuntos cerrados de plataforma y canal y el
+patrón de versión publicada, ventana de deduplicación por dirección y versión, y
+`204` en todos los caminos para que sondearlo no enseñe nada.
+
+**Cómo se cierra:** cuatro commits, en este orden.
+
+1. Capa 0: el workflow, la rama `metrics`, la clasificación y `downloads.sh`
+   reescrito sobre ella. No toca ni el cliente ni la landing y se puede cerrar
+   solo.
+2. Los eventos nuevos en `docs/development/analytics.md`, **antes** que el
+   código, que es la regla que ese documento dice de sí mismo. Y la página de
+   transparencia que enumera los campos enviados.
+3. El endpoint en `landing/server.mjs` con su test, y la verificación de hilo
+   contra la instancia sobre una propiedad desechable: que Umami honre la
+   dirección reenviada es comportamiento de hilo y no contrato documentado, y
+   falla como falló el `User-Agent` -- `200`, `{"beep":"boop"}`, nada escrito.
+   Esta verificación es la que decide si la capa 1 mide algo.
+4. Los dos emisores: el ping en los instaladores y el de primer arranque en el
+   binario, con `KIVGRAPH_TELEMETRY=0` y el aviso por stderr.
+
+**Archivos previstos:**
+
+```text
+.github/workflows/download-metrics.yml
+scripts/downloads.sh
+internal/telemetry/install.go
+internal/telemetry/install_test.go
+landing/server.mjs
+landing/src/install-report.mjs
+landing/src/install-report.test.mjs
+scripts/install.sh
+scripts/install.ps1
+docs/development/analytics.md
+docs/adr/0083-a-download-is-not-a-person.md
+```
+
+**Gates:** `go test ./... `, `go vet ./...` y `make lint-ladybug` para el
+emisor del binario; `pnpm test` y `make landing-check` en la landing; y el
+workflow visto correr en verde sobre la rama antes de programarlo. El test del
+emisor tiene que ver fallar el caso de stdout: un ping que escriba en stdout
+rompe la sesión MCP y ningún test que no lo intente lo va a notar.
+
+**Estado:** TODO.
+
