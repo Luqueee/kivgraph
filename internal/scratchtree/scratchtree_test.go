@@ -88,6 +88,14 @@ func TestMaterialiseLeavesBuildOutputBehind(t *testing.T) {
 // exists to keep: AGENTS.md says an indexed repository is never modified, and
 // `git worktree add` -- the obvious alternative -- registers metadata under
 // .git/worktrees/ that a dead pass leaves behind.
+//
+// It checks two things and deliberately not a third. The working tree has to
+// be byte-identical, and `.git` must gain no worktree registration. What it
+// does not compare is the content of `.git` itself: reading a repository with
+// git refreshes its stat cache, so `.git/index` changes on any machine where
+// the checkout is newer than its index -- which is every CI runner and was not
+// this laptop. That churn is git bookkeeping about files nobody touched, not a
+// modification of the repository in the sense the rule means.
 func TestMaterialiseWritesNothingInsideTheRepository(t *testing.T) {
 	root := gitRepository(t)
 	before := snapshotTree(t, root)
@@ -105,9 +113,12 @@ func TestMaterialiseWritesNothingInsideTheRepository(t *testing.T) {
 		t.Fatalf("close: %v", err)
 	}
 
-	after := snapshotTree(t, root)
-	if before != after {
-		t.Errorf("the repository changed:\nbefore:\n%s\nafter:\n%s", before, after)
+	if after := snapshotTree(t, root); before != after {
+		t.Errorf("the working tree changed:\nbefore:\n%s\nafter:\n%s", before, after)
+	}
+	// The specific thing `git worktree add` would have left behind.
+	if _, err := os.Stat(filepath.Join(root, ".git", "worktrees")); !os.IsNotExist(err) {
+		t.Error("a worktree registration was left inside .git")
 	}
 }
 
@@ -181,8 +192,11 @@ func TestSecurePathRefusesAnEscapingEntry(t *testing.T) {
 	}
 }
 
-// snapshotTree renders every path and content under root, so a comparison
-// catches a file added, removed or rewritten anywhere -- including .git.
+// snapshotTree renders every path and content of the working tree, so a
+// comparison catches a file added, removed or rewritten anywhere in it.
+//
+// `.git` is excluded because git rewrites its own stat cache when it reads a
+// repository; the one thing that matters inside it is checked by name.
 func snapshotTree(t *testing.T, root string) string {
 	t.Helper()
 	var builder strings.Builder
@@ -194,18 +208,24 @@ func snapshotTree(t *testing.T, root string) string {
 		if err != nil {
 			return err
 		}
+		slashed := filepath.ToSlash(relative)
+		if slashed == ".git" || strings.HasPrefix(slashed, ".git/") {
+			if info.IsDir() && slashed == ".git" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
 		if info.IsDir() {
-			builder.WriteString("d " + filepath.ToSlash(relative) + "\n")
+			builder.WriteString("d " + slashed + "\n")
 			return nil
 		}
 		data, err := os.ReadFile(path)
 		if err != nil {
-			// A git lock or an ephemeral file would make this flaky; naming
-			// it is better than skipping it silently.
-			builder.WriteString("? " + filepath.ToSlash(relative) + "\n")
+			// Naming an unreadable file beats skipping it silently.
+			builder.WriteString("? " + slashed + "\n")
 			return nil
 		}
-		builder.WriteString("f " + filepath.ToSlash(relative) + " " + string(data) + "\n")
+		builder.WriteString("f " + slashed + " " + string(data) + "\n")
 		return nil
 	})
 	if err != nil {

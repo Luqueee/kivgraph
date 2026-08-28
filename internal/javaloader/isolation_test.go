@@ -139,9 +139,16 @@ func listTree(t *testing.T, root string) string {
 		if err != nil {
 			return err
 		}
-		// .git churns on its own -- a gc, an index refresh -- and this test is
-		// about the working tree the user sees.
-		if strings.HasPrefix(filepath.ToSlash(relative), ".git/") || relative == ".git" {
+		// .git churns on its own -- a gc, an index refresh, a maintenance
+		// lock that exists for a moment -- and this test is about the working
+		// tree the user sees. It has to be SkipDir and not nil: returning nil
+		// for a directory lets Walk descend into it anyway, and the walk then
+		// raced a lock file that vanished between readdir and lstat.
+		slashed := filepath.ToSlash(relative)
+		if relative == ".git" {
+			return filepath.SkipDir
+		}
+		if strings.HasPrefix(slashed, ".git/") {
 			return nil
 		}
 		if info.IsDir() {

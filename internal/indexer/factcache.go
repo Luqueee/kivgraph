@@ -567,6 +567,22 @@ func (cache *factCache) withRegistry(inputs analysisInputs, repositories []works
 	cache.semanticRegistry = hex.EncodeToString(semanticSum[:])
 }
 
+// javaIndexerFingerprint identifies the Java producer, or says there is none.
+//
+// It is a function of its own so a test can measure it. The property that
+// matters -- that it does not change between two reads -- cannot be observed
+// through the whole analyzer fingerprint, because other contributors to that
+// hash have their own reasons to be unstable on a machine that is missing
+// something else. Asserting on the sum made the test fail on macOS for the
+// Python worker's absence, which is a different question.
+func javaIndexerFingerprint(options FullOptions) string {
+	resolved, err := exec.LookPath(javaIndexerExecutable(options))
+	if err != nil {
+		return "absent"
+	}
+	return fileFingerprint(resolved)
+}
+
 // javaIndexerExecutable resolves the same first field the loader runs, so the
 // fingerprint is keyed on the file the pass would actually execute. Two
 // resolution rules is how a cache ends up keyed on a file nobody runs.
@@ -735,12 +751,18 @@ func analyzerFingerprint(options FullOptions) string {
 	// upgraded in place emits a different index from the same sources, and an
 	// entry written by the old one describes a graph this pass would not
 	// produce.
-	if resolved, err := exec.LookPath(javaIndexerExecutable(options)); err == nil {
-		fmt.Fprintf(hash, "java-indexer=%s\x00", fileFingerprint(resolved))
-	} else {
-		// Unknown identity is not a licence to reuse anything.
-		fmt.Fprintf(hash, "java-indexer=unknown-%d\x00", time.Now().UnixNano())
-	}
+	//
+	// Absent is a **stable** fact and not an unknown one, which is the opposite
+	// of the rule two lines below for the Python worker. The difference is that
+	// the Python producer is a file this repository ships, so failing to
+	// resolve it means something is wrong; scip-java is a third-party tool most
+	// machines do not have, and a repository that declares no Java never asks
+	// for it. Writing a timestamp here made the whole analyzer fingerprint
+	// change on every call, so no entry of any language could ever be served --
+	// the fact cache was off, silently, on every machine without scip-java.
+	// A Java repository on such a machine is isolated by analyzerNotInstalled
+	// and its facts are never stored, so there is nothing to serve wrongly.
+	fmt.Fprintf(hash, "java-indexer=%s\x00", javaIndexerFingerprint(options))
 	// The producer this pass would actually run, resolved by the loader that
 	// runs it. Fingerprinting `python-worker/index.py` by hand left the exact
 	// adapter unwatched: editing it changed no key, so a rebuild reused the

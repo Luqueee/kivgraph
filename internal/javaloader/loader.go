@@ -75,6 +75,15 @@ func Run(ctx context.Context, options Options) (facts.SemanticPayload, error) {
 		return facts.SemanticPayload{}, errors.New("java indexer: repository has no path")
 	}
 
+	// The configuration is checked before the machine is. A target directory
+	// pointing inside the repository is wrong on every machine, and reporting
+	// it as "scip-java is not installed" sends the reader to install a tool
+	// that would not have helped.
+	output, targetRoot, err := outputPaths(options, root)
+	if err != nil {
+		return facts.SemanticPayload{}, err
+	}
+
 	command := strings.TrimSpace(options.Command)
 	if command == "" {
 		command = DefaultCommand
@@ -85,11 +94,6 @@ func Run(ctx context.Context, options Options) (facts.SemanticPayload, error) {
 		// exec.ErrNotFound is what the pass reads to isolate the repository
 		// instead of failing every other one, so it must survive wrapping.
 		return facts.SemanticPayload{}, fmt.Errorf("java indexer %q is unavailable: %w", fields[0], exec.ErrNotFound)
-	}
-
-	output, targetRoot, err := outputPaths(options, root)
-	if err != nil {
-		return facts.SemanticPayload{}, err
 	}
 
 	// The build gets a tree of its own. Everything it writes -- `target/`,
