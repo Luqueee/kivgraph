@@ -17976,3 +17976,298 @@ verde deja fuera toda clase que `staticcheck` añada después, en silencio.
 `U1000` sigue siendo la excepción, y no por ruidosa sino porque **bajo esta
 build no se puede contestar**: sus `20` falsos son símbolos cuyo llamante vive
 tras el tag. Vive en `make lint-ladybug`, donde la respuesta es cero.
+
+## LUQUE-2233 - `serve` deja de servir
+
+**Dependencias:** ninguna para empezar. La decisión está en
+`docs/adr/0084-the-stdio-entry-outlives-the-stdio-server.md`, y el campo
+`transport` que la mide lo introduce LUQUE-2232.
+
+El ADR 0069 hizo del demonio el defecto y midió por qué: con ocho clientes,
+`77`-`81 MB` de páginas privadas contra `10`-`13`, pico `179`-`186` contra
+`26`-`29`, conectar `38`-`55 ms` contra `1,6`-`2,0`. Lo que no pudo fue dejar de
+correr el servidor stdio, y no porque nadie lo prefiera.
+
+**Pero esas cifras son el argumento del demonio, no el del relé, y la
+diferencia decide la ficha.** El ADR 0067 ya sacó el snapshot del camino ocioso:
+`benchmarks/daemon-cost/report.md:37` da el antes y el después de un `serve`
+ocioso, de `33,9 MB` por cliente a `9,8`-`10,7`. O sea que los `77`-`81 MB` de
+ocho clientes ociosos **no son snapshot**: son un suelo de ~`10 MB` por proceso,
+ocho veces. Y un relé es el mismo binario con el mismo runtime, así que paga
+suelo también.
+
+|carga|`serve` por cliente|demonio por cliente|reparto|
+|---|---:|---:|---|
+|ninguna llamada|`9,8`-`10,7 MB`|~`0 MB`|`48` de `51`|
+|`8` llamadas|`38,4`-`39,5 MB`|`0,63`-`0,95 MB`||
+|`2.000` llamadas|`66,1`-`66,2 MB`|`11,1`-`13,3 MB`||
+
+El relé convierte la fila de en medio en su propio suelo, que es mucho, y la de
+arriba en la diferencia entre dos suelos, que puede ser nada. Y arriba viven `48`
+de `51` sesiones.
+
+**Pero esa tabla se midió sobre un corpus que ya no existe.** `daemon-cost` corrió
+con `37` repositorios y `108.737` símbolos. Un workspace en uso hoy, leído de
+`graph_status`, son `53` repositorios, `229` paquetes, `6.418` ficheros,
+**`177.790` símbolos** y `528.603` aristas: `1,6` veces. Y el demonio que lo
+sirve, tras `23` horas y `136` llamadas de tool, marca `294.484 kB` de `Rss`,
+de los cuales `224.316` son `Private_Dirty` -- heap anónimo -- y `67.152`
+`Private_Clean`, que es el snapshot mapeado comportándose como estaba descrito.
+
+Los `219 MB` de heap **no son una fuga**: escalar por `1,6` los `163`-`174 MB`
+del demonio a `2.000` llamadas da `260`-`280`, y ahí está con `136`. El coste del
+demonio va con el tamaño del grafo, no con las preguntas.
+
+Y de ahí sale lo que importa: **las filas de abajo escalan con el corpus y la de
+arriba no.** Un `serve` que contesta sobre este workspace construye las mismas
+tablas que el demonio, así que la misma aritmética predice un cliente trabajando
+cerca de la huella del demonio y no cerca de los `38`-`39 MB` de la tabla --
+ocho de ellos siendo gigabytes, no `323`-`330 MB`. Nadie lo ha medido, y esa
+predicción es la mitad de lo que comprueba el prototipo.
+
+**Sigue colgando de un número que nadie tiene: el suelo del relé.** Lo que ha
+cambiado es el hueco que tiene que abrir. Contra un `serve` ocioso de
+`9,8`-`10,7 MB`, un suelo de `8 MB` ahorra `4 MB` sobre ocho clientes y aquí no
+hay nada que construir. Contra un cliente trabajando sobre un workspace real,
+ese mismo suelo compite con algo dos órdenes de magnitud mayor.
+
+**El caso que mueve el volumen ni siquiera está en la lista de los cuatro.**
+`resolveTransport` escribe entrada de comando con `--stdio`, en scope de
+proyecto, en plataforma sin supervisor y en máquina sin configuración -- tres de
+ellos en silencio --, pero además `scripts/build-mcpb.sh:171` declara `serve` en
+el manifiesto del bundle. Medido sobre la página de releases en LUQUE-2232, el
+`.mcpb` es el `39 %` de las descargas y el canal del instalador el `5 %`: el
+transporte que el ADR 0069 sustituyó es el que corre la mayoría.
+
+Y dos de esos casos no se arreglan cambiando de opinión: el manifiesto `.mcpb`
+describe un proceso local con su runtime y **no tiene campo para una url**, y
+una entrada `url` lleva el token literal sobre un fichero que se commitea, que
+`integrations.New` rechaza de plano. La **entrada** stdio es permanente. El
+**servidor** stdio no, y es el que cuesta.
+
+**La decisión:** `serve` pasa a relé. Ni `Server` ni `Client` del SDK: una
+`Connection` es `Read`/`Write`/`Close` de `jsonrpc.Message`, así que son dos
+conexiones y un bucle que copia mensajes en cada sentido. El mensaje pasa opaco,
+o sea que una tool nueva en el demonio funciona sin tocar el relé. Endpoint y
+token salen de `daemon.json`, que es lo que hace que un `.mcp.json` commiteado
+deje de llevar secreto.
+
+Cuatro decisiones tomadas, y la cuarta es la que ordena el trabajo:
+
+- **`serve` puede instalar la unidad del supervisor.** El principio ya está
+  decidido y argumentado en `ensureConfiguration`: un cliente MCP arranca sus
+  servidores él mismo, y un servidor que sale porque nadie hizo `init` convierte
+  instalar la integración en una sesión de terminal.
+- **El demonio vive como servicio.** Sobrevive al cliente y al reinicio; lo
+  quita `mcp remove`. Es lo que cobra el ahorro entre sesiones y es el dueño que
+  pedía el ADR 0068.
+- **El skew de versión se niega.** El `.mcpb` trae su propio binario pero
+  `stateDirectory` sale de la configuración, así que dos instalaciones comparten
+  demonio por construcción. El relé compara al conectar y falla con un mensaje
+  en vez de reiniciar un demonio que otros están usando.
+- **El fallback en proceso se queda, y se mide.** Plataforma sin supervisor, o
+  provisionado fallido: `serve` hace lo de hoy. Ningún camino queda peor que
+  ahora.
+
+**La trampa del orden, y por eso el fallback no va primero:** enviar el fallback
+sin el provisionado no habría medido nada. Ninguna instalación por `.mcpb`
+ejecuta `mcp install` jamás, así que el fallback saltaría el `100 %` de las veces
+**por construcción** y `transport` reportaría nuestra propia decisión de no
+provisionar, no la conducta de nadie. Con el provisionado enviado, el mismo campo
+reporta la **tasa de fallo del provisionado**, que sí decide si hay siguiente
+paso.
+
+**El invariante que falla en silencio:** la SSE en solitario no se abre. El GET
+persistente que trae mensajes iniciados por el servidor sin petición en vuelo lo
+arranca `sessionUpdated`, y a ése sólo lo llama el `Client` del SDK, que el relé
+no usa. Hoy no se pierde nada -- `NotifyProgress` y `Elicit`, los dos únicos que
+kivgraph inicia, viven dentro de una llamada en curso y bajan por la SSE del
+propio POST --, pero el día que el demonio mande algo sin petición abierta el
+relé se lo traga sin decir nada. De ahí el `DisableStandaloneSSE: true` escrito
+a mano y un test que lo fije.
+
+**Cómo se cierra:** cuatro commits, y el primero puede cancelar los otros tres.
+
+1. **El prototipo y su medida, antes que nada.** Cuarenta líneas que conectan
+   las dos `Connection` y no hacen nada más, medidas con `benchmarks/daemon-cost`
+   **sobre un corpus del tamaño actual** y no el de agosto. Devuelve tres
+   números: el suelo residente del relé, un `serve` que contesta a su lado -- que
+   nadie ha medido sobre `177.790` símbolos -- y spawn más handshake contra los
+   `38`-`55 ms` que sustituye. **Si el suelo no abre hueco, la ficha se cierra
+   aquí y el servidor stdio se queda.** No es una verificación al final, es la
+   condición de que exista el resto.
+2. El relé de verdad y el fallback, con el test de la SSE en solitario y el de
+   skew de versión. No provisiona nada todavía y se puede cerrar solo.
+3. El provisionado: `ensureDaemon` junto a `ensureConfiguration`, con el lock de
+   la ráfaga -- ocho relés a la vez encuentran los ocho que no hay demonio -- y
+   los perdedores esperando a `endpointDeadline` en vez de instalar ocho
+   supervisores. **No sale sin respuesta a qué pasa con la unidad cuando alguien
+   borra la extensión `.mcpb`:** el formato no tiene hooks de desinstalación, así
+   que hoy se quedaría apuntando a un binario que ya no existe.
+4. `build-mcpb.sh` y la documentación: el `.mcpb` sigue declarando `serve`, pero
+   `serve` ya no significa lo mismo, y el aviso de primer arranque tiene que
+   decir que hay un servicio en segundo plano.
+
+**Archivos previstos:**
+
+```text
+cmd/kivgraph/main.go
+internal/mcp/relay.go
+internal/mcp/relay_test.go
+internal/daemon/endpoint.go
+docs/adr/0084-the-stdio-entry-outlives-the-stdio-server.md
+benchmarks/relay-cost/report.md
+```
+
+**Gates:** el benchmark del commit 1 guardado en `benchmarks/relay-cost/`, que es
+la condición de que haya commit 2; `go test ./...`, `go vet ./...` y
+`make lint-ladybug`; y el smoke test del binario contra un demonio vivo y contra
+ninguno.
+
+**Estado:** TODO.
+
+## LUQUE-2234 - Un `update` que no reinicia el demonio, y un consejo que lo apaga
+
+**Dependencias:** ninguna. Medido a mano el 2026-08-28 actualizando esta máquina
+de `0.8.1` a `0.9.1`.
+
+El ADR 0069 vende esto como una de las dos únicas razones de tener un demonio:
+
+> Y hay dos cosas que sólo un proceso permite: **un `update` que reinicia en vez
+> de matar ocho**, y la certeza de que hay **uno**.
+
+No lo hace. Lo que sale por pantalla al actualizar es esto:
+
+```text
+kivgraph updated: 0.8.1 -> 0.9.1
+update: 1 process(es) still run the release this update replaced
+update.stale: pid=2541309 /home/devlabs/.local/opt/kivgraph/bin/kivgraph daemon
+update: nothing was stopped; run "kivgraph stop" when the clients can reconnect
+```
+
+El demonio se queda sirviendo el binario que el `update` acaba de sustituir, con
+las tools viejas y los fallos viejos, y nada en sus respuestas lo dice.
+
+**Por qué pasa, y por qué ningún fichero está mal por separado.**
+`stopStaleProcesses` (`cmd/kivgraph/main.go:790`) trata igual a todos los
+procesos viejos, y su comentario justifica la cautela:
+
+> these are processes a client owns, and ending one silently would look to that
+> client exactly like a crash […] A client spawned it and will not restart it on
+> its own.
+
+Eso es **cierto de `serve` y de `ui`** -- los lanzó un cliente y nadie los
+resucita-- y **falso del demonio**, que es justo el único proceso con dueño,
+porque se lo dio el ADR 0068. La función no distingue, así que le aplica al
+demonio una cautela pensada para otra cosa.
+
+**Y el consejo que imprime rompe lo que intenta arreglar.**
+`internal/supervisor/supervisor_linux.go:46` lo dice de su propia mano:
+
+> Restart=on-failure […] systemd brings the daemon back when it dies and
+> **leaves a clean exit alone**.
+
+`kivgraph stop` sale limpio, systemd lo deja en paz, y el resultado de seguir la
+instrucción es quedarse **sin demonio**.
+
+**La inversión que lo hace peor:** `update --stop` tampoco vale, y falla mejor
+cuanto mejor se comporta el demonio. `stopTargets` (`main.go:2515`) manda primero
+`SIGTERM`, y `main.go:97` lo recoge con `signal.NotifyContext`, así que el
+demonio apaga bien y sale con `0` -- que es exactamente lo que systemd no
+reinicia. Sólo un demonio **colgado** llega al `SIGKILL`, y ese sí cuenta como
+fallo y vuelve. El camino que funciona es el del proceso roto.
+
+**El arreglo es la distinción que este proyecto ya tiene hecha:** un demonio
+supervisado no es un proceso de cliente. Si el proceso viejo es el demonio de
+este directorio de estado y `supervisor.Status()` responde `installed`, `update`
+lo reinicia **por el supervisor** -- `systemctl --user restart`,
+`launchctl kickstart -k`--, que es lo que hubo que hacer a mano. `serve` y `ui`
+se quedan como están, porque para ellos el comentario tiene razón. Y el mensaje
+deja de recomendar `kivgraph stop` cuando hay supervisor detrás.
+
+**Lo que no es el arreglo:** subir la unidad a `Restart=always`. El comentario de
+`unit()` explica que `on-failure` es deliberado, espejo del `KeepAlive` de
+launchd, para que una parada a propósito se quede parada. Cambiarlo haría que
+`kivgraph stop` no pudiera parar nada. El arreglo vive en `update`.
+
+**Se cruza con LUQUE-2233.** Si `serve` pasa a relé, la negativa por skew de
+versión del ADR 0084 dispararía justo en este escenario: relé nuevo contra
+demonio viejo. Eso confirma que negarse es lo correcto -- y también que **sin
+esta ficha la negativa sería un muro permanente**, porque nada devolvería el
+demonio a la versión buena. Las dos van juntas.
+
+**Archivos previstos:**
+
+```text
+cmd/kivgraph/main.go
+cmd/kivgraph/main_test.go
+internal/supervisor/supervisor.go
+docs/adr/0068-el-demonio-tiene-dueno.md
+```
+
+**Gates:** `go test ./...` y `go vet ./...`; un test que vea a `update`
+reiniciar por el supervisor y **no** señalar el pid; otro que vea a `serve` y
+`ui` seguir intactos; y la comprobación a mano de que tras un `update` el
+demonio contesta ya con la versión nueva, que es la que se falló hoy.
+
+**Estado:** TODO.
+
+## LUQUE-2235 - La negativa por diseño contada como fallo
+
+**Dependencias:** ninguna.
+
+`kivgraph tool-stats --tool find_references`, ventana de cinco días:
+
+```text
+TOOL                CALLS   OK   FAIL    OK%
+find_references        81   18     63   22.2%
+```
+
+Un `22,2 %` invita a buscar un bug que no existe. El desglose del event log:
+
+|clase|n|qué es|
+|---|---:|---|
+|`AMBIGUOUS_SYMBOL`|`29`|la negativa que el ADR 0077 diseñó a propósito|
+|`SYMBOL_NOT_FOUND`|`31`|`dart`, `posthog`, `websites`, `playw`, `HEAD`, `adria`|
+|`INVALID_ARGUMENT`|`2`|`response_format "json"`, inventado por el llamante|
+
+**Dos cosas distintas sumadas en un contador, y ninguna es un fallo de la tool.**
+
+**Uno: la respuesta buena cuenta como error.** El ADR 0077 diseñó la negativa por
+ambigüedad como el camino **bueno** -- nombra los candidatos y cuesta `129`
+tokens donde el `find_symbol` previo costaba `750`--, y sale por el mismo camino
+de error que un símbolo que no existe, así que `metrics.queries` y `tool-stats`
+la cuentan igual. Descontándola, el fallo real es `34` de `81`, un `42 %`. Este
+repositorio ya retiró un contador que no medía nada (ADR 0064); éste mide dos
+cosas incompatibles y las suma.
+
+**Dos: el error no enruta, y su vecino sí.** Los nombres que fallan no son
+identificadores, son términos de búsqueda: alguien usa `find_references` como
+`grep`. La tabla de `CLAUDE.md` ya dice a dónde ir -- «no sé cómo se llama, qué
+archivos abro: `find_by_intent`»--, pero el error no lo dice. Y el precedente
+está a ochenta líneas, en el mismo fichero:
+
+```text
+root_symbol.go:121  qualified name %q was not found under %s; call it without
+                    repository and path to search the whole graph
+root_symbol.go:199  name %q was not found
+root_symbol.go:243  name %q was not found
+```
+
+La primera da el paso siguiente. Las otras dos, que son las que se comen los
+`31`, no.
+
+**Cómo se cierra:** dos commits.
+
+1. Separar la negativa por ambigüedad del fallo en `internal/metrics` y en
+   `tool-stats`. No basta con restarla: tiene que ser una columna propia, porque
+   una negativa que sube es una señal buena -- gente preguntando por nombres
+   comunes-- y una que baja no dice lo mismo que un `SYMBOL_NOT_FOUND` que baja.
+2. Que `SYMBOL_NOT_FOUND` sobre un nombre a secas nombre `find_by_intent`, con
+   la forma que ya usa `root_symbol.go:121`.
+
+**Gates:** `go test ./internal/mcp/... ./internal/metrics -count=1`, `go vet
+./...`, y `tool-stats` visto separar las dos clases sobre el event log de esta
+máquina, que es donde se midió el `22,2 %`.
+
+**Estado:** TODO.
