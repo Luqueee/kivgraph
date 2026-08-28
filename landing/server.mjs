@@ -34,7 +34,7 @@ if (existsSync(new URL(".env", import.meta.url))) {
 }
 
 import { detectAiAgent } from "./src/ai-agents.mjs";
-import { REPORTER_HEADERS } from "./src/ai-report.mjs";
+import { crawlerEventPayloads, REPORTER_HEADERS } from "./src/ai-report.mjs";
 
 const { handler } = await import("./dist/server/entry.mjs");
 
@@ -237,24 +237,20 @@ const server = createServer((request, response) => {
         if (isDuplicate(`${detected.id} ${pathname}`, now)) {
           return;
         }
-        report({
-          type: "event",
-          payload: {
-            website: AI_WEBSITE_ID,
-            hostname: request.headers.host ?? "kivgraph.dev",
-            url: pathname,
-            name: "ai_crawler_request",
-            data: {
-              provider: detected.provider,
-              agent: detected.agent,
-              category: detected.category,
-              path: pathname,
-              method: request.method,
-              status: response.statusCode,
-              verified: false,
-            },
-          },
-        });
+        // Both events or neither: they go out on the same side of the
+        // dedupe gate above, so the two charts can never disagree about how
+        // many requests there were. What they are and why there are two is in
+        // `crawlerEventPayloads`.
+        for (const payload of crawlerEventPayloads({
+          detected,
+          website: AI_WEBSITE_ID,
+          hostname: request.headers.host ?? "kivgraph.dev",
+          pathname,
+          method: request.method,
+          status: response.statusCode,
+        })) {
+          report(payload);
+        }
       } catch {
         // Reporting never breaks serving.
       }

@@ -11,7 +11,8 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { after, before, describe, it } from "node:test";
 
-import { REPORTER_HEADERS } from "./ai-report.mjs";
+import { detectAiAgent } from "./ai-agents.mjs";
+import { crawlerEventPayloads, REPORTER_HEADERS } from "./ai-report.mjs";
 
 /** Captures the headers of one request and answers, like the collector does. */
 let server;
@@ -76,5 +77,77 @@ describe("the reporter's user agent", () => {
 
   it("still declares the payload as JSON", () => {
     assert.equal(REPORTER_HEADERS["Content-Type"], "application/json");
+  });
+});
+
+describe("what one detected request sends", () => {
+  const CHATGPT_USER =
+    "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; ChatGPT-User/1.0; +https://openai.com/bot";
+  const CHROME =
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
+  /** The call `server.mjs` makes, with the detection it would have made. */
+  function payloadsFor(userAgent) {
+    const detected = detectAiAgent(userAgent);
+    if (detected === null) {
+      return [];
+    }
+    return crawlerEventPayloads({
+      detected,
+      website: "test-website-id",
+      hostname: "kivgraph.dev",
+      pathname: "/docs/tools/index-project/",
+      method: "GET",
+      status: 200,
+    });
+  }
+
+  it("is two events, and the pair is the contract", () => {
+    const names = payloadsFor(CHATGPT_USER).map((sent) => sent.payload.name);
+    assert.deepEqual(names, ["ai_crawler_request", "ai_crawler_chatgpt_user"]);
+  });
+
+  it("keeps the rich event exactly as it was", () => {
+    // This event is what every existing report and saved filter reads. Adding
+    // the second one must not move a field in it.
+    const [first] = payloadsFor(CHATGPT_USER);
+    assert.equal(first.type, "event");
+    assert.equal(first.payload.website, "test-website-id");
+    assert.equal(first.payload.hostname, "kivgraph.dev");
+    assert.equal(first.payload.url, "/docs/tools/index-project/");
+    assert.deepEqual(first.payload.data, {
+      provider: "openai",
+      agent: "ChatGPT-User",
+      category: "user_fetch",
+      path: "/docs/tools/index-project/",
+      method: "GET",
+      status: 200,
+      verified: false,
+    });
+  });
+
+  it("does not repeat on the second what the first already carries", () => {
+    const [, second] = payloadsFor(CHATGPT_USER);
+    assert.deepEqual(second.payload.data, {
+      provider: "openai",
+      category: "user_fetch",
+      verified: false,
+    });
+    // Same envelope, so both land on the same property and the same URL.
+    assert.equal(second.payload.website, "test-website-id");
+    assert.equal(second.payload.url, "/docs/tools/index-project/");
+  });
+
+  it("is nothing at all for a browser", () => {
+    assert.deepEqual(payloadsFor(CHROME), []);
+  });
+
+  it("is nothing at all for a generic bot", () => {
+    assert.deepEqual(
+      payloadsFor(
+        "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+      ),
+      [],
+    );
   });
 });

@@ -428,8 +428,58 @@ more than an assertion. Lying about that would be worse than not verifying.
 
 ### What is sent, and what is not
 
-An `ai_crawler_request` event to the crawler property, with `provider`, `agent`,
-`category`, `path`, `method`, `status` and `verified`.
+Two events to the crawler property, per request, always both or neither.
+
+`ai_crawler_request` is the rich one and it has not changed: `provider`,
+`agent`, `category`, `path`, `method`, `status` and `verified`. It is what every
+report below filters, and what gets crossed by hand with the main property.
+
+`ai_crawler_<agent>` is the same request under the agent's own name, with
+`provider`, `category` and `verified` and nothing else. It carries no
+information the first does not already have, and it exists for one reason:
+**Umami's *Events* chart plots one series per event name and cannot split a
+single event by one of its properties.** "Which agent caused that spike" is
+therefore a question `ai_crawler_request` cannot draw, however complete it is.
+`path`, `method` and `status` are deliberately not copied onto it -- they are
+already on the row it pairs with, and a second copy is a second place for them
+to be wrong.
+
+|agent|event|
+|---|---|
+|`OAI-SearchBot`|`ai_crawler_oai_searchbot`|
+|`ChatGPT-User`|`ai_crawler_chatgpt_user`|
+|`GPTBot`|`ai_crawler_gptbot`|
+|`Claude-SearchBot`|`ai_crawler_claude_searchbot`|
+|`Claude-User`|`ai_crawler_claude_user`|
+|`ClaudeBot`|`ai_crawler_claudebot`|
+|`Perplexity-User`|`ai_crawler_perplexity_user`|
+|`PerplexityBot`|`ai_crawler_perplexitybot`|
+|an OpenAI agent with no row|`ai_crawler_openai_unknown`|
+|an Anthropic agent with no row|`ai_crawler_anthropic_unknown`|
+|a Perplexity agent with no row|`ai_crawler_perplexity_unknown`|
+
+**Eleven names and no twelfth.** The name comes from the registry row, never
+from the request: a `User-Agent` of `HolaSoyPepito123` matches nothing, is
+classified `null` and emits neither event, so nobody outside `ai-agents.mjs` can
+mint an event name and fill the property with one-off events. The three
+`_unknown` rows are the only ones an unrecognised agent can reach, and they are
+bounded by the three operators.
+
+They are built by `crawlerEventPayloads()` in `landing/src/ai-report.mjs` rather
+than inline in `server.mjs`, for the reason the header below already proves:
+`server.mjs` needs a built `dist/server/entry.mjs` to be imported, so anything
+written inline there is code no test can reach.
+
+The pair goes out on the **same side of the deduplication gate**. That is the
+invariant worth stating: a request that reports one reports the other, so the
+per-agent chart and the overview can never disagree about how many requests
+there were. The cost is that the crawler property's raw event count is twice
+the request count -- a number to remember before reading it as traffic.
+
+Adding an agent stays what it was: a row in `ai-agents.mjs`, a case in
+`ai-agents.test.mjs`, and a line in the table above. Nothing else names an
+agent, and there is no second list to drift out of step -- `event` sits on the
+same row as `provider`, `category` and `pattern`.
 
 **Not sent:** the IP, any cookie, any authorisation header, the query string or
 the body. The full user agent stays **only** in the local log: it is what makes
@@ -829,8 +879,8 @@ startup line.
 
 ### 1c. The crawler property's reports
 
-Everything comes from a single event, `ai_crawler_request`, filtered by its
-fields.
+Every **report** comes from a single event, `ai_crawler_request`, filtered by
+its fields.
 
 |report|filter|what it answers|
 |---|---|---|
@@ -842,6 +892,27 @@ fields.
 
 `user_fetch` says the most: it is human intent arriving through a machine, and
 it is what gets compared with the main property's AI referrals.
+
+The **dashboard** is where the per-agent events earn their place, because a
+dashboard chart is not a report: *Events* plots one series per event name and
+takes no filter on a property. Two charts, and each answers a different
+question:
+
+|chart|events|what it answers|
+|---|---|---|
+|*AI crawler requests*|`ai_crawler_request`|how much AI traffic there is|
+|*AI crawler requests by agent*|the eight per-agent names|**who is causing it**|
+
+Dashboard -> Edit -> add an *Events* chart, select the eight agent events, title
+it `AI crawler requests by agent`. Typing `ai_crawler_` in the picker lists
+every one of them, which is what the shared prefix is for. The `_unknown` three
+are left off it on purpose: a series that is flat at zero for months buries the
+ones that are not, and an unrecognised agent is a **finding** -- it wants a
+registry row, not a line on a chart.
+
+Keep both charts. The first says how much; the second says from whom. And
+`Events -> Properties` on `ai_crawler_request` still answers the third, which
+neither chart can: *which pages* is that agent reading.
 
 ### 1d. AI referrals, in the main property
 
