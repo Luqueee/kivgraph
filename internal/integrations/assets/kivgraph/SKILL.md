@@ -103,6 +103,13 @@ Python, Dart and Java notes:
   A member the compiler synthesises -- a `record` accessor -- is referenced
   without ever being declared, and is reported `DEFINITION_NOT_INDEXED` rather
   than as an unresolved import.
+- Java `IMPLEMENTS`, `EXTENDS` and `OVERRIDES` come from SCIP relationships,
+  which the compiler states on the declaration rather than at a use. Their
+  evidence is the declaring name's range, and they always point up: from the
+  subtype to its supertype, from the overriding member to the overridden one.
+  A supertype outside the indexed repositories -- `java.lang.Enum` under every
+  enum -- produces no edge and no unresolved row, because nothing in the source
+  says it.
 
 ## Choosing a view
 

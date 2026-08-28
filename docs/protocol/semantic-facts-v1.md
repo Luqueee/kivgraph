@@ -68,9 +68,12 @@ language is a loader that runs an indexer and names a package.
 The bridge publishes `REFERENCES` for every use. SCIP records where a symbol
 occurs and not what the occurrence was, so a call, a type position and a field
 read are the same row; deriving a narrower edge kind from a descriptor suffix
-would be a guess. It does not read SCIP `relationships`, so no Java type
-hierarchy is published today. Both are declared holes rather than
-approximations. See ADR 0080.
+would be a guess. That is a declared hole rather than an approximation.
+
+SCIP `relationships` are read, and they are where the type hierarchy comes
+from: `IMPLEMENTS`, `EXTENDS` and `OVERRIDES`. A relationship carries no
+position, so its evidence is the declaring name's range, and a supertype
+outside the graph produces no edge at all. See ADR 0080.
 
 The release coverage gate is `make semantic-coverage`. Its manifest maps every
 required capability to a fixture and an executable test for Go, TypeScript,

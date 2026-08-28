@@ -39,9 +39,9 @@
       "test": "internal/javaloader/coverage_test.go",
       "capabilities": [
         "files", "packages", "imports", "classes", "interfaces", "enums",
-        "records", "inheritance", "generics", "methods", "constructors",
-        "fields", "overloads", "callbacks", "cross-file-references",
-        "unresolved-diagnostics"
+        "records", "inheritance", "type-hierarchy", "overrides", "generics",
+        "methods", "constructors", "fields", "overloads", "callbacks",
+        "cross-file-references", "unresolved-diagnostics"
       ]
     },
     "dart": {

@@ -24,6 +24,14 @@ a conversion from a SCIP index to `facts.SemanticPayload` is written once,
 beside it. Java is the first language on that bridge; Rust keeps its own
 normalizer and only follows the moved import.
 
+**SCIP relationships become the type hierarchy.** `is_implementation` yields
+`IMPLEMENTS` when the target is an interface, `EXTENDS` when it is any other
+type, and `OVERRIDES` between members. scip-java writes a member relation from
+**both** ends with identical flags, so the flag cannot orient it; the type
+relationships are written once, from the subtype, so the supertype graph is
+built first and a member relation is oriented by its owners. Publishing the raw
+flag would put `A overrides B` and `B overrides A` in the same graph.
+
 A SCIP occurrence with the definition role becomes a symbol, and its
 `enclosing_range` -- not its selection range -- is the symbol's span. Every
 other occurrence becomes a reference sourced at the innermost declaration whose
@@ -62,10 +70,15 @@ repository for the same reason `rust.target_directory` does.
   are the build's, not Kivgraph's. A pass over a registered Java repository
   leaves them behind. The fixtures are copied before indexing so the repository
   stays clean; a user's repository will not be.
-- **Relationships are not read.** SCIP carries `relationships`, which is where
-  `IMPLEMENTS` and `OVERRIDES` would come from, and `scipwire` does not decode
-  them. Java publishes `REFERENCES` and no type hierarchy. This is a declared
-  hole, not an approximation: no edge is invented from a name.
+- **A hierarchy edge has no position of its own.** SCIP states a relationship
+  on the declaration, not at an occurrence, so the evidence is the declaring
+  name's range. That is where the relation is written, and it is the only
+  honest anchor available.
+- **A supertype the graph does not hold produces nothing.** An enum implements
+  `java.lang.Enum`, `Comparable`, `Constable` and `Serializable` without a word
+  of it in the source. No edge, and deliberately no unresolved row either: a
+  row anchored at the enum's name would claim the author wrote something they
+  did not.
 - **Every use is `REFERENCES`.** SCIP says where a symbol occurs, not what the
   occurrence was, so a call, a type position and a field read are
   indistinguishable. Deriving `CALLS_DIRECT` from a descriptor suffix would be a

@@ -184,6 +184,40 @@ func TestCoverageUnresolvedDiagnostics(t *testing.T) {
 	}
 }
 
+// TestCoverageTypeHierarchy is the capability SCIP relationships buy, and the
+// one a caller asking "what breaks if I change this interface" depends on.
+func TestCoverageTypeHierarchy(t *testing.T) {
+	payload := coveragePayload(t)
+	kinds := map[string]string{}
+	for _, reference := range payload.References {
+		if reference.Kind == "" || reference.Kind == "REFERENCES" {
+			continue
+		}
+		kinds[shortName(reference.SourceID)+"->"+shortName(reference.TargetID)] = reference.Kind
+	}
+	for pair, want := range map[string]string{
+		"Shapes#Base#->Shapes#":                      "IMPLEMENTS",
+		"Shapes#Circle#->Shapes#Base#":               "EXTENDS",
+		"Shapes#Circle#kind().->Shapes#Base#kind().": "OVERRIDES",
+	} {
+		got, present := kinds[pair]
+		if !present {
+			t.Errorf("%s is missing from the hierarchy", pair)
+			continue
+		}
+		if got != want {
+			t.Errorf("%s is %s, want %s", pair, got, want)
+		}
+	}
+}
+
+func shortName(symbol string) string {
+	if index := strings.LastIndex(symbol, "com/example/coverage/"); index >= 0 {
+		return symbol[index+len("com/example/coverage/"):]
+	}
+	return symbol
+}
+
 func TestCoverageNormalizesAndValidates(t *testing.T) {
 	root, err := filepath.Abs(coverageFixture)
 	if err != nil {

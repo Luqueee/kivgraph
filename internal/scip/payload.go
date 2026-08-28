@@ -244,6 +244,9 @@ func convertDocument(
 		})
 	}
 
+	result.references = append(result.references,
+		hierarchyReferences(declarations, path, offsets, declared, information)...)
+
 	// Innermost first, so attributing a use walks from the tightest scope
 	// outwards and a method wins over the class that contains it.
 	enclosing := append([]declaration(nil), declarations...)
