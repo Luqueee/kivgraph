@@ -121,6 +121,29 @@ case "$target" in
 esac
 
 output_dir=${output_argument:-"$root/dist/$bundle_name"}
+# A Windows absolute path is not relative just because it does not begin with a
+# slash. The release workflow passes `$RUNNER_TEMP/<bundle>`, which on a Windows
+# runner is `D:\a\_temp/kivgraph-windows-amd64`, and the test below read that
+# as relative and prefixed the checkout: the output became
+# `/d/a/kivgraph/kivgraph/D:\a\_temp/...` and `go build -o` reported
+# `mkdir /d/a/kivgraph/kivgraph/D:`. Nothing said the path had been mangled --
+# the first release ever to build this row is what said it.
+#
+# cygpath is the platform's own answer and ships with the shell that runs this,
+# so the conversion is asked for rather than pattern-matched.
+case "$(uname -s)" in
+MINGW* | MSYS* | CYGWIN*)
+  if command -v cygpath >/dev/null 2>&1; then
+    output_dir=$(cygpath -u "$output_dir")
+  fi
+  # A path that still names a volume was not converted, and prefixing it with
+  # the checkout root would repeat the failure above. Refusing is the only
+  # honest answer: every later step writes into this directory.
+  if [[ "$output_dir" == *:* || "$output_dir" == *\\* ]]; then
+    fail "output directory ${output_argument} is a native path this shell cannot use, and cygpath did not convert it"
+  fi
+  ;;
+esac
 if [[ "$output_dir" != /* ]]; then
   output_dir="$root/$output_dir"
 fi
