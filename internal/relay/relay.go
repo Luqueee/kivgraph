@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"sync"
@@ -104,7 +106,29 @@ func run(
 	failures := make(chan error, 2)
 	go func() { failures <- pipe(ctx, agent, served, watch.sent) }()
 	go func() { failures <- pipe(ctx, served, agent, watch.received) }()
-	return <-failures
+	return endOfSession(<-failures)
+}
+
+// endOfSession separates a session that ended from one that broke.
+//
+// A client closing its end is how *every* MCP session finishes: the agent
+// exits, stdin reaches EOF, and the read that was waiting on it returns. There
+// is nothing wrong with that, and reporting it as a failure made `serve` exit
+// non-zero and log an error on the normal path -- which is what a client shows
+// its user as "the server crashed".
+//
+// The context being cancelled is the same event from the other side: this
+// process got a SIGTERM and `signal.NotifyContext` did its job.
+func endOfSession(err error) error {
+	switch {
+	case err == nil,
+		errors.Is(err, io.EOF),
+		errors.Is(err, io.ErrClosedPipe),
+		errors.Is(err, net.ErrClosed),
+		errors.Is(err, context.Canceled):
+		return nil
+	}
+	return err
 }
 
 // Reachable answers whether a daemon is listening where the endpoint file says.
