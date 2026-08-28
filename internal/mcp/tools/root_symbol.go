@@ -196,7 +196,7 @@ func resolveDeclarationByName(
 	}
 	interned, found := snapshot.Strings().Lookup(name)
 	if !found {
-		return 0, "", NewToolError(CodeSymbolNotFound, fmt.Sprintf("name %q was not found", name))
+		return 0, "", errNameNotFound(name)
 	}
 	filter := hotsnapshot.SymbolFilter{RepositoryName: repository, PathPrefix: path}
 	page, err := snapshot.SearchSymbolsByName(interned, filter, 0, hotsnapshot.MaxExactResults)
@@ -240,9 +240,30 @@ func resolveDeclarationByName(
 				name,
 			))
 		}
-		return 0, "", NewToolError(CodeSymbolNotFound, fmt.Sprintf("name %q was not found", name))
+		return 0, "", errNameNotFound(name)
 	}
 	return 0, "", errNameAmbiguous(snapshot, name, declarations)
+}
+
+// errNameNotFound routes instead of only reporting.
+//
+// The names that reach this path are mostly not identifiers. Over five days
+// they were `dart`, `posthog`, `websites`, `playw`, `HEAD` and `adria`:
+// somebody is using a symbol lookup as grep, and the routing table in the
+// repository's own instructions already says where that question belongs --
+// "no sé cómo se llama, qué archivos abro: find_by_intent, con keywords". The
+// error did not say it, while its neighbour eighty lines up has named the next
+// step since it was written: a qualified name missing under a narrowing is
+// told to drop the narrowing.
+//
+// This is `31` of the `63` non-answers that measurement counted -- more than
+// the ambiguity refusal, and unlike it a real failure to answer. It stays one.
+// What changes is that it costs the caller one more call instead of a guess.
+func errNameNotFound(name string) *ToolError {
+	return NewToolError(CodeSymbolNotFound, fmt.Sprintf(
+		"name %q was not found; if it names a topic rather than a symbol, call find_by_intent with it as a keyword",
+		name,
+	))
 }
 
 func errNameAmbiguous(
