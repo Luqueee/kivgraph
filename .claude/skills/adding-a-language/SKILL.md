@@ -284,6 +284,41 @@ bytes. Adding a language to that sentence is a change to the MCP surface, which
 `AGENTS.md` lists under *Superficies que rompen compatibilidad*: the tool
 descriptions and the skill that names them do not change in silence.
 
+## An analyzer that builds must not build in the repository
+
+`AGENTS.md` says it under *Nunca modificar* with no exception, and it is the
+easiest rule in the project to break by accident: a build-based indexer --
+`scip-java` driving Maven, `scip-dotnet` running `dotnet restore` -- writes
+`target/`, `obj/` and `bin/` into the directory it builds, and no flag moves
+them. They are the build tool's output, not Kivgraph's.
+
+`internal/scratchtree` is the answer: it materialises the working tree
+somewhere else, the build runs there, and the tree dies with everything it
+produced. Measured on this repository -- `1652` tracked files, a `3.8 GB`
+working tree:
+
+| strategy | time | size | writes inside the repository |
+| --- | --- | --- | --- |
+| copy of the working tree | `8154 ms` | `4.5 GB` | none |
+| `git worktree add` | `107 ms` | `16 MB` | **yes**, `.git/worktrees/` |
+| `git archive` + dirty overlay | `76 ms` | `16 MB` | none |
+
+Two things to take from it. **`git worktree add` is the obvious answer and the
+wrong one** -- it registers metadata inside the repository, which is the rule
+you came to keep. And **a materialisation reproduces the working tree, not
+`HEAD`**: a user editing code expects the graph to describe what is on disk.
+
+Then the defect it introduces, which is worth knowing before you write it: the
+scratch tree is a fresh temporary directory per pass, and if the loader derives
+its **package name** from where it read the files, every stable key changes on
+every pass. A loader carries two roots and they are not interchangeable --
+`sources` is where files are read, `repository` is what the facts are about.
+See ADR 0082.
+
+And the test that catches it has to index **in place**. Every end-to-end test
+here copies the fixture first, which is allowed and is also exactly what hid
+this for two languages.
+
 ## Fixtures, and what a fixture has to be
 
 `testdata/<lang>/basic` and `testdata/<lang>/advanced` is the shape Dart uses;
@@ -295,8 +330,9 @@ The rules from `AGENTS.md` and `running-tests` that bite here:
 - **An indexing pass must leave the fixture byte-identical.** The Rust fixture
   is the precedent: no `target/`, no `Cargo.lock` after a run, and the test
   checks it. If your analyzer writes into the project it analyses -- a
-  `.dart_tool/`, a `__pycache__`, a lockfile -- the loader filters it or the
-  test copies the fixture first.
+  `.dart_tool/`, a `__pycache__`, a lockfile -- it runs in a scratch tree; see
+  the section above. A test that copies the fixture first proves the fixture is
+  fine and says nothing about a user's repository.
 - **Start with the negatives.** What the producer *cannot* resolve is the
   contract, not an omission: dynamic dispatch, a decorator that rewrites a
   name, a conditional import, generated code. Each becomes an `UNRESOLVED` with

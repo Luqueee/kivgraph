@@ -6,6 +6,13 @@
 // compiler that would compile the code. That is what makes the edges
 // EXACT_TYPECHECKED rather than candidates, and it is also the cost: indexing
 // a Java repository means building it.
+//
+// And a build writes into the directory it builds. `--targetroot` moves the
+// SemanticDB output out, but Maven's `target/` and Gradle's `build/` belong to
+// the build tool, so the repository is never the directory handed to it: the
+// loader materialises the working tree elsewhere with internal/scratchtree and
+// throws it away afterwards. AGENTS.md states the rule without an exception
+// and this is what keeps it true.
 package javaloader
 
 import (
@@ -21,6 +28,7 @@ import (
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/scip"
 	"github.com/Luqueee/kivgraph/internal/scip/scipwire"
+	"github.com/Luqueee/kivgraph/internal/scratchtree"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
@@ -84,6 +92,15 @@ func Run(ctx context.Context, options Options) (facts.SemanticPayload, error) {
 		return facts.SemanticPayload{}, err
 	}
 
+	// The build gets a tree of its own. Everything it writes -- `target/`,
+	// `.gradle/`, a lockfile it decides to refresh -- dies with it.
+	tree, err := scratchtree.Materialise(ctx, options.Repository, filepath.Join(
+		filepath.Dir(filepath.Dir(output)), "trees"))
+	if err != nil {
+		return facts.SemanticPayload{}, fmt.Errorf("java indexer: %w", err)
+	}
+	defer func() { _ = tree.Close() }()
+
 	arguments := append([]string{}, fields[1:]...)
 	arguments = append(arguments, "index", "--output", output, "--targetroot", targetRoot)
 	if tool := strings.TrimSpace(options.BuildTool); tool != "" {
@@ -98,7 +115,7 @@ func Run(ctx context.Context, options Options) (facts.SemanticPayload, error) {
 	defer cancel()
 
 	process := exec.CommandContext(runContext, executable, arguments...)
-	process.Dir = root
+	process.Dir = tree.Path
 	combined, runErr := process.CombinedOutput()
 	if runErr != nil {
 		if runContext.Err() != nil && ctx.Err() == nil {
@@ -117,18 +134,30 @@ func Run(ctx context.Context, options Options) (facts.SemanticPayload, error) {
 	if err != nil {
 		return facts.SemanticPayload{}, fmt.Errorf("decode java index: %w", err)
 	}
-	return Convert(index, options, root)
+	// Two roots, and conflating them is a defect that would not look like one:
+	// the tree is where the files are read from, the repository is what the
+	// facts are about. The package name reaches every stable key, and the tree
+	// is a fresh temporary directory per pass -- deriving it from there would
+	// give the same code a different identity on every run.
+	return convert(index, options, tree.Path, root)
 }
 
-// Convert turns a decoded index into a payload. It is separate from Run so a
-// test can drive it from a recorded index without a JDK.
+// Convert turns a decoded index into a payload, reading the sources from root.
+// It is separate from Run so a test can drive it from a recorded index without
+// a JDK.
 func Convert(index scipwire.Index, options Options, root string) (facts.SemanticPayload, error) {
-	name, manifest := packageIdentity(root)
+	return convert(index, options, root, root)
+}
+
+// convert reads from sources and takes the payload's identity from repository.
+// They are the same directory only when no scratch tree is involved.
+func convert(index scipwire.Index, options Options, sources, repository string) (facts.SemanticPayload, error) {
+	name, manifest := packageIdentity(repository)
 	return scip.Convert(index, scip.Options{
 		Language:        facts.LanguageJava,
 		Repository:      options.Repository.Name,
 		Package:         name,
-		PackageRoot:     root,
+		PackageRoot:     repository,
 		ManifestPath:    manifest,
 		Analyzer:        DefaultCommand,
 		AnalyzerVersion: index.ToolVersion,
@@ -137,7 +166,7 @@ func Convert(index scipwire.Index, options Options, root string) (facts.Semantic
 		// checker.
 		Authoritative: true,
 		ReadFile: func(relative string) ([]byte, error) {
-			return os.ReadFile(filepath.Join(root, filepath.FromSlash(relative)))
+			return os.ReadFile(filepath.Join(sources, filepath.FromSlash(relative)))
 		},
 		IncludeFile: func(relative string) bool {
 			return includeFile(relative, options)

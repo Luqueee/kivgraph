@@ -51,6 +51,14 @@ code, and its edges are `EXACT_TYPECHECKED`.
 `--output` under `java.target_directory`, which defaults outside every indexed
 repository for the same reason `rust.target_directory` does.
 
+**And the build never sees the repository at all.** `--targetroot` moves the
+SemanticDB output out, but Maven's `target/` and Gradle's `build/` belong to
+the build tool and no flag relocates them. `AGENTS.md` states without an
+exception that an indexed repository is never modified, so the loader
+materialises the working tree elsewhere with `internal/scratchtree` and points
+the build at that. See ADR 0082 for the three strategies measured and why the
+`git archive` one won.
+
 ## Consequences
 
 - `internal/scip` is reusable: a second SCIP language is a loader that runs an
@@ -65,11 +73,6 @@ repository for the same reason `rust.target_directory` does.
 
 ## Limitations and risks
 
-- **The build tool still writes into the repository it builds.** `--targetroot`
-  moves SemanticDB output out, but Maven's own `target/` and Gradle's `build/`
-  are the build's, not Kivgraph's. A pass over a registered Java repository
-  leaves them behind. The fixtures are copied before indexing so the repository
-  stays clean; a user's repository will not be.
 - **A hierarchy edge has no position of its own.** SCIP states a relationship
   on the declaration, not at an occurrence, so the evidence is the declaring
   name's range. That is where the relation is written, and it is the only
