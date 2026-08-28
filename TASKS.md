@@ -18160,7 +18160,39 @@ workflow es el único consumidor y un lector que ha empezado a contar mal no
 tiene otra forma de decirlo. Se comprobó por mutación que las tres afirmaciones
 que no son una resta fallan si se rompen.
 
-**Estado:** commit 1 hecho; faltan 2, 3 y 4.
+**Commit 1 verificado en verde.** `workflow_dispatch` a mano: `15 s`, rama
+`metrics` creada con su README y `downloads/2026-08-28.json` -- `91` assets,
+`132` descargas, ninguno sin clasificar --, y la serie impresa en el resumen
+del job. El `cron` de las 03:17 añade la primera fila real mañana.
+
+Dos cosas que salieron de verificarlo, arregladas en el commit 2:
+
+- **ninguna rama puede llamarse `metrics/algo`.** Git guarda una rama como
+  fichero bajo `refs/heads/`, así que `refs/heads/metrics` y
+  `refs/heads/metrics/download-series` no pueden coexistir: uno es fichero
+  donde el otro necesita directorio. Traer la rama de datos falló con un
+  conflicto de refs mientras existía la del PR, y se arregla con
+  `git remote prune origin` una vez borrada. Queda escrito en el README de la
+  rama, porque el namespace está gastado;
+- **el README de la rama sólo se copiaba al crearla**, así que editar la
+  plantilla en `main` no habría llegado nunca a la rama que describe. Ahora se
+  copia en cada ejecución.
+
+**Commit 2 -- la documentación antes que el código, hecho.**
+`docs/development/analytics.md` gana la sección de la tercera propiedad
+(`kivgraph FIRST RUNS`), con el evento `first_run`, sus cinco campos, lo que no
+se manda, la identidad prestada de Umami con su sesgo de NAT, la ventana de
+deduplicación con `emitter` dentro, la regla de stdout y el `1i` de puesta a
+mano. Y `landing/src/content/docs/telemetry.md`, la página de transparencia
+publicada.
+
+La página se publica **antes** que los emisores a propósito, y dice la verdad
+al respecto en su primera línea: hoy no se manda nada. La alternativa era
+documentar el opt-out después de encender la telemetría, que es el orden que
+convierte una nota en una disculpa.
+
+**Estado:** commits 1 y 2 hechos; faltan 3 (el endpoint y su verificación de
+hilo) y 4 (los dos emisores).
 
 
 ## LUQUE-2233 - `serve` deja de servir
