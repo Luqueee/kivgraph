@@ -11,17 +11,22 @@ set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd -- "$root"
 mcp_only=false
+slim=false
 requested_version=${KIVGRAPH_VERSION:-}
 requested_target=${KIVGRAPH_TARGET:-}
 output_argument=""
 usage() {
-  printf 'usage: %s [--target OS/ARCH] [--mcp-only] [--version VERSION] [OUTPUT_DIR]\n' "$0" >&2
+  printf 'usage: %s [--target OS/ARCH] [--mcp-only] [--slim] [--version VERSION] [OUTPUT_DIR]\n' "$0" >&2
   printf 'supported targets: linux/amd64, darwin/arm64, windows/amd64\n' >&2
 }
 while (( $# > 0 )); do
   case "$1" in
     --mcp-only)
       mcp_only=true
+      shift
+      ;;
+    --slim)
+      slim=true
       shift
       ;;
     --target)
@@ -226,8 +231,14 @@ mkdir -p \
   "$output_dir/grammars" \
   "$output_dir/licenses/third-party" \
   "$output_dir/skills/kivgraph" \
-  "$output_dir/tools" \
   "$output_dir/worker/node_modules"
+# tools/ holds the pin of the engines the bundle carries, and a slim bundle
+# carries none. The directory follows the same rule as lib/ above: it exists
+# where something goes in it, because an empty one would be a claim about a
+# layout that this bundle does not have.
+if [[ "$slim" != true ]]; then
+  mkdir -p "$output_dir/tools"
+fi
 
 printf 'build-bundle: installing worker dependencies\n' >&2
 pnpm --dir "$root/ts-worker" install --frozen-lockfile
@@ -273,6 +284,18 @@ fi
 # `-L` above is what makes it resolve against the pinned build.
 if [[ -n "$rpath" ]]; then
   ldflags+=" -extldflags=-Wl,-rpath,$rpath"
+fi
+
+# A slim bundle drops the symbol table and the DWARF sections with it: 6.9 MB
+# of the executable, 5.4 MB of the archive, and the second largest saving
+# available after the analyzer itself. What it costs is a debugger -- `delve`
+# cannot attach usefully to this binary -- and nothing else that this build
+# promises: the pclntab stays, so a panic still names its functions, and
+# `debug.ReadBuildInfo` still answers, which is where `version --json` reads
+# the commit and the dirty flag from. The published bundle keeps both sections
+# for the same reason it keeps the analyzer: it is not the one being squeezed.
+if [[ "$slim" == true ]]; then
+  ldflags+=" -s -w"
 fi
 
 printf 'build-bundle: compiling Go binary for %s\n' "$target" >&2
@@ -343,6 +366,22 @@ assert_single_runpath
 mkdir -p "$output_dir/$native_library_subdir"
 install -m 0755 "$native_library" "$output_dir/$native_library_subdir/$native_library_name"
 
+# A slim bundle strips the library it has just installed: 4.1 MB of the file
+# and 0.9 MB of the archive, which is the last saving left once the analyzer
+# and the executable's own symbols are gone. The dynamic symbols the loader
+# resolves against are the ones `--strip-unneeded` keeps, so this is a smaller
+# copy of the pinned build and not a different one -- `archive_sha256` still
+# names the archive it came out of, and `library_sha256` names what was
+# installed, which is this file.
+#
+# Linux only. The macOS dylib carries a linker ad-hoc signature that stripping
+# invalidates, and re-signing a library this build did not produce is not a
+# trade worth 0.9 MB.
+if [[ "$slim" == true && "$target" == linux/* ]]; then
+  require_command strip
+  strip --strip-unneeded "$output_dir/$native_library_subdir/$native_library_name"
+fi
+
 # On the platform with no search path to declare, adjacency is the contract, so
 # it is asserted where every other target asserts its RUNPATH.
 if [[ "$target" == windows/* ]]; then
@@ -354,14 +393,27 @@ fi
 # tools/manifest.json and travels inside the bundle so an installation does not
 # have to add it by hand; `cargo` is still the caller's, because a workspace
 # cannot be loaded without it.
-rust_analyzer_dir=$("$root/scripts/fetch-rust-analyzer.sh")
-install -m 0755 "$rust_analyzer_dir/rust-analyzer$program_suffix" "$output_dir/bin/rust-analyzer$program_suffix"
-mkdir -p "$output_dir/licenses/third-party/rust-analyzer"
-install -m 0644 "$rust_analyzer_dir/LICENSE-APACHE" \
-  "$output_dir/licenses/third-party/rust-analyzer/LICENSE-APACHE"
-install -m 0644 "$rust_analyzer_dir/LICENSE-MIT" \
-  "$output_dir/licenses/third-party/rust-analyzer/LICENSE-MIT"
-install -m 0644 "$root/tools/manifest.json" "$output_dir/tools/manifest.json"
+#
+# --slim leaves the engine out, and leaves out its pin and its licence texts
+# with it: three artifacts that describe a binary this bundle does not have are
+# worse than none. What it does not do is arrange to fetch it later. The
+# analyzer is 41 MB of a 124 MB bundle -- 15 MB of the 46 MB `.mcpb` that is
+# what actually gets published -- and that is the whole reason the flag exists,
+# but MCPB calls a `binary` server a self-contained package, so a bundle that
+# quietly downloaded its own engine on first run would not be one. A slim
+# bundle simply has no Rust engine: `rustloader.ResolveAnalyzer` finds no
+# sibling beside the executable, falls back to the PATH, and `kivgraph doctor`
+# names which binary answered -- or reports that none did.
+if [[ "$slim" != true ]]; then
+  rust_analyzer_dir=$("$root/scripts/fetch-rust-analyzer.sh")
+  install -m 0755 "$rust_analyzer_dir/rust-analyzer$program_suffix" "$output_dir/bin/rust-analyzer$program_suffix"
+  mkdir -p "$output_dir/licenses/third-party/rust-analyzer"
+  install -m 0644 "$rust_analyzer_dir/LICENSE-APACHE" \
+    "$output_dir/licenses/third-party/rust-analyzer/LICENSE-APACHE"
+  install -m 0644 "$rust_analyzer_dir/LICENSE-MIT" \
+    "$output_dir/licenses/third-party/rust-analyzer/LICENSE-MIT"
+  install -m 0644 "$root/tools/manifest.json" "$output_dir/tools/manifest.json"
+fi
 install -m 0644 "$root/LICENSE" "$output_dir/licenses/LICENSE"
 install -m 0644 "$root/THIRD_PARTY_NOTICES.md" "$output_dir/licenses/THIRD_PARTY_NOTICES.md"
 install -m 0644 "$root/docs/dependencies/ladybugdb.md" "$output_dir/licenses/ladybugdb-provenance.md"
@@ -379,6 +431,15 @@ cp -aL "$root/ts-worker/node_modules/typescript" \
 install -m 0644 "$root/ts-worker/package.json" "$output_dir/worker/package.json"
 install -m 0644 "$root/ts-worker/pnpm-lock.yaml" "$output_dir/worker/pnpm-lock.yaml"
 cp -a "$root/ts-worker/dist" "$output_dir/worker/dist"
+# The worker's build output carries more than the worker runs: the compiled
+# tests, the declaration files that only a TypeScript consumer reads, and the
+# source maps that nothing turns on -- no launcher in this repository passes
+# `--enable-source-maps` and no entry point enables them itself. A slim bundle
+# keeps what `node` loads and drops 540 KB nobody opens.
+if [[ "$slim" == true ]]; then
+  find "$output_dir/worker/dist" -type f \
+    \( -name '*.test.js' -o -name '*.d.ts' -o -name '*.js.map' \) -delete
+fi
 mkdir -p "$output_dir/worker/python-worker"
 install -m 0644 "$root/python-worker/index.py" "$output_dir/worker/python-worker/index.py"
 install -m 0644 "$root/python-worker/pyright_index.py" "$output_dir/worker/python-worker/pyright_index.py"
@@ -465,12 +526,37 @@ canonical_schema=$(jq -er '.schema' <<<"$version_json") ||
 snapshot_row_format=$(jq -er '.snapshot_row_format' <<<"$version_json") ||
   fail "built binary reported no snapshot row format version"
 grammar_sha256=$(sha256_of "$output_dir/grammars/manifest.json")
-rust_analyzer_version=$(jq -r '.tools[] | select(.name=="rust-analyzer") | .version' "$root/tools/manifest.json")
-rust_analyzer_release=$(jq -r '.tools[] | select(.name=="rust-analyzer") | .release' "$root/tools/manifest.json")
-rust_analyzer_sha256=$(sha256_of "$output_dir/bin/rust-analyzer$program_suffix")
-tools_sha256=$(sha256_of "$output_dir/tools/manifest.json")
+# The tools block names the engines the bundle carries, each by the digest of
+# the file that was installed. A slim bundle installed none, so it writes an
+# explicit null rather than a shape whose paths and digests would describe
+# files that are not there -- the same answer `resolver_version` gives above,
+# and the one `kivgraph version --json` turns into a null `rust_analyzer`.
+if [[ "$slim" == true ]]; then
+  tools_json=null
+else
+  rust_analyzer_version=$(jq -r '.tools[] | select(.name=="rust-analyzer") | .version' "$root/tools/manifest.json")
+  rust_analyzer_release=$(jq -r '.tools[] | select(.name=="rust-analyzer") | .release' "$root/tools/manifest.json")
+  rust_analyzer_sha256=$(sha256_of "$output_dir/bin/rust-analyzer$program_suffix")
+  tools_sha256=$(sha256_of "$output_dir/tools/manifest.json")
+  tools_json=$(cat <<EOF
+{
+    "manifest": "tools/manifest.json",
+    "sha256": "$tools_sha256",
+    "rust_analyzer": {
+      "version": "$rust_analyzer_version",
+      "release": "$rust_analyzer_release",
+      "binary": "bin/rust-analyzer",
+      "sha256": "$rust_analyzer_sha256"
+    }
+  }
+EOF
+  )
+fi
 ladybug_sha256=$(sha256_of "$output_dir/$native_library_subdir/$native_library_name")
-artifact_dirs=(bin worker grammars licenses skills tools)
+artifact_dirs=(bin worker grammars licenses skills)
+if [[ "$slim" != true ]]; then
+  artifact_dirs+=(tools)
+fi
 if [[ "$native_library_subdir" == lib ]]; then
   artifact_dirs+=(lib)
 fi
@@ -531,16 +617,7 @@ cat > "$output_dir/manifest.json" <<EOF
     "manifest": "grammars/manifest.json",
     "sha256": "$grammar_sha256"
   },
-  "tools": {
-    "manifest": "tools/manifest.json",
-    "sha256": "$tools_sha256",
-    "rust_analyzer": {
-      "version": "$rust_analyzer_version",
-      "release": "$rust_analyzer_release",
-      "binary": "bin/rust-analyzer",
-      "sha256": "$rust_analyzer_sha256"
-    }
-  },
+  "tools": $tools_json,
   "artifacts": [
 $(write_artifacts)
   ]

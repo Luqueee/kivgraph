@@ -108,7 +108,11 @@ installs it without requiring Go or pnpm. The release contains the Go server,
 the pinned LadybugDB library, the TypeScript worker, the bundled Python AST
 worker, the pinned `rust-analyzer`, the grammar manifest and the web viewer,
 whose assets are 2.3 MB of the bundle. `scripts/build-bundle.sh --mcp-only`
-produces a bundle without the viewer for anyone who wants one.
+produces a bundle without the viewer for anyone who wants one. `--slim` goes
+further for anyone packaging an `.mcpb`: it leaves out the pinned
+`rust-analyzer` and every symbol a debugger would read, which is 46.3 MB
+packaged against 24.9 MB. It downloads nothing later, so that bundle reads
+Rust only where the machine already has an analyzer on its `PATH`.
 
 Published bundles: Linux `amd64` and macOS `arm64`.
 

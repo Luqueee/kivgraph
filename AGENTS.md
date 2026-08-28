@@ -333,6 +333,24 @@ infringieron una vez cada una. Ver ADR 0062 y ADR 0061.
   «bundle no disponible» en todas las rutas.
 - `--mcp-only` sigue existiendo para quien quiera un bundle sin visor.
   `scripts/install.sh` no inicializa la configuración ni indexa repositorios.
+- `--slim` existe para el `.mcpb`, que tiene que caber por debajo de `25 MB`,
+  y hace cuatro cortes: quita el motor de Rust -- `bin/rust-analyzer`,
+  `tools/manifest.json` y sus licencias, con `"tools": null` en el manifest,
+  que es lo que `version --json` convierte en un `rust_analyzer` nulo--,
+  compila con `-s -w`, hace `strip` de la biblioteca nativa que acaba de
+  instalar y deja del `dist/` del worker sólo lo que `node` carga. Suman
+  `46,3 MB` a `24,9 MB` de `.mcpb`: `14,9` el analizador, `5,4` los símbolos
+  del ejecutable, `0,9` los de la biblioteca y `0,15` los tests, `.d.ts` y
+  source maps que viajaban compilados.
+- Y lo que `--slim` **no** hace es descargar después lo que no lleva. MCPB
+  define un servidor `binary` como paquete autocontenido, así que
+  `ResolveAnalyzer` no encuentra hermano junto al ejecutable, cae al `PATH` y
+  `doctor` dice cuál contestó: un bundle slim indexa Rust sólo si quien lo
+  instala pone el suyo. El `strip` de la biblioteca es sólo en Linux -- el
+  dylib de macOS lleva firma ad-hoc que invalidaría-- y deja
+  `ladybugdb.library_sha256` describiendo el fichero instalado, que ya no es
+  byte a byte el del archivo fijado; `archive_sha256` sigue nombrando ese. La
+  release publicada no usa `--slim`: conserva analizador, símbolos y DWARF.
 - Las releases publicadas usan tags `vX.Y.Z`; `scripts/install.sh` detecta la
   plataforma, descarga la última release publicada para ella, verifica el
   checksum externo e interno, y `kivgraph update` solo sustituye el bundle
