@@ -146,6 +146,22 @@ se quede parada. El arreglo vive en `update`, no en lo que se instala.
   distribución.
 - El demonio no habla `sd_notify`, así que la unit es `Type=simple`. Declarar
   `notify` haría a systemd esperar una señal de listo que nunca llega.
+- **Una unidad cuyo ejecutable ya no existe reintentaba para siempre**, y el
+  límite por defecto no podía pararla. Medido el `2026-08-28` sobre una unidad
+  con un `ExecStart` que apunta a un binario borrado: con `StartLimitBurst=5`,
+  `StartLimitIntervalSec=10s` y `RestartSec=2` llegó a `NRestarts=140` y seguía
+  -- cinco arranques separados dos segundos son exactamente diez, así que el
+  límite se sienta en su propia frontera y no dispara nunca. Con la ventana en
+  `30s` la misma unidad se rinde en `NRestarts=5` y queda en `failed`. La unidad
+  declara ahora las dos directivas, y el guardia que lo fija comprueba la
+  **relación** y no los literales, porque el defecto eran dos literales que se
+  cancelaban.
+- **launchd no se puede acotar igual, y no está medido.** `KeepAlive` no tiene
+  cuenta máxima: su `ThrottleInterval` sólo espacia los reintentos, diez
+  segundos por defecto, así que un agente cuyo binario desapareció reintenta
+  indefinidamente. Aquí no hay macOS con el que comprobarlo. El planificador de
+  Windows sí venía acotado de origen -- `RestartOnFailure` con `Count=3`--, que
+  es justo lo que a Linux le faltaba.
 - `Install`, `Remove` y `Restart` invocan una herramienta externa en cada
   plataforma -- `systemctl` en Linux, `launchctl` en macOS y `schtasks` en
   Windows, donde `Restart` es `/End` seguido de `/Run`--, así que sus tests
