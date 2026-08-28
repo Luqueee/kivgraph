@@ -18040,9 +18040,12 @@ opinión.
 
 **Capa 1 -- un ping, dos emisores, un endpoint.**
 
-`POST https://kivgraph.dev/api/telemetry/first-run` con `version`, `platform`,
-`channel` y `transport`, desde `install.sh`/`install.ps1` tras una instalación
-verificada, y desde el binario en el primer arranque de cada versión.
+`POST https://kivgraph.dev/api/telemetry/first-run` con `emitter`, `version`,
+`platform`, `channel` y `transport`, desde `install.sh`/`install.ps1` tras una
+instalación verificada, y desde el binario en el primer arranque de cada
+versión. `emitter` es `installer` o `binary`, y separa dos hechos distintos:
+un bundle se puede instalar y no arrancarse nunca, así que sólo las filas
+`binary` contestan *cuántas máquinas lo ejecutaron*.
 
 El endpoint vive en `landing/server.mjs` porque el reporter, el hallazgo de
 `User-Agent: ""` frente a `isbot` y el par de configuración que falla cerrado ya

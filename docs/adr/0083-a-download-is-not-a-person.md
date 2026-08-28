@@ -123,8 +123,8 @@ live view over that same classification instead of a second opinion.
 
 ### Layer 1 -- one ping, two emitters, one endpoint
 
-`POST https://kivgraph.dev/api/telemetry/first-run`, carrying `version`,
-`platform`, `channel` and `transport`, from:
+`POST https://kivgraph.dev/api/telemetry/first-run`, carrying `emitter`,
+`version`, `platform`, `channel` and `transport`, from:
 
 - `install.sh` and `install.ps1`, after the archive is verified and the
   install has succeeded, so a ping means a working installation and not an
@@ -154,6 +154,14 @@ here rather than discovered in a report.
 **A third property, `kivgraph FIRST RUNS`,** for the reason the AI crawlers
 property exists: an install is not a visit, and mixing them moves
 visitors, bounce rate and the conversion rate that describes people.
+
+**`emitter` is why the two sources do not become one number.** An installer
+that finished and a binary that started are different facts, and the second
+does not follow from the first: a bundle can be installed and never
+launched. Without the field the property would report an installer's
+success as a first run, which is the claim this ADR spends its length
+refusing to make. It is `installer` or `binary`, the two are aggregated
+separately, and only the `binary` rows answer *how many machines ran it*.
 
 **The endpoint is public, so the number is worth exactly its bounds.**
 Strict validation against the closed sets of platform, channel and
@@ -215,9 +223,10 @@ emitters.
 
 - The question splits in two and both halves become answerable.
   *How many downloads* is Layer 0, exact and unattributable. *How many
-  machines reported a first run* is Layer 1 -- not how many installed and
-  not how many people, and lower than each of those by whatever the
-  opt-outs and the NATs take.
+  machines reported a first run of a version, per day* is Layer 1 -- not
+  how many installed, and **not comparable to a count of people** in either
+  direction: one person on three machines reports three, while an opt-out,
+  a bundle never launched and a dropped request each report none.
 - The gap between the two is itself the answer about `.mcpb`. A channel
   whose download count is `39 %` of the total and whose first-run count is
   near zero is a channel being mirrored, not installed.
