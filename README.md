@@ -7,6 +7,12 @@ coding agents**. It builds a canonical semantic code graph across multiple
 registered repositories and answers questions about symbols, repository
 relationships, callers, dependencies and change impact.
 
+https://github.com/user-attachments/assets/43e2792b-79fe-4112-aafe-349e859d1521
+
+<p align="center">
+  <em><code>kivgraph ui</code> — read-only 3D view of the published graph.</em>
+</p>
+
 It indexes a corpus once and serves an immutable graph: the edges are resolved
 by `go/types`, the TypeScript checker and `rust-analyzer`, not by matching
 names. That is the difference from a search tool, and it is what makes an empty
@@ -82,22 +88,6 @@ backlog and the acceptance gate of every phase are in [`TASKS.md`](TASKS.md).
 - **Platforms:** `linux/amd64`, `darwin/arm64` and `windows/amd64`.
 - **Viewer:** `kivgraph ui` serves a read-only 3D view of the published graph.
 
-## Requirements
-
-- Go 1.26 or later to build from source. The indexer type-checks with the
-  `go/types` linked into the binary, so it can only read repositories and
-  dependencies written for its own language version or older; `kivgraph doctor`
-  reports that ceiling.
-- Indexing Rust needs `cargo` and `rust-analyzer`. The release bundle carries
-  the analyzer; it does not carry a Rust toolchain.
-- Indexing TypeScript needs Node.js 22 or later for the worker.
-- Indexing Python needs Python 3.10 or later for the bundled worker. It is a
-  syntax-aware fallback and reports dynamic or unresolved names explicitly;
-  exact mode additionally requires a Pyright-compatible language server.
-- Indexing Dart needs the `dart` executable; a Flutter installation supplies
-  it. The loader uses the Analysis Server protocol and does not modify the
-  Flutter project.
-
 ## Installation
 
 ### Install the MCP with one script
@@ -158,6 +148,7 @@ kivgraph-ts-worker <<'EOF'
 hello
 EOF
 ```
+
 Check for a newer release or update the installed bundle:
 
 ```bash
@@ -271,6 +262,22 @@ Configure any MCP client to start the server over STDIO:
 completes the handshake, publishes no query tool and puts the rebuild command in
 `instructions`. A client launches the process itself, so exiting would read as a
 crash. It writes MCP framing exclusively to `stdout` and logs to `stderr`.
+
+## Requirements
+
+- Go 1.26 or later to build from source. The indexer type-checks with the
+  `go/types` linked into the binary, so it can only read repositories and
+  dependencies written for its own language version or older; `kivgraph doctor`
+  reports that ceiling.
+- Indexing Rust needs `cargo` and `rust-analyzer`. The release bundle carries
+  the analyzer; it does not carry a Rust toolchain.
+- Indexing TypeScript needs Node.js 22 or later for the worker.
+- Indexing Python needs Python 3.10 or later for the bundled worker. It is a
+  syntax-aware fallback and reports dynamic or unresolved names explicitly;
+  exact mode additionally requires a Pyright-compatible language server.
+- Indexing Dart needs the `dart` executable; a Flutter installation supplies
+  it. The loader uses the Analysis Server protocol and does not modify the
+  Flutter project.
 
 ## What the graph carries, and what it refuses to
 
