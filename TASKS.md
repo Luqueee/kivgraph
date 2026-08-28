@@ -18040,14 +18040,14 @@ opinión.
 
 **Capa 1 -- un ping, dos emisores, un endpoint.**
 
-`POST https://kivgraph.dev/api/telemetry/install` con `version`, `platform`,
+`POST https://kivgraph.dev/api/telemetry/first-run` con `version`, `platform`,
 `channel` y `transport`, desde `install.sh`/`install.ps1` tras una instalación
 verificada, y desde el binario en el primer arranque de cada versión.
 
 El endpoint vive en `landing/server.mjs` porque el reporter, el hallazgo de
 `User-Agent: ""` frente a `isbot` y el par de configuración que falla cerrado ya
 están ahí; una ruta de Astro necesitaría una segunda copia de los tres. Va a una
-**tercera propiedad**, `kivgraph INSTALLS`, por lo mismo que existe la de
+**tercera propiedad**, `kivgraph FIRST RUNS`, por lo mismo que existe la de
 crawlers: una instalación no es una visita, y mezclarlas mueve visitantes,
 rebote y la conversión que describe personas.
 
@@ -18112,8 +18112,8 @@ patrón de versión publicada, ventana de deduplicación por dirección y versi�
 ```text
 .github/workflows/download-metrics.yml
 scripts/downloads.sh
-internal/telemetry/install.go
-internal/telemetry/install_test.go
+internal/telemetry/firstrun.go
+internal/telemetry/firstrun_test.go
 landing/server.mjs
 landing/src/install-report.mjs
 landing/src/install-report.test.mjs

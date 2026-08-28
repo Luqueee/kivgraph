@@ -1,7 +1,8 @@
 # ADR 0083: a download is not a person
 
-- **Status:** accepted
+- **Status:** accepted as a design; nothing in *Decision* is implemented
 - **Date:** 2026-08-28
+- **Implementation:** `LUQUE-2232`
 
 ## Context
 
@@ -29,7 +30,15 @@ monotonic.
 
 ### What the counter says today
 
-Every release from `v0.1.0` to `v0.9.1`, by asset class:
+Every release from `v0.1.0` to `v0.9.1`, by asset class. Every count below
+is the `download_count` the releases API returned on **2026-08-28**,
+grouped by the extension of each asset:
+
+```bash
+gh api repos/Luqueee/kivgraph/releases --paginate \
+  --jq '.[] | .tag_name as $t | .assets[]
+        | [$t, .name, .download_count] | @tsv'
+```
 
 | class | downloads | share |
 | --- | ---: | ---: |
@@ -64,10 +73,13 @@ workflows are coursier's and `mcp-publisher`'s -- so the rest is external,
 and nothing on the release page distinguishes external-and-a-person from
 external-and-a-directory mirroring the registry.
 
-**`bundle` ≈ `checksums` is the signature of the verified path.** `36`
+**`bundle` ≈ `checksums` is consistent with the verified path.** `36`
 against `29`: every automated install takes both. The seven-unit gap is
-manual downloads that skipped verification, which is a real finding that
-falls out of the counter for free.
+**not** evidence of seven manual downloads that skipped verification. A
+retry, a checksum fetched on its own, and the `--clobber` reset above all
+produce the same gap, and an aggregate of two totals cannot separate them.
+It is a hypothesis this counter can raise and cannot settle -- which is the
+next paragraph in miniature.
 
 That last line is the shape of the whole problem. The counter supports
 arithmetic, and every quantity the arithmetic yields is a *download*. No
@@ -78,6 +90,11 @@ machine fetching an asset seven times from seven machines fetching it once.
 
 Two layers. They answer different questions and neither is a step towards
 the other.
+
+**Nothing below is built.** The present tense states what each layer
+**must** do, not what it does; `LUQUE-2232` carries the work and its gates.
+A reader asking whether a control is deployed should read the task, not
+this section.
 
 ### Layer 0 -- the series, with no client involvement
 
@@ -106,7 +123,7 @@ live view over that same classification instead of a second opinion.
 
 ### Layer 1 -- one ping, two emitters, one endpoint
 
-`POST https://kivgraph.dev/api/telemetry/install`, carrying `version`,
+`POST https://kivgraph.dev/api/telemetry/first-run`, carrying `version`,
 `platform`, `channel` and `transport`, from:
 
 - `install.sh` and `install.ps1`, after the archive is verified and the
@@ -134,7 +151,7 @@ address is the *only* discriminator left: a corporate NAT counts as one
 person. That is the bias every web analytics carries, and it is written
 here rather than discovered in a report.
 
-**A third property, `kivgraph INSTALLS`,** for the reason the AI crawlers
+**A third property, `kivgraph FIRST RUNS`,** for the reason the AI crawlers
 property exists: an install is not a visit, and mixing them moves
 visitors, bounce rate and the conversion rate that describes people.
 
@@ -142,8 +159,14 @@ visitors, bounce rate and the conversion rate that describes people.
 Strict validation against the closed sets of platform, channel and
 transport and the published version pattern, an in-process dedupe window
 per address and version, and `204` on every path so probing it teaches
-nothing. Without that, one machine reinstalling in a loop reads as five
-hundred people.
+nothing.
+
+What the dedupe window does **not** buy is the headline number, and saying
+otherwise would misread the identity above: under a daily-rotating hash one
+address reinstalling in a loop is already **one** unique visitor, so
+repetition inflates the event count and never the visitor count. The window
+bounds events and write volume; validation is what stops a forged `version`
+or `platform` from inventing a row no release ever produced.
 
 ### Why the binary reports and not only the installer
 
@@ -192,7 +215,8 @@ emitters.
 
 - The question splits in two and both halves become answerable.
   *How many downloads* is Layer 0, exact and unattributable. *How many
-  machines* is Layer 1, attributed and lower than reality by whatever the
+  machines reported a first run* is Layer 1 -- not how many installed and
+  not how many people, and lower than each of those by whatever the
   opt-outs and the NATs take.
 - The gap between the two is itself the answer about `.mcpb`. A channel
   whose download count is `39 %` of the total and whose first-run count is
