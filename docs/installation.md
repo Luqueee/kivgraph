@@ -406,7 +406,7 @@ que ejecutar. Termina con código `1` sólo cuando algún hallazgo es `blocking`
 es decir cuando un repositorio o un paquete no aporta nada. `--json` emite el
 informe entero con el `code` estable de cada hallazgo.
 
-Python, Dart y Java se activan igual que los demás lenguajes:
+Python, Dart, Java y C# se activan igual que los demás lenguajes:
 
 ```yaml
 python:
@@ -436,6 +436,15 @@ java:
   include_tests: false
   include_generated: false
   target_directory: ~/.local/state/kivgraph/java-target
+  maximum_index_time: 20m
+csharp:
+  indexer_command: scip-dotnet
+  project: ""
+  maximum_workers: 1
+  include_tests: false
+  include_generated: false
+  skip_restore: false
+  target_directory: ~/.local/state/kivgraph/csharp-target
   maximum_index_time: 20m
 ```
 
@@ -467,15 +476,35 @@ necesitan: `target_directory`, que vive fuera de todo repositorio indexado como
 termina. `build_tool` vacío deja que `scip-java` lo detecte, que es lo que hace
 bien; nombrarlo es para un repositorio que lleva dos.
 
-Y una consecuencia que conviene saber antes de registrar un repositorio Java:
-**el build escribe su propio directorio dentro del repositorio**. `--targetroot`
-saca de ahí la salida SemanticDB, pero el `target/` de Maven y el `build/` de
-Gradle son del build, no de Kivgraph, y una pasada los deja detrás. El JDK y
+Y una cosa que conviene saber antes de registrar un repositorio Java: **el
+build nunca corre dentro del repositorio**. `--targetroot` saca la salida
+SemanticDB, pero el `target/` de Maven y el `build/` de Gradle son del build y
+ningún flag los mueve, así que Kivgraph materializa el árbol de trabajo en otro
+sitio, construye ahí y lo borra. Una pasada deja el repositorio byte a byte
+como estaba; lo mide `TestRunLeavesTheRepositoryUntouched`, que indexa un
+fixture **en su sitio**. Ver ADR 0082. El JDK y
 toda dependencia fuera de los repositorios registrados quedan `UNRESOLVED`; un
 miembro que sintetiza el compilador -- el accesor de un `record` -- se declara
 `DEFINITION_NOT_INDEXED`, que no es lo mismo que un import sin resolver. Hoy no
 se publica jerarquía de tipos Java: las `relationships` de SCIP no se leen, y
 es un hueco declarado en el ADR 0080, no una aproximación.
+
+C# se indexa como Java, construyéndolo: `scip-dotnet` ejecuta `dotnet restore`
+y recorre el proyecto con Roslyn, así que sus destinos los resuelve el
+compilador. `project` vacío descubre qué indexar, y **una solución gana a un
+proyecto**: indexar un `.csproj` de un repositorio que tiene varios pierde el
+resto en silencio. El descubrimiento es determinista, así que dos pasadas
+indexan lo mismo.
+
+Dos límites declarados que conviene saber. `scip-dotnet` no clasifica sus
+símbolos, así que el puente no distingue una interfaz de una clase y **toda
+relación de tipos sale como `EXTENDS`**, nunca `IMPLEMENTS`; deducirlo del
+convenio de nombrar `IShape` sería inferir un hecho de un nombre. Y tampoco
+emite rangos contenedores, así que los vanos de las declaraciones se
+reconstruyen por posición y anidamiento de descriptores -- lo que ADR 0048 ya
+hacía para Dart. El `dotnet restore` corre en el mismo árbol efímero que el
+build de Java, así que `obj/` y `bin/` no llegan nunca al repositorio, y las
+fuentes que el SDK genera quedan fuera del grafo. Ver ADR 0081 y ADR 0082.
 
 Cuando una importación Python o Dart nombra exactamente un único paquete de
 otro repositorio registrado, la pasada añade `PACKAGE_DEPENDS_ON`. Esa arista
@@ -484,7 +513,7 @@ arista de símbolo cross-repository el proveedor semántico debe entregar una
 identidad explícita del destino.
 
 La matriz verificable de capacidades está en
-`testdata/semantic-coverage/manifest.json`. Para validar que las cinco rutas
+`testdata/semantic-coverage/manifest.json`. Para validar que las seis rutas
 semánticas tienen fixtures y tests ejecutables usa:
 
 ```bash

@@ -488,6 +488,8 @@ func definitionProvenance(language Language) Provenance {
 		return PythonIndexerDefinition
 	case LanguageJava:
 		return JavaScipDefinition
+	case LanguageCSharp:
+		return CSharpScipDefinition
 	default:
 		return ""
 	}
@@ -501,6 +503,8 @@ func useProvenance(language Language, kind any) Provenance {
 		return PythonIndexerUse
 	case LanguageJava:
 		return JavaScipUse
+	case LanguageCSharp:
+		return CSharpScipUse
 	default:
 		return ""
 	}

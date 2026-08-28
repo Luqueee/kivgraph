@@ -28,23 +28,43 @@ type symbolIdentity struct {
 // addressable reports whether a SCIP symbol names something the graph can hold
 // a node for.
 //
-// Two shapes are excluded. `local 0` is a parameter or a local variable: it
-// has no identity outside its file, and Go and Rust already exclude the same
-// class. A symbol whose package and version are both `.` is a package
-// qualifier -- scip-java emits one occurrence per segment of `package a.b.c;`
-// -- and naming a package is not using a symbol.
+// Two shapes are excluded. `local 0` is a parameter or a local variable: it has
+// no identity outside its file, and Go and Rust already exclude the same class.
+// The other is a bare namespace path -- `com/`, `com/example/`, `System/` --
+// which producers emit once per segment of a package or using directive.
+// Naming a namespace is not using a symbol.
+//
+// The namespace test is on the descriptors, and it has to be: the first
+// version tested `package == "." && version == "."`, which is what scip-java
+// writes on those qualifier occurrences. It is also what scip-dotnet writes on
+// **every symbol the project declares**, so that rule dropped an entire
+// language. A descriptor path says what a symbol is; the package coordinates
+// say where it came from, and only one of those is the question here.
 func addressable(symbol string) bool {
 	identity, err := parseSymbol(symbol)
-	if err != nil {
+	if err != nil || identity.local {
 		return false
 	}
-	if identity.local {
+	descriptors := strings.TrimSpace(identity.descriptors)
+	if descriptors == "" {
 		return false
 	}
-	if identity.pkg == "." && identity.version == "." {
+	segments := splitDescriptors(descriptors)
+	// A parameter is not a node. scip-java writes one as `local N`, which the
+	// check above already drops; scip-dotnet writes
+	// `Coverage/Catalog#Add().(shape)`, a fully qualified symbol. Without this
+	// the same concept would be a graph node in one language and absent in
+	// another for no reason but the producer, and a C# repository would carry
+	// a node per parameter -- six of thirty-seven symbols in the fixture.
+	if _, suffix, _ := descriptorParts(segments[len(segments)-1]); suffix == descriptorParameter {
 		return false
 	}
-	return strings.TrimSpace(identity.descriptors) != ""
+	for _, segment := range segments {
+		if _, suffix, _ := descriptorParts(segment); suffix != descriptorNamespace {
+			return true
+		}
+	}
+	return false
 }
 
 func parseSymbol(symbol string) (symbolIdentity, error) {

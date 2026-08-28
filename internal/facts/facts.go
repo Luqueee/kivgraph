@@ -33,6 +33,9 @@ const (
 	// LanguageJava marks facts produced by the SCIP loader over the index
 	// scip-java emits.
 	LanguageJava Language = "java"
+	// LanguageCSharp marks facts produced by the SCIP loader over the index
+	// scip-dotnet emits.
+	LanguageCSharp Language = "csharp"
 )
 
 // Confidence is the trust level of an edge, as defined by the plan.
@@ -112,6 +115,10 @@ const (
 	// plugin, so its targets are resolved by the compiler itself.
 	JavaScipDefinition Provenance = "JAVA_SCIP_DEF"
 	JavaScipUse        Provenance = "JAVA_SCIP_USE"
+	// CSharpScipDefinition and CSharpScipUse mark facts read from the SCIP
+	// index scip-dotnet produces with Roslyn.
+	CSharpScipDefinition Provenance = "CSHARP_SCIP_DEF"
+	CSharpScipUse        Provenance = "CSHARP_SCIP_USE"
 
 	TreeSitterSyntax Provenance = "TREE_SITTER_SYNTAX"
 	PackageManifest  Provenance = "PACKAGE_MANIFEST"

@@ -44,6 +44,18 @@
         "cross-file-references", "unresolved-diagnostics"
       ]
     },
+    "csharp": {
+      "analyzer": "scip-dotnet (Roslyn) through the SCIP bridge",
+      "fixture": "testdata/csharp/coverage",
+      "test": "internal/csharploader/coverage_test.go",
+      "capabilities": [
+        "files", "namespaces", "classes", "interfaces", "enums", "records",
+        "inheritance", "type-hierarchy", "overrides", "generics", "methods",
+        "constructors", "fields", "properties", "overloads", "lambdas",
+        "cross-file-references", "build-output-exclusion",
+        "unresolved-diagnostics"
+      ]
+    },
     "dart": {
       "analyzer": "Dart analysis server",
       "fixture": "testdata/dart/advanced",

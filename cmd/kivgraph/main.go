@@ -1057,6 +1057,13 @@ func writeIndexSummary(stdout io.Writer, indexReport indexer.FullReport) {
 		indexReport.JavaReferences,
 		indexReport.JavaUnresolved,
 	)
+	writeInfo(stdout, "index.csharp: repositories=%d not_loaded=%d symbols=%d references=%d unresolved=%d",
+		indexReport.CSharpRepositories,
+		indexReport.CSharpRepositoriesNotLoaded,
+		indexReport.CSharpSymbols,
+		indexReport.CSharpReferences,
+		indexReport.CSharpUnresolved,
+	)
 }
 
 func runIndexFull(args []string, stdout, stderr io.Writer) int {
@@ -1619,6 +1626,7 @@ func runDoctorToolchains(stdout io.Writer, report func(string, bool, string), co
 	needsPython := false
 	needsDart := false
 	needsJava := false
+	needsCSharp := false
 	for _, repository := range repositories {
 		for _, language := range repository.Languages {
 			switch strings.ToLower(strings.TrimSpace(language)) {
@@ -1634,6 +1642,8 @@ func runDoctorToolchains(stdout io.Writer, report func(string, bool, string), co
 				needsDart = true
 			case "java":
 				needsJava = true
+			case "csharp", "cs":
+				needsCSharp = true
 			}
 		}
 	}
@@ -1649,6 +1659,7 @@ func runDoctorToolchains(stdout io.Writer, report func(string, bool, string), co
 	reportPythonToolchain(report, configuration, needsPython)
 	reportExternalToolchain(report, "dart", configuration.Dart.AnalyzerCommand, needsDart)
 	reportExternalToolchain(report, "java", configuration.Java.IndexerCommand, needsJava)
+	reportExternalToolchain(report, "csharp", configuration.CSharp.IndexerCommand, needsCSharp)
 }
 
 func reportPythonToolchain(report func(string, bool, string), configuration config.Config, needed bool) {

@@ -57,13 +57,20 @@ targets remain `EXACT_TYPECHECKED`. A package dependency may be published even
 when its individual symbol is unresolved, but that edge proves only package
 dependency, not symbol usage.
 
-Java does not have an adapter that writes this JSON. It has a bridge:
+Java and C# do not have an adapter that writes this JSON. They have a bridge:
 `internal/scip` converts the SCIP index `scip-java` emits into the same
 `facts.SemanticPayload` in process, so the payload is the contract even where
 nothing serialises it. SCIP is one format with many producers -- scip-python,
 scip-ruby, scip-dotnet, scip-clang and `rust-analyzer scip` all emit it -- and
-the bridge is written against the format, not against Java. A second SCIP
-language is a loader that runs an indexer and names a package.
+the bridge is written against the format, not against Java. C# was added on it
+through `scip-dotnet` and is a loader that runs an indexer and names a package.
+
+The two producers agree on the format and on very little else, and the bridge
+carries what that costs: scip-dotnet sets no symbol kind, no signature and no
+`enclosing_range`, so C# kinds fall back to the descriptor suffix, its
+stable-key discriminator falls back to the descriptor path, and its declaration
+spans are reconstructed from definition positions and descriptor nesting. See
+ADR 0081.
 
 The bridge publishes `REFERENCES` for every use. SCIP records where a symbol
 occurs and not what the occurrence was, so a call, a type position and a field
@@ -77,5 +84,5 @@ outside the graph produces no edge at all. See ADR 0080.
 
 The release coverage gate is `make semantic-coverage`. Its manifest maps every
 required capability to a fixture and an executable test for Go, TypeScript,
-Python, Dart and Java. Exact Python coverage requires the Pyright-compatible LSP
+Python, Dart, Java and C#. Exact Python coverage requires the Pyright-compatible LSP
 server; the AST worker is intentionally a candidate-only fallback.
