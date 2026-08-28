@@ -475,6 +475,19 @@ func TestProvisionDaemonLeavesAStoppedDaemonStopped(t *testing.T) {
 func TestProvisionDaemonWaitsForTheProcessThatWonTheRace(t *testing.T) {
 	shortenEndpointDeadline(t)
 	loaded := initialisedHome(t)
+	spec, err := supervisorSpec("", supervisorOptions{})
+	if err != nil {
+		t.Fatalf("supervisorSpec: %v", err)
+	}
+	report, err := supervisor.Status(spec)
+	if err != nil {
+		t.Fatalf("supervisor.Status: %v", err)
+	}
+	// Without this the test would pass on a platform that declines at Status,
+	// long before it reaches the lock this exists to exercise.
+	if report.State == supervisor.StateUnsupported {
+		t.Skip("this platform has no supervisor, so nothing contends for the lock")
+	}
 	directory := stateDirectory(loaded)
 	if err := os.MkdirAll(directory, 0o755); err != nil {
 		t.Fatalf("create state directory: %v", err)
@@ -490,10 +503,16 @@ func TestProvisionDaemonWaitsForTheProcessThatWonTheRace(t *testing.T) {
 	// It waits for the winner's daemon rather than installing a second
 	// supervisor, and gives up on the deadline when no daemon appears.
 	if _, ok := provisionDaemon(context.Background(), "serve", "", loaded, testLogger()); ok {
-		t.Fatal("the loser of the race provisioned a daemon of its own")
+		t.Fatalf("the loser of the race provisioned a daemon of its own (state %q, unit %q)",
+			report.State, report.Path)
 	}
 	if waited := time.Since(started); waited < endpointDeadline {
 		t.Fatalf("it waited %s, which is less than the %s a winner is given", waited, endpointDeadline)
+	}
+	// And it installed nothing, which is the assertion that would catch a
+	// loser that took the lock's answer as advice.
+	if _, err := os.Stat(report.Path); !os.IsNotExist(err) {
+		t.Fatalf("the loser wrote a unit at %q (stat error %v)", report.Path, err)
 	}
 }
 
