@@ -70,6 +70,28 @@ jobs:
         working-directory: ts-worker
         run: pnpm install --frozen-lockfile
 
+      # The semantic coverage gate refuses to run without these: scip-java
+      # indexes by driving the repository's own build, so the JDK and Maven are
+      # both required, and `verify-semantic-coverage.sh` exits 1 rather than
+      # skipping. Maven ships with the runner image; the JDK and the indexer do
+      # not.
+      - name: Set up the JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install scip-java
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 -o cs.gz \
+            https://github.com/coursier/coursier/releases/latest/download/cs-x86_64-pc-linux.gz
+          gunzip -f cs.gz
+          chmod +x cs
+          mkdir -p "$HOME/.local/bin"
+          ./cs install --contrib scip-java --install-dir "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
       - name: Run complete semantic coverage gate
         run: make semantic-coverage
 

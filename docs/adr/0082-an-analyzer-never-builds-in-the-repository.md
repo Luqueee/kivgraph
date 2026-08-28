@@ -30,11 +30,11 @@ there, and the tree is removed afterwards with everything it produced.
 Three strategies were measured on this repository -- `1652` tracked files, a
 `3.8 GB` working tree once `node_modules`, `.tooling` and `dist` are counted:
 
-| strategy | time | size | files | writes inside the repository |
+| strategy | time | size | files | writes in the repo |
 | --- | --- | --- | --- | --- |
 | copy of the working tree | `8154 ms` | `4.5 GB` | `55862` | none |
-| `git worktree add` | `107 ms` | `16 MB` | `1638` | **yes**, `.git/worktrees/` |
-| **`git archive` + dirty overlay** | **`76 ms`** | **`16 MB`** | **`1637`** | **none** |
+| `git worktree add` | `107 ms` | `16 MB` | `1638` | **`.git/worktrees/`** |
+| **`git archive` + overlay** | **`76 ms`** | **`16 MB`** | **`1637`** | **none** |
 
 The archive wins on every axis. It is also the only one of the three that
 writes nothing inside the repository at all: `git worktree add` registers
