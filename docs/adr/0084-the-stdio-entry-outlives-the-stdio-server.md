@@ -206,11 +206,23 @@ the `323`-`330 MB` in the table. Nobody has measured an answering `serve`
 on this corpus, and that prediction is half of what the prototype checks.
 
 **The case still rests on one unmeasured number: what a relay process
-costs at rest.** What changed is the gap it has to clear. Against an idle
-`serve` at `9.8`-`10.7 MB` a floor of `8 MB` would save `4 MB` across
-eight clients and there would be nothing here worth building. Against a
-working client on a real workspace the same floor is competing with
-something two orders of magnitude larger.
+costs at rest.** What changed is the gap it has to clear, and the
+arithmetic has two readings that do not agree.
+
+Counting the daemon as new cost, eight idle clients are `78.4`-`85.6 MB`
+today. With a relay they become the daemon's `10`-`13` plus eight floors:
+an `8 MB` floor gives `74`-`77 MB`, a saving of `1.4`-`11.6`, which is not
+worth building; a `4 MB` floor gives `42`-`45 MB`, a saving of `33`-`44`,
+which is.
+
+Counting the daemon as already running -- which ADR 0069 made the default,
+so on most machines it is -- the comparison is per client, and that same
+`8 MB` floor saves `1.8`-`2.7 MB` each, `14.4`-`21.6` across eight.
+
+Every one of those numbers turns on the floor, which is why it is measured
+before anything else is written. Against a working client on a real
+workspace the same floor competes with something two orders of magnitude
+larger, and there the two readings agree.
 
 That is why the status above is gated, and why the work starts with a
 forty-line prototype that connects and does nothing, measured by
