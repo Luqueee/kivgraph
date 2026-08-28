@@ -7,6 +7,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -19,6 +20,7 @@ import (
 	"time"
 
 	"github.com/Luqueee/kivgraph/internal/config"
+	"github.com/Luqueee/kivgraph/internal/daemon"
 	"github.com/Luqueee/kivgraph/internal/eventlog"
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/goworkspace"
@@ -271,7 +273,7 @@ func TestRunConfiguredServeCreatesTheConfigurationOnFirstRun(t *testing.T) {
 	}
 
 	var gotStore *hotsnapshot.SnapshotStore
-	if err := runConfiguredServe(context.Background(), "serve", nil, serveFlagSet(&testConfigPath, &serveOptions{}), &testConfigPath, nil,
+	if err := runConfiguredServe(context.Background(), "serve", nil, serveFlagSet(&testConfigPath, &serveOptions{}), &testConfigPath, nil, nil,
 		func(_ context.Context, _ config.Loaded, store *hotsnapshot.SnapshotStore, _ indexing.ProjectIndexer, _ *eventlog.Writer) error {
 			gotStore = store
 			return nil
@@ -304,7 +306,7 @@ func TestRunConfiguredServeRefusesAnUnreadableConfiguration(t *testing.T) {
 	if err := os.WriteFile(configPath, []byte("version: 1\nnot: valid\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	err := runConfiguredServe(context.Background(), "serve", []string{"--config", configPath}, serveFlagSet(&testConfigPath, &serveOptions{}), &testConfigPath, nil,
+	err := runConfiguredServe(context.Background(), "serve", []string{"--config", configPath}, serveFlagSet(&testConfigPath, &serveOptions{}), &testConfigPath, nil, nil,
 		func(context.Context, config.Loaded, *hotsnapshot.SnapshotStore, indexing.ProjectIndexer, *eventlog.Writer) error {
 			t.Fatal("serve ran with a configuration it could not read")
 			return nil
@@ -426,7 +428,7 @@ func TestRunConfiguredServeProvidesProjectIndexer(t *testing.T) {
 
 	var gotStore *hotsnapshot.SnapshotStore
 	var gotIndexer indexing.ProjectIndexer
-	err := runConfiguredServe(context.Background(), "serve", []string{"--config", configPath}, serveFlagSet(&testConfigPath, &serveOptions{}), &testConfigPath, nil,
+	err := runConfiguredServe(context.Background(), "serve", []string{"--config", configPath}, serveFlagSet(&testConfigPath, &serveOptions{}), &testConfigPath, nil, nil,
 		func(_ context.Context, _ config.Loaded, store *hotsnapshot.SnapshotStore, indexer indexing.ProjectIndexer, _ *eventlog.Writer) error {
 			gotStore = store
 			gotIndexer = indexer
@@ -440,6 +442,51 @@ func TestRunConfiguredServeProvidesProjectIndexer(t *testing.T) {
 	}
 	if gotIndexer == nil {
 		t.Fatal("serve runner received nil project indexer")
+	}
+}
+
+// TestRunConfiguredServeProvisionsThroughItsParameter is the seam, and it is a
+// regression rather than a design note. This function used to name
+// `provisionDaemon` directly, so every test of it ran the real supervisor: on
+// macOS each one installed a launchd agent pointed at the `t.TempDir()` the
+// test was about to delete, and left the registration behind when it did. Two
+// hundred and sixteen of them had accumulated on one workstation, and CI failed
+// on the other half of the same bug -- the daemon writing into a directory
+// `TempDir` was removing, reported as "directory not empty".
+//
+// A spy that declines is enough to fix it: what has to be true is that the
+// provisioner consulted is the one the caller passed, so a test that passes nil
+// installs nothing.
+func TestRunConfiguredServeProvisionsThroughItsParameter(t *testing.T) {
+	root := t.TempDir()
+	testsupport.SetHome(t, filepath.Join(root, "home"))
+	configPath := filepath.Join(root, "config.yaml")
+	if _, err := config.Initialize(config.InitOptions{
+		ConfigPath:       configPath,
+		RepositoriesPath: filepath.Join(root, "repositories.yaml"),
+	}); err != nil {
+		t.Fatalf("config.Initialize() error = %v", err)
+	}
+
+	asked := 0
+	provision := func(context.Context, string, string, config.Loaded, *slog.Logger) (daemon.Endpoint, bool) {
+		asked++
+		return daemon.Endpoint{}, false
+	}
+	ran := false
+	if err := runConfiguredServe(context.Background(), "serve", []string{"--config", configPath},
+		serveFlagSet(&testConfigPath, &serveOptions{}), &testConfigPath, nil, provision,
+		func(context.Context, config.Loaded, *hotsnapshot.SnapshotStore, indexing.ProjectIndexer, *eventlog.Writer) error {
+			ran = true
+			return nil
+		}); err != nil {
+		t.Fatalf("runConfiguredServe() error = %v", err)
+	}
+	if asked != 1 {
+		t.Errorf("the provisioner was asked %d times, want exactly the one this test passed", asked)
+	}
+	if !ran {
+		t.Error("serve did not run in process after its provisioner declined")
 	}
 }
 
