@@ -18191,8 +18191,45 @@ al respecto en su primera línea: hoy no se manda nada. La alternativa era
 documentar el opt-out después de encender la telemetría, que es el orden que
 convierte una nota en una disculpa.
 
-**Estado:** commits 1 y 2 hechos; faltan 3 (el endpoint y su verificación de
-hilo) y 4 (los dos emisores).
+**Commit 3 -- el endpoint, hecho, y la verificación de hilo cambió el diseño.**
+
+`landing/src/install-report.mjs` con su test, montado en `landing/server.mjs`:
+validación contra los conjuntos cerrados, ventana de deduplicación con
+`emitter` dentro, `204` en todos los caminos, y una línea local en stdout que
+nunca lleva la dirección. `65` tests.
+
+**Lo que decidía si la capa 1 mide algo, medido sobre una propiedad desechable
+-- `13` eventos, borrada después:**
+
+|lo enviado|lo que guardó el colector|
+|---|---|
+|`X-Forwarded-For: 203.0.113.7`|una sesión, país `ES`, el del emisor|
+|`X-Real-IP`, `X-Client-IP`|la misma sesión|
+|`CF-Connecting-IP`|`403`, error `1000` de Cloudflare|
+|`payload.ip: 8.8.8.8`, dos veces|**una sesión propia**, país `US`|
+|`payload.ip: 1.1.1.1`|**otra sesión**, `AU`|
+|`payload.id: <uuid>`|ignorado; el evento cayó en la sesión del emisor|
+|`payload.userAgent: kivgraph-first-run`|`{"beep":"boop"}`, descartado|
+
+**Ningún header sirve.** `kivgraph.dev` y `analytics.luqueee.dev` están los dos
+detrás de Cloudflare, que reescribe la dirección en el borde. Y falla como
+falló el `User-Agent`: `200`, token de sesión, eventos guardados y **un
+visitante**. Enviado sin medir, la capa 1 habría reportado un visitante para
+todo el mundo y nada lo habría dicho.
+
+Lo que el colector lee es `payload.ip`, y da la propiedad que la capa
+necesita: misma dirección una sesión, direcciones distintas sesiones distintas,
+país derivado. Que `payload.id` se ignore importa por lo contrario -- un
+visitante no se puede nombrar desde fuera. La ADR 0083 decía "reenviar la
+dirección"; el verbo era el equivocado y queda corregido.
+
+Dos hallazgos de propina: el filtro `isbot` **también lee el `userAgent` del
+payload**, y el colector **sí guarda un país** derivado de la dirección, que la
+página de transparencia ahora declara. Y una tercera para quien lea informes:
+el endpoint de stats contesta `visitors: 0` en esta propiedad, porque cuenta
+sesiones con pageview y un primer arranque es un evento.
+
+**Estado:** commits 1, 2 y 3 hechos; falta 4, los dos emisores.
 
 
 ## LUQUE-2233 - `serve` deja de servir

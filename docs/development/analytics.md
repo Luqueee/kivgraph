@@ -564,9 +564,12 @@ touches no client, reads GitHub's own counters and is deployed. This section
 is Layer 1 -- the one ping that says a version arrived on a machine and ran
 there.
 
-**Nothing below is emitted yet.** It is written here first because that is
-this document's own rule: an event is added here before it is added to the
-code. `LUQUE-2232` carries the emitters and their gates.
+**The endpoint receives; nothing emits yet.** The receiving half is deployed
+and tested -- `landing/src/install-report.mjs`, wired in `landing/server.mjs`
+-- and the two emitters are not written. So every rule below about validation,
+deduplication and what reaches the collector is observed behaviour, and every
+rule about the marker and the notice is still a design. `LUQUE-2232` carries
+the emitters and their gates.
 
 ### The event
 
@@ -625,7 +628,8 @@ replaces the bundle, so a marker there would fire again on every update.
 Calling the number *installations* would be a claim the marker cannot support.
 
 It is created with `O_CREATE|O_EXCL` and only the process that created it
-sends. Reading the marker and then writing it would let a whole burst find it
+sends -- this paragraph being the design, since the marker is not written
+yet. Reading the marker and then writing it would let a whole burst find it
 absent and report before any of them had created it -- and stdio starts
 bursts: `docs/adr/0069-el-demonio-es-el-defecto.md` measured `69` starts of
 `serve` with `8` alive at once, over one session of one client. That is one
@@ -641,13 +645,49 @@ visitor from a daily-rotating hash of website id, hostname, address and user
 agent, so *unique visitors per day* is already distinct machines and the
 address itself is never stored.
 
-That has one load-bearing consequence: **the endpoint has to forward the
-caller's address to the collector**. Without it every install on earth
-collapses into one visitor -- the landing server itself. And since
-`REPORTER_HEADERS` forces `User-Agent: ""` to survive the collector's `isbot`
-filter, the address is the *only* discriminator left, so a corporate NAT
-counts as one person. That is the bias every web analytics carries, and it is
-written here rather than discovered in a report.
+That has one load-bearing consequence: **the endpoint has to give the
+collector the caller's address**. Without it every install on earth collapses
+into one visitor -- the landing server itself. And since `REPORTER_HEADERS`
+forces `User-Agent: ""` to survive the collector's `isbot` filter, the address
+is the *only* discriminator left, so a corporate NAT counts as one person.
+That is the bias every web analytics carries, and it is written here rather
+than discovered in a report.
+
+### The address goes in the body, and that was measured
+
+The design said *forward the header*. Against this instance no header works,
+and it fails the way the `User-Agent` failed: `200`, a session token, events
+stored, and one visitor.
+
+Both `kivgraph.dev` and `analytics.luqueee.dev` sit behind Cloudflare, which
+rewrites the address headers at its edge. Measured on a throwaway property,
+`13` events:
+
+|what was sent|what the collector recorded|
+|---|---|
+|`X-Forwarded-For: 203.0.113.7`|one session, country `ES` -- the sender's|
+|`X-Real-IP: 198.18.0.1`|the same session|
+|`X-Client-IP: 198.18.0.3`|the same session|
+|`CF-Connecting-IP: 198.18.0.2`|`403`, Cloudflare error `1000`|
+|`payload.ip: 8.8.8.8`, twice|**one session of its own**, country `US`|
+|`payload.ip: 1.1.1.1`|**another session**, country `AU`|
+|`payload.id: <a uuid>`|ignored; the event joined the sender's session|
+|`payload.userAgent: kivgraph-first-run`|`{"beep":"boop"}`, discarded|
+
+So `payload.ip` is what the collector reads, and it gives exactly the property
+the layer needs: the same address twice is one visitor, two addresses are two.
+`payload.id` being ignored matters for the opposite reason -- a visitor cannot
+be named from outside, so identity stays the collector's daily-rotating hash
+rather than something a caller can set.
+
+The last row is the crawler reporter's finding arriving a second time: the
+`isbot` filter reads a `userAgent` in the payload as well as the header, so
+there is neither.
+
+Two consequences for the endpoint, both in `landing/src/install-report.mjs`:
+it reads `CF-Connecting-IP` first when deciding whose install it is, because
+that is the header the edge sets and the socket address is the edge's; and it
+puts that address in `payload.ip` rather than in a header of its own.
 
 ### The endpoint, and the bounds on the number
 
@@ -686,13 +726,18 @@ not notice the day this stops being true.
 half fails closed the way the other two properties do: without its website id
 nothing is forwarded, so a development landing cannot write to the dataset.
 
-### What has to be verified before this measures anything
+### What the collector stores, which is not nothing
 
-That Umami honours the forwarded address is **wire behaviour, not documented
-contract**, and it is the same shape of risk as the `User-Agent` finding: it
-would fail with `200`, `{"beep":"boop"}` and nothing written. It gets the same
-treatment -- a check against the instance on a throwaway property, before the
-emitters are believed.
+A session row carries a **country** derived from the address -- `US` for
+`8.8.8.8`, `AU` for `1.1.1.1`, empty for a reserved range -- and a device
+class that defaults to `desktop` for a request with no screen. The address
+itself is not stored. Coarse geography is therefore part of what this property
+knows, and `/telemetry/` says so rather than leaving it to be discovered.
+
+One more thing a report has to know: the stats endpoint answers `visitors: 0`
+for this property, because it counts sessions with **pageviews** and a first
+run is an event. The machine count is read from sessions and events, not from
+the overview.
 
 ## PostHog: the behaviour, not the acquisition
 

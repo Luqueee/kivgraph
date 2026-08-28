@@ -1,6 +1,6 @@
 # ADR 0083: a download is not a person
 
-- **Status:** accepted; Layer 0 is implemented, Layer 1 is still a design
+- **Status:** accepted; Layer 0 is implemented, Layer 1 has its endpoint
 - **Date:** 2026-08-28
 - **Implementation:** `LUQUE-2232`
 
@@ -91,13 +91,15 @@ machine fetching an asset seven times from seven machines fetching it once.
 Two layers. They answer different questions and neither is a step towards
 the other.
 
-**Layer 0 is built; Layer 1 is not.** The present tense states what each
-layer **must** do. Layer 0 does it: `scripts/downloads.jq`,
-`scripts/downloads.sh` and `.github/workflows/download-metrics.yml` are
-deployed, and where the implementation taught this section something the
-section says so. Nothing in Layer 1 exists. `LUQUE-2232` carries the rest
-and its gates, and a reader asking whether a control is deployed should
-read the task rather than this section.
+**Layer 0 is built; Layer 1 has its endpoint and no emitters.** The present
+tense states what each layer **must** do. Layer 0 does it:
+`scripts/downloads.jq`, `scripts/downloads.sh` and
+`.github/workflows/download-metrics.yml` are deployed. Of Layer 1, the
+endpoint that receives a ping is deployed and tested; nothing sends one
+yet. Where the implementation taught this ADR something, the ADR says so
+-- the address below is the case. `LUQUE-2232` carries the rest and its
+gates, and a reader asking whether a control is deployed should read the
+task rather than this section.
 
 ### Layer 0 -- the series, with no client involvement
 
@@ -160,9 +162,17 @@ reported that day, and the address itself is never stored. An identifier of
 our own would answer better and would also have to be explained, stored and
 defended; this one is answered by software already deployed.
 
-The load-bearing consequence is that **the endpoint must forward the
-caller's address to the collector**. Without it every install on earth
-collapses into one visitor -- the landing server. And `REPORTER_HEADERS`
+The load-bearing consequence is that **the endpoint must give the collector
+the caller's address**. Without it every install on earth collapses into one
+visitor -- the landing server.
+
+*Forward* was the wrong verb, and measuring it said so. Both ends sit behind
+Cloudflare, which rewrites the address headers at its edge: `X-Forwarded-For`,
+`X-Real-IP` and `X-Client-IP` all landed in one session carrying the sender's
+own country, and `CF-Connecting-IP` was refused with `403`. `payload.ip` is
+what the collector reads -- one session per address, geography derived from
+it -- so the address travels in the body. The table is in
+`docs/development/analytics.md`. And `REPORTER_HEADERS`
 forces `User-Agent: ""` to survive the collector's `isbot` filter, so the
 address is the *only* discriminator left: a corporate NAT counts as one
 person. That is the bias every web analytics carries, and it is written
