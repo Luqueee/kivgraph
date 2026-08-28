@@ -68,11 +68,12 @@ the one that costs.
 
 ## Decision
 
-**Nothing in this section is built, and the status above is gated.** The
-present tense states what the relay, the provisioning, the skew refusal and
-the fallback **must** do if the prototype clears the floor; `LUQUE-2233`
-carries the work, and until its first commit reports a number none of this
-describes a running system.
+**Nothing in this section is built.** The gate is passed -- the floor is
+measured in *What the relay is worth* above -- so the present tense states
+what the relay, the provisioning, the skew refusal and the fallback **must**
+do, rather than what they must do *if*. `LUQUE-2233` carries the work from
+its second commit on, and until then none of this describes a running
+system.
 
 `serve` stops serving. It becomes a relay between the client's stdio and
 the daemon's Streamable HTTP endpoint, and it loads no graph.
@@ -230,6 +231,11 @@ A relay process on its own costs `4.2`-`5.6 MB` per client and does not
 move with the load, which is what a process holding no graph should do.
 Against a direct HTTP session at `0.04`-`0.13 MB` per client, that floor
 is the entire price of keeping the stdio entry the `.mcpb` format forces.
+
+Those ranges are what three passes measured and not confidence intervals,
+and the idle row is the one that moves: a later pass fell below it at
+`8.30` and `2.54 MB`. The gate still clears and the answering row does not
+move at all. `benchmarks/relay-cost/report.md` has the dispersion.
 
 Both halves of the prediction above hold. The corpus is `1.71` times the
 one `daemon-cost` used and the answering row rose `1.77` times; the idle

@@ -39,6 +39,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -492,6 +493,30 @@ func sampleOf(index, pid int, role string) processSample {
 	}
 }
 
+// safeBuffer collects a process's stderr behind a mutex.
+//
+// `exec.Cmd` copies a child's stderr on a goroutine of its own, and every
+// error path here reads the buffer back to quote what the process said. A
+// plain bytes.Buffer written and read in that arrangement is a race, and the
+// moment it would bite is the one where an arm is already failing -- which is
+// the least useful moment for the harness to start misbehaving too.
+type safeBuffer struct {
+	mu     sync.Mutex
+	buffer bytes.Buffer
+}
+
+func (safe *safeBuffer) Write(data []byte) (int, error) {
+	safe.mu.Lock()
+	defer safe.mu.Unlock()
+	return safe.buffer.Write(data)
+}
+
+func (safe *safeBuffer) String() string {
+	safe.mu.Lock()
+	defer safe.mu.Unlock()
+	return safe.buffer.String()
+}
+
 // clientWait is what one client waited for. The connection is measured under
 // every load; the first answer exists only when the run asks for one, and a zero
 // there would read as an instant answer rather than as no answer at all.
@@ -543,7 +568,7 @@ func startStdio(ctx context.Context, cfg config, name string) (*stdioProcess, er
 		}
 		command = exec.Command(cfg.Server, arguments...)
 	}
-	stderr := &bytes.Buffer{}
+	stderr := &safeBuffer{}
 	command.Stderr = stderr
 	transport := &sdkmcp.CommandTransport{Command: command, TerminateDuration: 5 * time.Second}
 	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: benchmarkName, Version: "1.0.0"}, nil)
@@ -571,7 +596,7 @@ func startStdio(ctx context.Context, cfg config, name string) (*stdioProcess, er
 
 type daemonProcess struct {
 	command  *exec.Cmd
-	stderr   *bytes.Buffer
+	stderr   *safeBuffer
 	socket   string
 	sessions []*sdkmcp.ClientSession
 	endpoint daemon.Endpoint
@@ -620,7 +645,7 @@ func startDaemon(ctx context.Context, cfg config) (*daemonProcess, error) {
 		arguments = append(arguments, "--config", cfg.ConfigPath)
 	}
 	command := exec.Command(cfg.Server, arguments...)
-	stderr := &bytes.Buffer{}
+	stderr := &safeBuffer{}
 	command.Stderr = stderr
 	if err := command.Start(); err != nil {
 		return nil, fmt.Errorf("start daemon: %w", err)

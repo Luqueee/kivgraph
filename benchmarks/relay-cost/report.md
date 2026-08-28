@@ -97,12 +97,12 @@ Los totales a ocho clientes dicen lo mismo sin recta de por medio:
 |`8` llamadas, pico|`2.531`–`2.540 MB`|`437`–`445`|`319`–`320`|
 
 Ocioso a ocho clientes el relé ahorra unos `10`–`15 MB`, que es real y es
-poco. Contestando ahorra `400 MB` de residente y **`2,1 GB` de pico**, y esa
-es la fila por la que existe la ficha.
+poco. Contestando ahorra `400 MB` de páginas privadas sucias y **`2,1 GB` de
+pico residente**, y esa es la fila por la que existe la ficha.
 
 ## Lo que la pendiente ociosa no resuelve
 
-Entre uno y dos clientes ociosos el residente total **baja** en las tres
+Entre uno y dos clientes ociosos el privado total **baja** en las tres
 pasadas de `serve` (`-1,45`, `-5,25` y `-3,47` MB/cliente) y en dos de las
 tres del relé. Un cliente de más no devuelve memoria: significa que a esta
 carga el coste por cliente está por debajo de lo que este método resuelve, y
@@ -112,6 +112,14 @@ donde sí hay señal, son los que sostienen la recta.
 
 Bajo carga no pasa: los tres escalones de `serve` van de `55` a `73` MB por
 cliente y ninguno cambia de signo.
+
+**Y el rango de las tablas es lo que midieron tres pasadas, no un intervalo de
+confianza.** Una cuarta corrida posterior, ya con el arnés arreglado, dio
+`8,30` MB/cli de `serve` ocioso y `2,54` de ahorro: por debajo de los
+`8,76`-`9,15` y `2,93`-`4,24` publicados. La puerta sigue pasada -- `2,54` está
+sobre `1` -- y la fila que contesta ni se movió: `68,66` contra
+`68,94`-`70,28`. Quien necesite un límite ocioso y no una magnitud tiene que
+correr más pasadas de las tres que hay aquí.
 
 ## Lo que esto no contesta
 
@@ -182,4 +190,4 @@ la SSE en solitario y el de skew de versión. Y con una advertencia que sale
 de aquí y no estaba en el ADR: **el argumento no es el ocioso.** Quien
 defienda el relé por el caso que predomina está defendiendo `10`–`15 MB` a
 ocho clientes y una derrota por debajo de cinco. El argumento es la sesión
-que contesta, donde son `400 MB` de residente y `2,1 GB` de pico.
+que contesta, donde son `400 MB` de páginas privadas y `2,1 GB` de pico.

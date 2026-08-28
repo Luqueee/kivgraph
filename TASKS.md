@@ -18264,7 +18264,8 @@ a mano y un test que lo fije.
    La primera: **el argumento no es la carga que predomina.** Ocioso el relé
    sólo gana desde el quinto cliente -- el cruce de las rectas cae en
    `4,83`-`6,02` -- y a ocho ahorra `10`-`15 MB`. Contestando gana desde el
-   segundo (`1,42`-`1,49`) y ahorra `400 MB` de residente y `2,1 GB` de pico.
+   segundo (`1,42`-`1,49`) y ahorra `400 MB` de páginas privadas sucias y
+   `2,1 GB` de pico residente.
    Quien defienda la ficha por el caso de `48` de `51` está defendiendo la
    mitad pequeña.
 

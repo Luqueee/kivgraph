@@ -395,9 +395,20 @@ func limitations(out results, cfg config) []string {
 		notes = append(notes,
 			"The tree had uncommitted changes: `commit` carries `-dirty` and names code that is not in any history.")
 	}
-	if strings.HasSuffix(out.Commit, "-unknown") {
+	// Both shapes `currentCommit` produces for an unreadable revision: a bare
+	// "unknown" when `rev-parse` failed, and the "-unknown" suffix when only
+	// the dirty check did. Matching one of them was how a run with no
+	// attributable commit published no limitation saying so.
+	if out.Commit == "unknown" || strings.HasSuffix(out.Commit, "-unknown") {
 		notes = append(notes,
 			"The commit could not be read, so these figures are not attributable to a revision.")
+	}
+	if failed := callErrorsIn(out); failed > 0 {
+		notes = append(notes, fmt.Sprintf(
+			"%d call(s) failed, and the driver times every call it makes, so those durations "+
+				"are inside the percentiles. The driver is `benchmarks/daemon-cost`'s, copied "+
+				"unchanged so the two sets of latencies stay comparable; diverging here would "+
+				"end that. The memory figures are unaffected.", failed))
 	}
 	if out.Calls == 0 {
 		notes = append(notes,
@@ -534,6 +545,18 @@ func printSummary(out results) {
 			megabytesFloat(fitted.ClientPerClientBytes))
 	}
 	fmt.Printf("\nverdict: proceed=%t\n  %s\n", out.Verdict.Proceed, out.Verdict.Reason)
+}
+
+// callErrorsIn totals the refusals across every arm, so a limitation about
+// them is stated only when there were some.
+func callErrorsIn(out results) int {
+	total := 0
+	for _, measured := range out.Points {
+		for _, one := range measured.Arms {
+			total += one.CallErrors
+		}
+	}
+	return total
 }
 
 func symbolsOf(out results) int {
