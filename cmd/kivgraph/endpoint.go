@@ -11,7 +11,10 @@ import (
 
 	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/daemon"
+	"github.com/Luqueee/kivgraph/internal/eventlog"
 	"github.com/Luqueee/kivgraph/internal/integrations"
+	"github.com/Luqueee/kivgraph/internal/logging"
+	"github.com/Luqueee/kivgraph/internal/relay"
 	"github.com/Luqueee/kivgraph/internal/supervisor"
 )
 
@@ -207,3 +210,71 @@ type errStdioFallback struct {
 }
 
 func (err errStdioFallback) Error() string { return err.reason }
+
+// serveInProcessEnv forces `serve` to answer from its own graph even when a
+// daemon is running.
+//
+// It exists because the relay is the new default on a path a client spawns
+// unattended: without an escape, a machine where the relay misbehaves has no
+// way back that does not involve stopping the daemon other clients are using.
+const serveInProcessEnv = "KIVGRAPH_SERVE_IN_PROCESS"
+
+// relayToTheDaemon forwards this `serve` to a running daemon and answers
+// whether it did.
+//
+// ADR 0084: the stdio *entry* is permanent -- the `.mcpb` manifest has no field
+// for a url, and a url in a committed project file would carry the token -- but
+// the stdio *server* is not, and it is the one that costs. Measured on
+// generation `000091`, a `serve` answering costs `68.9`-`70.3 MB` per client
+// against a relay's `8.7`-`9.8`, and peaks at `2.5 GB` across eight clients
+// against `0.44`. See `benchmarks/relay-cost`.
+//
+// Every way of declining returns false and no error, because each leaves the
+// caller's existing behaviour correct: this is `daemon` or `ui` rather than
+// `serve`, the escape hatch is set, no daemon published an endpoint, or nothing
+// answered where one said it would. The last is the fallback ADR 0084 promised
+// for a platform with no supervisor, and on those two paths nothing is worse
+// than it was.
+func relayToTheDaemon(ctx context.Context, command string, loaded config.Loaded) (bool, error) {
+	if command != "serve" {
+		return false, nil
+	}
+	logger := logging.New(os.Stderr)
+	if os.Getenv(serveInProcessEnv) != "" {
+		logger.Info("serving in process because "+serveInProcessEnv+" is set", "command", command)
+		return false, nil
+	}
+	endpoint, err := daemon.ReadEndpoint(stateDirectory(loaded))
+	if err != nil {
+		// A daemon writes this before it serves, so its absence is the answer
+		// and not a failure to get one.
+		return false, nil
+	}
+	// Probed here rather than left to the relay, because only this side can
+	// fall back: once the relay has read the agent's handshake there is no
+	// in-process server left to hand it to. A daemon that dies between this
+	// dial and the connection is a declared race -- the relay fails, and the
+	// client that spawned this process starts another.
+	if err := relay.Reachable(ctx, endpoint); err != nil {
+		logger.Info("serving in process: no daemon answered", "command", command, "reason", err)
+		return false, nil
+	}
+
+	events := openEventLog(loaded.Config, os.Stderr)
+	started := time.Now()
+	// The message says which arrangement served, because nothing else does and
+	// the fallback rate is the number that decides whether provisioning is
+	// worth building. A relay and an in-process server answer identically.
+	events.Append(eventlog.Event{Kind: eventlog.KindServe, Message: command + " started as a relay to the daemon"})
+	defer func() {
+		events.Append(eventlog.Event{
+			Kind:    eventlog.KindServe,
+			Message: command + " stopped",
+		}.WithDuration(time.Since(started)))
+		if err := events.Close(); err != nil {
+			writeWarning(os.Stderr, "events: close: %v", err)
+		}
+	}()
+	logger.Info("relaying to the daemon", "command", command, "endpoint", endpoint.URL)
+	return true, relay.Run(ctx, endpoint)
+}

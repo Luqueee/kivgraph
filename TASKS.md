@@ -18278,8 +18278,41 @@ a mano y un test que lo fije.
    La tercera: **las dos mitades de la predicción del ADR se cumplen.** El
    corpus es `1,71` veces el de `daemon-cost` y la fila que contesta subió
    `1,77` veces; la ociosa no subió. Lo que escala con el grafo es contestar.
-2. El relé de verdad y el fallback, con el test de la SSE en solitario y el de
-   skew de versión. No provisiona nada todavía y se puede cerrar solo.
+2. **El relé de verdad y el fallback. HECHO**, con los dos tests que pedía la
+   ficha y el humo del binario contra un demonio vivo, contra ninguno y con el
+   escape puesto -- las tres rutas sirven las doce tools.
+
+   **Vive en `internal/relay`, no en `internal/mcp/relay.go`.** `internal/daemon`
+   importa `internal/mcp`, así que un relé que necesita un `Endpoint` y una
+   cabecera bearer no cabe ahí sin un ciclo de imports. Es lo único de la lista
+   de ficheros previstos que no salió donde se dijo.
+
+   **La decisión se toma antes del store, del seguidor y del resync**, no dentro
+   del runner: un relé no necesita ninguno de los tres, y pagarlos habría
+   devuelto justo el coste por cliente que existe para quitar. Eso obligó a
+   partir `loadConfiguredSnapshot` en la mitad que carga configuración y la que
+   abre el snapshot.
+
+   **La sonda de alcanzabilidad va del lado del llamante, y ese orden es el
+   fallback entero.** Sólo `cmd` puede echar marcha atrás: cuando el relé ya ha
+   leído el handshake del agente no queda servidor en proceso al que dárselo.
+   Por lo mismo, dentro del relé el demonio se conecta **antes** que el agente.
+
+   **Dos cosas que la ficha no fijaba y hubo que decidir.** La versión del
+   demonio se lee del `initialize` que pasa por delante, no de una pregunta
+   aparte ni de un campo nuevo en `daemon.json`: el handshake la trae en toda
+   versión del protocolo, y un campo nuevo estaría ausente en todo demonio
+   escrito antes. Y un demonio que **no** nombra versión se sirve igual, porque
+   es una release anterior a esta comprobación y negarla convertiría una
+   actualización de este lado en una caída del otro.
+
+   **Y un escape que la ficha no pedía:** `KIVGRAPH_SERVE_IN_PROCESS`. El relé
+   es el defecto en un proceso que un cliente lanza sin supervisión, así que sin
+   escape una máquina donde se porte mal no tiene vuelta que no pase por parar
+   el demonio que usan los demás.
+
+   Lo que **no** lleva: la documentación de `landing/` y el aviso de primer
+   arranque siguen sin mencionar que hay un servicio detrás. Es el commit 4.
 3. El provisionado: `ensureDaemon` junto a `ensureConfiguration`, con el lock de
    la ráfaga -- ocho relés a la vez encuentran los ocho que no hay demonio -- y
    los perdedores esperando a `endpointDeadline` en vez de instalar ocho
@@ -18294,8 +18327,8 @@ a mano y un test que lo fije.
 
 ```text
 cmd/kivgraph/main.go
-internal/mcp/relay.go
-internal/mcp/relay_test.go
+internal/relay/relay.go        (hecho; no internal/mcp, ver commit 2)
+internal/relay/relay_test.go   (hecho)
 internal/daemon/endpoint.go
 docs/adr/0084-the-stdio-entry-outlives-the-stdio-server.md
 benchmarks/relay-cost/report.md   (hecho)
@@ -18308,7 +18341,9 @@ la condición de que haya commit 2 -- **cumplido**: `results.json`,
 `go test ./...`, `go vet ./...` y `make lint-ladybug`; y el smoke test del
 binario contra un demonio vivo y contra ninguno.
 
-**Estado:** commit 1 hecho y la puerta pasada. Quedan los commits 2, 3 y 4.
+**Estado:** commits 1 y 2 hechos. Quedan el 3 -- el provisionado, que no sale
+sin respuesta a qué pasa con la unidad cuando alguien borra la extensión
+`.mcpb`-- y el 4.
 
 ## LUQUE-2234 - Un `update` que no reinicia el demonio, y un consejo que lo apaga
 
