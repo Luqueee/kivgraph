@@ -195,6 +195,23 @@ describe("the registry itself", () => {
     assert.equal(new Set(ids).size, ids.length);
   });
 
+  // The per-agent event names, spelt out. This is the list a chart in Umami is
+  // built against, so a rename here is a chart that silently stops drawing.
+  it("every event name is the row's id, with underscores", () => {
+    for (const entry of AI_AGENTS) {
+      assert.equal(
+        entry.event,
+        `ai_crawler_${entry.id.replaceAll("-", "_")}`,
+        `${entry.id} has event ${entry.event}`,
+      );
+    }
+  });
+
+  it("every event name is unique", () => {
+    const events = AI_AGENTS.map((entry) => entry.event);
+    assert.equal(new Set(events).size, events.length);
+  });
+
   it("every category is one of the four", () => {
     const known = new Set(Object.values(CATEGORIES));
     for (const entry of AI_AGENTS) {
@@ -211,6 +228,63 @@ describe("the registry itself", () => {
     for (const provider of Object.values(PROVIDERS)) {
       assert.match(provider.source, /^https:\/\//);
       assert.match(provider.checkedOn, /^\d{4}-\d{2}-\d{2}$/);
+    }
+  });
+});
+
+describe("the per-agent analytics event", () => {
+  // Written out rather than derived, because deriving them here would make the
+  // test agree with a typo in the registry: both sides would compute the same
+  // wrong string. These are the names a dashboard is configured with.
+  const expected = [
+    ["oai-searchbot", "ai_crawler_oai_searchbot"],
+    ["chatgpt-user", "ai_crawler_chatgpt_user"],
+    ["gptbot", "ai_crawler_gptbot"],
+    ["claude-searchbot", "ai_crawler_claude_searchbot"],
+    ["claude-user", "ai_crawler_claude_user"],
+    ["claudebot", "ai_crawler_claudebot"],
+    ["perplexity-user", "ai_crawler_perplexity_user"],
+    ["perplexitybot", "ai_crawler_perplexitybot"],
+  ];
+
+  for (const [key, event] of expected) {
+    it(`${key} reports as ${event}`, () => {
+      assert.equal(detectAiAgent(OFFICIAL[key]).event, event);
+    });
+  }
+
+  it("an unrecognised agent from a known operator still gets one", () => {
+    assert.equal(
+      detectAiAgent("Mozilla/5.0 (compatible; OAI-FutureBot/1.0)").event,
+      "ai_crawler_openai_unknown",
+    );
+    assert.equal(
+      detectAiAgent("Mozilla/5.0 (compatible; Claude-Something/1.0)").event,
+      "ai_crawler_anthropic_unknown",
+    );
+    assert.equal(
+      detectAiAgent("Mozilla/5.0 (compatible; PerplexityFuture/2.0)").event,
+      "ai_crawler_perplexity_unknown",
+    );
+  });
+
+  // The whole point of taking the name from the registry rather than from the
+  // request. A crawler that calls itself anything it likes gets no event of its
+  // own, so the property cannot be filled with one-off event names by whoever
+  // sends the header.
+  it("cannot be minted by the request", () => {
+    for (const ua of [
+      "HolaSoyPepito123",
+      "ai_crawler_free_money",
+      "Mozilla/5.0 (compatible; Googlebot/2.1)",
+    ]) {
+      assert.equal(detectAiAgent(ua), null);
+    }
+  });
+
+  it("is a name Umami can group: lowercase, snake_case, prefixed", () => {
+    for (const entry of AI_AGENTS) {
+      assert.match(entry.event, /^ai_crawler_[a-z0-9]+(_[a-z0-9]+)*$/);
     }
   });
 });

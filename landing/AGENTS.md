@@ -289,6 +289,15 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
   `kivgraph-landing/1.0` en vez de falsear la cabecera. El registro de agentes
   es `src/ai-agents.mjs`, cada fila con la fuente oficial y su fecha, y el resto
   está en `docs/development/analytics.md`.
+- Una petición detectada emite **dos** eventos y los dos van del mismo lado de
+  la deduplicación: `ai_crawler_request` con todos los campos, y
+  `ai_crawler_<agente>` para que el gráfico *Events* del dashboard pueda
+  separar por agente -- una serie por nombre de evento es lo único que sabe
+  dibujar, y no filtra por una propiedad. Los construye `crawlerEventPayloads()`
+  en `src/ai-report.mjs` y no `server.mjs`, que no se puede importar sin un
+  `dist/` construido: lo que se escribe ahí dentro es código que ningún test
+  alcanza. El nombre del evento sale de la fila del registro y **nunca** de la
+  petición, así que un `User-Agent` inventado no acuña un evento nuevo.
 - El JSON-LD del sitio es **un** grafo: la landing publica
   `SoftwareApplication` en `<site>/#software` y `WebSite` en `<site>/#website`, y
   cada página de documentación emite un `TechArticle` que los referencia por

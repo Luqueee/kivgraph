@@ -97,6 +97,18 @@ export const PROVIDERS = Object.freeze({
  *
  * `pattern` matches the token anywhere in the user agent, case-insensitively.
  * Order matters in exactly one place and it is written down where it does.
+ *
+ * `event` is the per-agent analytics event, and it is written out as a literal
+ * rather than built from `id`, because a name that only exists as a computed
+ * string cannot be grepped: the one thing you have when a chart in Umami looks
+ * wrong is the name on the chart. `ai-agents.test.mjs` asserts that every row
+ * is `ai_crawler_${id with dashes as underscores}`, so the literal is spelt out
+ * here and a typo in it still fails the suite.
+ *
+ * The set is closed on purpose. The event name never comes from the request:
+ * anything sending `User-Agent: HolaSoyPepito123` falls through to `null` and
+ * emits nothing, so nobody outside this file can mint an event name and fill
+ * the property with one-off events.
  */
 export const AI_AGENTS = Object.freeze([
   // --- OpenAI ---------------------------------------------------------------
@@ -108,6 +120,7 @@ export const AI_AGENTS = Object.freeze([
     provider: "openai",
     agent: "OAI-SearchBot",
     category: CATEGORIES.SEARCH,
+    event: "ai_crawler_oai_searchbot",
     pattern: /OAI-SearchBot/i,
   },
   {
@@ -119,6 +132,7 @@ export const AI_AGENTS = Object.freeze([
     provider: "openai",
     agent: "ChatGPT-User",
     category: CATEGORIES.USER_FETCH,
+    event: "ai_crawler_chatgpt_user",
     pattern: /ChatGPT-User/i,
   },
   {
@@ -126,6 +140,7 @@ export const AI_AGENTS = Object.freeze([
     provider: "openai",
     agent: "GPTBot",
     category: CATEGORIES.TRAINING,
+    event: "ai_crawler_gptbot",
     pattern: /GPTBot/i,
   },
 
@@ -138,6 +153,7 @@ export const AI_AGENTS = Object.freeze([
     provider: "anthropic",
     agent: "Claude-SearchBot",
     category: CATEGORIES.SEARCH,
+    event: "ai_crawler_claude_searchbot",
     pattern: /Claude-SearchBot/i,
   },
   {
@@ -145,6 +161,7 @@ export const AI_AGENTS = Object.freeze([
     provider: "anthropic",
     agent: "Claude-User",
     category: CATEGORIES.USER_FETCH,
+    event: "ai_crawler_claude_user",
     pattern: /Claude-User/i,
   },
   {
@@ -152,6 +169,7 @@ export const AI_AGENTS = Object.freeze([
     provider: "anthropic",
     agent: "ClaudeBot",
     category: CATEGORIES.TRAINING,
+    event: "ai_crawler_claudebot",
     pattern: /ClaudeBot/i,
   },
 
@@ -164,6 +182,7 @@ export const AI_AGENTS = Object.freeze([
     provider: "perplexity",
     agent: "Perplexity-User",
     category: CATEGORIES.USER_FETCH,
+    event: "ai_crawler_perplexity_user",
     pattern: /Perplexity-User/i,
   },
   {
@@ -171,6 +190,7 @@ export const AI_AGENTS = Object.freeze([
     provider: "perplexity",
     agent: "PerplexityBot",
     category: CATEGORIES.SEARCH,
+    event: "ai_crawler_perplexitybot",
     pattern: /PerplexityBot/i,
   },
 ]);
@@ -195,11 +215,23 @@ export const AI_AGENTS = Object.freeze([
  * https://developers.google.com/crawling/docs/crawlers-fetchers/google-common-crawlers
  */
 const UNKNOWN_AI_HINTS = Object.freeze([
-  { provider: "openai", pattern: /\bOAI-|\bOpenAI\b/i },
-  { provider: "anthropic", pattern: /\bAnthropic\b|\bClaude[-\s]/i },
-  // No trailing `\b`: it would refuse `PerplexityFuture`, which is exactly the
-  // shape an unrecognised agent from a known operator takes.
-  { provider: "perplexity", pattern: /\bPerplexity/i },
+  {
+    provider: "openai",
+    event: "ai_crawler_openai_unknown",
+    pattern: /\bOAI-|\bOpenAI\b/i,
+  },
+  {
+    provider: "anthropic",
+    event: "ai_crawler_anthropic_unknown",
+    pattern: /\bAnthropic\b|\bClaude[-\s]/i,
+  },
+  {
+    provider: "perplexity",
+    event: "ai_crawler_perplexity_unknown",
+    // No trailing `\b`: it would refuse `PerplexityFuture`, which is exactly
+    // the shape an unrecognised agent from a known operator takes.
+    pattern: /\bPerplexity/i,
+  },
 ]);
 
 /**
@@ -213,7 +245,7 @@ const UNKNOWN_AI_HINTS = Object.freeze([
  * @param {string | undefined | null} userAgent
  * @returns {{
  *   id: string, provider: string, agent: string, category: string,
- *   verification: string,
+ *   verification: string, event: string,
  * } | null}
  */
 export function detectAiAgent(userAgent) {
@@ -229,6 +261,7 @@ export function detectAiAgent(userAgent) {
         agent: entry.agent,
         category: entry.category,
         verification: PROVIDERS[entry.provider].verification,
+        event: entry.event,
       };
     }
   }
@@ -244,6 +277,7 @@ export function detectAiAgent(userAgent) {
         agent: "unknown",
         category: CATEGORIES.UNKNOWN,
         verification: PROVIDERS[hint.provider].verification,
+        event: hint.event,
       };
     }
   }
