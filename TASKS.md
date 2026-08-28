@@ -18454,4 +18454,51 @@ La primera da el paso siguiente. Las otras dos, que son las que se comen los
 ./...`, y `tool-stats` visto separar las dos clases sobre el event log de esta
 máquina, que es donde se midió el `22,2 %`.
 
-**Estado:** TODO.
+**Hecho, los dos commits.**
+
+**El primero separa, no resta.** `RefusalCodes()` vive en
+`internal/mcp/tools`, junto a los códigos, y es una lista y no una constante
+para que una segunda negativa por diseño tenga un sitio al que sumarse. El
+registro vivo no puede leerla -- `tools` importa `metrics`, no al revés-- así
+que la clasificación viaja en la observación, puesta en la única costura donde
+las dos cosas están a la vista. Y los contadores son **disjuntos**: una
+negativa contada en las dos columnas dejaría `errors` en el número que ya era.
+
+**El lector clasifica por lo que el escritor ya escribía.** Un fallo de tool se
+renderiza `"CODE: message"` a propósito, y su propio comentario lo dice: «la
+clasificación sobrevive sin un campo propio». Eso es lo que permite comprobar
+esto contra el log del que salió la medición, y no sólo contra eventos escritos
+a partir de ahora.
+
+**Y la línea de «último fallo» deja de apuntar a negativas.** Es la que
+convierte un contador en algo accionable, así que apuntarla a la respuesta que
+la tool fue diseñada para dar es el mismo defecto un nivel más abajo. La regla
+de color va detrás: una fila que sólo negó no se pinta.
+
+**El gate, corrido sobre el log vivo** -- y las cifras **no** son las de la
+ficha, porque el log ha crecido desde entonces:
+
+```text
+TOOL                             CALLS      OK  REFUSED    FAIL      OK%
+find_references                    268     193       40      35    72.0%
+```
+
+`40` de los `75` que no contestaron son la negativa del ADR 0077. Antes de esto
+los `75` se informaban como fallos.
+
+**El segundo enruta.** Los dos `return` que se comían los `31` comparten ahora
+un helper que nombra `find_by_intent`, con la forma que `root_symbol.go:121` ya
+usaba. El código sigue siendo `SYMBOL_NOT_FOUND` porque **sigue siendo un fallo
+en contestar**; lo que cambia es que le cuesta al llamante una llamada más en
+vez de una adivinanza. El test cubre los dos: un nombre que el arena nunca
+internó, y uno que sí tiene -- un nombre de repositorio-- que ningún símbolo
+lleva, que es el segundo `return`.
+
+**Lo que queda fuera, dicho:** `kivgraph logs` sigue poniendo la insignia
+`ERROR` a una negativa. Esa vista renderiza el **registro**, y el `status` del
+registro es el que escribió el productor; cambiar la insignia sin cambiar al
+escritor haría que las dos discrepasen, y cambiar al escritor es una decisión
+sobre un formato durable que esta ficha no abrió. La línea sí lleva el código
+`AMBIGUOUS_SYMBOL` a la vista, así que el lector no se queda sin el dato.
+
+**Estado:** hecho.
