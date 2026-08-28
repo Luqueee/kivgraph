@@ -1,0 +1,222 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+#
+# CodeRabbit reviews every pull request here. Without this file it reviews the
+# whole diff with generic instructions, which for this repository means two
+# specific kinds of noise: it reads generated and vendored trees that no one
+# writes, and it does not know any of the contracts that make a change here
+# wrong. Both are fixable, and this is where.
+#
+# Written in English like everything else this repository publishes. See "El
+# idioma de lo que se escribe" in the root AGENTS.md.
+
+language: en-US
+early_access: false
+
+reviews:
+  # Assertive, because the expensive defects in this codebase are the ones that
+  # pass every gate: a frozen numbering quietly renumbered, an edge published
+  # with another language's provenance, a cache key that can never repeat. None
+  # of those fail a build.
+  profile: assertive
+
+  # A review does not block a merge. The gates in .github/workflows/ci.yml do
+  # that, and they are the ones that can prove what they claim.
+  request_changes_workflow: false
+
+  high_level_summary: true
+  review_status: true
+  collapse_walkthrough: false
+  poem: false
+
+  auto_review:
+    enabled: true
+    # A draft is work in progress; reviewing it spends the budget on code the
+    # author already knows is unfinished.
+    drafts: false
+    base_branches:
+      - main
+
+  path_filters:
+    # Generated or vendored. AGENTS.md lists these under "Nunca modificar":
+    # they are produced by a build and reviewing them reviews the build.
+    - "!ts-worker/dist/**"
+    - "!web/dist/**"
+    - "!landing/dist/**"
+    - "!landing/.astro/**"
+    - "!dist/**"
+    - "!.tooling/**"
+    - "!**/node_modules/**"
+
+    # Pinned by digest and changed only by the script that produces them.
+    - "!**/pnpm-lock.yaml"
+    - "!**/package-lock.json"
+    - "!go.sum"
+
+    # Fixtures and recorded analyzer output. A fixture is deliberately small,
+    # deliberately odd, and read by a test that explains it; a reviewer reading
+    # it without that test learns nothing. The .scip files are binary.
+    - "!testdata/**"
+    - "!**/*.scip"
+
+    # Benchmark artefacts are overwritten by their run and versioned so a
+    # number can be audited. The report is the thing to read, not the JSON.
+    - "!benchmarks/**/results.json"
+    - "!benchmarks/**/raw/**"
+
+    # TASKS.md is a 700 KB append-only backlog. Including it in a review makes
+    # every diff that touches it unreadable.
+    - "!TASKS.md"
+
+  path_instructions:
+    - path: "internal/facts/**"
+      instructions: |
+        This package owns the graph model, and three of its rules cannot be
+        relaxed by a change that looks reasonable in isolation.
+
+        An EXACT edge requires evidence and the right provenance. It is never
+        created from a matching name, text, path, alias or single candidate.
+        CANDIDATE and UNRESOLVED are different answers, not degraded EXACT
+        ones. Flag any new edge whose confidence is not justified by what the
+        producer actually resolved.
+
+        The codes in codes.go are frozen and append-only. The HotSnapshot
+        stores them as bare uint8 and filters traversals by them, so inserting
+        or renumbering a constant makes every published snapshot unreadable.
+        Flag any insertion into the middle of those blocks, any renumbering,
+        and any reordering "for tidiness".
+
+        A new Provenance must be added in three places: the constant, the
+        provenanceCodes map, and canonicalProvenanceValues in
+        internal/storage/ladybug/canonical_integrity.go. The third is written
+        out by hand and does not follow the first; missing it passes every
+        test without the ladybug tag and fails integrity at publish.
+
+        Stable keys are persistent. Flag any change to the key algorithm, the
+        canonical identity or the luque-stable-key namespace that does not come
+        with a data migration and an ADR.
+
+    - path: "internal/scip/**"
+      instructions: |
+        This bridge is shared by every SCIP language, and its defects are
+        shaped like whichever producer was written against first. scip-java
+        and scip-dotnet agree on the format and on almost nothing else: one
+        sets enclosing ranges, symbol kinds and signatures and the other sets
+        none of them; one writes parameters as `local N` and the other as
+        fully qualified symbols.
+
+        So flag any rule that reads a producer's convention as if it were the
+        format's. A test on the package coordinates rather than the descriptor
+        path already dropped an entire language once.
+
+    - path: "internal/scratchtree/**"
+      instructions: |
+        This package extracts an archive produced from a registered
+        repository, which is third-party content. Treat every path and every
+        symlink target in it as attacker-controlled.
+
+        Nothing here may call os.Symlink: an inner link is materialised as a
+        copy of its content precisely so the archive-symlink escape cannot
+        occur. Flag any change that reintroduces one, any containment test
+        moved away from the operation it guards, and any write whose parent
+        directory is not resolved first.
+
+    - path: "internal/indexer/**"
+      instructions: |
+        The fact cache is served only when every input it recorded still has
+        the same fingerprint. Two failure modes are silent and both have
+        happened.
+
+        A fingerprint contributor that cannot repeat -- a timestamp, a random
+        value -- switches the cache off for every language at once, because
+        the analyzer fingerprint is one value for the whole pass. Flag any
+        `time.Now()` in a fingerprint: an absent tool is a stable fact, not an
+        unknown one.
+
+        An input that is read and not recorded lets a pass serve facts the
+        current code would not produce. Flag a new manifest, worker script or
+        analyzer option that the fingerprint does not name.
+
+    - path: "cmd/kivgraph/**"
+      instructions: |
+        The command table is declared once in commands.go and read three times:
+        dispatch, help and completion. Flag a flag declared anywhere but its
+        `<name>FlagSet`, and a `usage` string naming a flag that does not
+        exist.
+
+        `index --full --json` is a protocol: stdout carries only JSON events.
+        Flag anything that would make a reader parse a human message to get a
+        number, and any new per-language counter missing from the result.
+
+    - path: "docs/**/*.md"
+      instructions: |
+        Documentation describes observed behaviour, not intentions. Flag a
+        claim about what something will do, and a measurement without the
+        command or corpus that produced it.
+
+        Lines stay within 84 columns. The rule is a ratchet applied to lines a
+        change adds, so a long line next to a new one is not a finding.
+
+        A document that already exists in Spanish stays in Spanish; a new one
+        is written in English. A file does not become bilingual: flag a change
+        that adds English prose to a Spanish document, or the reverse.
+
+    - path: "**/*_test.go"
+      instructions: |
+        A test defends an observable behaviour and fails on a plausible
+        regression. Flag one that asserts an implementation detail, and one
+        whose failure message does not say which input produced it.
+
+        A skip is green. Flag a guard that checks whether a tool resolves on
+        the PATH without checking that it runs, and a skip condition evaluated
+        before the environment it describes has been set up -- both have let a
+        suite pass while testing nothing.
+
+        Fixtures are not modified in place by a test that indexes them.
+
+  tools:
+    # This repository has already published a private workspace by accident and
+    # had to withdraw 162 files of verbatim third-party source, three compiled
+    # binaries carrying absolute build paths, and personal paths in eight
+    # documents. See commit 91943d5. Scanning every diff for secrets and for
+    # personal data is the cheap half of making sure that does not repeat, and
+    # the two tools answer different questions: gitleaks looks for credentials,
+    # presidio for names and paths that identify a person.
+    gitleaks:
+      enabled: true
+    presidio:
+      enabled: true
+
+    # Go, shell and YAML are all first-class here: the workflow files are code
+    # and carry their own failures, and scripts/ gates the release.
+    golangci-lint:
+      enabled: true
+    shellcheck:
+      enabled: true
+    yamllint:
+      enabled: true
+    actionlint:
+      enabled: true
+
+    # zizmor reads a workflow for what actionlint does not: an injection
+    # through an untrusted expression, a credential left available to a step
+    # that did not need it. This repository's release workflow publishes
+    # artefacts and its CI installs four analyzers from the network.
+    zizmor:
+      enabled: true
+
+    # Everything here is pinned -- tools/manifest.json, grammars/manifest.json,
+    # the lockfiles, a native library by digest -- which fixes what a
+    # dependency is and says nothing about whether it is known to be
+    # vulnerable.
+    osvScanner:
+      enabled: true
+
+    # markdownlint is deliberately off. The documentation convention here is
+    # the 84-column ratchet in scripts/check-docs.sh and nothing else; a second
+    # opinion about heading style would be noise a reader learns to scroll
+    # past.
+    markdownlint:
+      enabled: false
+
+chat:
+  auto_reply: true
