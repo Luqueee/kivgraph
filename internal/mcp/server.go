@@ -28,11 +28,11 @@ type ServerOptions struct {
 	// before anybody has indexed anything: they can only score what
 	// tools/list returns, and the fail-closed handshake of ADR 0067 returns
 	// nothing to score. It changes what is *listed* and nothing else. There
-	// is still no graph, so every tool it exposes refuses with
-	// INDEX_NOT_READY until one is published, index_project stays behind the
-	// same consent gate, and the handshake still carries the repair
-	// instructions -- telling a client a graph exists when none does would be
-	// the one lie this option must not tell.
+	// is still no graph, so graph-dependent query tools return INDEX_NOT_READY
+	// until one is published while graph_status reports an empty graph status.
+	// index_project stays behind the same consent gate, and the handshake still
+	// carries the repair instructions -- telling a client a graph exists when
+	// none does would be the one lie this option must not tell.
 	ExposeUnavailableTools bool
 }
 

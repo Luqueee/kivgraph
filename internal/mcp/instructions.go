@@ -34,8 +34,8 @@ Where it loses: a rare name in a single small repository is cheaper to grep, and
 // to be told what to do; a server that publishes tools it cannot answer with
 // teaches the agent that the tools do not work.
 //
-// It says no query tool can *answer* rather than that none is exposed, because
-// one shape does expose them: `serve --introspection` lists the catalogue for
-// an inspector that has nothing else to read. What is true of both shapes is
-// the graph, and the graph is what this paragraph has to be right about.
-const staleServerInstructions = `Kivgraph has no published graph to answer from, so no query tool can answer. Run "kivgraph index --full" to build one, then restart this server. Until then, use the host's own search and file tools.`
+// It describes the graph-dependent query tools rather than saying none is
+// exposed, because one shape does expose them: `serve --introspection` lists
+// the catalogue for an inspector that has nothing else to read. Those tools
+// return INDEX_NOT_READY, while graph_status reports an empty graph status.
+const staleServerInstructions = `Kivgraph has no published graph. When exposed for introspection, graph-dependent query tools return INDEX_NOT_READY while graph_status reports an empty graph status. Run "kivgraph index --full" to build one, then restart this server. Until then, use the host's own search and file tools.`
