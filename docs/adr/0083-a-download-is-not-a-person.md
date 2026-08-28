@@ -1,6 +1,6 @@
 # ADR 0083: a download is not a person
 
-- **Status:** accepted; Layer 0 is implemented, Layer 1 has its endpoint
+- **Status:** accepted and implemented; nothing has shipped in a release
 - **Date:** 2026-08-28
 - **Implementation:** `LUQUE-2232`
 
@@ -91,15 +91,16 @@ machine fetching an asset seven times from seven machines fetching it once.
 Two layers. They answer different questions and neither is a step towards
 the other.
 
-**Layer 0 is built; Layer 1 has its endpoint and no emitters.** The present
-tense states what each layer **must** do. Layer 0 does it:
-`scripts/downloads.jq`, `scripts/downloads.sh` and
-`.github/workflows/download-metrics.yml` are deployed. Of Layer 1, the
-endpoint that receives a ping is deployed and tested; nothing sends one
-yet. Where the implementation taught this ADR something, the ADR says so
--- the address below is the case. `LUQUE-2232` carries the rest and its
-gates, and a reader asking whether a control is deployed should read the
-task rather than this section.
+**Both layers are built.** Layer 0 is `scripts/downloads.jq`,
+`scripts/downloads.sh` and `.github/workflows/download-metrics.yml`, and it
+has been photographing the counters daily since it merged. Layer 1 is the
+endpoint in `landing/src/install-report.mjs` and the two emitters --
+`internal/telemetry` and the tail of both installers. No release carries
+the emitters yet, so the property is empty until the next one.
+
+Where the implementation taught this ADR something, the ADR says so: the
+address below is the case, and so is the binary declining to report from a
+layout that is not a release.
 
 ### Layer 0 -- the series, with no client involvement
 
@@ -148,7 +149,10 @@ live view over that same classification instead of a second opinion.
 - `install.sh` and `install.ps1`, after the archive is verified and the
   install has succeeded, so a ping means a working installation and not an
   attempt;
-- the binary, on the first run of each version it is installed as.
+- the binary, on the first run of each version it is installed as -- and
+  only when it is running from a release layout, because nothing tells a
+  developer's `go build` from a CI job's and this repository's own CI runs
+  the binary on five platforms on every push.
 
 The endpoint lives in `landing/server.mjs` and forwards to Umami, because
 the reporter, the header finding it depends on and the fail-closed

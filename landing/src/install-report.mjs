@@ -29,12 +29,12 @@ export const PLATFORMS = Object.freeze([
   "darwin-arm64",
   "windows-amd64",
 ]);
-export const CHANNELS = Object.freeze([
-  "installer",
-  "mcpb",
-  "archive",
-  "source",
-]);
+// `source` is deliberately not here. The binary declines to report when it is
+// not running from a release layout, because nothing distinguishes a
+// developer's `go build` from a CI job's -- so no emitter can ever send that
+// value, and a closed set with an unreachable member invites a row nobody can
+// explain.
+export const CHANNELS = Object.freeze(["installer", "mcpb", "archive"]);
 export const TRANSPORTS = Object.freeze(["stdio", "daemon"]);
 
 /** The published version pattern, which is what a release tag carries. */

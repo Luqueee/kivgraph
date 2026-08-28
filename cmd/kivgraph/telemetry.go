@@ -1,0 +1,42 @@
+package main
+
+import (
+	"context"
+	"os"
+
+	"github.com/Luqueee/kivgraph/internal/config"
+	"github.com/Luqueee/kivgraph/internal/telemetry"
+	"github.com/Luqueee/kivgraph/internal/version"
+)
+
+// announceFirstRun reports the first run of this version, off the path of the
+// command that triggered it.
+//
+// It is called from the three places that actually serve the MCP surface --
+// `serve` in process, `serve` relaying, and the daemon -- and from nowhere
+// else. What Layer 1 of ADR 0083 measures is *machines that ran the server*,
+// and `kivgraph index` running in a terminal is a different fact; it also has
+// no transport, which is a field the endpoint requires on a binary row rather
+// than defaulting.
+//
+// The goroutine is what keeps it off the path. `telemetry.Announce` bounds
+// itself to two seconds and drops every error, so the worst it can cost a
+// session is a goroutine that outlives its usefulness by that long.
+func announceFirstRun(loaded config.Loaded, transport string) {
+	executable, err := os.Executable()
+	if err != nil {
+		// Without it there is no layout to read, so `Announce` declines. Which
+		// is the right answer: a binary this process cannot locate is not one
+		// whose channel it can report.
+		executable = ""
+	}
+	options := telemetry.Options{
+		StateDirectory: stateDirectory(loaded),
+		Version:        version.Value,
+		Transport:      transport,
+		Executable:     executable,
+		// Never os.Stdout. `serve` speaks MCP over it.
+		Notice: os.Stderr,
+	}
+	go telemetry.Announce(context.Background(), options)
+}

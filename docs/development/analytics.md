@@ -564,12 +564,11 @@ touches no client, reads GitHub's own counters and is deployed. This section
 is Layer 1 -- the one ping that says a version arrived on a machine and ran
 there.
 
-**The endpoint receives; nothing emits yet.** The receiving half is deployed
-and tested -- `landing/src/install-report.mjs`, wired in `landing/server.mjs`
--- and the two emitters are not written. So every rule below about validation,
-deduplication and what reaches the collector is observed behaviour, and every
-rule about the marker and the notice is still a design. `LUQUE-2232` carries
-the emitters and their gates.
+**Both halves exist now.** The endpoint is `landing/src/install-report.mjs`,
+wired in `landing/server.mjs`; the emitters are `internal/telemetry` for the
+binary and the tail of `scripts/install.sh` and `scripts/install.ps1` for the
+installers. Everything below is observed behaviour. Nothing has been released
+with it yet, so the property is empty until the next release.
 
 ### The event
 
@@ -583,9 +582,14 @@ flat string fields:
 - **`platform`** -- `linux-amd64`, `darwin-arm64` or `windows-amd64`. The same
   vocabulary the release assets use, so Layer 0 and Layer 1 can be read side
   by side instead of being joined by hand;
-- **`channel`** -- `installer`, `mcpb`, `archive` or `source`. How the binary
-  got there. It is what makes the `.mcpb` share of the volume visible from the
-  client side, where the download counters cannot see it;
+- **`channel`** -- `installer`, `mcpb` or `archive`. How the binary got there.
+  It is what makes the `.mcpb` share of the volume visible from the client
+  side, where the download counters cannot see it. The binary reads it from
+  the layout around itself: an unpacked extension has a manifest with an
+  `mcp_config` three directories up from the executable, a release archive has
+  the bundle manifest two directories up, and `archive` therefore covers both
+  a hand-extracted archive and one the installer placed -- which costs
+  nothing, because the installer reports its own row;
 - **`transport`** -- `stdio` or `daemon` on a `binary` row, and **absent** on
   an `installer` one, because an installer has not started a server and
   reporting a default it did not choose would be inventing data. It is
@@ -594,6 +598,14 @@ flat string fields:
 
 One machine installing one version therefore produces **at most two rows**,
 one per emitter, and they are never added together.
+
+**A binary that is not running from a release layout reports nothing**, and
+that is the declared hole in this number. Nothing distinguishes a developer's
+`go build` from a CI job's, and this repository's own CI builds and runs the
+binary on five platforms on every push: counting those would make the number
+mostly us. The cost is that somebody who ran `go install` is invisible. `ci.yml`
+sets `KIVGRAPH_TELEMETRY=0` as well, because the smoke job builds and serves a
+real bundle layout, which is exactly the thing that does report.
 
 `first_run` is the one event name that does not obey `<object>_<action>`. The
 object *is* the event, and `run_first` would satisfy the shape at the cost of
@@ -618,7 +630,11 @@ and Layer 0 now keeps that number current instead of quoting it.
 
 **The marker governs the `binary` emitter and nothing else.** An installer has
 no marker: it reports once per successful run, and a reader who runs it three
-times sends three, which the endpoint's window collapses. Sharing one marker
+times sends three, which the endpoint's window collapses. The binary reports
+from the three commands that serve the MCP surface -- `serve` in process,
+`serve` relaying, and the daemon -- and from no other, because what is measured
+is a machine that ran the server and because `transport` is required on those
+rows rather than defaulted. Sharing one marker
 between the two emitters would be the bug the dedupe key already avoids --
 whichever emitter got there first would suppress the other's row, and the two
 rows are the two different facts this property exists to keep apart.
@@ -628,12 +644,12 @@ replaces the bundle, so a marker there would fire again on every update.
 Calling the number *installations* would be a claim the marker cannot support.
 
 It is created with `O_CREATE|O_EXCL` and only the process that created it
-sends -- this paragraph being the design, since the marker is not written
-yet. Reading the marker and then writing it would let a whole burst find it
-absent and report before any of them had created it -- and stdio starts
-bursts: `docs/adr/0069-el-demonio-es-el-defecto.md` measured `69` starts of
-`serve` with `8` alive at once, over one session of one client. That is one
-install turning into as many pings as the client happened to spawn.
+sends, in `internal/telemetry`. Reading the marker and then writing it would
+let a whole burst find it absent and report before any of them had created
+it -- and stdio starts bursts. `docs/adr/0069-el-demonio-es-el-defecto.md`
+measured `69` starts of `serve` with `8` alive at once, over one session of
+one client. That is one install turning into as many pings as the client
+happened to spawn.
 
 ### What is not sent
 
@@ -673,6 +689,26 @@ rewrites the address headers at its edge. Measured on a throwaway property,
 |`payload.ip: 1.1.1.1`|**another session**, country `AU`|
 |`payload.id: <a uuid>`|ignored; the event joined the sender's session|
 |`payload.userAgent: kivgraph-first-run`|`{"beep":"boop"}`, discarded|
+
+Reproduce it with a website of its own -- never an existing property, since
+every one of these lands as a real row:
+
+```sh
+site=<a throwaway website id>
+curl -sS -X POST https://analytics.luqueee.dev/api/send \
+  -H 'Content-Type: application/json' -H 'User-Agent;' \
+  -H 'X-Forwarded-For: 203.0.113.7' \
+  -d "{\"type\":\"event\",\"payload\":{\"website\":\"$site\",
+       \"hostname\":\"kivgraph.dev\",\"url\":\"/api/telemetry/first-run\",
+       \"name\":\"first_run\",\"data\":{\"emitter\":\"binary\"}}}"
+# and the same again with "ip":"8.8.8.8" inside payload instead of the header
+```
+
+`User-Agent;` is curl's way of sending the header empty rather than omitting
+it, which is the difference between being recorded and being discarded. The
+sessions are then read from the API -- `/api/websites/$site/sessions` over the
+window, or the `umami_list_sessions` and `umami_list_events` tools -- and the
+column that answers all of this is `sessionId`, one per distinct address.
 
 So `payload.ip` is what the collector reads, and it gives exactly the property
 the layer needs: the same address twice is one visitor, two addresses are two.
@@ -728,6 +764,7 @@ nothing is forwarded, so a development landing cannot write to the dataset.
 
 ### What the collector stores, which is not nothing
 
+Read from the same `13` events, in the session and event rows they produced.
 A session row carries a **country** derived from the address -- `US` for
 `8.8.8.8`, `AU` for `1.1.1.1`, empty for a reserved range -- and a device
 class that defaults to `desktop` for a request with no screen. The address

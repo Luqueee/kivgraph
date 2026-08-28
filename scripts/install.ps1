@@ -297,6 +297,35 @@ try {
         Write-Host "install: $binDir is not on PATH. To add it for this account:"
         Write-Host "install:   setx PATH `"%PATH%;$binDir`""
     }
+
+    # The install is finished above and stays finished whatever happens here.
+    #
+    # The same row `install.sh` sends, with the same fields, because two
+    # installers reporting two shapes would be two datasets. `emitter` is
+    # `installer` and never `binary`: a bundle can be installed and never
+    # launched, and ADR 0083 keeps those two facts apart.
+    #
+    # The timeout and the swallowed error are the whole policy. A machine
+    # behind a proxy installs Kivgraph exactly the same.
+    if ($env:KIVGRAPH_TELEMETRY -ne '0') {
+        Write-Host "install: reporting one install of $installedVersion on windows-amd64, and nothing else:"
+        Write-Host "install:   no identifier, nothing about your code. https://kivgraph.dev/telemetry/"
+        Write-Host "install:   set KIVGRAPH_TELEMETRY=0 to turn it off"
+        try {
+            $body = @{
+                emitter  = 'installer'
+                version  = $installedVersion
+                platform = 'windows-amd64'
+                channel  = 'installer'
+            } | ConvertTo-Json -Compress
+            Invoke-RestMethod -Method Post -TimeoutSec 3 -ContentType 'application/json' `
+                -Uri 'https://kivgraph.dev/api/telemetry/first-run' -Body $body | Out-Null
+        }
+        catch {
+            # An install is not a report, and a report that failed is not an
+            # install that did.
+        }
+    }
 }
 catch {
     Restore-OnFailure

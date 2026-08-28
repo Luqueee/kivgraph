@@ -70,6 +70,10 @@ describe("what is accepted", () => {
       ["emitter", "curl"],
       ["platform", "linux-riscv64"],
       ["channel", "brew"],
+      // No emitter can send this one: the binary declines to report when it
+      // is not running from a release layout, so accepting it would open a row
+      // nothing produces.
+      ["channel", "source"],
       ["transport", "http"],
       ["version", "0.9"],
       ["version", "v0.9.1"],
@@ -212,6 +216,17 @@ describe("the collector payload", () => {
 let collector;
 let collectorOrigin;
 const collected = [];
+// Resolved by the collector when a request finishes. `createSender` is
+// fire-and-forget, so a test that slept instead would be racing the very
+// thing it is asserting arrived.
+let received;
+let receivedNext;
+const nextRequest = () => {
+  received = new Promise((resolve) => {
+    receivedNext = resolve;
+  });
+  return received;
+};
 
 let endpoint;
 let endpointOrigin;
@@ -230,6 +245,7 @@ before(async () => {
       // assertions below are on what arrived and never on the reply.
       response.writeHead(200, { "Content-Type": "application/json" });
       response.end('{"beep":"boop"}');
+      receivedNext?.();
     });
   });
   await new Promise((resolve) => collector.listen(0, "127.0.0.1", resolve));
@@ -315,6 +331,7 @@ describe("every path answers 204", () => {
 describe("what the collector receives", () => {
   it("carries the address in the body and an empty user agent", async () => {
     collected.length = 0;
+    const arrived = nextRequest();
     const send = createSender({ umamiUrl: collectorOrigin });
     send(
       firstRunEvent(binary, {
@@ -323,7 +340,7 @@ describe("what the collector receives", () => {
         address: "203.0.113.7",
       }),
     );
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await arrived;
 
     assert.equal(collected.length, 1);
     const [received] = collected;
@@ -342,11 +359,12 @@ describe("what the collector receives", () => {
 
   it("sends no address at all when there is nothing to attribute", async () => {
     collected.length = 0;
+    const arrived = nextRequest();
     const send = createSender({ umamiUrl: collectorOrigin });
     send(
       firstRunEvent(binary, { websiteId: "an-id", hostname: "kivgraph.dev" }),
     );
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await arrived;
 
     assert.equal(collected.length, 1);
     assert.equal("ip" in JSON.parse(collected[0].body).payload, false);

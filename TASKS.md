@@ -18229,7 +18229,43 @@ página de transparencia ahora declara. Y una tercera para quien lea informes:
 el endpoint de stats contesta `visitors: 0` en esta propiedad, porque cuenta
 sesiones con pageview y un primer arranque es un evento.
 
-**Estado:** commits 1, 2 y 3 hechos; falta 4, los dos emisores.
+**Commit 4 -- los dos emisores, hecho.**
+
+`internal/telemetry` con el marcador `O_CREATE|O_EXCL` bajo el directorio de
+estado, el aviso por stderr y el envío con `2 s` de tope y todos los errores
+tirados. Se dispara desde los tres caminos que sirven MCP -- `serve` en
+proceso, `serve` de relé, y el demonio -- y de ningún otro: lo que se mide es
+una máquina que arrancó el servidor, y `transport` es obligatorio en esas
+filas. En los instaladores, un `POST` al final, después de que la instalación
+esté terminada y sin poder deshacerla.
+
+**Una decisión que no estaba en la ficha: el binario no reporta si no corre
+desde un layout de release.** Nada distingue el `go build` de un desarrollador
+del de un job de CI, y nuestro propio CI compila y ejecuta el binario en cinco
+plataformas en cada push: contarlos habría hecho que el número fuésemos
+mayormente nosotros. El precio es que quien hace `go install` es invisible, y
+queda declarado. `ci.yml` además pone `KIVGRAPH_TELEMETRY=0`, porque el job de
+smoke construye y sirve un bundle de verdad, que es justo lo que sí reporta.
+Y `source` sale del conjunto cerrado del endpoint: ningún emisor puede
+mandarlo ya.
+
+**Dos tests que fallan si se rompen, comprobado por mutación:**
+
+- **nada llega a stdout.** Se sustituye `os.Stdout` por un pipe durante la
+  llamada y se afirma que está vacío. Metiendo un `fmt.Println` falla, que es
+  el caso que la ficha pedía ver fallar: un byte ahí corrompe la sesión MCP y
+  nada más en el proceso lo diría;
+- **una ráfaga reporta una vez.** `16` arranques concurrentes, exactamente uno
+  envía. Cambiando el `O_EXCL` por leer-y-luego-crear, `2` de `16` pasaron.
+
+**Y un agujero que se encontró de camino:** nada en el repositorio parseaba
+`scripts/install.ps1`. Es el único fichero que nadie ejecuta antes de que lo
+haga una release: un error de sintaxis se publica, se descarga y se mete en un
+shell antes de que nadie se entere. Los runners de Linux traen PowerShell, así
+que ahora se parsea en `windows-cross` por segundos y sin job de Windows.
+
+**Estado:** hecha, los cuatro commits. Nada sale hasta la próxima release, así
+que la propiedad estará vacía hasta entonces.
 
 
 ## LUQUE-2233 - `serve` deja de servir
