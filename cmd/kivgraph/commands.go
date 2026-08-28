@@ -136,10 +136,14 @@ func commandTable() []commandSpec {
 		{
 			words:   []string{"serve"},
 			group:   "Getting started",
-			usage:   "serve",
+			usage:   "serve [--introspection]",
 			summary: "Run the MCP server over stdio",
-			flags:   func() *flag.FlagSet { var path string; return serveFlagSet(&path) },
-			hints:   map[string]flagHint{"config": {paths: true}},
+			flags: func() *flag.FlagSet {
+				var path string
+				var options serveOptions
+				return serveFlagSet(&path, &options)
+			},
+			hints: map[string]flagHint{"config": {paths: true}},
 			// serve, daemon and ui never reach this table's dispatch:
 			// main intercepts them before run, because they are the
 			// commands that own a signal handler and log structurally

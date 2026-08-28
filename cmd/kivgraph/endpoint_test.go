@@ -318,14 +318,14 @@ func TestRelayToTheDaemonDeclinesWithoutOne(t *testing.T) {
 	// One: this is not `serve`. The daemon is the thing being relayed *to*, and
 	// `ui` serves HTTP from a snapshot of its own.
 	for _, command := range []string{"daemon", "ui"} {
-		if relayed, err := relayToTheDaemon(context.Background(), command, "", loaded, nil); relayed || err != nil {
+		if relayed, err := relayToTheDaemon(context.Background(), command, "", loaded, nil, false); relayed || err != nil {
 			t.Fatalf("%s relayed=%t err=%v, want false and nil", command, relayed, err)
 		}
 	}
 
 	// Two: no endpoint published. A daemon writes that file before it serves,
 	// so its absence is the answer and not a failure to get one.
-	if relayed, err := relayToTheDaemon(context.Background(), "serve", "", loaded, nil); relayed || err != nil {
+	if relayed, err := relayToTheDaemon(context.Background(), "serve", "", loaded, nil, false); relayed || err != nil {
 		t.Fatalf("with no endpoint: relayed=%t err=%v, want false and nil", relayed, err)
 	}
 
@@ -333,7 +333,7 @@ func TestRelayToTheDaemonDeclinesWithoutOne(t *testing.T) {
 	// misbehaves has no way back that does not involve stopping the daemon
 	// every other client is using.
 	t.Setenv(serveInProcessEnv, "1")
-	if relayed, err := relayToTheDaemon(context.Background(), "serve", "", loaded, nil); relayed || err != nil {
+	if relayed, err := relayToTheDaemon(context.Background(), "serve", "", loaded, nil, false); relayed || err != nil {
 		t.Fatalf("with %s set: relayed=%t err=%v, want false and nil", serveInProcessEnv, relayed, err)
 	}
 }
@@ -367,7 +367,7 @@ func TestRelayToTheDaemonDeclinesAStaleEndpoint(t *testing.T) {
 		t.Fatalf("write endpoint: %v", err)
 	}
 
-	if relayed, err := relayToTheDaemon(context.Background(), "serve", "", loaded, nil); relayed || err != nil {
+	if relayed, err := relayToTheDaemon(context.Background(), "serve", "", loaded, nil, false); relayed || err != nil {
 		t.Fatalf("with a stale endpoint: relayed=%t err=%v, want false and nil", relayed, err)
 	}
 }

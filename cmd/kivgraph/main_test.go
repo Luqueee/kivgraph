@@ -271,7 +271,7 @@ func TestRunConfiguredServeCreatesTheConfigurationOnFirstRun(t *testing.T) {
 	}
 
 	var gotStore *hotsnapshot.SnapshotStore
-	if err := runConfiguredServe(context.Background(), "serve", nil, serveFlagSet(&testConfigPath), &testConfigPath,
+	if err := runConfiguredServe(context.Background(), "serve", nil, serveFlagSet(&testConfigPath, &serveOptions{}), &testConfigPath, nil,
 		func(_ context.Context, _ config.Loaded, store *hotsnapshot.SnapshotStore, _ indexing.ProjectIndexer, _ *eventlog.Writer) error {
 			gotStore = store
 			return nil
@@ -304,7 +304,7 @@ func TestRunConfiguredServeRefusesAnUnreadableConfiguration(t *testing.T) {
 	if err := os.WriteFile(configPath, []byte("version: 1\nnot: valid\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	err := runConfiguredServe(context.Background(), "serve", []string{"--config", configPath}, serveFlagSet(&testConfigPath), &testConfigPath,
+	err := runConfiguredServe(context.Background(), "serve", []string{"--config", configPath}, serveFlagSet(&testConfigPath, &serveOptions{}), &testConfigPath, nil,
 		func(context.Context, config.Loaded, *hotsnapshot.SnapshotStore, indexing.ProjectIndexer, *eventlog.Writer) error {
 			t.Fatal("serve ran with a configuration it could not read")
 			return nil
@@ -426,7 +426,7 @@ func TestRunConfiguredServeProvidesProjectIndexer(t *testing.T) {
 
 	var gotStore *hotsnapshot.SnapshotStore
 	var gotIndexer indexing.ProjectIndexer
-	err := runConfiguredServe(context.Background(), "serve", []string{"--config", configPath}, serveFlagSet(&testConfigPath), &testConfigPath,
+	err := runConfiguredServe(context.Background(), "serve", []string{"--config", configPath}, serveFlagSet(&testConfigPath, &serveOptions{}), &testConfigPath, nil,
 		func(_ context.Context, _ config.Loaded, store *hotsnapshot.SnapshotStore, indexer indexing.ProjectIndexer, _ *eventlog.Writer) error {
 			gotStore = store
 			gotIndexer = indexer
@@ -1560,7 +1560,7 @@ func TestInterceptedCommandsDeclareTheFlagsTheyParse(t *testing.T) {
 	var options daemonOptions
 	var address string
 	parsed := map[string]*flag.FlagSet{
-		"serve":  serveFlagSet(&path),
+		"serve":  serveFlagSet(&path, &serveOptions{}),
 		"daemon": daemonFlagSet(&path, &options),
 		"ui":     uiFlagSet(&path, &address),
 	}

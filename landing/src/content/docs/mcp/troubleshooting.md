@@ -27,7 +27,7 @@ Every failure the tool surface returns carries a stable code and a human-readabl
 The client lists one tool, `index_project`, and nothing else. The session instructions read:
 
 ```text
-Kivgraph has no published graph to answer from, so it exposes no query tools. Run "kivgraph index --full" to build one, then restart this server. Until then, use the host's own search and file tools.
+Kivgraph has no published graph to answer from, so no query tool can answer. Run "kivgraph index --full" to build one, then restart this server. Until then, use the host's own search and file tools.
 ```
 
 **Cause**

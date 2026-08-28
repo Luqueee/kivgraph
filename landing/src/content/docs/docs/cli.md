@@ -15,7 +15,7 @@ someone who mistyped one word.
 | --- | --- |
 | `init [--repository NAME=PATH] [--languages LIST]` | Write the configuration and register repositories |
 | `index --full [--json]` | Index every registered repository and publish a generation |
-| `serve` | Run the MCP server over stdio |
+| `serve [--introspection]` | Run the MCP server over stdio |
 | `daemon [--addr HOST:PORT] [--allow-remote]` | Serve MCP to many clients from one process, over HTTP and a unix socket |
 | `daemon install [--addr HOST:PORT] [--allow-remote]` | Give the daemon an owner, so the platform starts it and restarts it |
 | `daemon remove` | Stop the daemon and take its supervisor entry out |
@@ -81,6 +81,16 @@ takes a path defers to the shell's own file completion.
 | --- | --- |
 | `rebuild --facts PATH --root PATH ...` | Publish a generation from a fact set |
 | `benchmark generate-graph` | Generate a synthetic corpus |
+
+## Inspecting the tool catalog with no index
+
+`serve --introspection` publishes the complete MCP tool catalog even when no
+generation exists, for the inspectors and registries that read tool definitions
+before anything has been indexed. It creates no index and relaxes no check: the
+read tools it lists answer `INDEX_NOT_READY` until a generation is published,
+and `index_project` stays behind its consent gate. Plain `serve` is unchanged,
+and this is not the configuration to give a client. See
+[MCP tools](/docs/mcp-tools/).
 
 ## Builds without the viewer
 
