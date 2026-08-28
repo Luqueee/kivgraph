@@ -254,26 +254,51 @@ func ensureConfiguration(configPath string) error {
 }
 
 func loadConfiguredSnapshot(ctx context.Context, configPath string) (config.Loaded, *hotsnapshot.SnapshotStore, error) {
-	if err := ensureConfiguration(configPath); err != nil {
+	loaded, err := ensureLoadedConfiguration(configPath)
+	if err != nil {
 		return config.Loaded{}, nil, err
+	}
+	store, err := openConfiguredSnapshot(ctx, loaded)
+	if err != nil {
+		return config.Loaded{}, nil, err
+	}
+	return loaded, store, nil
+}
+
+// ensureLoadedConfiguration is the half a relay needs and the whole a
+// configuration command needs: the file exists afterwards, and it is read.
+//
+// A client MCP starts this process itself, so a configuration that is not
+// there is written rather than refused -- exiting because nobody ran `init`
+// turns installing the integration into a terminal session, and the client
+// only reports that the server failed.
+func ensureLoadedConfiguration(configPath string) (config.Loaded, error) {
+	if err := ensureConfiguration(configPath); err != nil {
+		return config.Loaded{}, err
 	}
 	loaded, err := config.Load(configPath)
 	if err != nil {
-		return config.Loaded{}, nil, fmt.Errorf("load configuration: %w", err)
+		return config.Loaded{}, fmt.Errorf("load configuration: %w", err)
 	}
+	return loaded, nil
+}
+
+// openConfiguredSnapshot resolves the published generation this process will
+// answer from. A relay never calls it: it holds no graph.
+func openConfiguredSnapshot(ctx context.Context, loaded config.Loaded) (*hotsnapshot.SnapshotStore, error) {
 	layout, err := rebuild.Roles(ctx, rebuild.LayoutOptions{
 		Root:  filepath.Dir(loaded.Config.Storage.DatabasePath),
 		Store: generation.DefaultConfig(),
 	})
 	if err != nil {
-		return config.Loaded{}, nil, fmt.Errorf("resolve active generation: %w", err)
+		return nil, fmt.Errorf("resolve active generation: %w", err)
 	}
 	if layout.Active.ID == "" {
-		return loaded, hotsnapshot.NewSnapshotStore(nil), nil
+		return hotsnapshot.NewSnapshotStore(nil), nil
 	}
 	generationNumber, err := strconv.ParseUint(layout.Active.ID, 10, 64)
 	if err != nil {
-		return config.Loaded{}, nil, fmt.Errorf("parse active generation %q: %w", layout.Active.ID, err)
+		return nil, fmt.Errorf("parse active generation %q: %w", layout.Active.ID, err)
 	}
 	// The graph is not read here. It is read by whatever first needs it, which
 	// on most servers is never: 48 of 51 in a real event log were started and
@@ -284,7 +309,7 @@ func loadConfiguredSnapshot(ctx context.Context, configPath string) (config.Load
 	// included: a missing, foreign, stale or corrupt snapshot file still costs a
 	// derivation from the canonical graph rather than an answer. Only the moment
 	// moved.
-	return loaded, hotsnapshot.NewDeferredSnapshotStore(generationNumber, func() (*hotsnapshot.GraphSnapshot, error) {
+	return hotsnapshot.NewDeferredSnapshotStore(generationNumber, func() (*hotsnapshot.GraphSnapshot, error) {
 		snapshot, report, err := rebuild.LoadOrBuildSnapshot(ctx, rebuild.BuildSnapshotOptions{
 			DatabasePath: layout.Active.DatabasePath,
 			SnapshotID:   generationNumber,
@@ -431,7 +456,18 @@ func runConfiguredServe(
 	if flags.NArg() != 0 {
 		return fmt.Errorf("%s: unexpected arguments: %v", command, flags.Args())
 	}
-	loaded, store, err := loadConfiguredSnapshot(ctx, *configPath)
+	loaded, err := ensureLoadedConfiguration(*configPath)
+	if err != nil {
+		return err
+	}
+	// Before the store, the follower and the resync, because a relay needs
+	// none of the three: it holds no graph, so there is no generation to
+	// follow and no branch change to answer. Paying for them would put back
+	// exactly the per-client cost the relay exists to remove.
+	if relayed, err := relayToTheDaemon(ctx, command, loaded); relayed {
+		return err
+	}
+	store, err := openConfiguredSnapshot(ctx, loaded)
 	if err != nil {
 		return err
 	}

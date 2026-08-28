@@ -247,6 +247,39 @@ superficie observable.
   `stopTargets` -- no una segunda parecida. Una instalación que funcionó nunca
   se reporta como fallo porque la lista de procesos no se pudiera leer.
 
+## `kivgraph serve`
+
+- La **entrada** es STDIO y es permanente; el **servidor** no. Desde el ADR 0084
+  `serve` reenvía la sesión a un demonio cuando hay uno alcanzable y no carga
+  ningún grafo: la decisión se toma **antes** del store, del seguidor de
+  generación y del resync, porque un relé no necesita ninguno de los tres y
+  pagarlos devolvería justo el coste por cliente que el relé existe para quitar.
+- Los dos motivos por los que la entrada no puede dejar de ser STDIO: el
+  manifiesto `.mcpb` describe un proceso local y **no tiene campo para una
+  url**, y una entrada `url` lleva el token literal a un fichero que se
+  commitea. Medido en el ADR 0083, el `.mcpb` es el `39 %` de las descargas.
+- Lo que cuesta, medido en `benchmarks/relay-cost` sobre la generación `000091`:
+  un `serve` que contesta son `68,9`-`70,3 MB` por cliente contra `8,7`-`9,8`
+  del relé, y a ocho clientes el pico es `2,5 GB` contra `0,44`. **Ocioso el
+  margen es mucho menor** -- el relé no gana hasta el quinto cliente-- y ésa es
+  la carga de `48` de cada `51` sesiones: quien defienda esto por el caso que
+  predomina está defendiendo `10`-`15 MB`.
+- **Declinar no es fallar.** Sin endpoint publicado, con un endpoint que nadie
+  contesta, o con `KIVGRAPH_SERVE_IN_PROCESS` puesto, `serve` contesta él mismo
+  y en esos caminos nada queda peor que antes. La variable de entorno existe
+  porque el relé es el defecto en un proceso que lanza un cliente sin
+  supervisión: sin escape, una máquina donde el relé se porte mal no tiene
+  vuelta que no pase por parar el demonio que usan los demás.
+- **El skew de versión se niega, y es el único fallo que este diseño añade.**
+  El `.mcpb` trae su binario pero `stateDirectory` sale de la configuración, así
+  que dos instalaciones comparten demonio por construcción; reiniciarlo le
+  quitaría el grafo a quien lo esté usando. El relé compara la versión que trae
+  el `initialize` del demonio y se niega **antes** de entregarle el handshake al
+  agente, que es lo que evita dejar a nadie con una sesión que este proceso ya
+  decidió no servir. El mensaje nombra las dos versiones y la salida.
+- Un demonio que **no** nombra versión se sirve igual: es una release anterior a
+  esta comprobación y tiene el mismo derecho a contestar que siempre tuvo.
+
 ## `kivgraph daemon`
 
 - Sirve MCP a varios clientes desde un proceso, por **dos puertas a la vez**: un

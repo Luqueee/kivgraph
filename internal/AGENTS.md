@@ -360,8 +360,17 @@ superficie MCP el suyo en `internal/mcp/AGENTS.md`.
   no sea loopback registra qué se expone -rutas de repositorio y de fichero,
   nombres y firmas de símbolos- y con qué se cierra. El endpoint no lleva
   autenticación; restringirlo es `--addr` o `web.address`.
-- `kivgraph serve` permanece STDIO y no abre HTTP; `webapi.Run` es dueño del
-  listener y ejecuta un cierre graceful acotado al cancelar el contexto.
+- `kivgraph serve` **no escucha en ningún puerto**, y esa es la parte que no
+  cambia: `webapi.Run` es dueño del único listener y ejecuta un cierre graceful
+  acotado al cancelar el contexto. Lo que sí hace desde el ADR 0084 es
+  **conectarse** como cliente al demonio cuando hay uno: su entrada sigue siendo
+  STDIO -- el manifiesto `.mcpb` no tiene campo para una url y una entrada `url`
+  en un fichero commiteado llevaría el token--, pero el servidor que contesta
+  pasa a ser el demonio. Sin demonio alcanzable contesta él mismo, igual que
+  antes, y `KIVGRAPH_SERVE_IN_PROCESS` fuerza ese camino. El relé vive en
+  `internal/relay` y no en `internal/mcp`, que es donde el ADR lo esperaba:
+  `internal/daemon` importa `internal/mcp`, así que un relé que necesita un
+  `Endpoint` no cabe ahí sin un ciclo.
 - `internal/webassets` sirve solo la copia generada de `web/dist` cuando la
   distribución se construye con el tag `webassets`; los binarios sin tag
   devuelven un fallback visible `503` en vez de servir archivos no declarados.

@@ -2,8 +2,11 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -290,5 +293,77 @@ func writeMinimalConfig(t *testing.T, home, wantState string) {
 	}
 	if !strings.HasPrefix(directory, home) {
 		t.Fatalf("the configuration escaped the temporary home: %s", directory)
+	}
+}
+
+// TestRelayToTheDaemonDeclinesWithoutOne covers the three ways `serve` keeps
+// answering from its own graph. None of them is a failure: each leaves the
+// command doing exactly what it did before the relay existed, which is the
+// fallback ADR 0084 promised for a platform with no supervisor.
+func TestRelayToTheDaemonDeclinesWithoutOne(t *testing.T) {
+	home := t.TempDir()
+	testsupport.SetHome(t, home)
+	if _, err := config.Initialize(config.InitOptions{}); err != nil {
+		t.Fatalf("config.Initialize: %v", err)
+	}
+	loaded, err := config.Load("")
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+
+	// One: this is not `serve`. The daemon is the thing being relayed *to*, and
+	// `ui` serves HTTP from a snapshot of its own.
+	for _, command := range []string{"daemon", "ui"} {
+		if relayed, err := relayToTheDaemon(context.Background(), command, loaded); relayed || err != nil {
+			t.Fatalf("%s relayed=%t err=%v, want false and nil", command, relayed, err)
+		}
+	}
+
+	// Two: no endpoint published. A daemon writes that file before it serves,
+	// so its absence is the answer and not a failure to get one.
+	if relayed, err := relayToTheDaemon(context.Background(), "serve", loaded); relayed || err != nil {
+		t.Fatalf("with no endpoint: relayed=%t err=%v, want false and nil", relayed, err)
+	}
+
+	// Three: the escape hatch. Without one, a machine where the relay
+	// misbehaves has no way back that does not involve stopping the daemon
+	// every other client is using.
+	t.Setenv(serveInProcessEnv, "1")
+	if relayed, err := relayToTheDaemon(context.Background(), "serve", loaded); relayed || err != nil {
+		t.Fatalf("with %s set: relayed=%t err=%v, want false and nil", serveInProcessEnv, relayed, err)
+	}
+}
+
+// A published endpoint nothing answers is the same answer as no endpoint: the
+// file outlives a daemon that was killed, and believing it would have this
+// process consume the agent's handshake before finding out.
+func TestRelayToTheDaemonDeclinesAStaleEndpoint(t *testing.T) {
+	home := t.TempDir()
+	testsupport.SetHome(t, home)
+	if _, err := config.Initialize(config.InitOptions{}); err != nil {
+		t.Fatalf("config.Initialize: %v", err)
+	}
+	loaded, err := config.Load("")
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+	directory := stateDirectory(loaded)
+	if err := os.MkdirAll(directory, 0o755); err != nil {
+		t.Fatalf("create state directory: %v", err)
+	}
+	// A port nothing listens on: bind one, learn its address, release it.
+	closed := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	address := closed.URL
+	closed.Close()
+	encoded, err := json.Marshal(daemon.Endpoint{URL: address, Token: "t", PID: 4242})
+	if err != nil {
+		t.Fatalf("encode endpoint: %v", err)
+	}
+	if err := os.WriteFile(daemon.EndpointPath(directory), encoded, 0o600); err != nil {
+		t.Fatalf("write endpoint: %v", err)
+	}
+
+	if relayed, err := relayToTheDaemon(context.Background(), "serve", loaded); relayed || err != nil {
+		t.Fatalf("with a stale endpoint: relayed=%t err=%v, want false and nil", relayed, err)
 	}
 }
