@@ -191,10 +191,13 @@ by the client that spawns it, but a url pointing at a daemon nobody restarts
 takes every client down at once. `kivgraph daemon status` says whether one is
 installed and where its unit lives, and `kivgraph daemon remove` takes it out.
 
-The unit is per state directory, so two configurations get two units and
-neither replaces the other. The **address** is not: the daemon binds
-`127.0.0.1:7788` unless you tell it otherwise, so the second one to start
-cannot bind and gives up. Two supervised daemons on one machine need
+The unit is keyed by the state directory and not by the configuration file, so
+two configurations that keep their graph in different places get two units and
+neither replaces the other -- but two that share a state directory share one
+unit, and installing the second overwrites the first with its own `--config`.
+The **address** is keyed by nothing at all: the daemon binds `127.0.0.1:7788`
+unless you tell it otherwise, so the second one to start cannot bind and gives
+up. Two supervised daemons on one machine need
 `kivgraph daemon install --addr` on at least one of them. Nothing supervises a
 daemon you start by hand with `kivgraph daemon &`; it dies with the shell that
 launched it.

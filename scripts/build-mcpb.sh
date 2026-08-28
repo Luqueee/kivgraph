@@ -145,9 +145,12 @@ cp -R "$bundle/." "$staging/server/"
 #
 # It is not necessarily the server any more. Since ADR 0084 `serve` forwards the
 # session to a daemon, installing one if this machine has no supervised daemon
-# yet, and answers in process when it cannot. The bundle cannot express any of
-# that: manifest 0.3 describes a local process and its runtime, with no field
-# for a url, which is exactly why the entry stays stdio and the server moved.
+# yet, and answers in process when it finds neither. That choice is made before
+# the agent's handshake is read, which is the only moment an in-process server
+# is still available to hand it to: a relay that fails afterwards fails the
+# command. The bundle cannot express any of it: manifest 0.3 describes a local
+# process and its runtime, with no field for a url, which is exactly why the
+# entry stays stdio and the server moved.
 #
 # `${__dirname}` is substituted by the installing client with the absolute path
 # of the unpacked extension. A relative command would be resolved against the
