@@ -16,6 +16,12 @@ permissions: {}
 # to restore on the next run.
 env:
   GOTOOLCHAIN: local
+  # This workflow runs the binary out of the bundle it just built, which is
+  # exactly the layout that reports a first run. Today it only asks it for
+  # `version` and `--help`, neither of which reports -- so this is insurance
+  # against the day somebody adds a smoke `serve` here and quietly puts a
+  # release runner into a number that is supposed to count installations.
+  KIVGRAPH_TELEMETRY: "0"
 
 jobs:
   verify:

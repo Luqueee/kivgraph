@@ -603,9 +603,14 @@ one per emitter, and they are never added together.
 that is the declared hole in this number. Nothing distinguishes a developer's
 `go build` from a CI job's, and this repository's own CI builds and runs the
 binary on five platforms on every push: counting those would make the number
-mostly us. The cost is that somebody who ran `go install` is invisible. `ci.yml`
-sets `KIVGRAPH_TELEMETRY=0` as well, because the smoke job builds and serves a
-real bundle layout, which is exactly the thing that does report.
+mostly us. The cost is that somebody who ran `go install` is invisible.
+
+Both workflows set `KIVGRAPH_TELEMETRY=0` on top of that. `ci.yml` needs it:
+its smoke job builds and serves a real bundle, which is exactly the layout
+that reports. `release.yml` does not need it today -- it only asks the bundle
+for `version` and `--help` -- and has it anyway, because the day somebody adds
+a smoke `serve` there is the day a release runner starts counting as an
+installation, and nothing would say so.
 
 `first_run` is the one event name that does not obey `<object>_<action>`. The
 object *is* the event, and `run_first` would satisfy the shape at the cost of
