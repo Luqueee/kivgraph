@@ -223,8 +223,10 @@ func TestAnnounceDoesNothingWithoutAStateDirectory(t *testing.T) {
 	opts := options(t, server.URL)
 	opts.StateDirectory = ""
 
-	if Announce(context.Background(), opts) || count.Load() != 0 {
-		t.Fatal("Announce() reported without a state directory to mark")
+	if sent := Announce(context.Background(), opts); sent || count.Load() != 0 {
+		t.Fatalf("Announce() = %v with %d pings received, want false and 0: "+
+			"there is no state directory to mark, so nothing can be reported once",
+			sent, count.Load())
 	}
 }
 
@@ -283,8 +285,10 @@ func TestAnnounceStaysSilentForABinaryThatIsNotARelease(t *testing.T) {
 	opts := options(t, server.URL)
 	opts.Executable = filepath.Join(t.TempDir(), "kivgraph")
 
-	if Announce(context.Background(), opts) || count.Load() != 0 {
-		t.Fatal("a binary built from source reported a first run")
+	if sent := Announce(context.Background(), opts); sent || count.Load() != 0 {
+		t.Fatalf("Announce(%q) = %v with %d pings received, want false and 0: "+
+			"a binary outside a release layout has no channel to report",
+			opts.Executable, sent, count.Load())
 	}
 	// And it did not claim the marker: installing a release afterwards has to
 	// be able to report the version it is running.

@@ -69,8 +69,27 @@ const TRACKING_ENABLED =
 // three datasets, and an install landing among the visits moves the numbers
 // that describe people.
 const FIRST_RUN_WEBSITE_ID = process.env.KIVGRAPH_UMAMI_FIRST_RUN_WEBSITE_ID;
+// Parsed here rather than at send time. A malformed value is not empty, so it
+// passes a `Boolean` check, enables tracking, prints `first_run_tracking: true`
+// on the startup line, and then throws inside every send -- where the handler
+// swallows it and answers 204. That is the failure this file keeps being
+// taught: configured is not delivering, and the startup line is the only thing
+// anyone reads.
+const collectorUrl = (() => {
+  if (!UMAMI_URL) {
+    return null;
+  }
+  try {
+    const parsed = new URL(UMAMI_URL);
+    return parsed.protocol === "http:" || parsed.protocol === "https:"
+      ? parsed
+      : null;
+  } catch {
+    return null;
+  }
+})();
 const FIRST_RUN_ENABLED =
-  Boolean(UMAMI_URL) &&
+  collectorUrl !== null &&
   Boolean(FIRST_RUN_WEBSITE_ID) &&
   process.env.KIVGRAPH_UMAMI_FIRST_RUN_TRACKING !== "off";
 
@@ -221,7 +240,7 @@ function logDetection(entry) {
  * against.
  */
 const sendFirstRun = createSender({
-  umamiUrl: UMAMI_URL ?? "http://localhost",
+  umamiUrl: collectorUrl ?? "http://localhost",
 });
 const handleFirstRun = createFirstRunHandler({
   websiteId: FIRST_RUN_WEBSITE_ID,

@@ -297,7 +297,9 @@ report_installation() {
 if [[ "${KIVGRAPH_TELEMETRY:-}" != "0" ]]; then
   printf 'kivgraph install: reporting one install of %s on %s, and nothing else:\n' \
     "$installed_version" "$platform"
-  printf 'kivgraph install:   no identifier, nothing about your code. https://kivgraph.dev/telemetry/\n'
+  printf 'kivgraph install:   nothing about your code, and no identifier of ours. Your address\n'
+  printf 'kivgraph install:   reaches the analytics collector, which hashes it and keeps a country.\n'
+  printf 'kivgraph install:   https://kivgraph.dev/telemetry/\n'
   printf 'kivgraph install:   set KIVGRAPH_TELEMETRY=0 to turn it off\n'
   report_installation
 fi

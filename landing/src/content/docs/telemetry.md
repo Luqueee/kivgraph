@@ -3,11 +3,11 @@ title: Telemetry
 description: What Kivgraph reports, what it never reports, and the one variable that turns it off.
 ---
 
-**As of `v0.9.2` -- the current release -- Kivgraph sends nothing.** The ping
-described below is written and tested, and it ships in the next release. This
-page went up before it did, so that the opt-out is documented before there is
-anything to opt out of, and so that nobody has to read the source to find out
-what a version will report.
+**As of `v0.9.2` -- the current release -- Kivgraph sends nothing.** No
+published version emits the ping described below. This page went up before any
+of them will, so that the opt-out is documented before there is anything to opt
+out of, and so that nobody has to read the source to find out what a version
+reports.
 
 ## The one thing that will be reported
 
@@ -62,10 +62,12 @@ fetched*, and only the binary can answer it.
 
 ## What never reports at all
 
-A binary you built yourself does not report. It looks for the layout a release
-unpacks into, and a `go build` or `go install` output is not one -- which also
-keeps our own continuous integration, five platforms on every push, out of a
-number that is supposed to be about you.
+A binary that is not sitting in the layout a release unpacks into does not
+report -- it looks for that layout around itself, and the output of `go build`
+or `go install` is not in one. That is a check on the surroundings and not on
+who compiled the binary: your own build, dropped into an unpacked release,
+would report. It also keeps our own continuous integration, which builds and
+runs Kivgraph on every push, out of a number that is supposed to be about you.
 
 The binary reports only when it starts serving: `kivgraph serve` and the
 daemon. Running `kivgraph index` in a terminal sends nothing.

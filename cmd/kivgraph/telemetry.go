@@ -9,12 +9,27 @@ import (
 	"github.com/Luqueee/kivgraph/internal/version"
 )
 
+// transportOf names the arrangement a command is about to serve with.
+//
+// `runConfiguredServe` runs both `serve` and `daemon`, which is what made this
+// a function rather than a literal: reporting `stdio` for every command that
+// reached it recorded the daemon's first run as a stdio one, and the marker is
+// exclusive, so that wrong row was the only row that version would ever
+// produce. `serve` relaying reports for itself before this is reached, because
+// it never comes back.
+func transportOf(command string) string {
+	if command == "daemon" {
+		return "daemon"
+	}
+	return "stdio"
+}
+
 // announceFirstRun reports the first run of this version, off the path of the
 // command that triggered it.
 //
-// It is called from the three places that actually serve the MCP surface --
-// `serve` in process, `serve` relaying, and the daemon -- and from nowhere
-// else. What Layer 1 of ADR 0083 measures is *machines that ran the server*,
+// It is called from the two places that reach a serving command -- the tail of
+// `runConfiguredServe`, which is `serve` in process and the daemon, and the
+// relay, which never returns -- and from nowhere else. What Layer 1 of ADR 0083 measures is *machines that ran the server*,
 // and `kivgraph index` running in a terminal is a different fact; it also has
 // no transport, which is a field the endpoint requires on a binary row rather
 // than defaulting.

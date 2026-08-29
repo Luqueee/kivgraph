@@ -95,8 +95,8 @@ the other.
 `scripts/downloads.sh` and `.github/workflows/download-metrics.yml`, and it
 has been photographing the counters daily since it merged. Layer 1 is the
 endpoint in `landing/src/install-report.mjs` and the two emitters --
-`internal/telemetry` and the tail of both installers. No release carries
-the emitters yet, so the property is empty until the next one.
+`internal/telemetry` and the tail of both installers. The latest published
+release is `v0.9.2` and it predates them, so the property has no rows.
 
 Where the implementation taught this ADR something, the ADR says so: the
 address below is the case, and so is the binary declining to report from a

@@ -567,8 +567,9 @@ there.
 **Both halves exist now.** The endpoint is `landing/src/install-report.mjs`,
 wired in `landing/server.mjs`; the emitters are `internal/telemetry` for the
 binary and the tail of `scripts/install.sh` and `scripts/install.ps1` for the
-installers. Everything below is observed behaviour. Nothing has been released
-with it yet, so the property is empty until the next release.
+installers. Everything below is observed behaviour. No published release
+carries the emitters -- `v0.9.2` is the latest and predates them -- so the
+property has no rows in it.
 
 ### The event
 
@@ -602,8 +603,10 @@ one per emitter, and they are never added together.
 **A binary that is not running from a release layout reports nothing**, and
 that is the declared hole in this number. Nothing distinguishes a developer's
 `go build` from a CI job's, and this repository's own CI builds and runs the
-binary on five platforms on every push: counting those would make the number
-mostly us. The cost is that somebody who ran `go install` is invisible.
+binary on every push -- `ci.yml` has `verify`, `ladybug`, `smoke`,
+`darwin-bundle`, `macos` and `windows-cross`, and the `smoke` one serves a
+bundle it built -- so counting those would make the number mostly us. The cost
+is that somebody who ran `go install` is invisible.
 
 Both workflows set `KIVGRAPH_TELEMETRY=0` on top of that. `ci.yml` needs it:
 its smoke job builds and serves a real bundle, which is exactly the layout

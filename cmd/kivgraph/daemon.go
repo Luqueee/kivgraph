@@ -41,8 +41,6 @@ func runDaemon(logger *slog.Logger, flags *daemonOptions) configuredMCPRunner {
 		indexer indexing.ProjectIndexer,
 		events *eventlog.Writer,
 	) error {
-		announceFirstRun(loaded, "daemon")
-
 		// The state directory is where the generation lives, so it is the
 		// identity a daemon belongs to: two configurations pointing elsewhere
 		// must never answer each other's clients.

@@ -309,7 +309,9 @@ try {
     # behind a proxy installs Kivgraph exactly the same.
     if ($env:KIVGRAPH_TELEMETRY -ne '0') {
         Write-Host "install: reporting one install of $installedVersion on windows-amd64, and nothing else:"
-        Write-Host "install:   no identifier, nothing about your code. https://kivgraph.dev/telemetry/"
+        Write-Host "install:   nothing about your code, and no identifier of ours. Your address"
+        Write-Host "install:   reaches the analytics collector, which hashes it and keeps a country."
+        Write-Host "install:   https://kivgraph.dev/telemetry/"
         Write-Host "install:   set KIVGRAPH_TELEMETRY=0 to turn it off"
         try {
             $body = @{
