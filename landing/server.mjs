@@ -35,6 +35,11 @@ if (existsSync(new URL(".env", import.meta.url))) {
 
 import { detectAiAgent } from "./src/ai-agents.mjs";
 import { crawlerEventPayloads, REPORTER_HEADERS } from "./src/ai-report.mjs";
+import {
+  createFirstRunHandler,
+  createSender,
+  FIRST_RUN_PATH,
+} from "./src/install-report.mjs";
 
 const { handler } = await import("./dist/server/entry.mjs");
 
@@ -57,6 +62,36 @@ const TRACKING_ENABLED =
   Boolean(UMAMI_URL) &&
   Boolean(AI_WEBSITE_ID) &&
   process.env.KIVGRAPH_UMAMI_AI_TRACKING !== "off";
+
+// The third property, and the same pair with the same failure mode: without
+// its own id nothing is forwarded, so a development machine cannot write into
+// it. Never the main property's id and never the crawler's -- three questions,
+// three datasets, and an install landing among the visits moves the numbers
+// that describe people.
+const FIRST_RUN_WEBSITE_ID = process.env.KIVGRAPH_UMAMI_FIRST_RUN_WEBSITE_ID;
+// Parsed here rather than at send time. A malformed value is not empty, so it
+// passes a `Boolean` check, enables tracking, prints `first_run_tracking: true`
+// on the startup line, and then throws inside every send -- where the handler
+// swallows it and answers 204. That is the failure this file keeps being
+// taught: configured is not delivering, and the startup line is the only thing
+// anyone reads.
+const collectorUrl = (() => {
+  if (!UMAMI_URL) {
+    return null;
+  }
+  try {
+    const parsed = new URL(UMAMI_URL);
+    return parsed.protocol === "http:" || parsed.protocol === "https:"
+      ? parsed
+      : null;
+  } catch {
+    return null;
+  }
+})();
+const FIRST_RUN_ENABLED =
+  collectorUrl !== null &&
+  Boolean(FIRST_RUN_WEBSITE_ID) &&
+  process.env.KIVGRAPH_UMAMI_FIRST_RUN_TRACKING !== "off";
 
 /** Milliseconds before a report to Umami is abandoned. */
 const SEND_TIMEOUT_MS = 2000;
@@ -191,9 +226,50 @@ function logDetection(entry) {
   process.stdout.write(`${JSON.stringify(entry)}\n`);
 }
 
+/**
+ * The first-run endpoint, wired to the collector when it is configured.
+ *
+ * The handler exists either way, so the endpoint answers `204` on a machine
+ * with no telemetry variables exactly as it does on the deployed one. Falling
+ * through to the site would answer `404` there, and a `404` is an answer: it
+ * says whether this landing reports anything, to whoever asks.
+ *
+ * The local line is written before the send and never carries the address. It
+ * is the same reason the crawler detector logs: it survives Umami being down
+ * or the ping being deduplicated, and it is what a report can be checked
+ * against.
+ */
+const sendFirstRun = createSender({
+  umamiUrl: collectorUrl ?? "http://localhost",
+});
+const handleFirstRun = createFirstRunHandler({
+  websiteId: FIRST_RUN_WEBSITE_ID,
+  send: (payload) => {
+    process.stdout.write(
+      `${JSON.stringify({ first_run: true, ...payload.payload.data, at: new Date().toISOString() })}\n`,
+    );
+    if (FIRST_RUN_ENABLED) {
+      sendFirstRun(payload);
+    }
+  },
+});
+
 const server = createServer((request, response) => {
   let detected = null;
   let pathname = "";
+
+  try {
+    if (
+      new URL(request.url ?? "/", "http://localhost").pathname ===
+      FIRST_RUN_PATH
+    ) {
+      handleFirstRun(request, response);
+      return;
+    }
+  } catch {
+    // A url this server cannot parse is not the telemetry endpoint. The site's
+    // own handler decides what it is.
+  }
 
   // Nothing in here may throw into the request path. A classification bug must
   // cost a missing row, never a page.
@@ -267,6 +343,7 @@ server.listen(PORT, HOST, () => {
       host: HOST,
       port: PORT,
       ai_tracking: TRACKING_ENABLED,
+      first_run_tracking: FIRST_RUN_ENABLED,
     })}\n`,
   );
 });

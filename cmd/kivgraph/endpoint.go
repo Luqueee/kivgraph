@@ -296,6 +296,7 @@ func relayToTheDaemon(
 		}
 	}()
 	logger.Info("relaying to the daemon", "command", command, "endpoint", endpoint.URL)
+	announceRelayedFirstRun(loaded)
 	return true, relay.Run(ctx, endpoint)
 }
 

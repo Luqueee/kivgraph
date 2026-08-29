@@ -18191,8 +18191,81 @@ al respecto en su primera línea: hoy no se manda nada. La alternativa era
 documentar el opt-out después de encender la telemetría, que es el orden que
 convierte una nota en una disculpa.
 
-**Estado:** commits 1 y 2 hechos; faltan 3 (el endpoint y su verificación de
-hilo) y 4 (los dos emisores).
+**Commit 3 -- el endpoint, hecho, y la verificación de hilo cambió el diseño.**
+
+`landing/src/install-report.mjs` con su test, montado en `landing/server.mjs`:
+validación contra los conjuntos cerrados, ventana de deduplicación con
+`emitter` dentro, `204` en todos los caminos, y una línea local en stdout que
+nunca lleva la dirección. `65` tests.
+
+**Lo que decidía si la capa 1 mide algo, medido sobre una propiedad desechable
+-- `13` eventos, borrada después:**
+
+|lo enviado|lo que guardó el colector|
+|---|---|
+|`X-Forwarded-For: 203.0.113.7`|una sesión, país `ES`, el del emisor|
+|`X-Real-IP`, `X-Client-IP`|la misma sesión|
+|`CF-Connecting-IP`|`403`, error `1000` de Cloudflare|
+|`payload.ip: 8.8.8.8`, dos veces|**una sesión propia**, país `US`|
+|`payload.ip: 1.1.1.1`|**otra sesión**, `AU`|
+|`payload.id: <uuid>`|ignorado; el evento cayó en la sesión del emisor|
+|`payload.userAgent: kivgraph-first-run`|`{"beep":"boop"}`, descartado|
+
+**Ningún header sirve.** `kivgraph.dev` y `analytics.luqueee.dev` están los dos
+detrás de Cloudflare, que reescribe la dirección en el borde. Y falla como
+falló el `User-Agent`: `200`, token de sesión, eventos guardados y **un
+visitante**. Enviado sin medir, la capa 1 habría reportado un visitante para
+todo el mundo y nada lo habría dicho.
+
+Lo que el colector lee es `payload.ip`, y da la propiedad que la capa
+necesita: misma dirección una sesión, direcciones distintas sesiones distintas,
+país derivado. Que `payload.id` se ignore importa por lo contrario -- un
+visitante no se puede nombrar desde fuera. La ADR 0083 decía "reenviar la
+dirección"; el verbo era el equivocado y queda corregido.
+
+Dos hallazgos de propina: el filtro `isbot` **también lee el `userAgent` del
+payload**, y el colector **sí guarda un país** derivado de la dirección, que la
+página de transparencia ahora declara. Y una tercera para quien lea informes:
+el endpoint de stats contesta `visitors: 0` en esta propiedad, porque cuenta
+sesiones con pageview y un primer arranque es un evento.
+
+**Commit 4 -- los dos emisores, hecho.**
+
+`internal/telemetry` con el marcador `O_CREATE|O_EXCL` bajo el directorio de
+estado, el aviso por stderr y el envío con `2 s` de tope y todos los errores
+tirados. Se dispara desde los tres caminos que sirven MCP -- `serve` en
+proceso, `serve` de relé, y el demonio -- y de ningún otro: lo que se mide es
+una máquina que arrancó el servidor, y `transport` es obligatorio en esas
+filas. En los instaladores, un `POST` al final, después de que la instalación
+esté terminada y sin poder deshacerla.
+
+**Una decisión que no estaba en la ficha: el binario no reporta si no corre
+desde un layout de release.** Nada distingue el `go build` de un desarrollador
+del de un job de CI, y nuestro propio CI compila y ejecuta el binario en cinco
+plataformas en cada push: contarlos habría hecho que el número fuésemos
+mayormente nosotros. El precio es que quien hace `go install` es invisible, y
+queda declarado. `ci.yml` además pone `KIVGRAPH_TELEMETRY=0`, porque el job de
+smoke construye y sirve un bundle de verdad, que es justo lo que sí reporta.
+Y `source` sale del conjunto cerrado del endpoint: ningún emisor puede
+mandarlo ya.
+
+**Dos tests que fallan si se rompen, comprobado por mutación:**
+
+- **nada llega a stdout.** Se sustituye `os.Stdout` por un pipe durante la
+  llamada y se afirma que está vacío. Metiendo un `fmt.Println` falla, que es
+  el caso que la ficha pedía ver fallar: un byte ahí corrompe la sesión MCP y
+  nada más en el proceso lo diría;
+- **una ráfaga reporta una vez.** `16` arranques concurrentes, exactamente uno
+  envía. Cambiando el `O_EXCL` por leer-y-luego-crear, `2` de `16` pasaron.
+
+**Y un agujero que se encontró de camino:** nada en el repositorio parseaba
+`scripts/install.ps1`. Es el único fichero que nadie ejecuta antes de que lo
+haga una release: un error de sintaxis se publica, se descarga y se mete en un
+shell antes de que nadie se entere. Los runners de Linux traen PowerShell, así
+que ahora se parsea en `windows-cross` por segundos y sin job de Windows.
+
+**Estado:** hecha, los cuatro commits. Nada sale hasta la próxima release, así
+que la propiedad estará vacía hasta entonces.
 
 
 ## LUQUE-2233 - `serve` deja de servir

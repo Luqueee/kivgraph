@@ -504,6 +504,10 @@ func runConfiguredServe(
 		options != nil && options.Introspection); relayed {
 		return err
 	}
+	// After the relay decision, because the transport reported is the one that
+	// is about to serve and not the one that was preferred. The relaying path
+	// returned above and reported for itself.
+	announceFirstRun(loaded, command)
 	store, err := openConfiguredSnapshot(ctx, loaded)
 	if err != nil {
 		return err

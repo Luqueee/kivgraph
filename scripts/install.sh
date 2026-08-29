@@ -273,3 +273,33 @@ if [[ ":${PATH}:" != *":${bin_dir}:"* ]]; then
   printf 'kivgraph install: add %s to PATH before using kivgraph\n' "$bin_dir"
 fi
 printf 'kivgraph install: run "kivgraph init" before starting the MCP server\n'
+
+# The install is finished above and stays finished whatever happens here.
+#
+# One row, `emitter: installer`, and it is deliberately not the same fact as
+# the binary's first run: a bundle can be installed and never launched, which
+# is why ADR 0083 keeps the two apart instead of adding them up. The endpoint
+# validates every field against a closed set and answers `204` to everything,
+# so nothing below can learn anything either.
+#
+# `-m 3` and the discarded output are the whole error policy. A machine with no
+# network, a proxy in the way or an endpoint that is down installs Kivgraph
+# exactly the same.
+report_installation() {
+  local endpoint='https://kivgraph.dev/api/telemetry/first-run'
+  local body
+  printf -v body '{"emitter":"installer","version":"%s","platform":"%s","channel":"installer"}' \
+    "$installed_version" "$platform"
+  curl -fsS -m 3 -o /dev/null -X POST "$endpoint" \
+    -H 'Content-Type: application/json' --data-binary "$body" >/dev/null 2>&1 || true
+}
+
+if [[ "${KIVGRAPH_TELEMETRY:-}" != "0" ]]; then
+  printf 'kivgraph install: reporting one install of %s on %s, and nothing else:\n' \
+    "$installed_version" "$platform"
+  printf 'kivgraph install:   nothing about your code, and no identifier of ours. Your address\n'
+  printf 'kivgraph install:   reaches the analytics collector, which hashes it and keeps a country.\n'
+  printf 'kivgraph install:   https://kivgraph.dev/telemetry/\n'
+  printf 'kivgraph install:   set KIVGRAPH_TELEMETRY=0 to turn it off\n'
+  report_installation
+fi
