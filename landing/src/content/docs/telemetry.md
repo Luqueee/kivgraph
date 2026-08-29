@@ -3,7 +3,7 @@ title: Telemetry
 description: What Kivgraph reports, what it never reports, and the one variable that turns it off.
 ---
 
-**As of `v0.9.1` -- the current release -- Kivgraph sends nothing.** The ping
+**As of `v0.9.2` -- the current release -- Kivgraph sends nothing.** The ping
 described below is written and tested, and it ships in the next release. This
 page went up before it did, so that the opt-out is documented before there is
 anything to opt out of, and so that nobody has to read the source to find out
@@ -21,7 +21,7 @@ It carries five fields and nothing else:
 | field | values | what it says |
 | --- | --- | --- |
 | `emitter` | `installer`, `binary` | whether an install finished or a binary started |
-| `version` | `MAJOR.MINOR.PATCH`, as in `0.9.1` | which version |
+| `version` | `MAJOR.MINOR.PATCH`, as in `0.9.2` | which version |
 | `platform` | `linux-amd64`, `darwin-arm64`, `windows-amd64` | which build |
 | `channel` | `installer`, `mcpb`, `archive` | how it got there |
 | `transport` | `stdio`, `daemon` | which arrangement served, on `binary` rows only |

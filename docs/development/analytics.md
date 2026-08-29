@@ -577,7 +577,7 @@ flat string fields:
 
 - **`emitter`** -- `installer` or `binary`. Which of two different facts this
   row is;
-- **`version`** -- the version that arrived, `0.9.1`, validated against the
+- **`version`** -- the version that arrived, `0.9.2`, validated against the
   published version pattern;
 - **`platform`** -- `linux-amd64`, `darwin-arm64` or `windows-amd64`. The same
   vocabulary the release assets use, so Layer 0 and Layer 1 can be read side
