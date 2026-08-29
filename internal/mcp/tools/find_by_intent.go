@@ -39,15 +39,15 @@ const (
 // surface, a retrieval has no reachability to preserve and a narrower corpus is
 // simply a narrower question.
 type FindByIntentInput struct {
-	Intent         string   `json:"intent"`
-	Keywords       []string `json:"keywords,omitempty"`
-	Repo           string   `json:"repo,omitempty"`
-	PathPrefix     string   `json:"path_prefix,omitempty"`
-	Kind           string   `json:"kind,omitempty"`
-	Limit          int      `json:"limit,omitempty"`
-	Cursor         string   `json:"cursor,omitempty"`
-	ResponseFormat string   `json:"response_format,omitempty"`
-	View           string   `json:"view,omitempty"`
+	Intent         string   `json:"intent" jsonschema:"What the code you are looking for does, in plain language."`
+	Keywords       []string `json:"keywords,omitempty" jsonschema:"Extra terms the code itself uses, when they differ from the words of the question."`
+	Repo           string   `json:"repo,omitempty" jsonschema:"Consider only candidates in this repository. It narrows the question, not just the page."`
+	PathPrefix     string   `json:"path_prefix,omitempty" jsonschema:"Consider only candidates under this repository-relative path prefix."`
+	Kind           string   `json:"kind,omitempty" jsonschema:"Consider only symbols of this kind, such as function, struct or interface."`
+	Limit          int      `json:"limit,omitempty" jsonschema:"Candidates in one page. Defaults to 10, maximum 50."`
+	Cursor         string   `json:"cursor,omitempty" jsonschema:"The next_cursor of the previous page. Every other argument must stay the same."`
+	ResponseFormat string   `json:"response_format,omitempty" jsonschema:"concise (the default) omits the derived identifiers; detailed returns them."`
+	View           string   `json:"view,omitempty" jsonschema:"Granularity, never a different answer: compact (the default) states once what every row shares, full repeats it on each."`
 }
 
 // IntentMatches is a page of ranked candidates and an account of the terms that
@@ -247,8 +247,8 @@ func RegisterFindByIntentWithObserverAndSnapshotStore(
 		// resident budget leaves it a hundred and ten bytes for name and text
 		// together -- the whole surface now sits within a few bytes of its
 		// ceiling, so the next tool is a decision about that ceiling.
-		Description: "Which symbols a plain-language description likely names, and the files to open.",
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
+		Description: "Which symbols a plain-language description likely names, and the files to open. Start here when you have no name.",
+		Annotations: readOnlyClosedWorld(),
 		Meta:        alwaysLoadMeta(),
 	}, handler)
 }

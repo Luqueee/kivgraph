@@ -143,7 +143,16 @@ func TestServerExposesExactlyTheAllowedSurface(t *testing.T) {
 // derives from its result type, and `4.768` once they published the object
 // schema instead -- the input schemas, which are the half that tells a caller
 // how to call, were only `2.530` of the original total.
-const MaximumSurfaceSchemaBytes = 8000
+//
+// It then went to `16.135`, and that is a deliberate purchase rather than a
+// regression. Every argument of every tool now describes itself, which is the
+// difference between an argument a caller can use and a name it has to guess:
+// `trace_dependencies` alone takes seventeen, and which of them gate what the
+// walk can reach and which only filter what it returns is not derivable from
+// their names. The bytes land here and nowhere else -- the resident ceiling
+// below, which is what a session actually pays for, did not move -- and this
+// half is read once per tool by the clients that read it at all.
+const MaximumSurfaceSchemaBytes = 18000
 
 func TestServerSurfaceStaysCheapToLoad(t *testing.T) {
 	session := connectToServer(t, publishedServer(t))
@@ -168,6 +177,58 @@ func TestServerSurfaceStaysCheapToLoad(t *testing.T) {
 	for _, tool := range listed.Tools {
 		if tool.OutputSchema != nil {
 			t.Fatalf("%s publishes an output schema, which restores the duplicate structured channel", tool.Name)
+		}
+	}
+}
+
+// TestEveryPublishedArgumentDescribesItself is the gate the ceiling above buys.
+//
+// A schema whose properties are bare names costs the same to load as one that
+// says what they mean, and answers nothing: the caller reads `repo`, `repository`
+// and `path` side by side and has to guess which one selects the subject and
+// which one filters the page. Coverage is checked rather than reviewed because
+// it decays one field at a time -- a new argument compiles, serves and lists
+// without a description, and nothing else here would notice.
+func TestEveryPublishedArgumentDescribesItself(t *testing.T) {
+	session := connectToServer(t, NewServerWithSnapshotStoreAndIndexer(
+		publishedStore(t), &fakeProjectIndexer{}))
+	listed, err := session.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("ListTools() error = %v", err)
+	}
+	for _, tool := range listed.Tools {
+		encoded, err := json.Marshal(tool.InputSchema)
+		if err != nil {
+			t.Fatalf("Marshal %s input schema: %v", tool.Name, err)
+		}
+		var schema struct {
+			Properties map[string]struct {
+				Description string `json:"description"`
+				Items       *struct {
+					Properties map[string]struct {
+						Description string `json:"description"`
+					} `json:"properties"`
+				} `json:"items"`
+			} `json:"properties"`
+		}
+		if err := json.Unmarshal(encoded, &schema); err != nil {
+			t.Fatalf("Unmarshal %s input schema: %v", tool.Name, err)
+		}
+		for name, property := range schema.Properties {
+			if property.Description == "" {
+				t.Errorf("%s.%s publishes no description", tool.Name, name)
+			}
+			if property.Items == nil {
+				continue
+			}
+			// An array of objects hides its own arguments one level down, and
+			// `get_source` and `index_project` both take one: describing the
+			// array alone leaves the fields a caller has to fill unnamed.
+			for member, nested := range property.Items.Properties {
+				if nested.Description == "" {
+					t.Errorf("%s.%s[].%s publishes no description", tool.Name, name, member)
+				}
+			}
 		}
 	}
 }

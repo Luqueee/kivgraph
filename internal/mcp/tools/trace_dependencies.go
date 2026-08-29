@@ -42,23 +42,23 @@ const (
 // applied, because a route missing a link is not a route. "compact" is refused
 // for the same reason: it groups rows by file, and the order is the answer.
 type TraceDependenciesInput struct {
-	StableKey      string   `json:"stable_key,omitempty"`
-	QualifiedName  string   `json:"qualified_name,omitempty"`
-	Repository     string   `json:"repository,omitempty"`
-	Path           string   `json:"path,omitempty"`
-	To             string   `json:"to,omitempty"`
-	ToPath         string   `json:"to_path,omitempty"`
-	Depth          int      `json:"depth,omitempty"`
-	MaxNodes       int      `json:"max_nodes,omitempty"`
-	Repo           string   `json:"repo,omitempty"`
-	Language       string   `json:"language,omitempty"`
-	EdgeKinds      []string `json:"edge_kinds,omitempty"`
-	Confidence     string   `json:"confidence,omitempty"`
-	IncludeDerived bool     `json:"include_derived,omitempty"`
-	Limit          int      `json:"limit,omitempty"`
-	Cursor         string   `json:"cursor,omitempty"`
-	ResponseFormat string   `json:"response_format,omitempty"`
-	View           string   `json:"view,omitempty"`
+	StableKey      string   `json:"stable_key,omitempty" jsonschema:"The root symbol durable key, as a detailed result returns it. The triple works instead."`
+	QualifiedName  string   `json:"qualified_name,omitempty" jsonschema:"The root symbol fully qualified name, as every row of this surface carries it."`
+	Repository     string   `json:"repository,omitempty" jsonschema:"The repository that declares the root symbol."`
+	Path           string   `json:"path,omitempty" jsonschema:"The repository-relative file that declares the root symbol."`
+	To             string   `json:"to,omitempty" jsonschema:"Qualified name to reach. It changes the question: the answer becomes the route itself, one row per hop in order."`
+	ToPath         string   `json:"to_path,omitempty" jsonschema:"The repository-relative file of the to symbol, to separate an ambiguous name."`
+	Depth          int      `json:"depth,omitempty" jsonschema:"Hops the walk may follow outward. Defaults to 3."`
+	MaxNodes       int      `json:"max_nodes,omitempty" jsonschema:"Nodes the walk may visit before it stops and declares that it did. Defaults to 5000."`
+	Repo           string   `json:"repo,omitempty" jsonschema:"Keep only reached symbols in this repository. Refused with to, since a route missing a link is not a route."`
+	Language       string   `json:"language,omitempty" jsonschema:"Keep only reached symbols written in this language. Refused with to."`
+	EdgeKinds      []string `json:"edge_kinds,omitempty" jsonschema:"Relation kinds the walk may follow, such as CALLS. It gates what is reachable, not just what is shown."`
+	Confidence     string   `json:"confidence,omitempty" jsonschema:"Follow only edges resolved at this confidence, such as EXACT_TYPECHECKED. It gates what is reachable."`
+	IncludeDerived bool     `json:"include_derived,omitempty" jsonschema:"Include reached symbols of the derived provider, which is withheld by default. Refused with to."`
+	Limit          int      `json:"limit,omitempty" jsonschema:"Reached symbols in one page. Defaults to 50."`
+	Cursor         string   `json:"cursor,omitempty" jsonschema:"The next_cursor of the previous page. Every other argument must stay the same."`
+	ResponseFormat string   `json:"response_format,omitempty" jsonschema:"concise (the default) omits the derived identifiers; detailed returns them."`
+	View           string   `json:"view,omitempty" jsonschema:"Granularity, never a different answer: compact (the default) or full. files is rejected, and compact is refused with to, since the order is the answer."`
 }
 
 // DependencyTrace is the traversal itself: the root, what the bounds did to
@@ -490,8 +490,8 @@ func RegisterTraceDependenciesWithObserverAndSnapshotStore(
 	}
 	addQueryTool(server, &sdkmcp.Tool{
 		Name:        traceDependenciesToolName,
-		Description: "What this symbol reaches outward, bounded by depth. Pass to for the route by which it reaches one named symbol. Grep does not follow a chain.",
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
+		Description: "What this symbol reaches outward, bounded by depth. Pass to for the route by which it reaches one named symbol. Grep does not follow a chain; get_blast_radius walks it inward.",
+		Annotations: readOnlyClosedWorld(),
 		Meta:        boundedResultMeta(MaximumTraversalResultChars),
 	}, handler)
 }

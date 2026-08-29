@@ -3,7 +3,7 @@ title: find_cross_repo_consumers
 description: Consumers of one symbol in other repositories, with exact uses counted apart from package-level dependencies.
 ---
 
-> Consumers of a symbol in other repositories, exact uses kept apart from package-level dependencies. A language server stops at its workspace.
+> Consumers of a symbol in other repositories, exact uses kept apart from package-level dependencies that prove no use. A language server stops at its own workspace and cannot answer this.
 
 ## Arguments
 

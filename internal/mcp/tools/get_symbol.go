@@ -15,11 +15,11 @@ const getSymbolToolName = "get_symbol"
 // GetSymbolInput identifies one symbol, either by its durable stable key or by
 // the repository, path and qualified name every row of this surface carries.
 type GetSymbolInput struct {
-	StableKey      string `json:"stable_key,omitempty"`
-	QualifiedName  string `json:"qualified_name,omitempty"`
-	Repository     string `json:"repository,omitempty"`
-	Path           string `json:"path,omitempty"`
-	ResponseFormat string `json:"response_format,omitempty"`
+	StableKey      string `json:"stable_key,omitempty" jsonschema:"The symbol durable key, as a detailed result returns it. The triple below works instead."`
+	QualifiedName  string `json:"qualified_name,omitempty" jsonschema:"The symbol fully qualified name, as every row of this surface carries it."`
+	Repository     string `json:"repository,omitempty" jsonschema:"The repository that declares the symbol. Pass it with qualified_name and path."`
+	Path           string `json:"path,omitempty" jsonschema:"The repository-relative file that declares the symbol."`
+	ResponseFormat string `json:"response_format,omitempty" jsonschema:"concise (the default) omits the derived identifiers; detailed returns them."`
 }
 
 // SymbolDetails is the public detail shape returned for one symbol. The
@@ -95,7 +95,7 @@ func RegisterGetSymbolWithObserverAndSnapshotStore(
 	addQueryTool(server, &sdkmcp.Tool{
 		Name:        getSymbolToolName,
 		Description: "One symbol's package, signature, visibility and line range, by stable key or by repository, path and qualified name.",
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
+		Annotations: readOnlyClosedWorld(),
 	}, handler)
 }
 

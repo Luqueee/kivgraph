@@ -49,6 +49,21 @@ declarado en la raíz.
   tool y **dónde pierde**- y por eso ninguna descripción ni `instructions` puede
   llevar un número derivado del grafo: reescribiría el prompt de sistema del
   cliente en cada reindexado. Los datos volátiles se piden con `graph_status`.
+- Las dos mitades de una definición se pagan en sitios distintos y por eso se
+  escriben con presupuestos distintos. La descripción es lo residente y compite
+  contra el techo de `MaximumResidentSurfaceBytes`: ahí sólo cabe el enrutado.
+  El esquema no lo mantiene nadie en memoria, así que **todo argumento publicado
+  lleva su descripción** -- lo fija
+  `TestEveryPublishedArgumentDescribesItself`, que también entra en los objetos
+  de un array-- y ahí es donde se explica qué distingue `repo` de `repository`,
+  cuáles acotan lo alcanzable y cuáles sólo filtran la página. Una descripción
+  que ya no cabe residente no se compensa subiendo el techo: se mueve al
+  argumento al que pertenecía. Así se recuperó el presupuesto de
+  `find_references`, cuya frase sobre el nombre ambiguo vive hoy en `name`.
+- Toda tool de consulta anota `readOnlyClosedWorld()`, nunca un
+  `ToolAnnotations` a mano. `OpenWorldHint` vale `true` cuando falta, así que
+  omitirlo declara lo contrario de lo que este servidor hace: una respuesta sale
+  de la generación publicada y de nada más.
 - Una respuesta declara lo que su recuento significa sólo cuando la cifra
   engaña. Cero filas se lee como «no existe» salvo que algo diga que es una
   ausencia comprobada; una página truncada no dice si contiene lo que importaba.

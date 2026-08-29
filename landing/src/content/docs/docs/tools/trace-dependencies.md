@@ -3,7 +3,7 @@ title: trace_dependencies
 description: Bounded outgoing traversal from one symbol, with the edge each reached symbol was first arrived by.
 ---
 
-> What this symbol reaches outward, bounded by depth. Grep does not follow a chain.
+> What this symbol reaches outward, bounded by depth. Pass to for the route by which it reaches one named symbol. Grep does not follow a chain; get_blast_radius walks it inward.
 
 ## Arguments
 

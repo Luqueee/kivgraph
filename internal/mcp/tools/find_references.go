@@ -35,21 +35,21 @@ const (
 // hoists whatever every row shares, `full` keeps the field-per-row shape, and
 // `files` answers only which files hold references and how many each holds.
 type FindReferencesInput struct {
-	StableKey      string   `json:"stable_key,omitempty"`
-	QualifiedName  string   `json:"qualified_name,omitempty"`
-	Name           string   `json:"name,omitempty"`
-	Repository     string   `json:"repository,omitempty"`
-	Path           string   `json:"path,omitempty"`
-	Direction      string   `json:"direction,omitempty"`
-	Repo           string   `json:"repo,omitempty"`
-	Language       string   `json:"language,omitempty"`
-	EdgeKinds      []string `json:"edge_kinds,omitempty"`
-	Confidence     string   `json:"confidence,omitempty"`
-	IncludeDerived bool     `json:"include_derived,omitempty"`
-	ResponseFormat string   `json:"response_format,omitempty"`
-	View           string   `json:"view,omitempty"`
-	Limit          int      `json:"limit,omitempty"`
-	Cursor         string   `json:"cursor,omitempty"`
+	StableKey      string   `json:"stable_key,omitempty" jsonschema:"The subject durable key, as a detailed result returns it. A name or the triple works instead."`
+	QualifiedName  string   `json:"qualified_name,omitempty" jsonschema:"The subject fully qualified name, as every row of this surface carries it."`
+	Name           string   `json:"name,omitempty" jsonschema:"The subject unqualified name. Enough on its own: an ambiguous one answers with its candidates rather than picking."`
+	Repository     string   `json:"repository,omitempty" jsonschema:"The repository that declares the subject, to separate an ambiguous name."`
+	Path           string   `json:"path,omitempty" jsonschema:"The repository-relative file that declares the subject, to separate an ambiguous name."`
+	Direction      string   `json:"direction,omitempty" jsonschema:"incoming (the default) answers who uses the subject; outgoing answers what it uses."`
+	Repo           string   `json:"repo,omitempty" jsonschema:"Keep only rows from this repository. Naming the derived provider also opts it in."`
+	Language       string   `json:"language,omitempty" jsonschema:"Keep only rows written in this language."`
+	EdgeKinds      []string `json:"edge_kinds,omitempty" jsonschema:"Relation kinds to return, such as CALLS or IMPORTS_SYMBOL. EXPORTS and REEXPORTS are withheld by default; * returns every kind."`
+	Confidence     string   `json:"confidence,omitempty" jsonschema:"Return only edges resolved at this confidence, such as EXACT_TYPECHECKED or CANDIDATE."`
+	IncludeDerived bool     `json:"include_derived,omitempty" jsonschema:"Include rows of the derived provider, which is withheld by default."`
+	ResponseFormat string   `json:"response_format,omitempty" jsonschema:"concise (the default) omits the derived identifiers; detailed returns them."`
+	View           string   `json:"view,omitempty" jsonschema:"Granularity, never a different answer: compact (the default), full, or files for which files hold references and how many each holds."`
+	Limit          int      `json:"limit,omitempty" jsonschema:"Rows in one page. Defaults to 50."`
+	Cursor         string   `json:"cursor,omitempty" jsonschema:"The next_cursor of the previous page. Every other argument must stay the same."`
 }
 
 // ReferenceSubject is the symbol the query asked about. It is stated once per
@@ -444,8 +444,8 @@ func RegisterFindReferencesWithObserverAndSnapshotStore(
 		// is 2,480 tokens against 912 for the same files, the same precision and
 		// the same recall -- and one page instead of two where 66 references
 		// collapse into 9 files. Both were already supported; nothing said so.
-		Description: "Who calls or references a symbol. Type-checked, not name-matched: grep cannot separate homonyms, and an empty answer means nobody calls it. A bare name suffices: an ambiguous one returns its candidates, so no lookup call first. `view: \"files\"` answers which files without a line each.",
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
+		Description: "Who calls or references a symbol, or what it uses with direction outgoing. Type-checked, not name-matched: grep cannot separate homonyms, and an empty answer means nobody calls it. A bare name suffices.",
+		Annotations: readOnlyClosedWorld(),
 		Meta:        alwaysLoadMeta(),
 	}, handler)
 }
