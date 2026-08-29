@@ -23,6 +23,23 @@ var skippedTrees = map[string]struct{}{
 	".astro": {}, ".pnpm-store": {}, "target": {},
 }
 
+// isSeparateCheckout reports whether a directory is a checkout of its own.
+//
+// A git worktree carries `.git` as a **file** naming its gitdir, so the entry
+// above -- which only matches directories -- walks straight into one. This
+// repository keeps its worktrees under `.claude/worktrees/`, and each of them
+// is another branch: the four on this machine pinned `v0.9.1` while `main`
+// built `v0.9.2`, and the failure named nine files that are not in this tree
+// at all.
+//
+// That is not the defect this test exists for. A gate that goes red because a
+// developer has a second branch checked out is a gate that gets ignored, which
+// is how the stale `install.md` it was written for got there.
+func isSeparateCheckout(directory string) bool {
+	_, err := os.Lstat(filepath.Join(directory, ".git"))
+	return err == nil
+}
+
 // documentedExtensions are the files a reader or an agent copies a command
 // from. A `.go` file that names the variable is code, not an instruction.
 var documentedExtensions = map[string]struct{}{
@@ -65,6 +82,9 @@ func TestDocumentedInstallVersionMatchesTheBinary(t *testing.T) {
 		}
 		if entry.IsDir() {
 			if _, skipped := skippedTrees[entry.Name()]; skipped {
+				return fs.SkipDir
+			}
+			if path != root && isSeparateCheckout(path) {
 				return fs.SkipDir
 			}
 			return nil
