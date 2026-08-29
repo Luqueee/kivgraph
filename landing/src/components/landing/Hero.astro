@@ -1,12 +1,16 @@
 ---
 import CopyButton from "./CopyButton.astro";
+import InstallCommand from "./InstallCommand.astro";
 import { CLIENTS } from "./clients";
+import { POSIX_COMMAND } from "./platforms";
 
-// Byte-identical to README.md and to the install page. `install.sh` is a
-// published release asset, and it has to be `bash`: the script uses arrays and
-// `BASH_REMATCH`, so `sh` would not run it.
-const installCommand =
-  "curl -fsSL https://github.com/Luqueee/kivgraph/releases/latest/download/install.sh | bash";
+// The prompt addressed to an agent names the POSIX installer, because an agent
+// reading this is driving a terminal on the platform it is already on and the
+// Windows one-liner is a different program. The command itself lives in
+// `platforms.ts` with the rest of them: this file used to keep its own copy,
+// and two copies of one contract is how the hero and the install page end up
+// publishing different commands.
+const installCommand = POSIX_COMMAND;
 
 // Four properties a reader can check before installing anything. Nothing here
 // is a measurement, so nothing here needs a citation; the numbers live in the
@@ -140,18 +144,8 @@ const facts = [
       }
     </p>
 
-    <div
-      data-hero-item="install"
-      class="mx-auto mt-12 max-w-2xl border border-rule bg-panel text-left"
-    >
-      <div
-        class="flex items-center justify-between gap-4 border-b border-rule px-4 py-2 font-mono text-xs text-gray-400"
-      >
-        <span>install the latest release</span>
-        <CopyButton value={installCommand} event="install_copy" eventData={{ where: "hero" }} />
-      </div>
-      <pre
-        class="px-4 py-3 text-xs leading-5 whitespace-pre-wrap break-all"><code><span class="text-graph-exact select-none">$ </span>{installCommand}</code></pre>
+    <div data-hero-item="install" class="mx-auto mt-12 max-w-2xl">
+      <InstallCommand where="hero" />
     </div>
 
     <ul
@@ -166,6 +160,33 @@ const facts = [
         ))
       }
     </ul>
+
+    {/* The one third-party mark on this page, and the only image the hero
+      loads. It is fetched from Glama rather than committed here because the
+      grade is theirs to change: a copy in this repository would go on asserting
+      whatever it asserted the day it was saved. What that costs is bounded and
+      known -- 4KB of SVG behind a five-minute cache -- and `width` and `height`
+      are the SVG's own `110x20`, so the row is reserved before the response
+      arrives and a blocked or slow request cannot move anything under it. The
+      `alt` names what the badge is and never what it says, for the same reason
+      the image is remote. It carries no Umami event, like the same link in the
+      top bar. */}
+    <div data-hero-item="badge" class="mt-8 flex justify-center">
+      <a
+        href="https://glama.ai/mcp/servers/Luqueee/kivgraph"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="inline-flex opacity-80 transition-opacity hover:opacity-100"
+      >
+        <img
+          src="https://glama.ai/mcp/servers/Luqueee/kivgraph/badges/score.svg"
+          alt="Kivgraph's server quality score on Glama"
+          width="110"
+          height="20"
+          decoding="async"
+        />
+      </a>
+    </div>
   </div>
 </section>
 

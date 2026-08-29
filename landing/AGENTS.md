@@ -251,12 +251,18 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
   `gclid`, `fbclid` y `msclkid`, y excluirlas deja la atribución en blanco.
 - Los eventos salen de `CopyButton.astro` -- que los declara `event` y
   `eventData`, opcionales, y reporta **en el `then` del `writeText`**, así que
-  una copia rechazada no cuenta -- y de `data-umami-event` en los enlaces que
-  salen del sitio, que Umami lee del clic sin JavaScript nuestro. Un enlace
-  interno **no** lleva evento: ya es un pageview, y contarlo dos veces pone en
-  el informe un número que ninguna visita produjo. El vocabulario, los goals y
-  la convención UTM viven en `docs/development/analytics.md`; un evento nuevo se
-  añade ahí antes que en el código.
+  una copia rechazada no cuenta -- y de `data-umami-event` en enlaces que salen
+  del sitio, que Umami lee del clic sin JavaScript nuestro. Un enlace interno
+  **no** lleva evento: ya es un pageview, y contarlo dos veces pone en el
+  informe un número que ninguna visita produjo. Y **salir del sitio tampoco
+  basta**: el evento lo escribe cada fila de `TopBar.astro`, no lo deriva del
+  `href`, porque desde que la barra enlaza también la ficha de Glama hay dos
+  destinos externos y no son el mismo clic. `github_click` significa un clic al
+  repositorio; compartir el nombre dejaría un número queriendo decir dos cosas
+  sin vuelta atrás, así que la ficha va sin evento hasta que merezca uno propio.
+  El vocabulario, los goals y la convención UTM viven en
+  `docs/development/analytics.md`; un evento nuevo se añade ahí antes que en el
+  código.
 - **Nadie llama a un proveedor: se llama a `track()`.** La capa está en
   `src/lib/analytics/`, el catálogo de eventos es tipado y un nombre que no esté
   en él no compila. Umami y PostHog contestan preguntas distintas -- adquisición
@@ -479,6 +485,40 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
   Los `<input>` van antes de las pestañas y de los paneles porque todo el control
   es un selector de hermano; están `sr-only` y nunca `display: none`, que es lo
   que le quitaría el foco.
+- **El comando de instalación es un selector de plataforma, no una caja.** Se
+  publican tres bundles -- `linux/amd64`, `darwin/arm64` y `windows/amd64`-- y
+  dos instaladores, porque `install.sh` no corre donde no hay shell POSIX. El
+  control vive una vez en `InstallCommand.astro` y lo usan el hero y el CTA
+  final; los comandos y las tres notas de arquitectura viven en `platforms.ts`,
+  que es el único sitio donde están escritos: el hero y `FinalCta.astro` tenían
+  cada uno su copia del `curl`, que es como dos cajas de la misma página acaban
+  publicando comandos distintos.
+- macOS y Linux enseñan **la misma línea** a propósito. `install.sh` lee `uname`
+  y elige su archivo, así que la respuesta para un Mac es la respuesta para
+  Linux; lo que una caja sin etiquetas no contesta es la pregunta que el
+  visitante trae, que es si su máquina está en la lista. Windows sí es otro
+  comando: `irm ... | iex`, y su `#Requires -Version 5.1` pasa a ser un
+  comentario al pipearse a `Invoke-Expression`. Eso está dicho en `/install/`,
+  no en la portada.
+- El control es un grupo de radios y **cero JavaScript**, como las pestañas de
+  `ProductProof.astro`, con una diferencia que importa: las reglas se enganchan
+  a `data-platform` y no a un `id`, que es lo que permite que el mismo
+  componente aparezca **dos veces** en una página sin que las dos cajas
+  compartan selección. Cada panel lleva su propio `CopyButton`, porque el valor
+  que copia se renderiza en el servidor y un botón único no podría seguir a la
+  selección sin el script que este control existe para no tener. Nada se
+  detecta: la página es prerenderizada, así que la primera pestaña es un
+  defecto y no una suposición sobre el lector.
+- Medido con el mismo protocolo que el badge, dos builds a la vez y 15 cargas
+  intercaladas por brazo a `1440x900`: antes de las pestañas
+  `min 77 / mediana 89 / max 194 ms`, después `min 74 / mediana 85 / max
+  227 ms`. El elemento LCP fue el `h1` en **las 30 cargas** y su superficie
+  pintada la misma, `90132`. Verificado además sobre el build servido que el
+  panel cambia con el puntero y con el teclado, que mover una caja no mueve la
+  otra, que el `data-copy-data` del botón visible sigue a la pestaña
+  -- `{"where":"hero","platform":"windows"}`-- y que **con las hojas de estilo
+  desactivadas se ven los tres comandos** en cada caja, que es la degradación
+  honesta para un control cuyo trabajo es nombrar un comando.
 - El CTA final es su propia banda y no una `Section`: su encabezado **es** la
   llamada a la acción, y meterlo dentro pondría dos `h2` en una banda. Repite la
   geometría de `Section` -- `border-t`, `max-w-6xl`, `py-14`, `data-reveal`-- para
@@ -524,7 +564,7 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
   halo que sigue al puntero, los dos CTA magnéticos, más los reveals al hacer
   scroll y el parallax del fondo.
 - El marcado del hero declara los anclajes y la capa no busca por estructura:
-  `data-hero` en la banda, `data-hero-item` en los siete bloques en orden de
+  `data-hero` en la banda, `data-hero-item` en los ocho bloques en orden de
   lectura, `data-hero-field` en el plano y `data-hero-halo` en el halo. El
   primer nombre de `HERO_ORDER` es `title` y no el bloque que va primero en la
   página: ese nombre recibe un tween propio con retardo cero, y el `h1` es el
@@ -543,10 +583,30 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
   mediana `72 ms`, y el elemento es el `H1` en las cinco -- igual que sin
   animación, y sin moverse al añadir el `eyebrow` ni al pasar el cuerpo a la
   Geist Sans, que son las dos comprobaciones que esas ediciones exigían. Los
-  siete bloques del hero terminan en `opacity: 1` y los 21 bloques con
-  `data-reveal` también; con `prefers-reduced-motion: reduce` los siete salen a
+  ocho bloques del hero terminan en `opacity: 1` y los 21 bloques con
+  `data-reveal` también; con `prefers-reduced-motion: reduce` los ocho salen a
   `1`, el halo a `0`, el brillo con `animation-name: none` y las barras a su
   ancho final.
+- **El octavo bloque es el badge de Glama, y es la única imagen del hero y la
+  única marca de un tercero de la página.** Se sirve desde `glama.ai` en vez de
+  commitearse porque la nota es suya y puede cambiar: una copia aquí seguiría
+  afirmando lo que afirmaba el día que se guardó. Lo que eso cuesta está
+  acotado -- `4 KB` de SVG con `max-age=300`-- y el `width` y el `height` son los
+  `110x20` del propio SVG, así que la caja queda reservada antes de que llegue
+  la respuesta. El `alt` nombra qué es el badge y **nunca** lo que dice, por la
+  misma razón por la que la imagen es remota. Va sin evento de Umami, igual que
+  el mismo enlace en la barra.
+- Se midió como exige la regla de más abajo, dos builds servidos a la vez en
+  dos puertos y las cargas intercaladas, 15 por brazo a `1440x900`: sin badge
+  `min 75 / mediana 98 / max 236 ms`, con él `min 74 / mediana 79 / max 133 ms`.
+  El badge no cuesta nada -- sale por debajo, dentro de un ruido que en este
+  caso llega a los `160 ms` del brazo sin él -- y lo que de verdad se comprobaba
+  es lo otro: el elemento LCP fue el `h1` en **las 30 cargas** y su superficie
+  pintada la misma, `90132`. Verificado además que la caja aguanta sin la
+  imagen: con la petición a `glama.ai` **abortada**, el badge sigue midiendo
+  `110x20` en `top 718`, la fila de hechos sigue en `top 670` y el documento
+  mide los mismos `11998px` que con la imagen servida. Un badge que no carga no
+  mueve nada, que es lo único que un tercero en el hero tiene que garantizar.
 - El `h1` es el elemento LCP de la portada, y lo que penaliza esa métrica es el
   **retardo**, no la duración ni el fundido. Medido inyectando cada regla antes
   del primer pintado, con `PerformanceObserver` sobre
@@ -632,8 +692,10 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
     que conserva el `rel="me"` original -- es una afirmación de identidad y
     quitarlo rompería la verificación rel-me.
 - Se comprueba sobre el HTML generado, no leyendo plantillas: `dist/client`
-  tiene `79` anclas externas y `2.436` internas, y la cuenta correcta es `0`
-  externas sin la regla y `0` internas con `target`.
+  tiene `97` anclas externas y `2.805` internas, y la cuenta correcta es `0`
+  externas sin la regla y `0` internas con `target`. Los totales crecen con cada
+  página y sólo valen como contexto de la pasada que los midió; lo que se
+  verifica son los dos ceros.
 
 ## Verificación
 

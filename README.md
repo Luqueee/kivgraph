@@ -104,25 +104,41 @@ further for anyone packaging an `.mcpb`: it leaves out the pinned
 packaged against 24.9 MB. It downloads nothing later, so that bundle reads
 Rust only where the machine already has an analyzer on its `PATH`.
 
-Published bundles: Linux `amd64` and macOS `arm64`.
+Published bundles: Linux `amd64`, macOS `arm64` and Windows `amd64`.
 
-Runtime requirements: Bash, Node.js `22` or later, Python 3.10 or later when
-indexing Python, `curl`, `tar`, and `sha256sum` or `shasum`. The bundle carries
-its own `rust-analyzer`; indexing Rust repositories additionally needs `cargo`
-on the `PATH`, and indexing Dart needs the Dart or Flutter SDK.
+Runtime requirements: Bash on Linux and macOS or PowerShell `5.1` or later on
+Windows, Node.js `22` or later, Python 3.10 or later when indexing Python, and
+on the POSIX platforms `curl`, `tar`, and `sha256sum` or `shasum`. The bundle
+carries its own `rust-analyzer`; indexing Rust repositories additionally needs
+`cargo` on the `PATH`, and indexing Dart needs the Dart or Flutter SDK. On
+Windows the installer also installs the Visual C++ redistributable, without
+which `kivgraph.exe` does not start.
 
 On macOS the binaries are not notarized. A release downloaded with `curl` is
 not quarantined and runs; a copy downloaded with a browser needs `xattr -dr
 com.apple.quarantine`. See
 [docs/development/macos.md](docs/development/macos.md).
 
-Install the latest release in one command:
+Install the latest release in one command. On Linux and macOS the same line
+covers both, because the installer reads `uname` and picks its own archive:
 
 ```bash
 curl -fsSL https://github.com/Luqueee/kivgraph/releases/latest/download/install.sh | bash
 ```
 
-From a checkout, the same installer can be run directly:
+On Windows, where `install.sh` cannot run because there is no POSIX shell:
+
+```powershell
+irm https://github.com/Luqueee/kivgraph/releases/latest/download/install.ps1 | iex
+```
+
+`install.ps1` is a second implementation of the same pre-extraction checks, and
+`internal/release/install_parity_test.go` fails when either script grows a check
+the other lacks. Piping it into `Invoke-Expression` turns its
+`#Requires -Version 5.1` into a comment; download it to a file and run it as one
+to keep that guard.
+
+From a checkout, either installer can be run directly:
 
 ```bash
 ./scripts/install.sh
@@ -135,9 +151,10 @@ KIVGRAPH_VERSION=v0.9.2 ./scripts/install.sh
 ```
 
 The script installs the bundle in `~/.local/opt/kivgraph` and puts launchers
-in `~/.local/bin`. It never modifies a registered repository, creates an index,
-or replaces configuration files. To use a different location, set
-`KIVGRAPH_INSTALL_ROOT` and `KIVGRAPH_BIN_DIR`.
+in `~/.local/bin`; on Windows it is `%LOCALAPPDATA%\Programs\kivgraph` and
+`%LOCALAPPDATA%\Programs\kivgraph-bin`. It never modifies a registered
+repository, creates an index, or replaces configuration files. To use a
+different location, set `KIVGRAPH_INSTALL_ROOT` and `KIVGRAPH_BIN_DIR`.
 
 Add the launcher directory to the current shell and verify both runtimes:
 
