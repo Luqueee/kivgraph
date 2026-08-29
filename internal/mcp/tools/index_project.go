@@ -29,18 +29,18 @@ const indexProjectToolName = "index_project"
 // The confirmed flag is used by clients that do not implement MCP
 // elicitation; those clients must obtain user approval before sending true.
 type IndexProjectInput struct {
-	Projects  []IndexProjectEntry `json:"projects,omitempty"`
-	Name      string              `json:"name,omitempty"`
-	Path      string              `json:"path,omitempty"`
-	Languages []string            `json:"languages,omitempty"`
-	Confirmed *bool               `json:"confirmed,omitempty"`
+	Projects  []IndexProjectEntry `json:"projects,omitempty" jsonschema:"Every project to register, in one call. Prefer this form: a rebuild costs the whole corpus however many are added."`
+	Name      string              `json:"name,omitempty" jsonschema:"Name for a single project. Use it with path and languages, never together with projects."`
+	Path      string              `json:"path,omitempty" jsonschema:"Absolute directory of a single project. Nothing is written inside it."`
+	Languages []string            `json:"languages,omitempty" jsonschema:"Languages to index in the single project, such as go, typescript, rust, python or dart."`
+	Confirmed *bool               `json:"confirmed,omitempty" jsonschema:"Set true only after the user approved this call, and only from a client that cannot answer an elicitation."`
 }
 
 // IndexProjectEntry is one repository of a batch.
 type IndexProjectEntry struct {
-	Name      string   `json:"name"`
-	Path      string   `json:"path"`
-	Languages []string `json:"languages"`
+	Name      string   `json:"name" jsonschema:"Name to register the repository under. It is an identifier, compared exactly."`
+	Path      string   `json:"path" jsonschema:"Absolute directory of the repository. Nothing is written inside it."`
+	Languages []string `json:"languages" jsonschema:"Languages to index here, such as go, typescript, rust, python or dart."`
 }
 
 // projects resolves the request into the batch to index, rejecting a request

@@ -130,7 +130,7 @@ func RegisterGetUnresolvedReferencesWithObserverAndSnapshotStore(
 	addQueryTool(server, &sdkmcp.Tool{
 		Name:        unresolvedReferencesToolName,
 		Description: "Lists references that could not be resolved to an exact symbol.",
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
+		Annotations: readOnlyClosedWorld(),
 	}, handler)
 }
 

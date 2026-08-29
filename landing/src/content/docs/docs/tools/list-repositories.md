@@ -3,7 +3,7 @@ title: list_repositories
 description: The registered repositories a published graph covers, each with the commit it was indexed at and the commit its tree holds now.
 ---
 
-> The repositories the published graph covers, with the commit each was indexed at.
+> The repositories the published graph covers, with the commit each was indexed at and which one is the derived provider.
 
 ## Arguments
 

@@ -3,7 +3,7 @@ title: find_by_intent
 description: Which symbols a plain-language description likely names, and the files to open, when you do not know what anything is called.
 ---
 
-> Which symbols a plain-language description likely names, and the files to open. It is the one tool here that matches text rather than edges, and every row says so in `match`. Use it to find the entry point, then ask the resolved tools about it. `view: "files"` answers which files to open without a symbol row each.
+> Which symbols a plain-language description likely names, and the files to open. Start here when you have no name.
 
 ## Arguments
 

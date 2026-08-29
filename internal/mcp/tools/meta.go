@@ -45,3 +45,16 @@ func traversalMeta(maximumChars int) sdkmcp.Meta {
 // MaximumTraversalResultChars is wide enough for a full page of either traversal
 // tool and well inside the 500.000 ceiling a client will accept.
 const MaximumTraversalResultChars = 120_000
+
+// readOnlyClosedWorld is the annotation every query tool carries.
+//
+// Read-only is the half a client acts on. Closed world is the half that is
+// easy to leave unsaid and wrong to leave unsaid: an answer here is derived
+// from the published generation and from nothing else -- no network, no shell,
+// no service -- and the only files ever opened are those of the repositories
+// the user registered. `OpenWorldHint` defaults to true when absent, so
+// omitting it declares the opposite of what this server does.
+func readOnlyClosedWorld() *sdkmcp.ToolAnnotations {
+	closedWorld := false
+	return &sdkmcp.ToolAnnotations{ReadOnlyHint: true, OpenWorldHint: &closedWorld}
+}

@@ -40,17 +40,17 @@ const (
 // key, or the repository, path and qualified name of a row the caller already
 // read.
 type GetSourceInput struct {
-	Symbols        []SourceRequest `json:"symbols"`
-	ContextLines   int             `json:"context_lines,omitempty"`
-	ResponseFormat string          `json:"response_format,omitempty"`
+	Symbols        []SourceRequest `json:"symbols" jsonschema:"The symbols whose code you want, up to 20 in one call, across any files and repositories."`
+	ContextLines   int             `json:"context_lines,omitempty" jsonschema:"Source lines to add around each declaration. Defaults to 0, maximum 100."`
+	ResponseFormat string          `json:"response_format,omitempty" jsonschema:"concise (the default) omits the derived identifiers; detailed returns them."`
 }
 
 // SourceRequest names one symbol.
 type SourceRequest struct {
-	StableKey     string `json:"stable_key,omitempty"`
-	QualifiedName string `json:"qualified_name,omitempty"`
-	Repository    string `json:"repository,omitempty"`
-	Path          string `json:"path,omitempty"`
+	StableKey     string `json:"stable_key,omitempty" jsonschema:"The symbol durable key. The triple below works instead."`
+	QualifiedName string `json:"qualified_name,omitempty" jsonschema:"The symbol fully qualified name, as every row of this surface carries it."`
+	Repository    string `json:"repository,omitempty" jsonschema:"The repository that declares the symbol."`
+	Path          string `json:"path,omitempty" jsonschema:"The repository-relative file that declares the symbol."`
 }
 
 // SourceBody is the code of one symbol, or the reason there is none.
@@ -132,7 +132,7 @@ func RegisterGetSourceWithObserverAndSnapshotStore(
 	addQueryTool(server, &sdkmcp.Tool{
 		Name:        getSourceToolName,
 		Description: "The code of several symbols in one call. Prefer it to reading each range: no line numbers, one call across files and repositories.",
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
+		Annotations: readOnlyClosedWorld(),
 		Meta:        alwaysLoadMeta(),
 	}, handler)
 }
