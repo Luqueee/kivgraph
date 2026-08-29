@@ -45,6 +45,7 @@ const HERO_ORDER = [
   "agents",
   "install",
   "facts",
+  "badge",
 ] as const;
 
 /** Seconds the sheen takes while it is making its entrance pass. */
@@ -52,7 +53,7 @@ const IGNITION_SHEEN = 1.1;
 
 /**
  * The hero's entrance. The title is its own tween starting at zero, and the
- * rest are one staggered tween beside it: a single `stagger` across all seven
+ * rest are one staggered tween beside it: a single `stagger` across all eight
  * would put the title in a queue, and a queued title is the difference between
  * `88 ms` and `1112 ms` of LCP.
  */

@@ -119,7 +119,7 @@ the clipboard refused does not count.
 
 |event|when it fires|metadata|
 |---|---|---|
-|`install_copy`|the one-liner is copied|`where`: `hero`, `final_cta`|
+|`install_copy`|the one-liner is copied|`where`, `platform` — below|
 |`prompt_copy`|the agent prompt is copied|—|
 |`client_connect_copy`|`kivgraph mcp install` is copied|—|
 |`quickstart_copy`|a Quickstart command is copied|`step`: the step's title|
@@ -139,16 +139,30 @@ route:
 |`mcp_config_copy`|07, the JSON box|`#quickstart`|
 |`github_click`|topbar, footer and docs header|all 39 pages|
 
+`install_copy` carries two properties. `where` is `hero` or `final_cta`, the
+two boxes on the front page. `platform` is `macos`, `linux` or `windows`, and it
+exists because that box is a platform picker: three published bundles, three
+commands, and on Windows a different installer in a different language. Without
+it the report cannot tell a Windows visitor from a Linux one, which is the one
+question a three-way control exists to answer. Both dimensions are closed sets
+written in the code -- the ids of `landing/src/components/landing/platforms.ts`
+-- so no value a visitor controls can reach either.
+
 The five copy events live **only on the front page**. If a copy button is ever
 added outside it -- `/install/` is the obvious candidate -- the goals have to be
 revisited: one scoped to a route silently stops counting, and a conversion that
 drops without warning reads as people having stopped installing.
 
 `github_click` uses **no** JavaScript of ours: Umami reads `data-umami-event`
-off the click. In `TopBar.astro` the attribute is derived from the `href`
-itself, so a new entry cannot forget it, and **only** external links carry it:
-an internal one is already a pageview, and counting it twice would put a number
-in the report that no visit produced.
+off the click. In `TopBar.astro` each row writes its own event, and most rows
+write none. An internal link carries no event because it is already a pageview,
+and counting it twice would put a number in the report that no visit produced.
+An external one carries an event only when there is an event that means it: the
+bar also links the [Glama listing](https://glama.ai/mcp/servers/Luqueee/kivgraph),
+which is deliberately **untracked**, because `github_click` means a click on the
+repository and reusing the name would leave one number standing for two clicks
+with no way back to either. If that link is ever worth measuring it needs its
+own event, added here first.
 
 ### Naming convention
 
