@@ -152,6 +152,14 @@ func TestServerExposesExactlyTheAllowedSurface(t *testing.T) {
 // their names. The bytes land here and nowhere else -- the resident ceiling
 // below, which is what a session actually pays for, did not move -- and this
 // half is read once per tool by the clients that read it at all.
+//
+// Measured in tokens rather than bytes, which is the figure a host actually
+// bills, by `benchmarks/mcp-token-cost --smoke` against generation `000091`
+// with `cl100k_base`: the resident half went from `716` to `729` -- `220`
+// routes unchanged and `496` to `509` of descriptions -- while the deferred
+// schemas went from `2.104` to `4.281`. That is the trade stated as a ratio:
+// the half a session pays for in every request grew by `1,8 %`, and the half
+// it reads once per tool, if ever, is what absorbed the rest.
 const MaximumSurfaceSchemaBytes = 18000
 
 func TestServerSurfaceStaysCheapToLoad(t *testing.T) {
