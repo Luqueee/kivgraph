@@ -280,6 +280,24 @@ superficie observable.
 - Un demonio que **no** nombra versión se sirve igual: es una release anterior a
   esta comprobación y tiene el mismo derecho a contestar que siempre tuvo.
 
+## El aviso de primer arranque
+
+- La primera vez que una versión sirve MCP en una máquina, `serve` y `daemon`
+  escriben tres líneas en `stderr` diciendo qué se reporta y cómo apagarlo, y
+  mandan un ping. **Nunca a `stdout`**: `serve` habla MCP por ese descriptor y
+  un byte suelto corrompe la sesión, así que `internal/telemetry` lo prueba
+  sustituyendo `os.Stdout` por un pipe. Lo que se envía está en
+  `docs/development/analytics.md` y publicado en `/telemetry/`.
+- **El transporte sale del comando, no de un literal.** `runConfiguredServe`
+  corre `serve` y `daemon`, y su llamada pasaba `"stdio"` fijo: el demonio
+  reportaba su primer arranque como stdio. El marcador se crea una vez por
+  versión, así que esa fila equivocada habría sido la única que esa versión
+  produjera nunca. Un `serve` que reenvía reporta `daemon`, que es el único caso
+  donde el comando y quien contesta discrepan.
+- No reporta un binario que no corre desde el layout de una release: nada
+  distingue un `go build` propio del de un job de CI, y contarlos haría que el
+  número fuésemos mayormente nosotros. `KIVGRAPH_TELEMETRY=0` lo apaga entero.
+
 ## `kivgraph daemon`
 
 - Sirve MCP a varios clientes desde un proceso, por **dos puertas a la vez**: un

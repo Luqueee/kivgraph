@@ -9,35 +9,15 @@ import (
 	"github.com/Luqueee/kivgraph/internal/version"
 )
 
-// transportOf names the arrangement a command is about to serve with.
+// firstRunOptions builds what the emitter is handed for one serving command.
 //
-// `runConfiguredServe` runs both `serve` and `daemon`, which is what made this
-// a function rather than a literal: reporting `stdio` for every command that
-// reached it recorded the daemon's first run as a stdio one, and the marker is
-// exclusive, so that wrong row was the only row that version would ever
-// produce. `serve` relaying reports for itself before this is reached, because
-// it never comes back.
-func transportOf(command string) string {
-	if command == "daemon" {
-		return "daemon"
-	}
-	return "stdio"
-}
-
-// announceFirstRun reports the first run of this version, off the path of the
-// command that triggered it.
-//
-// It is called from the two places that reach a serving command -- the tail of
-// `runConfiguredServe`, which is `serve` in process and the daemon, and the
-// relay, which never returns -- and from nowhere else. What Layer 1 of ADR 0083 measures is *machines that ran the server*,
-// and `kivgraph index` running in a terminal is a different fact; it also has
-// no transport, which is a field the endpoint requires on a binary row rather
-// than defaulting.
-//
-// The goroutine is what keeps it off the path. `telemetry.Announce` bounds
-// itself to two seconds and drops every error, so the worst it can cost a
-// session is a goroutine that outlives its usefulness by that long.
-func announceFirstRun(loaded config.Loaded, transport string) {
+// The transport is derived here and cannot be passed in, which is the fix for
+// the defect that made this a function: `runConfiguredServe` runs both `serve`
+// and `daemon`, its call site passed the literal `"stdio"`, and the daemon's
+// first run was recorded as a stdio one. The marker is created once per
+// version, so that wrong row was the only row that version would ever have
+// produced -- in the one field that exists to tell those two apart.
+func firstRunOptions(loaded config.Loaded, command string) telemetry.Options {
 	executable, err := os.Executable()
 	if err != nil {
 		// Without it there is no layout to read, so `Announce` declines. Which
@@ -45,7 +25,11 @@ func announceFirstRun(loaded config.Loaded, transport string) {
 		// whose channel it can report.
 		executable = ""
 	}
-	options := telemetry.Options{
+	transport := "stdio"
+	if command == "daemon" {
+		transport = "daemon"
+	}
+	return telemetry.Options{
 		StateDirectory: stateDirectory(loaded),
 		Version:        version.Value,
 		Transport:      transport,
@@ -53,5 +37,37 @@ func announceFirstRun(loaded config.Loaded, transport string) {
 		// Never os.Stdout. `serve` speaks MCP over it.
 		Notice: os.Stderr,
 	}
-	go telemetry.Announce(context.Background(), options)
+}
+
+// announceFirstRun reports the first run of this version, off the path of the
+// command that triggered it.
+//
+// It is called from the two places that reach a serving command -- the tail of
+// `runConfiguredServe`, which is `serve` in process and the daemon, and the
+// relay, which never returns -- and from nowhere else. What Layer 1 of ADR
+// 0083 measures is *machines that ran the server*, and `kivgraph index`
+// running in a terminal is a different fact; it also has no transport, which is
+// a field the endpoint requires on a binary row rather than defaulting.
+//
+// The goroutine is what keeps it off the path. `telemetry.Announce` bounds
+// itself to two seconds and drops every error, so the worst it can cost a
+// session is a goroutine that outlives its usefulness by that long.
+func announceFirstRun(loaded config.Loaded, command string) {
+	go telemetry.Announce(context.Background(), firstRunOptions(loaded, command))
+}
+
+// announceRelayedFirstRun reports a `serve` that is about to relay.
+//
+// Separate from the above because the command is `serve` and the arrangement
+// that will answer is the daemon: the one case where the two disagree, and the
+// reason the transport is a field at all.
+func announceRelayedFirstRun(loaded config.Loaded) {
+	go telemetry.Announce(context.Background(), relayedFirstRunOptions(loaded))
+}
+
+// relayedFirstRunOptions is that case as a value, so a test can hold it.
+func relayedFirstRunOptions(loaded config.Loaded) telemetry.Options {
+	options := firstRunOptions(loaded, "serve")
+	options.Transport = "daemon"
+	return options
 }
