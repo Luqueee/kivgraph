@@ -442,7 +442,8 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
   cifra sobre algo que todavía no ha visto, y la banda de `grep` que viene detrás
   se apoya en la medición, no en la demo. Lo que el orden actual compra es que la
   primera cosa concreta bajo el hero sea un número y no una captura. Si se vuelve
-  a cambiar, se cambian las dos: esta frase y `index.astro`.
+  a cambiar, se cambian las tres: esta frase, el comentario de cabecera de
+  `index.astro` y sus secciones.
 - Lo que **no** está en la portada es la lista de las doce tools. El visitante
   pregunta qué va a poder entender su agente, no qué funciones exporta el
   servidor; la referencia de tools es una página y cada banda enlaza a ella donde
