@@ -15,6 +15,17 @@ declarado en la raíz.
   `get_source` va más allá y contesta en prosa: 302 tokens de fuente son 374
   dentro de una cadena JSON y 430 como fila, que es lo que cuesta la lectura de
   rango del anfitrión, así que servir código por el envoltorio no compra nada.
+- La única tool que publica `outputSchema` es `index_project`, y es una
+  excepción declarada, no un descuido: su respuesta es un informe de forma fija
+  cuyo peso son los nombres de campo -- `1.180` bytes en cada canal-- y se emite
+  una vez por reconstrucción, no una por pregunta. La regla se midió sobre una
+  página de cincuenta filas de `find_references`, donde el duplicado eran
+  `24.066` bytes en una pasada. Pagarla dos veces aquí compra un cliente que lee
+  los contadores sin parsearlos. `index_project` no pasa por `addQueryTool`, así
+  que ni el `panic` ni el test de la superficie servida la alcanzan; quien lo
+  fija es `TestIndexProjectIsTheOnlyToolWithAnOutputSchema`, y lo que ese test
+  vigila es la segunda tool que lo adquiera.
+
 - Toda fila que nombra un símbolo se puede abrir sin otra llamada: lleva
   repositorio, ruta, nombre cualificado y **el rango completo**. Y toda tool
   acepta esa tripleta en lugar de la clave estable, que son 35 tokens de base32

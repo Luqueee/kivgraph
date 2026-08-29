@@ -233,6 +233,40 @@ func TestEveryPublishedArgumentDescribesItself(t *testing.T) {
 	}
 }
 
+// TestIndexProjectIsTheOnlyToolWithAnOutputSchema fixes the one exception to
+// the single-channel rule, which until now was an oversight rather than a
+// decision: `index_project` does not go through `addQueryTool`, so neither the
+// panic there nor the check above -- which builds a server without an indexer,
+// and therefore without this tool -- could ever see it.
+//
+// It keeps its schema. The rule was measured on a page of fifty
+// `find_references` rows, where the duplicate channel was 24.066 bytes in one
+// pass of `benchmarks/mcp-token-cost`; this answer is a fixed-shape report
+// whose weight is its field names, measured at 1.180 bytes in each channel,
+// and it is emitted once per rebuild rather than once per question. Paying it
+// twice buys a client that can read the counters without parsing them.
+//
+// What the test is for is the boundary: a second tool that acquires an output
+// schema is a query tool that started billing its answer twice, and that is
+// the case nobody would notice.
+func TestIndexProjectIsTheOnlyToolWithAnOutputSchema(t *testing.T) {
+	session := connectToServer(t, NewServerWithSnapshotStoreAndIndexer(
+		publishedStore(t), &fakeProjectIndexer{}))
+	listed, err := session.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("ListTools() error = %v", err)
+	}
+	structured := make([]string, 0, 1)
+	for _, tool := range listed.Tools {
+		if tool.OutputSchema != nil {
+			structured = append(structured, tool.Name)
+		}
+	}
+	if len(structured) != 1 || structured[0] != "index_project" {
+		t.Fatalf("tools with an output schema = %v, want only index_project", structured)
+	}
+}
+
 // TestServerAnswersInOneChannel closes the loop the schema check opens: no
 // declared schema is only a promise until a real call is inspected.
 func TestServerAnswersInOneChannel(t *testing.T) {
