@@ -343,8 +343,8 @@ jobs:
         working-directory: landing
         run: pnpm build
 
-  ladybug:
-    name: Verify against a real LadybugDB
+  linux-bundle:
+    name: Build and verify the Linux distribution bundle
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -357,12 +357,6 @@ jobs:
         with:
           go-version-file: go.mod
           check-latest: true
-
-      - name: Install pinned rust-analyzer
-        run: |
-          rustup component add rust-analyzer
-          analyzer_dir="$(scripts/fetch-rust-analyzer.sh)"
-          echo "$analyzer_dir" >> "$GITHUB_PATH"
 
       - name: Set up pnpm for distribution
         uses: pnpm/action-setup@v6
@@ -395,6 +389,12 @@ jobs:
             -o Acquire::https::Timeout=5
           sudo apt-get install -y patchelf
 
+      - name: Cache pinned LadybugDB
+        uses: actions/cache@v6
+        with:
+          path: .tooling/ladybug
+          key: ladybug-linux-amd64-${{ hashFiles('scripts/fetch-ladybug.sh', 'docs/dependencies/ladybugdb.md') }}
+
       # The Rust engine is a 40 MB download the bundle carries; the digest in
       # the manifest is what makes the cache safe to reuse.
       - name: Cache pinned rust-analyzer
@@ -406,22 +406,14 @@ jobs:
       - name: Build Linux distribution bundle
         run: make build-linux-amd64
 
-      - name: Verify Linux distribution checksums
+      - name: Verify Linux distribution bundle
+        shell: bash
         run: |
-          cd dist/kivgraph-linux-amd64
-          sha256sum -c SHA256SUMS
-
-      # A Linux bundle is the one nobody can build on a macOS workstation, so
-      # this job is where the Rust engine of that platform is proven to be
-      # present, executable and the pinned one.
-      - name: Verify the bundled Rust engine
-        run: |
-          bundle=dist/kivgraph-linux-amd64
-          pinned=$(jq -r '.tools[] | select(.name=="rust-analyzer") | .release' tools/manifest.json)
-          test -x "$bundle/bin/rust-analyzer"
-          test "$(jq -r .tools.rust_analyzer.release "$bundle/manifest.json")" = "$pinned"
-          test "$("$bundle/bin/kivgraph" version --json | jq -r .rust_analyzer)" = "$pinned"
-          "$bundle/bin/rust-analyzer" --version
+          scripts/verify-bundle.sh \
+            --bundle dist/kivgraph-linux-amd64 \
+            --target linux/amd64 \
+            --commit "$GITHUB_SHA" \
+            --source-tools-manifest tools/manifest.json
 
       # AGENTS.md requires a clean distribution build to be reproducible
       # between checkouts of the same commit, comparing the whole payload, and
@@ -430,18 +422,47 @@ jobs:
       - name: Verify the bundle builds reproducibly
         run: scripts/check-reproducible-bundle.sh
 
-      # The pinned core and the pinned Go binding must share a version: a
-      # mismatched pair segfaults on the first C call instead of failing a
-      # test, which is why this job exists at all.
-      - name: Fetch the pinned LadybugDB library
-        run: scripts/fetch-ladybug.sh
+      - name: Upload Linux distribution bundle for smoke
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-bundle
+          path: dist/kivgraph-linux-amd64
+          if-no-files-found: error
+          retention-days: 1
 
-      # The dead-code check belongs here because this is the only Linux job
-      # that builds the tag. Under the default configuration the files behind
-      # it are not analysed, so 20 symbols whose callers live there look
-      # unreferenced -- every one a false positive. With the tag the answer is
-      # zero, which is what makes it a gate rather than a wish. The answer does
-      # not depend on the platform, so the macOS job does not repeat it.
+  ladybug:
+    name: Verify against a real LadybugDB
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Install pinned rust-analyzer
+        run: |
+          rustup component add rust-analyzer
+          analyzer_dir="$(scripts/fetch-rust-analyzer.sh)"
+          echo "$analyzer_dir" >> "$GITHUB_PATH"
+
+      - name: Cache pinned LadybugDB
+        uses: actions/cache@v6
+        with:
+          path: .tooling/ladybug
+          key: ladybug-linux-amd64-${{ hashFiles('scripts/fetch-ladybug.sh', 'docs/dependencies/ladybugdb.md') }}
+
+      # The dead-code check belongs beside the native test suite: the default
+      # build does not analyse the files behind the `ladybug` tag, so 20 symbols
+      # whose callers live there look unreferenced -- every one a false positive.
+      # With the tag the answer is zero, which is what makes it a gate rather than
+      # a wish. The answer does not depend on the platform, so the macOS job does
+      # not repeat it.
       - name: Dead code, in the configuration that can answer
         run: make lint-ladybug
 
@@ -452,6 +473,7 @@ jobs:
     name: Serve a graph the bundle built itself
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    needs: linux-bundle
 
     # This is the flow AGENTS.md requires before closing an installation change,
     # and until now a person ran it by hand when they remembered. The two defects
@@ -469,45 +491,23 @@ jobs:
           go-version-file: go.mod
           check-latest: true
 
-      - name: Install pinned rust-analyzer
+      - name: Download Linux distribution bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-bundle
+          path: dist/kivgraph-linux-amd64
+
+      # upload-artifact preserves file contents but not executable modes. The
+      # bundle is still the exact producer output: this only restores the modes
+      # required to execute its binaries after the artifact transport.
+      - name: Restore bundle executable modes
+        shell: bash
+        run: find dist/kivgraph-linux-amd64/bin -type f -exec chmod 0755 {} +
+
+      - name: Verify downloaded Linux distribution checksums
         run: |
-          rustup component add rust-analyzer
-          analyzer_dir="$(scripts/fetch-rust-analyzer.sh)"
-          echo "$analyzer_dir" >> "$GITHUB_PATH"
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 11.5.1
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: |
-            ts-worker/pnpm-lock.yaml
-            web/pnpm-lock.yaml
-
-      - name: Install patchelf
-        run: |
-          sudo apt-get update \
-            -o Acquire::Retries=0 \
-            -o Acquire::http::Timeout=5 \
-            -o Acquire::https::Timeout=5
-          sudo apt-get install -y patchelf
-
-      - name: Cache pinned rust-analyzer
-        uses: actions/cache@v6
-        with:
-          path: .tooling/rust-analyzer
-          key: rust-analyzer-linux-amd64-${{ hashFiles('tools/manifest.json', 'scripts/fetch-rust-analyzer.sh') }}
-
-      # The binary under test is the one a user downloads, not `go run`: the
-      # bundle carries the native library, the worker and the RUNPATH, and every
-      # one of those is a way for an install to be broken while the tests pass.
-      - name: Build the distribution bundle
-        run: make build-linux-amd64
+          cd dist/kivgraph-linux-amd64
+          sha256sum -c SHA256SUMS
 
       # A temporary HOME, because this must not read or write the runner's
       # configuration, and because a fresh HOME is what a first install is.
@@ -650,13 +650,17 @@ jobs:
       - name: Build the macOS bundle
         run: make build-darwin-arm64
 
-      # Everything here is either specific to Mach-O or specific to being
-      # published. The checksum tool is shasum: macOS ships no sha256sum.
+      # The shared verifier owns the bundle contract. Everything left here is
+      # specific to Mach-O: RUNPATH and the ad-hoc signature.
       - name: Verify the macOS bundle
         shell: bash
         run: |
           bundle=dist/kivgraph-darwin-arm64
-          (cd "$bundle" && shasum -a 256 -c SHA256SUMS >/dev/null)
+          scripts/verify-bundle.sh \
+            --bundle "$bundle" \
+            --target darwin/arm64 \
+            --commit "$GITHUB_SHA" \
+            --source-tools-manifest tools/manifest.json
 
           # AGENTS.md: the executable declares exactly one RUNPATH, the
           # relative one. build-bundle.sh drops the one the Go binding points
@@ -671,35 +675,6 @@ jobs:
           # re-signing step is load-bearing, and the assertion is that the
           # signature is the ad-hoc one and that the binary runs.
           codesign -dv "$bundle/bin/kivgraph" 2>&1 | grep -q 'Signature=adhoc'
-          test -f "$bundle/lib/liblbug.dylib"
-
-          # version --json carries no platform field, so the manifest is what
-          # names the target, and the binary that answers is the one built for
-          # it: a bundle assembled for the wrong platform cannot run here.
-          version_json=$("$bundle/bin/kivgraph" version --json)
-          test "$(jq -r .dirty <<<"$version_json")" = "false"
-          test "$(jq -r .target.os "$bundle/manifest.json")" = "darwin"
-          test "$(jq -r .target.arch "$bundle/manifest.json")" = "arm64"
-          test "$(jq -r .source.dirty "$bundle/manifest.json")" = "false"
-          test "$(jq -r .source.commit "$bundle/manifest.json")" = "$GITHUB_SHA"
-          test "$(jq -r .schema <<<"$version_json")" = "$(jq -r .schema.canonical "$bundle/manifest.json")"
-
-          # The engine has to be the pinned one on this platform too: an
-          # installation that falls back to the PATH indexes a different graph.
-          pinned=$(jq -r '.tools[] | select(.name=="rust-analyzer") | .release' tools/manifest.json)
-          test -x "$bundle/bin/rust-analyzer"
-          test "$(jq -r .rust_analyzer <<<"$version_json")" = "$pinned"
-          "$bundle/bin/rust-analyzer" --version
-
-          # The viewer ships, and the binary must be able to serve it.
-          test -f "$bundle/web/index.html"
-          help_output=$("$bundle/bin/kivgraph" --help)
-          grep -q '^  ui \[' <<<"$help_output"
-          if grep -q 'unavailable: this build carries no web bundle' <<<"$help_output"; then
-            echo "bundle carries web assets the binary cannot serve" >&2
-            exit 1
-          fi
-          test ! -e "$bundle/landing"
 
       # The reproducibility rule is not platform-specific and its darwin half
       # was never checked: the scripts default to the host target, so this is
