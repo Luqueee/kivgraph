@@ -93,8 +93,10 @@ The resident surface is `len(name)*2 + len(description)` per tool against
 `MaximumResidentSurfaceBytes`, which is the formula
 `TestServerSurfaceStaysCheapToKeepResident` applies. Summing it over the eleven
 tools `registerQueryTools` registers, at commit `6f37f4a`, the query catalogue
-spends `1,864` of `1,900` and `index_project` spends `213` of the `236` its own
-line allows. Both budgets sit at `98 %`.
+spends `1,864` of `1,900` -- `98.1 %` -- and `index_project` spends `213` of
+the `236` its own line allows -- `90.3 %`. The two budgets are separate lines
+and neither is close to its own ceiling by accident: the query catalogue is the
+tighter of the two.
 
 A schema is not resident: neither target host keeps it. So `profile` on all
 eleven tools and on `index_project` costs **zero** resident bytes, and two new
@@ -246,10 +248,17 @@ Deduplication crosses pages or it is not deduplication. A key emitted on page
 one has to stay suppressed on page two, so the set of emitted keys travels in
 the cursor rather than living for the length of one response -- otherwise a
 declaration reached through two profiles appears once on a page and again on
-the next, and `total` describes neither. That set is bounded by the page size
-times the pages taken, and the same rule covers the case where the payloads
-differ: the rows are distinct, so both are emitted on the page that first
-reaches them and neither reappears later.
+the next, and `total` describes neither.
+
+What travels is not the bare key: it is the pair of the key and a digest of the
+payload emitted for it. Two rows can share a key and still differ -- the same
+declaration reached through profiles at different generations is exactly the
+case above that refuses to merge them. Suppressing on the bare key would
+silently drop the second variant across a page boundary, which is a worse
+defect than the one this is meant to fix: it would look like deduplication and
+be data loss. Both variants are emitted, each on the page that first reaches
+it, and each pair reappears in the set exactly once. The set is bounded by the
+page size times the pages taken.
 
 Which also means the merge needs a global order across profiles, not a merge
 of independently ordered pages. The order is the canonical profile order and
@@ -309,16 +318,18 @@ of the parts, which is strictly worse than today's single graph.
 The `53` repositories of an existing installation become the profile `default`,
 with the pointer set to it. No pass runs, no command grows a flag, and no call
 grows an argument: the installation answers afterwards exactly as it did before.
-An upgrade that costs `178.9 s` is the difference between this being adopted and
-not.
+The alternative -- migrating by reindexing into the new layout -- would cost the
+measured `178.9 s` cold pass on every installation that upgrades, for no reason
+a user would recognise as their own; that avoided cost is what makes a no-pass
+migration worth building rather than a convenience.
 
 Every artifact the decision scopes to a profile moves, and the list is the
 migration rather than an example of it: `generations/`, `CURRENT`, `BACKUP`,
-`backups/`, `publish.lock`, `factcache/`, the synthetic `go.work` and
-`repositories.yaml`. Anything left above `profiles/default/` is state the
-default profile would then not find, and the cost of not finding `factcache` is
-the difference between the measured `16.9 s` and the measured `178.9 s` on the
-next pass.
+`backups/`, `publish.lock`, `resync.lock`, `factcache/`, the synthetic
+`go.work` and `repositories.yaml`. Anything left above
+`profiles/default/` is state the default profile would then not find, and the
+cost of not finding `factcache` is the difference between the measured
+`16.9 s` and the measured `178.9 s` on the next pass.
 
 What stays above `profiles/` is the installation, not a profile: the socket,
 the token, the endpoint, `daemon.port`, the event log and the three shared
@@ -326,14 +337,29 @@ analyzer target directories.
 
 The move is one transaction or it does not happen, because a half-migrated
 state directory has a `CURRENT` pointing at generations no longer beside it.
-The whole new layout is built alongside the old under a temporary name,
-validated -- every named artifact present, and the migrated `CURRENT` naming a
-generation that opens -- and only then does a single rename put it in place.
-Nothing is deleted before that rename and nothing is moved out of the old
-layout, so rollback at any point before it is removing the temporary directory,
-and a failure after it leaves a complete layout rather than a partial one. The
-migration refuses to start while a daemon holds the socket, rather than racing
-it.
+Renaming every artifact straight into `profiles/default/` would leave exactly
+that half-migrated state if the process died between two of them, so nothing
+of the old layout is touched until the new one is proven to work.
+
+The new layout is built first, entirely alongside the old, under a temporary
+name -- copied, not moved, so the old layout is untouched while this runs no
+matter how long it takes or how it fails. It is then validated: every named
+artifact present, and the migrated `CURRENT` naming a generation that opens.
+Only then do two renames run, and only the second one is allowed to fail
+loudly: the old top-level layout is renamed to a retained backup name, and the
+validated temporary layout is renamed into `profiles/default/`. Both are
+renames within the same state directory, so each is atomic on its own; the
+gap between them is where a crash is possible, and it leaves the backup
+present and `profiles/default/` absent, which is a state a restart recognises
+and completes rather than one that mismatches `CURRENT` against its
+generations.
+
+The daemon's own startup is the second validation, not a formality: it opens
+the migrated store before anything depends on it, and a failure there rolls
+back by renaming the backup over `profiles/default/` again. The backup is
+retained -- not deleted -- until a startup succeeds against the new layout, so
+rollback is always a rename and never a reconstruction. The migration refuses
+to start while a daemon holds the socket, rather than racing it.
 
 ## The claim that changes
 
