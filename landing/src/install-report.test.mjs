@@ -22,18 +22,20 @@ import {
   FIRST_RUN_PATH,
   firstRunEvent,
   parseFirstRun,
+  canEmit,
+  LAST_VERSION_WITHOUT_EMITTER,
 } from "./install-report.mjs";
 
 const binary = {
   emitter: "binary",
-  version: "0.9.1",
+  version: "0.10.0",
   platform: "linux-amd64",
   channel: "mcpb",
   transport: "stdio",
 };
 const installer = {
   emitter: "installer",
-  version: "0.9.1",
+  version: "0.10.0",
   platform: "linux-amd64",
   channel: "installer",
 };
@@ -76,8 +78,8 @@ describe("what is accepted", () => {
       ["channel", "source"],
       ["transport", "http"],
       ["version", "0.9"],
-      ["version", "v0.9.1"],
-      ["version", "0.9.1-rc.1"],
+      ["version", "v0.10.0"],
+      ["version", "0.10.0-rc.1"],
     ]) {
       const forged = { ...binary, [field]: value };
       assert.equal(
@@ -88,9 +90,47 @@ describe("what is accepted", () => {
     }
   });
 
+  it("refuses a version that has no emitter to have sent it", () => {
+    // The flood that prompted this: 25 well-formed pings from 25 datacentre
+    // addresses, all claiming the last release cut before the emitter existed.
+    const forged = { ...binary, version: LAST_VERSION_WITHOUT_EMITTER };
+    assert.equal(parseFirstRun(JSON.stringify(forged)), null);
+    assert.equal(
+      parseFirstRun(JSON.stringify({ ...binary, version: "0.9.1" })),
+      null,
+    );
+    assert.equal(
+      parseFirstRun(JSON.stringify({ ...installer, version: "0.8.0" })),
+      null,
+    );
+  });
+
   it("refuses anything that is not an object of strings", () => {
     for (const text of ["", "null", "[]", '"binary"', "{", '{"emitter":1}']) {
       assert.equal(parseFirstRun(text), null, `${text} was accepted`);
+    }
+  });
+});
+
+describe("which versions could have emitted", () => {
+  it("admits the release after the last one without an emitter", () => {
+    assert.equal(canEmit("0.9.3"), true);
+  });
+
+  it("compares the triple numerically, not as a string", () => {
+    // "0.10.0" < "0.9.2" as text, and it is the next minor after it.
+    assert.equal(canEmit("0.10.0"), true);
+    assert.equal(canEmit("1.0.0"), true);
+  });
+
+  it("refuses the bound itself and everything under it", () => {
+    for (const version of [
+      LAST_VERSION_WITHOUT_EMITTER,
+      "0.9.1",
+      "0.8.2",
+      "0.0.1",
+    ]) {
+      assert.equal(canEmit(version), false, `${version} was admitted`);
     }
   });
 });

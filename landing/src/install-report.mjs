@@ -41,6 +41,50 @@ export const TRANSPORTS = Object.freeze(["stdio", "daemon"]);
 export const VERSION_PATTERN = /^\d+\.\d+\.\d+$/;
 
 /**
+ * The last release that shipped without a first-run emitter.
+ *
+ * Validating the shape of a ping does not validate its origin, and the gap is
+ * not theoretical: within a day of publishing `/telemetry/`, 25 well-formed
+ * pings arrived from 25 datacentre addresses, every one claiming `0.9.2` -- a
+ * tag whose tree contains no `internal/telemetry/firstrun.go`, so no binary of
+ * it has code to emit with. Those rows were impossible rather than unlikely,
+ * and the only reason they became rows is that nothing here read the version
+ * as a fact the project already knows.
+ *
+ * A version at or below this one cannot have sent a ping, and that is a truth
+ * about a tag already cut: it never needs revising. A bound kept at the
+ * *current* release would refuse a stale replay for longer, and would also
+ * discard every real ping of a new release the first time someone forgot to
+ * raise it -- silently, on exactly the data this property exists to collect.
+ * Losing the real number is the worse failure, so the bound stays where it can
+ * only ever be right.
+ *
+ * It is not authentication and nothing here can be: the emitter is open
+ * source, so any secret it carried would ship inside it. This refuses a claim
+ * the project knows to be false, which is what a public endpoint can honestly
+ * do.
+ */
+export const LAST_VERSION_WITHOUT_EMITTER = "0.9.2";
+
+/**
+ * Whether a version is one that could have sent the ping claiming it.
+ *
+ * The triple is compared numerically, because `0.10.0` is above `0.9.2` and a
+ * string comparison puts it below.
+ */
+export function canEmit(version) {
+  const parse = (value) => value.split(".").map(Number);
+  const claimed = parse(version);
+  const floor = parse(LAST_VERSION_WITHOUT_EMITTER);
+  for (let part = 0; part < 3; part += 1) {
+    if (claimed[part] !== floor[part]) {
+      return claimed[part] > floor[part];
+    }
+  }
+  return false;
+}
+
+/**
  * The most a ping may weigh.
  *
  * The whole payload is five short strings, so anything larger is not a client
@@ -103,6 +147,7 @@ export function parseFirstRun(text) {
   if (!EMITTERS.includes(emitter)) return null;
   if (typeof version !== "string" || !VERSION_PATTERN.test(version))
     return null;
+  if (!canEmit(version)) return null;
   if (!PLATFORMS.includes(platform)) return null;
   if (!CHANNELS.includes(channel)) return null;
 

@@ -314,6 +314,13 @@ with every directory that is not modelled.
   failed -- `200`, `{"beep":"boop"}`, nothing written. It is verified
   against the instance on a throwaway property before the endpoint ships,
   and not assumed.
+- The endpoint is public and cannot be authenticated: the emitter is open
+  source, so any secret it carried would ship inside it. Validation proves
+  a ping is well formed, never that a release sent it. Within a day of
+  publishing `/telemetry/`, 25 forged pings arrived from 25 datacentre
+  addresses, all claiming a release cut before the emitter existed; the
+  endpoint now refuses any version at or below that tag, which removes
+  every replay of a claim the project can disprove and nothing more.
 - The historical counts predate the classification, so the series starts
   the day the workflow does. Everything before it is one cumulative number
   per asset, and stays that way.
