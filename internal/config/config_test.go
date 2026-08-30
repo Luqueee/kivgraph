@@ -596,11 +596,11 @@ func TestInitializeGivesEachCustomConfigurationAStableSyntheticWorkspace(t *test
 			t.Fatalf("second Load(%q) error = %v", second.ConfigPath, err)
 		}
 		if loadedAgain.Config.Go.SyntheticWorkFile != loaded.Config.Go.SyntheticWorkFile {
-			t.Fatalf("synthetic workspace changed from %q to %q", loaded.Config.Go.SyntheticWorkFile, loadedAgain.Config.Go.SyntheticWorkFile)
+			t.Fatalf("config %q synthetic workspace changed from %q to %q", configPath, loaded.Config.Go.SyntheticWorkFile, loadedAgain.Config.Go.SyntheticWorkFile)
 		}
 	}
 	if workFiles[0] == workFiles[1] {
-		t.Fatalf("isolated configurations share synthetic workspace %q", workFiles[0])
+		t.Fatalf("configurations %q and %q share synthetic workspace %q", configPaths[0], configPaths[1], workFiles[0])
 	}
 }
 
@@ -667,11 +667,11 @@ func TestMigrateProjectSyntheticWorkFileMovesLegacyPathAndKeepsConfigurationsIso
 
 		again, err := MigrateProjectSyntheticWorkFile(configPath)
 		if err != nil || again {
-			t.Fatalf("second migration = %t, %v; want false, nil", again, err)
+			t.Fatalf("second migration for %q = %t, %v; want false, nil", configPath, again, err)
 		}
 	}
 	if workFiles[0] == workFiles[1] {
-		t.Fatalf("isolated configurations share synthetic workspace %q", workFiles[0])
+		t.Fatalf("configurations %q and %q share synthetic workspace %q", paths[0], paths[1], workFiles[0])
 	}
 }
 
