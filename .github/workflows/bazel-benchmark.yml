@@ -1,0 +1,78 @@
+name: Bazel build benchmark
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - .bazelversion
+      - MODULE.bazel
+      - MODULE.bazel.lock
+      - BUILD.bazel
+      - "**/BUILD.bazel"
+      - "bazel/**"
+      - go.mod
+      - go.sum
+      - "cmd/**"
+      - "internal/**"
+      - "benchmarks/build-system-cost/**"
+      - .github/workflows/bazel-benchmark.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bazel-benchmark-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  measure:
+    name: Compare clean, warm, and edited builds
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          check-latest: true
+          cache: false
+
+      - name: Set up Bazel launcher
+        uses: bazel-contrib/setup-bazel@0.19.0
+        with:
+          bazelisk-cache: false
+          disk-cache: false
+          repository-cache: false
+
+      - name: Build benchmark harness
+        run: go build -o "$RUNNER_TEMP/build-system-cost" ./benchmarks/build-system-cost
+
+      - name: Measure both build systems
+        run: |
+          "$RUNNER_TEMP/build-system-cost" \
+            --trials 3 \
+            --output "$RUNNER_TEMP/build-system-cost-results"
+
+      - name: Add report to job summary
+        if: always()
+        run: |
+          report="$RUNNER_TEMP/build-system-cost-results/report.md"
+          if [[ -f "$report" ]]; then
+            cat "$report" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload measurements and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-system-cost-${{ github.run_id }}
+          path: ${{ runner.temp }}/build-system-cost-results
+          if-no-files-found: warn
+          retention-days: 14
