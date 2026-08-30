@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "webassets",
+    srcs = [
+        "assets_fallback.go",
+        "available_fallback.go",
+        "fallback.go",
+    ],
+    importpath = "github.com/Luqueee/kivgraph/internal/webassets",
+    visibility = ["//:__subpackages__"],
+)
+
+go_test(
+    name = "webassets_test",
+    srcs = ["assets_fallback_test.go"],
+    embed = [":webassets"],
+)

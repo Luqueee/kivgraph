@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "supervisor",
+    srcs = [
+        "supervisor.go",
+        "supervisor_darwin.go",
+        "supervisor_linux.go",
+        "supervisor_other.go",
+        "supervisor_windows.go",
+        "write.go",
+    ],
+    importpath = "github.com/Luqueee/kivgraph/internal/supervisor",
+    visibility = ["//:__subpackages__"],
+)
+
+go_test(
+    name = "supervisor_test",
+    srcs = [
+        "recorded_path_darwin_test.go",
+        "recorded_path_linux_test.go",
+        "rendered_darwin_test.go",
+        "rendered_linux_test.go",
+        "rendered_other_test.go",
+        "rendered_windows_test.go",
+        "restart_limit_linux_test.go",
+        "supervisor_other_test.go",
+        "supervisor_test.go",
+    ],
+    embed = [":supervisor"],
+    deps = ["//internal/testsupport"],
+)

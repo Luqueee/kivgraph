@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "procstat",
+    srcs = [
+        "observe_darwin.go",
+        "observe_linux.go",
+        "processes.go",
+        "processes_darwin.go",
+        "processes_linux.go",
+        "processes_other.go",
+        "processes_windows.go",
+        "procstat.go",
+        "resident_darwin.go",
+        "resident_linux.go",
+        "resident_other.go",
+        "resident_windows.go",
+    ],
+    cgo = True,
+    importpath = "github.com/Luqueee/kivgraph/internal/procstat",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/executable",
+    ] + select({
+        "@rules_go//go/platform:darwin": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "procstat_test",
+    srcs = ["procstat_test.go"],
+    embed = [":procstat"],
+)

@@ -1,0 +1,49 @@
+diff --git a/BUILD.bazel b/BUILD.bazel
+new file mode 100644
+--- /dev/null
++++ b/BUILD.bazel
+@@ -0,0 +1,12 @@
++load("@rules_cc//cc:defs.bzl", "cc_library")
++
++cc_library(
++    name = "grammar",
++    srcs = [
++        "src/parser.c",
++        "src/scanner.c",
++    ],
++    hdrs = glob(["src/**/*.h"]),
++    includes = ["src"],
++    visibility = ["//visibility:public"],
++)
+diff --git a/bindings/go/BUILD.bazel b/bindings/go/BUILD.bazel
+new file mode 100644
+--- /dev/null
++++ b/bindings/go/BUILD.bazel
+@@ -0,0 +1,17 @@
++load("@io_bazel_rules_go//go:def.bzl", "go_library")
++
++go_library(
++    name = "go",
++    srcs = ["binding.go"],
++    cgo = True,
++    cdeps = ["//:grammar"],
++    copts = ["-std=c11", "-fPIC"],
++    importpath = "github.com/tree-sitter/tree-sitter-rust/bindings/go",
++    visibility = ["//visibility:public"],
++)
++
++alias(
++    name = "go_default_library",
++    actual = ":go",
++    visibility = ["//visibility:public"],
++)
+diff --git a/bindings/go/binding.go b/bindings/go/binding.go
+--- a/bindings/go/binding.go
++++ b/bindings/go/binding.go
+@@ -3,4 +3,4 @@
+ // #cgo CFLAGS: -std=c11 -fPIC
+-// #include "../../src/parser.c"
+-// #include "../../src/scanner.c"
++// #include "src/tree_sitter/parser.h"
++// const TSLanguage *tree_sitter_rust(void);
+ import "C"

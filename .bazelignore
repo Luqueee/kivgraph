@@ -1,0 +1,10 @@
+.git
+.tooling
+dist
+landing/.astro
+landing/dist
+landing/node_modules
+ts-worker/dist
+ts-worker/node_modules
+web/dist
+web/node_modules

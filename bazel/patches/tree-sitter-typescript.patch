@@ -1,0 +1,72 @@
+diff --git a/BUILD.bazel b/BUILD.bazel
+new file mode 100644
+--- /dev/null
++++ b/BUILD.bazel
+@@ -0,0 +1,20 @@
++load("@rules_cc//cc:defs.bzl", "cc_library")
++
++cc_library(
++    name = "grammar",
++    srcs = glob([
++        "tsx/src/*.c",
++        "typescript/src/*.c",
++    ]),
++    hdrs = glob([
++        "common/*.h",
++        "tsx/src/**/*.h",
++        "typescript/src/**/*.h",
++    ]),
++    includes = [
++        "common",
++        "tsx/src",
++        "typescript/src",
++    ],
++    visibility = ["//visibility:public"],
++)
+diff --git a/bindings/go/BUILD.bazel b/bindings/go/BUILD.bazel
+new file mode 100644
+--- /dev/null
++++ b/bindings/go/BUILD.bazel
+@@ -0,0 +1,20 @@
++load("@io_bazel_rules_go//go:def.bzl", "go_library")
++
++go_library(
++    name = "go",
++    srcs = [
++        "tsx.go",
++        "typescript.go",
++    ],
++    cgo = True,
++    cdeps = ["//:grammar"],
++    copts = ["-std=c11", "-fPIC"],
++    importpath = "github.com/tree-sitter/tree-sitter-typescript/bindings/go",
++    visibility = ["//visibility:public"],
++)
++
++alias(
++    name = "go_default_library",
++    actual = ":go",
++    visibility = ["//visibility:public"],
++)
+diff --git a/bindings/go/tsx.go b/bindings/go/tsx.go
+--- a/bindings/go/tsx.go
++++ b/bindings/go/tsx.go
+@@ -3,5 +3,5 @@
+ // #cgo CPPFLAGS: -I../../tsx/src
+ // #cgo CFLAGS: -std=c11 -fPIC
+-// #include "../../tsx/src/parser.c"
+-// #include "../../tsx/src/scanner.c"
++// #include "tsx/src/tree_sitter/parser.h"
++// const TSLanguage *tree_sitter_tsx(void);
+ import "C"
+diff --git a/bindings/go/typescript.go b/bindings/go/typescript.go
+--- a/bindings/go/typescript.go
++++ b/bindings/go/typescript.go
+@@ -3,5 +3,5 @@
+ // #cgo CPPFLAGS: -I../../typescript/src
+ // #cgo CFLAGS: -std=c11 -fPIC
+-// #include "../../typescript/src/parser.c"
+-// #include "../../typescript/src/scanner.c"
++// #include "typescript/src/tree_sitter/parser.h"
++// const TSLanguage *tree_sitter_typescript(void);
+ import "C"

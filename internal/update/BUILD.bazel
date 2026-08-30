@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "update",
+    srcs = [
+        "notice.go",
+        "platform_other.go",
+        "platform_windows.go",
+        "update.go",
+    ],
+    importpath = "github.com/Luqueee/kivgraph/internal/update",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/executable",
+        "@org_golang_x_mod//semver",
+    ],
+)
+
+go_test(
+    name = "update_test",
+    srcs = [
+        "notice_test.go",
+        "replace_test.go",
+        "update_test.go",
+        "zip_test.go",
+    ],
+    embed = [":update"],
+    deps = ["//internal/executable"],
+)

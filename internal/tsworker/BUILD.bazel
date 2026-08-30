@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "tsworker",
+    srcs = [
+        "framing.go",
+        "messages.go",
+        "pipe_other.go",
+        "pipe_windows.go",
+        "process_other.go",
+        "process_unix.go",
+        "supervisor.go",
+    ],
+    importpath = "github.com/Luqueee/kivgraph/internal/tsworker",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/metrics",
+        "//internal/procstat",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//internal/privateobject",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "tsworker_test",
+    srcs = [
+        "fake_worker_test.go",
+        "fixtures_test.go",
+        "framing_test.go",
+        "recovery_unix_test.go",
+        "supervisor_test.go",
+    ],
+    data = ["//:testdata"],
+    embed = [":tsworker"],
+    deps = [
+        "//internal/metrics",
+        "//internal/testsupport",
+    ],
+)

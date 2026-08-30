@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "relay",
+    srcs = ["relay.go"],
+    importpath = "github.com/Luqueee/kivgraph/internal/relay",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/daemon",
+        "//internal/version",
+        "@com_github_modelcontextprotocol_go_sdk//jsonrpc",
+        "@com_github_modelcontextprotocol_go_sdk//mcp",
+    ],
+)
+
+go_test(
+    name = "relay_test",
+    srcs = ["relay_test.go"],
+    embed = [":relay"],
+    deps = [
+        "//internal/daemon",
+        "@com_github_modelcontextprotocol_go_sdk//mcp",
+    ],
+)

@@ -1,0 +1,49 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "daemon",
+    srcs = [
+        "daemon.go",
+        "http.go",
+        "reachable.go",
+        "umask_other.go",
+        "umask_unix.go",
+        "umask_windows.go",
+    ],
+    importpath = "github.com/Luqueee/kivgraph/internal/daemon",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/hotsnapshot",
+        "//internal/indexing",
+        "//internal/mcp",
+        "//internal/metrics",
+        "@com_github_modelcontextprotocol_go_sdk//auth",
+        "@com_github_modelcontextprotocol_go_sdk//jsonrpc",
+        "@com_github_modelcontextprotocol_go_sdk//mcp",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//internal/privateobject",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "daemon_test",
+    srcs = [
+        "daemon_test.go",
+        "http_test.go",
+        "private_files_unix_test.go",
+        "reachable_test.go",
+    ],
+    embed = [":daemon"],
+    deps = [
+        "//internal/hotsnapshot",
+        "//internal/indexing",
+        "//internal/mcp",
+        "//internal/metrics",
+        "//internal/testsupport",
+        "@com_github_modelcontextprotocol_go_sdk//jsonrpc",
+        "@com_github_modelcontextprotocol_go_sdk//mcp",
+    ],
+)

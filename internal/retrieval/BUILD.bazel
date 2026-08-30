@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "retrieval",
+    srcs = [
+        "rank.go",
+        "split.go",
+        "terms.go",
+    ],
+    importpath = "github.com/Luqueee/kivgraph/internal/retrieval",
+    visibility = ["//:__subpackages__"],
+)
+
+go_test(
+    name = "retrieval_test",
+    srcs = [
+        "rank_signals_test.go",
+        "rank_test.go",
+        "split_test.go",
+        "terms_test.go",
+    ],
+    embed = [":retrieval"],
+)

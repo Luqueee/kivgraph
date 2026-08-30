@@ -1,0 +1,60 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "workspace",
+    srcs = [
+        "cargo_discovery.go",
+        "cargo_manifests.go",
+        "discovery.go",
+        "go_discovery.go",
+        "go_manifests.go",
+        "go_registry.go",
+        "manifests.go",
+        "paths.go",
+        "provider_conflicts.go",
+        "registry.go",
+        "typescript_config.go",
+        "typescript_graph.go",
+        "typescript_program.go",
+        "typescript_registry.go",
+        "typescript_sources.go",
+        "typescript_unclaimed.go",
+        "typescript_versions.go",
+    ],
+    importpath = "github.com/Luqueee/kivgraph/internal/workspace",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/config",
+        "@com_github_burntsushi_toml//:toml",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+        "@org_golang_x_mod//modfile",
+        "@org_golang_x_mod//semver",
+    ],
+)
+
+go_test(
+    name = "workspace_test",
+    srcs = [
+        "cargo_discovery_test.go",
+        "discovery_test.go",
+        "go_discovery_test.go",
+        "go_registry_test.go",
+        "paths_test.go",
+        "paths_windows_test.go",
+        "provider_conflicts_test.go",
+        "registry_test.go",
+        "typescript_config_test.go",
+        "typescript_graph_test.go",
+        "typescript_program_test.go",
+        "typescript_registry_test.go",
+        "typescript_sources_test.go",
+        "typescript_unclaimed_test.go",
+        "typescript_versions_test.go",
+    ],
+    data = ["//:testdata"],
+    embed = [":workspace"],
+    deps = [
+        "//internal/config",
+        "//internal/testsupport",
+    ],
+)

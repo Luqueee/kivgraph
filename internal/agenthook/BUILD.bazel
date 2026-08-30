@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "agenthook",
+    srcs = [
+        "bash.go",
+        "brief.go",
+        "classify.go",
+        "decision.go",
+        "gate.go",
+        "graph.go",
+        "languages.go",
+        "pattern.go",
+        "payload.go",
+    ],
+    importpath = "github.com/Luqueee/kivgraph/internal/agenthook",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/config",
+        "//internal/daemon",
+        "//internal/mcp/tools",
+        "@com_github_modelcontextprotocol_go_sdk//mcp",
+    ],
+)
+
+go_test(
+    name = "agenthook_test",
+    srcs = [
+        "brief_test.go",
+        "classify_test.go",
+        "decision_test.go",
+        "edges_test.go",
+        "gate_test.go",
+        "graph_session_test.go",
+        "graph_test.go",
+        "languages_test.go",
+    ],
+    embed = [":agenthook"],
+    deps = ["@com_github_modelcontextprotocol_go_sdk//mcp"],
+)

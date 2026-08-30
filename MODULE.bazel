@@ -1,0 +1,99 @@
+module(
+    name = "kivgraph",
+    version = "0.0.0",
+)
+
+bazel_dep(name = "rules_go", version = "0.63.0")
+bazel_dep(name = "gazelle", version = "0.52.2")
+
+go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk")
+go_sdk.from_file(go_mod = "//:go.mod")
+
+go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
+go_deps.from_file(go_mod = "//:go.mod")
+use_repo(
+    go_deps,
+    "co_honnef_go_tools",
+    "com_github_burntsushi_toml",
+    "com_github_charmbracelet_bubbletea",
+    "com_github_charmbracelet_lipgloss",
+    "com_github_fsnotify_fsnotify",
+    "com_github_google_jsonschema_go",
+    "com_github_ladybugdb_go_ladybug",
+    "com_github_modelcontextprotocol_go_sdk",
+    "com_github_pkoukk_tiktoken_go",
+    "com_github_pkoukk_tiktoken_go_loader",
+    "com_github_tree_sitter_go_tree_sitter",
+    "com_github_tree_sitter_tree_sitter_go",
+    "com_github_tree_sitter_tree_sitter_javascript",
+    "com_github_tree_sitter_tree_sitter_python",
+    "com_github_tree_sitter_tree_sitter_rust",
+    "com_github_tree_sitter_tree_sitter_typescript",
+    "com_github_zeebo_blake3",
+    "in_gopkg_yaml_v3",
+    "io_opentelemetry_go_otel",
+    "io_opentelemetry_go_otel_metric",
+    "io_opentelemetry_go_otel_sdk_metric",
+    "org_golang_x_mod",
+    "org_golang_x_sync",
+    "org_golang_x_sys",
+    "org_golang_x_tools",
+)
+
+# The Tree-sitter Go bindings include generated C sources with relative
+# includes. Gazelle cannot infer those files from the cgo comments, so keep a
+# small generated-repository override instead of weakening Bazel's sandbox.
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["//bazel/patches:go-tree-sitter.patch"],
+    path = "github.com/tree-sitter/go-tree-sitter",
+)
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["//bazel/patches:tree-sitter-go.patch"],
+    path = "github.com/tree-sitter/tree-sitter-go",
+)
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["//bazel/patches:tree-sitter-javascript.patch"],
+    path = "github.com/tree-sitter/tree-sitter-javascript",
+)
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["//bazel/patches:tree-sitter-python.patch"],
+    path = "github.com/tree-sitter/tree-sitter-python",
+)
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["//bazel/patches:tree-sitter-rust.patch"],
+    path = "github.com/tree-sitter/tree-sitter-rust",
+)
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["//bazel/patches:tree-sitter-typescript.patch"],
+    path = "github.com/tree-sitter/tree-sitter-typescript",
+)
+go_deps.gazelle_override(
+    build_file_generation = "off",
+    path = "github.com/tree-sitter/go-tree-sitter",
+)
+go_deps.gazelle_override(
+    build_file_generation = "off",
+    path = "github.com/tree-sitter/tree-sitter-go",
+)
+go_deps.gazelle_override(
+    build_file_generation = "off",
+    path = "github.com/tree-sitter/tree-sitter-javascript",
+)
+go_deps.gazelle_override(
+    build_file_generation = "off",
+    path = "github.com/tree-sitter/tree-sitter-python",
+)
+go_deps.gazelle_override(
+    build_file_generation = "off",
+    path = "github.com/tree-sitter/tree-sitter-rust",
+)
+go_deps.gazelle_override(
+    build_file_generation = "off",
+    path = "github.com/tree-sitter/tree-sitter-typescript",
+)

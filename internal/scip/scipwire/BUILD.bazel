@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "scipwire",
+    srcs = ["scipwire.go"],
+    importpath = "github.com/Luqueee/kivgraph/internal/scip/scipwire",
+    visibility = ["//:__subpackages__"],
+)
+
+go_test(
+    name = "scipwire_test",
+    srcs = ["scipwire_test.go"],
+    data = ["//:testdata"],
+    embed = [":scipwire"],
+)

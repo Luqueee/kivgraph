@@ -34,6 +34,12 @@ testdata/generated/
 .tooling/
 /dist/
 
+# Bazel output symlinks and output trees
+/bazel-bin
+/bazel-kivgraph
+/bazel-out
+/bazel-testlogs
+
 # graphify writes its graph beside the code it reads; ours is never an input.
 /graphify-out/
 

@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "scratchtree",
+    srcs = ["scratchtree.go"],
+    importpath = "github.com/Luqueee/kivgraph/internal/scratchtree",
+    visibility = ["//:__subpackages__"],
+    deps = ["//internal/workspace"],
+)
+
+go_test(
+    name = "scratchtree_test",
+    srcs = [
+        "hostile_test.go",
+        "scratchtree_test.go",
+    ],
+    embed = [":scratchtree"],
+    deps = [
+        "//internal/testsupport",
+        "//internal/workspace",
+    ],
+)

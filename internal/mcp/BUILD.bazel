@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "mcp",
+    srcs = [
+        "instructions.go",
+        "server.go",
+        "transport.go",
+    ],
+    importpath = "github.com/Luqueee/kivgraph/internal/mcp",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/hotsnapshot",
+        "//internal/indexing",
+        "//internal/mcp/tools",
+        "//internal/metrics",
+        "//internal/version",
+        "@com_github_modelcontextprotocol_go_sdk//jsonrpc",
+        "@com_github_modelcontextprotocol_go_sdk//mcp",
+    ],
+)
+
+go_test(
+    name = "mcp_test",
+    srcs = [
+        "index_project_test.go",
+        "introspection_test.go",
+        "server_test.go",
+        "surface_test.go",
+        "transport_test.go",
+    ],
+    data = ["//:project_files"],
+    embed = [":mcp"],
+    deps = [
+        "//internal/hotsnapshot",
+        "//internal/indexing",
+        "//internal/mcp/tools",
+        "//internal/metrics",
+        "//internal/version",
+        "@com_github_modelcontextprotocol_go_sdk//jsonrpc",
+        "@com_github_modelcontextprotocol_go_sdk//mcp",
+    ],
+)
