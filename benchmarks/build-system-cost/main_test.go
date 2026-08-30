@@ -17,7 +17,7 @@ func TestRunRecordsBothArmsWithoutUsingRealCaches(t *testing.T) {
 	if err := os.MkdirAll(commands, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	writeExecutable(t, filepath.Join(commands, "go"), "#!/bin/sh\necho 'go version go1.26.6 test/fixture'\n")
+	writeExecutable(t, filepath.Join(commands, "go"), "#!/bin/sh\nprintf 'GOCACHE=%s\\nGOMODCACHE=%s\\nGOPATH=%s\\n' \"$GOCACHE\" \"$GOMODCACHE\" \"$GOPATH\"\necho 'go version go1.26.6 test/fixture'\n")
 	writeExecutable(t, filepath.Join(commands, "bazel"), "#!/bin/sh\necho 'Build completed successfully'\n")
 	t.Setenv("PATH", commands+string(os.PathListSeparator)+os.Getenv("PATH"))
 
@@ -55,8 +55,30 @@ func TestRunRecordsBothArmsWithoutUsingRealCaches(t *testing.T) {
 	if !strings.Contains(string(bazelLog), "--disk_cache=") || !strings.Contains(string(bazelLog), "--ignore_all_rc_files") {
 		t.Fatalf("Bazel commands did not isolate host configuration and caches:\n%s", bazelLog)
 	}
-	if _, err := os.Stat(filepath.Join(output, "report.md")); err != nil {
+	if !strings.Contains(string(bazelLog), "--lockfile_mode=error") || !strings.Contains(string(bazelLog), " shutdown") {
+		t.Fatalf("Bazel commands did not lock dependencies and shut down the server:\n%s", bazelLog)
+	}
+	goLog, err := os.ReadFile(filepath.Join(output, "trial-01-go.log"))
+	if err != nil {
 		t.Fatal(err)
+	}
+	for _, variable := range []string{"GOCACHE", "GOMODCACHE", "GOPATH"} {
+		prefix := variable + "="
+		for _, line := range strings.Split(string(goLog), "\n") {
+			if strings.HasPrefix(line, prefix) && !strings.Contains(line, "kivgraph-build-cost-01-") {
+				t.Fatalf("%s was not isolated in the trial directory: %q", variable, line)
+			}
+		}
+		if !strings.Contains(string(goLog), prefix) {
+			t.Fatalf("Go log did not record %s:\n%s", variable, goLog)
+		}
+	}
+	report, err := os.ReadFile(filepath.Join(output, "report.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(report), "Bazel / Go") {
+		t.Fatalf("report ratio direction is ambiguous:\n%s", report)
 	}
 }
 
@@ -163,8 +185,9 @@ func TestMedianRejectsEmptyInput(t *testing.T) {
 }
 
 func TestFileDigestRejectsMissingFile(t *testing.T) {
-	if _, err := fileDigest(filepath.Join(t.TempDir(), "missing")); err == nil {
-		t.Fatal("fileDigest() succeeded for a missing file")
+	path := filepath.Join(t.TempDir(), "missing")
+	if _, err := fileDigest(path); err == nil {
+		t.Fatalf("fileDigest(%q) succeeded for a missing file", path)
 	}
 }
 
@@ -204,8 +227,8 @@ func TestSummarizeUsesMediansAndRatios(t *testing.T) {
 	if got.Go.CleanBuildSeconds != 5 || got.Bazel.CleanBuildSeconds != 3 {
 		t.Fatalf("clean medians = go %v bazel %v", got.Go.CleanBuildSeconds, got.Bazel.CleanBuildSeconds)
 	}
-	if got.Ratios.GoOverBazelEdit != 2 {
-		t.Fatalf("edit ratio = %v, want 2", got.Ratios.GoOverBazelEdit)
+	if got.Ratios.BazelOverGoEdit != 0.5 {
+		t.Fatalf("edit ratio = %v, want 0.5", got.Ratios.BazelOverGoEdit)
 	}
 }
 

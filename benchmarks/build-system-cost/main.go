@@ -129,9 +129,9 @@ type armSummary struct {
 }
 
 type ratios struct {
-	GoOverBazelClean float64 `json:"go_over_bazel_clean_build"`
-	GoOverBazelWarm  float64 `json:"go_over_bazel_warm_build"`
-	GoOverBazelEdit  float64 `json:"go_over_bazel_edit_build"`
+	BazelOverGoClean float64 `json:"bazel_over_go_clean_build"`
+	BazelOverGoWarm  float64 `json:"bazel_over_go_warm_build"`
+	BazelOverGoEdit  float64 `json:"bazel_over_go_edit_build"`
 }
 
 func main() {
@@ -283,13 +283,17 @@ func collectMetadata(ctx context.Context, root, commit string, files []string) (
 	}, nil
 }
 
-func measureTrial(ctx context.Context, root, output string, files []string, index int) (trialResult, error) {
+func measureTrial(ctx context.Context, root, output string, files []string, index int) (result trialResult, err error) {
 	trialRoot, err := os.MkdirTemp("", fmt.Sprintf("kivgraph-build-cost-%02d-", index))
 	if err != nil {
 		return trialResult{}, err
 	}
-	defer os.RemoveAll(trialRoot)
-	result := trialResult{Index: index, Order: armOrder(index)}
+	defer func() {
+		if removeErr := os.RemoveAll(trialRoot); removeErr != nil {
+			err = errors.Join(err, fmt.Errorf("remove trial directory %s: %w", trialRoot, removeErr))
+		}
+	}()
+	result = trialResult{Index: index, Order: armOrder(index)}
 	for _, name := range result.Order {
 		source := filepath.Join(trialRoot, name, "source")
 		if err := copyFiles(root, source, files); err != nil {
@@ -305,7 +309,7 @@ func measureTrial(ctx context.Context, root, output string, files []string, inde
 	return result, nil
 }
 
-func measureArm(ctx context.Context, name, source, state string, files []string, trial int, logPath string) (armResult, error) {
+func measureArm(ctx context.Context, name, source, state string, files []string, trial int, logPath string) (result armResult, err error) {
 	if err := os.MkdirAll(state, 0o755); err != nil {
 		return armResult{}, err
 	}
@@ -313,20 +317,23 @@ func measureArm(ctx context.Context, name, source, state string, files []string,
 	if err != nil {
 		return armResult{}, err
 	}
-	defer logFile.Close()
+	defer func() {
+		if closeErr := logFile.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close log %s: %w", logPath, closeErr))
+		}
+	}()
 	before, err := hashFiles(source, files)
 	if err != nil {
 		return armResult{}, err
 	}
-	var output armResult
-	output.Name = name
+	result.Name = name
 	var setup, dependencies, clean, warm, edited float64
 	switch name {
 	case armGo:
 		goCache := filepath.Join(state, "go-build")
 		goPath := filepath.Join(state, "gopath")
 		env := []string{"GOCACHE=" + goCache, "GOMODCACHE=" + filepath.Join(goPath, "pkg", "mod"), "GOPATH=" + goPath, "GOTOOLCHAIN=local"}
-		output.Commands = commands{Setup: "go version", Dependencies: "go mod download", Build: "go build -o <private>/kivgraph " + goTarget}
+		result.Commands = commands{Setup: "go version", Dependencies: "go mod download", Build: "go build -o <private>/kivgraph " + goTarget}
 		setup, err = timedCommand(ctx, source, env, logFile, "go", "version")
 		if err == nil {
 			dependencies, err = timedCommand(ctx, source, env, logFile, "go", "mod", "download")
@@ -349,9 +356,15 @@ func measureArm(ctx context.Context, name, source, state string, files []string,
 		diskCache := filepath.Join(state, "disk-cache")
 		env := []string{"BAZELISK_HOME=" + filepath.Join(state, "bazelisk")}
 		base := []string{"--ignore_all_rc_files", "--output_user_root=" + userRoot}
-		output.Commands = commands{Setup: "bazel --ignore_all_rc_files --output_user_root=<private> version", Dependencies: "bazel --ignore_all_rc_files --output_user_root=<private> fetch " + target, Build: "bazel --ignore_all_rc_files --output_user_root=<private> build " + target}
+		defer func() {
+			_, shutdownErr := timedCommand(ctx, source, env, logFile, "bazel", append(base, "shutdown")...)
+			if shutdownErr != nil {
+				err = errors.Join(err, fmt.Errorf("shutdown Bazel server: %w", shutdownErr))
+			}
+		}()
+		result.Commands = commands{Setup: "bazel --ignore_all_rc_files --output_user_root=<private> version", Dependencies: "bazel --ignore_all_rc_files --output_user_root=<private> fetch " + target, Build: "bazel --ignore_all_rc_files --output_user_root=<private> build " + target}
 		setup, err = timedCommand(ctx, source, env, logFile, "bazel", append(base, "version")...)
-		cacheOptions := []string{"--repository_cache=" + repositoryCache, "--disk_cache=" + diskCache}
+		cacheOptions := []string{"--repository_cache=" + repositoryCache, "--disk_cache=" + diskCache, "--lockfile_mode=error"}
 		fetch := append(append(append([]string{}, base...), "fetch"), cacheOptions...)
 		fetch = append(fetch, target)
 		build := append(append(append([]string{}, base...), "build"), cacheOptions...)
@@ -384,25 +397,34 @@ func measureArm(ctx context.Context, name, source, state string, files []string,
 	if changed := changedFiles(before, after); len(changed) != 1 || changed[0] != editFile {
 		return armResult{}, fmt.Errorf("edit changed %v, want only %s", changed, editFile)
 	}
-	output.Clean = phases{SetupSeconds: setup, DependencySeconds: dependencies, BuildSeconds: clean, TotalSeconds: setup + dependencies + clean}
-	output.Warm = buildPhase{BuildSeconds: warm}
-	output.Edit = editPhase{EditedFile: editFile, BuildSeconds: edited}
-	return output, nil
+	result.Clean = phases{SetupSeconds: setup, DependencySeconds: dependencies, BuildSeconds: clean, TotalSeconds: setup + dependencies + clean}
+	result.Warm = buildPhase{BuildSeconds: warm}
+	result.Edit = editPhase{EditedFile: editFile, BuildSeconds: edited}
+	return result, nil
 }
 
 func timedCommand(ctx context.Context, directory string, environment []string, logFile *os.File, name string, args ...string) (float64, error) {
-	fmt.Fprintf(logFile, "$ %s %s\n", name, strings.Join(args, " "))
+	if _, err := fmt.Fprintf(logFile, "$ %s %s\n", name, strings.Join(args, " ")); err != nil {
+		return 0, fmt.Errorf("write command to %s: %w", logFile.Name(), err)
+	}
 	command := exec.CommandContext(ctx, name, args...)
 	command.Dir = directory
 	command.Env = mergedEnvironment(environment)
 	command.Stdout = logFile
 	command.Stderr = logFile
 	started := time.Now()
-	err := command.Run()
+	runErr := command.Run()
 	seconds := time.Since(started).Seconds()
-	fmt.Fprintf(logFile, "elapsed_seconds=%.6f\n\n", seconds)
-	if err != nil {
-		return 0, fmt.Errorf("%s %s failed after %.3fs (see %s): %w", name, strings.Join(args, " "), seconds, logFile.Name(), err)
+	_, logErr := fmt.Fprintf(logFile, "elapsed_seconds=%.6f\n\n", seconds)
+	if runErr != nil {
+		commandErr := fmt.Errorf("%s %s failed after %.3fs (see %s): %w", name, strings.Join(args, " "), seconds, logFile.Name(), runErr)
+		if logErr != nil {
+			return 0, errors.Join(commandErr, fmt.Errorf("write elapsed time to %s: %w", logFile.Name(), logErr))
+		}
+		return 0, commandErr
+	}
+	if logErr != nil {
+		return 0, fmt.Errorf("write elapsed time to %s: %w", logFile.Name(), logErr)
 	}
 	return seconds, nil
 }
@@ -442,15 +464,15 @@ func summarize(trials []trialResult) (summary, error) {
 	if err != nil {
 		return summary{}, err
 	}
-	if bazelSummary.CleanBuildSeconds == 0 || bazelSummary.WarmBuildSeconds == 0 || bazelSummary.EditBuildSeconds == 0 {
-		return summary{}, errors.New("bazel median is zero; cannot calculate ratios")
+	if goSummary.CleanBuildSeconds == 0 || goSummary.WarmBuildSeconds == 0 || goSummary.EditBuildSeconds == 0 {
+		return summary{}, errors.New("go median is zero; cannot calculate ratios")
 	}
 	return summary{
 		Go: goSummary, Bazel: bazelSummary,
 		Ratios: ratios{
-			GoOverBazelClean: goSummary.CleanBuildSeconds / bazelSummary.CleanBuildSeconds,
-			GoOverBazelWarm:  goSummary.WarmBuildSeconds / bazelSummary.WarmBuildSeconds,
-			GoOverBazelEdit:  goSummary.EditBuildSeconds / bazelSummary.EditBuildSeconds,
+			BazelOverGoClean: bazelSummary.CleanBuildSeconds / goSummary.CleanBuildSeconds,
+			BazelOverGoWarm:  bazelSummary.WarmBuildSeconds / goSummary.WarmBuildSeconds,
+			BazelOverGoEdit:  bazelSummary.EditBuildSeconds / goSummary.EditBuildSeconds,
 		},
 	}, nil
 }
@@ -507,7 +529,7 @@ Commit: %s
 Environment: %s/%s (%s)  
 Trials: %d
 
-| median phase | Go | Bazel | Go / Bazel |
+| median phase | Go | Bazel | Bazel / Go |
 | --- | ---: | ---: | ---: |
 | setup | %.3f s | %.3f s | — |
 | dependencies | %.3f s | %.3f s | — |
@@ -520,9 +542,9 @@ No timing threshold is applied. A successful run means only that both arms were 
 `, output.Commit, output.Environment.OS, output.Environment.Arch, output.Environment.Kind, len(output.Trials),
 		output.Summary.Go.SetupSeconds, output.Summary.Bazel.SetupSeconds,
 		output.Summary.Go.DependencySeconds, output.Summary.Bazel.DependencySeconds,
-		output.Summary.Go.CleanBuildSeconds, output.Summary.Bazel.CleanBuildSeconds, output.Summary.Ratios.GoOverBazelClean,
-		output.Summary.Go.WarmBuildSeconds, output.Summary.Bazel.WarmBuildSeconds, output.Summary.Ratios.GoOverBazelWarm,
-		output.Summary.Go.EditBuildSeconds, output.Summary.Bazel.EditBuildSeconds, output.Summary.Ratios.GoOverBazelEdit,
+		output.Summary.Go.CleanBuildSeconds, output.Summary.Bazel.CleanBuildSeconds, output.Summary.Ratios.BazelOverGoClean,
+		output.Summary.Go.WarmBuildSeconds, output.Summary.Bazel.WarmBuildSeconds, output.Summary.Ratios.BazelOverGoWarm,
+		output.Summary.Go.EditBuildSeconds, output.Summary.Bazel.EditBuildSeconds, output.Summary.Ratios.BazelOverGoEdit,
 		output.Summary.Go.CleanTotalSeconds, output.Summary.Bazel.CleanTotalSeconds)
 }
 
@@ -679,13 +701,17 @@ func changedFiles(before, after map[string]string) []string {
 	return changed
 }
 
-func applyEdit(root, relative string, trial int) error {
+func applyEdit(root, relative string, trial int) (err error) {
 	path := filepath.Join(root, relative)
 	file, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
 	if err != nil {
 		return fmt.Errorf("open edit target %s: %w", relative, err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close edit target %s: %w", relative, closeErr))
+		}
+	}()
 	if _, err := fmt.Fprintf(file, "\n// build-system-cost trial %d\n", trial); err != nil {
 		return fmt.Errorf("edit %s: %w", relative, err)
 	}

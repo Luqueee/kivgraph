@@ -62,8 +62,10 @@ The follow-up benchmark from [issue
 trials on macOS arm64 and a GitHub-hosted Ubuntu 24.04 amd64 runner. Every trial
 used private Bazelisk, Bazel action, Bazel repository, Go build, and Go module
 caches. It also ignored host Bazel rc files after two excluded CI runs exposed a
-shared `output_base`. The full method and raw samples are in
-`benchmarks/build-system-cost`.
+shared `output_base`. The
+[full method and report](../../benchmarks/build-system-cost/report.md) and
+[raw samples](../../benchmarks/build-system-cost/results.json) are versioned with
+this decision.
 
 On macOS, median clean totals were `16.84 s` for Go and `59.40 s` for Bazel;
 warm no-op builds were `0.127 s` and `0.143 s`, and one-file rebuilds were
@@ -75,9 +77,14 @@ Bazel therefore remains an optional POC. It does not enter ordinary CI, replace
 any Make target, or expand its smoke suite: it was slower in every measured
 scenario on both environments, and the manual benchmark itself occupied a
 GitHub runner for `7m42s`. The benchmark workflow remains available through
-`workflow_dispatch` for a future material change such as a remote cache or a
-larger Go graph. Make, the existing CI, native LadybugDB, release packaging,
-Rust tooling, and pnpm remain the source of truth.
+`workflow_dispatch`; it is manual, has no timing threshold, and fails only when
+an arm cannot be measured. Make, the existing CI, native LadybugDB, release
+packaging, Rust tooling, and pnpm remain the source of truth.
+
+## Follow-up
+
+Repeat the benchmark and revisit this decision only after a material change,
+such as deploying a remote cache or substantially enlarging the Go graph.
 
 ## Alternatives considered
 
