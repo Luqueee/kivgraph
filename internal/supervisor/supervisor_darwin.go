@@ -117,8 +117,8 @@ func plist(spec Spec, label, path string) ([]byte, error) {
 // block, and `status` has to report that rather than absorb it.
 const environmentKey = "<key>EnvironmentVariables</key>"
 
-// withoutRecordedPath returns a rendered agent with its PATH block removed, and
-// whether it had one.
+// withoutRecordedPath returns a rendered agent with only its PATH entry
+// removed from the EnvironmentVariables dict, and whether one was there.
 //
 // It is what lets `status` compare the daemon rather than the shell it is asked
 // from. The recorded PATH belongs to the terminal that ran `daemon install`, so
@@ -126,28 +126,60 @@ const environmentKey = "<key>EnvironmentVariables</key>"
 // shell with a different one -- and send them to reinstall a daemon that is
 // working.
 //
+// Only the PATH key and its value leave, and not the rest of the dict. An
+// operator who hand-added a second variable beside PATH keeps it through the
+// strip, so an agent that carries one compares different from a plain install
+// and is reported stale -- which is the same treatment every other hand edit
+// gets, and the alternative is a hand edit this comparison cannot see at all.
+//
 // Whether a PATH is recorded at all is compared, and that is deliberate: an
 // agent written before this existed carries none, and the daemon under it is
-// exactly the one that cannot resolve node.
-//
-// The block's own closing indent ends it, which is sound because this renders
-// it: a hand-edited agent that closes somewhere else keeps its block through
-// this and is reported stale, which is the right answer for a hand edit.
+// exactly the one that cannot resolve node. The dict wrapper itself is dropped
+// once PATH was its only entry, which is what keeps a plain install comparing
+// equal to a rendering with no PATH regardless of who wrote either one.
 func withoutRecordedPath(rendered string) (string, bool) {
-	var kept strings.Builder
-	recorded, inside := false, false
-	for line := range strings.SplitSeq(rendered, "\n") {
-		switch {
-		case inside:
-			inside = line != "  </dict>"
-		case strings.TrimSpace(line) == environmentKey:
-			recorded, inside = true, true
-		default:
-			kept.WriteString(line)
-			kept.WriteString("\n")
+	lines := strings.Split(rendered, "\n")
+	start := -1
+	for index, line := range lines {
+		if strings.TrimSpace(line) == environmentKey {
+			start = index
+			break
 		}
 	}
-	return strings.TrimSuffix(kept.String(), "\n"), recorded
+	if start == -1 || start+1 >= len(lines) {
+		return rendered, false
+	}
+	end := -1
+	for index := start + 2; index < len(lines); index++ {
+		if lines[index] == "  </dict>" {
+			end = index
+			break
+		}
+	}
+	if end == -1 {
+		return rendered, false
+	}
+
+	var otherEntries []string
+	recorded := false
+	for index := start + 2; index+1 <= end-1; index += 2 {
+		key, value := lines[index], lines[index+1]
+		if strings.TrimSpace(key) == "<key>PATH</key>" {
+			recorded = true
+			continue
+		}
+		otherEntries = append(otherEntries, key, value)
+	}
+
+	var kept []string
+	kept = append(kept, lines[:start]...)
+	if len(otherEntries) > 0 {
+		kept = append(kept, lines[start], lines[start+1])
+		kept = append(kept, otherEntries...)
+		kept = append(kept, "  </dict>")
+	}
+	kept = append(kept, lines[end+1:]...)
+	return strings.Join(kept, "\n"), recorded
 }
 
 func install(spec Spec) (Report, error) {

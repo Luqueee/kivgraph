@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"os/exec"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/daemon"
@@ -80,14 +82,21 @@ func supervisorSpec(configPath string, options supervisorOptions) (supervisor.Sp
 }
 
 // warnAboutAnUnreachableNode says so when the PATH an install just recorded
-// cannot resolve node.
+// cannot resolve a node that runs.
 //
 // The unit records the PATH of the shell that ran `daemon install`, so this is
-// the same question `exec.LookPath` answers here and the daemon will ask later
-// -- which makes it the one moment where the answer is cheap and the remedy is
-// in front of the person who can apply it. Left unsaid, the daemon fails at
-// `exec node` with a 127 that names the worker and not the environment, and it
-// fails on every rebuild until something stops it.
+// the same question the daemon will ask later -- which makes it the one moment
+// where the answer is cheap and the remedy is in front of the person who can
+// apply it. Left unsaid, the daemon fails at `exec node` with a 127 that names
+// the worker and not the environment, and it fails on every rebuild until
+// something stops it.
+//
+// `exec.LookPath` alone only proves a file is there and marked executable: a
+// broken install -- a binary for the wrong architecture, a shim left behind by
+// an nvm uninstall -- resolves and still cannot run, and the same 127 follows.
+// So the check runs it, bounded by a timeout short enough that a machine with
+// no node at all does not make `daemon install` noticeably slower for the
+// common case that already returned from `LookPath`.
 //
 // It is a warning and not a refusal, and the install still succeeds. A
 // workspace with no TypeScript or JavaScript in it never runs the worker, and
@@ -109,13 +118,23 @@ func warnAboutAnUnreachableNode(stderr io.Writer, loaded config.Loaded) {
 	if !needed {
 		return
 	}
-	if _, err := exec.LookPath("node"); err == nil {
+	if nodeRuns() {
 		return
 	}
 	fmt.Fprintf(stderr, "daemon install: node is not on the PATH this unit recorded, "+
 		"so the TypeScript worker will fail and every rebuild with it\n")
 	fmt.Fprintf(stderr, "daemon install: install node, then run `kivgraph daemon install` "+
 		"again from a shell that can reach it\n")
+}
+
+// nodeRuns reports whether node both resolves and executes.
+func nodeRuns() bool {
+	if _, err := exec.LookPath("node"); err != nil {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	return exec.CommandContext(ctx, "node", "--version").Run() == nil
 }
 
 // restartSupervisedDaemon puts the supervised daemon of the default

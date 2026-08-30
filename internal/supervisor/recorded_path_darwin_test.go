@@ -79,3 +79,38 @@ func TestStrippingTakesTheEnvironmentAndNothingElse(t *testing.T) {
 		}
 	}
 }
+
+// TestAHandAddedVariableBesidePathIsNotSilentlyDropped is the regression: an
+// early cut of withoutRecordedPath removed the whole EnvironmentVariables
+// dict, so an agent an operator extended with a second variable stripped down
+// to the exact same thing as a plain install and Status called it installed --
+// which is precisely the hand edit `status` exists to catch, silently made
+// invisible by the one comparison meant to look past PATH.
+func TestAHandAddedVariableBesidePathIsNotSilentlyDropped(t *testing.T) {
+	spec := testSpec("/state")
+	plain, err := plist(spec, "com.kivgraph.daemon.0badcafe", "/usr/bin:/bin")
+	if err != nil {
+		t.Fatalf("plist() error = %v", err)
+	}
+	extended := strings.Replace(string(plain),
+		"    <string>/usr/bin:/bin</string>\n  </dict>\n",
+		"    <string>/usr/bin:/bin</string>\n    <key>FOO</key>\n    <string>bar</string>\n  </dict>\n",
+		1)
+	if extended == string(plain) {
+		t.Fatal("the fixture did not actually add a second variable")
+	}
+
+	strippedPlain, recordedPlain := withoutRecordedPath(string(plain))
+	strippedExtended, recordedExtended := withoutRecordedPath(extended)
+	if !recordedPlain || !recordedExtended {
+		t.Fatalf("PATH was not detected in one of the two agents: plain=%t extended=%t",
+			recordedPlain, recordedExtended)
+	}
+	if strippedPlain == strippedExtended {
+		t.Fatalf("an agent carrying an extra environment variable stripped down to "+
+			"the same thing as a plain install, so Status would call it installed:\n%s", strippedExtended)
+	}
+	if !strings.Contains(strippedExtended, "FOO") {
+		t.Fatalf("the extra variable was removed instead of the comparison catching it:\n%s", strippedExtended)
+	}
+}
