@@ -1,0 +1,62 @@
+name: Bazel build benchmark
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bazel-benchmark-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  measure:
+    name: Compare clean, warm, and edited builds
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+          check-latest: true
+          cache: false
+
+      # GitHub's Ubuntu runner carries Bazelisk. The harness gives it a private
+      # BAZELISK_HOME and ignores host rc files so setup remains measurable.
+      - name: Verify Bazel launcher
+        run: BAZELISK_HOME="$RUNNER_TEMP/bazel-preflight" bazel --version
+
+      - name: Build benchmark harness
+        run: go build -o "$RUNNER_TEMP/build-system-cost" ./benchmarks/build-system-cost
+
+      - name: Measure both build systems
+        run: |
+          "$RUNNER_TEMP/build-system-cost" \
+            --trials 3 \
+            --output "$RUNNER_TEMP/build-system-cost-results"
+
+      - name: Add report to job summary
+        if: always()
+        run: |
+          report="$RUNNER_TEMP/build-system-cost-results/report.md"
+          if [[ -f "$report" ]]; then
+            cat "$report" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload measurements and logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: build-system-cost-${{ github.run_id }}
+          path: ${{ runner.temp }}/build-system-cost-results
+          if-no-files-found: warn
+          retention-days: 14

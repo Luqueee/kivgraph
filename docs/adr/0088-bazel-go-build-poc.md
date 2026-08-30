@@ -1,6 +1,6 @@
 # ADR 0088: Bazel as an optional Go build proof of concept
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-08-30
 - **Changes the MCP protocol:** no
 - **Changes the persistent schema:** no
@@ -57,23 +57,34 @@ suite is not claimed as a Bazel suite yet because several tests walk relative
 from the host `PATH`. Making those tests runfile-aware is a separate refactor,
 not a reason to weaken their existing contracts.
 
-The initial measurements were completed locally on macOS arm64 with Bazel
-`9.2.0` and the Go toolchain required by `go.mod`, using the Kivgraph checkout as
-the corpus. A clean `make bazel-poc-test` run took `65.03 s` and performed `395`
-actions while setting up the Bazel SDK and resolving the external dependency
-graph; setup and dependency download are included in that wall-clock result but
-were not separately instrumented. A warm no-op run of the final 12-target smoke
-suite took `0.59 s`. After an isolated Go source edit, `bazel build
-//cmd/kivgraph:kivgraph` took `1.65 s`, compared with `4.63 s` for the equivalent
-`go build ./cmd/kivgraph`. These are developer-machine measurements, not CI
-promises, and they do not justify moving Bazel into CI or replacing Make yet.
+The follow-up benchmark from [issue
+#124](https://github.com/Luqueee/kivgraph/issues/124) measured three isolated
+trials on macOS arm64 and a GitHub-hosted Ubuntu 24.04 amd64 runner. Every trial
+used private Bazelisk, Bazel action, Bazel repository, Go build, and Go module
+caches. It also ignored host Bazel rc files after two excluded CI runs exposed a
+shared `output_base`. The
+[full method and report](../../benchmarks/build-system-cost/report.md) and
+[raw samples](../../benchmarks/build-system-cost/results.json) are versioned with
+this decision.
 
-The follow-up benchmark and adoption decision are tracked in [issue
-#124](https://github.com/Luqueee/kivgraph/issues/124). It must repeat the clean,
-warm, and one-file-edit comparisons on a representative CI runner and a
-developer machine, record setup and external dependency download time
-separately, and decide whether Bazel should enter CI, expand its smoke suite,
-remain an optional POC, or be abandoned.
+On macOS, median clean totals were `16.84 s` for Go and `59.40 s` for Bazel;
+warm no-op builds were `0.127 s` and `0.143 s`, and one-file rebuilds were
+`0.147 s` and `0.154 s`. On GitHub Actions, clean totals were `31.38 s` and
+`86.86 s`; warm no-op builds were `0.088 s` and `0.314 s`, and one-file
+rebuilds were `0.116 s` and `0.490 s`.
+
+Bazel therefore remains an optional POC. It does not enter ordinary CI, replace
+any Make target, or expand its smoke suite: it was slower in every measured
+scenario on both environments, and the manual benchmark itself occupied a
+GitHub runner for `7m42s`. The benchmark workflow remains available through
+`workflow_dispatch`; it is manual, has no timing threshold, and fails only when
+an arm cannot be measured. Make, the existing CI, native LadybugDB, release
+packaging, Rust tooling, and pnpm remain the source of truth.
+
+## Follow-up
+
+Repeat the benchmark and revisit this decision only after a material change,
+such as deploying a remote cache or substantially enlarging the Go graph.
 
 ## Alternatives considered
 
