@@ -4,8 +4,8 @@ description: Route a question to the right Kivgraph tool, address a symbol witho
 ---
 
 `kivgraph serve` speaks MCP over stdio and, once a generation is published,
-registers twelve tools; before that it registers `index_project` alone. This page is
-about using them: which tool answers which question, how to name a symbol, and
+registers twelve tools; before that it registers `index_project` alone. This page
+is about using them: which tool answers which question, how to name a symbol, and
 how to read what comes back. Per-tool arguments live under
 [`/docs/mcp-tools/`](/docs/mcp-tools/) and on each tool's own page.
 
@@ -19,7 +19,7 @@ and the envelopes below are the same either way; what changes is what it costs.
 The `initialize` result carries an `instructions` string. This is it, literally:
 
 ```text
-Kivgraph answers "what breaks if I change this" from a published code graph over Go, TypeScript, Rust, Python and Dart. Before grepping or reading files to find callers, references or impact, call find_references or get_blast_radius; to read the code they name, call get_source. Check confidence and completeness: Python fallback facts can be CANDIDATE and external Dart packages can be UNRESOLVED.
+Kivgraph answers "what breaks if I change this" from a published code graph over Go, TypeScript, Rust, Python and Dart. If you can describe what the code does but do not know a symbol name, call find_by_intent first; then use the file or symbol it returns with the exact graph tools. Before grepping or reading files to find callers, references or impact, call find_references or get_blast_radius; to read the code they name, call get_source. Check confidence and completeness: Python fallback facts can be CANDIDATE and external Dart packages can be UNRESOLVED.
 
 Its edges are resolved by go/types, the TypeScript checker and rust-analyzer, not by matching names, so a reference list is complete for those languages and an empty one means nobody calls it. Grep cannot tell you that.
 
@@ -38,12 +38,12 @@ model at the moment it decides whether to call anything.
 
 | The question | The tool |
 | --- | --- |
+| I can describe the behavior but do not know its name; which files do I open | [`find_by_intent`](/docs/tools/find-by-intent/) |
 | Who calls this, what references this | [`find_references`](/docs/tools/find-references/) |
 | What breaks if I change this | [`get_blast_radius`](/docs/tools/get-blast-radius/) |
 | What does this reach outward | [`trace_dependencies`](/docs/tools/trace-dependencies/) |
 | Who uses this from another repository | [`find_cross_repo_consumers`](/docs/tools/find-cross-repo-consumers/) |
 | Where is this declared | [`find_symbol`](/docs/tools/find-symbol/) |
-| I do not know its name; which files do I open | [`find_by_intent`](/docs/tools/find-by-intent/), with `keywords` |
 | What are this symbol's package, signature, visibility and line range | [`get_symbol`](/docs/tools/get-symbol/) |
 | What is declared under this path | [`get_file_outline`](/docs/tools/get-file-outline/) |
 | Give me the code of these symbols | [`get_source`](/docs/tools/get-source/) |
@@ -53,6 +53,11 @@ model at the moment it decides whether to call anything.
 
 `index_project` is the only tool that changes anything. Every other tool is
 annotated `readOnlyHint`.
+
+Start with [`find_by_intent`](/docs/tools/find-by-intent/) when the question is
+about behavior rather than an identifier. It returns ranked candidates and the
+matching mode, not a type-checked edge; use its answer to enter the exact graph
+queries.
 
 ## Address a symbol without a stable key
 

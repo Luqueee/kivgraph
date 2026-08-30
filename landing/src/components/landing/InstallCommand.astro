@@ -1,0 +1,107 @@
+---
+import CopyButton from "./CopyButton.astro";
+import { PLATFORMS } from "./platforms";
+
+interface Props {
+  /** Names the radio group and the location in install analytics. */
+  where: string;
+  class?: string;
+}
+
+const { where, class: className = "" } = Astro.props;
+---
+
+{/* A radio group and no JavaScript: every command remains in the served HTML,
+  so a crawler and a reader with CSS disabled still receive all platforms. */}
+<fieldset class:list={["installer border-0", className]}>
+  <legend class="sr-only">Choose your platform</legend>
+
+  {
+    PLATFORMS.map((platform, index) => (
+      <input
+        class="sr-only"
+        type="radio"
+        name={`install-${where}`}
+        id={`install-${where}-${platform.id}`}
+        data-platform={platform.id}
+        checked={index === 0}
+      />
+    ))
+  }
+
+  <div class="border border-rule bg-panel text-left">
+    <div
+      class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-rule px-4 py-2 font-mono text-xs"
+    >
+      <div class="tabs flex flex-wrap gap-x-4 gap-y-1">
+        {
+          PLATFORMS.map((platform) => (
+            <label
+              class="cursor-pointer border-b-2 border-transparent pb-1 text-gray-400 transition-colors hover:text-gray-100"
+              for={`install-${where}-${platform.id}`}
+              data-tab={platform.id}
+            >
+              {platform.label}
+            </label>
+          ))
+        }
+      </div>
+
+      <div class="panels flex">
+        {
+          PLATFORMS.map((platform) => (
+            <div class="panel" data-panel={platform.id}>
+              <CopyButton
+                value={platform.command}
+                event="install_copy"
+                eventData={{ where, platform: platform.id }}
+              />
+            </div>
+          ))
+        }
+      </div>
+    </div>
+
+    <div class="panels">
+      {
+        PLATFORMS.map((platform) => (
+          <pre
+            class="panel px-4 py-3 font-mono text-xs leading-5 whitespace-pre-wrap break-all"
+            data-panel={platform.id}
+          ><code><span class="text-graph-exact select-none">{platform.prompt} </span>{platform.command}</code></pre>
+        ))
+      }
+    </div>
+  </div>
+</fieldset>
+
+<style>
+  .installer {
+    min-width: 0;
+    padding: 0;
+  }
+
+  .panel {
+    display: none;
+  }
+
+  input[data-platform="macos"]:checked ~ * .panels [data-panel="macos"],
+  input[data-platform="linux"]:checked ~ * .panels [data-panel="linux"],
+  input[data-platform="windows"]:checked ~ * .panels [data-panel="windows"] {
+    display: block;
+  }
+
+  input[data-platform="macos"]:checked ~ * .tabs [data-tab="macos"],
+  input[data-platform="linux"]:checked ~ * .tabs [data-tab="linux"],
+  input[data-platform="windows"]:checked ~ * .tabs [data-tab="windows"] {
+    border-bottom-color: var(--color-graph-exact);
+    color: var(--color-gray-100);
+  }
+
+  input[data-platform="macos"]:focus-visible ~ * .tabs [data-tab="macos"],
+  input[data-platform="linux"]:focus-visible ~ * .tabs [data-tab="linux"],
+  input[data-platform="windows"]:focus-visible ~ * .tabs [data-tab="windows"] {
+    outline: 1px solid var(--color-accent-200);
+    outline-offset: 3px;
+  }
+</style>

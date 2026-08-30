@@ -82,8 +82,9 @@ it is the number that decides whether a repository can be indexed.
 
 ## Published platforms
 
-Linux `amd64` and macOS `arm64`, and only those. `darwin/amd64` is out of scope
-by decision, not by cost, and the installer says so when it refuses.
+Linux `amd64`, macOS `arm64` and Windows `amd64`. `darwin/amd64` and
+`windows/arm64` are out of scope because no pinned native library is published
+for them; the installers say so when they refuse.
 
 A bundle is always built on a host of its own platform: cgo links the native
 library and there is no cross-compilation.

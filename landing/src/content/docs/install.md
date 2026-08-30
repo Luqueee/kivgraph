@@ -14,24 +14,28 @@ the grammar manifest and the web viewer served by `kivgraph ui`.
 
 ## Published platforms
 
-Linux `amd64` and macOS `arm64`. Those are the only two. On macOS only Apple
-Silicon is published; `darwin/amd64` is out of scope by decision, and the
-installer says so when it refuses.
+Linux `amd64`, macOS `arm64` and Windows `amd64`. Those are the three, and each
+publishes exactly one architecture. On macOS only Apple Silicon is published;
+`darwin/amd64` is out of scope by decision, and the installer says so when it
+refuses.
 
 ## Runtime requirements
 
-- Bash
+- Bash on Linux and macOS; PowerShell `5.1` or later on Windows
 - Node.js `22` or later — the TypeScript worker is a Node process
 - Python `3.10` or later when indexing Python — the bundled worker is a Python
   process
 - The Dart or Flutter SDK when indexing Dart — the loader drives the Dart
   Analysis Server it supplies
-- `curl`, `tar`
-- `sha256sum` or `shasum`
+- `curl`, `tar` on Linux and macOS
+- `sha256sum` or `shasum` on Linux and macOS
 
 The bundle carries its own `rust-analyzer`. Indexing Rust repositories
 additionally needs `cargo` on the `PATH`: the analyzer cannot load a Cargo
 workspace without it.
+
+On Windows the installer also installs the Visual C++ redistributable, which
+the native LadybugDB library requires at runtime.
 
 ## One command
 
@@ -49,6 +53,21 @@ To install a specific release instead of the latest one:
 
 ```bash
 KIVGRAPH_VERSION=v0.9.2 ./scripts/install.sh
+```
+
+On Windows, use the PowerShell installer:
+
+```powershell
+irm https://github.com/Luqueee/kivgraph/releases/latest/download/install.ps1 | iex
+```
+
+To keep PowerShell's version guard active, download the script and run it as a
+file instead:
+
+```powershell
+$installer = "$env:TEMP\kivgraph-install.ps1"
+irm https://github.com/Luqueee/kivgraph/releases/latest/download/install.ps1 -OutFile $installer
+& $installer
 ```
 
 ## Where it lands

@@ -1,13 +1,11 @@
 ---
-import CopyButton from "./CopyButton.astro";
+import InstallCommand from "./InstallCommand.astro";
 
 // This band is not a `Section`: it carries its own `h2` because the heading *is*
 // the call to action, and a `Section` head plus a second heading inside it would
 // put two `h2`s in one band. It repeats `Section`'s own geometry -- the
 // `border-t`, the `max-w-6xl` gutter, `py-14` and `data-reveal` -- so the
 // rhythm is identical from the outside.
-const installCommand =
-  "curl -fsSL https://github.com/Luqueee/kivgraph/releases/latest/download/install.sh | bash";
 ---
 
 <section id="install" class="border-t border-rule">
@@ -23,16 +21,7 @@ const installCommand =
         every answer carries the evidence it was resolved from.
       </p>
 
-      <div class="mt-10 border border-rule bg-panel text-left">
-        <div
-          class="flex items-center justify-between gap-4 border-b border-rule px-4 py-2 text-xs text-gray-400"
-        >
-          <span>install the latest release</span>
-          <CopyButton value={installCommand} event="install_copy" eventData={{ where: "final_cta" }} />
-        </div>
-        <pre
-          class="px-4 py-3 text-xs leading-5 whitespace-pre-wrap break-all"><code><span class="text-graph-exact select-none">$ </span>{installCommand}</code></pre>
-      </div>
+      <InstallCommand where="final_cta" class="mt-10" />
 
       <div
         class="mt-10 flex flex-wrap items-center justify-center gap-3 text-xs"

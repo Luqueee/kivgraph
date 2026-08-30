@@ -41,7 +41,7 @@ comprobando un path que ya no existe, es decir, nada.
 
 ## La documentación del MCP sale de una captura, no de la memoria
 
-Todo ejemplo de las once páginas de tool es una captura literal. Se construyó el
+Todo ejemplo de las doce páginas de tool es una captura literal. Se construyó el
 binario de HEAD con el tag `ladybug` y se condujo `kivgraph serve` por stdio
 contra la generación publicada `30` -- 2 repositorios, 311 ficheros, 57 paquetes,
 10.957 símbolos, 40.125 aristas, 1.642 referencias no resueltas -- registrando
@@ -119,7 +119,7 @@ una imprecisión de documentación, enruta la pregunta a una llamada que falla.
 | Tema | `data-theme="dark"` en las 27 páginas, 0 selectores de tema |
 | Go | `gofmt` limpio, `go vet` limpio, `go test ./...` ok |
 
-Las tablas de argumentos de las once páginas se compararon propiedad por
+Las tablas de argumentos de las doce páginas se compararon propiedad por
 propiedad contra el esquema de entrada capturado: ninguna ausente, ninguna
 inventada.
 
