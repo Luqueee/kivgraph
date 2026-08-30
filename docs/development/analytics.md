@@ -581,9 +581,9 @@ there.
 **Both halves exist now.** The endpoint is `landing/src/install-report.mjs`,
 wired in `landing/server.mjs`; the emitters are `internal/telemetry` for the
 binary and the tail of `scripts/install.sh` and `scripts/install.ps1` for the
-installers. Everything below is observed behaviour. No published release
-carries the emitters -- `v0.9.2` is the latest and predates them -- so the
-property has no rows in it.
+installers. Everything below is observed behaviour. `v0.9.3` is the first
+published release that carries the emitters; every version before it,
+`v0.9.2` included, predates them and can never have sent a row.
 
 ### The event
 

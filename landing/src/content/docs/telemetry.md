@@ -3,13 +3,14 @@ title: Telemetry
 description: What Kivgraph reports, what it never reports, and the one variable that turns it off.
 ---
 
-**As of `v0.9.2` -- the current release -- Kivgraph sends nothing.** No
-published version emits the ping described below. This page went up before any
-of them will, so that the opt-out is documented before there is anything to opt
-out of, and so that nobody has to read the source to find out what a version
-reports.
+**As of `v0.9.3` -- the current release -- Kivgraph sends one ping.** `serve`
+and the daemon report it the first time each version runs on a machine, and
+the installers report a second, independent one when they finish. This page
+went up a release before either did, so that the opt-out was documented before
+there was anything to opt out of, and so that nobody has to read the source to
+find out what a version reports.
 
-## The one thing that will be reported
+## The one thing it reports
 
 A single event: **this version arrived here and ran**. One machine installing
 one version produces at most two of them -- one when an installer finishes,
