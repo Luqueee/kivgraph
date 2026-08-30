@@ -443,7 +443,7 @@ func summarize(trials []trialResult) (summary, error) {
 		return summary{}, err
 	}
 	if bazelSummary.CleanBuildSeconds == 0 || bazelSummary.WarmBuildSeconds == 0 || bazelSummary.EditBuildSeconds == 0 {
-		return summary{}, errors.New("Bazel median is zero; cannot calculate ratios")
+		return summary{}, errors.New("bazel median is zero; cannot calculate ratios")
 	}
 	return summary{
 		Go: goSummary, Bazel: bazelSummary,
