@@ -5,6 +5,21 @@ description: Which symbols a plain-language description likely names, and the fi
 
 > Which symbols a plain-language description likely names, and the files to open. Start here when you have no name.
 
+## Start with the behavior
+
+You do not need to know the identifier before asking. In the measured
+`intent-token-cost` set, the question “which code refuses to publish a
+generation when the disk is nearly full” ranked its answer files `1 of 10`
+through `find_by_intent`; the best `git grep` result ranked them `25 of 34`.
+The set contains 24 questions over three repositories. Those numbers are ranks
+in each ordered candidate list: `find_by_intent` found the answer first, while
+the best `git grep` match appeared 25th. They are not success percentages or
+proof of an edge. Once the files are known, continue with the exact tools and
+inspect their `match`, confidence and completeness fields.
+
+See the [full measurement method](/comparison/) and the
+[plain-language discovery contract](#arguments) before choosing a view.
+
 ## Arguments
 
 | Argument | Type | Default | Meaning |

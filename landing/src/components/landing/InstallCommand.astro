@@ -51,7 +51,7 @@ const { where, class: className = "" } = Astro.props;
         {
           PLATFORMS.map((platform) => (
             <label
-              class="cursor-pointer border-b-2 border-transparent pb-1 text-gray-400 transition-colors hover:text-gray-100"
+              class="cursor-pointer border-b-2 border-transparent pb-1 text-gray-400 hover:text-gray-100"
               for={`install-${where}-${platform.id}`}
               data-tab={platform.id}
             >

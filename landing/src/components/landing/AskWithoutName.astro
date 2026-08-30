@@ -84,7 +84,7 @@ const demo = {
         <div class="flex flex-wrap items-baseline justify-between gap-x-4">
           <span class="text-gray-400">files to open</span>
           <span class="text-graph-exact"
-            >ranked {demo.rank} of {demo.offered}</span
+            >best result · #{demo.rank} of {demo.offered}</span
           >
         </div>
         <ul class="tree mt-3 space-y-1">
@@ -102,7 +102,7 @@ const demo = {
       >
         <span>grep -l {demo.nativePattern}</span>
         <span class="text-graph-symbol"
-          >ranked {demo.nativeRank} of {demo.nativeOffered}</span
+          >best grep match · #{demo.nativeRank} of {demo.nativeOffered}</span
         >
       </div>
     </div>

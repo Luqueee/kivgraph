@@ -78,6 +78,7 @@ files only after the graph has named them.
 | --- | --- |
 | Is a graph published, how old is it, what does it cover | [`graph_status`](/docs/tools/graph-status/) |
 | Which repositories are indexed, and in which language | [`list_repositories`](/docs/tools/list-repositories/) |
+| I can describe the behavior but do not know the symbol or file | [`find_by_intent`](/docs/tools/find-by-intent/) |
 | Where is this name or qualified name declared | [`find_symbol`](/docs/tools/find-symbol/) |
 | Everything about one symbol already identified | [`get_symbol`](/docs/tools/get-symbol/) |
 | The code behind rows a tool returned | [`get_source`](/docs/tools/get-source/) |

@@ -102,13 +102,11 @@ const consent: Line[] = [
     <SubHead title="before you start" />
     <ul class="mt-5 space-y-3 text-xs text-gray-400">
       <li>
-        Runtime for the installed bundle: Bash, Node.js 22 or later, <code
-          >curl</code
-        >, <code>tar</code>, and <code>sha256sum</code> or <code>shasum</code>.
-        Published platforms are <code>linux/amd64</code> and <code
-          >darwin/arm64</code
-        >; the installer refuses an Intel Mac by name rather than installing a
-        bundle that cannot run.
+        Runtime for the installed bundle: Bash on Linux and macOS, or
+        PowerShell 5.1 or later on Windows, plus Node.js 22 or later. Published
+        platforms are <code>linux/amd64</code>, <code>darwin/arm64</code> and
+        <code>windows/amd64</code>; the installers refuse unsupported
+        architectures by name rather than installing a bundle that cannot run.
       </li>
       <li>
         Per language, and only for the languages you register: indexing Rust

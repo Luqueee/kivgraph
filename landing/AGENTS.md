@@ -423,12 +423,12 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
   contrato y no instantánea, más `index_project`, que sólo se registra en la
   ruta `serve` configurada. `MCP_TOOLS` en `_seo.ts` tiene que casar con ella:
   de ahí salen el grupo *Tool reference* de `llms.txt` y de `llms-full.txt`.
-  `find_by_intent` llegó en la v0.8.0 y esa lista se quedó en once, así que la
-  tool faltaba en los dos endpoints y en la barra lateral mientras
-  `mcp/usage.md` ya enlazaba a `/docs/tools/find-by-intent/`, que respondía
-  `404`. Al añadir una tool se tocan cinco sitios: la página, el sidebar de
-  `astro.config.mjs`, `MCP_TOOLS`, `docs/mcp-tools.md` y el recuento en prosa de
-  este archivo.
+  `find_by_intent` llegó en la v0.8.0 y debe permanecer primera porque es la
+  puerta de entrada cuando el visitante no conoce un nombre. La sincronización
+  de la landing toca cinco sitios: la página, el sidebar de `astro.config.mjs`,
+  `MCP_TOOLS`, `docs/mcp-tools.md` y el recuento en prosa de este archivo. El
+  contrato runtime se comprueba además en `internal/mcp/surface_test.go` y
+  `internal/mcp/server.go`.
 - La referencia de tools documenta la superficie que `internal/mcp/server.go`
   registra, no el paquete `internal/mcp/tools`: son doce tools, `get_source`
   entre ellas, y `get_unresolved_references` no está publicada -- esa pregunta
@@ -437,20 +437,17 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
 
 ## La portada
 
-- El orden de las bandas **es el argumento** y va en una dirección: tengo un
-  símbolo que quiero cambiar -> ésta es la medición -> esto es lo que un grafo
-  resuelto dice de él -> por eso una búsqueda de texto no puede decir lo mismo ->
-  qué es en realidad un nombre -> las relaciones cruzan repositorios -> se
-  enchufa al agente que ya usas -> instálalo. `index.astro` no compone nada más.
-- La medición va **antes** de la demo desde el 2026-08-27, por dirección directa.
-  Antes iba después, y el argumento para ese orden sigue siendo bueno y conviene
-  conocerlo: medir antes de enseñar qué se mide obliga al lector a aceptar una
-  cifra sobre algo que todavía no ha visto, y la banda de `grep` que viene detrás
-  se apoya en la medición, no en la demo. Lo que el orden actual compra es que la
-  primera cosa concreta bajo el hero sea un número y no una captura. Si se vuelve
-  a cambiar, se cambian las cuatro: esta frase, el comentario de cabecera de
-  `index.astro`, sus secciones y los enlaces de `TopBar.astro`, que llevan ese
-  mismo orden como anclajes.
+- El orden de las bandas **es el argumento** y va en una dirección: empieza con
+  una pregunta sin nombre -> `find_by_intent` nombra los ficheros que abrir ->
+  esto es lo que un grafo resuelto dice de un símbolo -> ésta es la medición ->
+  por eso una búsqueda de texto no puede decir lo mismo -> qué es en realidad un
+  nombre -> las relaciones cruzan repositorios -> se enchufa al agente que ya
+  usas -> instálalo. `index.astro` no compone nada más.
+- La demo de `find_by_intent` va **antes** de la medición para que el lector vea
+  primero qué se mide y después el resultado comparable. Si se cambia el orden,
+  se cambian las cuatro: esta frase, el comentario de cabecera de `index.astro`,
+  sus secciones y los enlaces de `TopBar.astro`, que llevan el mismo orden como
+  anclajes.
 - Lo que **no** está en la portada es la lista de las doce tools. El visitante
   pregunta qué va a poder entender su agente, no qué funciones exporta el
   servidor; la referencia de tools es una página y cada banda enlaza a ella donde

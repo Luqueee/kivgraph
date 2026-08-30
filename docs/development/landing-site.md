@@ -28,7 +28,7 @@ comprobando un path que ya no existe, es decir, nada.
 | --- | --- |
 | Páginas HTML | 27 |
 | Páginas de documentación | 26 (4.388 líneas de markdown) |
-| Referencia por tool | 11 páginas (2.104 líneas) |
+| Referencia por tool | 12 páginas (3.713 líneas de markdown) |
 | Sección MCP | 4 páginas: clientes, skill, uso, troubleshooting |
 | Componentes de la landing | 16 (1.612 líneas) |
 | Piel de Starlight | `docs.css`, 742 líneas |
@@ -41,7 +41,7 @@ comprobando un path que ya no existe, es decir, nada.
 
 ## La documentación del MCP sale de una captura, no de la memoria
 
-Todo ejemplo de las once páginas de tool es una captura literal. Se construyó el
+Todo ejemplo de las doce páginas de tool es una captura literal. Se construyó el
 binario de HEAD con el tag `ladybug` y se condujo `kivgraph serve` por stdio
 contra la generación publicada `30` -- 2 repositorios, 311 ficheros, 57 paquetes,
 10.957 símbolos, 40.125 aristas, 1.642 referencias no resueltas -- registrando
@@ -119,13 +119,18 @@ una imprecisión de documentación, enruta la pregunta a una llamada que falla.
 | Tema | `data-theme="dark"` en las 27 páginas, 0 selectores de tema |
 | Go | `gofmt` limpio, `go vet` limpio, `go test ./...` ok |
 
-Las tablas de argumentos de las once páginas se compararon propiedad por
+Las tablas de argumentos de las doce páginas se compararon propiedad por
 propiedad contra el esquema de entrada capturado: ninguna ausente, ninguna
-inventada.
+inventada. El corpus de páginas se puede volver a contar con `wc -l
+landing/src/content/docs/docs/tools/*.md`; el esquema corresponde a
+`internal/mcp/tools/*.go` en `891d245` y su cobertura se revalida con `go test
+./internal/mcp -run TestEveryPublishedArgumentDescribesItself`.
 
 ## Límites residuales
 
-Las mediciones de arriba son las del 2026-08-15 y se dejan como se tomaron.
+Las mediciones de arriba son las del 2026-08-15 y se dejan como se tomaron,
+salvo el recuento actual de páginas de referencia y su total, actualizado al
+incorporar la duodécima página.
 Tres de los límites que este informe registraba ya no existen, y se corrigen
 aquí en vez de dejarlos contradiciendo el código:
 
