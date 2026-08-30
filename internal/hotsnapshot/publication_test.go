@@ -278,14 +278,19 @@ func TestConcurrentDeferredLoadsRespectMaximumOpenProfiles(t *testing.T) {
 	if err := store.SetMaxOpenProfiles(1); err != nil {
 		t.Fatal(err)
 	}
+	aLoaded := make(chan *GraphSnapshot, 1)
+	bLoaded := make(chan *GraphSnapshot, 1)
 	done := make(chan struct{}, 2)
-	go func() { a.Load(); done <- struct{}{} }()
-	go func() { b.Load(); done <- struct{}{} }()
+	go func() { aLoaded <- a.Load(); done <- struct{}{} }()
+	go func() { bLoaded <- b.Load(); done <- struct{}{} }()
 	<-entered
 	<-entered
 	close(release)
 	<-done
 	<-done
+	if <-aLoaded == nil || <-bLoaded == nil {
+		t.Fatal("concurrent Load(profiles=a,b, max_open_profiles=1) returned nil")
+	}
 	if a.Load() == nil || b.Load() == nil {
 		t.Fatal("Load(profiles=a,b, max_open_profiles=1) returned nil")
 	}
