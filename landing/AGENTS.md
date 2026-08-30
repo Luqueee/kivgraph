@@ -424,9 +424,11 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
   ruta `serve` configurada. `MCP_TOOLS` en `_seo.ts` tiene que casar con ella:
   de ahí salen el grupo *Tool reference* de `llms.txt` y de `llms-full.txt`.
   `find_by_intent` llegó en la v0.8.0 y debe permanecer primera porque es la
-  puerta de entrada cuando el visitante no conoce un nombre. Al añadir una
-  tool se tocan cinco sitios: la página, el sidebar de `astro.config.mjs`,
-  `MCP_TOOLS`, `docs/mcp-tools.md` y el recuento en prosa de este archivo.
+  puerta de entrada cuando el visitante no conoce un nombre. La sincronización
+  de la landing toca cinco sitios: la página, el sidebar de `astro.config.mjs`,
+  `MCP_TOOLS`, `docs/mcp-tools.md` y el recuento en prosa de este archivo. El
+  contrato runtime se comprueba además en `internal/mcp/surface_test.go` y
+  `internal/mcp/server.go`.
 - La referencia de tools documenta la superficie que `internal/mcp/server.go`
   registra, no el paquete `internal/mcp/tools`: son doce tools, `get_source`
   entre ellas, y `get_unresolved_references` no está publicada -- esa pregunta

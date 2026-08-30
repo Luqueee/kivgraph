@@ -19,7 +19,14 @@ and the envelopes below are the same either way; what changes is what it costs.
 The `initialize` result carries an `instructions` string. This is it, literally:
 
 ```text
-Kivgraph answers "what breaks if I change this" from a published code graph over Go, TypeScript, Rust, Python and Dart. If you can describe what the code does but do not know a symbol name, call find_by_intent first; then use the file or symbol it returns with the exact graph tools. Before grepping or reading files to find callers, references or impact, call find_references or get_blast_radius; to read the code they name, call get_source. Check confidence and completeness: Python fallback facts can be CANDIDATE and external Dart packages can be UNRESOLVED.
+Kivgraph answers "what breaks if I change this" from a published code graph over
+Go, TypeScript, Rust, Python and Dart. If you can describe what the code does
+but do not know a symbol name, call find_by_intent first; then use the file or
+symbol it returns with the exact graph tools. Before grepping or reading files
+to find callers, references or impact, call find_references or get_blast_radius;
+to read the code they name, call get_source. Check confidence and completeness:
+Python fallback facts can be CANDIDATE and external Dart packages can be
+UNRESOLVED.
 
 Its edges are resolved by go/types, the TypeScript checker and rust-analyzer, not by matching names, so a reference list is complete for those languages and an empty one means nobody calls it. Grep cannot tell you that.
 

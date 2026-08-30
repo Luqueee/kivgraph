@@ -28,7 +28,7 @@ comprobando un path que ya no existe, es decir, nada.
 | --- | --- |
 | Páginas HTML | 27 |
 | Páginas de documentación | 26 (4.388 líneas de markdown) |
-| Referencia por tool | 11 páginas (2.104 líneas) |
+| Referencia por tool | 12 páginas (3.713 líneas de markdown) |
 | Sección MCP | 4 páginas: clientes, skill, uso, troubleshooting |
 | Componentes de la landing | 16 (1.612 líneas) |
 | Piel de Starlight | `docs.css`, 742 líneas |
@@ -121,11 +121,16 @@ una imprecisión de documentación, enruta la pregunta a una llamada que falla.
 
 Las tablas de argumentos de las doce páginas se compararon propiedad por
 propiedad contra el esquema de entrada capturado: ninguna ausente, ninguna
-inventada.
+inventada. El corpus de páginas se puede volver a contar con `wc -l
+landing/src/content/docs/docs/tools/*.md`; el esquema corresponde a
+`internal/mcp/tools/*.go` en `891d245` y su cobertura se revalida con `go test
+./internal/mcp -run TestEveryPublishedArgumentDescribesItself`.
 
 ## Límites residuales
 
-Las mediciones de arriba son las del 2026-08-15 y se dejan como se tomaron.
+Las mediciones de arriba son las del 2026-08-15 y se dejan como se tomaron,
+salvo el recuento actual de páginas de referencia y su total, actualizado al
+incorporar la duodécima página.
 Tres de los límites que este informe registraba ya no existen, y se corrigen
 aquí en vez de dejarlos contradiciendo el código:
 
