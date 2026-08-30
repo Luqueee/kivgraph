@@ -109,7 +109,7 @@ func TestCurrentProjectRootUsesContainingGitRoot(t *testing.T) {
 
 	projectRoot, err := currentProjectRoot()
 	if err != nil {
-		t.Fatalf("currentProjectRoot() error = %v", err)
+		t.Fatalf("currentProjectRoot() from %q error = %v", nested, err)
 	}
 	if projectRoot != filepath.Clean(wantRoot) {
 		t.Fatalf("currentProjectRoot() = %q, want %q", projectRoot, wantRoot)
