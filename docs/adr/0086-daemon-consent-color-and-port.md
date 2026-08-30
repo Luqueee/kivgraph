@@ -19,30 +19,34 @@ In addition, `daemon status` and several maintenance reports used a linear
 format that was difficult to scan in a terminal, even though a shared policy
 already existed for colors and for keeping ANSI escapes out of pipes.
 
-## Decision
+## Proposed decision
 
-When `mcp install` needs to provision an absent or stale supervisor, an
-interactive invocation asks for consent. A negative answer keeps the `stdio`
-entry; `--daemon` is explicit consent and does not show the question. Without
-a terminal, the operation does not block waiting for an answer and keeps
-`stdio`. If supervisor status cannot be inspected, it reports that condition and
-also keeps `stdio`; an unknown ownership state is not consent. Target selection
-happens before this decision, so cancelling selection does not start anything.
+The proposed behavior is that when `mcp install` needs to provision an absent
+or stale supervisor, an interactive invocation asks for consent. A negative
+answer keeps the `stdio` entry; `--daemon` is explicit consent and does not
+show the question. Without a terminal, the operation does not block waiting
+for an answer and keeps `stdio`. If supervisor status cannot be inspected, it
+reports that condition and also keeps `stdio`; an unknown ownership state is
+not consent. Target selection happens before this decision, so cancelling
+selection does not start anything.
 
-`daemon status`, `graph status`, `rollback`, and `snapshot` use a key/value
-table in a terminal. The same information remains in the existing line format
-when output is redirected. States and results use the existing ANSI layer,
-which is disabled by `NO_COLOR`, `TERM=dumb`, or a non-terminal destination.
+The proposed presentation is for `daemon status`, `graph status`, `rollback`,
+and `snapshot` to use a key/value table in a terminal. The same information
+would remain in the existing line format when output is redirected. States and
+results would use the existing ANSI layer, which is disabled by `NO_COLOR`,
+`TERM=dumb`, or a non-terminal destination.
 
-The daemon prefers `127.0.0.1:7788`. When the caller did not pass `--addr` and
-that port is occupied, it binds `127.0.0.1:0`, publishes the selected port, and
-stores it in `daemon.port` with `0600` permissions. A later start reuses that
-port. An explicit `--addr` does not fall back: if it is occupied, the command
-fails and names the address.
+The proposed daemon behavior is to prefer `127.0.0.1:7788`. When the caller
+does not pass `--addr` and that port is occupied, it would bind
+`127.0.0.1:0`, publish the selected port, and store it in `daemon.port` with
+`0600` permissions. A later start would reuse that port. An explicit `--addr`
+would not fall back: if it is occupied, the command would fail and name the
+address.
 
-The supervisor specification always uses the resolved configuration path. This
-means `daemon status` without repeating `--config` describes the same unit as
-`mcp install` instead of calling it stale because the path is empty.
+The proposed supervisor specification always uses the resolved configuration
+path. This would mean `daemon status` without repeating `--config` describes
+the same unit as `mcp install` instead of calling it stale because the path is
+empty.
 
 ## Consequences
 
@@ -59,7 +63,21 @@ means `daemon status` without repeating `--config` describes the same unit as
 
 ## Verification
 
-Tests cover refusal without consent, reuse of an installed supervisor, the
-free-port selection when `7788` is occupied, persisted-port reuse, exact port
-persistence, and table alignment. Redirected output remains covered by the
+The implementation was checked from the repository root with:
+
+```bash
+go test ./cmd/kivgraph ./internal/daemon ./internal/supervisor
+```
+
+That command covers `TestDaemonProvisionNeedsConsentWhenNoUnitExists`,
+`TestDaemonProvisionDoesNotAskForAnExistingUnit`,
+`TestDefaultProvisionSkipsInstallWhenSupervisorStatusFails`,
+`TestDefaultProvisionDeclinesWithoutAnInteractiveTerminal`,
+`TestListenHTTPChoosesAndPersistsAPortWhenTheDefaultIsBusy`,
+`TestListenHTTPReusesThePersistedPort`,
+`TestListenHTTPRejectsACorruptPersistedPort`,
+`TestRenderKeyValueTableAlignsHumanOutput`, and
+`TestRenderKeyValueTableKeepsEmptyValuesVisible`. The tests use temporary
+state directories and a local temporary TCP listener; they do not depend on a
+checked-in or generated corpus. Redirected output remains covered by the
 existing assertions.

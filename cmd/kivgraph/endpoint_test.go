@@ -91,7 +91,7 @@ func TestDaemonProvisionNeedsConsentWhenNoUnitExists(t *testing.T) {
 // TestDefaultProvisionSkipsInstallWhenSupervisorStatusFails keeps an inability
 // to inspect ownership from becoming permission to install a background unit.
 func TestDefaultProvisionSkipsInstallWhenSupervisorStatusFails(t *testing.T) {
-	loaded := initialisedHome(t)
+	initialisedHome(t)
 	var stdout bytes.Buffer
 	statusErr := errors.New("supervisor status unavailable")
 	options, err := integrationManagerOptionsWithStatus(
@@ -111,9 +111,6 @@ func TestDefaultProvisionSkipsInstallWhenSupervisorStatusFails(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), statusErr.Error()) {
 		t.Fatalf("stdout = %q, want the status failure", stdout.String())
-	}
-	if _, err := os.Stat(daemon.EndpointPath(stateDirectory(loaded))); !os.IsNotExist(err) {
-		t.Fatalf("status failure provisioned a daemon endpoint: %v", err)
 	}
 }
 

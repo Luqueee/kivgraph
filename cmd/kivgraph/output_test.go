@@ -20,9 +20,9 @@ func TestRenderKeyValueTableAlignsHumanOutput(t *testing.T) {
 
 func TestRenderKeyValueTableKeepsEmptyValuesVisible(t *testing.T) {
 	title := "Status"
-	rows := []keyValueRow{{Key: "Endpoint", Value: "not published"}}
+	rows := []keyValueRow{{Key: "Endpoint", Value: ""}}
 	got := renderKeyValueTable(title, rows)
-	if !strings.Contains(got, "Endpoint: not published\n") {
+	if !strings.Contains(got, "Endpoint: \n") {
 		t.Fatalf("renderKeyValueTable(%q, %#v) omitted an empty-state value: %q", title, rows, got)
 	}
 }
