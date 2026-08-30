@@ -53,6 +53,13 @@ type Payload struct {
 	CWD           string          `json:"cwd"`
 	ToolName      string          `json:"tool_name"`
 	ToolInput     json.RawMessage `json:"tool_input"`
+	// SessionID is the conversation this call belongs to, and it is the
+	// only field the gate reads that says anything about *when* rather than
+	// *what*. It exists for the briefing, which happens once per session
+	// and cannot be once per anything without it. Claude Code and Codex
+	// send it; the OpenCode plugin has nothing to put here, and an empty
+	// one means the briefing does not fire at all -- see Briefing.
+	SessionID string `json:"session_id"`
 }
 
 // tool is a search-shaped tool, named once for all three dialects.
@@ -64,6 +71,10 @@ const (
 	toolGrep
 	toolGlob
 	toolAgent
+	// toolGraph is one of Kivgraph's own MCP tools. It is the one entry
+	// here that is not search-shaped: the gate never refuses it, and
+	// recognises it only so the first one of a session can be briefed.
+	toolGraph
 )
 
 // toolNames maps every spelling the three agents use onto the tool it names.
@@ -80,7 +91,26 @@ var toolNames = map[string]tool{
 	"task": toolAgent, "agent": toolAgent,
 }
 
+// graphToolPrefixes are the spellings a host gives one of Kivgraph's own MCP
+// tools.
+//
+// There is no table of operations here on purpose. The gate would have to grow
+// a line every time the server publishes a tool, and a briefing that silently
+// stopped firing for the newest tool is worse than one keyed on the server
+// name. The trailing separator is what keeps `mcp__kivgraphx_...` -- a
+// different server whose name starts the same way -- out of the match.
+var graphToolPrefixes = []string{"mcp__kivgraph_", "kivgraph_1mcp_"}
+
 // classifyTool answers which search-shaped tool a payload names.
 func classifyTool(name string) tool {
-	return toolNames[strings.ToLower(strings.TrimSpace(name))]
+	name = strings.ToLower(strings.TrimSpace(name))
+	if named, ok := toolNames[name]; ok {
+		return named
+	}
+	for _, prefix := range graphToolPrefixes {
+		if strings.HasPrefix(name, prefix) {
+			return toolGraph
+		}
+	}
+	return toolOther
 }

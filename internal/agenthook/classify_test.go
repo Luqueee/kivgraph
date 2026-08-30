@@ -2,6 +2,7 @@ package agenthook
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -166,5 +167,69 @@ func TestFirstLineBoundsWhatARefusalQuotes(t *testing.T) {
 	}
 	if !strings.HasSuffix(long, "…") {
 		t.Fatalf("a clipped prompt does not say it was clipped: %q", long)
+	}
+}
+
+// TestGraphToolsAreRecognisedWithoutSwallowingNeighbours pins both sides of the
+// prefix match.
+//
+// The gate keys on the server name rather than a table of operations, so the
+// risk is not a tool it misses but a tool it claims: another MCP server whose
+// name merely starts the same way would be briefed as if it were Kivgraph's,
+// and every one of its calls would be classified by a gate that knows nothing
+// about it. The negatives come first for that reason.
+func TestGraphToolsAreRecognisedWithoutSwallowingNeighbours(t *testing.T) {
+	for _, testCase := range []struct {
+		name string
+		tool string
+		want Kind
+	}{
+		{"a server whose name extends kivgraph", "mcp__kivgraphx_find_references", KindNone},
+		{"a different server entirely", "mcp__ripgrep__search", KindNone},
+		{"the bare server name with no operation", "mcp__kivgraph", KindNone},
+		{"an unrelated tool that merely contains the name", "run_kivgraph_index", KindNone},
+		{"claude code's spelling", "mcp__kivgraph__find_references", KindGraphTool},
+		{"the oh my pi spelling", "mcp__kivgraph_get_source", KindGraphTool},
+		{"through 1mcp", "kivgraph_1mcp_get_blast_radius", KindGraphTool},
+		{"a tool the server has not grown yet", "mcp__kivgraph__some_future_tool", KindGraphTool},
+		{"spelled by a host that shouts", "MCP__KIVGRAPH__FIND_SYMBOL", KindGraphTool},
+		{"padded by the host", "  mcp__kivgraph__find_symbol  ", KindGraphTool},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			got := Classify(Payload{ToolName: testCase.tool})
+			if got.Kind != testCase.want {
+				t.Fatalf("classified %q as kind %d, want %d", testCase.tool, got.Kind, testCase.want)
+			}
+		})
+	}
+}
+
+// TestGraphToolCarriesItsSpellingAndNothingElse checks that the arguments are
+// not read.
+//
+// Every Kivgraph tool takes a different shape and none of them changes whether
+// the session has been briefed, so a classifier that parsed them would be doing
+// work whose result is discarded -- and would be a place for a malformed
+// argument to turn a briefing into an error.
+func TestGraphToolCarriesItsSpellingAndNothingElse(t *testing.T) {
+	got := Classify(Payload{
+		ToolName:  "mcp__kivgraph__find_references",
+		ToolInput: json.RawMessage(`{"this is not":[valid json at all`),
+	})
+	want := Question{Kind: KindGraphTool, Tool: "mcp__kivgraph__find_references"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %#v, want %#v", got, want)
+	}
+}
+
+// TestPayloadReadsTheSessionId is the field the briefing cannot work without.
+func TestPayloadReadsTheSessionId(t *testing.T) {
+	var payload Payload
+	raw := `{"hook_event_name":"PreToolUse","cwd":"/w","tool_name":"Bash","session_id":"abc-123"}`
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+		t.Fatalf("decode payload: %v", err)
+	}
+	if payload.SessionID != "abc-123" {
+		t.Fatalf("session id is %q; the briefing cannot be once per anything without it", payload.SessionID)
 	}
 }

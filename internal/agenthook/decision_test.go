@@ -63,3 +63,55 @@ func jsonEqual(got, want any) bool {
 	}
 	return string(left) == string(right)
 }
+
+// TestAdvisoryVotesOnNothing is the negative that guards the advisory.
+//
+// The tempting shape for attaching context is `permissionDecision: "allow"`
+// with the text in `permissionDecisionReason`: it delivers the same words and
+// it is one field shorter. It also grants the call, and on this wire granting
+// means skipping the permission prompt the user configured -- so a briefing
+// written that way would quietly strip the prompt from every Kivgraph tool call
+// it rode along with. The absence of those fields is the whole point, so it is
+// asserted directly rather than inferred from the document.
+func TestAdvisoryVotesOnNothing(t *testing.T) {
+	const context = "Kivgraph, before the first call of this session."
+	var out strings.Builder
+	if err := (Decision{Context: context}).Write(&out); err != nil {
+		t.Fatalf("write advisory: %v", err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal([]byte(out.String()), &got); err != nil {
+		t.Fatalf("decode advisory: %v", err)
+	}
+	want := map[string]any{
+		"hookSpecificOutput": map[string]any{
+			"hookEventName":     "PreToolUse",
+			"additionalContext": context,
+		},
+	}
+	if !jsonEqual(got, want) {
+		t.Fatalf("got %#v, want %#v", got, want)
+	}
+	for _, granting := range []string{"permission", "permissionDecision", "user_message", "agent_message"} {
+		if strings.Contains(out.String(), granting) {
+			t.Fatalf("an advisory wrote %q; it must not answer the permission question at all", granting)
+		}
+	}
+}
+
+// TestDenyIgnoresAnyContext keeps one call from being told two things.
+//
+// Context is only ever read when Deny is false. A refusal already carries the
+// call to make instead, and a document holding both a refusal and a paragraph
+// of guidance invites an agent to act on the half that was not the verdict.
+func TestDenyIgnoresAnyContext(t *testing.T) {
+	const reason = "STOP: `New` has 24 declarations in 5 repositories."
+	decision := Decision{Deny: true, Reason: reason, Context: "ignored"}
+	var out strings.Builder
+	if err := decision.Write(&out); err != nil {
+		t.Fatalf("write deny: %v", err)
+	}
+	if strings.Contains(out.String(), "ignored") || strings.Contains(out.String(), "additionalContext") {
+		t.Fatalf("%#v carried context as well as a verdict: %s", decision, out.String())
+	}
+}

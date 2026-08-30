@@ -76,6 +76,13 @@ type Gate struct {
 	// Indexed reports whether a path or glob names a file the graph covers.
 	// A nil Indexed treats nothing as indexed.
 	Indexed func(name string) bool
+	// Briefing remembers which sessions have already been briefed. Its zero
+	// value never briefs, which is what a gate with nowhere to write should
+	// do.
+	Briefing Briefing
+	// SessionID is the conversation this call belongs to, and is empty for
+	// a host that does not send one.
+	SessionID string
 }
 
 // Decide answers a classified call.
@@ -86,6 +93,8 @@ type Gate struct {
 // nothing about.
 func (gate Gate) Decide(ctx context.Context, question Question) Decision {
 	switch question.Kind {
+	case KindGraphTool:
+		return gate.briefSession()
 	case KindResearchAgent:
 		return gate.denyResearchAgent(question)
 	case KindFiles:
@@ -97,6 +106,21 @@ func (gate Gate) Decide(ctx context.Context, question Question) Decision {
 	default:
 		return Allow
 	}
+}
+
+// briefSession attaches the briefing to the first Kivgraph tool call of a
+// session, and says nothing to the rest.
+//
+// This is the one branch that never refuses. A call to the graph is already the
+// outcome every other branch is arguing for, so refusing it -- even to insist
+// the skill be read first -- would put friction on precisely the behaviour the
+// gate exists to encourage, and would leave the tools dead for the session if
+// the briefing were ever missed.
+func (gate Gate) briefSession() Decision {
+	if !gate.Briefing.First(gate.SessionID) {
+		return Allow
+	}
+	return Decision{Context: briefText}
 }
 
 // denyResearchAgent refuses a subagent sent to read the codebase.
