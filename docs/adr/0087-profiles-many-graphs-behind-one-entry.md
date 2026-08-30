@@ -13,16 +13,30 @@
 
 ## Context
 
-One installation holds one graph. Measured on `devlabs` at generation `000094`:
-`53` repositories, `184.315` symbols, `549.970` edges, `476 MB` per generation
-with two retained, a `145 MB` snapshot file, `568 MB` of fact cache and `1,1 GB`
-of `rust-target`.
+One installation holds one graph. Every figure below is from one installation on
+`devlabs`, whose corpus is the `53` repositories its `repositories.yaml`
+registered at generation `000094` -- the `kena-workspace` monorepo across Go,
+TypeScript and Rust, plus this repository. Two commands produced all of it:
+
+```bash
+du -sh ~/.local/state/kivgraph/*        # sizes
+grep 'index --full finished' ~/.local/state/kivgraph/events.jsonl
+```
+
+Counts, from `graph_status` at that generation: `53` repositories, `184.315`
+symbols, `549.970` edges. Sizes: `476 MB` per generation with two retained, a
+`145 MB` snapshot file, `568 MB` of fact cache, `1,1 GB` of `rust-target`.
 
 Since ADR 0057 there is no incremental path: every pass is a full
-reconstruction. A warm pass over that corpus takes `16,9 s` and `35,6 s`; a pass
-whose entries went cold takes `178,9 s`. So editing one TypeScript library
-reconstructs the Rust and Go repositories nobody touched, and the watcher does
-it on every debounce.
+reconstruction. The three passes the event log holds for that corpus took
+`35,6 s` and `16,9 s` warm, and `178,9 s` for the one whose entries went cold --
+generations `000092`, `000094` and `000093` respectively. So editing one
+TypeScript library reconstructs the Rust and Go repositories nobody touched, and
+the watcher does it on every debounce.
+
+Both figures are one machine and one corpus, not a benchmark. They are enough to
+justify a shape and not enough to promise a speedup, which is why no section
+below claims one.
 
 Isolation already exists and has no name. `config.stateBesideConfig` relocates
 the database, the backups, the fact cache, the synthetic `go.work`, the four
@@ -47,14 +61,25 @@ from it. Profiles are the unit of indexing, publication and query scope.
 
 `mcp install` keeps writing one entry, unchanged, and it stays `kivgraph serve`.
 One daemon owns the socket, the token and the endpoint at the default state
-directory, and holds a map from profile to `hotsnapshot.SnapshotStore`. Each
-store opens on the first query that names its profile, which is what ADR 0067
-already does for one: a profile nobody asks about costs nothing.
+directory, and holds a map from profile to `hotsnapshot.SnapshotStore`.
 
-Three problems disappear with this choice rather than being solved. The `104`
-byte ceiling of `daemon.SocketPath` never applies, because there is one socket
-at a path that already fits. There is one supervisor unit, not one per profile.
-And a client configuration never learns that profiles exist.
+A store opens on the first **operation** that names its profile, not on the
+first query. Deferring to queries alone would leave `index_project` and
+`index --full` with nothing to register or publish into for a profile that has
+never been asked about, which is exactly the profile a first indexing run
+targets. Indexing, watching and the CLI open the store the same way a query
+does, and a profile that no operation names is what costs nothing -- which is
+what ADR 0067 already does for one.
+
+Two problems disappear with this choice rather than being solved. There is one
+supervisor unit, not one per profile. And a client configuration never learns
+that profiles exist.
+
+The `104` byte ceiling of `daemon.SocketPath` is **not** one of them, and this
+ADR does not touch it. Profiles stop multiplying socket paths, because there is
+one socket for the installation, but `--config` still relocates a whole state
+directory and a socket under it can still be too long. The check stays where
+ADR 0065 put it.
 
 The cost is that a tool can no longer capture a store when it registers.
 `snapshotStore.Load()` runs inside every handler over a value bound at
@@ -65,9 +90,11 @@ snapshot. This is the bulk of the work and it is mechanical.
 ### The profile is an argument, never a tool and never session state
 
 The resident surface is `len(name)*2 + len(description)` per tool against
-`MaximumResidentSurfaceBytes`. Measured over the served catalogue, the eleven
-query tools spend `1.864` of `1.900`, and `index_project` spends `213` of the
-`236` its own line allows. Both budgets sit at `98 %`.
+`MaximumResidentSurfaceBytes`, which is the formula
+`TestServerSurfaceStaysCheapToKeepResident` applies. Summing it over the eleven
+tools `registerQueryTools` registers, at commit `6f37f4a`, the query catalogue
+spends `1.864` of `1.900` and `index_project` spends `213` of the `236` its own
+line allows. Both budgets sit at `98 %`.
 
 A schema is not resident: neither target host keeps it. So `profile` on all
 eleven tools and on `index_project` costs **zero** resident bytes, and two new
@@ -92,7 +119,16 @@ projects behind a consent gate and gains `profile` regardless, so indexing into
 a name that does not exist yet is how a profile is created. Removing one is CLI,
 like `clean`.
 
-Discovery is paid where routing already lives and where the ceiling does not
+Rejecting `list_profiles` only works if something else enumerates, so this is
+stated rather than implied: **`graph_status` and `list_repositories` return
+every profile, not only the one that answered.** `graph_status` gains a
+`profiles` array -- name, published generation, repository count, and which one
+the pointer names -- and `list_repositories` gains a `profile` column and
+returns the repositories of all of them. Both take an optional `profile` to
+narrow. A client that knows no name calls either and has them all.
+
+That is the whole discovery path, and it costs no resident bytes because it
+lives in responses. The rest of the routing is paid where the ceiling does not
 apply: one generic sentence in the handshake `instructions`, which may not name
 or count profiles because a volatile fact there rewrites a cached system prompt;
 the published `SKILL.md`; and `guidance` on an empty answer whose repository
@@ -117,34 +153,85 @@ share more entries, but the number of entries would stop being bounded by
 anything; by profile name the cost is units times profiles, and `prune` already
 exists. A shared repository is analysed once per profile, which is irreducible.
 
-The four analyzer target directories -- `rust-target` at `1,1 GB`, and the Java,
-C# and Go synthetic files -- do not depend on the registry and stay shared per
-machine. `generations`, `CURRENT`, the publish lock and `factcache` move under
-the profile.
+### What is shared, and what a shared thing costs
+
+The synthetic `go.work` is **not** shared. It is built from the module set of
+the pass, which is the registry, and `stateBesideConfig` already relocates
+`go.synthetic_work_file` with the rest of the state. It moves under the profile.
+
+The three analyzer output directories -- `rust-target` at `1,1 GB`, `java-target`
+and `csharp-target` -- do not depend on the registry, and only they stay shared
+per machine. That sharing is what makes profiles affordable, and it is also the
+one place where two profiles can corrupt each other, so it needs a lock it does
+not have today: `indexing.Service.gate` is process-local and the publish lock is
+per profile, so two passes over two profiles are serialised by neither. Sharing
+is therefore conditional on a cross-profile lock over the shared targets, taken
+for the length of a pass and named in the failure when it is not free.
+
+If that lock proves to cost more than the disk it saves, the fallback is
+per-profile targets: `1,1 GB` per profile, and no coordination.
+
+`generations`, `CURRENT`, `BACKUP`, the publish lock, `backups`, `factcache`,
+the registry and the synthetic `go.work` move under the profile.
 
 ### A multi-profile query is a declared union
 
 A query may name several profiles. Three things follow.
 
 `Cursor` pins one `SnapshotID` and rejects a cursor from another. A page across
-profiles is a vector of positions plus a digest of the profile set, and a cursor
-whose set changed is rejected the way one from another generation already is.
-The order of profiles within a page is canonical, never the order of the
-request, or two equivalent calls paginate differently.
+profiles carries a position **and a `SnapshotID` per profile**, plus a digest of
+the profile set, and is rejected when the set changed or when **any** profile
+published since. Carrying only the set digest would be a regression on what the
+scalar cursor already guarantees: profiles publish independently, so a second
+page would silently mix rows from two generations of the same profile. The order
+of profiles within a page is canonical, never the order of the request, or two
+equivalent calls paginate differently.
 
 The envelope's `snapshot_id` stops being a scalar and becomes one entry per
 profile carrying its own generation and completeness. The merged
 `completeness` verdict is the **weakest** of the profiles, never a sum:
 `COMPLETE` only when every profile said `COMPLETE`.
 
+### The two envelope shapes, written out
+
+The compatibility promise and the shape change are only compatible if both are
+stated exactly, so both are.
+
+**One profile in the installation.** The envelope is what it is today, byte for
+byte: `snapshot_id` is the scalar it has always been, and there is no `profile`
+field in the envelope or on any row. There is one corpus, so there is nothing to
+scope and no declaration to make.
+
+**More than one profile in the installation, one named in the query.**
+`snapshot_id` stays scalar and the envelope gains `profile`. Rows carry no
+`profile`, because they all came from the one named.
+
+**More than one named in the query.** `snapshot_id` is replaced by `profiles`,
+one entry per profile with its generation and completeness; the envelope carries
+the merged verdict and `cross_profile_edges`; rows carry `profile`.
+
+The second and third shapes are a row-format version bump. The first is not a
+new shape at all, which is the whole point: an installation that never creates a
+second profile never sees a changed response.
+
 A `StableKey` is a BLAKE3 digest over language, package, module, qualified name
 and discriminator, and is documented as independent of snapshot ids and source
 locations. Under overlap the same declaration in two profiles produces a byte
 identical key in two snapshots. That is the deduplicator: two rows with one key
 are one declaration, returned once, declaring the profiles it was found in. It
-is also the hazard: a stable key arriving as an **input** no longer names a
-snapshot, so a call that carries one and no profile resolves in the default and
-must say so.
+is also the hazard, and it is not answered by declaring it. A stable key
+arriving as an **input** no longer names a snapshot, and resolving it through
+the default pointer means a key handed out before the pointer moved resolves
+later against a different graph -- different symbol data, or `not found`, with
+nothing wrong on either side. So once a second profile exists, a call that
+carries a stable key **requires** `profile`; it is refused rather than resolved
+by a pointer that is allowed to move. With one profile the requirement does not
+exist, like every other part of this.
+
+When one key is reached through several profiles with **different** payloads --
+the same declaration at two commits -- the row is not merged. Each profile's
+payload is its own row, both declaring their profile, because merging would
+invent a symbol that exists in neither generation.
 
 Rows carry `profile` only when more than one profile was asked for. One profile
 costs nothing, which is the rule `view: "files"` already follows.
@@ -199,13 +286,26 @@ of the parts, which is strictly worse than today's single graph.
 
 ### Migration
 
-The `53` repositories of an existing installation become the profile `default`
-by moving `generations/` and `CURRENT` under `profiles/default/`, with the
-pointer set to `default`. No pass runs, no command grows a flag, and no call
-grows an argument: the installation answers afterwards exactly as it did
-before.
+The `53` repositories of an existing installation become the profile `default`,
+with the pointer set to it. No pass runs, no command grows a flag, and no call
+grows an argument: the installation answers afterwards exactly as it did before.
 An upgrade that costs `178,9 s` is the difference between this being adopted and
 not.
+
+Every artifact the decision scopes to a profile moves, and the list is the
+migration rather than an example of it: `generations/`, `CURRENT`, `BACKUP`,
+`backups/`, `publish.lock`, `factcache/`, the synthetic `go.work` and
+`repositories.yaml`. Anything left above `profiles/default/` is state the
+default profile would then not find, and the cost of not finding `factcache` is
+the difference between the measured `16,9 s` and the measured `178,9 s` on the
+next pass.
+
+The move is atomic or it does not happen: the new layout is staged and swapped,
+never migrated in place, because a half-migrated state directory has a `CURRENT`
+pointing at generations that are no longer beside it. The old layout stays until
+the swap succeeds, so rollback is dropping the staged directory. A daemon must
+not be running across it -- the migration refuses while one holds the socket,
+rather than racing it.
 
 ## The claim that changes
 
@@ -239,7 +339,10 @@ which is the one outcome this surface refuses everywhere else.
   optional per-row `profile`. That is an MCP compatibility surface and it moves
   the row format version.
 - A profile name is an identifier compared exactly, like a repository name, and
-  is bounded so it can appear in a path.
+  is bounded so it can appear in a path. `*` is reserved: it is the all-profiles
+  selector, so a profile literally named `*` would be either unreachable or
+  ambiguous, and the registry refuses it at creation rather than defining an
+  escape.
 
 ## Alternatives rejected
 
@@ -266,15 +369,27 @@ breaking the closed-world annotation, not for its bytes.
 
 ## Verification
 
-Nothing is implemented. An implementation has to prove, at least:
+Nothing is implemented, so nothing here reports a result. These are the
+acceptance criteria an implementation has to meet, and the ADR gets its
+verification section filled in with recorded output when it does:
 
 ```bash
 go test ./internal/mcp/... ./internal/daemon ./internal/indexer ./internal/config
 ```
 
-- That the resident surface still fits. `TestServerSurfaceStaysCheapToKeepResident`
-  passes unchanged, because a `profile` argument is schema and not description,
-  and `TestEveryPublishedArgumentDescribesItself` covers the new argument.
+- That the resident surface still fits, under
+  `TestServerSurfaceStaysCheapToKeepResident` unchanged -- the expectation being
+  that a `profile` argument is schema and not description, and so costs nothing
+  it measures -- and that `TestEveryPublishedArgumentDescribesItself` covers the
+  new argument.
+- That two profiles indexing concurrently cannot corrupt the shared analyzer
+  targets, with a test that runs two passes over two profiles at once. Today
+  neither `indexing.Service.gate`, which is process-local, nor the publish lock,
+  which is per profile, would serialise them.
+- That a page taken across profiles is refused when any one of those profiles
+  publishes between pages, not only when the profile set changes.
+- That a stable key without a profile is refused once a second profile exists,
+  and accepted while there is one.
 - That two profiles sharing a repository both stay warm across alternating
   passes. This is the regression the fact-cache key exists to prevent, and it is
   invisible to any test that runs one profile.
