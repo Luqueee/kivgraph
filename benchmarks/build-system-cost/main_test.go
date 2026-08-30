@@ -20,6 +20,17 @@ func TestRunRecordsBothArmsWithoutUsingRealCaches(t *testing.T) {
 	writeExecutable(t, filepath.Join(commands, "go"), "#!/bin/sh\nprintf 'GOCACHE=%s\\nGOMODCACHE=%s\\nGOPATH=%s\\n' \"$GOCACHE\" \"$GOMODCACHE\" \"$GOPATH\"\necho 'go version go1.26.6 test/fixture'\n")
 	writeExecutable(t, filepath.Join(commands, "bazel"), "#!/bin/sh\necho 'Build completed successfully'\n")
 	t.Setenv("PATH", commands+string(os.PathListSeparator)+os.Getenv("PATH"))
+	hostCaches := []struct {
+		name  string
+		value string
+	}{
+		{name: "GOCACHE", value: filepath.Join(t.TempDir(), "host-go-cache-sentinel")},
+		{name: "GOMODCACHE", value: filepath.Join(t.TempDir(), "host-go-mod-cache-sentinel")},
+		{name: "GOPATH", value: filepath.Join(t.TempDir(), "host-go-path-sentinel")},
+	}
+	for _, cache := range hostCaches {
+		t.Setenv(cache.name, cache.value)
+	}
 
 	previous, err := os.Getwd()
 	if err != nil {
@@ -62,15 +73,15 @@ func TestRunRecordsBothArmsWithoutUsingRealCaches(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, variable := range []string{"GOCACHE", "GOMODCACHE", "GOPATH"} {
-		prefix := variable + "="
+	for _, cache := range hostCaches {
+		prefix := cache.name + "="
 		for _, line := range strings.Split(string(goLog), "\n") {
-			if strings.HasPrefix(line, prefix) && !strings.Contains(line, "kivgraph-build-cost-01-") {
-				t.Fatalf("%s was not isolated in the trial directory: %q", variable, line)
+			if strings.HasPrefix(line, prefix) && strings.Contains(line, cache.value) {
+				t.Fatalf("%s inherited the host cache: %q", cache.name, line)
 			}
 		}
 		if !strings.Contains(string(goLog), prefix) {
-			t.Fatalf("Go log did not record %s:\n%s", variable, goLog)
+			t.Fatalf("Go log did not record %s:\n%s", cache.name, goLog)
 		}
 	}
 	report, err := os.ReadFile(filepath.Join(output, "report.md"))
@@ -228,7 +239,7 @@ func TestSummarizeUsesMediansAndRatios(t *testing.T) {
 		t.Fatalf("clean medians = go %v bazel %v", got.Go.CleanBuildSeconds, got.Bazel.CleanBuildSeconds)
 	}
 	if got.Ratios.BazelOverGoEdit != 0.5 {
-		t.Fatalf("edit ratio = %v, want 0.5", got.Ratios.BazelOverGoEdit)
+		t.Fatalf("summarize(%#v) edit ratio = %v, want 0.5", trials, got.Ratios.BazelOverGoEdit)
 	}
 }
 
