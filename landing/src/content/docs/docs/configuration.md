@@ -23,6 +23,13 @@ state, its cache and its registry hang from its own directory. A `--config` in
 | --- | --- | --- |
 | `repositories_file` | `~/.config/kivgraph/repositories.yaml` | The repository registry document. |
 
+## `profiles`
+
+| Key | Default | Notes |
+| --- | --- | --- |
+| `default` | `default` | Profile used when an operation does not name one. |
+| `max_open` | `3` | Maximum number of profile snapshots kept mapped by one server. Must be at least `1`; the least recently used mapping is released when the bound is crossed. |
+
 ## `storage`
 
 | Key | Default | Notes |

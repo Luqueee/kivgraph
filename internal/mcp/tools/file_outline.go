@@ -31,9 +31,10 @@ const (
 // row-per-declaration shape; "files" answers only which files hold the page's
 // declarations and how many each holds.
 type GetFileOutlineInput struct {
-	Repository string `json:"repository" jsonschema:"The repository that holds the path, as list_repositories names it."`
-	Path       string `json:"path" jsonschema:"A repository-relative file, or a directory whose files are all wanted."`
-	Kind       string `json:"kind,omitempty" jsonschema:"Keep only declarations of this kind, such as function, struct or interface."`
+	Profile    []string `json:"profile,omitempty" jsonschema:"Profiles to query; omit for the default, or use * alone for all."`
+	Repository string   `json:"repository" jsonschema:"The repository that holds the path, as list_repositories names it."`
+	Path       string   `json:"path" jsonschema:"A repository-relative file, or a directory whose files are all wanted."`
+	Kind       string   `json:"kind,omitempty" jsonschema:"Keep only declarations of this kind, such as function, struct or interface."`
 	// IncludeMembers adds struct fields, properties and enum members. They
 	// are off by default because they are not declarations a reader chooses
 	// between: they are the shape of the type above them, and on a real file
@@ -75,8 +76,9 @@ type FileOutline struct {
 
 // OutlineFile is one file and the declarations this page carries for it.
 type OutlineFile struct {
-	Path    string          `json:"path"`
-	Symbols []OutlineSymbol `json:"symbols"`
+	Profiles ProfileNames    `json:"profile,omitempty"`
+	Path     string          `json:"path"`
+	Symbols  []OutlineSymbol `json:"symbols"`
 }
 
 // OutlineSymbol is one declaration.
@@ -90,12 +92,13 @@ type OutlineFile struct {
 // are what `get_symbol` and `find_references` now accept. The key returns under
 // `response_format: "detailed"`, together with the fully qualified signature.
 type OutlineSymbol struct {
-	Name      string `json:"name"`
-	Kind      string `json:"kind"`
-	Signature string `json:"signature"`
-	Exported  bool   `json:"exported"`
-	StartLine uint32 `json:"start_line"`
-	EndLine   uint32 `json:"end_line"`
+	Profiles  ProfileNames `json:"profile,omitempty"`
+	Name      string       `json:"name"`
+	Kind      string       `json:"kind"`
+	Signature string       `json:"signature"`
+	Exported  bool         `json:"exported"`
+	StartLine uint32       `json:"start_line"`
+	EndLine   uint32       `json:"end_line"`
 
 	QualifiedName     string `json:"qualified_name,omitempty"`
 	StableKey         string `json:"stable_key,omitempty"`
@@ -105,8 +108,9 @@ type OutlineSymbol struct {
 // compactOutlineFile is one file and its declarations, each an entry that
 // starts with the name and the lines it occupies.
 type compactOutlineFile struct {
-	File string `json:"file"`
-	At   []any  `json:"at"`
+	Profiles ProfileNames `json:"profile,omitempty"`
+	File     string       `json:"file"`
+	At       []any        `json:"at"`
 }
 
 // compactOutlineGroup is every declaration that shares one exact (kind,
@@ -122,8 +126,9 @@ type compactOutlineGroup struct {
 // page's declarations and how many each holds. It is the answer to "where is
 // this defined" without paying for what is defined there.
 type outlineFileCount struct {
-	File         string `json:"file"`
-	Declarations int    `json:"declarations"`
+	Profiles     ProfileNames `json:"profile,omitempty"`
+	File         string       `json:"file"`
+	Declarations int          `json:"declarations"`
 }
 
 // MarshalJSON writes the outline at the granularity the caller asked for.
@@ -141,7 +146,7 @@ func (outline FileOutline) MarshalJSON() ([]byte, error) {
 	case ViewFiles:
 		files := make([]outlineFileCount, 0, len(outline.Files))
 		for _, group := range outline.Files {
-			files = append(files, outlineFileCount{File: group.Path, Declarations: len(group.Symbols)})
+			files = append(files, outlineFileCount{Profiles: group.Profiles, File: group.Path, Declarations: len(group.Symbols)})
 		}
 		return json.Marshal(struct {
 			Repository string             `json:"repository"`
@@ -277,7 +282,7 @@ type outlineEntry struct {
 func outlineFileGroups(fileGroups []OutlineFile, namesImplied bool, effectiveKind string, effectiveExported *bool) []compactOutlineFile {
 	files := make([]compactOutlineFile, 0, len(fileGroups))
 	for _, group := range fileGroups {
-		compact := compactOutlineFile{File: group.Path, At: make([]any, 0, len(group.Symbols))}
+		compact := compactOutlineFile{Profiles: group.Profiles, File: group.Path, At: make([]any, 0, len(group.Symbols))}
 		for _, symbol := range group.Symbols {
 			name := ""
 			if !namesImplied {
@@ -373,7 +378,17 @@ func RegisterGetFileOutlineWithObserverAndSnapshotStore(
 		request *sdkmcp.CallToolRequest,
 		arguments GetFileOutlineInput,
 	) (*sdkmcp.CallToolResult, Response[FileOutline], error) {
-		return getFileOutline(ctx, request, arguments, snapshotStore)
+		selected, count, err := resolveProfileSelection(snapshotStore, arguments.Profile, "")
+		if err != nil {
+			return nil, Response[FileOutline]{}, err
+		}
+		if len(selected) > 1 {
+			return getFileOutlineAcrossProfiles(ctx, request, arguments, selected)
+		}
+		store, profile := selected[0].Store, selected[0].Name
+		result, response, err := getFileOutline(ctx, request, arguments, store)
+		scopeResponse(&response, profile, count)
+		return result, response, err
 	}
 	if observer != nil || callObserver != nil {
 		underlying := handler
@@ -393,6 +408,147 @@ func RegisterGetFileOutlineWithObserverAndSnapshotStore(
 		Description: "Declarations under a path, grouped by file, with kind, signature and range. Use it for a package; one small file is cheaper to read.",
 		Annotations: readOnlyClosedWorld(),
 	}, handler)
+}
+
+func getFileOutlineAcrossProfiles(
+	ctx context.Context,
+	request *sdkmcp.CallToolRequest,
+	arguments GetFileOutlineInput,
+	selected []hotsnapshot.ProfileStore,
+) (*sdkmcp.CallToolResult, Response[FileOutline], error) {
+	repository, err := normalizeOutlineArgument(arguments.Repository, "repository")
+	if err != nil {
+		return nil, Response[FileOutline]{}, err
+	}
+	path, err := normalizeOutlinePath(arguments.Path)
+	if err != nil {
+		return nil, Response[FileOutline]{}, err
+	}
+	limit, err := normalizeOutlineLimit(arguments.Limit)
+	if err != nil {
+		return nil, Response[FileOutline]{}, err
+	}
+	format, err := normalizeResponseFormat(arguments.ResponseFormat)
+	if err != nil {
+		return nil, Response[FileOutline]{}, err
+	}
+	view, err := normalizeView(arguments.View, true)
+	if err != nil {
+		return nil, Response[FileOutline]{}, err
+	}
+	names := make([]string, 0, len(selected))
+	for _, profile := range selected {
+		names = append(names, profile.Name)
+	}
+	queryHash, err := HashQuery(struct {
+		Tool           string   `json:"tool"`
+		Profiles       []string `json:"profiles"`
+		Repository     string   `json:"repository"`
+		Path           string   `json:"path"`
+		Kind           string   `json:"kind,omitempty"`
+		IncludeMembers bool     `json:"include_members,omitempty"`
+	}{fileOutlineToolName, names, repository, path, arguments.Kind, arguments.IncludeMembers})
+	if err != nil {
+		return nil, Response[FileOutline]{}, err
+	}
+	type entry struct {
+		file string
+		row  OutlineSymbol
+	}
+	profiles := make([]ProfileSnapshot, 0, len(selected))
+	rows := make([]entry, 0)
+	variants := make(map[string]int)
+	packages := map[string]struct{}{}
+	languages := map[string]struct{}{}
+	mergedCompleteness := Completeness{Verdict: VerdictComplete}
+	foundPath := false
+	for _, profile := range selected {
+		snapshot := profile.Store.Load()
+		if snapshot == nil {
+			return nil, Response[FileOutline]{}, ErrIndexNotReady()
+		}
+		profileCompleteness := Completeness{Verdict: VerdictComplete}
+		pageArguments := arguments
+		pageArguments.Profile, pageArguments.Cursor = nil, ""
+		pageArguments.Limit = MaximumOutlineLimit
+		pageArguments.ResponseFormat, pageArguments.View = ResponseFormatDetailed, ViewFull
+		firstPage := true
+		for {
+			_, response, queryErr := getFileOutline(ctx, request, pageArguments, profile.Store)
+			if queryErr != nil {
+				if firstPage && (ErrorCode(queryErr) == CodeSymbolNotFound || ErrorCode(queryErr) == CodeRepositoryNotFound) {
+					break
+				}
+				return nil, Response[FileOutline]{}, queryErr
+			}
+			foundPath = true
+			if firstPage && response.Completeness != nil {
+				profileCompleteness = *response.Completeness
+				mergeCompleteness(&mergedCompleteness, response.Completeness)
+			}
+			for _, value := range response.Results.Packages {
+				packages[value] = struct{}{}
+			}
+			for _, value := range response.Results.Languages {
+				languages[value] = struct{}{}
+			}
+			for _, group := range response.Results.Files {
+				for _, row := range group.Symbols {
+					stableKey := row.StableKey
+					row.Profiles = ""
+					if format != ResponseFormatDetailed {
+						row.StableKey, row.CanonicalIdentity = "", ""
+					}
+					payload, marshalErr := json.Marshal(struct {
+						File string        `json:"file"`
+						Row  OutlineSymbol `json:"row"`
+					}{group.Path, row})
+					if marshalErr != nil {
+						return nil, Response[FileOutline]{}, WrapToolError(CodeSnapshotUnavailable, "encode outline payload for profile merge", marshalErr)
+					}
+					key := stableKey + "\x00" + string(payload)
+					if position, duplicate := variants[key]; duplicate {
+						rows[position].row.Profiles = rows[position].row.Profiles.append(profile.Name)
+						continue
+					}
+					row.Profiles = profileNames(profile.Name)
+					variants[key] = len(rows)
+					rows = append(rows, entry{file: group.Path, row: row})
+				}
+			}
+			firstPage = false
+			if response.NextCursor == nil {
+				break
+			}
+			pageArguments.Cursor = *response.NextCursor
+		}
+		completeness := profileCompleteness
+		profiles = append(profiles, ProfileSnapshot{Name: profile.Name, SnapshotID: snapshot.Metadata().ID, Completeness: &completeness})
+	}
+	if !foundPath {
+		return nil, Response[FileOutline]{}, NewToolError(CodeSymbolNotFound, "path was not found in the selected profiles")
+	}
+	offset, end, next, err := profilePageBounds(profiles, queryHash, SortingVersionStableKeyV1, arguments.Cursor, limit, len(rows))
+	if err != nil {
+		return nil, Response[FileOutline]{}, err
+	}
+	outline := FileOutline{Repository: repository, Path: path, Packages: sortedKeys(packages), Languages: sortedKeys(languages), Files: []OutlineFile{}, View: view}
+	groups := map[string]int{}
+	for _, item := range rows[offset:end] {
+		key := string(item.row.Profiles) + "\x00" + item.file
+		position, found := groups[key]
+		if !found {
+			position = len(outline.Files)
+			groups[key] = position
+			outline.Files = append(outline.Files, OutlineFile{Profiles: item.row.Profiles, Path: item.file})
+		}
+		outline.Files[position].Symbols = append(outline.Files[position].Symbols, item.row)
+	}
+	return nil, Response[FileOutline]{
+		Profiles: profiles, CrossProfileEdges: "not_resolved",
+		Total: len(rows), Returned: end - offset, Truncated: end < len(rows), NextCursor: next,
+		Completeness: &mergedCompleteness, Results: outline, View: view,
+	}, nil
 }
 
 func getFileOutline(

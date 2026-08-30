@@ -6,6 +6,7 @@ go_library(
         "config.go",
         "detect.go",
         "languages.go",
+        "profiles.go",
     ],
     importpath = "github.com/Luqueee/kivgraph/internal/config",
     visibility = ["//:__subpackages__"],
@@ -17,6 +18,7 @@ go_test(
     srcs = [
         "config_test.go",
         "languages_test.go",
+        "profiles_test.go",
     ],
     embed = [":config"],
     deps = ["//internal/testsupport"],

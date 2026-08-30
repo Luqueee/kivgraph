@@ -15,6 +15,10 @@ import (
 
 const indexProjectToolName = "index_project"
 
+type profileProjectIndexer interface {
+	IndexProjectsInProfile(context.Context, string, []indexing.Project, func(indexing.ProjectProgress)) (indexing.ProjectResult, error)
+}
+
 // IndexProjectInput is the explicit request accepted by index_project.
 //
 // Projects is the form to prefer: every project in one call is registered
@@ -29,6 +33,7 @@ const indexProjectToolName = "index_project"
 // The confirmed flag is used by clients that do not implement MCP
 // elicitation; those clients must obtain user approval before sending true.
 type IndexProjectInput struct {
+	Profile   string              `json:"profile,omitempty" jsonschema:"Profile to index; omit for the default. A missing name creates it."`
 	Projects  []IndexProjectEntry `json:"projects,omitempty" jsonschema:"Every project to register, in one call. Prefer this form: a rebuild costs the whole corpus however many are added."`
 	Name      string              `json:"name,omitempty" jsonschema:"Name for a single project. Use it with path and languages, never together with projects."`
 	Path      string              `json:"path,omitempty" jsonschema:"Absolute directory of a single project. Nothing is written inside it."`
@@ -114,7 +119,20 @@ func RegisterIndexProject(
 			observeCall(nil, callObserver, indexProjectToolName, start, err)
 			return nil, indexing.ProjectResult{}, err
 		}
-		result, err := indexer.IndexProjects(ctx, batch, progressReporter(ctx, request))
+		progress := progressReporter(ctx, request)
+		var result indexing.ProjectResult
+		if profile := strings.TrimSpace(arguments.Profile); profile != "" {
+			profileIndexer, ok := indexer.(profileProjectIndexer)
+			if !ok {
+				err = NewToolError(CodeInvalidArgument, fmt.Sprintf("project indexer does not support profile %q", profile))
+				observeCall(nil, callObserver, indexProjectToolName, start, err)
+				return nil, indexing.ProjectResult{}, err
+			} else {
+				result, err = profileIndexer.IndexProjectsInProfile(ctx, profile, batch, progress)
+			}
+		} else {
+			result, err = indexer.IndexProjects(ctx, batch, progress)
+		}
 		if err != nil {
 			// This tool fails on the caller's own configuration: a
 			// module that needs a newer toolchain, a path that is not

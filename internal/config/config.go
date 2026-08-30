@@ -68,6 +68,7 @@ func (duration Duration) String() string {
 // Config is the complete Kivgraph configuration document.
 type Config struct {
 	Version    int              `yaml:"version"`
+	Profiles   ProfilesConfig   `yaml:"profiles"`
 	Workspace  WorkspaceConfig  `yaml:"workspace"`
 	Storage    StorageConfig    `yaml:"storage"`
 	Web        WebConfig        `yaml:"web"`
@@ -83,6 +84,42 @@ type Config struct {
 	CSharp     CSharpConfig     `yaml:"csharp"`
 	Telemetry  TelemetryConfig  `yaml:"telemetry"`
 	Logging    LoggingConfig    `yaml:"logging"`
+}
+
+// ProfilesConfig selects the profile used when an operation does not name
+// one. The profile itself is ordinary; only this pointer supplies a default.
+type ProfilesConfig struct {
+	Default string `yaml:"default"`
+	MaxOpen int    `yaml:"max_open"`
+}
+
+const maximumProfileNameBytes = 64
+
+// ValidateProfileName refuses names that are unsafe or ambiguous as one path
+// element. The all-profiles selector is reserved and is never a profile name.
+func ValidateProfileName(name string) error {
+	if name == "" {
+		return errors.New("must not be empty")
+	}
+	if len(name) > maximumProfileNameBytes {
+		return fmt.Errorf("must be at most %d bytes, got %d", maximumProfileNameBytes, len(name))
+	}
+	if name == "*" {
+		return errors.New("must not be *: it is the all-profiles selector")
+	}
+	for _, character := range name {
+		if character >= 'a' && character <= 'z' ||
+			character >= 'A' && character <= 'Z' ||
+			character >= '0' && character <= '9' ||
+			character == '-' || character == '_' || character == '.' {
+			continue
+		}
+		return fmt.Errorf("must contain only ASCII letters, digits, '.', '-' or '_', got %q", name)
+	}
+	if name == "." || name == ".." {
+		return fmt.Errorf("must not be %q", name)
+	}
+	return nil
 }
 
 // WorkspaceConfig points to the repository registry.
@@ -454,6 +491,8 @@ type Loaded struct {
 	Repositories     RepositoriesFile
 	ConfigPath       string
 	RepositoriesPath string
+	// Profile is empty only for callers using the legacy unscoped Load seam.
+	Profile string
 	// RetiredKeys are the dotted names of keys the file carries that this
 	// build no longer implements. They are reported rather than rejected, so
 	// something has to be able to say they were there. See ADR 0062.
@@ -479,7 +518,8 @@ type InitResult struct {
 // Paths use the documented home-directory notation until Load expands them.
 func DefaultConfig() Config {
 	return Config{
-		Version: CurrentSchemaVersion,
+		Version:  CurrentSchemaVersion,
+		Profiles: ProfilesConfig{Default: "default", MaxOpen: 3},
 		Workspace: WorkspaceConfig{
 			RepositoriesFile: defaultRepositoriesFile,
 		},
@@ -785,6 +825,9 @@ func Initialize(options InitOptions) (InitResult, error) {
 	repositoriesCreated, err := writeInitialFile(repositoriesPath, repositoriesData, options.Force)
 	if err != nil {
 		return InitResult{}, fmt.Errorf("write repositories %q: %w", repositoriesPath, err)
+	}
+	if err := ensureDefaultProfile(expandedConfiguration, repositoriesPath); err != nil {
+		return InitResult{}, err
 	}
 	return InitResult{
 		ConfigPath:          configPath,
@@ -1107,6 +1150,12 @@ func expandConfigPath(value, base, field string) (string, error) {
 func validateConfig(configuration Config) error {
 	if configuration.Version != CurrentSchemaVersion {
 		return fmt.Errorf("config.version: unsupported schema version %d, want %d", configuration.Version, CurrentSchemaVersion)
+	}
+	if err := ValidateProfileName(configuration.Profiles.Default); err != nil {
+		return fmt.Errorf("config.profiles.default: %w", err)
+	}
+	if configuration.Profiles.MaxOpen < 1 {
+		return errors.New("config.profiles.max_open: must be at least 1")
 	}
 	for field, value := range map[string]string{
 		"workspace.repositories_file": configuration.Workspace.RepositoriesFile,

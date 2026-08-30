@@ -120,6 +120,50 @@ func commandTable() []commandSpec {
 			},
 		},
 		{
+			words:   []string{"profile", "create"},
+			group:   "Getting started",
+			usage:   "profile create NAME",
+			summary: "Create an empty named graph profile",
+			flags:   func() *flag.FlagSet { var o profileOptions; return profileFlagSet("create", &o) },
+			hints:   map[string]flagHint{"config": {paths: true}},
+			run: func(_ dependencies, args []string, stdout, stderr io.Writer) int {
+				return runProfile("create", args, stdout, stderr)
+			},
+		},
+		{
+			words:   []string{"profile", "list"},
+			group:   "Getting started",
+			usage:   "profile list",
+			summary: "List graph profiles and mark the default",
+			flags:   func() *flag.FlagSet { var o profileOptions; return profileFlagSet("list", &o) },
+			hints:   map[string]flagHint{"config": {paths: true}},
+			run: func(_ dependencies, args []string, stdout, stderr io.Writer) int {
+				return runProfile("list", args, stdout, stderr)
+			},
+		},
+		{
+			words:   []string{"profile", "use"},
+			group:   "Getting started",
+			usage:   "profile use NAME",
+			summary: "Select the profile used when none is named",
+			flags:   func() *flag.FlagSet { var o profileOptions; return profileFlagSet("use", &o) },
+			hints:   map[string]flagHint{"config": {paths: true}},
+			run: func(_ dependencies, args []string, stdout, stderr io.Writer) int {
+				return runProfile("use", args, stdout, stderr)
+			},
+		},
+		{
+			words:   []string{"profile", "remove"},
+			group:   "Maintenance",
+			usage:   "profile remove NAME --yes",
+			summary: "Permanently remove a non-default graph profile",
+			flags:   func() *flag.FlagSet { var o profileOptions; return profileFlagSet("remove", &o) },
+			hints:   map[string]flagHint{"config": {paths: true}},
+			run: func(_ dependencies, args []string, stdout, stderr io.Writer) int {
+				return runProfile("remove", args, stdout, stderr)
+			},
+		},
+		{
 			words:   []string{"index"},
 			group:   "Getting started",
 			usage:   "index [--config PATH] [--repositories PATH] [--json]",
@@ -230,12 +274,12 @@ func commandTable() []commandSpec {
 		{
 			words:   []string{"ui"},
 			group:   "Getting started",
-			usage:   "ui [--addr HOST:PORT]",
+			usage:   "ui [--addr HOST:PORT] [--profile NAME]",
 			summary: "Serve the read-only graph viewer, every interface by default",
 			absence: webBundleAbsence,
 			flags: func() *flag.FlagSet {
-				var path, address string
-				return uiFlagSet(&path, &address)
+				var path, address, profile string
+				return uiFlagSet(&path, &address, &profile)
 			},
 			hints: map[string]flagHint{"config": {paths: true}},
 			run:   nil,

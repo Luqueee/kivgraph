@@ -32,6 +32,17 @@ every session with both spends `10328` tokens before the first question is
 asked, which is 34 times what that question costs. Reach for them when you
 need what they hold, which is not usually.
 
+An installation can expose several independent profiles through the same
+server. Query tools accept `profile` as a list and use the configured default
+when it is omitted. Every query accepts several names or `["*"]` alone;
+`graph_status` and `list_repositories` enumerate all profiles when the argument
+is omitted. Their multi-profile responses carry `profiles` and
+`cross_profile_edges: "not_resolved"`; rows identify the profiles that supplied
+them, identical rows are deduplicated, and completeness is the weakest selected
+profile. Never combine `"*"` with another name. When several profiles exist, a
+stable-key selector must name exactly one profile; the addressable
+repository/path/qualified-name triple remains portable across profiles.
+
 1. **When you do not know the name, start with `find_by_intent`.** It takes a
    plain-language description and answers with the ranked symbols and, under
    `view: "files"`, just the files to open -- `300` tokens against `558` for
@@ -257,7 +268,9 @@ for `REFERENCES` too when a search for callers of a Rust function looks empty.
 ## Indexing
 
 `index_project` is the only mutating tool. It requires explicit user approval,
-registers projects and rebuilds the whole graph. Ask for confirmation first,
+registers projects and rebuilds the whole graph. Its optional string `profile`
+selects that graph and creates the profile when it does not exist. Ask for
+confirmation first,
 and never claim success until the new generation and snapshot are published.
 
 - Pass every project in one call through `projects`. A rebuild resolves

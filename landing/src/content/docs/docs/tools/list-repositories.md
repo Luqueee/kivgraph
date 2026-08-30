@@ -9,6 +9,7 @@ description: The registered repositories a published graph covers, each with the
 
 | Argument | Type | Default | Meaning |
 | --- | --- | --- | --- |
+| `profile` | array of strings | all profiles | Profiles to list. `["*"]` alone also selects all profiles. |
 | `limit` | integer | `50` | Rows to return in one page. Accepted range is 1 to 500; anything else is `INVALID_ARGUMENT`. |
 | `cursor` | string | none | Opaque token from `next_cursor` of a previous call, to continue the same listing. |
 
@@ -83,6 +84,7 @@ Corpus: snapshot `30` of two repositories, `kivgraph` and `go-svc-e`.
 
 | Field | Meaning |
 | --- | --- |
+| `profile` | The profile that owns the repository; present only in a multi-profile answer. |
 | `name` | The registered identifier of the repository. |
 | `path` | The absolute directory the repository was registered at. |
 | `languages` | The languages the repository declares, lowercased. |
@@ -92,6 +94,10 @@ Corpus: snapshot `30` of two repositories, `kivgraph` and `go-svc-e`.
 | `current_branch` | The branch the working tree is on now. |
 | `indexed_dirty` | Present and `true` when the tree had uncommitted changes at the time it was indexed. |
 | `moved` | `true` when `current_commit` differs from `indexed_commit`. |
+
+With several profiles, the response replaces `snapshot_id` and
+`snapshot_age_ms` with `profiles`, one entry per selected profile and its
+generation, and declares `cross_profile_edges` as `not_resolved`.
 
 Two more fields appear only when they say something. `moved_detail` carries the
 reason in prose: the two commits the tree moved between, or why the comparison

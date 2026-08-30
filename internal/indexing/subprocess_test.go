@@ -54,6 +54,7 @@ func TestRunDetachedPassesTheConfigurationToTheChild(t *testing.T) {
 		ConfigPath:       "/state/config.yaml",
 		RepositoriesPath: "/state/repositories.yaml",
 		ResolverVersion:  "9.9.9",
+		Profile:          "frontend",
 	}); err != nil {
 		t.Fatalf("RunDetached() error = %v", err)
 	}
@@ -67,6 +68,7 @@ func TestRunDetachedPassesTheConfigurationToTheChild(t *testing.T) {
 		"--config", "/state/config.yaml",
 		"--repositories", "/state/repositories.yaml",
 		"--resolver-version", "9.9.9",
+		"--profile", "frontend",
 	}
 	if len(arguments) != len(want) {
 		t.Fatalf("arguments = %v, want %v", arguments, want)

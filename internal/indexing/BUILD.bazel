@@ -33,6 +33,7 @@ go_test(
         "document_test.go",
         "fakechild_test.go",
         "follow_test.go",
+        "profile_lock_test.go",
         "resync_test.go",
         "service_child_test.go",
         "service_test.go",

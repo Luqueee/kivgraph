@@ -37,16 +37,17 @@ const (
 // field-per-row shape of SymbolSummary. `files` is rejected here: find_symbol
 // answers declarations, not files.
 type FindSymbolInput struct {
-	Name           string `json:"name" jsonschema:"The name to look for, matched the way mode says."`
-	Mode           string `json:"mode,omitempty" jsonschema:"How name is matched: exact (the default), qualified_exact, prefix or substring."`
-	Kind           string `json:"kind,omitempty" jsonschema:"Keep only symbols of this kind, such as function, struct or interface."`
-	Repo           string `json:"repo,omitempty" jsonschema:"Keep only symbols from this repository. Naming the derived provider also opts it in."`
-	IncludeDerived bool   `json:"include_derived,omitempty" jsonschema:"Include symbols of the derived provider, which is withheld by default."`
-	PathPrefix     string `json:"path_prefix,omitempty" jsonschema:"Keep only symbols under this repository-relative path prefix."`
-	ResponseFormat string `json:"response_format,omitempty" jsonschema:"concise (the default) omits the derived identifiers; detailed returns them."`
-	View           string `json:"view,omitempty" jsonschema:"Granularity, never a different answer: compact (the default) or full. files is rejected, since this answer is declarations."`
-	Limit          int    `json:"limit,omitempty" jsonschema:"Declarations in one page. Defaults to 50."`
-	Cursor         string `json:"cursor,omitempty" jsonschema:"The next_cursor of the previous page. Every other argument must stay the same."`
+	Profile        []string `json:"profile,omitempty" jsonschema:"Profiles to query; omit for the default, or use * alone for all."`
+	Name           string   `json:"name" jsonschema:"The name to look for, matched the way mode says."`
+	Mode           string   `json:"mode,omitempty" jsonschema:"How name is matched: exact (the default), qualified_exact, prefix or substring."`
+	Kind           string   `json:"kind,omitempty" jsonschema:"Keep only symbols of this kind, such as function, struct or interface."`
+	Repo           string   `json:"repo,omitempty" jsonschema:"Keep only symbols from this repository. Naming the derived provider also opts it in."`
+	IncludeDerived bool     `json:"include_derived,omitempty" jsonschema:"Include symbols of the derived provider, which is withheld by default."`
+	PathPrefix     string   `json:"path_prefix,omitempty" jsonschema:"Keep only symbols under this repository-relative path prefix."`
+	ResponseFormat string   `json:"response_format,omitempty" jsonschema:"concise (the default) omits the derived identifiers; detailed returns them."`
+	View           string   `json:"view,omitempty" jsonschema:"Granularity, never a different answer: compact (the default) or full. files is rejected, since this answer is declarations."`
+	Limit          int      `json:"limit,omitempty" jsonschema:"Declarations in one page. Defaults to 50."`
+	Cursor         string   `json:"cursor,omitempty" jsonschema:"The next_cursor of the previous page. Every other argument must stay the same."`
 }
 
 // SymbolSummary is the stable public result shape for symbol discovery. It
@@ -58,17 +59,18 @@ type FindSymbolInput struct {
 // name, kind and discriminator, every one of which is already a field here or
 // is the signature itself.
 type SymbolSummary struct {
-	StableKey         string `json:"stable_key"`
-	Name              string `json:"name"`
-	QualifiedName     string `json:"qualified_name"`
-	Kind              string `json:"kind"`
-	Signature         string `json:"signature"`
-	Exported          bool   `json:"exported"`
-	Repository        string `json:"repository"`
-	FilePath          string `json:"file_path"`
-	StartLine         uint32 `json:"start_line"`
-	EndLine           uint32 `json:"end_line"`
-	CanonicalIdentity string `json:"canonical_identity,omitempty"`
+	Profiles          ProfileNames `json:"profile,omitempty"`
+	StableKey         string       `json:"stable_key"`
+	Name              string       `json:"name"`
+	QualifiedName     string       `json:"qualified_name"`
+	Kind              string       `json:"kind"`
+	Signature         string       `json:"signature"`
+	Exported          bool         `json:"exported"`
+	Repository        string       `json:"repository"`
+	FilePath          string       `json:"file_path"`
+	StartLine         uint32       `json:"start_line"`
+	EndLine           uint32       `json:"end_line"`
+	CanonicalIdentity string       `json:"canonical_identity,omitempty"`
 }
 
 // SymbolResults is one page of declarations together with the granularity to
@@ -129,15 +131,16 @@ type compactSymbolKindGroup struct {
 // What is absent is not lost: it is in the header, on its group, or it is the
 // tail of the qualified name.
 type compactSymbol struct {
-	At                string `json:"at"`
-	End               uint32 `json:"end,omitempty"`
-	Name              string `json:"name,omitempty"`
-	QualifiedName     string `json:"qn,omitempty"`
-	Kind              string `json:"kind,omitempty"`
-	Exported          *bool  `json:"exported,omitempty"`
-	Signature         string `json:"sig,omitempty"`
-	StableKey         string `json:"stable_key,omitempty"`
-	CanonicalIdentity string `json:"canonical_identity,omitempty"`
+	Profiles          ProfileNames `json:"profile,omitempty"`
+	At                string       `json:"at"`
+	End               uint32       `json:"end,omitempty"`
+	Name              string       `json:"name,omitempty"`
+	QualifiedName     string       `json:"qn,omitempty"`
+	Kind              string       `json:"kind,omitempty"`
+	Exported          *bool        `json:"exported,omitempty"`
+	Signature         string       `json:"sig,omitempty"`
+	StableKey         string       `json:"stable_key,omitempty"`
+	CanonicalIdentity string       `json:"canonical_identity,omitempty"`
 }
 
 // compact spells the page without repeating what every row shares. Measured
@@ -230,7 +233,7 @@ func (results SymbolResults) compact() compactSymbolPage {
 // has one, the group above it: kind and exported are its own only when
 // neither already states them.
 func compactSymbolEntry(row *SymbolSummary, hoistedRepository, hoistedName, effectiveKind string, effectiveExported *bool, detailed bool) compactSymbol {
-	symbol := compactSymbol{At: symbolLocationLabel(hoistedRepository, row.Repository, row.FilePath, row.StartLine)}
+	symbol := compactSymbol{Profiles: row.Profiles, At: symbolLocationLabel(hoistedRepository, row.Repository, row.FilePath, row.StartLine)}
 	if row.EndLine != row.StartLine {
 		symbol.End = row.EndLine
 	}
@@ -361,7 +364,17 @@ func RegisterFindSymbolWithObserverAndSnapshotStore(
 		request *sdkmcp.CallToolRequest,
 		arguments FindSymbolInput,
 	) (*sdkmcp.CallToolResult, Response[SymbolResults], error) {
-		return findSymbol(ctx, request, arguments, snapshotStore)
+		selected, count, err := resolveProfileSelection(snapshotStore, arguments.Profile, "")
+		if err != nil {
+			return nil, Response[SymbolResults]{}, err
+		}
+		if len(selected) > 1 {
+			return findSymbolAcrossProfiles(ctx, request, arguments, selected)
+		}
+		store, profile := selected[0].Store, selected[0].Name
+		result, response, err := findSymbol(ctx, request, arguments, store)
+		scopeResponse(&response, profile, count)
+		return result, response, err
 	}
 	if observer != nil || callObserver != nil {
 		underlying := handler
@@ -382,6 +395,126 @@ func RegisterFindSymbolWithObserverAndSnapshotStore(
 		Annotations: readOnlyClosedWorld(),
 		Meta:        alwaysLoadMeta(),
 	}, handler)
+}
+
+func findSymbolAcrossProfiles(
+	ctx context.Context,
+	request *sdkmcp.CallToolRequest,
+	arguments FindSymbolInput,
+	selected []hotsnapshot.ProfileStore,
+) (*sdkmcp.CallToolResult, Response[SymbolResults], error) {
+	limit, err := normalizeSymbolLimit(arguments.Limit)
+	if err != nil {
+		return nil, Response[SymbolResults]{}, err
+	}
+	view, err := normalizeView(arguments.View, false)
+	if err != nil {
+		return nil, Response[SymbolResults]{}, err
+	}
+	format, err := normalizeResponseFormat(arguments.ResponseFormat)
+	if err != nil {
+		return nil, Response[SymbolResults]{}, err
+	}
+	name, err := normalizeSymbolName(arguments.Name)
+	if err != nil {
+		return nil, Response[SymbolResults]{}, err
+	}
+	mode, err := normalizeFindSymbolMode(arguments.Mode)
+	if err != nil {
+		return nil, Response[SymbolResults]{}, err
+	}
+	requestedProfiles := make([]string, 0, len(selected))
+	for _, profile := range selected {
+		requestedProfiles = append(requestedProfiles, profile.Name)
+	}
+	queryHash, err := HashQuery(struct {
+		Tool           string   `json:"tool"`
+		Profiles       []string `json:"profiles"`
+		Name           string   `json:"name"`
+		Mode           string   `json:"mode"`
+		Kind           string   `json:"kind,omitempty"`
+		Repo           string   `json:"repo,omitempty"`
+		PathPrefix     string   `json:"path_prefix,omitempty"`
+		IncludeDerived bool     `json:"include_derived,omitempty"`
+	}{findSymbolToolName, requestedProfiles, name, mode, arguments.Kind, arguments.Repo, arguments.PathPrefix, arguments.IncludeDerived})
+	if err != nil {
+		return nil, Response[SymbolResults]{}, err
+	}
+
+	profileSnapshots := make([]ProfileSnapshot, 0, len(selected))
+	rows := make([]SymbolSummary, 0)
+	variants := make(map[string]int)
+	coverage := Coverage{}
+	mergedCompleteness := Completeness{Verdict: VerdictComplete}
+	for _, profile := range selected {
+		snapshot := profile.Store.Load()
+		if snapshot == nil {
+			return nil, Response[SymbolResults]{}, ErrIndexNotReady()
+		}
+		metadata := snapshot.Metadata()
+		profileCompleteness := Completeness{Verdict: VerdictComplete}
+		pageArguments := arguments
+		pageArguments.Profile = nil
+		pageArguments.Cursor = ""
+		pageArguments.Limit = MaximumSymbolLimit
+		pageArguments.View = ViewFull
+		firstPage := true
+		for {
+			_, response, err := findSymbol(ctx, request, pageArguments, profile.Store)
+			if err != nil {
+				return nil, Response[SymbolResults]{}, err
+			}
+			if firstPage {
+				coverage.UnresolvedRelated += response.Coverage.UnresolvedRelated
+				if response.Completeness != nil && response.Completeness.Verdict == VerdictLowerBound {
+					profileCompleteness = *response.Completeness
+					mergeCompleteness(&mergedCompleteness, response.Completeness)
+				}
+			}
+			for _, row := range response.Results.Symbols {
+				row.Profiles = ""
+				payload, err := json.Marshal(row)
+				if err != nil {
+					return nil, Response[SymbolResults]{}, WrapToolError(CodeSnapshotUnavailable, "encode symbol payload for profile merge", err)
+				}
+				key := row.StableKey + "\x00" + string(payload)
+				if existing, found := variants[key]; found {
+					rows[existing].Profiles = rows[existing].Profiles.append(profile.Name)
+					continue
+				}
+				row.Profiles = profileNames(profile.Name)
+				variants[key] = len(rows)
+				rows = append(rows, row)
+			}
+			firstPage = false
+			if response.NextCursor == nil {
+				break
+			}
+			pageArguments.Cursor = *response.NextCursor
+		}
+		completeness := profileCompleteness
+		profileSnapshots = append(profileSnapshots, ProfileSnapshot{
+			Name: profile.Name, SnapshotID: metadata.ID, Completeness: &completeness,
+		})
+	}
+
+	offset, end, nextCursor, err := profilePageBounds(profileSnapshots, queryHash, SortingVersionStableKeyV1, arguments.Cursor, limit, len(rows))
+	if err != nil {
+		return nil, Response[SymbolResults]{}, err
+	}
+	page := rows[offset:end]
+	return nil, Response[SymbolResults]{
+		Profiles:          profileSnapshots,
+		CrossProfileEdges: "not_resolved",
+		Total:             len(rows),
+		Returned:          len(page),
+		Truncated:         end < len(rows),
+		NextCursor:        nextCursor,
+		Coverage:          coverage,
+		Completeness:      &mergedCompleteness,
+		Results:           SymbolResults{Symbols: page, View: view, Format: format},
+		View:              view,
+	}, nil
 }
 
 func findSymbol(

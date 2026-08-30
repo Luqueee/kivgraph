@@ -85,7 +85,7 @@ func TestUnitIdentitySeparatesEveryKind(t *testing.T) {
 		"dart":       {kind: unitSemantic, language: "dart", repository: repositoryNamed("shared")},
 		"java":       {kind: unitSemantic, language: "java", repository: repositoryNamed("shared")},
 	} {
-		identity := unitIdentity(unit)
+		identity := unitIdentity("default", unit)
 		if previous, clash := identities[identity]; clash {
 			t.Errorf("%s and %s share the cache identity %q", name, previous, identity)
 		}

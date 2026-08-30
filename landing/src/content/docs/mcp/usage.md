@@ -14,6 +14,25 @@ the session to a daemon and holds no graph itself, so the tools, the arguments
 and the envelopes below are the same either way; what changes is what it costs.
 [Registering a client](/docs/mcp/clients/) has that part.
 
+## Select a profile
+
+One server can expose several independent graphs. Every read tool accepts a
+`profile` array and uses the configured default when it is omitted.
+Every query accepts one or more profile names, or `["*"]` alone for all.
+`graph_status` and `list_repositories` are the discovery calls, so omitting
+`profile` there lists every profile instead.
+
+A multi-profile answer replaces scalar `snapshot_id` with a `profiles` array,
+marks `cross_profile_edges` as `not_resolved`, and identifies which profiles
+supplied each row. Identical rows are returned once with all their profile
+names; completeness is the weakest selected profile. A cursor is valid only
+for the same canonical profile names and generations. When more than one
+profile exists, a stable key must name exactly one profile: the default is a
+movable pointer, so omitting `profile` is rejected.
+
+`index_project` uses a single string `profile`, not an array. Omitting it writes
+the default graph; naming a missing profile creates it before the full rebuild.
+
 ## What the server tells your agent
 
 The `initialize` result carries an `instructions` string. This is it, literally:

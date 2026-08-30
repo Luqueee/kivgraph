@@ -14,13 +14,26 @@ someone who mistyped one word.
 | Invocation | Summary |
 | --- | --- |
 | `init [--repository NAME=PATH] [--languages LIST]` | Write the configuration and register repositories |
-| `index --full [--json]` | Index every registered repository and publish a generation |
+| `index --full [--profile NAME] [--json]` | Index every repository in one profile and publish a generation |
 | `serve [--introspection]` | Run the MCP server over stdio |
 | `daemon [--addr HOST:PORT] [--allow-remote]` | Serve MCP to many clients from one process, over HTTP and a unix socket |
 | `daemon install [--addr HOST:PORT] [--allow-remote]` | Give the daemon an owner, so the platform starts it and restarts it |
 | `daemon remove` | Stop the daemon and take its supervisor entry out |
-| `ui [--addr HOST:PORT]` | Serve the read-only graph viewer, every interface by default |
+| `ui [--addr HOST:PORT] [--profile NAME]` | Serve one profile in the read-only graph viewer |
 | `stop [--dry-run]` | Stop every running serve, daemon and ui of this user |
+
+## Profiles
+
+| Invocation | Summary |
+| --- | --- |
+| `profile create NAME` | Create an empty independent graph profile |
+| `profile list` | List profiles and mark the configured default with `*` |
+| `profile use NAME` | Move the default pointer without changing the profile |
+| `profile remove NAME --yes` | Permanently remove a non-default profile and its indexed state |
+
+Profiles share one installation, daemon and analyzer toolchain, but each owns
+its repository registry, fact cache, canonical database and generations.
+`index --full` and `ui` use `profiles.default` when `--profile` is omitted.
 
 ## Diagnostics
 

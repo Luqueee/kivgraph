@@ -42,6 +42,7 @@ const (
 // (the default) spells the columns every row shares once in the header, `full`
 // repeats them on every row.
 type GetBlastRadiusInput struct {
+	Profile        []string `json:"profile,omitempty" jsonschema:"Profiles to query; omit for the default, or use * alone for all."`
 	StableKey      string   `json:"stable_key,omitempty" jsonschema:"The root symbol durable key, as a detailed result returns it. The triple works instead."`
 	QualifiedName  string   `json:"qualified_name,omitempty" jsonschema:"The root symbol fully qualified name, as every row of this surface carries it."`
 	Repository     string   `json:"repository,omitempty" jsonschema:"The repository that declares the root symbol."`
@@ -379,7 +380,17 @@ func RegisterGetBlastRadiusWithObserverAndSnapshotStore(
 		request *sdkmcp.CallToolRequest,
 		arguments GetBlastRadiusInput,
 	) (*sdkmcp.CallToolResult, Response[BlastRadius], error) {
-		return getBlastRadius(ctx, request, arguments, snapshotStore)
+		selected, count, err := resolveProfileSelection(snapshotStore, arguments.Profile, arguments.StableKey)
+		if err != nil {
+			return nil, Response[BlastRadius]{}, err
+		}
+		if len(selected) > 1 {
+			return getBlastRadiusAcrossProfiles(ctx, request, arguments, selected)
+		}
+		store, profile := selected[0].Store, selected[0].Name
+		result, response, err := getBlastRadius(ctx, request, arguments, store)
+		scopeResponse(&response, profile, count)
+		return result, response, err
 	}
 	if observer != nil || callObserver != nil {
 		underlying := handler
@@ -400,6 +411,179 @@ func RegisterGetBlastRadiusWithObserverAndSnapshotStore(
 		Annotations: readOnlyClosedWorld(),
 		Meta:        traversalMeta(MaximumTraversalResultChars),
 	}, handler)
+}
+
+func getBlastRadiusAcrossProfiles(
+	ctx context.Context,
+	request *sdkmcp.CallToolRequest,
+	arguments GetBlastRadiusInput,
+	selected []hotsnapshot.ProfileStore,
+) (*sdkmcp.CallToolResult, Response[BlastRadius], error) {
+	options, err := normalizeBlastRadiusInput(arguments)
+	if err != nil {
+		return nil, Response[BlastRadius]{}, err
+	}
+	names := make([]string, 0, len(selected))
+	for _, profile := range selected {
+		names = append(names, profile.Name)
+	}
+	queryArguments := arguments
+	queryArguments.Profile, queryArguments.Cursor = nil, ""
+	queryArguments.Limit, queryArguments.ResponseFormat, queryArguments.View = 0, "", ""
+	queryHash, err := HashQuery(struct {
+		Tool     string              `json:"tool"`
+		Profiles []string            `json:"profiles"`
+		Query    GetBlastRadiusInput `json:"query"`
+	}{blastRadiusToolName, names, queryArguments})
+	if err != nil {
+		return nil, Response[BlastRadius]{}, err
+	}
+	profiles := make([]ProfileSnapshot, 0, len(selected))
+	rows := make([]ReachedSymbol, 0)
+	variants := make(map[string]int)
+	coverage := Coverage{}
+	mergedCompleteness := Completeness{Verdict: VerdictComplete}
+	radius := BlastRadius{Depth: options.Depth, MaxNodes: options.MaxNodes, View: options.View}
+	packages := map[string]BlastRadiusPackageGroup{}
+	foundRoot := false
+	for _, profile := range selected {
+		snapshot := profile.Store.Load()
+		if snapshot == nil {
+			return nil, Response[BlastRadius]{}, ErrIndexNotReady()
+		}
+		profileCompleteness := Completeness{Verdict: VerdictComplete}
+		pageArguments := arguments
+		pageArguments.Profile, pageArguments.Cursor = nil, ""
+		pageArguments.Limit = MaximumBlastRadiusLimit
+		pageArguments.ResponseFormat, pageArguments.View = ResponseFormatDetailed, ViewFull
+		firstPage := true
+		for {
+			_, response, queryErr := getBlastRadius(ctx, request, pageArguments, profile.Store)
+			if queryErr != nil {
+				if firstPage && (ErrorCode(queryErr) == CodeSymbolNotFound || ErrorCode(queryErr) == CodeRepositoryNotFound) {
+					break
+				}
+				return nil, Response[BlastRadius]{}, queryErr
+			}
+			if firstPage {
+				foundRoot = true
+				if radius.RootKey == "" {
+					radius.RootKey, radius.RootRepository = response.Results.RootKey, response.Results.RootRepository
+					radius.RootPath, radius.RootLine = response.Results.RootPath, response.Results.RootLine
+					radius.Kinds, radius.KindsExcluded = response.Results.Kinds, response.Results.KindsExcluded
+				}
+				radius.Affected += response.Results.Affected
+				if response.Results.DeepestDepth > radius.DeepestDepth {
+					radius.DeepestDepth = response.Results.DeepestDepth
+				}
+				radius.TraversalTruncated = radius.TraversalTruncated || response.Results.TraversalTruncated
+				for _, group := range response.Results.ByPackage {
+					key := strings.Join([]string{group.Repository, group.PackageKey, group.PackageName}, "\x00")
+					merged := packages[key]
+					if merged.PackageKey == "" {
+						merged = group
+					} else {
+						merged.Count += group.Count
+					}
+					packages[key] = merged
+				}
+				addCoverage(&coverage, response.Coverage)
+				if response.Completeness != nil {
+					profileCompleteness = *response.Completeness
+					mergeCompleteness(&mergedCompleteness, response.Completeness)
+				}
+			}
+			for _, row := range response.Results.Symbols {
+				stableKey := row.StableKey
+				row.Profiles = ""
+				if options.Format != ResponseFormatDetailed {
+					row.StableKey, row.FileKey, row.ReachedFromKey = "", "", ""
+				}
+				payload, marshalErr := json.Marshal(row)
+				if marshalErr != nil {
+					return nil, Response[BlastRadius]{}, WrapToolError(CodeSnapshotUnavailable, "encode impact payload for profile merge", marshalErr)
+				}
+				key := stableKey + "\x00" + string(payload)
+				if position, duplicate := variants[key]; duplicate {
+					rows[position].Profiles = rows[position].Profiles.append(profile.Name)
+					continue
+				}
+				row.Profiles = profileNames(profile.Name)
+				variants[key] = len(rows)
+				rows = append(rows, row)
+			}
+			firstPage = false
+			if response.NextCursor == nil {
+				break
+			}
+			pageArguments.Cursor = *response.NextCursor
+		}
+		completeness := profileCompleteness
+		profiles = append(profiles, ProfileSnapshot{Name: profile.Name, SnapshotID: snapshot.Metadata().ID, Completeness: &completeness})
+	}
+	if !foundRoot {
+		return nil, Response[BlastRadius]{}, NewToolError(CodeSymbolNotFound, "root symbol was not found in the selected profiles")
+	}
+	// These axes describe the deduplicated union, not the sum of independently
+	// counted profiles. Recompute the dimensions available on every row so an
+	// overlapping profile cannot double the apparent impact.
+	repositories, depths, kinds := map[string]int{}, map[int]int{}, map[string]int{}
+	for _, row := range rows {
+		repositories[row.Repository]++
+		depths[row.Depth]++
+		kinds[row.ViaKind]++
+	}
+	radius.Affected = len(rows)
+	radius.ByRepository = blastRadiusStringGroups(repositories)
+	radius.ByDepth = blastRadiusDepthGroups(depths)
+	radius.ByKind = blastRadiusStringGroups(kinds)
+	for _, group := range packages {
+		radius.ByPackage = append(radius.ByPackage, group)
+	}
+	sort.Slice(radius.ByPackage, func(i, j int) bool {
+		if radius.ByPackage[i].Repository != radius.ByPackage[j].Repository {
+			return radius.ByPackage[i].Repository < radius.ByPackage[j].Repository
+		}
+		return radius.ByPackage[i].PackageName < radius.ByPackage[j].PackageName
+	})
+	offset, end, next, err := profilePageBounds(profiles, queryHash, SortingVersionBlastRadiusV1, arguments.Cursor, options.Limit, len(rows))
+	if err != nil {
+		return nil, Response[BlastRadius]{}, err
+	}
+	radius.Symbols = rows[offset:end]
+	return nil, Response[BlastRadius]{
+		Profiles: profiles, CrossProfileEdges: "not_resolved",
+		Total: len(rows), Returned: end - offset, Truncated: end < len(rows), NextCursor: next,
+		Coverage: coverage, Completeness: &mergedCompleteness,
+		Guidance: traversalGuidance(blastRadiusToolName, len(rows), end-offset, end < len(rows), mergedCompleteness.Verdict),
+		Results:  radius, View: options.View,
+	}, nil
+}
+
+func blastRadiusStringGroups(values map[string]int) []BlastRadiusGroup {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	groups := make([]BlastRadiusGroup, 0, len(keys))
+	for _, key := range keys {
+		groups = append(groups, BlastRadiusGroup{Key: key, Count: values[key]})
+	}
+	return groups
+}
+
+func blastRadiusDepthGroups(values map[int]int) []BlastRadiusDepthGroup {
+	depths := make([]int, 0, len(values))
+	for depth := range values {
+		depths = append(depths, depth)
+	}
+	sort.Ints(depths)
+	groups := make([]BlastRadiusDepthGroup, 0, len(depths))
+	for _, depth := range depths {
+		groups = append(groups, BlastRadiusDepthGroup{Depth: depth, Count: values[depth]})
+	}
+	return groups
 }
 
 func getBlastRadius(

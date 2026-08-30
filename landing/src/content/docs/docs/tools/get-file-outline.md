@@ -9,6 +9,7 @@ description: List the declarations under a file or a directory, grouped by file,
 
 | Argument | Type | Default | Meaning |
 | --- | --- | --- | --- |
+| `profile` | array of strings | configured default | Profiles to query. `["*"]` alone selects all. |
 | `repository` | string | none, required | The repository name. Rejected with `INVALID_ARGUMENT` when empty or padded with whitespace, and with `REPOSITORY_NOT_FOUND` when the published graph does not hold it. |
 | `path` | string | none, required | A repository-relative file, or a directory whose files are all wanted. An absolute path is rejected, and so is any `..` segment; a trailing `/` is trimmed. |
 | `kind` | string | unset | Keeps only rows whose `kind` is exactly this string. |

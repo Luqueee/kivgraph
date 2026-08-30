@@ -37,6 +37,7 @@ type DetachedOptions struct {
 	ConfigPath       string
 	RepositoriesPath string
 	ResolverVersion  string
+	Profile          string
 	// WorkingDirectory is where the child resolves a relative repository path,
 	// so it must be the directory the request was made from.
 	WorkingDirectory string
@@ -84,6 +85,7 @@ func RunDetached(ctx context.Context, options DetachedOptions) (FullDocument, er
 		{flag: "--config", value: options.ConfigPath},
 		{flag: "--repositories", value: options.RepositoriesPath},
 		{flag: "--resolver-version", value: options.ResolverVersion},
+		{flag: "--profile", value: options.Profile},
 	} {
 		if strings.TrimSpace(pair.value) != "" {
 			arguments = append(arguments, pair.flag, pair.value)

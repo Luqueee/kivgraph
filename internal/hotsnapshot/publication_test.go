@@ -102,6 +102,203 @@ func TestSnapshotStoreConcurrentReadersAndPublishers(t *testing.T) {
 	}
 }
 
+func TestProfileSnapshotStoreDefaultsAndCanonicalisesSelection(t *testing.T) {
+	defaultStore := NewSnapshotStore(publishedSnapshot(t, 3))
+	otherStore := NewSnapshotStore(publishedSnapshot(t, 7))
+	store, err := NewProfileSnapshotStore("z-default", map[string]*SnapshotStore{
+		"z-default": defaultStore,
+		"a-other":   otherStore,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id, ok := store.ActiveID(); !ok || id != 3 {
+		t.Fatalf("default ActiveID() = %d, %v", id, ok)
+	}
+	selected, err := store.ResolveProfiles([]string{"*"})
+	if err != nil || len(selected) != 2 || selected[0].Name != "a-other" || selected[1].Name != "z-default" {
+		t.Fatalf("ResolveProfiles(*) = %#v, %v", selected, err)
+	}
+	if _, err := store.ResolveProfiles([]string{"*", "a-other"}); err == nil {
+		t.Fatal("ResolveProfiles(*, a-other) error = nil")
+	}
+	if _, err := store.ResolveProfiles([]string{"a-other", "a-other"}); err == nil {
+		t.Fatal("ResolveProfiles(duplicate) error = nil")
+	}
+	if _, err := store.ResolveProfiles([]string{"missing"}); err == nil {
+		t.Fatal("ResolveProfiles(missing) error = nil")
+	}
+	selected, err = store.ResolveProfiles(nil)
+	if err != nil || len(selected) != 1 || selected[0].Name != "z-default" {
+		t.Fatalf("ResolveProfiles(default) = %#v, %v", selected, err)
+	}
+	if store.ProfileCount() != 2 || store.DefaultProfileName() != "z-default" {
+		t.Fatalf("profile metadata = %d, %q", store.ProfileCount(), store.DefaultProfileName())
+	}
+	if err := store.AddProfile("", NewSnapshotStore(nil)); err == nil {
+		t.Fatal("AddProfile(empty) error = nil")
+	}
+	if err := store.AddProfile("a-other", NewSnapshotStore(nil)); err == nil {
+		t.Fatal("AddProfile(existing) error = nil")
+	}
+	third := NewSnapshotStore(publishedSnapshot(t, 9))
+	if err := store.AddProfile("third", third); err != nil {
+		t.Fatalf("AddProfile(third) error = %v", err)
+	}
+	if store.ProfileCount() != 3 {
+		t.Fatalf("ProfileCount() = %d, want 3", store.ProfileCount())
+	}
+	store.Close()
+	if err := store.AddProfile("late", NewSnapshotStore(nil)); !errors.Is(err, ErrSnapshotStoreClosed) {
+		t.Fatalf("AddProfile(closed) error = %v, want ErrSnapshotStoreClosed", err)
+	}
+}
+
+func TestProfileSnapshotStoreRejectsInvalidConstruction(t *testing.T) {
+	var absent *SnapshotStore
+	if absent.ProfileCount() != 0 || absent.DefaultProfileName() != "" {
+		t.Fatalf("nil profile metadata = %d, %q", absent.ProfileCount(), absent.DefaultProfileName())
+	}
+	if _, err := absent.ResolveProfiles(nil); err == nil {
+		t.Fatal("nil ResolveProfiles() error = nil")
+	}
+	if err := absent.AddProfile("other", NewSnapshotStore(nil)); err == nil {
+		t.Fatal("nil AddProfile() error = nil")
+	}
+	if _, err := NewProfileSnapshotStore("", nil); err == nil {
+		t.Fatal("NewProfileSnapshotStore(empty default) error = nil")
+	}
+	if _, err := NewProfileSnapshotStore("default", map[string]*SnapshotStore{"default": nil}); err == nil {
+		t.Fatal("NewProfileSnapshotStore(nil child) error = nil")
+	}
+	if _, err := NewProfileSnapshotStore("default", map[string]*SnapshotStore{"other": NewSnapshotStore(nil)}); err == nil {
+		t.Fatal("NewProfileSnapshotStore(missing default) error = nil")
+	}
+	direct := NewSnapshotStore(nil)
+	if direct.ProfileCount() != 1 || direct.DefaultProfileName() != "" {
+		t.Fatalf("direct profile metadata = %d, %q", direct.ProfileCount(), direct.DefaultProfileName())
+	}
+	if err := direct.AddProfile("other", NewSnapshotStore(nil)); err == nil {
+		t.Fatal("AddProfile() on direct store error = nil")
+	}
+	if err := direct.SetMaxOpenProfiles(1); err == nil {
+		t.Fatal("SetMaxOpenProfiles() on direct store error = nil")
+	}
+	if err := absent.SetMaxOpenProfiles(1); err == nil {
+		t.Fatal("nil SetMaxOpenProfiles() error = nil")
+	}
+	if _, err := direct.ResolveProfiles([]string{"other"}); err == nil {
+		t.Fatal("direct ResolveProfiles(other) error = nil")
+	}
+}
+
+func TestProfileSnapshotStoreEvictsLeastRecentlyUsedDeferredSnapshot(t *testing.T) {
+	loads := map[string]int{}
+	deferred := func(name string, id uint64) *SnapshotStore {
+		return NewDeferredSnapshotStore(id, func() (*GraphSnapshot, error) {
+			loads[name]++
+			return publishedSnapshot(t, id), nil
+		})
+	}
+	store, err := NewProfileSnapshotStore("a", map[string]*SnapshotStore{
+		"a": deferred("a", 1),
+		"b": deferred("b", 2),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetMaxOpenProfiles(0); err == nil {
+		t.Fatal("SetMaxOpenProfiles(0) error = nil")
+	}
+	if err := store.SetMaxOpenProfiles(1); err != nil {
+		t.Fatal(err)
+	}
+	selected, err := store.ResolveProfiles([]string{"a"})
+	if err != nil || selected[0].Store.Load() == nil {
+		t.Fatalf("load a: %v", err)
+	}
+	selected, err = store.ResolveProfiles([]string{"b"})
+	if err != nil || selected[0].Store.Load() == nil {
+		t.Fatalf("load b: %v", err)
+	}
+	selected, err = store.ResolveProfiles([]string{"a"})
+	if err != nil || selected[0].Store.Load() == nil {
+		t.Fatalf("reload a: %v", err)
+	}
+	if loads["a"] != 2 || loads["b"] != 1 {
+		t.Fatalf("loader calls = %#v, want a=2 b=1", loads)
+	}
+}
+
+func TestEvictedProfileNeverRepublishesAnOlderDeferredGeneration(t *testing.T) {
+	a := NewDeferredSnapshotStore(1, func() (*GraphSnapshot, error) { return publishedSnapshot(t, 1), nil })
+	b := NewDeferredSnapshotStore(2, func() (*GraphSnapshot, error) { return publishedSnapshot(t, 2), nil })
+	store, err := NewProfileSnapshotStore("a", map[string]*SnapshotStore{"a": a, "b": b})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetMaxOpenProfiles(1); err != nil {
+		t.Fatal(err)
+	}
+	if a.Load() == nil {
+		t.Fatal("Load(profile=a, generation=1) = nil")
+	}
+	if err := a.Publish(publishedSnapshot(t, 3)); err != nil {
+		t.Fatal(err)
+	}
+	if b.Load() == nil {
+		t.Fatal("Load(profile=b, generation=2) = nil")
+	}
+	if snapshot := a.Load(); snapshot != nil {
+		t.Fatalf("stale loader republished generation %d", snapshot.Metadata().ID)
+	}
+	if !errors.Is(a.LoadFailure(), ErrSnapshotGeneration) {
+		t.Fatalf("LoadFailure() = %v, want ErrSnapshotGeneration", a.LoadFailure())
+	}
+}
+
+func TestConcurrentDeferredLoadsRespectMaximumOpenProfiles(t *testing.T) {
+	entered := make(chan struct{}, 2)
+	release := make(chan struct{})
+	var loads atomic.Int32
+	loader := func(generation uint64) SnapshotLoader {
+		return func() (*GraphSnapshot, error) {
+			loads.Add(1)
+			entered <- struct{}{}
+			<-release
+			return publishedSnapshot(t, generation), nil
+		}
+	}
+	a := NewDeferredSnapshotStore(1, loader(1))
+	b := NewDeferredSnapshotStore(2, loader(2))
+	store, err := NewProfileSnapshotStore("a", map[string]*SnapshotStore{"a": a, "b": b})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetMaxOpenProfiles(1); err != nil {
+		t.Fatal(err)
+	}
+	aLoaded := make(chan *GraphSnapshot, 1)
+	bLoaded := make(chan *GraphSnapshot, 1)
+	done := make(chan struct{}, 2)
+	go func() { aLoaded <- a.Load(); done <- struct{}{} }()
+	go func() { bLoaded <- b.Load(); done <- struct{}{} }()
+	<-entered
+	<-entered
+	close(release)
+	<-done
+	<-done
+	if <-aLoaded == nil || <-bLoaded == nil {
+		t.Fatal("concurrent Load(profiles=a,b, max_open_profiles=1) returned nil")
+	}
+	if a.Load() == nil || b.Load() == nil {
+		t.Fatal("Load(profiles=a,b, max_open_profiles=1) returned nil")
+	}
+	if got := loads.Load(); got < 3 {
+		t.Fatalf("loader calls for profiles=a,b, max_open_profiles=1 = %d, want at least 3", got)
+	}
+}
+
 func publishedSnapshot(t *testing.T, id uint64) *GraphSnapshot {
 	t.Helper()
 	snapshot, err := BuildGraphSnapshot(builderRows(), id, time.Unix(int64(id+1), 0).UTC(), 1)

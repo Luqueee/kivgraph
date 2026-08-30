@@ -18,6 +18,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -74,8 +75,8 @@ func main() {
 		// why this asks the registry instead of comparing the first word.
 		switch {
 		case interceptsLongRunning("ui", os.Args[1:]):
-			configPath, address := "", ""
-			writeCommandHelp(os.Stdout, "ui", uiFlagSet(&configPath, &address))
+			configPath, address, profile := "", "", ""
+			writeCommandHelp(os.Stdout, "ui", uiFlagSet(&configPath, &address, &profile))
 			return
 		case interceptsLongRunning("serve", os.Args[1:]):
 			configPath := ""
@@ -262,18 +263,6 @@ func ensureConfiguration(configPath string) error {
 	return nil
 }
 
-func loadConfiguredSnapshot(ctx context.Context, configPath string) (config.Loaded, *hotsnapshot.SnapshotStore, error) {
-	loaded, err := ensureLoadedConfiguration(configPath)
-	if err != nil {
-		return config.Loaded{}, nil, err
-	}
-	store, err := openConfiguredSnapshot(ctx, loaded)
-	if err != nil {
-		return config.Loaded{}, nil, err
-	}
-	return loaded, store, nil
-}
-
 // ensureLoadedConfiguration is the half a relay needs and the whole a
 // configuration command needs: the file exists afterwards, and it is read.
 //
@@ -285,7 +274,7 @@ func ensureLoadedConfiguration(configPath string) (config.Loaded, error) {
 	if err := ensureConfiguration(configPath); err != nil {
 		return config.Loaded{}, err
 	}
-	loaded, err := config.Load(configPath)
+	loaded, err := config.LoadProfile(configPath, "")
 	if err != nil {
 		return config.Loaded{}, fmt.Errorf("load configuration: %w", err)
 	}
@@ -319,9 +308,20 @@ func openConfiguredSnapshot(ctx context.Context, loaded config.Loaded) (*hotsnap
 	// derivation from the canonical graph rather than an answer. Only the moment
 	// moved.
 	return hotsnapshot.NewDeferredSnapshotStore(generationNumber, func() (*hotsnapshot.GraphSnapshot, error) {
+		currentLayout, err := rebuild.Roles(ctx, rebuild.LayoutOptions{
+			Root:  filepath.Dir(loaded.Config.Storage.DatabasePath),
+			Store: generation.DefaultConfig(),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("resolve active generation while opening snapshot: %w", err)
+		}
+		currentGeneration, err := strconv.ParseUint(currentLayout.Active.ID, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("parse active generation %q: %w", currentLayout.Active.ID, err)
+		}
 		snapshot, report, err := rebuild.LoadOrBuildSnapshot(ctx, rebuild.BuildSnapshotOptions{
-			DatabasePath: layout.Active.DatabasePath,
-			SnapshotID:   generationNumber,
+			DatabasePath: currentLayout.Active.DatabasePath,
+			SnapshotID:   currentGeneration,
 		})
 		// A server holds this snapshot for its whole life; what building it
 		// borrowed is dead the moment it is published, and returning it here
@@ -330,10 +330,10 @@ func openConfiguredSnapshot(ctx context.Context, loaded config.Loaded) (*hotsnap
 		// scavenge still runs: a fallback derived it the expensive way.
 		defer rebuild.ReturnBuildMemory()
 		if err != nil {
-			return nil, fmt.Errorf("build active snapshot %q: %w", layout.Active.ID, err)
+			return nil, fmt.Errorf("build active snapshot %q: %w", currentLayout.Active.ID, err)
 		}
 		if !report.Passed {
-			return nil, fmt.Errorf("build active snapshot %q did not pass", layout.Active.ID)
+			return nil, fmt.Errorf("build active snapshot %q did not pass", currentLayout.Active.ID)
 		}
 		// Which of the two routes was taken is worth a line, because nothing else
 		// distinguishes them: a server that derives answers exactly like one that
@@ -341,14 +341,48 @@ func openConfiguredSnapshot(ctx context.Context, loaded config.Loaded) (*hotsnap
 		switch {
 		case report.Loaded:
 			logging.New(os.Stderr).Info("read the published snapshot",
-				"generation", layout.Active.ID, "symbols", report.Stats.Symbols)
+				"generation", currentLayout.Active.ID, "symbols", report.Stats.Symbols)
 		default:
 			logging.New(os.Stderr).Info("derived the snapshot from the canonical graph",
-				"generation", layout.Active.ID, "symbols", report.Stats.Symbols,
+				"generation", currentLayout.Active.ID, "symbols", report.Stats.Symbols,
 				"reason", report.LoadRefused)
 		}
 		return snapshot, nil
 	}), nil
+}
+
+// openConfiguredProfileSnapshots keeps the historical single store when only
+// one profile exists and otherwise groups one deferred store per profile. No
+// graph is mapped here; each loader runs only when a query selects it.
+func openConfiguredProfileSnapshots(ctx context.Context, loaded config.Loaded) (*hotsnapshot.SnapshotStore, error) {
+	profiles, err := config.ListProfiles(loaded.ConfigPath)
+	if err != nil {
+		return nil, fmt.Errorf("list configured profiles: %w", err)
+	}
+	stores := make(map[string]*hotsnapshot.SnapshotStore, len(profiles))
+	for _, profile := range profiles {
+		profileLoaded, err := config.LoadProfile(loaded.ConfigPath, profile.Name)
+		if err != nil {
+			return nil, fmt.Errorf("load profile %q: %w", profile.Name, err)
+		}
+		store, err := openConfiguredSnapshot(ctx, profileLoaded)
+		if err != nil {
+			return nil, fmt.Errorf("open profile %q: %w", profile.Name, err)
+		}
+		stores[profile.Name] = store
+	}
+	aggregate, err := hotsnapshot.NewProfileSnapshotStore(loaded.Config.Profiles.Default, stores)
+	if err != nil {
+		for _, store := range stores {
+			store.Close()
+		}
+		return nil, err
+	}
+	if err := aggregate.SetMaxOpenProfiles(loaded.Config.Profiles.MaxOpen); err != nil {
+		aggregate.Close()
+		return nil, err
+	}
+	return aggregate, nil
 }
 
 func runConfiguredUI(
@@ -365,7 +399,8 @@ func runConfiguredUI(
 	}
 	configPath := ""
 	address := ""
-	flags := uiFlagSet(&configPath, &address)
+	profile := ""
+	flags := uiFlagSet(&configPath, &address, &profile)
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -380,7 +415,14 @@ func runConfiguredUI(
 			"ui: this binary carries no web bundle; build one with scripts/build-bundle.sh " +
 				"(without --mcp-only), or run the viewer from a source checkout with the webassets build tag")
 	}
-	loaded, store, err := loadConfiguredSnapshot(ctx, configPath)
+	if err := ensureConfiguration(configPath); err != nil {
+		return err
+	}
+	loaded, err := config.LoadProfile(configPath, profile)
+	if err != nil {
+		return fmt.Errorf("ui: load profile: %w", err)
+	}
+	store, err := openConfiguredSnapshot(ctx, loaded)
 	if err != nil {
 		return err
 	}
@@ -396,11 +438,12 @@ func runConfiguredUI(
 // uiFlagSet and serveFlagSet exist so the two long-running commands describe
 // their flags in one place: the parser that runs them and the help that
 // answers --help read the same definitions.
-func uiFlagSet(configPath, address *string) *flag.FlagSet {
+func uiFlagSet(configPath, address, profile *string) *flag.FlagSet {
 	flags := flag.NewFlagSet("ui", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	flags.StringVar(configPath, "config", "", "configuration file")
 	flags.StringVar(address, "addr", "", "HTTP listen address")
+	flags.StringVar(profile, "profile", "", "graph profile (defaults to profiles.default)")
 	return flags
 }
 
@@ -507,12 +550,12 @@ func runConfiguredServe(
 	// is about to serve and not the one that was preferred. The relaying path
 	// returned above and reported for itself.
 	announceFirstRun(loaded, command)
-	store, err := openConfiguredSnapshot(ctx, loaded)
+	store, err := openConfiguredProfileSnapshots(ctx, loaded)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
-	projectIndexer := indexing.NewService(loaded, store, version.Value, "")
+	profileIndexer := newProfileProjectIndexer(loaded.ConfigPath, store)
 	events := openEventLog(loaded.Config, os.Stderr)
 	// The started/stopped pair is what makes the tool lines between them
 	// readable: without it a reader cannot tell one server's calls from the
@@ -541,13 +584,74 @@ func runConfiguredServe(
 			writeWarning(os.Stderr, "events: close: %v", err)
 		}
 	}()
-	stopFollower := followPublishedGeneration(ctx, loaded, store, command, indexing.FollowOptions{})
-	defer stopFollower()
-	stopResync := resyncOnBranchChange(ctx, loaded, store, projectIndexer, command)
-	defer stopResync()
+	stopProfiles, err := watchConfiguredProfiles(ctx, loaded, store, profileIndexer, command)
+	if err != nil {
+		return err
+	}
+	defer stopProfiles()
 	return runServe(ctx, func(ctx context.Context) error {
-		return runMCP(ctx, loaded, store, projectIndexer, events)
+		return runMCP(ctx, loaded, store, profileIndexer, events)
 	})
+}
+
+func watchConfiguredProfiles(
+	ctx context.Context,
+	loaded config.Loaded,
+	store *hotsnapshot.SnapshotStore,
+	indexer *profileProjectIndexer,
+	command string,
+) (func(), error) {
+	profiles, err := config.ListProfiles(loaded.ConfigPath)
+	if err != nil {
+		return nil, fmt.Errorf("watch configured profiles: %w", err)
+	}
+	var watchersMu sync.Mutex
+	stops := make([]func(), 0, len(profiles)*2)
+	watched := make(map[string]struct{}, len(profiles))
+	closed := false
+	register := func(name string, profileLoaded config.Loaded, profileStore *hotsnapshot.SnapshotStore) {
+		watchersMu.Lock()
+		defer watchersMu.Unlock()
+		if closed {
+			return
+		}
+		if _, found := watched[name]; found {
+			return
+		}
+		watched[name] = struct{}{}
+		stops = append(stops,
+			followPublishedGeneration(ctx, profileLoaded, profileStore, command, indexing.FollowOptions{}),
+			resyncOnBranchChange(ctx, profileLoaded, profileStore, namedProfileReindexer{indexer, name}, command),
+		)
+	}
+	cleanup := func() {
+		watchersMu.Lock()
+		closed = true
+		current := stops
+		stops = nil
+		watchersMu.Unlock()
+		for index := len(current) - 1; index >= 0; index-- {
+			current[index]()
+		}
+	}
+	for _, profile := range profiles {
+		profileLoaded, err := config.LoadProfile(loaded.ConfigPath, profile.Name)
+		if err != nil {
+			cleanup()
+			return nil, fmt.Errorf("watch profile %q: %w", profile.Name, err)
+		}
+		selected, err := store.ResolveProfiles([]string{profile.Name})
+		if err != nil {
+			cleanup()
+			return nil, fmt.Errorf("watch profile %q: %w", profile.Name, err)
+		}
+		register(profile.Name, profileLoaded, selected[0].Store)
+	}
+	indexer.setProfileWatcher(register)
+	return func() {
+		indexer.setProfileWatcher(nil)
+		cleanup()
+	}, nil
 }
 
 // followPublishedGeneration keeps a long-running command on the generation the
@@ -612,7 +716,7 @@ func resyncOnBranchChange(
 	ctx context.Context,
 	loaded config.Loaded,
 	store *hotsnapshot.SnapshotStore,
-	indexer *indexing.Service,
+	indexer interface{ Reindex(context.Context) error },
 	command string,
 ) func() {
 	logger := logging.New(os.Stderr)
@@ -1197,6 +1301,7 @@ type indexFullOptions struct {
 	ConfigPath       string
 	RepositoriesPath string
 	ResolverVersion  string
+	Profile          string
 	JSONOutput       bool
 }
 
@@ -1209,6 +1314,7 @@ func indexFullFlagSet(options *indexFullOptions) *flag.FlagSet {
 	flags.StringVar(&options.ConfigPath, "config", "", "configuration file")
 	flags.StringVar(&options.RepositoriesPath, "repositories", "", "repository registry file override")
 	flags.StringVar(&options.ResolverVersion, "resolver-version", version.Value, "resolver version recorded in the graph")
+	flags.StringVar(&options.Profile, "profile", "", "graph profile (defaults to profiles.default)")
 	flags.BoolVar(&options.JSONOutput, "json", false, "write the pass as a JSON event stream on stdout")
 	return flags
 }
@@ -1288,7 +1394,7 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 	}
 
 	ctx := context.Background()
-	loaded, err := config.Load(options.ConfigPath)
+	loaded, err := config.LoadProfile(options.ConfigPath, options.Profile)
 	if err != nil {
 		writeCommandError(stderr, "index --full: load configuration: %v", err)
 		return 1
@@ -1314,6 +1420,8 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 	events := openEventLog(loaded.Config, stderr)
 	defer events.Close()
 	indexOptions := indexing.OptionsFromConfig(loaded.Config)
+	indexOptions.Profile = loaded.Profile
+	indexOptions.SharedTargetsLockPath = filepath.Join(stateDirectory(loaded), "analyzer-targets.lock")
 	indexOptions.Repositories = registry.List()
 	indexOptions.WorkingDirectory = workingDirectory
 	indexOptions.ResolverVersion = options.ResolverVersion
