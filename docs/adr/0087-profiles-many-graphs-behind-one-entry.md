@@ -23,13 +23,13 @@ du -sh ~/.local/state/kivgraph/*        # sizes
 grep 'index --full finished' ~/.local/state/kivgraph/events.jsonl
 ```
 
-Counts, from `graph_status` at that generation: `53` repositories, `184.315`
-symbols, `549.970` edges. Sizes: `476 MB` per generation with two retained, a
-`145 MB` snapshot file, `568 MB` of fact cache, `1,1 GB` of `rust-target`.
+Counts, from `graph_status` at that generation: `53` repositories, `184,315`
+symbols, `549,970` edges. Sizes: `476 MB` per generation with two retained, a
+`145 MB` snapshot file, `568 MB` of fact cache, `1.1 GB` of `rust-target`.
 
 Since ADR 0057 there is no incremental path: every pass is a full
 reconstruction. The three passes the event log holds for that corpus took
-`35,6 s` and `16,9 s` warm, and `178,9 s` for the one whose entries went cold --
+`35.6 s` and `16.9 s` warm, and `178.9 s` for the one whose entries went cold --
 generations `000092`, `000094` and `000093` respectively. So editing one
 TypeScript library reconstructs the Rust and Go repositories nobody touched, and
 the watcher does it on every debounce.
@@ -39,7 +39,7 @@ justify a shape and not enough to promise a speedup, which is why no section
 below claims one.
 
 Isolation already exists and has no name. `config.stateBesideConfig` relocates
-the database, the backups, the fact cache, the synthetic `go.work`, the four
+the database, the backups, the fact cache, the synthetic `go.work`, the three
 analyzer target directories, the event log and the registry for any
 configuration written outside the default location, and `internal/daemon`
 already keys a daemon by its state directory. What is missing is that a person
@@ -93,7 +93,7 @@ The resident surface is `len(name)*2 + len(description)` per tool against
 `MaximumResidentSurfaceBytes`, which is the formula
 `TestServerSurfaceStaysCheapToKeepResident` applies. Summing it over the eleven
 tools `registerQueryTools` registers, at commit `6f37f4a`, the query catalogue
-spends `1.864` of `1.900` and `index_project` spends `213` of the `236` its own
+spends `1,864` of `1,900` and `index_project` spends `213` of the `236` its own
 line allows. Both budgets sit at `98 %`.
 
 A schema is not resident: neither target host keeps it. So `profile` on all
@@ -127,6 +127,12 @@ the pointer names -- and `list_repositories` gains a `profile` column and
 returns the repositories of all of them. Both take an optional `profile` to
 narrow. A client that knows no name calls either and has them all.
 
+Both follow the same rule as every other response: with one profile in the
+installation the `profiles` array and the `profile` column are **absent**, and
+the two answers are what they are today. There is nothing to enumerate when
+there is one, and the single-profile envelope has to stay byte-identical or
+the compatibility promise below is not one.
+
 That is the whole discovery path, and it costs no resident bytes because it
 lives in responses. The rest of the routing is paid where the ceiling does not
 apply: one generic sentence in the handshake `instructions`, which may not name
@@ -145,7 +151,7 @@ answers "does this reference leave the repository", so the same repository
 analysed beside different siblings produces different facts, an edge in one case
 and an `UNRESOLVED` in the other. Two profiles sharing a repository therefore
 write the same key with different fingerprints and overwrite each other, and no
-pass ever hits: the measured `16,9 s` becomes the measured `178,9 s`, for every
+pass ever hits: the measured `16.9 s` becomes the measured `178.9 s`, for every
 profile, forever.
 
 `unitIdentity` gains the profile name. Keying by the registry fingerprint would
@@ -159,7 +165,7 @@ The synthetic `go.work` is **not** shared. It is built from the module set of
 the pass, which is the registry, and `stateBesideConfig` already relocates
 `go.synthetic_work_file` with the rest of the state. It moves under the profile.
 
-The three analyzer output directories -- `rust-target` at `1,1 GB`, `java-target`
+The three analyzer output directories -- `rust-target` at `1.1 GB`, `java-target`
 and `csharp-target` -- do not depend on the registry, and only they stay shared
 per machine. That sharing is what makes profiles affordable, and it is also the
 one place where two profiles can corrupt each other, so it needs a lock it does
@@ -169,7 +175,7 @@ is therefore conditional on a cross-profile lock over the shared targets, taken
 for the length of a pass and named in the failure when it is not free.
 
 If that lock proves to cost more than the disk it saves, the fallback is
-per-profile targets: `1,1 GB` per profile, and no coordination.
+per-profile targets: `1.1 GB` per profile, and no coordination.
 
 `generations`, `CURRENT`, `BACKUP`, the publish lock, `backups`, `factcache`,
 the registry and the synthetic `go.work` move under the profile.
@@ -236,6 +242,20 @@ invent a symbol that exists in neither generation.
 Rows carry `profile` only when more than one profile was asked for. One profile
 costs nothing, which is the rule `view: "files"` already follows.
 
+Deduplication crosses pages or it is not deduplication. A key emitted on page
+one has to stay suppressed on page two, so the set of emitted keys travels in
+the cursor rather than living for the length of one response -- otherwise a
+declaration reached through two profiles appears once on a page and again on
+the next, and `total` describes neither. That set is bounded by the page size
+times the pages taken, and the same rule covers the case where the payloads
+differ: the rows are distinct, so both are emitted on the page that first
+reaches them and neither reappears later.
+
+Which also means the merge needs a global order across profiles, not a merge
+of independently ordered pages. The order is the canonical profile order and
+then each profile's own, so the position a cursor stores means the same thing
+on the next call.
+
 ### The union is not a join
 
 Asking two profiles returns two independent answers side by side. The edges
@@ -289,7 +309,7 @@ of the parts, which is strictly worse than today's single graph.
 The `53` repositories of an existing installation become the profile `default`,
 with the pointer set to it. No pass runs, no command grows a flag, and no call
 grows an argument: the installation answers afterwards exactly as it did before.
-An upgrade that costs `178,9 s` is the difference between this being adopted and
+An upgrade that costs `178.9 s` is the difference between this being adopted and
 not.
 
 Every artifact the decision scopes to a profile moves, and the list is the
@@ -297,15 +317,23 @@ migration rather than an example of it: `generations/`, `CURRENT`, `BACKUP`,
 `backups/`, `publish.lock`, `factcache/`, the synthetic `go.work` and
 `repositories.yaml`. Anything left above `profiles/default/` is state the
 default profile would then not find, and the cost of not finding `factcache` is
-the difference between the measured `16,9 s` and the measured `178,9 s` on the
+the difference between the measured `16.9 s` and the measured `178.9 s` on the
 next pass.
 
-The move is atomic or it does not happen: the new layout is staged and swapped,
-never migrated in place, because a half-migrated state directory has a `CURRENT`
-pointing at generations that are no longer beside it. The old layout stays until
-the swap succeeds, so rollback is dropping the staged directory. A daemon must
-not be running across it -- the migration refuses while one holds the socket,
-rather than racing it.
+What stays above `profiles/` is the installation, not a profile: the socket,
+the token, the endpoint, `daemon.port`, the event log and the three shared
+analyzer target directories.
+
+The move is one transaction or it does not happen, because a half-migrated
+state directory has a `CURRENT` pointing at generations no longer beside it.
+The whole new layout is built alongside the old under a temporary name,
+validated -- every named artifact present, and the migrated `CURRENT` naming a
+generation that opens -- and only then does a single rename put it in place.
+Nothing is deleted before that rename and nothing is moved out of the old
+layout, so rollback at any point before it is removing the temporary directory,
+and a failure after it leaves a complete layout rather than a partial one. The
+migration refuses to start while a daemon holds the socket, rather than racing
+it.
 
 ## The claim that changes
 
@@ -329,11 +357,19 @@ which is the one outcome this surface refuses everywhere else.
 - The state layout gains a level. `~/.local/state/kivgraph/profiles/<name>/`
   holds generations, `CURRENT`, the publish lock and the fact cache; the socket,
   the token, the endpoint and the analyzer target directories stay above it.
-- Disk grows with profiles for the fact cache and for retained generations, and
-  does not grow for the `1,1 GB` of analyzer output.
-- Memory improves in the common case and does not regress in the worst. A
-  profile nobody queries is not mapped; querying every profile maps roughly what
-  the single graph maps today.
+- Disk grows with profiles for the fact cache and for retained generations. The
+  `1.1 GB` of analyzer output does not grow **while the shared targets keep
+  their cross-profile lock**; if that lock is dropped for the per-profile
+  fallback, it grows by `1.1 GB` per profile like everything else.
+- Memory improves in the common case and is bounded rather than free in the
+  worst. A profile no operation names is not mapped, and mapping every profile
+  costs roughly what the single graph costs today -- but only because the
+  profiles partition one corpus. Nothing stops someone creating twenty
+  overlapping profiles, so a store is not held forever: the daemon retains a
+  bounded number of open stores and closes the least recently used, which is
+  safe because a mapping is released by the unreachability of its
+  `*GraphSnapshot` and never by a `Close` that a reader could outlive. The
+  bound is configuration, and the default is small.
 - The watcher's blast radius becomes the profile rather than the installation.
 - Three response shapes change: `snapshot_id`, the completeness verdict and the
   optional per-row `profile`. That is an MCP compatibility surface and it moves
