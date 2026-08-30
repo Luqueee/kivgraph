@@ -1,0 +1,56 @@
+name: Feature request
+description: Propose a focused improvement to Kivgraph.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the user problem first. A proposed implementation is helpful,
+        but the problem and intended outcome are the most important parts.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What limitation or user need should this address?
+      placeholder: I am trying to ... but ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What behavior would solve the problem?
+      placeholder: Kivgraph should ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Describe workarounds or other approaches you considered.
+    validations:
+      required: false
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: How could a maintainer tell that the request is complete?
+      placeholder: |
+        - The command accepts ...
+        - The output contains ...
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add links, examples, or a minimal public fixture. Do not include private data.
+    validations:
+      required: false

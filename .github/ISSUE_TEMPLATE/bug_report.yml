@@ -1,0 +1,75 @@
+name: Bug report
+description: Report a reproducible problem in Kivgraph.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please provide enough detail for someone else to reproduce the problem.
+        Do not include secrets, private source code, or private repository data.
+
+  - type: input
+    id: version
+    attributes:
+      label: Kivgraph version
+      description: Include the output of `kivgraph version` or the commit.
+      placeholder: v0.9.3
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Operating system and architecture
+      description: Include the platform where the problem occurs.
+      placeholder: Ubuntu 24.04, linux/amd64
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Command or client flow
+      description: Show the command, MCP client flow, or integration step that triggers the problem.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: What should have happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      placeholder: What happened instead? Include the complete error message.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: List the smallest sequence that reliably reproduces the problem.
+      placeholder: |
+        1. Initialize a fresh configuration.
+        2. Register a repository.
+        3. Run the command.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and additional context
+      description: Add relevant logs, screenshots, or a minimal public fixture. Remove secrets first.
+      render: shell
+    validations:
+      required: false
