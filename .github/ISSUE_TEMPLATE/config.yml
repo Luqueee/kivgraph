@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
   - name: Kivgraph documentation
-    url: https://github.com/Luqueee/kivgraph/tree/main/docs
-    about: Check the project documentation before opening a support issue.
+    url: https://kivgraph.dev/
+    about: Check the public documentation before opening a support issue.
