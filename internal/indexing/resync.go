@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/Luqueee/kivgraph/internal/filelock"
@@ -29,6 +30,24 @@ const ResyncInterval = 2 * time.Second
 // files are rewritten, and a rebase moves HEAD once per replayed commit.
 const ResyncDebounce = 3 * time.Second
 
+// ResyncAttempts is how many times in a row the loop rebuilds one movement
+// that keeps failing before it stops asking.
+//
+// A resynchroniser absorbs a failure and tries again, because most of them are
+// transient: a rebuild that lost a race, a tree git was still writing. What it
+// did not bound is the other kind. A daemon whose PATH cannot resolve `node`
+// fails every rebuild of a TypeScript repository, identically, and at the
+// intervals above that settles at one full `index --full` every six seconds,
+// indefinitely -- measured at roughly ten attempts a minute for twenty minutes
+// on a machine whose owner noticed the CPU rather than the log.
+//
+// Five to match StartLimitBurst in internal/supervisor, and for the same
+// argument the unit already makes: a rebuild that failed five times in a row on
+// a tree that has not moved again will not be fixed by a sixth. Backoff would
+// soften the symptom and keep the loop, and a loop that cannot succeed should
+// end rather than slow down.
+const ResyncAttempts = 5
+
 // ResyncOptions configures Resync.
 type ResyncOptions struct {
 	// Repositories are the registered repositories to follow. A repository
@@ -44,6 +63,8 @@ type ResyncOptions struct {
 	// Interval and Debounce override the constants above.
 	Interval time.Duration
 	Debounce time.Duration
+	// Attempts overrides ResyncAttempts.
+	Attempts int
 
 	// ContentUnchanged, when set, is asked whether the bytes the graph
 	// describes are still the ones on disk for the repositories that moved.
@@ -65,6 +86,12 @@ type ResyncOptions struct {
 	// OnSkipped reports a movement that needed no rebuild: the content is
 	// what the graph already describes, or another process is rebuilding it.
 	OnSkipped func([]RepositoryMovement)
+	// OnGaveUp reports the movement the loop stopped retrying, with the
+	// failure that ended it. It fires once per abandoned batch and it is the
+	// only place the give-up is stated: OnError has already reported each
+	// attempt, and a reader counting those has no way to tell the difference
+	// between a loop that stopped and one that is still going.
+	OnGaveUp func([]RepositoryMovement, error)
 
 	// Now overrides the clock, for tests.
 	Now func() time.Time
@@ -114,6 +141,10 @@ func Resync(ctx context.Context, options ResyncOptions) error {
 	if now == nil {
 		now = time.Now
 	}
+	attempts := options.Attempts
+	if attempts <= 0 {
+		attempts = ResyncAttempts
+	}
 
 	tracker := newHeadTracker(options.Repositories, options.OnError)
 	tracker.prime()
@@ -122,6 +153,7 @@ func Resync(ctx context.Context, options ResyncOptions) error {
 	defer ticker.Stop()
 
 	pending := map[string]RepositoryMovement{}
+	var failures repeatedFailures
 	var quietSince time.Time
 	for {
 		select {
@@ -164,11 +196,23 @@ func Resync(ctx context.Context, options ResyncOptions) error {
 					return nil
 				}
 				report(options.OnError, err)
+				if !failures.record(batch, attempts) {
+					// Nothing is rewound, and that is the whole of
+					// giving up: the tracker keeps the commit the tree
+					// is actually on, so the next tick sees no movement
+					// and this batch is never proposed again. Only the
+					// tree moving somewhere new can produce work here,
+					// which is the one event that could make a sixth
+					// attempt different from the five that failed.
+					reportGaveUp(options.OnGaveUp, batch, err)
+					continue
+				}
 				// The tree is still where it moved to, so the next tick
 				// must not conclude that nothing happened.
 				tracker.rewind(batch)
 				continue
 			}
+			failures.clear()
 			if rebuilt {
 				reportMovements(options.OnResynced, batch)
 				continue
@@ -230,6 +274,58 @@ func resyncBatch(ctx context.Context, options ResyncOptions, batch []RepositoryM
 		return false, fmt.Errorf("resync %d repository(ies): %w", len(repositories), err)
 	}
 	return true, nil
+}
+
+// repeatedFailures counts how many times in a row one batch failed.
+//
+// A batch is identified by what it describes -- which repositories moved, and
+// between which commits -- and not by when it was proposed. A retry of an
+// unchanged movement therefore carries the same fingerprint and adds to the
+// count, while any genuinely new movement carries a different one and starts
+// over. That is what makes the bound safe: it can only ever suppress a repeat
+// of the identical failing work, never work nobody has attempted yet.
+//
+// The zero value counts nothing and matches no batch, which is what a loop that
+// has not failed yet needs.
+type repeatedFailures struct {
+	fingerprint string
+	count       int
+}
+
+// record counts one failure of a batch and reports whether it is worth
+// retrying.
+func (failures *repeatedFailures) record(batch []RepositoryMovement, limit int) bool {
+	fingerprint := fingerprintOf(batch)
+	if fingerprint != failures.fingerprint {
+		failures.fingerprint = fingerprint
+		failures.count = 0
+	}
+	failures.count++
+	return failures.count < limit
+}
+
+// clear forgets the failing batch after a rebuild that did not fail. A batch
+// that has succeeded once has earned the full count again if it ever fails.
+func (failures *repeatedFailures) clear() {
+	failures.fingerprint = ""
+	failures.count = 0
+}
+
+// fingerprintOf describes a batch by its content. The batch arrives sorted by
+// repository name, so the same movement always produces the same string, and
+// the NUL separators keep two repositories from spelling one another's
+// fingerprint between them.
+func fingerprintOf(batch []RepositoryMovement) string {
+	var fingerprint strings.Builder
+	for _, movement := range batch {
+		fingerprint.WriteString(movement.Repository.Name)
+		fingerprint.WriteByte(0)
+		fingerprint.WriteString(movement.From)
+		fingerprint.WriteByte(0)
+		fingerprint.WriteString(movement.To)
+		fingerprint.WriteByte(0)
+	}
+	return fingerprint.String()
 }
 
 // headTracker remembers where each repository's HEAD was last seen.
@@ -326,4 +422,11 @@ func reportMovements(sink func([]RepositoryMovement), batch []RepositoryMovement
 		return
 	}
 	sink(batch)
+}
+
+func reportGaveUp(sink func([]RepositoryMovement, error), batch []RepositoryMovement, err error) {
+	if sink == nil || len(batch) == 0 {
+		return
+	}
+	sink(batch, err)
 }

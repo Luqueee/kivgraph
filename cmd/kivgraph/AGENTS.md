@@ -361,6 +361,13 @@ superficie observable.
   terminal que instaló y no al demonio: compararlo diría `stale` desde cualquier
   otra shell. Lo que sí compara es si hay alguno anotado, y por eso toda
   instalación anterior a esto dice `stale` una vez. Ver ADR 0085.
+- El resincronizador **se rinde** tras `ResyncAttempts` fallos seguidos del mismo
+  lote sin cambios -- cinco, como el `StartLimitBurst` de la unit-- y lo dice una
+  vez por `OnGaveUp`. El lote se identifica por su contenido, así que un
+  movimiento nuevo recupera la cuenta entera y la cota nunca puede suprimir
+  trabajo que nadie ha intentado. Rendirse no rebobina: el tracker se queda en el
+  commit donde el árbol está, que es lo que impide que el lote se vuelva a
+  proponer.
 - `kivgraph mcp install --daemon` es lo que hace usable todo lo anterior: lee
   `daemon.json` del directorio de estado y escribe una entrada `url` con el
   token. Sin ese flag se escribe `serve`, y es deliberado -- detectar un demonio
