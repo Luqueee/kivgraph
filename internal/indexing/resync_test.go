@@ -628,15 +628,17 @@ func TestAFingerprintSeparatesBatchesThatWouldSpellTheSame(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			if first, second := fingerprintOf(pair[0]), fingerprintOf(pair[1]); first == second {
-				t.Fatalf("two different batches share the fingerprint %q", first)
+				t.Fatalf("batches %#v and %#v share the fingerprint %q", pair[0], pair[1], first)
 			}
 		})
 	}
 	// And the retry of one movement is the same batch, or the count would
 	// never reach its limit and the loop would run forever after all.
 	repeated := []RepositoryMovement{movement("alpha", "1111", "2222")}
-	if fingerprintOf(repeated) != fingerprintOf([]RepositoryMovement{movement("alpha", "1111", "2222")}) {
-		t.Fatal("one movement produced two fingerprints, so a retry would never be counted as one")
+	again := []RepositoryMovement{movement("alpha", "1111", "2222")}
+	if fingerprintOf(repeated) != fingerprintOf(again) {
+		t.Fatalf("two calls with the identical movement %#v produced two fingerprints, "+
+			"so a retry would never be counted as one", repeated)
 	}
 }
 

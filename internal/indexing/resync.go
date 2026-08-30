@@ -63,7 +63,9 @@ type ResyncOptions struct {
 	// Interval and Debounce override the constants above.
 	Interval time.Duration
 	Debounce time.Duration
-	// Attempts overrides ResyncAttempts.
+	// Attempts overrides ResyncAttempts. A value of 1 tries a batch exactly
+	// once: the first failure is already the last attempt, and OnGaveUp fires
+	// instead of a second try ever being scheduled.
 	Attempts int
 
 	// ContentUnchanged, when set, is asked whether the bytes the graph
@@ -80,8 +82,10 @@ type ResyncOptions struct {
 	// OnResynced reports a completed rebuild.
 	OnResynced func([]RepositoryMovement)
 	// OnError receives a failure the loop absorbed. A resynchroniser never
-	// stops on one: the published graph keeps answering and the next tick
-	// tries again.
+	// stops on the loop's own account: the published graph keeps answering
+	// and, unless the batch has now used up Attempts, the next tick tries
+	// again. At Attempts 1 the first failure is also the last one: OnGaveUp
+	// fires right after this, on the same tick.
 	OnError func(error)
 	// OnSkipped reports a movement that needed no rebuild: the content is
 	// what the graph already describes, or another process is rebuilding it.

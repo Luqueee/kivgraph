@@ -19,11 +19,19 @@ Nothing here is measured by this ADR. Two sources carry it:
   `1.26.6` in `~/.local/go/bin` beside the distribution's `1.24.4` in
   `/usr/bin`. Roughly ten failed `index --full` attempts a minute, for
   about twenty minutes, ended by its owner noticing the CPU rather than
-  by anything in the loop.
+  by anything in the loop. The issue's own **Reproduction** section is
+  the corpus: install node through nvm only, register a TypeScript
+  repository, move its HEAD or update the binary so the resolver version
+  stops matching the published snapshot, then `kivgraph logs --follow`.
 - **The start limit one layer up.** ADR 0068 and
-  `restart_limit_linux_test.go`, measured `2026-08-28`: a unit whose
-  `ExecStart` named a deleted binary reached `NRestarts=140` under the
-  shipped defaults and stopped at `5` once the window could trip.
+  `TestTheStartLimitCanActuallyTrip` in `restart_limit_linux_test.go`,
+  measured `2026-08-28` against a unit whose `ExecStart` named a binary
+  that no longer exists: `NRestarts=140` and still climbing under the
+  shipped defaults -- `StartLimitBurst=5`, `StartLimitIntervalSec=10`,
+  `RestartSec=2` -- and `5` once the window widens to `30s`. The test
+  reproduces it directly: it renders the unit and asserts the arithmetic
+  relation between the three settings, rather than the two literals that
+  happened to cancel out.
 
 ## Context
 
@@ -32,7 +40,8 @@ Nothing here is measured by this ADR. Two sources carry it:
 declares none inherits systemd's own `PATH`:
 
 ```
-/home/<user>/.cargo/bin:/home/<user>/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
+/home/<user>/.cargo/bin:/home/<user>/.local/bin:/usr/local/bin:/usr/bin:
+/bin:/usr/local/games:/usr/games
 ```
 
 `kivgraph-ts-worker` ends in `exec node`. Node installed through nvm lives
@@ -97,10 +106,10 @@ would have worked is a worse failure than the one being reported.
 
 ## Consequences
 
-Every installed unit reports `stale` once after this ships, and the remedy
-`daemon status` already prints -- `kivgraph daemon install` -- is the right
-one. That is the intended migration and not a side effect: a unit written
-before this change carries the defect.
+A unit installed before this change carries no recorded `PATH`, and
+`daemon status` reports it `stale` with the remedy it already prints --
+`kivgraph daemon install`. That is the intended migration and not a side
+effect.
 
 The recorded `PATH` is a snapshot. An nvm upgrade moves node to a new
 versioned directory and the unit goes on naming the old one, so the remedy
