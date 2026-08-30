@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -102,16 +103,53 @@ func checksumLine(t *testing.T, publish string) string {
 	return strings.ReplaceAll(line, "\\\n", " ")
 }
 
-// Both installers are documented entry points, and one of them was published
-// while the other was not -- which makes the Windows instructions in the
-// README point at a URL that returns 404.
-func TestPublishShipsBothInstallers(t *testing.T) {
+// The installers and uninstallers are documented entry points, and one of
+// them was published while the other was not -- which makes a platform's
+// README command point at a URL that returns 404.
+func TestPublishShipsInstallersAndUninstallers(t *testing.T) {
 	publish := job(t, workflow(t), "publish")
+	assets := publishAssetList(t, publish)
+	checksums := checksumInputs(t, publish)
 
-	for _, installer := range []string{"install.sh", "install.ps1"} {
-		if !strings.Contains(publish, "release-assets/"+installer) {
-			t.Errorf("the publish job never uploads %s, so the documented command for that platform 404s",
-				installer)
+	for _, script := range []string{"install.sh", "install.ps1", "uninstall.sh", "uninstall.ps1"} {
+		if !assets[script] {
+			t.Errorf("the publish job never uploads %s, so the documented command 404s",
+				script)
+		}
+		if !slices.Contains(checksums, script) {
+			t.Errorf("SHA256SUMS does not cover %s, so the published script is unverifiable", script)
 		}
 	}
+}
+
+func publishAssetList(t *testing.T, publish string) map[string]bool {
+	t.Helper()
+	start := strings.Index(publish, "assets=(")
+	if start < 0 {
+		t.Fatal("the publish job no longer declares its release assets")
+	}
+	rest := publish[start:]
+	end := strings.Index(rest, "\n          )")
+	if end < 0 {
+		t.Fatal("the publish asset list has no closing parenthesis")
+	}
+	entries := regexp.MustCompile(`(?m)^\s*"release-assets/([^"]+)"\s*$`).FindAllStringSubmatch(
+		rest[:end], -1,
+	)
+	assets := make(map[string]bool, len(entries))
+	for _, entry := range entries {
+		assets[entry[1]] = true
+	}
+	return assets
+}
+
+func checksumInputs(t *testing.T, publish string) []string {
+	t.Helper()
+	line := checksumLine(t, publish)
+	line = strings.SplitN(line, "|", 2)[0]
+	fields := strings.Fields(line)
+	if len(fields) < 3 || fields[0] != "sha256sum" || fields[1] != "--" {
+		t.Fatalf("unexpected SHA256SUMS command: %q", line)
+	}
+	return fields[2:]
 }

@@ -784,13 +784,6 @@ func runWithSnapshotBuilder(args []string, stdout, stderr io.Writer, diagnose st
 	if spec, consumed, found := findCommand(args[1:]); found && spec.run != nil {
 		return spec.run(deps, args[1+consumed:], stdout, stderr)
 	}
-	// `index` on its own is the one near-miss worth naming: the pass has
-	// always required --full, and reporting an unknown command would send the
-	// reader to the help to find a command that is there.
-	if args[1] == "index" {
-		writeCommandError(stderr, "index: only --full is supported")
-		return 2
-	}
 	writeUsageError(stderr, program, fmt.Sprintf("unknown command %q", args[1]))
 	return 2
 }

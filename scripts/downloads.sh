@@ -137,10 +137,10 @@ showSeries() {
     return
   fi
 
-  printf '%-12s %5s %8s %8s %8s %10s %10s %7s\n' \
-    "DATE" "DAYS" "TOTAL" "BUNDLE" "MCPB" "INSTALLER" "CHECKSUMS" "RESETS"
-  printf '%-12s %5s %8s %8s %8s %10s %10s %7s\n' \
-    "----" "----" "-----" "------" "----" "---------" "---------" "------"
+  printf '%-12s %5s %8s %8s %8s %10s %12s %10s %7s\n' \
+    "DATE" "DAYS" "TOTAL" "BUNDLE" "MCPB" "INSTALLER" "UNINSTALLER" "CHECKSUMS" "RESETS"
+  printf '%-12s %5s %8s %8s %8s %10s %12s %10s %7s\n' \
+    "----" "----" "-----" "------" "----" "---------" "-----------" "---------" "------"
   jq -r '
     .[]
     | [
@@ -150,13 +150,14 @@ showSeries() {
         (.by_class.bundle // 0 | tostring),
         (.by_class.mcpb // 0 | tostring),
         (.by_class.installer // 0 | tostring),
+        (.by_class.uninstaller // 0 | tostring),
         (.by_class.checksums // 0 | tostring),
         (.resets | length | tostring)
       ]
     | @tsv
-  ' <<<"$rows" | while IFS=$'\t' read -r date days total bundle mcpb installer checksums resets; do
-    printf '%-12s %5s %8s %8s %8s %10s %10s %7s\n' \
-      "$date" "$days" "$total" "$bundle" "$mcpb" "$installer" "$checksums" "$resets"
+  ' <<<"$rows" | while IFS=$'\t' read -r date days total bundle mcpb installer uninstaller checksums resets; do
+    printf '%-12s %5s %8s %8s %8s %10s %12s %10s %7s\n' \
+      "$date" "$days" "$total" "$bundle" "$mcpb" "$installer" "$uninstaller" "$checksums" "$resets"
   done
 
   printf '\nThe first row is the baseline: everything downloaded before the series\n'
@@ -183,14 +184,16 @@ selftest() {
 {"schema":1,"repository":"o/r","captured_at":"2026-08-01T03:00:00Z","assets":[
   {"tag":"v1.0.0","asset":"kivgraph-linux-amd64.tar.gz","id":1,"class":"bundle","platform":"linux-amd64","downloads":10},
   {"tag":"v1.0.0","asset":"kivgraph-linux-amd64.mcpb","id":2,"class":"mcpb","platform":"linux-amd64","downloads":4},
-  {"tag":"v1.0.0","asset":"install.sh","id":3,"class":"installer","platform":"","downloads":1}
+  {"tag":"v1.0.0","asset":"install.sh","id":3,"class":"installer","platform":"","downloads":1},
+  {"tag":"v1.0.0","asset":"uninstall.sh","id":4,"class":"uninstaller","platform":"","downloads":1}
 ]}
 JSON
   cat >"$work/day2.json" <<'JSON'
 {"schema":1,"repository":"o/r","captured_at":"2026-08-02T03:00:00Z","assets":[
   {"tag":"v1.0.0","asset":"kivgraph-linux-amd64.tar.gz","id":1,"class":"bundle","platform":"linux-amd64","downloads":13},
   {"tag":"v1.0.0","asset":"kivgraph-linux-amd64.mcpb","id":9,"class":"mcpb","platform":"linux-amd64","downloads":2},
-  {"tag":"v1.0.0","asset":"install.sh","id":3,"class":"installer","platform":"","downloads":1}
+  {"tag":"v1.0.0","asset":"install.sh","id":3,"class":"installer","platform":"","downloads":1},
+  {"tag":"v1.0.0","asset":"uninstall.sh","id":4,"class":"uninstaller","platform":"","downloads":2}
 ]}
 JSON
   # Day 3 is two days later: the run of the third of August never happened.
@@ -199,6 +202,7 @@ JSON
   {"tag":"v1.0.0","asset":"kivgraph-linux-amd64.tar.gz","id":1,"class":"bundle","platform":"linux-amd64","downloads":20},
   {"tag":"v1.0.0","asset":"kivgraph-linux-amd64.mcpb","id":9,"class":"mcpb","platform":"linux-amd64","downloads":5},
   {"tag":"v1.0.0","asset":"install.sh","id":3,"class":"installer","platform":"","downloads":1},
+  {"tag":"v1.0.0","asset":"uninstall.sh","id":4,"class":"uninstaller","platform":"","downloads":3},
   {"tag":"v1.1.0","asset":"kivgraph-darwin-arm64.mcpb","id":10,"class":"mcpb","platform":"darwin-arm64","downloads":7}
 ]}
 JSON
@@ -212,17 +216,19 @@ JSON
     [[ "$got" == "$want" ]] || die "selftest: $description: want $want, got $got"
   }
 
-  expect "the baseline row is every download so far" '.[0].total' 15
+  expect "the baseline row is every download so far" '.[0].total' 16
   expect "the baseline row is marked" '.[0].first_snapshot' true
   expect "the baseline row covers no interval" '.[0].days_covered' null
   expect "a counter that grew is a subtraction" '.[1].by_class.bundle' 3
   expect "a replaced asset contributes what the new one has" '.[1].by_class.mcpb' 2
   expect "and the replacement is recorded" '[.[1].resets[].kind] | sort | join(",")' replaced
   expect "an installer nobody fetched is zero" '.[1].by_class.installer' 0
-  expect "the day is the sum of its classes" '.[1].total' 5
+  expect "the uninstaller is counted separately" '.[1].by_class.uninstaller' 1
+  expect "the day is the sum of its classes" '.[1].total' 6
   expect "and a replacement is the only thing it had to explain" '.[1].resets | length' 1
   expect "a missed run leaves a row covering two days" '.[2].days_covered' 2
   expect "and the traffic of the day it missed is still there" '.[2].by_class.bundle' 7
+  expect "uninstaller traffic survives a missed run" '.[2].by_class.uninstaller' 1
   expect "an asset seen for the first time contributes all of it" '.[2].mcpb_by_platform["darwin-arm64"]' 7
   expect "a platform that did not move is absent, not zero" '.[2].bundle_by_platform["darwin-arm64"] // "absent"' absent
 

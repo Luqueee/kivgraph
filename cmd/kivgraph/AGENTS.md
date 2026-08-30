@@ -181,6 +181,12 @@ superficie observable.
 
 ## Protocolo de `index --full --json`
 
+- `kivgraph index` es la forma local de la misma pasada: resuelve el directorio
+  actual, detecta los lenguajes soportados, prepara `.kivgraph/` y registra el
+  repositorio `project` antes de delegar en `runIndexFull`. Si no se pasa
+  `--config` ni `--repositories`, nunca escribe el registro compartido del
+  usuario. `kivgraph index --full` conserva la forma explícita sobre el
+  registro configurado; ninguna de las dos rutas es incremental.
 - El flujo de `index --full --json` es un protocolo, no una bitácora: `stdout`
   lleva sólo eventos JSON por línea -`progress`, y un único `result` al final- y
   el informe que leería una persona no se escribe en ese modo. Los contadores de
