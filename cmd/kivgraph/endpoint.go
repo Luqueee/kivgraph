@@ -106,6 +106,10 @@ func integrationManagerOptions(options integrationOptions, provision bool, stdou
 }
 
 func integrationManagerOptionsWithInput(options integrationOptions, provision bool, input io.Reader, stdout io.Writer) (integrations.Options, error) {
+	return integrationManagerOptionsWithStatus(options, provision, input, stdout, supervisor.Status)
+}
+
+func integrationManagerOptionsWithStatus(options integrationOptions, provision bool, input io.Reader, stdout io.Writer, status func(supervisor.Spec) (supervisor.Report, error)) (integrations.Options, error) {
 	chosen, err := resolveTransport(options, stdout)
 	if err != nil {
 		return integrations.Options{}, err
@@ -152,8 +156,12 @@ func integrationManagerOptionsWithInput(options integrationOptions, provision bo
 		if specErr != nil {
 			return integrations.Options{}, specErr
 		}
-		report, statusErr := supervisor.Status(spec)
-		if statusErr == nil && !daemonProvisionApproved(options, report, func(question string) bool {
+		report, statusErr := status(spec)
+		if statusErr != nil {
+			writeInfo(stdout, "mcp: stdio: could not inspect daemon supervisor: %v", statusErr)
+			return integrations.Options{}, nil
+		}
+		if !daemonProvisionApproved(options, report, func(question string) bool {
 			return promptYes(input, stdout, question)
 		}) {
 			writeInfo(stdout, "mcp: stdio: daemon installation declined")

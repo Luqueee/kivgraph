@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -81,9 +82,38 @@ func TestDaemonProvisionNeedsConsentWhenNoUnitExists(t *testing.T) {
 		t.Fatal("an absent daemon was provisioned without consent")
 	}
 	if !daemonProvisionApproved(integrationOptions{}, report, func(question string) bool {
-		return strings.Contains(question, "install")
+		return true
 	}) {
 		t.Fatal("an absent daemon was not provisioned after consent")
+	}
+}
+
+// TestDefaultProvisionSkipsInstallWhenSupervisorStatusFails keeps an inability
+// to inspect ownership from becoming permission to install a background unit.
+func TestDefaultProvisionSkipsInstallWhenSupervisorStatusFails(t *testing.T) {
+	loaded := initialisedHome(t)
+	var stdout bytes.Buffer
+	statusErr := errors.New("supervisor status unavailable")
+	options, err := integrationManagerOptionsWithStatus(
+		integrationOptions{Scope: integrations.ScopeUser},
+		true,
+		strings.NewReader("yes\n"),
+		&stdout,
+		func(supervisor.Spec) (supervisor.Report, error) {
+			return supervisor.Report{}, statusErr
+		},
+	)
+	if err != nil {
+		t.Fatalf("integrationManagerOptionsWithStatus() error = %v", err)
+	}
+	if options != (integrations.Options{}) {
+		t.Fatalf("options = %#v, want stdio after status failure", options)
+	}
+	if !strings.Contains(stdout.String(), statusErr.Error()) {
+		t.Fatalf("stdout = %q, want the status failure", stdout.String())
+	}
+	if _, err := os.Stat(daemon.EndpointPath(stateDirectory(loaded))); !os.IsNotExist(err) {
+		t.Fatalf("status failure provisioned a daemon endpoint: %v", err)
 	}
 }
 

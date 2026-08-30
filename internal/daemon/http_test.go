@@ -6,7 +6,9 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -401,8 +403,20 @@ func TestListenHTTPChoosesAndPersistsAPortWhenTheDefaultIsBusy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read persisted port: %v", err)
 	}
-	if strings.TrimSpace(string(persisted)) == "" {
-		t.Fatal("the selected port was not persisted")
+	parsed, err := url.Parse(served.Endpoint().URL)
+	if err != nil {
+		t.Fatalf("parse selected endpoint %q: %v", served.Endpoint().URL, err)
+	}
+	selectedPort, err := strconv.Atoi(parsed.Port())
+	if err != nil {
+		t.Fatalf("parse selected endpoint port %q: %v", parsed.Port(), err)
+	}
+	persistedPort, err := strconv.Atoi(strings.TrimSpace(string(persisted)))
+	if err != nil {
+		t.Fatalf("parse persisted port %q: %v", strings.TrimSpace(string(persisted)), err)
+	}
+	if persistedPort != selectedPort {
+		t.Fatalf("persisted port = %d, want selected endpoint port %d", persistedPort, selectedPort)
 	}
 }
 
