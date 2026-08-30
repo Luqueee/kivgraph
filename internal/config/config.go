@@ -4,6 +4,8 @@ package config
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -602,11 +604,15 @@ func stateBesideConfig(configPath string, ownRegistry bool) (*Config, error) {
 	}
 	directory := filepath.Dir(configPath)
 	state := filepath.Join(directory, "state")
+	syntheticWorkFile, err := projectSyntheticWorkFile(configPath)
+	if err != nil {
+		return nil, err
+	}
 	configuration := DefaultConfig()
 	configuration.Storage.DatabasePath = filepath.Join(state, "graph.lbdb")
 	configuration.Storage.BackupsPath = filepath.Join(state, "backups")
 	configuration.Indexing.FactCachePath = filepath.Join(state, "factcache")
-	configuration.Go.SyntheticWorkFile = filepath.Join(state, "go.work")
+	configuration.Go.SyntheticWorkFile = syntheticWorkFile
 	configuration.Rust.TargetDirectory = filepath.Join(state, "rust-target")
 	configuration.Java.TargetDirectory = filepath.Join(state, "java-target")
 	configuration.CSharp.TargetDirectory = filepath.Join(state, "csharp-target")
@@ -615,6 +621,73 @@ func stateBesideConfig(configPath string, ownRegistry bool) (*Config, error) {
 		configuration.Workspace.RepositoriesFile = filepath.Join(directory, "repositories.yaml")
 	}
 	return &configuration, nil
+}
+
+// projectSyntheticWorkFile returns a stable workspace path for one isolated
+// configuration. Synthetic Go workspaces cannot live beside project-local
+// configuration because that directory is itself inside the repository being
+// indexed.
+func projectSyntheticWorkFile(configPath string) (string, error) {
+	defaultWorkFile, err := expandPath(defaultSyntheticWork, "")
+	if err != nil {
+		return "", fmt.Errorf("resolve user Kivgraph state: %w", err)
+	}
+	digest := sha256.Sum256([]byte(filepath.Clean(configPath)))
+	identity := hex.EncodeToString(digest[:])
+	return filepath.Join(filepath.Dir(defaultWorkFile), "workspaces", identity, "go.work"), nil
+}
+
+// MigrateProjectSyntheticWorkFile moves the invalid workspace path written by
+// older project-local configurations. A different value is user-owned and is
+// never changed.
+func MigrateProjectSyntheticWorkFile(configPath string) (bool, error) {
+	resolvedPath, err := resolveConfigPath(configPath)
+	if err != nil {
+		return false, fmt.Errorf("resolve config path: %w", err)
+	}
+	configuration, _, err := loadConfigFile(resolvedPath)
+	if err != nil {
+		return false, fmt.Errorf("load config %q: %w", resolvedPath, err)
+	}
+	legacy := filepath.Join(filepath.Dir(resolvedPath), "state", "go.work")
+	if filepath.Clean(configuration.Go.SyntheticWorkFile) != filepath.Clean(legacy) {
+		return false, nil
+	}
+	target, err := projectSyntheticWorkFile(resolvedPath)
+	if err != nil {
+		return false, err
+	}
+
+	data, err := os.ReadFile(resolvedPath)
+	if err != nil {
+		return false, fmt.Errorf("read config %q for migration: %w", resolvedPath, err)
+	}
+	var root yaml.Node
+	if err := yaml.Unmarshal(data, &root); err != nil {
+		return false, fmt.Errorf("decode config %q for migration: %w", resolvedPath, err)
+	}
+	document := &root
+	if document.Kind == yaml.DocumentNode && len(document.Content) == 1 {
+		document = document.Content[0]
+	}
+	goSection := mappingValue(document, "go")
+	workFile := mappingValue(goSection, "synthetic_work_file")
+	if workFile == nil || workFile.Kind != yaml.ScalarNode {
+		return false, errors.New("config.go.synthetic_work_file: field is required for project migration")
+	}
+	workFile.Value = target
+	workFile.Tag = "!!str"
+	migratedData, err := yaml.Marshal(&root)
+	if err != nil {
+		return false, fmt.Errorf("encode migrated config %q: %w", resolvedPath, err)
+	}
+	if err := ensureDirectory(filepath.Dir(target)); err != nil {
+		return false, err
+	}
+	if _, err := writeInitialFile(resolvedPath, migratedData, true); err != nil {
+		return false, fmt.Errorf("write migrated config %q: %w", resolvedPath, err)
+	}
+	return true, nil
 }
 
 // DefaultConfigPath returns the expanded default config path.
