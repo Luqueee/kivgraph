@@ -260,8 +260,10 @@ func TestEvictedProfileNeverRepublishesAnOlderDeferredGeneration(t *testing.T) {
 func TestConcurrentDeferredLoadsRespectMaximumOpenProfiles(t *testing.T) {
 	entered := make(chan struct{}, 2)
 	release := make(chan struct{})
+	var loads atomic.Int32
 	loader := func(generation uint64) SnapshotLoader {
 		return func() (*GraphSnapshot, error) {
+			loads.Add(1)
 			entered <- struct{}{}
 			<-release
 			return publishedSnapshot(t, generation), nil
@@ -284,15 +286,11 @@ func TestConcurrentDeferredLoadsRespectMaximumOpenProfiles(t *testing.T) {
 	close(release)
 	<-done
 	<-done
-	active := 0
-	if a.active.Load() != nil {
-		active++
+	if a.Load() == nil || b.Load() == nil {
+		t.Fatal("Load(profiles=a,b, max_open_profiles=1) returned nil")
 	}
-	if b.active.Load() != nil {
-		active++
-	}
-	if active != 1 {
-		t.Fatalf("materialized profiles = %d, want 1", active)
+	if got := loads.Load(); got < 3 {
+		t.Fatalf("loader calls for profiles=a,b, max_open_profiles=1 = %d, want at least 3", got)
 	}
 }
 

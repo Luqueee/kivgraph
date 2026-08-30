@@ -302,7 +302,7 @@ func TestRemainingQueryToolsAcceptAMultiProfileUnion(t *testing.T) {
 		}
 		assertUnion(t, response.Profiles, response.CrossProfileEdges, response.Total)
 		if len(response.Results.Variants) != 1 || !reflect.DeepEqual(response.Results.Variants[0].Profiles.ProfileNames(), []string{"default", "other"}) {
-			t.Fatalf("symbol variants = %#v", response.Results.Variants)
+			t.Fatalf("symbol variants for pkg.Alpha in profiles=default,other = %#v", response.Results.Variants)
 		}
 	})
 	t.Run("get_source", func(t *testing.T) {

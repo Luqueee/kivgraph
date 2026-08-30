@@ -466,10 +466,10 @@ func findSymbolAcrossProfiles(
 			}
 			if firstPage {
 				coverage.UnresolvedRelated += response.Coverage.UnresolvedRelated
-			}
-			if response.Completeness != nil && response.Completeness.Verdict == VerdictLowerBound {
-				profileCompleteness = *response.Completeness
-				mergeCompleteness(&mergedCompleteness, response.Completeness)
+				if response.Completeness != nil && response.Completeness.Verdict == VerdictLowerBound {
+					profileCompleteness = *response.Completeness
+					mergeCompleteness(&mergedCompleteness, response.Completeness)
+				}
 			}
 			for _, row := range response.Results.Symbols {
 				row.Profiles = ""
