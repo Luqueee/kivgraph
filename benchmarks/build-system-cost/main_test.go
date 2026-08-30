@@ -75,12 +75,21 @@ func TestRunRecordsBothArmsWithoutUsingRealCaches(t *testing.T) {
 	}
 	for _, cache := range hostCaches {
 		prefix := cache.name + "="
+		found := false
 		for _, line := range strings.Split(string(goLog), "\n") {
-			if strings.HasPrefix(line, prefix) && strings.Contains(line, cache.value) {
+			if !strings.HasPrefix(line, prefix) {
+				continue
+			}
+			value := strings.TrimPrefix(line, prefix)
+			if value == "" {
+				t.Fatalf("%s was empty in the child command: %q", cache.name, line)
+			}
+			if value == cache.value {
 				t.Fatalf("%s inherited the host cache: %q", cache.name, line)
 			}
+			found = true
 		}
-		if !strings.Contains(string(goLog), prefix) {
+		if !found {
 			t.Fatalf("Go log did not record %s:\n%s", cache.name, goLog)
 		}
 	}
