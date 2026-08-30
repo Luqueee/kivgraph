@@ -368,12 +368,16 @@ superficie observable.
   trabajo que nadie ha intentado. Rendirse no rebobina: el tracker se queda en el
   commit donde el árbol está, que es lo que impide que el lote se vuelva a
   proponer.
-- `kivgraph mcp install --daemon` es lo que hace usable todo lo anterior: lee
-  `daemon.json` del directorio de estado y escribe una entrada `url` con el
-  token. Sin ese flag se escribe `serve`, y es deliberado -- detectar un demonio
-  y cambiar la entrada en silencio haría que el mismo comando escribiera dos
-  ficheros distintos según si había un proceso arrancado. En ámbito `project` se
-  niega: ese fichero se commitea.
+- `kivgraph mcp install` es lo que hace usable todo lo anterior: lee `daemon.json`
+  del directorio de estado y escribe una entrada `url` con el token. Si no hay
+  supervisor, pregunta antes de instalarlo; una respuesta negativa o una salida
+  no interactiva conserva `stdio`. `--daemon` expresa consentimiento sin prompt.
+  En ámbito `project` se niega: ese fichero se commitea.
+- La salida humana reutiliza el color ANSI de `styleFor`: sólo se activa en un
+  terminal, respeta `NO_COLOR` y `TERM=dumb`, y no añade escapes a una tubería.
+  `daemon status`, `graph status`, `rollback` y `snapshot` presentan una tabla
+  en terminal; el texto redirigido conserva la forma lineal que consumen los
+  scripts.
 - **El demonio publica HTTP antes de enlazar el socket, y el orden es contrato.**
   Un socket unix acepta en cuanto está enlazado, antes de que nadie llame a
   `Accept`, así que alcanzar el socket tiene que implicar que `daemon.json` ya

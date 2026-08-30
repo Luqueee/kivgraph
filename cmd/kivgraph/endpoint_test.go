@@ -73,6 +73,63 @@ func TestTheTwoTransportFlagsCannotBothBeAsked(t *testing.T) {
 	}
 }
 
+// TestDaemonProvisionNeedsConsentWhenNoUnitExists keeps the default from
+// starting a background process without the operator seeing the decision.
+func TestDaemonProvisionNeedsConsentWhenNoUnitExists(t *testing.T) {
+	report := supervisor.Report{State: supervisor.StateAbsent}
+	if daemonProvisionApproved(integrationOptions{}, report, func(string) bool { return false }) {
+		t.Fatal("an absent daemon was provisioned without consent")
+	}
+	if !daemonProvisionApproved(integrationOptions{}, report, func(question string) bool {
+		return strings.Contains(question, "install")
+	}) {
+		t.Fatal("an absent daemon was not provisioned after consent")
+	}
+}
+
+// TestDaemonProvisionDoesNotAskForAnExistingUnit keeps a healthy installation
+// quiet: consent is needed for the side effect of installing, not for reusing a
+// daemon that already has a supervisor.
+func TestDaemonProvisionDoesNotAskForAnExistingUnit(t *testing.T) {
+	called := false
+	if !daemonProvisionApproved(integrationOptions{}, supervisor.Report{State: supervisor.StateInstalled}, func(string) bool {
+		called = true
+		return false
+	}) {
+		t.Fatal("an installed daemon was rejected")
+	}
+	if called {
+		t.Fatal("an installed daemon triggered an unnecessary prompt")
+	}
+}
+
+// TestDefaultProvisionDeclinesWithoutAnInteractiveTerminal keeps an automated
+// invocation from installing a background unit merely because it supplied a
+// reader containing "yes". A prompt is only meaningful when the user can see
+// and answer it on the terminal.
+func TestDefaultProvisionDeclinesWithoutAnInteractiveTerminal(t *testing.T) {
+	loaded := initialisedHome(t)
+	var stdout bytes.Buffer
+	options, err := integrationManagerOptionsWithInput(
+		integrationOptions{Scope: integrations.ScopeUser},
+		true,
+		strings.NewReader("yes\n"),
+		&stdout,
+	)
+	if err != nil {
+		t.Fatalf("integrationManagerOptionsWithInput() error = %v", err)
+	}
+	if options != (integrations.Options{}) {
+		t.Fatalf("options = %#v, want stdio after non-interactive decline", options)
+	}
+	if !strings.Contains(stdout.String(), "daemon installation declined") {
+		t.Fatalf("stdout = %q, want the explicit decline", stdout.String())
+	}
+	if _, err := os.Stat(daemon.EndpointPath(stateDirectory(loaded))); !os.IsNotExist(err) {
+		t.Fatalf("non-interactive provisioning created an endpoint: %v", err)
+	}
+}
+
 // TestProjectScopeStaysOnStdio is the token rule at the seam. A url entry
 // carries a bearer token and a project file gets committed, so the default
 // writes the entry that works and names why it is not the daemon.

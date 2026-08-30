@@ -25,7 +25,6 @@ import (
 
 	"github.com/Luqueee/kivgraph/internal/app"
 	"github.com/Luqueee/kivgraph/internal/config"
-	"github.com/Luqueee/kivgraph/internal/daemon"
 	"github.com/Luqueee/kivgraph/internal/eventlog"
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/goworkspace"
@@ -436,7 +435,7 @@ func daemonFlagSet(configPath *string, options *daemonOptions) *flag.FlagSet {
 	flags := flag.NewFlagSet("daemon", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	flags.StringVar(configPath, "config", "", "configuration file")
-	flags.StringVar(&options.Address, "addr", daemon.DefaultAddress, "HTTP address for MCP clients that take a url")
+	flags.StringVar(&options.Address, "addr", "", "HTTP address for MCP clients that take a url (defaults to the persisted port or 127.0.0.1:7788)")
 	flags.BoolVar(&options.AllowRemote, "allow-remote", false, "permit a bind outside loopback, which sends names, paths and source metadata off this host")
 	return flags
 }
@@ -2093,34 +2092,35 @@ func runDoctorStorage(args []string, stdout, stderr io.Writer, diagnose storageD
 		return code
 	}
 	if flags.NArg() != 0 {
-		fmt.Fprintf(stderr, "doctor storage: unexpected arguments: %v\n", flags.Args())
+		writeCommandError(stderr, "doctor storage: unexpected arguments: %v", flags.Args())
 		return 2
 	}
 	if options.Database == "" {
-		fmt.Fprintln(stderr, "doctor storage: --database is required")
+		writeCommandError(stderr, "doctor storage: --database is required")
 		return 2
 	}
 
 	diagnosis, err := diagnose(context.Background(), options.Database)
 	if err != nil {
-		fmt.Fprintf(stderr, "doctor storage: %v\n", err)
+		writeCommandError(stderr, "doctor storage: %v", err)
 		return 1
 	}
 	state := "FAIL"
 	if diagnosis.Healthy {
 		state = "PASS"
 	}
-	fmt.Fprintf(stdout, "storage doctor: %s\n", state)
-	fmt.Fprintf(stdout, "database: %s\n", diagnosis.Path)
+	writeResult(stdout, diagnosis.Healthy, "storage doctor: %s", state)
+	writeInfo(stdout, "database: %s", diagnosis.Path)
 	// A diagnosis that does not say which layout it validated cannot be
 	// interpreted: the same path can hold either schema.
 	if diagnosis.Schema == ladybug.SchemaCanonical {
-		fmt.Fprintf(stdout, "schema: %s (version %d)\n", diagnosis.Schema, diagnosis.SchemaVersion)
+		writeInfo(stdout, "schema: %s (version %d)", diagnosis.Schema, diagnosis.SchemaVersion)
 	} else {
-		fmt.Fprintf(stdout, "schema: %s\n", diagnosis.Schema)
+		writeInfo(stdout, "schema: %s", diagnosis.Schema)
 	}
 	for _, check := range diagnosis.Checks {
-		fmt.Fprintf(stdout, "[%s] %s: %s\n", check.Status, check.Name, check.Detail)
+		writeResult(stdout, check.Status == ladybug.DiagnosticPass,
+			"[%s] %s: %s", check.Status, check.Name, check.Detail)
 	}
 	if diagnosis.Healthy {
 		return 0
@@ -2150,17 +2150,17 @@ func runDoctorGraph(args []string, stdout, stderr io.Writer, verify graphVerifie
 		return code
 	}
 	if flags.NArg() != 0 {
-		fmt.Fprintf(stderr, "doctor graph: unexpected arguments: %v\n", flags.Args())
+		writeCommandError(stderr, "doctor graph: unexpected arguments: %v", flags.Args())
 		return 2
 	}
 	if options.Database == "" {
-		fmt.Fprintln(stderr, "doctor graph: --database is required")
+		writeCommandError(stderr, "doctor graph: --database is required")
 		return 2
 	}
 
 	report, err := verify(context.Background(), options.Database)
 	if err != nil {
-		fmt.Fprintf(stderr, "doctor graph: %v\n", err)
+		writeCommandError(stderr, "doctor graph: %v", err)
 		return 1
 	}
 	writeIntegrityReport(stdout, options.Database, report)
@@ -2179,8 +2179,8 @@ func writeIntegrityReport(stdout io.Writer, databasePath string, report ladybug.
 	if report.Passed {
 		state = "PASS"
 	}
-	fmt.Fprintf(stdout, "graph doctor: %s\n", state)
-	fmt.Fprintf(stdout, "database: %s\n", databasePath)
+	writeResult(stdout, report.Passed, "graph doctor: %s", state)
+	writeInfo(stdout, "database: %s", databasePath)
 	writeIntegrityFindings(stdout, report.Findings)
 }
 
@@ -2194,7 +2194,7 @@ func writeIntegrityFindings(stdout io.Writer, findings []ladybug.IntegrityFindin
 		if finding.Passed {
 			findingState = "PASS"
 		}
-		fmt.Fprintf(stdout, "[%s] %s: %d violation(s)\n", findingState, finding.Rule, finding.Violations)
+		writeResult(stdout, finding.Passed, "[%s] %s: %d violation(s)", findingState, finding.Rule, finding.Violations)
 		if finding.Passed {
 			continue
 		}
@@ -2232,16 +2232,16 @@ func runGenerateGraph(args []string, stdout, stderr io.Writer) int {
 		return code
 	}
 	if flags.NArg() != 0 {
-		fmt.Fprintf(stderr, "generate-graph: unexpected arguments: %v\n", flags.Args())
+		writeCommandError(stderr, "generate-graph: unexpected arguments: %v", flags.Args())
 		return 2
 	}
 
 	manifest, err := synthetic.Generate(context.Background(), options.Config)
 	if err != nil {
-		fmt.Fprintf(stderr, "generate-graph: %v\n", err)
+		writeCommandError(stderr, "generate-graph: %v", err)
 		return 1
 	}
-	fmt.Fprintf(stdout, "generated %d repositories, %d files, %d symbols, %d edges at %s (seed %d)\n",
+	writeSuccess(stdout, "generated %d repositories, %d files, %d symbols, %d edges at %s (seed %d)",
 		manifest.Repositories,
 		manifest.Files,
 		manifest.Symbols,
@@ -2282,32 +2282,32 @@ func runRebuild(args []string, stdout, stderr io.Writer, rebuilder graphRebuilde
 		return code
 	}
 	if flags.NArg() != 0 {
-		fmt.Fprintf(stderr, "rebuild: unexpected arguments: %v\n", flags.Args())
+		writeCommandError(stderr, "rebuild: unexpected arguments: %v", flags.Args())
 		return 2
 	}
 	switch {
 	case options.Facts == "":
-		fmt.Fprintln(stderr, "rebuild: --facts is required")
+		writeCommandError(stderr, "rebuild: --facts is required")
 		return 2
 	case options.Root == "":
-		fmt.Fprintln(stderr, "rebuild: --root is required")
+		writeCommandError(stderr, "rebuild: --root is required")
 		return 2
 	case options.Generation == "":
-		fmt.Fprintln(stderr, "rebuild: --generation is required")
+		writeCommandError(stderr, "rebuild: --generation is required")
 		return 2
 	case options.ResolverVersion == "":
-		fmt.Fprintln(stderr, "rebuild: --resolver-version is required")
+		writeCommandError(stderr, "rebuild: --resolver-version is required")
 		return 2
 	}
 
 	factsData, err := os.ReadFile(options.Facts)
 	if err != nil {
-		fmt.Fprintf(stderr, "rebuild: read facts: %v\n", err)
+		writeCommandError(stderr, "rebuild: read facts: %v", err)
 		return 1
 	}
 	var set facts.Set
 	if err := json.Unmarshal(factsData, &set); err != nil {
-		fmt.Fprintf(stderr, "rebuild: decode facts: %v\n", err)
+		writeCommandError(stderr, "rebuild: decode facts: %v", err)
 		return 1
 	}
 
@@ -2321,11 +2321,11 @@ func runRebuild(args []string, stdout, stderr io.Writer, rebuilder graphRebuilde
 	})
 	writeRebuildReport(stdout, report)
 	if err != nil {
-		fmt.Fprintf(stderr, "rebuild: %v\n", err)
+		writeCommandError(stderr, "rebuild: %v", err)
 		return 1
 	}
 	if !report.Passed {
-		fmt.Fprintf(stderr, "rebuild: %s\n", rebuildFailureReason(report))
+		writeCommandError(stderr, "rebuild: %s", rebuildFailureReason(report))
 		return 1
 	}
 	return 0
@@ -2335,23 +2335,23 @@ func runRebuild(args []string, stdout, stderr io.Writer, rebuilder graphRebuilde
 // it never re-derives pass/fail so stdout and the exit code cannot disagree.
 func writeRebuildReport(stdout io.Writer, report rebuild.Report) {
 	for _, stage := range report.Stages {
-		fmt.Fprintf(stdout, "[%s] %s: %.2fms", rebuildState(stage.Passed), stage.Name, stage.DurationMS)
+		message := fmt.Sprintf("[%s] %s: %.2fms", rebuildState(stage.Passed), stage.Name, stage.DurationMS)
 		if stage.Detail != "" {
-			fmt.Fprintf(stdout, " - %s", stage.Detail)
+			message += fmt.Sprintf(" - %s", stage.Detail)
 		}
-		fmt.Fprintln(stdout)
+		writeResult(stdout, stage.Passed, "%s", message)
 	}
 	for _, check := range report.Integrity {
 		if check.Passed {
 			continue
 		}
-		fmt.Fprintf(stdout, "[FAIL] integrity %s: expected %d, observed %d\n", check.Table, check.Expected, check.Observed)
+		writeCommandError(stdout, "[FAIL] integrity %s: expected %d, observed %d", check.Table, check.Expected, check.Observed)
 	}
 	for _, finding := range report.Invariants.Findings {
 		if finding.Passed {
 			continue
 		}
-		fmt.Fprintf(stdout, "[FAIL] invariant %s: %d violation(s)\n", finding.Rule, finding.Violations)
+		writeCommandError(stdout, "[FAIL] invariant %s: %d violation(s)", finding.Rule, finding.Violations)
 		for _, sample := range finding.Samples {
 			fmt.Fprintf(stdout, "    %s %s: %s\n", sample.Table, sample.Key, sample.Detail)
 		}
@@ -2360,22 +2360,22 @@ func writeRebuildReport(stdout io.Writer, report rebuild.Report) {
 		if probe.Passed {
 			continue
 		}
-		fmt.Fprintf(stdout, "[FAIL] probe %s: %s\n", probe.Probe, probe.Detail)
+		writeCommandError(stdout, "[FAIL] probe %s: %s", probe.Probe, probe.Detail)
 	}
 	if report.SnapshotDigest != "" {
-		fmt.Fprintf(stdout, "snapshot digest: %s\n", report.SnapshotDigest)
+		writeInfo(stdout, "snapshot digest: %s", report.SnapshotDigest)
 	} else {
-		fmt.Fprintln(stdout, "snapshot digest: none")
+		writeInfo(stdout, "snapshot digest: none")
 	}
 	if report.Publication.Generation.ID != "" {
-		fmt.Fprintf(stdout, "generation published: %s (%s)\n", report.Publication.Generation.ID, report.Publication.Generation.Path)
+		writeSuccess(stdout, "generation published: %s (%s)", report.Publication.Generation.ID, report.Publication.Generation.Path)
 	} else {
-		fmt.Fprintln(stdout, "generation published: none")
+		writeInfo(stdout, "generation published: none")
 	}
 	if len(report.Pruned) != 0 {
-		fmt.Fprintf(stdout, "generations pruned: %s\n", strings.Join(report.Pruned, ", "))
+		writeInfo(stdout, "generations pruned: %s", strings.Join(report.Pruned, ", "))
 	} else {
-		fmt.Fprintln(stdout, "generations pruned: none")
+		writeInfo(stdout, "generations pruned: none")
 	}
 }
 
@@ -2435,17 +2435,17 @@ func runGraphStatus(args []string, stdout, stderr io.Writer, roles graphRoleReso
 		return code
 	}
 	if flags.NArg() != 0 {
-		fmt.Fprintf(stderr, "graph status: unexpected arguments: %v\n", flags.Args())
+		writeCommandError(stderr, "graph status: unexpected arguments: %v", flags.Args())
 		return 2
 	}
 	if options.Root == "" {
-		fmt.Fprintln(stderr, "graph status: --root is required")
+		writeCommandError(stderr, "graph status: --root is required")
 		return 2
 	}
 
 	layout, err := roles(context.Background(), rebuild.LayoutOptions{Root: options.Root, Store: generation.DefaultConfig()})
 	if err != nil {
-		fmt.Fprintf(stderr, "graph status: %v\n", err)
+		writeCommandError(stderr, "graph status: %v", err)
 		return 1
 	}
 	writeGraphStatus(stdout, options.Root, layout)
@@ -2459,6 +2459,32 @@ func runGraphStatus(args []string, stdout, stderr io.Writer, roles graphRoleReso
 // generation: that is a legitimate layout, not a rendering error, matching
 // the exit code runGraphStatus already returns for it (0).
 func writeGraphStatus(stdout io.Writer, root string, layout rebuild.Layout) {
+	if integrationTUIIsInteractive(stdout) {
+		generationsDir := generation.GenerationsDir(root)
+		if absRoot, err := filepath.Abs(root); err == nil {
+			generationsDir = generation.GenerationsDir(absRoot)
+		}
+		active := "none"
+		if layout.Active.ID != "" {
+			active = fmt.Sprintf("%s (%s)", layout.Active.ID, layout.Active.Path)
+		}
+		backup := "none"
+		if layout.HasBackup {
+			backup = fmt.Sprintf("%s (%s)", layout.Backup.ID, layout.Backup.Path)
+		}
+		retained := "none"
+		if len(layout.Retained) != 0 {
+			retained = strings.Join(layout.Retained, ", ")
+		}
+		writeKeyValueTable(stdout, "Graph roles", []keyValueRow{
+			{Key: "Root", Value: root},
+			{Key: "Active", Value: active},
+			{Key: "Next", Value: filepath.Join(generationsDir, layout.NextID+".tmp")},
+			{Key: "Backup", Value: backup},
+			{Key: "Retained", Value: retained},
+		})
+		return
+	}
 	fmt.Fprintf(stdout, "%s: ", rebuild.RoleActive)
 	if layout.Active.ID == "" {
 		fmt.Fprintln(stdout, "none")
@@ -2513,11 +2539,11 @@ func runRollback(args []string, stdout, stderr io.Writer, rollback graphRollback
 		return code
 	}
 	if flags.NArg() != 0 {
-		fmt.Fprintf(stderr, "rollback: unexpected arguments: %v\n", flags.Args())
+		writeCommandError(stderr, "rollback: unexpected arguments: %v", flags.Args())
 		return 2
 	}
 	if options.Root == "" {
-		fmt.Fprintln(stderr, "rollback: --root is required")
+		writeCommandError(stderr, "rollback: --root is required")
 		return 2
 	}
 
@@ -2528,11 +2554,11 @@ func runRollback(args []string, stdout, stderr io.Writer, rollback graphRollback
 	})
 	writeRollbackReport(stdout, report)
 	if err != nil {
-		fmt.Fprintf(stderr, "rollback: %v\n", err)
+		writeCommandError(stderr, "rollback: %v", err)
 		return 1
 	}
 	if !report.Passed {
-		fmt.Fprintln(stderr, "rollback: report did not pass despite no error")
+		writeCommandError(stderr, "rollback: report did not pass despite no error")
 		return 1
 	}
 	return 0
@@ -2544,6 +2570,24 @@ func runRollback(args []string, stdout, stderr io.Writer, rollback graphRollback
 // a failed rollback is diagnosable from stdout alone even though it never
 // reaches the passed state runRollback checks for the exit code.
 func writeRollbackReport(stdout io.Writer, report rebuild.RollbackReport) {
+	if integrationTUIIsInteractive(stdout) {
+		invariants := "not evaluated"
+		if len(report.Invariants.Findings) != 0 {
+			invariants = rebuildState(report.Invariants.Passed)
+		}
+		paint := styleFor(stdout)
+		writeKeyValueTable(stdout, "Rollback", []keyValueRow{
+			{Key: "Generation", Value: fmt.Sprintf("%s -> %s", orNone(report.From.ID), orNone(report.To.ID))},
+			{Key: "Digest expected", Value: orNone(report.Expected)},
+			{Key: "Digest observed", Value: orNone(report.Digest)},
+			{Key: "Invariants", Value: invariants, ValueStyle: passFailStyle(report.Invariants.Passed, paint)},
+			{Key: "Result", Value: rebuildState(report.Passed), ValueStyle: passFailStyle(report.Passed, paint)},
+		})
+		if len(report.Invariants.Findings) != 0 {
+			writeIntegrityFindings(stdout, report.Invariants.Findings)
+		}
+		return
+	}
 	fmt.Fprintf(stdout, "rollback: %s -> %s\n", orNone(report.From.ID), orNone(report.To.ID))
 	fmt.Fprintf(stdout, "digest expected: %s\n", orNone(report.Expected))
 	fmt.Fprintf(stdout, "digest observed: %s\n", orNone(report.Digest))
@@ -2593,11 +2637,11 @@ func runSnapshot(args []string, stdout, stderr io.Writer, build snapshotBuilder)
 		return code
 	}
 	if flags.NArg() != 0 {
-		fmt.Fprintf(stderr, "snapshot: unexpected arguments: %v\n", flags.Args())
+		writeCommandError(stderr, "snapshot: unexpected arguments: %v", flags.Args())
 		return 2
 	}
 	if options.Root == "" {
-		fmt.Fprintln(stderr, "snapshot: --root is required")
+		writeCommandError(stderr, "snapshot: --root is required")
 		return 2
 	}
 
@@ -2609,11 +2653,11 @@ func runSnapshot(args []string, stdout, stderr io.Writer, build snapshotBuilder)
 	})
 	writeSnapshotReport(stdout, report)
 	if err != nil {
-		fmt.Fprintf(stderr, "snapshot: %v\n", err)
+		writeCommandError(stderr, "snapshot: %v", err)
 		return 1
 	}
 	if !report.Passed {
-		fmt.Fprintln(stderr, "snapshot: report did not pass despite no error")
+		writeCommandError(stderr, "snapshot: report did not pass despite no error")
 		return 1
 	}
 	return 0
@@ -2625,6 +2669,23 @@ func runSnapshot(args []string, stdout, stderr io.Writer, build snapshotBuilder)
 // and Package to Package relations — see README.md), so an operator can
 // tell a healthy generation from a broken one without a debugger.
 func writeSnapshotReport(stdout io.Writer, report rebuild.SnapshotReport) {
+	if integrationTUIIsInteractive(stdout) {
+		paint := styleFor(stdout)
+		writeKeyValueTable(stdout, "Snapshot", []keyValueRow{
+			{Key: "State", Value: rebuildState(report.Passed), ValueStyle: passFailStyle(report.Passed, paint)},
+			{Key: "Snapshot ID", Value: fmt.Sprintf("%d", report.SnapshotID)},
+			{Key: "Version", Value: fmt.Sprintf("%d", report.Version)},
+			{Key: "Digest", Value: orNone(report.Digest)},
+			{Key: "Repositories", Value: fmt.Sprintf("%d", report.Stats.Repositories)},
+			{Key: "Packages", Value: fmt.Sprintf("%d", report.Stats.Packages)},
+			{Key: "Files", Value: fmt.Sprintf("%d", report.Stats.Files)},
+			{Key: "Symbols", Value: fmt.Sprintf("%d", report.Stats.Symbols)},
+			{Key: "Evidence", Value: fmt.Sprintf("%d", report.Stats.Evidence)},
+			{Key: "Edges", Value: fmt.Sprintf("%d", report.Stats.Edges)},
+			{Key: "Edges outside CSR", Value: fmt.Sprintf("%d", report.Stats.SkippedEdges)},
+		})
+		return
+	}
 	fmt.Fprintf(stdout, "snapshot: %s\n", rebuildState(report.Passed))
 	fmt.Fprintf(stdout, "snapshot id: %d\n", report.SnapshotID)
 	fmt.Fprintf(stdout, "version: %d\n", report.Version)

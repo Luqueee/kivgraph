@@ -617,7 +617,7 @@ socket unix dentro del directorio de estado y el transporte Streamable HTTP en
 loopback.
 
 ```bash
-kivgraph daemon                      # 127.0.0.1:7788 y el socket
+kivgraph daemon                      # 127.0.0.1:7788, u otro puerto libre
 kivgraph daemon --addr 127.0.0.1:9000
 ```
 
@@ -632,7 +632,7 @@ publica su endpoint y hay un comando que lo escribe:
 
 ```bash
 kivgraph daemon install                 # launchd o systemd lo arranca y lo repone
-kivgraph mcp install --daemon --target claude-code
+kivgraph mcp install --target claude-code
 ```
 
 `daemon install` es lo que le da **dueño** al proceso: un LaunchAgent en macOS,
@@ -663,10 +663,11 @@ token-- y escribe la entrada que ese cliente entiende: `type: http` con una
 cabecera `Authorization` para Claude Code, Claude Desktop y Oh My Pi, `type:
 remote` para OpenCode, y `url` con `http_headers` para Codex.
 
-**Ésa es la entrada por defecto**: `mcp install` apunta al demonio sin que se lo
-pidan, y `--daemon` sólo cambia el fallo -- pedirlo a mano se niega donde el
-defecto caería a `serve`. La salida explícita es `--stdio`, que escribe
-exactamente lo que escribía el defecto anterior: un proceso por cliente.
+**Ésa es la entrada por defecto**: `mcp install` apunta al demonio. Si todavía
+no hay un supervisor instalado, pregunta antes de instalarlo; responder que no
+deja la entrada `stdio`. `--daemon` expresa consentimiento de forma no
+interactiva y falla si esta máquina no puede sostenerlo. La salida explícita es
+`--stdio`, que escribe un proceso `serve` por cliente.
 
 Hay tres condiciones que escriben `stdio` por su cuenta, y las tres lo dicen:
 ámbito `project`, porque la `url` lleva un token y ese fichero se commitea; una
@@ -684,6 +685,12 @@ registros, y el cliente elige transporte por la forma. Una entrada que nombra
 El token se guarda aparte, en `daemon.token`, y **sobrevive al reinicio**: una
 entrada escrita una vez sigue valiendo cuando el demonio vuelve. El endpoint no
 sobrevive, porque es liveness: se borra al parar.
+
+El daemon prefiere `127.0.0.1:7788`. Si otro proceso ya usa ese puerto y no se
+pasó `--addr`, elige un puerto loopback libre y lo guarda en `daemon.port`. Así
+el supervisor puede reiniciarlo sin elegir otro puerto en cada arranque. Un
+`--addr` explícito conserva el comportamiento de fallar si la dirección está
+ocupada.
 
 En ámbito `project` la instalación con `--daemon` **se niega**. Un `.mcp.json` se
 commitea, y un token en git no se retira borrándolo.

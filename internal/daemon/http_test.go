@@ -375,6 +375,80 @@ func TestListenHTTPNamesAPortAlreadyTaken(t *testing.T) {
 	}
 }
 
+// TestListenHTTPChoosesAndPersistsAPortWhenTheDefaultIsBusy covers the case
+// that motivated the automatic port: another local service owns 7788, so a
+// supervised daemon must not crash-loop just because its historical default is
+// unavailable. The selected port is persisted because the URL in client
+// configuration must remain valid after a restart.
+func TestListenHTTPChoosesAndPersistsAPortWhenTheDefaultIsBusy(t *testing.T) {
+	held, err := net.Listen("tcp", DefaultAddress)
+	if err != nil {
+		t.Skipf("cannot reserve %s for the collision test: %v", DefaultAddress, err)
+	}
+	defer func() { _ = held.Close() }()
+
+	directory := shortTempDir(t)
+	served, err := ListenHTTP(Options{StateDirectory: directory}, HTTPOptions{})
+	if err != nil {
+		t.Fatalf("ListenHTTP() did not fall back from a busy default: %v", err)
+	}
+	defer func() { _ = served.Close() }()
+
+	if strings.Contains(served.Endpoint().URL, ":7788/") {
+		t.Fatalf("ListenHTTP() kept the busy default: %s", served.Endpoint().URL)
+	}
+	persisted, err := os.ReadFile(PortPath(directory))
+	if err != nil {
+		t.Fatalf("read persisted port: %v", err)
+	}
+	if strings.TrimSpace(string(persisted)) == "" {
+		t.Fatal("the selected port was not persisted")
+	}
+}
+
+// TestListenHTTPReusesThePersistedPort keeps a client URL stable across a
+// daemon restart. A random port is only a solution if the random choice is
+// made once, not once per process.
+func TestListenHTTPReusesThePersistedPort(t *testing.T) {
+	held, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("reserve a port: %v", err)
+	}
+	address := held.Addr().String()
+	_ = held.Close()
+
+	directory := shortTempDir(t)
+	if err := os.WriteFile(PortPath(directory), []byte(strings.TrimPrefix(address, "127.0.0.1:")), 0o600); err != nil {
+		t.Fatalf("write persisted port: %v", err)
+	}
+	served, err := ListenHTTP(Options{StateDirectory: directory}, HTTPOptions{})
+	if err != nil {
+		t.Fatalf("ListenHTTP() did not reuse the persisted port: %v", err)
+	}
+	defer func() { _ = served.Close() }()
+
+	if got := served.Endpoint().URL; !strings.Contains(got, ":"+strings.TrimPrefix(address, "127.0.0.1:")+"/") {
+		t.Fatalf("endpoint URL = %s, want persisted address %s", got, address)
+	}
+}
+
+// TestListenHTTPRejectsACorruptPersistedPort keeps an incomplete state file
+// from silently selecting a new address and invalidating every client URL.
+func TestListenHTTPRejectsACorruptPersistedPort(t *testing.T) {
+	directory := shortTempDir(t)
+	if err := os.WriteFile(PortPath(directory), []byte("not-a-port\n"), 0o600); err != nil {
+		t.Fatalf("write corrupt port: %v", err)
+	}
+
+	_, err := ListenHTTP(Options{StateDirectory: directory}, HTTPOptions{})
+	if err == nil {
+		t.Fatal("ListenHTTP() accepted a corrupt persisted port")
+	}
+	if !strings.Contains(err.Error(), PortName) {
+		t.Fatalf("error = %v, want it to name %s", err, PortName)
+	}
+}
+
 // TestTheTokenSurvivesARestart is what makes the transport configurable at all.
 // A client configuration holds the token; a token minted afresh on every start
 // would invalidate that file every time the daemon came back, which is not an
