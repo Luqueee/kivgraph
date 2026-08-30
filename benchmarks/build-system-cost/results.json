@@ -1,0 +1,141 @@
+{
+  "benchmark": "build-system-cost",
+  "schema": "build-system-cost-comparison-v1",
+  "decision": "Keep Bazel as an optional POC; do not add it to ordinary CI or replace Make.",
+  "cache_policy": {
+    "scope": "private per arm and trial",
+    "initial_state": "empty",
+    "remote_cache": false,
+    "bazel_rc": "ignored"
+  },
+  "corpus": {
+    "repository": "github.com/Luqueee/kivgraph",
+    "bazel_target": "//cmd/kivgraph:kivgraph",
+    "go_target": "./cmd/kivgraph",
+    "edited_file": "internal/version/version.go",
+    "tracked_files": 1828,
+    "go_mod_sha256": "932bd81e66f48f0e16a087f20cca4af9877bd6702cdc6a113f9cb986881df1f3",
+    "module_bazel_sha256": "6ad5c148d21c81319e76b54a4114b1c5721fbe3e74198d28f904bf195e0c294a",
+    "module_lock_sha256": "c231b57fdb194bb94764dcad0228c8d0b3c82d60026396b81df0dfd8f217b57e"
+  },
+  "commands": {
+    "harness": "go run ./benchmarks/build-system-cost --trials 3 --output <output>",
+    "go_setup": "go version",
+    "go_dependencies": "go mod download",
+    "go_build": "go build -o <private>/kivgraph ./cmd/kivgraph",
+    "bazel_setup": "bazel --ignore_all_rc_files --output_user_root=<private> version",
+    "bazel_dependencies": "bazel --ignore_all_rc_files --output_user_root=<private> fetch --repository_cache=<private> --disk_cache=<private> //cmd/kivgraph:kivgraph",
+    "bazel_build": "bazel --ignore_all_rc_files --output_user_root=<private> build --repository_cache=<private> --disk_cache=<private> //cmd/kivgraph:kivgraph"
+  },
+  "runs": [
+    {
+      "commit": "d955462b263de143b7afff39f7da74e079c32965",
+      "generated_at": "2026-08-30T19:25:35.902043Z",
+      "environment": {
+        "kind": "developer",
+        "os": "darwin",
+        "arch": "arm64",
+        "cpus": 10,
+        "go_version": "go version go1.26.6 darwin/arm64",
+        "bazel_version": "9.2.0",
+        "bazel_command": "/opt/homebrew/bin/bazel"
+      },
+      "order": [["go", "bazel"], ["bazel", "go"], ["go", "bazel"]],
+      "samples": {
+        "go": {
+          "setup_seconds": [0.005511833, 0.005642375, 0.004890292],
+          "dependency_seconds": [8.452815875, 6.362867292, 8.430532333],
+          "clean_build_seconds": [8.652005791, 8.72223475, 8.400594459],
+          "clean_total_seconds": [17.110333499, 15.090744417, 16.836017084],
+          "warm_build_seconds": [0.127986583, 0.126656333, 0.126478125],
+          "edit_build_seconds": [0.146634167, 0.148227458, 0.146900125]
+        },
+        "bazel": {
+          "setup_seconds": [9.180861167, 8.189138958, 8.36299025],
+          "dependency_seconds": [30.151903958, 30.710682625, 30.340466625],
+          "clean_build_seconds": [20.873851916, 20.439971542, 20.698231583],
+          "clean_total_seconds": [60.206617041, 59.339793125, 59.401688458],
+          "warm_build_seconds": [0.142798417, 0.135040375, 0.144870917],
+          "edit_build_seconds": [0.155972334, 0.154100584, 0.149039458]
+        }
+      },
+      "medians": {
+        "go": {
+          "setup_seconds": 0.005511833,
+          "dependency_seconds": 8.430532333,
+          "clean_build_seconds": 8.652005791,
+          "clean_total_seconds": 16.836017084,
+          "warm_build_seconds": 0.126656333,
+          "edit_build_seconds": 0.146900125
+        },
+        "bazel": {
+          "setup_seconds": 8.36299025,
+          "dependency_seconds": 30.340466625,
+          "clean_build_seconds": 20.698231583,
+          "clean_total_seconds": 59.401688458,
+          "warm_build_seconds": 0.142798417,
+          "edit_build_seconds": 0.154100584
+        }
+      }
+    },
+    {
+      "commit": "8269772f679566921c120050185b3c45271bf6db",
+      "generated_at": "2026-08-30T19:29:13.424479158Z",
+      "actions_run": "https://github.com/Luqueee/kivgraph/actions/runs/33330648106",
+      "environment": {
+        "kind": "github-actions",
+        "os": "linux",
+        "arch": "amd64",
+        "cpus": 4,
+        "runner_image": "ubuntu24",
+        "go_version": "go version go1.26.6 linux/amd64",
+        "bazel_version": "9.2.0",
+        "bazel_command": "/usr/local/bin/bazel"
+      },
+      "order": [["go", "bazel"], ["bazel", "go"], ["go", "bazel"]],
+      "samples": {
+        "go": {
+          "setup_seconds": [0.002851138, 0.002547839, 0.002891456],
+          "dependency_seconds": [3.356179114, 3.895899911, 3.653900692],
+          "clean_build_seconds": [28.382785493, 27.484085684, 26.449885049],
+          "clean_total_seconds": [31.741815745, 31.382533434, 30.106677197],
+          "warm_build_seconds": [0.088744845, 0.088002769, 0.088133856],
+          "edit_build_seconds": [0.118083867, 0.115930976, 0.114547114]
+        },
+        "bazel": {
+          "setup_seconds": [12.490725993, 8.592752828, 5.277388915],
+          "dependency_seconds": [105.035168104, 29.271426563, 28.938658268],
+          "clean_build_seconds": [50.318637475, 48.994018951, 45.968518289],
+          "clean_total_seconds": [167.844531572, 86.858198342, 80.184565472],
+          "warm_build_seconds": [0.326291608, 0.313794983, 0.304110803],
+          "edit_build_seconds": [0.489820633, 0.320486246, 0.504720502]
+        }
+      },
+      "medians": {
+        "go": {
+          "setup_seconds": 0.002851138,
+          "dependency_seconds": 3.653900692,
+          "clean_build_seconds": 27.484085684,
+          "clean_total_seconds": 31.382533434,
+          "warm_build_seconds": 0.088133856,
+          "edit_build_seconds": 0.115930976
+        },
+        "bazel": {
+          "setup_seconds": 8.592752828,
+          "dependency_seconds": 29.271426563,
+          "clean_build_seconds": 48.994018951,
+          "clean_total_seconds": 86.858198342,
+          "warm_build_seconds": 0.313794983,
+          "edit_build_seconds": 0.489820633
+        }
+      }
+    }
+  ],
+  "limitations": [
+    "GitHub Actions setup-go time is outside the harness; Bazel launcher bootstrap is measured inside setup.",
+    "Bazel fetch combines the Go SDK and external dependency downloads.",
+    "Shared machines have uncontrolled background load; medians are not performance guarantees.",
+    "The comparison excludes LadybugDB native builds, pnpm projects, packaging, and release bundles.",
+    "Remote caching was not measured."
+  ]
+}
