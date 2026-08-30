@@ -173,3 +173,76 @@ ruta se saltaba, que en un incremental nuevo no son opcionales.
   `LoadCanonical` y `Open` los sostienen entre los dos. Guardar el aplicador por
   ellos sería guardar la mutación canónica incremental entera -- validación,
   retirada, upsert -- por dos escrituras que ya tienen ruta viva.
+
+## Apéndice de 2026-08-30: la carga de edición tampoco mueve el techo
+
+La issue `#106` reabrió esta decisión sin discutir la medición. Discutía la
+**carga**: el techo de `1,63x` se midió sobre un escenario de corpus -- una
+reconstrucción contra otra, sobre un corpus recién traído-- y el caso que ha
+aparecido repetidamente desde entonces es otro, un agente editando ficheros
+entre pasos de una misma tarea. La issue puso la condición de cierre en la
+tercera pregunta: **si publicar domina, el delta ataca la mitad equivocada y la
+issue se vuelve a cerrar.**
+
+Está medido en `benchmarks/edit-frequency/report.md`, commit `c66642f`, corpus
+de `53` repositorios con `6.473` ficheros y `719.022` aristas -- `1,46x` más
+aristas que el corpus de este ADR--, diez ediciones de un fichero cada una y la
+caché de hechos caliente.
+
+**El pase después de una edición cuesta `17,150 s`,** y se parte así:
+
+|mitad|segundos|% del pase|
+|---|---|---|
+|análisis: arranque, motores, `merge`|`2,861`|`16,7 %`|
+|**publicación**: staging, carga, integridad, snapshot|`14,191`|**`82,7 %`**|
+
+**Publicar domina.** Y el techo del delta, proyectado sobre las mismas fases que
+este ADR documenta que se saltaba:
+
+|ruta|segundos|contra el full|este ADR|
+|---|---|---|---|
+|pase completo|`17,150`|`1,00x`|`1,00x`|
+|delta tal como estaba escrito|`7,691`|`2,23x`|`2,33x`|
+|delta si también verificara|`10,597`|**`1,62x`**|`1,63x`|
+
+**El techo no se movió**, y no podía: los dos términos que lo fijaban -- el
+`HotSnapshot` reconstruido entero, `3,802 s` y el `22,2 %` del pase, y un set
+`Next` no acotado por la edición-- escalan con el corpus y no con la edición, así
+que cambiar de un `pull` de corpus a una edición de un fichero no mueve ninguno
+de los dos.
+
+Tres cosas que la medición nueva añade, y que este ADR no decía:
+
+1. **La caché de hechos ya entrega la mitad del análisis, y lo hace por
+   módulo.** Los diez pases dan `55` aciertos y `1` fallo sobre `56` unidades:
+   el módulo Go que contiene el fichero editado, y nada más. Frío el análisis
+   cuesta `108,609 s`; caliente, `2,861`. Lo que no entrega es granularidad de
+   **fichero**: una unidad Go es un módulo, así que una línea reanaliza el
+   módulo entero. Ahí está el margen que queda, y es el `16,7 %` del pase.
+2. **En segundos no hay tasa de cruce.** Una pregunta contestada buscando y
+   leyendo cuesta `0,101 s` de mediana sobre este corpus, así que un pase paga
+   `169,5` preguntas y un delta al techo `104,7`. El grafo va por detrás desde la
+   primera edición; el cruce no está lejos de la conducta real de un agente, está
+   en cero. **Y es la moneda equivocada:** una edición le cuesta al grafo cero
+   tokens, y en tokens el grafo gana a cualquier tasa de edición -- `7,45x` sobre
+   las 29 preguntas de `graph-tools-comparison`.
+3. **Lo que sí mueve la sesión es el disparo, no la ruta.** Sobre las diez
+   ediciones de la corrida: agrupar las diez en un pase ahorra `154,4 s`; un
+   delta que verifique sobre diez pases ahorra `65,5 s`. Agrupar vale `2,36x` lo
+   que el delta, es una decisión de planificación y no una ruta de escritura
+   nueva, y no carga con la procedencia que el ADR 0056 impone a un hecho que
+   afirme un pase incremental.
+
+Y un hecho del código que la issue describía al revés: **el vigilante de
+ficheros no tiene llamante en producción.** `internal/watcher.New` sólo lo
+referencia `internal/resilience/shutdown_test.go`, `NewBatcher` no lo referencia
+nada que resuelva, y `config.Watcher.Enabled` -- cuyo defecto es `true`, no
+apagado-- no lo lee ningún código fuera de `internal/config`. Lo que dispara una
+reconstrucción es un `index --full` explícito, la tool `index_project`, y el
+resync de HEAD del demonio. Así que **una edición sin commitear no dispara
+nada**: el grafo se queda obsoleto en silencio hasta que alguien pide un pase.
+Ése es el problema que queda vivo de la issue `#106`, y no es un problema de
+coste.
+
+**La decisión no cambia.** El único camino de indexado sigue siendo la
+reconstrucción completa.
