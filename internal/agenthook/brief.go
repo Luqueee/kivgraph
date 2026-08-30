@@ -81,9 +81,12 @@ type Briefing struct {
 // to proceed either way, so there is no failure here worth telling anyone
 // about -- the cost of a missed briefing is that the session reads the skill
 // the way it did before this existed.
+// The id is tested for blankness on a trimmed copy and then used as it
+// arrived. It is opaque and belongs to the host, so normalising it would merge
+// two sessions a host considers distinct -- and the second of them would lose
+// the briefing that is this function's whole purpose.
 func (briefing Briefing) First(sessionID string) bool {
-	sessionID = strings.TrimSpace(sessionID)
-	if sessionID == "" || strings.TrimSpace(briefing.Directory) == "" {
+	if strings.TrimSpace(sessionID) == "" || strings.TrimSpace(briefing.Directory) == "" {
 		return false
 	}
 	if err := os.MkdirAll(briefing.Directory, 0o700); err != nil {

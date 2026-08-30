@@ -161,8 +161,12 @@ func TestGateNeverRefusesItsOwnTools(t *testing.T) {
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			got := testCase.gate.Decide(context.Background(), question)
-			if got.Deny {
-				t.Fatalf("refused a call to the graph: %s", got.Reason)
+			// Not merely "did not refuse": these are the cases with
+			// nothing to remember, so they must be silent. A regression
+			// that briefed them would brief every call of the session,
+			// and an assertion on Deny alone would pass through it.
+			if got != Allow {
+				t.Fatalf("%s: got %#v, want silence", testCase.name, got)
 			}
 		})
 	}

@@ -106,11 +106,12 @@ func TestAdvisoryVotesOnNothing(t *testing.T) {
 // of guidance invites an agent to act on the half that was not the verdict.
 func TestDenyIgnoresAnyContext(t *testing.T) {
 	const reason = "STOP: `New` has 24 declarations in 5 repositories."
+	decision := Decision{Deny: true, Reason: reason, Context: "ignored"}
 	var out strings.Builder
-	if err := (Decision{Deny: true, Reason: reason, Context: "ignored"}).Write(&out); err != nil {
+	if err := decision.Write(&out); err != nil {
 		t.Fatalf("write deny: %v", err)
 	}
 	if strings.Contains(out.String(), "ignored") || strings.Contains(out.String(), "additionalContext") {
-		t.Fatalf("a refusal carried context as well as a verdict: %s", out.String())
+		t.Fatalf("%#v carried context as well as a verdict: %s", decision, out.String())
 	}
 }

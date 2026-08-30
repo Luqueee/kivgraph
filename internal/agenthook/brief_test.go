@@ -63,15 +63,20 @@ func TestBriefingHappensOncePerSession(t *testing.T) {
 	briefing := Briefing{Directory: filepath.Join(t.TempDir(), "briefs")}
 
 	if !briefing.First("session-a") {
-		t.Fatal("the first call of a session was not briefed")
+		t.Fatal(`the first call of "session-a" was not briefed`)
 	}
 	for attempt := 2; attempt <= 4; attempt++ {
 		if briefing.First("session-a") {
-			t.Fatalf("call %d of the same session was briefed again", attempt)
+			t.Fatalf(`call %d of "session-a" was briefed again`, attempt)
 		}
 	}
 	if !briefing.First("session-b") {
-		t.Fatal("a second session was not briefed; the marker is not per session")
+		t.Fatal(`"session-b" was not briefed; the marker is not per session`)
+	}
+	// An id is opaque and belongs to the host. Trimming it here would merge
+	// these two into one session and cost the second its briefing.
+	if !briefing.First(" session-a ") {
+		t.Fatal(`" session-a " was not briefed; a padded id was folded into "session-a"`)
 	}
 }
 
