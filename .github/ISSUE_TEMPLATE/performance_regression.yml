@@ -1,0 +1,69 @@
+name: Performance or regression report
+description: Report a measurable slowdown or a behavior that regressed.
+title: "[Performance]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Include before-and-after measurements when possible. Avoid reporting
+        private repository contents or credentials.
+
+  - type: input
+    id: version
+    attributes:
+      label: Kivgraph versions
+      description: Include the affected version and the last known good version or commit.
+      placeholder: v0.9.3 affected, v0.9.2 last known good
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Operating system and architecture
+      placeholder: macOS 26, darwin/arm64
+    validations:
+      required: true
+
+  - type: textarea
+    id: workload
+    attributes:
+      label: Workload
+      description: Describe the repository shape, language mix, graph size, or command being measured.
+      placeholder: |
+        Command: kivgraph index --full
+        Repository: 10,000 Go symbols and 2,000 TypeScript files
+    validations:
+      required: true
+
+  - type: textarea
+    id: measurements
+    attributes:
+      label: Measurements
+      description: Include timings, memory, CPU, or benchmark output with the measurement method.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Explain how to reproduce the regression with a public fixture or synthetic workload.
+      placeholder: |
+        1. Use the following configuration ...
+        2. Run ...
+        3. Compare ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Logs and additional context
+      description: Add profiles, logs, links, or other evidence. Remove secrets first.
+      render: shell
+    validations:
+      required: false

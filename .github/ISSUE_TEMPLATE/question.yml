@@ -1,0 +1,49 @@
+name: Question
+description: Ask for help using or integrating Kivgraph.
+title: "[Question]: "
+labels:
+  - question
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check the documentation link in the issue form before submitting.
+        Do not include secrets, private source code, or private repository data.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Installation and updates
+        - Indexing and the graph
+        - MCP clients and tools
+        - CI and releases
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What are you trying to do, and where are you stuck?
+    validations:
+      required: true
+
+  - type: textarea
+    id: attempted
+    attributes:
+      label: What have you tried?
+      description: Include commands, configuration, and relevant output.
+      render: shell
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Kivgraph version and environment
+      placeholder: v0.9.3 on Ubuntu 24.04, linux/amd64
+    validations:
+      required: false
