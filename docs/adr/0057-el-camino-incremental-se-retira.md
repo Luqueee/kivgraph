@@ -184,10 +184,11 @@ entre pasos de una misma tarea. La issue puso la condición de cierre en la
 tercera pregunta: **si publicar domina, el delta ataca la mitad equivocada y la
 issue se vuelve a cerrar.**
 
-Está medido en `benchmarks/edit-frequency/report.md`, commit `c66642f`, corpus
-de `53` repositorios con `6.473` ficheros y `719.022` aristas -- `1,46x` más
-aristas que el corpus de este ADR--, diez ediciones de un fichero cada una y la
-caché de hechos caliente.
+Está medido en `benchmarks/edit-frequency/report.md`, commit `c66642f-dirty`
+-- el harness era trabajo sin commitear cuando midió, y el código que produjo
+las cifras quedó en `e8d59ec`--, corpus de `53` repositorios con `6.473`
+ficheros y `719.022` aristas -- `1,46x` más aristas que el corpus de este ADR--,
+diez ediciones de un fichero cada una y la caché de hechos caliente.
 
 **El pase después de una edición cuesta `17,150 s`,** y se parte así:
 
@@ -198,6 +199,9 @@ caché de hechos caliente.
 
 **Publicar domina.** Y el techo del delta, proyectado sobre las mismas fases que
 este ADR documenta que se saltaba:
+
+La columna «este ADR» son las cifras **corregidas** del bloque de 2026-08-21,
+no las del cuerpo original: el corpus sin Rust daba `2,41x` y `1,67x`.
 
 |ruta|segundos|contra el full|este ADR|
 |---|---|---|---|
@@ -243,6 +247,16 @@ resync de HEAD del demonio. Así que **una edición sin commitear no dispara
 nada**: el grafo se queda obsoleto en silencio hasta que alguien pide un pase.
 Ése es el problema que queda vivo de la issue `#106`, y no es un problema de
 coste.
+
+**Lo que la medición no establece.** Se midió una forma de edición -- una
+declaración añadida a un fichero-- sobre un corpus y una máquina. Publicar **no
+se observó moverse** con la edición (`13,891`–`14,942 s` en los diez pases, y
+`14,611 s` en el frío, cuya mitad de análisis era treinta y ocho veces mayor),
+que es lo que predice reescribir el grafo entero en los dos casos; pero es una
+observación sobre esta carga, no una demostración. Y las cifras de tokens se
+**citan** de otros benchmarks: ningún brazo de este harness cuenta tokens, así
+que «una edición le cuesta cero tokens al grafo» es una inferencia sobre la
+forma de una reconstrucción, no una medición tomada aquí.
 
 **La decisión no cambia.** El único camino de indexado sigue siendo la
 reconstrucción completa.

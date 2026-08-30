@@ -133,7 +133,7 @@ not: both of the things that fixed it -- a `HotSnapshot` rebuilt whole
 (`3,802 s`, `22,2 %` of the pass here) and a set of facts that is not bounded by
 the edit -- scale with the corpus and not with the edit, so changing the workload
 from a corpus-wide pull to a single-file edit changes neither term. A corpus with `1,46x`
-more edges returned the same ratio to two decimal places, which is what a
+more edges returned a ratio within a hundredth of the old one, which is what a
 corpus-scaling cost looks like.
 
 ## The crossover
@@ -162,11 +162,13 @@ So, in wall clock:
 |delta at its measured ceiling|`10,597`|`104,7`|
 |a rebuild that cost nothing|`0`|`0`|
 
-**There is no crossover edit rate.** The graph is behind the search arm in wall
-clock from the first edit, by `169,5` questions per rebuild, and the crossover
-does not sit far outside realistic agent behaviour -- it sits at zero. A session
-would have to ask a hundred and seventy reference questions between two edits
-for one rebuild to pay for itself in seconds, and no session does.
+Read as an **edit rate**, the crossover is at zero: above zero edits the graph
+is behind the search arm in wall clock, and it stays behind. Read as a **question
+count**, it is `169,5` -- a session would have to ask a hundred and seventy
+reference questions between two edits for one rebuild to pay for itself in
+seconds. Both readings are the same fact from opposite ends, and neither sits
+far outside realistic agent behaviour in the direction the issue hoped: one sits
+at zero, and the other two orders of magnitude above any session observed here.
 
 ### And that is the wrong currency
 
@@ -193,8 +195,12 @@ moved by a delta**:
 
 - In seconds, the graph is behind from the first edit and a delta at `1,62x`
   leaves it behind by `104,7` questions instead of `169,5`.
-- In tokens, the graph is ahead, an edit costs it nothing, and no edit rate makes
-  the search arm cheaper.
+- In tokens, the graph is ahead on the workloads those two benchmarks measured,
+  and a rebuild adds one tool call rather than a body to read. That an edit
+  therefore costs the graph nothing in tokens is an **inference** from the shape
+  of a rebuild, not a measurement taken here: no arm of this harness counts
+  tokens. What follows from it -- that no edit rate flips the token result --
+  inherits that status.
 
 ## What does move the session: the trigger, not the route
 
@@ -287,8 +293,11 @@ machine's own generation root: it refuses both, and the refusals have tests.
   where they are and never written to. That is the workload the issue names --
   an agent inside one repository -- and not a corpus-wide pull.
 - **Every step is one appended declaration.** A larger edit changes what the
-  analysis half costs. It cannot change what the publication half costs, because
-  publication rewrites the whole graph either way, and publication is `82,7 %`.
+  analysis half costs. Publication was **not observed to move with the edit** --
+  `13,891`–`14,942 s` across the ten, and `14,611 s` on the cold pass whose
+  analysis half was thirty-eight times larger -- which is what rewriting the
+  whole graph either way predicts. But one edit shape was measured, so that is
+  an observation over this workload and not a proof.
 - **The delta figures are a projection**, from the stages ADR 0057 documents the
   retired route skipping. There is no delta to measure and there has never been
   one; this is the same class of estimate as ADR 0057's, on the same stages.
@@ -310,6 +319,14 @@ machine's own generation root: it refuses both, and the refusals have tests.
   code that produced these numbers -- but the suffix stays, because an artefact
   that dropped it would attribute them to a parent commit that has no harness in
   it at all.
+- **The published `results.json` is `edit-frequency-v1`; the harness now emits
+  `v2`.** `v2` makes the analysis/publication split absent rather than zero when
+  a pass never reports where the rebuild began, and adds
+  `passes_with_boundary`. Every pass in this file reported one, so `v2` would
+  have written the same measured values plus that count -- but the file is left
+  exactly as the run produced it rather than migrated, because an artefact
+  edited to look like the output of code that never ran is the provenance defect
+  this directory's rules exist to prevent.
 - **Wall clock on a shared machine is not an SLO.** A daemon and a log follower
   were running throughout. No gate is asserted and no acceptance verdict is
   emitted.

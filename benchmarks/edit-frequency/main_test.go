@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/Luqueee/kivgraph/internal/config"
 )
 
 // The guards are the part of this harness that has to be right even when the
@@ -47,14 +49,14 @@ func TestSameDirectoryFollowsSymlinks(t *testing.T) {
 		t.Skipf("symlinks unavailable: %v", err)
 	}
 	if !sameDirectory(real, link) {
-		t.Fatal("a symlink to the live root must compare equal to it, or the guard is bypassed by one")
+		t.Fatalf("sameDirectory(%q, %q) = false; a symlink to the live root must compare equal to it, or the guard is bypassed by one", real, link)
 	}
 	other := filepath.Join(root, "other")
 	if err := os.Mkdir(other, 0o755); err != nil {
 		t.Fatalf("create %q: %v", other, err)
 	}
 	if sameDirectory(real, other) {
-		t.Fatal("two different directories must not compare equal")
+		t.Fatalf("sameDirectory(%q, %q) = true; two different directories must not compare equal", real, other)
 	}
 }
 
@@ -112,8 +114,11 @@ func TestApplyEditAddsOneDeclarationAndKeepsTheFile(t *testing.T) {
 	if len(text) <= len(original) || text[:len(original)] != original {
 		t.Fatal("the edit must append: a rewrite would change what the pass had to analyse")
 	}
-	if want := "func editFrequencyProbe3() int { return 3 }"; !strings.Contains(text, want) {
-		t.Fatalf("appended text %q does not contain %q", text[len(original):], want)
+	// Exactly one, not at least one: a duplicate append would double the edit
+	// this benchmark's whole workload is defined as.
+	want := "func editFrequencyProbe3() int { return 3 }"
+	if count := strings.Count(text, want); count != 1 {
+		t.Fatalf("appended text %q declares editFrequencyProbe3 %d times, want exactly 1", text[len(original):], count)
 	}
 }
 
@@ -141,9 +146,9 @@ func TestDistinctFilesKeepsFirstOccurrenceOrder(t *testing.T) {
 // for, and a summary that divided the wrong way would answer it backwards.
 func TestSummariseReportsSharesAndTheCrossover(t *testing.T) {
 	passes := []passCost{
-		{TotalSeconds: 20, AnalysisSeconds: 4, PublicationSeconds: 16},
-		{TotalSeconds: 10, AnalysisSeconds: 2, PublicationSeconds: 8},
-		{TotalSeconds: 30, AnalysisSeconds: 6, PublicationSeconds: 24},
+		{TotalSeconds: 20, AnalysisSeconds: seconds(4), PublicationSeconds: seconds(16)},
+		{TotalSeconds: 10, AnalysisSeconds: seconds(2), PublicationSeconds: seconds(8)},
+		{TotalSeconds: 30, AnalysisSeconds: seconds(6), PublicationSeconds: seconds(24)},
 	}
 	questions := []grepQuestion{
 		{Seconds: 0.1},
@@ -163,8 +168,14 @@ func TestSummariseReportsSharesAndTheCrossover(t *testing.T) {
 	if result.FastestTotalSeconds != 10 || result.SlowestTotalSeconds != 30 {
 		t.Fatalf("range = [%v, %v], want [10, 30]", result.FastestTotalSeconds, result.SlowestTotalSeconds)
 	}
-	if !near(result.AnalysisShare, 0.2) || !near(result.PublicationShare, 0.8) {
-		t.Fatalf("shares = %v analysis / %v publication, want 0.2 / 0.8", result.AnalysisShare, result.PublicationShare)
+	if result.PassesWithBoundary != 3 {
+		t.Fatalf("passes with boundary = %d, want 3", result.PassesWithBoundary)
+	}
+	if result.AnalysisShare == nil || result.PublicationShare == nil {
+		t.Fatal("three passes reported a boundary, so both shares must be present")
+	}
+	if !near(*result.AnalysisShare, 0.2) || !near(*result.PublicationShare, 0.8) {
+		t.Fatalf("shares = %v analysis / %v publication, want 0.2 / 0.8", *result.AnalysisShare, *result.PublicationShare)
 	}
 	if !near(result.GrepSecondsPerQuestion, 0.2) {
 		t.Fatalf("median question = %v, want 0.2; a failed question must not enter the median", result.GrepSecondsPerQuestion)
@@ -178,6 +189,127 @@ func TestSummariseSurvivesARunWithNothingToSummarise(t *testing.T) {
 	result := summarise(nil, nil)
 	if result.Passes != 0 || result.MedianTotalSeconds != 0 || result.RebuildsPerGrepQuestion != 0 {
 		t.Fatalf("an empty run must summarise to zeroes, got %+v", result)
+	}
+	if result.MedianAnalysisSeconds != nil || result.AnalysisShare != nil {
+		t.Fatal("a run with nothing to summarise must publish no split at all")
+	}
+}
+
+// A pass that never reported where the rebuild began has no boundary to split
+// at, and a zero there would read as an analysis half that cost nothing. The
+// repository's own rule for this is in benchmarks/AGENTS.md: what was not
+// measured is not published as zero.
+func TestSummariseOmitsTheSplitWhenNoPassReportedABoundary(t *testing.T) {
+	passes := []passCost{{TotalSeconds: 20}, {TotalSeconds: 10}}
+
+	result := summarise(passes, []grepQuestion{{Seconds: 0.5}})
+
+	if result.Passes != 2 || result.MedianTotalSeconds != 15 {
+		t.Fatalf("the totals were measured and must survive, got %+v", result)
+	}
+	if result.PassesWithBoundary != 0 {
+		t.Fatalf("passes with boundary = %d, want 0", result.PassesWithBoundary)
+	}
+	if result.MedianAnalysisSeconds != nil || result.MedianPublicationSeconds != nil {
+		t.Fatal("an unmeasured split must be absent, not zero")
+	}
+	if result.AnalysisShare != nil || result.PublicationShare != nil {
+		t.Fatal("a share computed from an absent split would read as 0 %, which is a claim")
+	}
+	if !near(result.RebuildsPerGrepQuestion, 30) {
+		t.Fatalf("the crossover only needs the totals, got %v", result.RebuildsPerGrepQuestion)
+	}
+}
+
+// A pass that did report a boundary still counts when another did not: the
+// split is theirs, and dropping every pass because one was blind would report
+// nothing where something was measured.
+func TestSummariseSplitsOnThePassesThatReportedABoundary(t *testing.T) {
+	passes := []passCost{
+		{TotalSeconds: 20},
+		{TotalSeconds: 20, AnalysisSeconds: seconds(4), PublicationSeconds: seconds(16)},
+	}
+
+	result := summarise(passes, nil)
+
+	if result.PassesWithBoundary != 1 {
+		t.Fatalf("passes with boundary = %d, want 1", result.PassesWithBoundary)
+	}
+	if result.MedianAnalysisSeconds == nil || !near(*result.MedianAnalysisSeconds, 4) {
+		t.Fatalf("the one pass with a boundary must supply the split, got %v", result.MedianAnalysisSeconds)
+	}
+}
+
+func seconds(value float64) *float64 { return &value }
+
+// checkDestinations is the guard that has to be right before anything exists:
+// it runs ahead of the os.MkdirAll that would otherwise have created the
+// directory it is refusing. All three configured paths are covered, because a
+// fact cache dropped inside an indexed tree is the same violation as a scratch
+// copy dropped there.
+func TestCheckDestinationsRefusesEveryPathInsideARegisteredRepository(t *testing.T) {
+	root := t.TempDir()
+	repository := filepath.Join(root, "repository")
+	outside := filepath.Join(root, "outside")
+	loaded := config.Loaded{
+		Config: config.Config{Storage: config.StorageConfig{DatabasePath: filepath.Join(root, "state", "graph.lbdb")}},
+		Repositories: config.RepositoriesFile{
+			Repositories: []config.Repository{{Name: "one", Path: repository}},
+		},
+	}
+	source := loaded.Repositories.Repositories[0]
+
+	cases := []struct {
+		name    string
+		options flags
+		want    string
+	}{
+		{"scratch inside", flags{scratchRoot: filepath.Join(repository, "copy")}, "-scratch"},
+		{"root inside", flags{root: filepath.Join(repository, "generations")}, "-root"},
+		{"fact cache inside", flags{cache: filepath.Join(repository, "cache")}, "-fact-cache"},
+		{"scratch encloses the repository", flags{scratchRoot: root}, "-scratch"},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			err := checkDestinations(loaded, source, testCase.options)
+			if err == nil {
+				t.Fatalf("checkDestinations(%+v) returned no error, want a refusal", testCase.options)
+			}
+			if !strings.Contains(err.Error(), testCase.want) {
+				t.Fatalf("refusal %q does not name %s, so a reader cannot tell which flag to change", err, testCase.want)
+			}
+		})
+	}
+
+	permitted := flags{
+		scratchRoot: filepath.Join(outside, "copy"),
+		root:        filepath.Join(outside, "generations"),
+		cache:       filepath.Join(outside, "cache"),
+	}
+	if err := checkDestinations(loaded, source, permitted); err != nil {
+		t.Fatalf("three paths outside every repository must be permitted, got %v", err)
+	}
+	if err := checkDestinations(loaded, source, flags{}); err != nil {
+		t.Fatalf("unset flags pick temporary directories and must be permitted, got %v", err)
+	}
+}
+
+func TestCheckDestinationsRefusesTheLiveGenerationRoot(t *testing.T) {
+	root := t.TempDir()
+	live := filepath.Join(root, "state")
+	if err := os.MkdirAll(live, 0o755); err != nil {
+		t.Fatalf("create %q: %v", live, err)
+	}
+	loaded := config.Loaded{
+		Config: config.Config{Storage: config.StorageConfig{DatabasePath: filepath.Join(live, "graph.lbdb")}},
+	}
+
+	err := checkDestinations(loaded, config.Repository{Path: filepath.Join(root, "repository")}, flags{root: live})
+	if err == nil {
+		t.Fatal("publishing into the live root would leave the user's graph built from files this harness edited")
+	}
+	if !strings.Contains(err.Error(), live) {
+		t.Fatalf("refusal %q does not name the live root", err)
 	}
 }
 

@@ -27,6 +27,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -46,7 +47,12 @@ import (
 
 // schemaVersion travels in the artifact. A run that changes what a field means
 // raises it, so two files cannot be compared as if they measured the same thing.
-const schemaVersion = "edit-frequency-v1"
+//
+// `v2` made the analysis/publication split a pointer and added
+// `passes_with_boundary`: a `v1` file reports `0` for a pass that never told it
+// where the rebuild began, and a zero there reads as an analysis half that cost
+// nothing rather than as a half nobody measured.
+const schemaVersion = "edit-frequency-v2"
 
 func main() {
 	options := parseFlags()
@@ -103,12 +109,17 @@ type stageCost struct {
 // the name of each stage as it starts, so the first call is the instant the
 // analysis half ended.
 type passCost struct {
-	Step               int         `json:"step"`
-	Label              string      `json:"label"`
-	EditedFile         string      `json:"edited_file,omitempty"`
-	TotalSeconds       float64     `json:"total_seconds"`
-	AnalysisSeconds    float64     `json:"analysis_seconds"`
-	PublicationSeconds float64     `json:"publication_seconds"`
+	Step         int     `json:"step"`
+	Label        string  `json:"label"`
+	EditedFile   string  `json:"edited_file,omitempty"`
+	TotalSeconds float64 `json:"total_seconds"`
+	// AnalysisSeconds and PublicationSeconds are pointers because a pass that
+	// never reported a rebuild stage has no boundary to split at, and a zero
+	// there reads as an analysis half that cost nothing. What was not measured
+	// is not published as zero: the fields leave the file and the summary
+	// prints `--`.
+	AnalysisSeconds    *float64    `json:"analysis_seconds,omitempty"`
+	PublicationSeconds *float64    `json:"publication_seconds,omitempty"`
 	Stages             []stageCost `json:"publication_stages"`
 	CacheMode          string      `json:"cache_mode"`
 	CacheHits          int         `json:"cache_hits"`
@@ -136,13 +147,16 @@ type summary struct {
 	Passes int `json:"passes"`
 	// Edit passes only: the warm-up is excluded from every statistic here,
 	// because a warm-up is the one pass an editing agent never runs.
-	MedianTotalSeconds       float64 `json:"median_total_seconds"`
-	MedianAnalysisSeconds    float64 `json:"median_analysis_seconds"`
-	MedianPublicationSeconds float64 `json:"median_publication_seconds"`
-	FastestTotalSeconds      float64 `json:"fastest_total_seconds"`
-	SlowestTotalSeconds      float64 `json:"slowest_total_seconds"`
-	PublicationShare         float64 `json:"publication_share"`
-	AnalysisShare            float64 `json:"analysis_share"`
+	MedianTotalSeconds  float64 `json:"median_total_seconds"`
+	FastestTotalSeconds float64 `json:"fastest_total_seconds"`
+	SlowestTotalSeconds float64 `json:"slowest_total_seconds"`
+	// PassesWithBoundary counts the passes that reported where the rebuild
+	// began. The four fields below are theirs, and are absent when it is zero.
+	PassesWithBoundary       int      `json:"passes_with_boundary"`
+	MedianAnalysisSeconds    *float64 `json:"median_analysis_seconds,omitempty"`
+	MedianPublicationSeconds *float64 `json:"median_publication_seconds,omitempty"`
+	PublicationShare         *float64 `json:"publication_share,omitempty"`
+	AnalysisShare            *float64 `json:"analysis_share,omitempty"`
 	// GrepSecondsPerQuestion is the median of the grep arm: one search over
 	// the corpus plus reading every file it matched.
 	GrepSecondsPerQuestion float64 `json:"grep_seconds_per_question"`
@@ -204,6 +218,14 @@ func run(ctx context.Context, options flags) error {
 		return err
 	}
 
+	// The guards run before anything is created, because creating is already
+	// the harm they exist to prevent: temporaryDirectory calls os.MkdirAll on
+	// every configured path, so a -scratch inside a registered repository would
+	// have written a directory into it before the refusal could fire.
+	if err := checkDestinations(loaded, source, options); err != nil {
+		return err
+	}
+
 	scratch, cleanupScratch, err := temporaryDirectory(options.scratchRoot, "edit-frequency-scratch")
 	if err != nil {
 		return fmt.Errorf("scratch directory: %w", err)
@@ -220,17 +242,6 @@ func run(ctx context.Context, options flags) error {
 		defer cleanupScratch()
 		defer cleanupRoot()
 		defer cleanupCache()
-	}
-
-	// The private root must not be the machine's own. A benchmark that
-	// publishes into the live store would leave the user's graph pointing at a
-	// generation built from files this harness edited.
-	liveRoot := filepath.Dir(loaded.Config.Storage.DatabasePath)
-	if sameDirectory(root, liveRoot) {
-		return fmt.Errorf("refusing to publish into the live generation root %q", liveRoot)
-	}
-	if within(source.Path, scratch) || within(scratch, source.Path) {
-		return fmt.Errorf("refusing to edit inside the registered repository %q", source.Path)
 	}
 
 	fmt.Fprintf(os.Stderr, "corpus:   %d repositories from %s\n", len(loaded.Repositories.Repositories), loaded.RepositoriesPath)
@@ -358,6 +369,45 @@ func run(ctx context.Context, options flags) error {
 	return nil
 }
 
+// checkDestinations refuses a run that would write where it must not.
+//
+// Two destinations are forbidden and for different reasons. The machine's own
+// generation root, because publishing there would leave the user's graph
+// pointing at a generation built from files this harness edited. And anywhere
+// inside a registered repository -- for **all three** of the paths a run
+// writes to, not only the scratch copy: a fact cache or a generation store
+// dropped inside an indexed tree is the same violation with a different name,
+// and the next pass would index the artefacts of the last one.
+func checkDestinations(loaded config.Loaded, source config.Repository, options flags) error {
+	liveRoot := filepath.Dir(loaded.Config.Storage.DatabasePath)
+	if options.root != "" && sameDirectory(options.root, liveRoot) {
+		return fmt.Errorf("refusing to publish into the live generation root %q", liveRoot)
+	}
+
+	destinations := map[string]string{
+		"-scratch":    options.scratchRoot,
+		"-root":       options.root,
+		"-fact-cache": options.cache,
+	}
+	for flagName, destination := range destinations {
+		if destination == "" {
+			continue
+		}
+		for _, repository := range loaded.Repositories.Repositories {
+			if within(repository.Path, destination) || within(destination, repository.Path) {
+				return fmt.Errorf("refusing to write %s %q inside the registered repository %q",
+					flagName, destination, repository.Path)
+			}
+		}
+	}
+	// The scratch copy is the one that gets edited, so its own source is named
+	// separately: the loop above already covers it, and this says why.
+	if options.scratchRoot != "" && within(source.Path, options.scratchRoot) {
+		return fmt.Errorf("refusing to edit inside the registered repository %q", source.Path)
+	}
+	return nil
+}
+
 // measurePass runs one full pass and splits it where the rebuild begins.
 func measurePass(ctx context.Context, base indexing.FullOptions, step int, label, edited string) (passCost, error) {
 	options := base
@@ -390,8 +440,10 @@ func measurePass(ctx context.Context, base indexing.FullOptions, step int, label
 		GenerationID:  result.RebuildReport.GenerationID,
 	}
 	if !rebuildStarted.IsZero() {
-		cost.AnalysisSeconds = rebuildStarted.Sub(start).Seconds()
-		cost.PublicationSeconds = total.Seconds() - cost.AnalysisSeconds
+		analysis := rebuildStarted.Sub(start).Seconds()
+		publication := total.Seconds() - analysis
+		cost.AnalysisSeconds = &analysis
+		cost.PublicationSeconds = &publication
 	}
 	for _, stage := range result.RebuildReport.Stages {
 		cost.Stages = append(cost.Stages, stageCost{Name: string(stage.Name), Seconds: stage.DurationMS / 1000})
@@ -556,7 +608,8 @@ func (tool searchTool) search(ctx context.Context, symbol string, roots []string
 	if err != nil {
 		// Both searchers exit 1 when they matched nothing, which is an answer
 		// and not a failure. Anything else is a failure and is declared as one.
-		if exit, ok := err.(*exec.ExitError); ok && exit.ExitCode() == 1 {
+		var exit *exec.ExitError
+		if errors.As(err, &exit) && exit.ExitCode() == 1 {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("%s %q: %w", tool.name, symbol, err)
@@ -615,17 +668,28 @@ func summarise(passes []passCost, questions []grepQuestion) summary {
 	publications := make([]float64, 0, len(passes))
 	for _, pass := range passes {
 		totals = append(totals, pass.TotalSeconds)
-		analyses = append(analyses, pass.AnalysisSeconds)
-		publications = append(publications, pass.PublicationSeconds)
+		// Only a pass that reported the boundary contributes to the split. A
+		// pass that did not still contributes its total, which was measured.
+		if pass.AnalysisSeconds != nil && pass.PublicationSeconds != nil {
+			analyses = append(analyses, *pass.AnalysisSeconds)
+			publications = append(publications, *pass.PublicationSeconds)
+		}
 	}
 	result.MedianTotalSeconds = median(totals)
-	result.MedianAnalysisSeconds = median(analyses)
-	result.MedianPublicationSeconds = median(publications)
 	result.FastestTotalSeconds = minimum(totals)
 	result.SlowestTotalSeconds = maximum(totals)
-	if result.MedianTotalSeconds > 0 {
-		result.AnalysisShare = result.MedianAnalysisSeconds / result.MedianTotalSeconds
-		result.PublicationShare = result.MedianPublicationSeconds / result.MedianTotalSeconds
+	result.PassesWithBoundary = len(analyses)
+	if len(analyses) > 0 {
+		analysisMedian := median(analyses)
+		publicationMedian := median(publications)
+		result.MedianAnalysisSeconds = &analysisMedian
+		result.MedianPublicationSeconds = &publicationMedian
+		if result.MedianTotalSeconds > 0 {
+			analysisShare := analysisMedian / result.MedianTotalSeconds
+			publicationShare := publicationMedian / result.MedianTotalSeconds
+			result.AnalysisShare = &analysisShare
+			result.PublicationShare = &publicationShare
+		}
 	}
 
 	grepSeconds := make([]float64, 0, len(questions))
@@ -655,8 +719,13 @@ func limitations(scratch string, edits int) []string {
 }
 
 func reportPass(cost passCost) {
-	fmt.Fprintf(os.Stderr, "  total %6.3f s = analysis %6.3f s + publication %6.3f s   (cache %d hit / %d miss)\n",
-		cost.TotalSeconds, cost.AnalysisSeconds, cost.PublicationSeconds, cost.CacheHits, cost.CacheMisses)
+	if cost.AnalysisSeconds == nil || cost.PublicationSeconds == nil {
+		fmt.Fprintf(os.Stderr, "  total %6.3f s = analysis     -- s + publication     -- s   (cache %d hit / %d miss)\n",
+			cost.TotalSeconds, cost.CacheHits, cost.CacheMisses)
+	} else {
+		fmt.Fprintf(os.Stderr, "  total %6.3f s = analysis %6.3f s + publication %6.3f s   (cache %d hit / %d miss)\n",
+			cost.TotalSeconds, *cost.AnalysisSeconds, *cost.PublicationSeconds, cost.CacheHits, cost.CacheMisses)
+	}
 	for _, stage := range cost.Stages {
 		if stage.Seconds > 0 {
 			fmt.Fprintf(os.Stderr, "      %-14s %6.3f s\n", stage.Name, stage.Seconds)
@@ -666,8 +735,13 @@ func reportPass(cost passCost) {
 
 func reportSummary(result summary) {
 	fmt.Fprintf(os.Stderr, "\nmedian pass after one edit   %6.3f s\n", result.MedianTotalSeconds)
-	fmt.Fprintf(os.Stderr, "  analysis                   %6.3f s  (%.1f %%)\n", result.MedianAnalysisSeconds, result.AnalysisShare*100)
-	fmt.Fprintf(os.Stderr, "  publication                %6.3f s  (%.1f %%)\n", result.MedianPublicationSeconds, result.PublicationShare*100)
+	if result.MedianAnalysisSeconds == nil || result.AnalysisShare == nil {
+		fmt.Fprintf(os.Stderr, "  analysis                       -- s  (no pass reported a rebuild boundary)\n")
+		fmt.Fprintf(os.Stderr, "  publication                    -- s\n")
+	} else {
+		fmt.Fprintf(os.Stderr, "  analysis                   %6.3f s  (%.1f %%)\n", *result.MedianAnalysisSeconds, *result.AnalysisShare*100)
+		fmt.Fprintf(os.Stderr, "  publication                %6.3f s  (%.1f %%)\n", *result.MedianPublicationSeconds, *result.PublicationShare*100)
+	}
 	fmt.Fprintf(os.Stderr, "median grep-and-read question %6.3f s\n", result.GrepSecondsPerQuestion)
 	fmt.Fprintf(os.Stderr, "one rebuild buys              %6.1f grep-and-read questions\n", result.RebuildsPerGrepQuestion)
 }
