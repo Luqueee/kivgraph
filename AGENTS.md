@@ -14,7 +14,7 @@ trabajar en él; ninguno repite lo que ya está aquí ni lo contradice.
 |`internal/`|`internal/AGENTS.md`|carga de Go, la pasada, caché de hechos, grafo canónico, generaciones, configuración, procesos|
 |`internal/mcp/`|`internal/mcp/AGENTS.md`|superficie de tools, `index_project`, la skill, coste en tokens|
 |`internal/rustloader/`|`internal/rustloader/AGENTS.md`|`rust-analyzer scip`, identidad SCIP, sysroot, descubrimiento Cargo|
-|`cmd/kivgraph/`|`cmd/kivgraph/AGENTS.md`|ayuda, registro, `index --full --json`, `clean`, `stop`, `ui`|
+|`cmd/kivgraph/`|`cmd/kivgraph/AGENTS.md`|ayuda, registro, `index [--full]`, `clean`, `stop`, `ui`|
 |`ts-worker/`|`ts-worker/AGENTS.md`|worker TypeScript e identidad cross-repository|
 |`web/`|`web/AGENTS.md`|el visor: layout, dibujo, coste por fotograma|
 |`landing/`|`landing/AGENTS.md`|landing y documentación de usuario: capas, paleta, SEO, iconos|
@@ -254,8 +254,9 @@ un enlace absoluto se commitearía roto. Ver ADR 0078.
   silencio.
 - **El único camino de indexado es la reconstrucción completa.** No existe un
   camino incremental: se retiró en el ADR 0057, medido a `1,67x` de un pase
-  completo y sin ningún llamante en producción. `kivgraph index` acepta sólo
-  `--full`, y eso es el diseño, no una limitación de la superficie.
+  completo y sin ningún llamante en producción. `kivgraph index` autodetecta
+  el proyecto actual y ejecuta esa reconstrucción; `kivgraph index --full`
+  conserva la forma explícita sobre el registro configurado. Ver ADR 0086.
 - Si alguna vez vuelve un camino incremental, el contrato de retirada del ADR
   0056 es el punto de partida y **no se puede relajar**: todo hecho afirmado por
   un archivo se retira y se vuelve a afirmar junto con ese archivo, y lo que un

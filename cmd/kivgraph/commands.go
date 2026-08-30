@@ -120,6 +120,20 @@ func commandTable() []commandSpec {
 			},
 		},
 		{
+			words:   []string{"index"},
+			group:   "Getting started",
+			usage:   "index [--config PATH] [--repositories PATH] [--json]",
+			summary: "Detect the current project languages and publish a local full index",
+			flags:   func() *flag.FlagSet { var o indexProjectOptions; return indexProjectFlagSet(&o) },
+			hints: map[string]flagHint{
+				"config":       {paths: true},
+				"repositories": {paths: true},
+			},
+			run: func(_ dependencies, args []string, stdout, stderr io.Writer) int {
+				return runIndexProject(args, stdout, stderr)
+			},
+		},
+		{
 			words:   []string{"index", "--full"},
 			group:   "Getting started",
 			usage:   "index --full [--json]",

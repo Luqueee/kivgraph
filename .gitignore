@@ -37,6 +37,9 @@ testdata/generated/
 # graphify writes its graph beside the code it reads; ours is never an input.
 /graphify-out/
 
+# `kivgraph index` keeps project-local configuration and graph state here.
+.kivgraph/
+
 # stray binary from `go build ./benchmarks/...`: the harness is run with `go run`
 /graph-tools-comparison
 

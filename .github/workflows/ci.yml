@@ -801,22 +801,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      # Nothing in this repository parsed `install.ps1`, and it is the one file
-      # here that no contributor runs before a release does: a syntax error in
-      # it is published, downloaded and piped into a shell before anyone finds
-      # out. The Linux runners ship PowerShell, so the parse costs seconds and
-      # needs no Windows job.
-      - name: Parse the Windows installer
+      # These scripts are not exercised by the Go test suite: a syntax error in
+      # either one is published and downloaded before anyone finds out. The
+      # Linux runners ship PowerShell, so parsing costs seconds and needs no
+      # Windows job.
+      - name: Parse the Windows installer and uninstaller
         shell: pwsh
         run: |
-          $problems = $null
-          [System.Management.Automation.Language.Parser]::ParseFile(
-            (Join-Path $PWD 'scripts/install.ps1'), [ref] $null, [ref] $problems) | Out-Null
-          if ($problems) {
-            $problems | ForEach-Object { Write-Host $_.ToString() }
-            exit 1
+          foreach ($script in @('scripts/install.ps1', 'scripts/uninstall.ps1')) {
+            $problems = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Join-Path $PWD $script), [ref] $null, [ref] $problems) | Out-Null
+            if ($problems) {
+              $problems | ForEach-Object { Write-Host $_.ToString() }
+              exit 1
+            }
+            Write-Host "$script parses"
           }
-          Write-Host 'scripts/install.ps1 parses'
 
       - name: Set up Go
         uses: actions/setup-go@v7

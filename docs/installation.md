@@ -127,6 +127,18 @@ la versión del ejecutable. Solo después reemplaza atómicamente el bundle
 instalado; la configuración y el estado del grafo permanecen fuera del bundle.
 Reinicia el cliente MCP después de actualizar.
 
+Para desinstalar el bundle y los launchers sin borrar la configuración, los
+registros de repositorios ni el estado del grafo:
+
+```bash
+uninstall_url=https://github.com/Luqueee/kivgraph/releases/latest/download/uninstall.sh
+curl -fsSL "$uninstall_url" -o /tmp/kivgraph-uninstall.sh
+bash /tmp/kivgraph-uninstall.sh
+```
+
+Usa `bash /tmp/kivgraph-uninstall.sh --yes` en una ejecución no interactiva.
+En Windows, ejecuta el archivo publicado `uninstall.ps1` con PowerShell.
+
 ## Instalar un bundle
 
 El artefacto es el directorio `kivgraph-<os>-<arch>/` generado por el build de
@@ -323,6 +335,17 @@ kivgraph init \
   --repository tools=/ruta/absoluta/al/tools \
   --languages go,typescript
 ```
+
+### Indexar el proyecto actual
+
+Desde la carpeta raíz del proyecto, `kivgraph index` detecta los lenguajes
+soportados por sus extensiones y manifiestos, crea o reutiliza `.kivgraph/`,
+registra esa carpeta como `project` y ejecuta una reconstrucción completa. No
+modifica el registro compartido del usuario. `kivgraph index --full` mantiene la
+forma explícita que indexa todos los repositorios del registro configurado; las
+dos formas pasan por la misma publicación completa y validada.
+El comando no instala toolchains del sistema; `kivgraph doctor` informa de los
+prerrequisitos que falten en el host.
 
 La sección `go` permite seleccionar el contexto de compilación que resolverá
 `go/packages`. `goos`, `goarch` y `cgo_enabled` vacíos conservan los valores del
@@ -858,7 +881,7 @@ no cero; corrige el repositorio o su registro y repite la operación.
   comprobaciones adicionales de políticas de repositorio pertenecen a la
   indexación.
 - **Todo índice es una operación completa.** No hay actualización incremental:
-  `kivgraph index` acepta sólo `--full` y cada pasada publica una generación
+  tanto `kivgraph index` como `kivgraph index --full` publican una generación
   nueva, validada, en vez de mutar la vigente. El camino del delta se retiró en
   el [ADR 0057](adr/0057-el-camino-incremental-se-retira.md). Lo que abarata una
   reindexación es la caché de hechos, que sólo reanaliza lo que cambió.

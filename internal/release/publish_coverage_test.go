@@ -102,16 +102,20 @@ func checksumLine(t *testing.T, publish string) string {
 	return strings.ReplaceAll(line, "\\\n", " ")
 }
 
-// Both installers are documented entry points, and one of them was published
-// while the other was not -- which makes the Windows instructions in the
-// README point at a URL that returns 404.
-func TestPublishShipsBothInstallers(t *testing.T) {
+// The installers and uninstallers are documented entry points, and one of
+// them was published while the other was not -- which makes a platform's
+// README command point at a URL that returns 404.
+func TestPublishShipsInstallersAndUninstallers(t *testing.T) {
 	publish := job(t, workflow(t), "publish")
+	checksums := checksumLine(t, publish)
 
-	for _, installer := range []string{"install.sh", "install.ps1"} {
-		if !strings.Contains(publish, "release-assets/"+installer) {
-			t.Errorf("the publish job never uploads %s, so the documented command for that platform 404s",
-				installer)
+	for _, script := range []string{"install.sh", "install.ps1", "uninstall.sh", "uninstall.ps1"} {
+		if !strings.Contains(publish, "release-assets/"+script) {
+			t.Errorf("the publish job never uploads %s, so the documented command 404s",
+				script)
+		}
+		if !strings.Contains(checksums, script) {
+			t.Errorf("SHA256SUMS does not cover %s, so the published script is unverifiable", script)
 		}
 	}
 }

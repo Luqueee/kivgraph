@@ -8,11 +8,11 @@
 
 # classify maps an asset name to its class and the platform it serves.
 #
-# The four classes are the four things a download can mean. A `bundle` is the
+# The five classes are the five things a download can mean. A `bundle` is the
 # archive `install.sh` unpacks; an `mcpb` is the same binary wrapped for a
 # client that installs extensions itself and never runs the installer; the
 # `checksums` and the `installer` are fetched by the install path and by anyone
-# verifying it.
+# verifying it; an `uninstaller` is fetched by someone removing that install.
 #
 # `other` is deliberate: a release that publishes an asset shape nobody taught
 # this file about must show up as unclassified, because the alternative is a
@@ -25,6 +25,8 @@ def classify:
     # and macOS -- so it has no platform, and giving it one would invent a
     # split the asset does not have.
     {class: "installer", platform: ""}
+  elif . == "uninstall.sh" or . == "uninstall.ps1" then
+    {class: "uninstaller", platform: ""}
   elif test("^kivgraph-[a-z0-9]+-[a-z0-9]+\\.mcpb$") then
     {class: "mcpb", platform: capture("^kivgraph-(?<p>[a-z0-9]+-[a-z0-9]+)\\.mcpb$").p}
   elif test("^kivgraph-[a-z0-9]+-[a-z0-9]+\\.(tar\\.gz|zip)$") then

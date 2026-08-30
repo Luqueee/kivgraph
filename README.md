@@ -177,6 +177,18 @@ The update is atomic, preserves the configuration and graph state, verifies
 the release and bundle checksums, and replaces only the installed bundle.
 Restart the MCP client after updating so it launches the new binary.
 
+To remove the installed bundle and launchers without deleting configuration,
+repository registrations or graph state:
+
+```bash
+uninstall_url=https://github.com/Luqueee/kivgraph/releases/latest/download/uninstall.sh
+curl -fsSL "$uninstall_url" -o /tmp/kivgraph-uninstall.sh
+bash /tmp/kivgraph-uninstall.sh
+```
+
+Use `bash /tmp/kivgraph-uninstall.sh --yes` for a non-interactive removal.
+Windows users can run the corresponding `uninstall.ps1` with PowerShell.
+
 When `kivgraph` is invoked without a command from an interactive terminal, it
 checks for a newer release with an 800 ms timeout and a 24-hour cache in the
 platform cache directory (`$XDG_CACHE_HOME` on Linux and
@@ -236,6 +248,14 @@ elsewhere, its state, cache and registry hang off that directory, so a throwaway
 index never touches the real one. `index --full` republishes atomically — a
 failure at any stage leaves the previous generation serving. A server already
 running follows the new generation on its own.
+
+When you are inside one project, `kivgraph index` detects its supported
+languages, creates or reuses `.kivgraph/`, registers that directory as
+`project`, and runs the same full rebuild. It does not alter the shared user
+registry. Use `kivgraph index --full` when you want the explicit registered-
+repositories workflow; both forms preserve the full-indexing contract.
+The command does not install language toolchains; `kivgraph doctor` reports any
+prerequisite that is missing on the host.
 
 Day to day:
 
