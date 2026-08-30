@@ -27,7 +27,13 @@ const hookOperation = "hook run"
 // Task is stock Claude Code's research dispatch and Agent is the same tool in
 // newer harnesses; naming one would leave the other ungated in half the
 // installations.
-const claudeMatcher = "Bash|Glob|Grep|Task|Agent"
+//
+// The last alternative is not a search and is never refused. Kivgraph's own MCP
+// tools are matched so the first one of a session can be briefed, and the
+// pattern names the server rather than its operations: a list of tool names
+// here would need a line for every tool the server grows, and a briefing that
+// quietly stopped firing for the newest one is the failure nobody would notice.
+const claudeMatcher = "Bash|Glob|Grep|Task|Agent|mcp__kivgraph_.*"
 
 // hookTimeoutSeconds bounds the gate from the agent's side as well as its own.
 //

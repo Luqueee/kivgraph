@@ -139,3 +139,87 @@ func TestASubagentIsRefusedWithoutAskingTheGraph(t *testing.T) {
 		t.Fatalf("asked the graph %d times for a decision it cannot change", graph.asked)
 	}
 }
+
+// TestGateNeverRefusesItsOwnTools is the negative that keeps this branch
+// honest.
+//
+// The stricter reading of "read the skill first" is to refuse Kivgraph's tools
+// until the skill has been read. It is the wrong trade and this test is what
+// stops it arriving by accident: a call to the graph is already the outcome
+// every other branch argues for, so refusing it puts friction on the one
+// behaviour the gate exists to encourage -- and a session whose briefing failed
+// would be left unable to use the tools at all.
+func TestGateNeverRefusesItsOwnTools(t *testing.T) {
+	question := Question{Kind: KindGraphTool, Tool: "mcp__kivgraph__find_references"}
+	for _, testCase := range []struct {
+		name string
+		gate Gate
+	}{
+		{"nowhere to remember the session", Gate{SessionID: "session"}},
+		{"the host sent no session id", Gate{Briefing: Briefing{Directory: t.TempDir()}}},
+		{"neither one nor the other", Gate{}},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			got := testCase.gate.Decide(context.Background(), question)
+			if got.Deny {
+				t.Fatalf("refused a call to the graph: %s", got.Reason)
+			}
+		})
+	}
+}
+
+// TestGateBriefsTheFirstCallAndThenStopsTalking is the contract the briefing
+// exists for.
+func TestGateBriefsTheFirstCallAndThenStopsTalking(t *testing.T) {
+	gate := Gate{
+		Briefing:  Briefing{Directory: t.TempDir()},
+		SessionID: "session-a",
+	}
+	question := Question{Kind: KindGraphTool, Tool: "mcp__kivgraph__find_references"}
+
+	first := gate.Decide(context.Background(), question)
+	if first != (Decision{Context: briefText}) {
+		t.Fatalf("the first call got %#v, want the briefing", first)
+	}
+	for attempt := 2; attempt <= 3; attempt++ {
+		later := gate.Decide(context.Background(), question)
+		if later != Allow {
+			t.Fatalf("call %d got %#v, want silence", attempt, later)
+		}
+	}
+}
+
+// TestGateAsksNoGraphToBrief checks that the briefing costs no daemon call.
+//
+// This runs in front of every Kivgraph tool call. A gate that dialled the graph
+// to decide whether to attach a paragraph would put the daemon's latency in
+// front of the daemon's own tools, which is the one place it can least afford
+// to be.
+func TestGateAsksNoGraphToBrief(t *testing.T) {
+	graph := &fakeGraph{}
+	gate := Gate{
+		Graph:     graph,
+		Briefing:  Briefing{Directory: t.TempDir()},
+		SessionID: "session-a",
+	}
+	gate.Decide(context.Background(), Question{Kind: KindGraphTool, Tool: "mcp__kivgraph__get_source"})
+	if graph.asked != 0 {
+		t.Fatalf("the briefing asked the graph %d times; it must ask none", graph.asked)
+	}
+}
+
+// TestBriefTextCarriesWhatTheRoutingCardCannot guards against the briefing
+// decaying into a copy of the server's `instructions` field.
+//
+// That paragraph already reaches every client at handshake. What justifies a
+// second injection is the part it deliberately leaves out -- the call budget,
+// which cannot live in a system prompt that is rewritten on every re-index.
+// A briefing that stopped carrying the numbers would be spending an injection
+// on words the model has already read.
+func TestBriefTextCarriesWhatTheRoutingCardCannot(t *testing.T) {
+	for _, wanted := range []string{"graph_status 5541", "list_repositories 4787", "10328", `view="files"`} {
+		if !strings.Contains(briefText, wanted) {
+			t.Fatalf("the briefing no longer carries %q, which is why it is worth sending", wanted)
+		}
+	}
+}

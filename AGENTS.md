@@ -127,6 +127,35 @@ contrato un `allow` explícito se salta la petición de permiso del agente.
 
 Para saltársela una vez: `KIVGRAPH_DISABLE_HOOK=1` delante del comando.
 
+La puerta hace además una cosa que no es negar. El matcher cubre las tools MCP
+de Kivgraph -- por nombre de servidor, `mcp__kivgraph_.*`, nunca por una lista de
+operaciones que habría que ampliar con cada tool nueva-- y a la **primera de
+cada sesión** le adjunta el presupuesto de llamadas. Nunca la niega: una llamada
+al grafo ya es el resultado que las demás ramas defienden, así que exigir la
+skill antes de dejarla pasar pondría fricción justo en la conducta que la puerta
+existe para fomentar, y dejaría las tools inservibles la sesión en que el aviso
+fallara.
+
+Va como `additionalContext` **sin** `permissionDecision`, y eso no es un detalle
+de formato: la forma corta -- `allow` con el texto en
+`permissionDecisionReason`-- entrega las mismas palabras y de paso le quita al
+usuario la petición de permiso de cada llamada con la que viaje. El aviso añade
+contexto y no vota.
+
+No repite el campo `instructions` del servidor, que ya llega en el handshake.
+Lleva lo que ese campo deja fuera a propósito: el coste por tool, que no puede
+vivir en un system prompt que se reescribe en cada reindexado --
+`internal/mcp/instructions.go` explica por qué, y cita el issue #260 de
+tokensave, donde un presupuesto ahí costó más que las llamadas que desaconsejaba.
+
+Se recuerda por `session_id` con un marcador en `<estado>/briefs`, creado con
+`O_EXCL` para que dos llamadas simultáneas no avisen las dos, y se poda a las 24
+horas. Un host que no manda `session_id` -- el plugin de OpenCode-- no recibe
+aviso ninguno: sin identidad, avisar en cada llamada sería peor que no avisar.
+
+El matcher se escribe al instalar, así que una instalación anterior a esto no ve
+las llamadas MCP hasta que se reejecuta `kivgraph hook install`.
+
 ## Herramientas MCP en Oh My Pi
 
 - Las rutas `xd://` se descubren consultando `xd://`; nunca se construyen
