@@ -364,19 +364,14 @@ func RegisterFindSymbolWithObserverAndSnapshotStore(
 		request *sdkmcp.CallToolRequest,
 		arguments FindSymbolInput,
 	) (*sdkmcp.CallToolResult, Response[SymbolResults], error) {
-		if snapshotStore != nil {
-			selected, selectionErr := snapshotStore.ResolveProfiles(arguments.Profile)
-			if selectionErr != nil {
-				return nil, Response[SymbolResults]{}, WrapToolError(CodeInvalidArgument, selectionErr.Error(), selectionErr)
-			}
-			if len(selected) > 1 {
-				return findSymbolAcrossProfiles(ctx, request, arguments, selected)
-			}
-		}
-		store, profile, count, err := resolveSingleProfile(snapshotStore, arguments.Profile, "")
+		selected, count, err := resolveProfileSelection(snapshotStore, arguments.Profile, "")
 		if err != nil {
 			return nil, Response[SymbolResults]{}, err
 		}
+		if len(selected) > 1 {
+			return findSymbolAcrossProfiles(ctx, request, arguments, selected)
+		}
+		store, profile := selected[0].Store, selected[0].Name
 		result, response, err := findSymbol(ctx, request, arguments, store)
 		scopeResponse(&response, profile, count)
 		return result, response, err
@@ -463,19 +458,18 @@ func findSymbolAcrossProfiles(
 		pageArguments.Cursor = ""
 		pageArguments.Limit = MaximumSymbolLimit
 		pageArguments.View = ViewFull
+		firstPage := true
 		for {
 			_, response, err := findSymbol(ctx, request, pageArguments, profile.Store)
 			if err != nil {
 				return nil, Response[SymbolResults]{}, err
 			}
-			coverage.UnresolvedRelated += response.Coverage.UnresolvedRelated
+			if firstPage {
+				coverage.UnresolvedRelated += response.Coverage.UnresolvedRelated
+			}
 			if response.Completeness != nil && response.Completeness.Verdict == VerdictLowerBound {
 				profileCompleteness = *response.Completeness
-				mergedCompleteness.Verdict = VerdictLowerBound
-				mergedCompleteness.BlindSpots = append(mergedCompleteness.BlindSpots, response.Completeness.BlindSpots...)
-				mergedCompleteness.InvisibleScopes = append(mergedCompleteness.InvisibleScopes, response.Completeness.InvisibleScopes...)
-				mergedCompleteness.MoreBlindSpots += response.Completeness.MoreBlindSpots
-				mergedCompleteness.MoreInvisibleScopes += response.Completeness.MoreInvisibleScopes
+				mergeCompleteness(&mergedCompleteness, response.Completeness)
 			}
 			for _, row := range response.Results.Symbols {
 				row.Profiles = ""
@@ -492,6 +486,7 @@ func findSymbolAcrossProfiles(
 				variants[key] = len(rows)
 				rows = append(rows, row)
 			}
+			firstPage = false
 			if response.NextCursor == nil {
 				break
 			}
@@ -503,38 +498,11 @@ func findSymbolAcrossProfiles(
 		})
 	}
 
-	setID := ProfileSetSnapshotID(profileSnapshots)
-	offset := 0
-	if arguments.Cursor != "" {
-		cursor, err := DecodeCursor(arguments.Cursor)
-		if err != nil {
-			return nil, Response[SymbolResults]{}, err
-		}
-		if err := cursor.ValidateAgainst(setID, queryHash, SortingVersionStableKeyV1); err != nil {
-			return nil, Response[SymbolResults]{}, err
-		}
-		offset = cursor.Offset
-	}
-	if offset > len(rows) {
-		return nil, Response[SymbolResults]{}, NewToolError(CodeCursorInvalid, "cursor offset is beyond the merged result")
-	}
-	end := offset + limit
-	if end > len(rows) {
-		end = len(rows)
+	offset, end, nextCursor, err := profilePageBounds(profileSnapshots, queryHash, SortingVersionStableKeyV1, arguments.Cursor, limit, len(rows))
+	if err != nil {
+		return nil, Response[SymbolResults]{}, err
 	}
 	page := rows[offset:end]
-	var nextCursor *string
-	if end < len(rows) {
-		cursor, err := NewCursor(setID, queryHash, end, SortingVersionStableKeyV1)
-		if err != nil {
-			return nil, Response[SymbolResults]{}, err
-		}
-		encoded, err := cursor.Encode()
-		if err != nil {
-			return nil, Response[SymbolResults]{}, err
-		}
-		nextCursor = &encoded
-	}
 	return nil, Response[SymbolResults]{
 		Profiles:          profileSnapshots,
 		CrossProfileEdges: "not_resolved",

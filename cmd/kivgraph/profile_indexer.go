@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
@@ -18,6 +19,23 @@ type profileProjectIndexer struct {
 	gate       chan struct{}
 	configPath string
 	store      *hotsnapshot.SnapshotStore
+	watchMu    sync.RWMutex
+	watch      func(string, config.Loaded, *hotsnapshot.SnapshotStore)
+}
+
+func (indexer *profileProjectIndexer) setProfileWatcher(watch func(string, config.Loaded, *hotsnapshot.SnapshotStore)) {
+	indexer.watchMu.Lock()
+	defer indexer.watchMu.Unlock()
+	indexer.watch = watch
+}
+
+func (indexer *profileProjectIndexer) watchProfile(name string, loaded config.Loaded, store *hotsnapshot.SnapshotStore) {
+	indexer.watchMu.RLock()
+	watch := indexer.watch
+	indexer.watchMu.RUnlock()
+	if watch != nil {
+		watch(name, loaded, store)
+	}
 }
 
 type namedProfileReindexer struct {
@@ -121,6 +139,7 @@ func (indexer *profileProjectIndexer) loadProfileStore(
 			profileStore.Close()
 			return config.Loaded{}, nil, addErr
 		}
+		indexer.watchProfile(profile, loaded, profileStore)
 		selected = []hotsnapshot.ProfileStore{{Name: profile, Store: profileStore}}
 	}
 	return loaded, selected[0].Store, nil

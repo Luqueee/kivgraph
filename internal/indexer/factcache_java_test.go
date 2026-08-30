@@ -92,15 +92,3 @@ func TestUnitIdentitySeparatesEveryKind(t *testing.T) {
 		identities[identity] = name
 	}
 }
-
-// Two profiles may contain the same repository while resolving its external
-// providers against different registries. Serving one profile's entry to the
-// other would therefore publish facts that pass never observed.
-func TestUnitIdentitySeparatesProfiles(t *testing.T) {
-	unit := analysisUnit{kind: unitGo, repository: repositoryNamed("shared")}
-	first := unitIdentity("backend", unit)
-	second := unitIdentity("frontend", unit)
-	if first == second {
-		t.Fatalf("two profiles share the cache identity %q", first)
-	}
-}

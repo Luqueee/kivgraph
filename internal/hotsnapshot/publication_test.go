@@ -241,19 +241,58 @@ func TestEvictedProfileNeverRepublishesAnOlderDeferredGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 	if a.Load() == nil {
-		t.Fatal("initial deferred generation did not load")
+		t.Fatal("Load(profile=a, generation=1) = nil")
 	}
 	if err := a.Publish(publishedSnapshot(t, 3)); err != nil {
 		t.Fatal(err)
 	}
 	if b.Load() == nil {
-		t.Fatal("second profile did not load")
+		t.Fatal("Load(profile=b, generation=2) = nil")
 	}
 	if snapshot := a.Load(); snapshot != nil {
 		t.Fatalf("stale loader republished generation %d", snapshot.Metadata().ID)
 	}
 	if !errors.Is(a.LoadFailure(), ErrSnapshotGeneration) {
 		t.Fatalf("LoadFailure() = %v, want ErrSnapshotGeneration", a.LoadFailure())
+	}
+}
+
+func TestConcurrentDeferredLoadsRespectMaximumOpenProfiles(t *testing.T) {
+	entered := make(chan struct{}, 2)
+	release := make(chan struct{})
+	loader := func(generation uint64) SnapshotLoader {
+		return func() (*GraphSnapshot, error) {
+			entered <- struct{}{}
+			<-release
+			return publishedSnapshot(t, generation), nil
+		}
+	}
+	a := NewDeferredSnapshotStore(1, loader(1))
+	b := NewDeferredSnapshotStore(2, loader(2))
+	store, err := NewProfileSnapshotStore("a", map[string]*SnapshotStore{"a": a, "b": b})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetMaxOpenProfiles(1); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{}, 2)
+	go func() { a.Load(); done <- struct{}{} }()
+	go func() { b.Load(); done <- struct{}{} }()
+	<-entered
+	<-entered
+	close(release)
+	<-done
+	<-done
+	active := 0
+	if a.active.Load() != nil {
+		active++
+	}
+	if b.active.Load() != nil {
+		active++
+	}
+	if active != 1 {
+		t.Fatalf("materialized profiles = %d, want 1", active)
 	}
 }
 

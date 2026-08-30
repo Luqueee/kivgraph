@@ -91,22 +91,14 @@ func RegisterGetSymbolWithObserverAndSnapshotStore(
 		request *sdkmcp.CallToolRequest,
 		arguments GetSymbolInput,
 	) (*sdkmcp.CallToolResult, Response[SymbolDetails], error) {
-		if snapshotStore != nil {
-			if profileErr := RequireStableKeyProfile(snapshotStore.ProfileCount(), arguments.StableKey, arguments.Profile); profileErr != nil {
-				return nil, Response[SymbolDetails]{}, profileErr
-			}
-			selected, selectionErr := snapshotStore.ResolveProfiles(arguments.Profile)
-			if selectionErr != nil {
-				return nil, Response[SymbolDetails]{}, WrapToolError(CodeInvalidArgument, selectionErr.Error(), selectionErr)
-			}
-			if len(selected) > 1 {
-				return getSymbolAcrossProfiles(ctx, request, arguments, selected)
-			}
-		}
-		store, profile, count, err := resolveSingleProfile(snapshotStore, arguments.Profile, arguments.StableKey)
+		selected, count, err := resolveProfileSelection(snapshotStore, arguments.Profile, arguments.StableKey)
 		if err != nil {
 			return nil, Response[SymbolDetails]{}, err
 		}
+		if len(selected) > 1 {
+			return getSymbolAcrossProfiles(ctx, request, arguments, selected)
+		}
+		store, profile := selected[0].Store, selected[0].Name
 		result, response, err := getSymbol(ctx, request, arguments, store)
 		scopeResponse(&response, profile, count)
 		return result, response, err

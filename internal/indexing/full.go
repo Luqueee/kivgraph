@@ -119,7 +119,7 @@ type FullOptions struct {
 // which are the only things the configuration does not decide.
 func OptionsFromConfig(configuration config.Config) FullOptions {
 	return FullOptions{
-		Profile:                           "default",
+		Profile:                           configuration.Profiles.Default,
 		SyntheticWorkFile:                 configuration.Go.SyntheticWorkFile,
 		IncludeTests:                      configuration.Go.IncludeTests,
 		GoOS:                              configuration.Go.GOOS,

@@ -477,22 +477,14 @@ func RegisterTraceDependenciesWithObserverAndSnapshotStore(
 		request *sdkmcp.CallToolRequest,
 		arguments TraceDependenciesInput,
 	) (*sdkmcp.CallToolResult, Response[DependencyTrace], error) {
-		if snapshotStore != nil {
-			if profileErr := RequireStableKeyProfile(snapshotStore.ProfileCount(), arguments.StableKey, arguments.Profile); profileErr != nil {
-				return nil, Response[DependencyTrace]{}, profileErr
-			}
-			selected, selectionErr := snapshotStore.ResolveProfiles(arguments.Profile)
-			if selectionErr != nil {
-				return nil, Response[DependencyTrace]{}, WrapToolError(CodeInvalidArgument, selectionErr.Error(), selectionErr)
-			}
-			if len(selected) > 1 {
-				return traceDependenciesAcrossProfiles(ctx, request, arguments, selected)
-			}
-		}
-		store, profile, count, err := resolveSingleProfile(snapshotStore, arguments.Profile, arguments.StableKey)
+		selected, count, err := resolveProfileSelection(snapshotStore, arguments.Profile, arguments.StableKey)
 		if err != nil {
 			return nil, Response[DependencyTrace]{}, err
 		}
+		if len(selected) > 1 {
+			return traceDependenciesAcrossProfiles(ctx, request, arguments, selected)
+		}
+		store, profile := selected[0].Store, selected[0].Name
 		result, response, err := traceDependencies(ctx, request, arguments, store)
 		scopeResponse(&response, profile, count)
 		return result, response, err
@@ -527,6 +519,10 @@ func traceDependenciesAcrossProfiles(
 	options, err := normalizeTraceDependenciesInput(arguments)
 	if err != nil {
 		return nil, Response[DependencyTrace]{}, err
+	}
+	if options.Target != "" {
+		return nil, Response[DependencyTrace]{}, NewToolError(CodeInvalidArgument,
+			"to requires exactly one named profile, because routes are not resolved across profiles")
 	}
 	names := make([]string, 0, len(selected))
 	for _, profile := range selected {
@@ -622,6 +618,7 @@ func traceDependenciesAcrossProfiles(
 	if err != nil {
 		return nil, Response[DependencyTrace]{}, err
 	}
+	trace.Reached = len(rows)
 	trace.Nodes = rows[offset:end]
 	return nil, Response[DependencyTrace]{
 		Profiles: profiles, CrossProfileEdges: "not_resolved",

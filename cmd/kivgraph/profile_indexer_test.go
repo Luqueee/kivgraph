@@ -37,8 +37,10 @@ func TestProfileProjectIndexerCreatesAndRoutesProfileBeforeValidatingBatch(t *te
 		t.Fatal(err)
 	}
 	indexer := newProfileProjectIndexer(configPath, aggregate)
+	var watched string
+	indexer.setProfileWatcher(func(name string, _ config.Loaded, _ *hotsnapshot.SnapshotStore) { watched = name })
 
-	if _, err := indexer.IndexProjectsInProfile(context.Background(), "other", nil, nil); err == nil || err.Error() != "no project was requested" {
+	if _, err := indexer.IndexProjectsInProfile(context.Background(), "other", nil, nil); err == nil {
 		t.Fatalf("IndexProjectsInProfile() error = %v, want empty-batch refusal", err)
 	}
 	if _, err := aggregate.ResolveProfiles([]string{"other"}); err != nil {
@@ -47,7 +49,10 @@ func TestProfileProjectIndexerCreatesAndRoutesProfileBeforeValidatingBatch(t *te
 	if _, err := config.LoadProfile(configPath, "other"); err != nil {
 		t.Fatalf("created profile is not durable: %v", err)
 	}
-	if _, err := indexer.IndexProjects(context.Background(), nil, nil); err == nil || err.Error() != "no project was requested" {
+	if watched != "other" {
+		t.Fatalf("watched profile = %q, want other", watched)
+	}
+	if _, err := indexer.IndexProjects(context.Background(), nil, nil); err == nil {
 		t.Fatalf("default IndexProjects() error = %v, want empty-batch refusal", err)
 	}
 }

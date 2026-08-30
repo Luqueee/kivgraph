@@ -27,7 +27,8 @@ marks `cross_profile_edges` as `not_resolved`, and identifies which profiles
 supplied each row. Identical rows are returned once with all their profile
 names; completeness is the weakest selected profile. A cursor is valid only
 for the same canonical profile names and generations. When more than one
-profile exists, a stable key must be paired with exactly one profile.
+profile exists, a stable key must name exactly one profile: the default is a
+movable pointer, so omitting `profile` is rejected.
 
 `index_project` uses a single string `profile`, not an array. Omitting it writes
 the default graph; naming a missing profile creates it before the full rebuild.

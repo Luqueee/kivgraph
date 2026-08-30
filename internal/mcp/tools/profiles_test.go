@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -300,7 +301,7 @@ func TestRemainingQueryToolsAcceptAMultiProfileUnion(t *testing.T) {
 			t.Fatal(err)
 		}
 		assertUnion(t, response.Profiles, response.CrossProfileEdges, response.Total)
-		if len(response.Results.Variants) != 1 || string(response.Results.Variants[0].Profiles) != "default\x00other" {
+		if len(response.Results.Variants) != 1 || !reflect.DeepEqual(response.Results.Variants[0].Profiles.ProfileNames(), []string{"default", "other"}) {
 			t.Fatalf("symbol variants = %#v", response.Results.Variants)
 		}
 	})
@@ -393,5 +394,33 @@ func TestDiscoveryToolsEnumerateEveryProfile(t *testing.T) {
 	}
 	if status.Total != 2 || len(status.Results.Profiles) != 2 || !status.Results.Profiles[0].Default {
 		t.Fatalf("status = %#v", status)
+	}
+}
+
+func TestDiscoveryToolsRetainASelectedProfileWithoutGeneration(t *testing.T) {
+	aggregate, err := hotsnapshot.NewProfileSnapshotStore("default", map[string]*hotsnapshot.SnapshotStore{
+		"default": hotsnapshot.NewSnapshotStore(buildSymbolSnapshot(t, 93)),
+		"empty":   hotsnapshot.NewSnapshotStore(nil),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected, err := aggregate.ResolveProfiles([]string{"*"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, repositories, err := listRepositoriesAcrossProfiles(context.Background(), nil, ListRepositoriesInput{Limit: 20}, selected)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repositories.Total == 0 || len(repositories.Profiles) != 2 || !strings.Contains(repositories.Guidance, "empty") {
+		t.Fatalf("repositories with profile=empty: %#v", repositories)
+	}
+	_, status, err := graphStatusAcrossProfiles(context.Background(), nil, selected, "default", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.Results.Status != GraphStatusEmpty || len(status.Results.Profiles) != 2 {
+		t.Fatalf("status with profile=empty: %#v", status)
 	}
 }

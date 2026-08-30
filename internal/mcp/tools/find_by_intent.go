@@ -107,6 +107,8 @@ type IntentSymbol struct {
 	Match         string       `json:"match"`
 
 	StableKey string `json:"stable_key,omitempty"`
+	score     float64
+	rankKey   string
 }
 
 // intentFileCount is the whole of the `files` view: which files to open, and how
@@ -227,19 +229,14 @@ func RegisterFindByIntentWithObserverAndSnapshotStore(
 		request *sdkmcp.CallToolRequest,
 		arguments FindByIntentInput,
 	) (*sdkmcp.CallToolResult, Response[IntentMatches], error) {
-		if snapshotStore != nil {
-			selected, selectionErr := snapshotStore.ResolveProfiles(arguments.Profile)
-			if selectionErr != nil {
-				return nil, Response[IntentMatches]{}, WrapToolError(CodeInvalidArgument, selectionErr.Error(), selectionErr)
-			}
-			if len(selected) > 1 {
-				return findByIntentAcrossProfiles(ctx, request, arguments, selected)
-			}
-		}
-		store, profile, count, err := resolveSingleProfile(snapshotStore, arguments.Profile, "")
+		selected, count, err := resolveProfileSelection(snapshotStore, arguments.Profile, "")
 		if err != nil {
 			return nil, Response[IntentMatches]{}, err
 		}
+		if len(selected) > 1 {
+			return findByIntentAcrossProfiles(ctx, request, arguments, selected)
+		}
+		store, profile := selected[0].Store, selected[0].Name
 		result, response, err := findByIntent(ctx, request, arguments, store)
 		scopeResponse(&response, profile, count)
 		return result, response, err
@@ -323,7 +320,9 @@ func findByIntentAcrossProfiles(
 			return nil, Response[IntentMatches]{}, rankErr
 		}
 		for _, row := range ranked {
+			score := row.score
 			stableKey := row.StableKey
+			row.rankKey = stableKey
 			row.Profiles = ""
 			if options.Format != ResponseFormatDetailed {
 				row.StableKey = ""
@@ -335,6 +334,9 @@ func findByIntentAcrossProfiles(
 			key := stableKey + "\x00" + string(payload)
 			if position, found := variants[key]; found {
 				rows[position].Profiles = rows[position].Profiles.append(profile.Name)
+				if score > rows[position].score {
+					rows[position].score = score
+				}
 				continue
 			}
 			row.Profiles = profileNames(profile.Name)
@@ -342,6 +344,16 @@ func findByIntentAcrossProfiles(
 			rows = append(rows, row)
 		}
 	}
+	sort.SliceStable(rows, func(i, j int) bool {
+		if rows[i].score != rows[j].score {
+			return rows[i].score > rows[j].score
+		}
+		leftProfiles, rightProfiles := string(rows[i].Profiles), string(rows[j].Profiles)
+		if leftProfiles != rightProfiles {
+			return leftProfiles < rightProfiles
+		}
+		return rows[i].rankKey < rows[j].rankKey
+	})
 	terms := make([]IntentTerm, 0, len(words))
 	unmatched := make([]string, 0, len(words))
 	used := 0
@@ -679,6 +691,7 @@ func rankIntentCandidates(
 	})
 	ordered := make([]IntentSymbol, 0, len(rows))
 	for _, row := range rows {
+		row.row.score = row.score
 		ordered = append(ordered, row.row)
 	}
 	return ordered, terms, unmatched, used, nil

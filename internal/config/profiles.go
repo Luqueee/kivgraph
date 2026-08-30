@@ -317,7 +317,7 @@ func CreateProfile(configPath, name string) error {
 		return fmt.Errorf("create profile %q: %w", name, err)
 	}
 	if err := SaveRepositories(profile.RepositoriesPath, RepositoriesFile{Version: CurrentSchemaVersion, Repositories: []Repository{}}); err != nil {
-		_ = os.Remove(profile.StateDirectory)
+		_ = os.RemoveAll(profile.StateDirectory)
 		return fmt.Errorf("create profile %q registry: %w", name, err)
 	}
 	return nil

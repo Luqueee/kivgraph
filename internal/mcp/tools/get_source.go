@@ -124,22 +124,14 @@ func RegisterGetSourceWithObserverAndSnapshotStore(
 				break
 			}
 		}
-		if snapshotStore != nil {
-			if profileErr := RequireStableKeyProfile(snapshotStore.ProfileCount(), stableKey, arguments.Profile); profileErr != nil {
-				return nil, Response[SourceResult]{}, profileErr
-			}
-			selected, selectionErr := snapshotStore.ResolveProfiles(arguments.Profile)
-			if selectionErr != nil {
-				return nil, Response[SourceResult]{}, WrapToolError(CodeInvalidArgument, selectionErr.Error(), selectionErr)
-			}
-			if len(selected) > 1 {
-				return getSourceAcrossProfiles(ctx, request, arguments, selected)
-			}
-		}
-		store, profile, count, err := resolveSingleProfile(snapshotStore, arguments.Profile, stableKey)
+		selected, count, err := resolveProfileSelection(snapshotStore, arguments.Profile, stableKey)
 		if err != nil {
 			return nil, Response[SourceResult]{}, err
 		}
+		if len(selected) > 1 {
+			return getSourceAcrossProfiles(ctx, request, arguments, selected)
+		}
+		store, profile := selected[0].Store, selected[0].Name
 		result, response, err := getSource(ctx, request, arguments, store)
 		scopeResponse(&response, profile, count)
 		return result, response, err
@@ -175,35 +167,34 @@ func getSourceAcrossProfiles(
 	if err != nil {
 		return nil, Response[SourceResult]{}, err
 	}
-	_ = selectors // normalization validates the whole request before any file is read.
 	profiles := make([]ProfileSnapshot, 0, len(selected))
 	rows := make([]SourceBody, 0, len(arguments.Symbols)*len(selected))
 	variants := make(map[string]int)
 	coverage := Coverage{}
-	budget := MaximumSourceBytes
-	trimmed := 0
 	for _, profile := range selected {
 		snapshot := profile.Store.Load()
 		if snapshot == nil {
 			return nil, Response[SourceResult]{}, ErrIndexNotReady()
 		}
 		profiles = append(profiles, ProfileSnapshot{Name: profile.Name, SnapshotID: snapshot.Metadata().ID})
-		for index, symbol := range arguments.Symbols {
-			profileArguments := GetSourceInput{
-				Symbols: []SourceRequest{symbol}, ContextLines: contextLines,
-				ResponseFormat: ResponseFormatDetailed,
-			}
-			_, response, queryErr := getSource(ctx, request, profileArguments, profile.Store)
-			if queryErr != nil {
-				if code := ErrorCode(queryErr); code == CodeSymbolNotFound || code == CodeRepositoryNotFound {
+		cache := map[string]*sourceFile{}
+		for _, selector := range selectors {
+			symbolID, resolveErr := resolveSymbolSelector(snapshot, selector)
+			if resolveErr != nil {
+				if code := ErrorCode(resolveErr); code == CodeSymbolNotFound || code == CodeRepositoryNotFound {
 					continue
 				}
-				return nil, Response[SourceResult]{}, queryErr
+				return nil, Response[SourceResult]{}, resolveErr
 			}
-			if len(response.Results.Bodies) == 0 {
-				continue
+			symbol, found := snapshot.Symbol(symbolID)
+			if !found {
+				return nil, Response[SourceResult]{}, WrapToolError(CodeSnapshotUnavailable,
+					"active snapshot symbol index is inconsistent", fmt.Errorf("symbol index %d is missing", symbolID))
 			}
-			row := response.Results.Bodies[0]
+			row, bodyErr := sourceBody(snapshot, symbol, contextLines, ResponseFormatDetailed, cache)
+			if bodyErr != nil {
+				return nil, Response[SourceResult]{}, bodyErr
+			}
 			stableKey := row.StableKey
 			row.Profiles = ""
 			if format != ResponseFormatDetailed {
@@ -218,17 +209,26 @@ func getSourceAcrossProfiles(
 				rows[position].Profiles = rows[position].Profiles.append(profile.Name)
 				continue
 			}
-			if len(row.Code) > budget {
-				trimmed += len(arguments.Symbols) - index
-				break
-			}
-			budget -= len(row.Code)
 			row.Profiles = profileNames(profile.Name)
 			variants[key] = len(rows)
 			rows = append(rows, row)
 			if row.Unavailable == "" {
 				coverage.Exact++
 			}
+		}
+	}
+	budget := MaximumSourceBytes
+	kept := 0
+	for kept < len(rows) && len(rows[kept].Code) <= budget {
+		budget -= len(rows[kept].Code)
+		kept++
+	}
+	trimmed := len(rows) - kept
+	rows = rows[:kept]
+	coverage.Exact = 0
+	for _, row := range rows {
+		if row.Unavailable == "" {
+			coverage.Exact++
 		}
 	}
 	result := SourceResult{ContextLines: contextLines, Bodies: rows, Trimmed: trimmed}

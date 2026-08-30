@@ -18,6 +18,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -604,25 +605,52 @@ func watchConfiguredProfiles(
 	if err != nil {
 		return nil, fmt.Errorf("watch configured profiles: %w", err)
 	}
+	var watchersMu sync.Mutex
 	stops := make([]func(), 0, len(profiles)*2)
+	watched := make(map[string]struct{}, len(profiles))
+	closed := false
+	register := func(name string, profileLoaded config.Loaded, profileStore *hotsnapshot.SnapshotStore) {
+		watchersMu.Lock()
+		defer watchersMu.Unlock()
+		if closed {
+			return
+		}
+		if _, found := watched[name]; found {
+			return
+		}
+		watched[name] = struct{}{}
+		stops = append(stops,
+			followPublishedGeneration(ctx, profileLoaded, profileStore, command, indexing.FollowOptions{}),
+			resyncOnBranchChange(ctx, profileLoaded, profileStore, namedProfileReindexer{indexer, name}, command),
+		)
+	}
+	cleanup := func() {
+		watchersMu.Lock()
+		closed = true
+		current := stops
+		stops = nil
+		watchersMu.Unlock()
+		for index := len(current) - 1; index >= 0; index-- {
+			current[index]()
+		}
+	}
 	for _, profile := range profiles {
 		profileLoaded, err := config.LoadProfile(loaded.ConfigPath, profile.Name)
 		if err != nil {
+			cleanup()
 			return nil, fmt.Errorf("watch profile %q: %w", profile.Name, err)
 		}
 		selected, err := store.ResolveProfiles([]string{profile.Name})
 		if err != nil {
+			cleanup()
 			return nil, fmt.Errorf("watch profile %q: %w", profile.Name, err)
 		}
-		stops = append(stops,
-			followPublishedGeneration(ctx, profileLoaded, selected[0].Store, command, indexing.FollowOptions{}),
-			resyncOnBranchChange(ctx, profileLoaded, selected[0].Store, namedProfileReindexer{indexer, profile.Name}, command),
-		)
+		register(profile.Name, profileLoaded, selected[0].Store)
 	}
+	indexer.setProfileWatcher(register)
 	return func() {
-		for index := len(stops) - 1; index >= 0; index-- {
-			stops[index]()
-		}
+		indexer.setProfileWatcher(nil)
+		cleanup()
 	}, nil
 }
 

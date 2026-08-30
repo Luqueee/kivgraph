@@ -12,7 +12,7 @@ import (
 func TestProfileCommandsCreateListAndUse(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
 	if _, err := config.Initialize(config.InitOptions{ConfigPath: configPath}); err != nil {
-		t.Fatal(err)
+		t.Fatalf("initialize %q: %v", configPath, err)
 	}
 	var stdout, stderr bytes.Buffer
 	if code := run([]string{"kivgraph", "profile", "create", "--config", configPath, "frontend"}, &stdout, &stderr); code != 0 {
@@ -36,10 +36,10 @@ func TestProfileCommandsCreateListAndUse(t *testing.T) {
 func TestProfileRemoveNeedsConfirmation(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
 	if _, err := config.Initialize(config.InitOptions{ConfigPath: configPath}); err != nil {
-		t.Fatal(err)
+		t.Fatalf("initialize %q: %v", configPath, err)
 	}
 	if err := config.CreateProfile(configPath, "temporary"); err != nil {
-		t.Fatal(err)
+		t.Fatalf("create profile %q in %q: %v", "temporary", configPath, err)
 	}
 	var stdout, stderr bytes.Buffer
 	if code := run([]string{"kivgraph", "profile", "remove", "--config", configPath, "temporary"}, &stdout, &stderr); code == 0 {

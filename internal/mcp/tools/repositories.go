@@ -102,10 +102,7 @@ func RegisterListRepositoriesWithObserverAndSnapshotStore(
 		if len(selected) > 1 {
 			return listRepositoriesAcrossProfiles(ctx, request, arguments, selected)
 		}
-		store, profile, count, err := resolveSingleProfile(snapshotStore, arguments.Profile, "")
-		if err != nil {
-			return nil, Response[[]RepositorySummary]{}, err
-		}
+		store, profile, count := selected[0].Store, selected[0].Name, snapshotStore.ProfileCount()
 		result, response, err := listRepositories(ctx, request, arguments, store)
 		scopeResponse(&response, profile, count)
 		return result, response, err
@@ -143,11 +140,14 @@ func listRepositoriesAcrossProfiles(
 	names := make([]string, 0, len(selected))
 	profileSnapshots := make([]ProfileSnapshot, 0, len(selected))
 	rows := make([]RepositorySummary, 0)
+	skipped := make([]string, 0)
 	for _, profile := range selected {
 		names = append(names, profile.Name)
 		snapshot := profile.Store.Load()
 		if snapshot == nil {
-			return nil, Response[[]RepositorySummary]{}, ErrIndexNotReady()
+			profileSnapshots = append(profileSnapshots, ProfileSnapshot{Name: profile.Name})
+			skipped = append(skipped, profile.Name)
+			continue
 		}
 		profileSnapshots = append(profileSnapshots, ProfileSnapshot{Name: profile.Name, SnapshotID: snapshot.Metadata().ID})
 		pageArguments := arguments
@@ -207,7 +207,7 @@ func listRepositoriesAcrossProfiles(
 		}
 		nextCursor = &encoded
 	}
-	return nil, Response[[]RepositorySummary]{
+	response := Response[[]RepositorySummary]{
 		Profiles:          profileSnapshots,
 		CrossProfileEdges: "not_resolved",
 		Total:             len(rows),
@@ -215,7 +215,11 @@ func listRepositoriesAcrossProfiles(
 		Truncated:         end < len(rows),
 		NextCursor:        nextCursor,
 		Results:           rows[offset:end],
-	}, nil
+	}
+	if len(skipped) > 0 {
+		response.Guidance = strings.TrimSpace(response.Guidance + " Profiles without a published generation were skipped: " + strings.Join(skipped, ", ") + ".")
+	}
+	return nil, response, nil
 }
 
 func listRepositories(

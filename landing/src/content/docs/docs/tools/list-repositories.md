@@ -85,6 +85,10 @@ Corpus: snapshot `30` of two repositories, `kivgraph` and `go-svc-e`.
 | Field | Meaning |
 | --- | --- |
 | `profile` | The profile that owns the repository; present only in a multi-profile answer. |
+
+With several profiles, the response replaces `snapshot_id` and
+`snapshot_age_ms` with `profiles`, one entry per selected profile and its
+generation, and declares `cross_profile_edges` as `not_resolved`.
 | `name` | The registered identifier of the repository. |
 | `path` | The absolute directory the repository was registered at. |
 | `languages` | The languages the repository declares, lowercased. |

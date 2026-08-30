@@ -380,22 +380,14 @@ func RegisterGetBlastRadiusWithObserverAndSnapshotStore(
 		request *sdkmcp.CallToolRequest,
 		arguments GetBlastRadiusInput,
 	) (*sdkmcp.CallToolResult, Response[BlastRadius], error) {
-		if snapshotStore != nil {
-			if profileErr := RequireStableKeyProfile(snapshotStore.ProfileCount(), arguments.StableKey, arguments.Profile); profileErr != nil {
-				return nil, Response[BlastRadius]{}, profileErr
-			}
-			selected, selectionErr := snapshotStore.ResolveProfiles(arguments.Profile)
-			if selectionErr != nil {
-				return nil, Response[BlastRadius]{}, WrapToolError(CodeInvalidArgument, selectionErr.Error(), selectionErr)
-			}
-			if len(selected) > 1 {
-				return getBlastRadiusAcrossProfiles(ctx, request, arguments, selected)
-			}
-		}
-		store, profile, count, err := resolveSingleProfile(snapshotStore, arguments.Profile, arguments.StableKey)
+		selected, count, err := resolveProfileSelection(snapshotStore, arguments.Profile, arguments.StableKey)
 		if err != nil {
 			return nil, Response[BlastRadius]{}, err
 		}
+		if len(selected) > 1 {
+			return getBlastRadiusAcrossProfiles(ctx, request, arguments, selected)
+		}
+		store, profile := selected[0].Store, selected[0].Name
 		result, response, err := getBlastRadius(ctx, request, arguments, store)
 		scopeResponse(&response, profile, count)
 		return result, response, err
@@ -486,10 +478,14 @@ func getBlastRadiusAcrossProfiles(
 				}
 				radius.TraversalTruncated = radius.TraversalTruncated || response.Results.TraversalTruncated
 				for _, group := range response.Results.ByPackage {
-					key := strings.Join([]string{
-						group.Repository, group.PackageKey, group.PackageName, strconv.Itoa(group.Count),
-					}, "\x00")
-					packages[key] = group
+					key := strings.Join([]string{group.Repository, group.PackageKey, group.PackageName}, "\x00")
+					merged := packages[key]
+					if merged.PackageKey == "" {
+						merged = group
+					} else {
+						merged.Count += group.Count
+					}
+					packages[key] = merged
 				}
 				addCoverage(&coverage, response.Coverage)
 				if response.Completeness != nil {

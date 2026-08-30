@@ -124,7 +124,9 @@ func RegisterIndexProject(
 		if profile := strings.TrimSpace(arguments.Profile); profile != "" {
 			profileIndexer, ok := indexer.(profileProjectIndexer)
 			if !ok {
-				err = fmt.Errorf("project indexer does not support profile %q", profile)
+				err = NewToolError(CodeInvalidArgument, fmt.Sprintf("project indexer does not support profile %q", profile))
+				observeCall(nil, callObserver, indexProjectToolName, start, err)
+				return nil, indexing.ProjectResult{}, err
 			} else {
 				result, err = profileIndexer.IndexProjectsInProfile(ctx, profile, batch, progress)
 			}

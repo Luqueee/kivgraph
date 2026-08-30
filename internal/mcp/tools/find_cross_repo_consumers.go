@@ -300,22 +300,14 @@ func RegisterFindCrossRepoConsumersWithObserverAndSnapshotStore(
 		request *sdkmcp.CallToolRequest,
 		arguments FindCrossRepoConsumersInput,
 	) (*sdkmcp.CallToolResult, Response[CrossRepoConsumers], error) {
-		if snapshotStore != nil {
-			if profileErr := RequireStableKeyProfile(snapshotStore.ProfileCount(), arguments.StableKey, arguments.Profile); profileErr != nil {
-				return nil, Response[CrossRepoConsumers]{}, profileErr
-			}
-			selected, selectionErr := snapshotStore.ResolveProfiles(arguments.Profile)
-			if selectionErr != nil {
-				return nil, Response[CrossRepoConsumers]{}, WrapToolError(CodeInvalidArgument, selectionErr.Error(), selectionErr)
-			}
-			if len(selected) > 1 {
-				return findCrossRepoConsumersAcrossProfiles(ctx, request, arguments, selected)
-			}
-		}
-		store, profile, count, err := resolveSingleProfile(snapshotStore, arguments.Profile, arguments.StableKey)
+		selected, count, err := resolveProfileSelection(snapshotStore, arguments.Profile, arguments.StableKey)
 		if err != nil {
 			return nil, Response[CrossRepoConsumers]{}, err
 		}
+		if len(selected) > 1 {
+			return findCrossRepoConsumersAcrossProfiles(ctx, request, arguments, selected)
+		}
+		store, profile := selected[0].Store, selected[0].Name
 		result, response, err := findCrossRepoConsumers(ctx, request, arguments, store)
 		scopeResponse(&response, profile, count)
 		return result, response, err
@@ -431,6 +423,7 @@ func findCrossRepoConsumersAcrossProfiles(
 	if !foundSubject {
 		return nil, Response[CrossRepoConsumers]{}, NewToolError(CodeSymbolNotFound, "symbol was not found in the selected profiles")
 	}
+	sort.SliceStable(rows, func(i, j int) bool { return crossRepoConsumerLess(rows[i], rows[j]) })
 	offset, end, next, err := profilePageBounds(profiles, queryHash, SortingVersionCrossRepoConsumersV1, arguments.Cursor, options.Limit, len(rows))
 	if err != nil {
 		return nil, Response[CrossRepoConsumers]{}, err

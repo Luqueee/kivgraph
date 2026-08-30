@@ -419,22 +419,14 @@ func RegisterFindReferencesWithObserverAndSnapshotStore(
 		request *sdkmcp.CallToolRequest,
 		arguments FindReferencesInput,
 	) (*sdkmcp.CallToolResult, Response[ReferenceResult], error) {
-		if snapshotStore != nil {
-			if profileErr := RequireStableKeyProfile(snapshotStore.ProfileCount(), arguments.StableKey, arguments.Profile); profileErr != nil {
-				return nil, Response[ReferenceResult]{}, profileErr
-			}
-			selected, selectionErr := snapshotStore.ResolveProfiles(arguments.Profile)
-			if selectionErr != nil {
-				return nil, Response[ReferenceResult]{}, WrapToolError(CodeInvalidArgument, selectionErr.Error(), selectionErr)
-			}
-			if len(selected) > 1 {
-				return findReferencesAcrossProfiles(ctx, request, arguments, selected)
-			}
-		}
-		store, profile, count, err := resolveSingleProfile(snapshotStore, arguments.Profile, arguments.StableKey)
+		selected, count, err := resolveProfileSelection(snapshotStore, arguments.Profile, arguments.StableKey)
 		if err != nil {
 			return nil, Response[ReferenceResult]{}, err
 		}
+		if len(selected) > 1 {
+			return findReferencesAcrossProfiles(ctx, request, arguments, selected)
+		}
+		store, profile := selected[0].Store, selected[0].Name
 		result, response, err := findReferences(ctx, request, arguments, store)
 		scopeResponse(&response, profile, count)
 		if err == nil {
@@ -518,6 +510,7 @@ func findReferencesAcrossProfiles(
 	excluded := options.EdgeKinds.defaultExcluded()
 	dispatch := make(map[string]struct{})
 	foundSubject := false
+	divergentSubjects := make([]string, 0)
 	for _, profile := range selected {
 		snapshot := profile.Store.Load()
 		if snapshot == nil {
@@ -543,6 +536,8 @@ func findReferencesAcrossProfiles(
 				foundSubject = true
 				if subject.QualifiedName == "" {
 					subject = response.Results.Subject
+				} else if subject != response.Results.Subject {
+					divergentSubjects = append(divergentSubjects, profile.Name)
 				}
 				addCoverage(&coverage, response.Coverage)
 				if response.Completeness != nil {
@@ -588,11 +583,15 @@ func findReferencesAcrossProfiles(
 	if err != nil {
 		return nil, Response[ReferenceResult]{}, err
 	}
+	guidance := referenceGuidance(direction, len(rows), end-offset, end < len(rows), mergedCompleteness.Verdict)
+	if len(divergentSubjects) > 0 {
+		guidance = strings.TrimSpace(guidance + " The selector resolved to different declarations in profiles: " + strings.Join(divergentSubjects, ", ") + "; narrow by repository and path.")
+	}
 	return nil, Response[ReferenceResult]{
 		Profiles: profiles, CrossProfileEdges: "not_resolved",
 		Total: len(rows), Returned: end - offset, Truncated: end < len(rows), NextCursor: next,
 		Coverage: coverage, Completeness: &mergedCompleteness,
-		Guidance: referenceGuidance(direction, len(rows), end-offset, end < len(rows), mergedCompleteness.Verdict),
+		Guidance: guidance,
 		Results: ReferenceResult{
 			Subject: subject, Direction: direction, References: rows[offset:end], View: options.View,
 			EdgeKindsExcluded: excluded, DispatchThrough: sortedKeys(dispatch),

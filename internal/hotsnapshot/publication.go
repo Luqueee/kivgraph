@@ -290,13 +290,17 @@ func (store *SnapshotStore) Load() *GraphSnapshot {
 	if store.closed.Load() {
 		return nil
 	}
-	if store.onLoad != nil {
-		store.onLoad()
-	}
 	if snapshot := store.active.Load(); snapshot != nil {
+		if store.onLoad != nil {
+			store.onLoad()
+		}
 		return snapshot
 	}
-	return store.materialise()
+	snapshot := store.materialise()
+	if snapshot != nil && store.onLoad != nil {
+		store.onLoad()
+	}
+	return snapshot
 }
 
 // materialise runs the deferred load under the mutex, so N readers arriving at

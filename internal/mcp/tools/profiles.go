@@ -23,6 +23,14 @@ func (names ProfileNames) append(name string) ProfileNames {
 	return names + ProfileNames("\x00"+name)
 }
 
+// ProfileNames returns the client-facing provenance list.
+func (names ProfileNames) ProfileNames() []string {
+	if names == "" {
+		return []string{}
+	}
+	return strings.Split(string(names), "\x00")
+}
+
 // MarshalJSON emits the public array shape.
 func (names ProfileNames) MarshalJSON() ([]byte, error) {
 	if names == "" {
@@ -59,27 +67,23 @@ func RequireStableKeyProfile(profileCount int, stableKey string, requested []str
 	return nil
 }
 
-func resolveSingleProfile(
+func resolveProfileSelection(
 	store *hotsnapshot.SnapshotStore,
 	requested []string,
 	stableKey string,
-) (*hotsnapshot.SnapshotStore, string, int, error) {
+) ([]hotsnapshot.ProfileStore, int, error) {
 	if store == nil {
-		return nil, "", 0, ErrIndexNotReady()
+		return nil, 0, ErrIndexNotReady()
 	}
 	count := store.ProfileCount()
 	if err := RequireStableKeyProfile(count, stableKey, requested); err != nil {
-		return nil, "", count, err
+		return nil, count, err
 	}
 	selected, err := store.ResolveProfiles(requested)
 	if err != nil {
-		return nil, "", count, WrapToolError(CodeInvalidArgument, err.Error(), err)
+		return nil, count, WrapToolError(CodeInvalidArgument, err.Error(), err)
 	}
-	if len(selected) != 1 {
-		return nil, "", count, NewToolError(CodeInvalidArgument,
-			"this query requires one profile; multi-profile union is not available for this operation")
-	}
-	return selected[0].Store, selected[0].Name, count, nil
+	return selected, count, nil
 }
 
 func scopeResponse[T any](response *Response[T], profile string, profileCount int) {
@@ -100,10 +104,22 @@ func mergeCompleteness(total *Completeness, next *Completeness) {
 		return
 	}
 	total.Verdict = VerdictLowerBound
-	total.BlindSpots = append(total.BlindSpots, next.BlindSpots...)
-	total.InvisibleScopes = append(total.InvisibleScopes, next.InvisibleScopes...)
-	total.MoreBlindSpots += next.MoreBlindSpots
-	total.MoreInvisibleScopes += next.MoreInvisibleScopes
+	total.BlindSpots, total.MoreBlindSpots = appendCompletenessItems(total.BlindSpots, total.MoreBlindSpots, next.BlindSpots, next.MoreBlindSpots)
+	total.InvisibleScopes, total.MoreInvisibleScopes = appendCompletenessItems(total.InvisibleScopes, total.MoreInvisibleScopes, next.InvisibleScopes, next.MoreInvisibleScopes)
+}
+
+func appendCompletenessItems(current []BlindSpot, more int, incoming []BlindSpot, incomingMore int) ([]BlindSpot, int) {
+	const maximum = 20
+	remaining := maximum - len(current)
+	if remaining < 0 {
+		remaining = 0
+	}
+	keep := len(incoming)
+	if keep > remaining {
+		keep = remaining
+	}
+	current = append(current, incoming[:keep]...)
+	return current, more + incomingMore + len(incoming) - keep
 }
 
 func profilePageBounds(

@@ -225,10 +225,7 @@ func RegisterGraphStatusWithObserverAndSnapshotStoreAndMetrics(
 		if len(selected) > 1 {
 			return graphStatusAcrossProfiles(ctx, request, selected, snapshotStore.DefaultProfileName(), probe, registry)
 		}
-		store, profile, count, err := resolveSingleProfile(snapshotStore, arguments.Profile, "")
-		if err != nil {
-			return nil, Response[GraphStatus]{}, err
-		}
+		store, profile, count := selected[0].Store, selected[0].Name, snapshotStore.ProfileCount()
 		result, response, err := graphStatus(ctx, request, struct{}{}, store, probe, registry)
 		scopeResponse(&response, profile, count)
 		return result, response, err
@@ -269,12 +266,22 @@ func graphStatusAcrossProfiles(
 	profiles := make([]ProfileSnapshot, 0, len(selected))
 	edgesByKind := make(map[string]int)
 	unresolvedByReason := make(map[string]int)
-	for _, profile := range selected {
-		_, response, err := graphStatus(ctx, request, struct{}{}, profile.Store, probe, registry)
+	for index, profile := range selected {
+		profileProbe, profileRegistry := HostStatusProbe(nil), (*metrics.Registry)(nil)
+		if index == 0 {
+			profileProbe, profileRegistry = probe, registry
+		}
+		_, response, err := graphStatus(ctx, request, struct{}{}, profile.Store, profileProbe, profileRegistry)
 		if err != nil {
 			return nil, Response[GraphStatus]{}, err
 		}
 		status := response.Results
+		if index == 0 {
+			combined.Worker, combined.Storage = status.Worker, status.Storage
+			combined.LastRebuildAt, combined.LastUpdateAt = status.LastRebuildAt, status.LastUpdateAt
+			combined.Metrics = status.Metrics
+		}
+		combined.SchemaOutdated = combined.SchemaOutdated || status.SchemaOutdated
 		if status.Status != GraphStatusReady {
 			combined.Status = GraphStatusEmpty
 		}
@@ -313,12 +320,14 @@ func graphStatusAcrossProfiles(
 			Name: profile.Name, SnapshotID: response.SnapshotID,
 			Repositories: status.Repositories, Default: profile.Name == defaultProfile,
 		})
+		profileSnapshot := ProfileSnapshot{Name: profile.Name}
 		if response.SnapshotID != nil {
-			profiles = append(profiles, ProfileSnapshot{Name: profile.Name, SnapshotID: *response.SnapshotID})
+			profileSnapshot.SnapshotID = *response.SnapshotID
 		}
+		profiles = append(profiles, profileSnapshot)
 	}
-	combined.EdgesByKind = sortedGraphStatusCounts(edgesByKind)
-	combined.UnresolvedByReason = sortedGraphStatusCounts(unresolvedByReason)
+	combined.EdgesByKind = sortedStatusCounts(edgesByKind)
+	combined.UnresolvedByReason = sortedStatusCounts(unresolvedByReason)
 	return nil, Response[GraphStatus]{
 		Profiles:          profiles,
 		CrossProfileEdges: "not_resolved",
@@ -326,19 +335,6 @@ func graphStatusAcrossProfiles(
 		Returned:          len(combined.Profiles),
 		Results:           combined,
 	}, nil
-}
-
-func sortedGraphStatusCounts(counts map[string]int) []GraphStatusCount {
-	keys := make([]string, 0, len(counts))
-	for key := range counts {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	result := make([]GraphStatusCount, 0, len(keys))
-	for _, key := range keys {
-		result = append(result, GraphStatusCount{Key: key, Count: counts[key]})
-	}
-	return result
 }
 
 // graphStatus never fails on a missing snapshot: reporting that the index is

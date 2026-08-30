@@ -378,19 +378,14 @@ func RegisterGetFileOutlineWithObserverAndSnapshotStore(
 		request *sdkmcp.CallToolRequest,
 		arguments GetFileOutlineInput,
 	) (*sdkmcp.CallToolResult, Response[FileOutline], error) {
-		if snapshotStore != nil {
-			selected, selectionErr := snapshotStore.ResolveProfiles(arguments.Profile)
-			if selectionErr != nil {
-				return nil, Response[FileOutline]{}, WrapToolError(CodeInvalidArgument, selectionErr.Error(), selectionErr)
-			}
-			if len(selected) > 1 {
-				return getFileOutlineAcrossProfiles(ctx, request, arguments, selected)
-			}
-		}
-		store, profile, count, err := resolveSingleProfile(snapshotStore, arguments.Profile, "")
+		selected, count, err := resolveProfileSelection(snapshotStore, arguments.Profile, "")
 		if err != nil {
 			return nil, Response[FileOutline]{}, err
 		}
+		if len(selected) > 1 {
+			return getFileOutlineAcrossProfiles(ctx, request, arguments, selected)
+		}
+		store, profile := selected[0].Store, selected[0].Name
 		result, response, err := getFileOutline(ctx, request, arguments, store)
 		scopeResponse(&response, profile, count)
 		return result, response, err
