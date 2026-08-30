@@ -80,7 +80,7 @@ func resolveTransport(options integrationOptions, stdout io.Writer) (transport, 
 	// explicit --daemon still fails there; the default writes the entry that
 	// works and names why it is not the daemon.
 	if options.Scope == integrations.ScopeProject && !options.Daemon {
-		fmt.Fprintln(stdout, "mcp: stdio in project scope: a url entry carries a token, and this file is committed")
+		writeInfo(stdout, "mcp: stdio in project scope: a url entry carries a token, and this file is committed")
 		return transportStdio, nil
 	}
 	return transportDaemon, nil
@@ -93,16 +93,23 @@ func resolveTransport(options integrationOptions, stdout io.Writer) (transport, 
 // installed a supervisor as a side effect of being asked a question would be a
 // surprise, and a read-only command has no business starting a process.
 //
-// When a writer chooses the daemon this ensures one exists: it installs the
-// supervisor if it is missing, waits for the endpoint to answer, and reports each
-// step. Ensuring rather than detecting is what keeps the outcome deterministic --
-// and it is also the only honest reading of "the daemon is the default", because
-// a default that fails on a machine which has never run one is not a default.
+// When a writer chooses the daemon this asks before installing a missing or
+// stale supervisor, waits for the endpoint to answer, and reports each step.
+// An explicit --daemon is consent by the caller; an interactive default asks
+// once, while a non-interactive invocation declines and remains on stdio.
 //
 // A platform with no supervisor writes stdio and says so. That is a declared
 // platform limitation, not a moment in time: the same command on the same
 // machine keeps writing the same file.
 func integrationManagerOptions(options integrationOptions, provision bool, stdout io.Writer) (integrations.Options, error) {
+	return integrationManagerOptionsWithInput(options, provision, nil, stdout)
+}
+
+func integrationManagerOptionsWithInput(options integrationOptions, provision bool, input io.Reader, stdout io.Writer) (integrations.Options, error) {
+	return integrationManagerOptionsWithStatus(options, provision, input, stdout, supervisor.Status)
+}
+
+func integrationManagerOptionsWithStatus(options integrationOptions, provision bool, input io.Reader, stdout io.Writer, status func(supervisor.Spec) (supervisor.Report, error)) (integrations.Options, error) {
 	chosen, err := resolveTransport(options, stdout)
 	if err != nil {
 		return integrations.Options{}, err
@@ -120,7 +127,7 @@ func integrationManagerOptions(options integrationOptions, provision bool, stdou
 		if options.Daemon {
 			return integrations.Options{}, fmt.Errorf("--daemon: read the configuration: %w", err)
 		}
-		fmt.Fprintln(stdout, "mcp: stdio: no configuration yet, so no daemon to point at: run `kivgraph init` first")
+		writeInfo(stdout, "mcp: stdio: no configuration yet, so no daemon to point at: run `kivgraph init` first")
 		return integrations.Options{}, nil
 	}
 	directory := stateDirectory(loaded)
@@ -133,7 +140,7 @@ func integrationManagerOptions(options integrationOptions, provision bool, stdou
 		// is down. With no file at all there is no url to compare against, and
 		// the stdio shape is what an install would have written.
 		if readErr != nil {
-			fmt.Fprintln(stdout, "mcp: no daemon endpoint is published, so this compares against the stdio entry")
+			writeInfo(stdout, "mcp: no daemon endpoint is published, so this compares against the stdio entry")
 			return integrations.Options{}, nil
 		}
 		return endpointOptions(published), nil
@@ -144,10 +151,27 @@ func integrationManagerOptions(options integrationOptions, provision bool, stdou
 	if readErr == nil && daemon.Reachable(context.Background(), published, time.Second) == nil {
 		return endpointOptions(published), nil
 	}
+	if !options.Daemon {
+		spec, specErr := daemonSpec(loaded.ConfigPath, directory)
+		if specErr != nil {
+			return integrations.Options{}, specErr
+		}
+		report, statusErr := status(spec)
+		if statusErr != nil {
+			writeInfo(stdout, "mcp: stdio: could not inspect daemon supervisor: %v", statusErr)
+			return integrations.Options{}, nil
+		}
+		if !daemonProvisionApproved(options, report, func(question string) bool {
+			return promptYes(input, stdout, question)
+		}) {
+			writeInfo(stdout, "mcp: stdio: daemon installation declined")
+			return integrations.Options{}, nil
+		}
+	}
 	endpoint, err := ensureDaemon(loaded.ConfigPath, directory, options, stdout)
 	var fallback errStdioFallback
 	if errors.As(err, &fallback) {
-		fmt.Fprintf(stdout, "mcp: stdio: %s\n", fallback.reason)
+		writeInfo(stdout, "mcp: stdio: %s", fallback.reason)
 		return integrations.Options{}, nil
 	}
 	if err != nil {
@@ -164,16 +188,10 @@ func endpointOptions(endpoint daemon.Endpoint) integrations.Options {
 
 // ensureDaemon brings a supervised daemon up and returns its endpoint.
 func ensureDaemon(configPath, directory string, options integrationOptions, stdout io.Writer) (daemon.Endpoint, error) {
-	executable, err := os.Executable()
+	spec, err := daemonSpec(configPath, directory)
 	if err != nil {
-		return daemon.Endpoint{}, fmt.Errorf("resolve this executable: %w", err)
+		return daemon.Endpoint{}, err
 	}
-	// The resolved configuration is recorded, not left empty. A supervisor
-	// starts the daemon outside this shell, so a daemon that resolved its own
-	// configuration would resolve it against the supervisor's environment and
-	// could serve a different state directory than the one this command just
-	// pointed clients at.
-	spec := supervisor.Spec{Executable: executable, StateDirectory: directory, ConfigPath: configPath}
 
 	report, err := supervisor.Install(spec)
 	switch {
@@ -190,7 +208,7 @@ func ensureDaemon(configPath, directory string, options integrationOptions, stdo
 		return daemon.Endpoint{}, fmt.Errorf(
 			"install the daemon's supervisor: %w\npass --stdio to register a per-client `serve` instead", err)
 	}
-	fmt.Fprintf(stdout, "mcp: daemon supervised by %s (%s)\n", report.Label, report.Path)
+	writeInfo(stdout, "mcp: daemon supervised by %s (%s)", report.Label, report.Path)
 
 	endpoint, err := daemon.WaitReachable(context.Background(), directory, endpointDeadline)
 	if err != nil {
@@ -200,8 +218,43 @@ func ensureDaemon(configPath, directory string, options integrationOptions, stdo
 		return daemon.Endpoint{}, fmt.Errorf(
 			"the supervised daemon did not answer: %w\ncheck `kivgraph daemon status`, or pass --stdio", err)
 	}
-	fmt.Fprintf(stdout, "mcp: daemon endpoint %s\n", endpoint.URL)
+	writeSuccess(stdout, "mcp: daemon endpoint %s", endpoint.URL)
 	return endpoint, nil
+}
+
+// daemonSpec describes the same daemon for status and install. Resolving the
+// executable and config in one place prevents `daemon status` from calling an
+// explicitly configured unit stale merely because the flag was omitted.
+func daemonSpec(configPath, directory string) (supervisor.Spec, error) {
+	executable, err := os.Executable()
+	if err != nil {
+		return supervisor.Spec{}, fmt.Errorf("resolve this executable: %w", err)
+	}
+	return supervisor.Spec{
+		Executable:     executable,
+		StateDirectory: directory,
+		ConfigPath:     configPath,
+	}, nil
+}
+
+func daemonProvisionApproved(options integrationOptions, report supervisor.Report, confirm func(string) bool) bool {
+	if options.Daemon || report.State == supervisor.StateInstalled {
+		return true
+	}
+	if report.State != supervisor.StateAbsent && report.State != supervisor.StateStale {
+		return true
+	}
+	if confirm == nil {
+		return false
+	}
+	return confirm(daemonProvisionQuestion(report.State))
+}
+
+func daemonProvisionQuestion(state supervisor.State) string {
+	if state == supervisor.StateStale {
+		return "The installed daemon is stale; reinstall its supervisor now?"
+	}
+	return "No supervised daemon is installed; install it now?"
 }
 
 // errStdioFallback carries a declared reason to write stdio instead of a url. It

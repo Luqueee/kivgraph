@@ -77,6 +77,28 @@ func TestSupervisorStatusNamesTheUnit(t *testing.T) {
 	}
 }
 
+// TestSupervisorSpecUsesTheResolvedConfigPath keeps `daemon status` and
+// `mcp install` describing the same unit when both use the default config.
+func TestSupervisorSpecUsesTheResolvedConfigPath(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	if _, err := config.Initialize(config.InitOptions{}); err != nil {
+		t.Fatalf("Initialize() error = %v", err)
+	}
+	loaded, err := config.Load("")
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	spec, loaded, err := supervisorSpec("", supervisorOptions{})
+	if err != nil {
+		t.Fatalf("supervisorSpec() error = %v", err)
+	}
+	if spec.ConfigPath != loaded.ConfigPath {
+		t.Fatalf("ConfigPath = %q, want resolved %q", spec.ConfigPath, loaded.ConfigPath)
+	}
+}
+
 // TestRemoteWithoutAnAddressIsRefused keeps an install from recording a
 // permission that changes nothing. --allow-remote on a loopback bind reads as a
 // remote daemon and is not one, and the recorded unit would outlive the mistake.

@@ -75,7 +75,7 @@ func supervisorSpec(configPath string, options supervisorOptions) (supervisor.Sp
 	return supervisor.Spec{
 		Executable:     executable,
 		StateDirectory: stateDirectory(loaded),
-		ConfigPath:     configPath,
+		ConfigPath:     loaded.ConfigPath,
 		Address:        address,
 		AllowRemote:    options.AllowRemote,
 	}, loaded, nil
@@ -121,10 +121,10 @@ func warnAboutAnUnreachableNode(stderr io.Writer, loaded config.Loaded) {
 	if nodeRuns() {
 		return
 	}
-	fmt.Fprintf(stderr, "daemon install: node is not on the PATH this unit recorded, "+
-		"so the TypeScript worker will fail and every rebuild with it\n")
-	fmt.Fprintf(stderr, "daemon install: install node, then run `kivgraph daemon install` "+
-		"again from a shell that can reach it\n")
+	writeWarning(stderr, "daemon install: node is not on the PATH this unit recorded, "+
+		"so the TypeScript worker will fail and every rebuild with it")
+	writeWarning(stderr, "daemon install: install node, then run `kivgraph daemon install` "+
+		"again from a shell that can reach it")
 }
 
 // nodeRuns reports whether node both resolves and executes.
@@ -234,12 +234,12 @@ func runSupervisorCommand(operation string, args []string, stdout, stderr io.Wri
 		return code
 	}
 	if flags.NArg() > 0 {
-		fmt.Fprintf(stderr, "daemon %s: unexpected argument %q\n", operation, flags.Arg(0))
+		writeCommandError(stderr, "daemon %s: unexpected argument %q", operation, flags.Arg(0))
 		return 1
 	}
 	spec, loaded, err := supervisorSpec(configPath, options)
 	if err != nil {
-		fmt.Fprintf(stderr, "daemon %s: %v\n", operation, err)
+		writeCommandError(stderr, "daemon %s: %v", operation, err)
 		return 1
 	}
 
@@ -252,7 +252,7 @@ func runSupervisorCommand(operation string, args []string, stdout, stderr io.Wri
 	case "status":
 		report, err = supervisor.Status(spec)
 	default:
-		fmt.Fprintf(stderr, "daemon: unknown operation %q\n", operation)
+		writeCommandError(stderr, "daemon: unknown operation %q", operation)
 		return 1
 	}
 	if err != nil {
@@ -260,46 +260,89 @@ func runSupervisorCommand(operation string, args []string, stdout, stderr io.Wri
 		// named on stderr with what the operator has to do instead, and it
 		// still exits non-zero so a script cannot read it as success.
 		if errors.Is(err, supervisor.ErrUnsupportedPlatform) {
-			fmt.Fprintf(stderr, "daemon %s: %s\n", operation, report.Detail)
-			fmt.Fprintf(stderr, "daemon %s: start it yourself with `kivgraph daemon`\n", operation)
+			writeWarning(stderr, "daemon %s: %s", operation, report.Detail)
+			writeWarning(stderr, "daemon %s: start it yourself with `kivgraph daemon`", operation)
 			return 1
 		}
-		fmt.Fprintf(stderr, "daemon %s: %v\n", operation, err)
+		writeCommandError(stderr, "daemon %s: %v", operation, err)
 		return 1
 	}
 
-	fmt.Fprintf(stdout, "daemon.supervisor: state=%s label=%s\n", report.State, report.Label)
-	if report.Path != "" {
-		fmt.Fprintf(stdout, "daemon.supervisor: unit=%s\n", report.Path)
-	}
-	if report.Detail != "" {
-		fmt.Fprintf(stdout, "daemon.supervisor: %s\n", report.Detail)
-	}
-	// A status that only names the state leaves the reader to guess the
-	// remedy, and the remedy is the reason they asked. Where there is no
-	// supervisor to install, the remedy is not that command -- naming it there
-	// sends an operator to run something that can only answer that it will not
-	// work, which is worse than the silence it was written to avoid.
-	if operation == "status" && (report.State == supervisor.StateAbsent || report.State == supervisor.StateStale) {
-		fmt.Fprintf(stdout, "daemon.supervisor: install one with `kivgraph daemon install`\n")
-	}
-	// After an install the operator's next question is where clients should
-	// point, and the answer is the endpoint the daemon publishes. It is read
-	// rather than predicted: a daemon that has not come up yet has not written
-	// one, and saying so beats printing an address nothing is listening on.
 	if operation == "install" {
 		warnAboutAnUnreachableNode(stderr, loaded)
-		endpoint, endpointErr := daemon.ReadEndpoint(spec.StateDirectory)
+	}
+	writeSupervisorReport(stdout, stderr, operation, spec, report)
+	return 0
+}
+
+func writeSupervisorReport(stdout, stderr io.Writer, operation string, spec supervisor.Spec, report supervisor.Report) {
+	var endpointText string
+	var endpointErr error
+	if operation == "install" || operation == "status" {
+		endpoint, err := daemon.ReadEndpoint(spec.StateDirectory)
+		endpointErr = err
 		switch {
-		case endpointErr == nil:
-			fmt.Fprintf(stdout, "daemon.endpoint: %s\n", endpoint.URL)
-		case errors.Is(endpointErr, os.ErrNotExist):
-			fmt.Fprintf(stdout, "daemon.endpoint: not published yet: run `kivgraph daemon status` once it is up\n")
+		case err == nil:
+			endpointText = endpoint.URL
+		case errors.Is(err, os.ErrNotExist):
+			endpointText = "not published yet"
 		default:
-			fmt.Fprintf(stderr, "daemon.endpoint: %v\n", endpointErr)
+			writeWarning(stderr, "daemon.endpoint: %v", err)
+			endpointText = "unreadable"
 		}
 	}
-	return 0
+
+	if !integrationTUIIsInteractive(stdout) {
+		fmt.Fprintf(stdout, "daemon.supervisor: state=%s label=%s\n", report.State, report.Label)
+		if report.Path != "" {
+			fmt.Fprintf(stdout, "daemon.supervisor: unit=%s\n", report.Path)
+		}
+		if report.Detail != "" {
+			fmt.Fprintf(stdout, "daemon.supervisor: %s\n", report.Detail)
+		}
+		if operation == "status" && (report.State == supervisor.StateAbsent || report.State == supervisor.StateStale) {
+			fmt.Fprintln(stdout, "daemon.supervisor: install one with `kivgraph daemon install`")
+		}
+		if operation == "install" {
+			switch {
+			case endpointErr == nil:
+				fmt.Fprintf(stdout, "daemon.endpoint: %s\n", endpointText)
+			case errors.Is(endpointErr, os.ErrNotExist):
+				fmt.Fprintln(stdout, "daemon.endpoint: not published yet: run `kivgraph daemon status` once it is up")
+			}
+		}
+		return
+	}
+
+	paint := styleFor(stdout)
+	rows := []keyValueRow{
+		{Key: "State", Value: string(report.State), ValueStyle: supervisorStateStyle(report.State, paint)},
+		{Key: "Label", Value: report.Label},
+	}
+	if report.Path != "" {
+		rows = append(rows, keyValueRow{Key: "Unit", Value: report.Path})
+	}
+	if report.Detail != "" {
+		rows = append(rows, keyValueRow{Key: "Detail", Value: report.Detail})
+	}
+	if operation == "status" && (report.State == supervisor.StateAbsent || report.State == supervisor.StateStale) {
+		rows = append(rows, keyValueRow{Key: "Action", Value: "install one with `kivgraph daemon install`", ValueStyle: paint.accent})
+	}
+	if operation == "install" || operation == "status" {
+		rows = append(rows, keyValueRow{Key: "Endpoint", Value: endpointText})
+	}
+	writeKeyValueTable(stdout, "Daemon supervisor", rows)
+}
+
+func supervisorStateStyle(state supervisor.State, paint style) string {
+	switch state {
+	case supervisor.StateInstalled:
+		return paint.success
+	case supervisor.StateStale, supervisor.StateUnsupported:
+		return paint.warning
+	default:
+		return paint.dim
+	}
 }
 
 // reportDoctorSupervisor adds the daemon's ownership to the doctor report.
@@ -318,6 +361,7 @@ func reportDoctorSupervisor(result func(name string, passed bool, detail string)
 	report, err := supervisor.Status(supervisor.Spec{
 		Executable:     executable,
 		StateDirectory: stateDirectory(loaded),
+		ConfigPath:     loaded.ConfigPath,
 	})
 	if err != nil {
 		result("daemon.supervisor", true, err.Error())
