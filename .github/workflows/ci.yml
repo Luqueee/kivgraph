@@ -499,10 +499,16 @@ jobs:
 
       # upload-artifact preserves file contents but not executable modes. The
       # bundle is still the exact producer output: this only restores the modes
-      # required to execute its binaries after the artifact transport.
+      # required to execute its binaries and TypeScript engine after transport.
       - name: Restore bundle executable modes
         shell: bash
-        run: find dist/kivgraph-linux-amd64/bin -type f -exec chmod 0755 {} +
+        run: |
+          find dist/kivgraph-linux-amd64/bin -type f -exec chmod 0755 {} +
+          typescript_engine="$(find \
+            dist/kivgraph-linux-amd64/worker/node_modules/@typescript \
+            -type f -name tsc -print -quit)"
+          test -n "$typescript_engine"
+          chmod 0755 "$typescript_engine"
 
       - name: Add bundled tools to PATH
         shell: bash
