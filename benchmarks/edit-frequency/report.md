@@ -24,7 +24,7 @@ No acceptance verdict is emitted and no latency gate is asserted.
 |field|value|
 |---|---|
 |date|2026-08-30|
-|commit|`c66642f`|
+|commit|`c66642f-dirty`, harness committed as `e8d59ec`|
 |machine|Linux `6.12.94`, `x86_64`, 16 CPU|
 |toolchains|`go1.26.6`, LadybugDB `v0.13.1`, `node v24.18.0`, `rust-analyzer` from the pinned build|
 |corpus|53 registered repositories, `go` + `typescript` + `rust`|
@@ -304,6 +304,12 @@ machine's own generation root: it refuses both, and the refusals have tests.
 - **Memory is not measured.** A pass on this corpus is visibly larger than the
   `1,4 GB` the issue quotes for a smaller one, but this harness records no
   memory and no number from it should be cited for one.
+- **The run was taken from a dirty tree**, so `commit` carries the `-dirty`
+  suffix: the harness existed as uncommitted work when it measured. No Go source
+  changed between the run and the commit that carries it, so `e8d59ec` is the
+  code that produced these numbers -- but the suffix stays, because an artefact
+  that dropped it would attribute them to a parent commit that has no harness in
+  it at all.
 - **Wall clock on a shared machine is not an SLO.** A daemon and a log follower
   were running throughout. No gate is asserted and no acceptance verdict is
   emitted.
