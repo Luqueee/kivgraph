@@ -79,6 +79,10 @@ func runIndexProject(args []string, stdout, stderr io.Writer) int {
 		writeCommandError(stderr, "index: initialize project: %v", err)
 		return 1
 	}
+	if _, err := config.MigrateProjectSyntheticWorkFile(initialised.ConfigPath); err != nil {
+		writeCommandError(stderr, "index: migrate project configuration: %v", err)
+		return 1
+	}
 	loaded, err := config.Load(initialised.ConfigPath)
 	if err != nil {
 		writeCommandError(stderr, "index: load project configuration: %v", err)
