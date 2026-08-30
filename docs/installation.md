@@ -649,6 +649,15 @@ sustituya al otro. Un `kivgraph daemon &` a mano no tiene dueño: muere con la
 terminal que lo lanzó. Y en una plataforma sin supervisor soportado el comando lo
 dice y falla, en vez de dejar creer que instaló algo.
 
+La unit **anota el `PATH` de la terminal donde se instaló**, y no es un adorno:
+ni systemd ni launchd leen un perfil de shell, así que un demonio sin `PATH`
+propio corre con el del supervisor -- donde no está el node de nvm ni el de
+Homebrew, y donde el Go de `~/.local/go/bin` pierde contra el de `/usr/bin`. Por
+eso lo anotado es una foto: si una actualización de nvm mueve node a otro
+directorio con versión, hay que volver a ejecutar `kivgraph daemon install`.
+`kivgraph daemon status` informa como `stale` de una unit que no anota ninguno,
+que es lo que dirá una vez todo demonio instalado antes de que esto existiera.
+
 Eso lee `~/.local/state/kivgraph/daemon.json` -- modo `0600`, con la `url` y el
 token-- y escribe la entrada que ese cliente entiende: `type: http` con una
 cabecera `Authorization` para Claude Code, Claude Desktop y Oh My Pi, `type:

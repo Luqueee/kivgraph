@@ -1,13 +1,17 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
 	"slices"
+	"strings"
+	"time"
 
 	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/daemon"
@@ -47,21 +51,26 @@ func supervisorFlagSet(operation string, configPath *string, options *supervisor
 // units. The executable is resolved to an absolute path because the installed
 // file outlives the shell that wrote it -- a relative path would resolve against
 // whatever directory launchd or systemd happened to start in.
-func supervisorSpec(configPath string, options supervisorOptions) (supervisor.Spec, error) {
+//
+// The configuration comes back with the spec because the caller needs it too:
+// `daemon install` asks which languages are registered before deciding whether
+// a missing node runtime is worth naming, and reloading it there would be the
+// same file read twice with a second failure path for the same error.
+func supervisorSpec(configPath string, options supervisorOptions) (supervisor.Spec, config.Loaded, error) {
 	loaded, err := config.Load(configPath)
 	if err != nil {
-		return supervisor.Spec{}, fmt.Errorf("read the configuration: %w", err)
+		return supervisor.Spec{}, config.Loaded{}, fmt.Errorf("read the configuration: %w", err)
 	}
 	executable, err := os.Executable()
 	if err != nil {
-		return supervisor.Spec{}, fmt.Errorf("resolve this executable: %w", err)
+		return supervisor.Spec{}, loaded, fmt.Errorf("resolve this executable: %w", err)
 	}
 	address := options.Address
 	if options.AllowRemote && address == "" {
 		// --allow-remote without an address would record a loopback bind and
 		// a permission that changes nothing, which reads as a remote daemon
 		// and is not one.
-		return supervisor.Spec{}, errors.New("--allow-remote needs --addr: it permits a bind, it does not choose one")
+		return supervisor.Spec{}, loaded, errors.New("--allow-remote needs --addr: it permits a bind, it does not choose one")
 	}
 	return supervisor.Spec{
 		Executable:     executable,
@@ -69,7 +78,63 @@ func supervisorSpec(configPath string, options supervisorOptions) (supervisor.Sp
 		ConfigPath:     configPath,
 		Address:        address,
 		AllowRemote:    options.AllowRemote,
-	}, nil
+	}, loaded, nil
+}
+
+// warnAboutAnUnreachableNode says so when the PATH an install just recorded
+// cannot resolve a node that runs.
+//
+// The unit records the PATH of the shell that ran `daemon install`, so this is
+// the same question the daemon will ask later -- which makes it the one moment
+// where the answer is cheap and the remedy is in front of the person who can
+// apply it. Left unsaid, the daemon fails at `exec node` with a 127 that names
+// the worker and not the environment, and it fails on every rebuild until
+// something stops it.
+//
+// `exec.LookPath` alone only proves a file is there and marked executable: a
+// broken install -- a binary for the wrong architecture, a shim left behind by
+// an nvm uninstall -- resolves and still cannot run, and the same 127 follows.
+// So the check runs it, bounded by a timeout short enough that a machine with
+// no node at all does not make `daemon install` noticeably slower for the
+// common case that already returned from `LookPath`.
+//
+// It is a warning and not a refusal, and the install still succeeds. A
+// workspace with no TypeScript or JavaScript in it never runs the worker, and
+// refusing to supervise a daemon that would have worked would be a worse
+// failure than the one being reported. That is also why it is asked only when a
+// registered repository declares one of those languages: `doctor` reports a
+// toolchain nobody needs as "not configured" rather than as a problem, and this
+// says nothing at all.
+func warnAboutAnUnreachableNode(stderr io.Writer, loaded config.Loaded) {
+	needed := false
+	for _, repository := range loaded.Repositories.Repositories {
+		for _, language := range repository.Languages {
+			switch strings.ToLower(strings.TrimSpace(language)) {
+			case "typescript", "ts", "javascript", "js", "node":
+				needed = true
+			}
+		}
+	}
+	if !needed {
+		return
+	}
+	if nodeRuns() {
+		return
+	}
+	fmt.Fprintf(stderr, "daemon install: node is not on the PATH this unit recorded, "+
+		"so the TypeScript worker will fail and every rebuild with it\n")
+	fmt.Fprintf(stderr, "daemon install: install node, then run `kivgraph daemon install` "+
+		"again from a shell that can reach it\n")
+}
+
+// nodeRuns reports whether node both resolves and executes.
+func nodeRuns() bool {
+	if _, err := exec.LookPath("node"); err != nil {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	return exec.CommandContext(ctx, "node", "--version").Run() == nil
 }
 
 // restartSupervisedDaemon puts the supervised daemon of the default
@@ -133,7 +198,7 @@ func restartSupervisedDaemon(targets []procstat.Process) (daemonRestart, error) 
 	}) {
 		return daemonRestart{Ownership: ownershipUnknown}, nil
 	}
-	spec, err := supervisorSpec("", supervisorOptions{})
+	spec, _, err := supervisorSpec("", supervisorOptions{})
 	if err != nil {
 		return daemonRestart{Ownership: ownershipUnknown}, err
 	}
@@ -172,7 +237,7 @@ func runSupervisorCommand(operation string, args []string, stdout, stderr io.Wri
 		fmt.Fprintf(stderr, "daemon %s: unexpected argument %q\n", operation, flags.Arg(0))
 		return 1
 	}
-	spec, err := supervisorSpec(configPath, options)
+	spec, loaded, err := supervisorSpec(configPath, options)
 	if err != nil {
 		fmt.Fprintf(stderr, "daemon %s: %v\n", operation, err)
 		return 1
@@ -223,6 +288,7 @@ func runSupervisorCommand(operation string, args []string, stdout, stderr io.Wri
 	// rather than predicted: a daemon that has not come up yet has not written
 	// one, and saying so beats printing an address nothing is listening on.
 	if operation == "install" {
+		warnAboutAnUnreachableNode(stderr, loaded)
 		endpoint, endpointErr := daemon.ReadEndpoint(spec.StateDirectory)
 		switch {
 		case endpointErr == nil:

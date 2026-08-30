@@ -244,3 +244,116 @@ func TestRestartSupervisedDaemonReportsNothingToDoRatherThanFailing(t *testing.T
 		}
 	}
 }
+
+// loadedWithLanguages is a registry of one repository declaring what a test
+// needs it to declare.
+func loadedWithLanguages(languages ...string) config.Loaded {
+	return config.Loaded{Repositories: config.RepositoriesFile{
+		Repositories: []config.Repository{{Name: "alpha", Path: "/src/alpha", Languages: languages}},
+	}}
+}
+
+// writeNodeFixture drops a node that exec.LookPath and a real exec.Command can
+// both resolve and run, and exits zero regardless of the arguments it is
+// given -- which is all `nodeRuns` asks of it.
+//
+// The name and the content are both platform-specific. LookPath on Windows
+// only matches a name carrying one of PATHEXT's extensions, so an extensionless
+// `node` is invisible there the way a `.rs` file is invisible to a Go build;
+// `node.cmd` is what a Windows PATH actually offers, and os/exec runs a `.cmd`
+// through the shell that understands it. A POSIX shebang script needs no such
+// help.
+func writeNodeFixture(t *testing.T, directory string) {
+	t.Helper()
+	name, content := "node", "#!/bin/sh\nexit 0\n"
+	if runtime.GOOS == "windows" {
+		name, content = "node.cmd", "@echo off\r\nexit /b 0\r\n"
+	}
+	if err := os.WriteFile(filepath.Join(directory, name), []byte(content), 0o755); err != nil {
+		t.Fatalf("write %s: %v", name, err)
+	}
+}
+
+// The negatives first: both of them are a warning nobody needs, and a warning
+// nobody needs is how the one that matters stops being read.
+
+// A workspace with no TypeScript and no JavaScript never runs the worker, so a
+// machine without node is not a machine with a problem. `doctor` already
+// reports a toolchain nobody needs as "not configured"; this says nothing.
+func TestNoTypeScriptMeansNoWarningAboutNode(t *testing.T) {
+	path := t.TempDir()
+	t.Setenv("PATH", path)
+	languages := []string{"go", "rust"}
+	var stderr bytes.Buffer
+	warnAboutAnUnreachableNode(&stderr, loadedWithLanguages(languages...))
+	if stderr.Len() != 0 {
+		t.Fatalf("languages=%v PATH=%q: a workspace with no TypeScript was warned about node: %q",
+			languages, path, stderr.String())
+	}
+}
+
+// And a node the recorded PATH can resolve and run is the working case, which
+// is most of them: `daemon install` is typed in the shell where the toolchains
+// are.
+func TestAReachableNodeIsNotWarnedAbout(t *testing.T) {
+	directory := t.TempDir()
+	writeNodeFixture(t, directory)
+	t.Setenv("PATH", directory)
+	languages := []string{"typescript"}
+	var stderr bytes.Buffer
+	warnAboutAnUnreachableNode(&stderr, loadedWithLanguages(languages...))
+	if stderr.Len() != 0 {
+		t.Fatalf("languages=%v fixture=%s: a reachable node was warned about: %q",
+			languages, directory, stderr.String())
+	}
+}
+
+// TestAnUnreachableNodeIsNamedAtInstall is the case the warning exists for: the
+// unit records this PATH, so a node missing here is a daemon that will fail at
+// `exec node` on every rebuild -- with a 127 that names the worker rather than
+// the environment, which is what made the original report take an afternoon.
+func TestAnUnreachableNodeIsNamedAtInstall(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	for name, languages := range map[string][]string{
+		"typescript": {"typescript"},
+		"its alias":  {"ts"},
+		"javascript": {"javascript"},
+		"beside go":  {"go", "js"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var stderr bytes.Buffer
+			warnAboutAnUnreachableNode(&stderr, loadedWithLanguages(languages...))
+			warning := stderr.String()
+			if !strings.Contains(warning, "node is not on the PATH this unit recorded") {
+				t.Fatalf("name=%q languages=%v: the warning does not say what is wrong: %q",
+					name, languages, warning)
+			}
+			if !strings.Contains(warning, "kivgraph daemon install") {
+				t.Fatalf("name=%q languages=%v: the warning does not name the remedy: %q",
+					name, languages, warning)
+			}
+		})
+	}
+}
+
+// TestALookPathHitThatCannotRunIsStillWarnedAbout is what nodeRuns exists for:
+// a file resolves and is marked executable but cannot run -- a shim an nvm
+// uninstall left behind, a binary for the wrong architecture -- and the daemon
+// would still hit the same `exec node` failure LookPath alone cannot see.
+func TestALookPathHitThatCannotRunIsStillWarnedAbout(t *testing.T) {
+	directory := t.TempDir()
+	name := "node"
+	if runtime.GOOS == "windows" {
+		name = "node.cmd"
+	}
+	if err := os.WriteFile(filepath.Join(directory, name), []byte("not an executable\n"), 0o755); err != nil {
+		t.Fatalf("write %s: %v", name, err)
+	}
+	t.Setenv("PATH", directory)
+	var stderr bytes.Buffer
+	warnAboutAnUnreachableNode(&stderr, loadedWithLanguages("typescript"))
+	if !strings.Contains(stderr.String(), "node is not on the PATH this unit recorded") {
+		t.Fatalf("fixture=%s: a node that resolves but cannot run was not warned about: %q",
+			directory, stderr.String())
+	}
+}
