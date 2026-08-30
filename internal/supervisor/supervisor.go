@@ -31,6 +31,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -70,6 +71,40 @@ type Spec struct {
 	// a reason: the daemon refuses a non-loopback bind without it, so a unit
 	// recording one and not the other would start a daemon that exits.
 	AllowRemote bool
+}
+
+// daemonPath is the PATH an installed unit records for the daemon.
+//
+// Neither supervisor gives a process the environment its owner works in. A
+// systemd user unit that declares none inherits systemd's own -- /usr/local/bin,
+// /usr/bin, /bin and a pair of games directories -- and a launchd agent gets
+// /usr/bin:/bin:/usr/sbin:/sbin. What both lists have in common is that nothing
+// the user installed for themselves is on them, and neither reads a shell
+// profile to find out.
+//
+// That breaks the daemon in two different ways, one loud and one silent.
+// `kivgraph-ts-worker` ends in `exec node`, and a node installed through nvm
+// lives under ~/.nvm and reaches PATH through .bashrc -- so the worker exits 127
+// and every TypeScript repository fails to index. Homebrew's /opt/homebrew/bin
+// is missing for the same reason. Go fails quietly instead: a current toolchain
+// in ~/.local/go/bin loses to the distribution's in /usr/bin, and the daemon
+// builds a different graph with nothing to report.
+//
+// What makes this hard to see from the outside is that it is invisible from the
+// shell. `kivgraph index --full` typed by hand works, because the shell has the
+// PATH the unit lacks, and the logs point at the indexer rather than at the
+// environment. Recording that shell's PATH is the fix, and it is recorded rather
+// than resolved because the shell that ran `daemon install` is the one place
+// where the user's toolchains demonstrably resolve: they typed the command
+// there. It also makes the unit self-describing -- `systemctl cat` or the plist
+// answers what the daemon can reach, where ambient state answers nothing.
+//
+// The cost is that it is a snapshot. An nvm upgrade moves node to a new
+// versioned directory and the recorded PATH goes on naming the old one, so the
+// remedy is `kivgraph daemon install` again -- which is the remedy an operator
+// would reach for anyway, and the one `daemon status` already names.
+func daemonPath() string {
+	return os.Getenv("PATH")
 }
 
 // State is what a supervisor knows about a spec.

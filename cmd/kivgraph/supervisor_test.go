@@ -244,3 +244,67 @@ func TestRestartSupervisedDaemonReportsNothingToDoRatherThanFailing(t *testing.T
 		}
 	}
 }
+
+// loadedWithLanguages is a registry of one repository declaring what a test
+// needs it to declare.
+func loadedWithLanguages(languages ...string) config.Loaded {
+	return config.Loaded{Repositories: config.RepositoriesFile{
+		Repositories: []config.Repository{{Name: "alpha", Path: "/src/alpha", Languages: languages}},
+	}}
+}
+
+// The negatives first: both of them are a warning nobody needs, and a warning
+// nobody needs is how the one that matters stops being read.
+
+// A workspace with no TypeScript and no JavaScript never runs the worker, so a
+// machine without node is not a machine with a problem. `doctor` already
+// reports a toolchain nobody needs as "not configured"; this says nothing.
+func TestNoTypeScriptMeansNoWarningAboutNode(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	var stderr bytes.Buffer
+	warnAboutAnUnreachableNode(&stderr, loadedWithLanguages("go", "rust"))
+	if stderr.Len() != 0 {
+		t.Fatalf("a workspace with no TypeScript was warned about node: %q", stderr.String())
+	}
+}
+
+// And a node the recorded PATH can resolve is the working case, which is most
+// of them: `daemon install` is typed in the shell where the toolchains are.
+func TestAReachableNodeIsNotWarnedAbout(t *testing.T) {
+	directory := t.TempDir()
+	if err := os.WriteFile(filepath.Join(directory, "node"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatalf("write node: %v", err)
+	}
+	t.Setenv("PATH", directory)
+	var stderr bytes.Buffer
+	warnAboutAnUnreachableNode(&stderr, loadedWithLanguages("typescript"))
+	if stderr.Len() != 0 {
+		t.Fatalf("a reachable node was warned about: %q", stderr.String())
+	}
+}
+
+// TestAnUnreachableNodeIsNamedAtInstall is the case the warning exists for: the
+// unit records this PATH, so a node missing here is a daemon that will fail at
+// `exec node` on every rebuild -- with a 127 that names the worker rather than
+// the environment, which is what made the original report take an afternoon.
+func TestAnUnreachableNodeIsNamedAtInstall(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	for name, languages := range map[string][]string{
+		"typescript": {"typescript"},
+		"its alias":  {"ts"},
+		"javascript": {"javascript"},
+		"beside go":  {"go", "js"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var stderr bytes.Buffer
+			warnAboutAnUnreachableNode(&stderr, loadedWithLanguages(languages...))
+			warning := stderr.String()
+			if !strings.Contains(warning, "node is not on the PATH this unit recorded") {
+				t.Fatalf("the warning does not say what is wrong: %q", warning)
+			}
+			if !strings.Contains(warning, "kivgraph daemon install") {
+				t.Fatalf("the warning does not name the remedy: %q", warning)
+			}
+		})
+	}
+}

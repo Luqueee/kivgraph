@@ -286,3 +286,103 @@ func TestRestartingAnIncompleteSpecIsRefused(t *testing.T) {
 		t.Fatalf("Restart() without a state directory error = %v, want %v", err, ErrIncompleteSpec)
 	}
 }
+
+// TestTheUnitRecordsThePathThatInstalledIt is the fix for a daemon that cannot
+// find node. Neither supervisor reads a shell profile, so a unit that declares
+// no PATH runs the daemon on the platform's own -- which holds nothing anybody
+// installed for themselves, and makes `kivgraph-ts-worker` die on `exec node`
+// while the same command typed in a terminal works.
+func TestTheUnitRecordsThePathThatInstalledIt(t *testing.T) {
+	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
+		t.Skipf("this platform has no supervisor: %s", runtime.GOOS)
+	}
+	t.Setenv("PATH", "/home/ada/.nvm/versions/node/v24.18.0/bin:/usr/bin:/bin")
+	rendered := string(renderedUnit(t, testSpec("/state")))
+	if !strings.Contains(rendered, "/home/ada/.nvm/versions/node/v24.18.0/bin:/usr/bin:/bin") {
+		t.Fatalf("the rendered unit records no PATH, so the daemon inherits the supervisor's:\n%s", rendered)
+	}
+}
+
+// TestAnotherShellsPathDoesNotMakeAnInstallStale is the other half, and the
+// one that decides whether the fix is usable. The recorded PATH belongs to the
+// terminal that ran `daemon install`; every later shell has its own. Comparing
+// it would report a working daemon stale from any of them and send its
+// operator to reinstall for nothing -- which is how `stale` stops meaning
+// anything.
+func TestAnotherShellsPathDoesNotMakeAnInstallStale(t *testing.T) {
+	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
+		t.Skipf("this platform has no supervisor: %s", runtime.GOOS)
+	}
+	home := t.TempDir()
+	testsupport.SetHome(t, home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	spec := testSpec(t.TempDir())
+
+	t.Setenv("PATH", "/home/ada/.nvm/versions/node/v24.18.0/bin:/usr/bin")
+	installed, err := Status(spec)
+	if err != nil {
+		t.Fatalf("Status() error = %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(installed.Path), 0o755); err != nil {
+		t.Fatalf("create unit directory: %v", err)
+	}
+	if err := os.WriteFile(installed.Path, renderedUnit(t, spec), 0o644); err != nil {
+		t.Fatalf("write unit: %v", err)
+	}
+
+	t.Setenv("PATH", "/opt/homebrew/bin:/usr/bin:/bin")
+	report, err := Status(spec)
+	if err != nil {
+		t.Fatalf("Status() error = %v", err)
+	}
+	if report.State != StateInstalled {
+		t.Fatalf("Status() from a shell with another PATH = %q (%s), want %q",
+			report.State, report.Detail, StateInstalled)
+	}
+}
+
+// TestAUnitCarryingNoPathIsStale covers the upgrade, which is the case every
+// existing installation is in: the unit on disk was written before any PATH was
+// recorded, and the daemon under it is precisely the one that cannot resolve
+// node. Reporting it installed would leave the defect in place on every machine
+// that already has a daemon.
+func TestAUnitCarryingNoPathIsStale(t *testing.T) {
+	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
+		t.Skipf("this platform has no supervisor: %s", runtime.GOOS)
+	}
+	home := t.TempDir()
+	testsupport.SetHome(t, home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	spec := testSpec(t.TempDir())
+
+	// An empty PATH renders exactly what the previous release wrote: recording
+	// an empty one would be worse than recording none, so the unit carries no
+	// environment at all.
+	t.Setenv("PATH", "")
+	planned, err := Status(spec)
+	if err != nil {
+		t.Fatalf("Status() error = %v", err)
+	}
+	previousRelease := renderedUnit(t, spec)
+	if strings.Contains(string(previousRelease), "PATH") {
+		t.Fatalf("a unit rendered without a PATH still mentions one:\n%s", previousRelease)
+	}
+	if err := os.MkdirAll(filepath.Dir(planned.Path), 0o755); err != nil {
+		t.Fatalf("create unit directory: %v", err)
+	}
+	if err := os.WriteFile(planned.Path, previousRelease, 0o644); err != nil {
+		t.Fatalf("write unit: %v", err)
+	}
+
+	t.Setenv("PATH", "/opt/homebrew/bin:/usr/bin:/bin")
+	report, err := Status(spec)
+	if err != nil {
+		t.Fatalf("Status() error = %v", err)
+	}
+	if report.State != StateStale {
+		t.Fatalf("Status() over a unit with no recorded PATH = %q, want %q", report.State, StateStale)
+	}
+	if !strings.Contains(report.Detail, "PATH") {
+		t.Fatalf("Status() detail %q does not say what is missing", report.Detail)
+	}
+}

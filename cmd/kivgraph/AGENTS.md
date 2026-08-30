@@ -351,6 +351,16 @@ superficie observable.
   La diferencia más grande no es la pendiente: es el **pico**, `179`–`186` contra
   `26`–`29 MB` a ocho clientes, sin una sola consulta. Lo que no es el ahorro en
   ninguna puerta es el snapshot: ya se comparte y esas páginas están limpias.
+- **La unit anota el `PATH` de la terminal que la instaló**, y sin eso el demonio
+  corre con el del supervisor: ni systemd ni launchd leen un perfil de shell, así
+  que el node de nvm y el de Homebrew no están, `kivgraph-ts-worker` muere en
+  `exec node` con un `127`, y el Go de `~/.local/go/bin` pierde en silencio
+  contra el de `/usr/bin` -- que es peor, porque no falla: publica otro grafo.
+  Nada de esto se ve desde la terminal, donde el mismo `index --full` funciona.
+  `status` compara la unit **sin** el `PATH` anotado, porque pertenece a la
+  terminal que instaló y no al demonio: compararlo diría `stale` desde cualquier
+  otra shell. Lo que sí compara es si hay alguno anotado, y por eso toda
+  instalación anterior a esto dice `stale` una vez. Ver ADR 0085.
 - `kivgraph mcp install --daemon` es lo que hace usable todo lo anterior: lee
   `daemon.json` del directorio de estado y escribe una entrada `url` con el
   token. Sin ese flag se escribe `serve`, y es deliberado -- detectar un demonio

@@ -443,7 +443,7 @@ func TestReachableDaemonAnswersForALiveEndpoint(t *testing.T) {
 // and `Status` telling its three states apart has its own test there.
 func TestProvisionDaemonLeavesAStoppedDaemonStopped(t *testing.T) {
 	loaded := initialisedHome(t)
-	spec, err := supervisorSpec("", supervisorOptions{})
+	spec, _, err := supervisorSpec("", supervisorOptions{})
 	if err != nil {
 		t.Fatalf("supervisorSpec: %v", err)
 	}
@@ -475,7 +475,7 @@ func TestProvisionDaemonLeavesAStoppedDaemonStopped(t *testing.T) {
 func TestProvisionDaemonWaitsForTheProcessThatWonTheRace(t *testing.T) {
 	shortenEndpointDeadline(t)
 	loaded := initialisedHome(t)
-	spec, err := supervisorSpec("", supervisorOptions{})
+	spec, _, err := supervisorSpec("", supervisorOptions{})
 	if err != nil {
 		t.Fatalf("supervisorSpec: %v", err)
 	}

@@ -44,7 +44,12 @@ func planPath(spec Spec) (string, string, error) {
 //
 // It is encoded with encoding/xml rather than a format string so a path holding
 // an ampersand or a quote cannot produce a plist launchd refuses to parse.
-func plist(spec Spec, label string) ([]byte, error) {
+//
+// EnvironmentVariables is the one key here that is not about the daemon's
+// lifecycle, and daemonPath says why it has to be written down rather than
+// inherited: launchd starts an agent with /usr/bin:/bin:/usr/sbin:/sbin, which
+// holds neither Homebrew nor nvm.
+func plist(spec Spec, label, path string) ([]byte, error) {
 	type entry struct {
 		XMLName xml.Name
 		Value   string `xml:",chardata"`
@@ -78,6 +83,17 @@ func plist(spec Spec, label string) ([]byte, error) {
 		body.WriteString("    " + string(encoded) + "\n")
 	}
 	body.WriteString("  </array>\n")
+	// A machine with no PATH at all records none: an empty one would give the
+	// daemon a worse environment than launchd's default, which is the thing
+	// this exists to replace.
+	if path != "" {
+		body.WriteString("  " + environmentKey + "\n  <dict>\n    <key>PATH</key>\n")
+		encoded, err := xml.Marshal(entry{XMLName: xml.Name{Local: "string"}, Value: path})
+		if err != nil {
+			return nil, fmt.Errorf("supervisor: encode plist PATH: %w", err)
+		}
+		body.WriteString("    " + string(encoded) + "\n  </dict>\n")
+	}
 	body.WriteString("  <key>RunAtLoad</key>\n  <true/>\n")
 	body.WriteString("  <key>KeepAlive</key>\n  <dict>\n    <key>SuccessfulExit</key>\n    <false/>\n  </dict>\n")
 	if err := write("WorkingDirectory", spec.StateDirectory); err != nil {
@@ -96,12 +112,50 @@ func plist(spec Spec, label string) ([]byte, error) {
 	return []byte(body.String()), nil
 }
 
+// environmentKey opens the recorded PATH block, and is matched whole: an
+// operator who added an EnvironmentVariables of their own writes a different
+// block, and `status` has to report that rather than absorb it.
+const environmentKey = "<key>EnvironmentVariables</key>"
+
+// withoutRecordedPath returns a rendered agent with its PATH block removed, and
+// whether it had one.
+//
+// It is what lets `status` compare the daemon rather than the shell it is asked
+// from. The recorded PATH belongs to the terminal that ran `daemon install`, so
+// comparing it would report every agent stale as soon as the operator opened a
+// shell with a different one -- and send them to reinstall a daemon that is
+// working.
+//
+// Whether a PATH is recorded at all is compared, and that is deliberate: an
+// agent written before this existed carries none, and the daemon under it is
+// exactly the one that cannot resolve node.
+//
+// The block's own closing indent ends it, which is sound because this renders
+// it: a hand-edited agent that closes somewhere else keeps its block through
+// this and is reported stale, which is the right answer for a hand edit.
+func withoutRecordedPath(rendered string) (string, bool) {
+	var kept strings.Builder
+	recorded, inside := false, false
+	for line := range strings.SplitSeq(rendered, "\n") {
+		switch {
+		case inside:
+			inside = line != "  </dict>"
+		case strings.TrimSpace(line) == environmentKey:
+			recorded, inside = true, true
+		default:
+			kept.WriteString(line)
+			kept.WriteString("\n")
+		}
+	}
+	return strings.TrimSuffix(kept.String(), "\n"), recorded
+}
+
 func install(spec Spec) (Report, error) {
 	label, path, err := planPath(spec)
 	if err != nil {
 		return Report{}, err
 	}
-	rendered, err := plist(spec, label)
+	rendered, err := plist(spec, label, daemonPath())
 	if err != nil {
 		return Report{}, err
 	}
@@ -180,13 +234,20 @@ func status(spec Spec) (Report, error) {
 	if readErr != nil {
 		return Report{}, fmt.Errorf("supervisor: read %s: %w", path, readErr)
 	}
-	wanted, err := plist(spec, label)
+	wanted, err := plist(spec, label, daemonPath())
 	if err != nil {
 		return Report{}, err
 	}
-	if string(existing) != string(wanted) {
+	installed, recordsPath := withoutRecordedPath(string(existing))
+	rendered, wantsPath := withoutRecordedPath(string(wanted))
+	if installed != rendered {
 		return Report{State: StateStale, Label: label, Path: path,
 			Detail: "the installed agent describes a different daemon: reinstall to replace it"}, nil
+	}
+	if recordsPath != wantsPath {
+		return Report{State: StateStale, Label: label, Path: path,
+			Detail: "the installed agent records no PATH, so the daemon cannot reach the toolchains " +
+				"this shell can: reinstall to replace it"}, nil
 	}
 	return Report{State: StateInstalled, Label: label, Path: path,
 		Detail: "launchd starts it at login and restarts it if it dies"}, nil

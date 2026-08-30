@@ -371,7 +371,7 @@ func provisionDaemon(
 	loaded config.Loaded,
 	logger *slog.Logger,
 ) (daemon.Endpoint, bool) {
-	spec, err := supervisorSpec(configPath, supervisorOptions{})
+	spec, _, err := supervisorSpec(configPath, supervisorOptions{})
 	if err != nil {
 		logger.Info("serving in process: no daemon could be described",
 			"command", command, "reason", err)
