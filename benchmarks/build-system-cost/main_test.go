@@ -124,6 +124,31 @@ func TestApplyEditRejectsMissingFile(t *testing.T) {
 	}
 }
 
+func TestCopyFilesPreservesTrackedSymlinks(t *testing.T) {
+	source := t.TempDir()
+	destination := t.TempDir()
+	if err := os.WriteFile(filepath.Join(source, "AGENTS.md"), []byte("rules"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("AGENTS.md", filepath.Join(source, "CLAUDE.md")); err != nil {
+		t.Fatal(err)
+	}
+	files := []string{"AGENTS.md", "CLAUDE.md"}
+	if err := copyFiles(source, destination, files); err != nil {
+		t.Fatal(err)
+	}
+	target, err := os.Readlink(filepath.Join(destination, "CLAUDE.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if target != "AGENTS.md" {
+		t.Fatalf("copied link target = %q, want AGENTS.md", target)
+	}
+	if _, err := hashFiles(destination, files); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestMedianRejectsEmptyInput(t *testing.T) {
 	if _, err := median(nil); err == nil {
 		t.Fatal("median(nil) succeeded, want error")
@@ -207,6 +232,9 @@ func newFixtureRepository(t *testing.T) string {
 		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 			t.Fatal(err)
 		}
+	}
+	if err := os.Symlink("internal/version/version.go", filepath.Join(root, "version-link.go")); err != nil {
+		t.Fatal(err)
 	}
 	runGit(t, root, "init", "--quiet", "--initial-branch=main")
 	runGit(t, root, "add", "--all")

@@ -576,12 +576,22 @@ func copyFiles(source, destination string, files []string) error {
 		if err != nil {
 			return fmt.Errorf("inspect %s: %w", relative, err)
 		}
-		if !info.Mode().IsRegular() {
-			continue
-		}
 		to := filepath.Join(destination, relative)
 		if err := os.MkdirAll(filepath.Dir(to), 0o755); err != nil {
 			return err
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			target, err := os.Readlink(from)
+			if err != nil {
+				return fmt.Errorf("read link %s: %w", relative, err)
+			}
+			if err := os.Symlink(target, to); err != nil {
+				return fmt.Errorf("copy link %s: %w", relative, err)
+			}
+			continue
+		}
+		if !info.Mode().IsRegular() {
+			continue
 		}
 		content, err := os.ReadFile(from)
 		if err != nil {
@@ -601,6 +611,15 @@ func hashFiles(root string, files []string) (map[string]string, error) {
 		info, err := os.Lstat(path)
 		if err != nil {
 			return nil, fmt.Errorf("inspect %s: %w", relative, err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			target, err := os.Readlink(path)
+			if err != nil {
+				return nil, fmt.Errorf("read link %s: %w", relative, err)
+			}
+			digest := sha256.Sum256([]byte(target))
+			hashes[relative] = hex.EncodeToString(digest[:])
+			continue
 		}
 		if !info.Mode().IsRegular() {
 			continue
