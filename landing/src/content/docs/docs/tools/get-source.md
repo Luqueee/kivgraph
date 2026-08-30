@@ -9,6 +9,7 @@ description: Read the code of up to twenty symbols in one call, as plain text, w
 
 | Argument | Type | Default | Meaning |
 | --- | --- | --- | --- |
+| `profile` | array of strings | configured default | Profiles to query. `["*"]` alone selects all. A stable key requires exactly one named profile when several profiles exist. |
 | `symbols` | array | none, required | The symbols to read. At least one and at most 20; an empty array or more than 20 is rejected with `INVALID_ARGUMENT`. |
 | `symbols[].stable_key` | string | unset | The durable key of one symbol. Exactly one of `stable_key` or `qualified_name` per entry; both is rejected, and a key together with `repository` or `path` is rejected. |
 | `symbols[].qualified_name` | string | unset | The qualified name of the symbol, as every row of this surface returns it. |

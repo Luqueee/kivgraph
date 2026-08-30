@@ -1605,11 +1605,11 @@ func TestUsageNamesOnlyRealFlags(t *testing.T) {
 func TestInterceptedCommandsDeclareTheFlagsTheyParse(t *testing.T) {
 	var path string
 	var options daemonOptions
-	var address string
+	var address, profile string
 	parsed := map[string]*flag.FlagSet{
 		"serve":  serveFlagSet(&path, &serveOptions{}),
 		"daemon": daemonFlagSet(&path, &options),
-		"ui":     uiFlagSet(&path, &address),
+		"ui":     uiFlagSet(&path, &address, &profile),
 	}
 	for _, spec := range allCommands() {
 		want, intercepted := parsed[spec.name()]

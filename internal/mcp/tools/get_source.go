@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -40,6 +41,7 @@ const (
 // key, or the repository, path and qualified name of a row the caller already
 // read.
 type GetSourceInput struct {
+	Profile        []string        `json:"profile,omitempty" jsonschema:"Profiles to query; omit for the default, or use * alone for all."`
 	Symbols        []SourceRequest `json:"symbols" jsonschema:"The symbols whose code you want, up to 20 in one call, across any files and repositories."`
 	ContextLines   int             `json:"context_lines,omitempty" jsonschema:"Source lines to add around each declaration. Defaults to 0, maximum 100."`
 	ResponseFormat string          `json:"response_format,omitempty" jsonschema:"concise (the default) omits the derived identifiers; detailed returns them."`
@@ -61,14 +63,15 @@ type SourceRequest struct {
 // declaration is re-anchored by name, Shifted says by how many lines, and the
 // caller can see that the graph's own numbers moved. See ADR 0040.
 type SourceBody struct {
-	Repository    string `json:"repository"`
-	Path          string `json:"path"`
-	QualifiedName string `json:"qualified_name"`
-	Kind          string `json:"kind"`
-	StartLine     uint32 `json:"start_line"`
-	EndLine       uint32 `json:"end_line"`
-	Fresh         bool   `json:"fresh"`
-	Code          string `json:"code,omitempty"`
+	Profiles      ProfileNames `json:"profile,omitempty"`
+	Repository    string       `json:"repository"`
+	Path          string       `json:"path"`
+	QualifiedName string       `json:"qualified_name"`
+	Kind          string       `json:"kind"`
+	StartLine     uint32       `json:"start_line"`
+	EndLine       uint32       `json:"end_line"`
+	Fresh         bool         `json:"fresh"`
+	Code          string       `json:"code,omitempty"`
 
 	// Shifted is the signed line offset between the range the generation
 	// recorded and the range served. It is absent when nothing moved.
@@ -114,7 +117,32 @@ func RegisterGetSourceWithObserverAndSnapshotStore(
 		request *sdkmcp.CallToolRequest,
 		arguments GetSourceInput,
 	) (*sdkmcp.CallToolResult, Response[SourceResult], error) {
-		return getSource(ctx, request, arguments, snapshotStore)
+		stableKey := ""
+		for _, symbol := range arguments.Symbols {
+			if symbol.StableKey != "" {
+				stableKey = symbol.StableKey
+				break
+			}
+		}
+		if snapshotStore != nil {
+			if profileErr := RequireStableKeyProfile(snapshotStore.ProfileCount(), stableKey, arguments.Profile); profileErr != nil {
+				return nil, Response[SourceResult]{}, profileErr
+			}
+			selected, selectionErr := snapshotStore.ResolveProfiles(arguments.Profile)
+			if selectionErr != nil {
+				return nil, Response[SourceResult]{}, WrapToolError(CodeInvalidArgument, selectionErr.Error(), selectionErr)
+			}
+			if len(selected) > 1 {
+				return getSourceAcrossProfiles(ctx, request, arguments, selected)
+			}
+		}
+		store, profile, count, err := resolveSingleProfile(snapshotStore, arguments.Profile, stableKey)
+		if err != nil {
+			return nil, Response[SourceResult]{}, err
+		}
+		result, response, err := getSource(ctx, request, arguments, store)
+		scopeResponse(&response, profile, count)
+		return result, response, err
 	}
 	if observer != nil || callObserver != nil {
 		underlying := handler
@@ -135,6 +163,81 @@ func RegisterGetSourceWithObserverAndSnapshotStore(
 		Annotations: readOnlyClosedWorld(),
 		Meta:        alwaysLoadMeta(),
 	}, handler)
+}
+
+func getSourceAcrossProfiles(
+	ctx context.Context,
+	request *sdkmcp.CallToolRequest,
+	arguments GetSourceInput,
+	selected []hotsnapshot.ProfileStore,
+) (*sdkmcp.CallToolResult, Response[SourceResult], error) {
+	selectors, contextLines, format, err := normalizeGetSourceInput(arguments)
+	if err != nil {
+		return nil, Response[SourceResult]{}, err
+	}
+	_ = selectors // normalization validates the whole request before any file is read.
+	profiles := make([]ProfileSnapshot, 0, len(selected))
+	rows := make([]SourceBody, 0, len(arguments.Symbols)*len(selected))
+	variants := make(map[string]int)
+	coverage := Coverage{}
+	budget := MaximumSourceBytes
+	trimmed := 0
+	for _, profile := range selected {
+		snapshot := profile.Store.Load()
+		if snapshot == nil {
+			return nil, Response[SourceResult]{}, ErrIndexNotReady()
+		}
+		profiles = append(profiles, ProfileSnapshot{Name: profile.Name, SnapshotID: snapshot.Metadata().ID})
+		for index, symbol := range arguments.Symbols {
+			profileArguments := GetSourceInput{
+				Symbols: []SourceRequest{symbol}, ContextLines: contextLines,
+				ResponseFormat: ResponseFormatDetailed,
+			}
+			_, response, queryErr := getSource(ctx, request, profileArguments, profile.Store)
+			if queryErr != nil {
+				if code := ErrorCode(queryErr); code == CodeSymbolNotFound || code == CodeRepositoryNotFound {
+					continue
+				}
+				return nil, Response[SourceResult]{}, queryErr
+			}
+			if len(response.Results.Bodies) == 0 {
+				continue
+			}
+			row := response.Results.Bodies[0]
+			stableKey := row.StableKey
+			row.Profiles = ""
+			if format != ResponseFormatDetailed {
+				row.StableKey = ""
+			}
+			payload, marshalErr := json.Marshal(row)
+			if marshalErr != nil {
+				return nil, Response[SourceResult]{}, WrapToolError(CodeSnapshotUnavailable, "encode source payload for profile merge", marshalErr)
+			}
+			key := stableKey + "\x00" + string(payload)
+			if position, found := variants[key]; found {
+				rows[position].Profiles = rows[position].Profiles.append(profile.Name)
+				continue
+			}
+			if len(row.Code) > budget {
+				trimmed += len(arguments.Symbols) - index
+				break
+			}
+			budget -= len(row.Code)
+			row.Profiles = profileNames(profile.Name)
+			variants[key] = len(rows)
+			rows = append(rows, row)
+			if row.Unavailable == "" {
+				coverage.Exact++
+			}
+		}
+	}
+	result := SourceResult{ContextLines: contextLines, Bodies: rows, Trimmed: trimmed}
+	rendered := renderSourceProfiles(profiles, result)
+	return &sdkmcp.CallToolResult{Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: rendered}}}, Response[SourceResult]{
+		Profiles: profiles, CrossProfileEdges: "not_resolved",
+		Total: len(rows) + trimmed, Returned: len(rows), Truncated: trimmed > 0,
+		Coverage: coverage, Results: result,
+	}, nil
 }
 
 func getSource(
@@ -462,6 +565,38 @@ func renderSourceText(snapshotID uint64, result SourceResult) string {
 		}
 		fmt.Fprintf(builder, "@ %s %s:%d-%d %s %s",
 			body.Repository, body.Path, body.StartLine, body.EndLine, body.Kind, body.QualifiedName)
+		if !body.Fresh {
+			fmt.Fprintf(builder, " [file changed, re-anchored %+d]", body.Shifted)
+		}
+		if body.StableKey != "" {
+			fmt.Fprintf(builder, " %s", body.StableKey)
+		}
+		builder.WriteByte('\n')
+		builder.WriteString(body.Code)
+		builder.WriteByte('\n')
+	}
+	return builder.String()
+}
+
+func renderSourceProfiles(profiles []ProfileSnapshot, result SourceResult) string {
+	builder := &strings.Builder{}
+	builder.WriteString("profiles")
+	for _, profile := range profiles {
+		fmt.Fprintf(builder, " %s=%d", profile.Name, profile.SnapshotID)
+	}
+	fmt.Fprintf(builder, "  %d bodies  context %d", len(result.Bodies), result.ContextLines)
+	if result.Trimmed > 0 {
+		fmt.Fprintf(builder, "  trimmed %d at the %d byte ceiling", result.Trimmed, MaximumSourceBytes)
+	}
+	builder.WriteByte('\n')
+	for _, body := range result.Bodies {
+		profileLabel := strings.ReplaceAll(string(body.Profiles), "\x00", ",")
+		if body.Unavailable != "" {
+			fmt.Fprintf(builder, "! [%s] %s %s %s — %s\n", profileLabel, body.Repository, body.Path, body.QualifiedName, body.Unavailable)
+			continue
+		}
+		fmt.Fprintf(builder, "@ [%s] %s %s:%d-%d %s %s",
+			profileLabel, body.Repository, body.Path, body.StartLine, body.EndLine, body.Kind, body.QualifiedName)
 		if !body.Fresh {
 			fmt.Fprintf(builder, " [file changed, re-anchored %+d]", body.Shifted)
 		}

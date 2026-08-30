@@ -24,6 +24,7 @@ See the [full measurement method](/comparison/) and the
 
 | Argument | Type | Default | Meaning |
 | --- | --- | --- | --- |
+| `profile` | array of strings | configured default | Profiles to query. `["*"]` alone selects all. |
 | `cursor` | string | none | Opaque token taken from `next_cursor`. Resumes the same query at the next offset. |
 | `intent` | string | none | The question, in plain language. Required: an empty or whitespace-only value is rejected with `INVALID_ARGUMENT`. It is a question and not a document, so more than 400 characters is rejected with the instruction to shorten it and pass the vocabulary as `keywords`. |
 | `keywords` | array of string | none | Extra terms that extend the question rather than replacing it, and where you supply the vocabulary the code uses when it differs from the vocabulary the question used. At most 16; more is rejected with `INVALID_ARGUMENT`, and so is an empty or whitespace-only entry. There is no thesaurus and no embedding here: the model asking already knows more synonyms than a table would hold. |

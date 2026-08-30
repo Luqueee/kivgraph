@@ -9,6 +9,7 @@ description: Registers projects and rebuilds the graph once, after explicit user
 
 | Argument | Type | Default | Meaning |
 | --- | --- | --- | --- |
+| `profile` | string | configured default | Profile to rebuild. A missing profile is created before indexing. |
 | `projects` | array of objects | none | The batch to register and index. Each entry requires `name`, `path` and `languages`, and accepts nothing else. This is the form to use. |
 | `name` | string | none | Single-project form: the repository identifier. |
 | `path` | string | none | Single-project form: the repository directory. Absolute, `~`-prefixed, or relative to the working directory of the server process. |

@@ -83,7 +83,7 @@ func runIndexProject(args []string, stdout, stderr io.Writer) int {
 		writeCommandError(stderr, "index: migrate project configuration: %v", err)
 		return 1
 	}
-	loaded, err := config.Load(initialised.ConfigPath)
+	loaded, err := config.LoadProfile(initialised.ConfigPath, "")
 	if err != nil {
 		writeCommandError(stderr, "index: load project configuration: %v", err)
 		return 1
@@ -113,6 +113,7 @@ func runIndexProject(args []string, stdout, stderr io.Writer) int {
 	fullArgs := []string{
 		"--config", loaded.ConfigPath,
 		"--repositories", loaded.RepositoriesPath,
+		"--profile", loaded.Profile,
 		"--resolver-version", options.ResolverVersion,
 	}
 	if options.JSONOutput {

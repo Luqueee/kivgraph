@@ -339,6 +339,7 @@ func (service *Service) runIndex(
 		ConfigPath:       service.loaded.ConfigPath,
 		RepositoriesPath: service.loaded.RepositoriesPath,
 		ResolverVersion:  service.resolverVersion,
+		Profile:          service.loaded.Profile,
 		WorkingDirectory: service.workingDirectory,
 		Progress:         progress,
 		// The child logs what a loader reported without failing the pass, and

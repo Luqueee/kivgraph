@@ -9,13 +9,21 @@ package tools
 // compact views the fields that carried nothing are absent instead; see
 // ADR 0046 and `MarshalJSON` in `view.go`.
 type Response[T any] struct {
-	SnapshotID    *uint64  `json:"snapshot_id"`
-	SnapshotAgeMS *int64   `json:"snapshot_age_ms"`
-	Total         int      `json:"total"`
-	Returned      int      `json:"returned"`
-	Truncated     bool     `json:"truncated"`
-	NextCursor    *string  `json:"next_cursor"`
-	Coverage      Coverage `json:"coverage"`
+	SnapshotID *uint64 `json:"snapshot_id"`
+	// Profile scopes a single-profile answer when the installation contains
+	// several profiles. It is omitted for the compatibility shape.
+	Profile string `json:"profile,omitempty"`
+	// Profiles replaces snapshot_id when several profiles were queried.
+	Profiles []ProfileSnapshot `json:"profiles,omitempty"`
+	// CrossProfileEdges states that a union contains no edges resolved between
+	// its independently indexed graphs.
+	CrossProfileEdges string   `json:"cross_profile_edges,omitempty"`
+	SnapshotAgeMS     *int64   `json:"snapshot_age_ms"`
+	Total             int      `json:"total"`
+	Returned          int      `json:"returned"`
+	Truncated         bool     `json:"truncated"`
+	NextCursor        *string  `json:"next_cursor"`
+	Coverage          Coverage `json:"coverage"`
 	// Completeness is present when the tool checked how far its answer
 	// reaches. Absent means it did not check, which is not the same as
 	// checking and finding nothing.
@@ -29,6 +37,13 @@ type Response[T any] struct {
 	// View is the granularity the caller asked for. It shapes the envelope and
 	// never travels in it.
 	View string `json:"-"`
+}
+
+// ProfileSnapshot identifies one independently published graph in a union.
+type ProfileSnapshot struct {
+	Name         string        `json:"name"`
+	SnapshotID   uint64        `json:"snapshot_id"`
+	Completeness *Completeness `json:"completeness,omitempty"`
 }
 
 // Coverage counts how confidently the response can account for related graph

@@ -37,7 +37,11 @@ var endpointDeadline = 5 * time.Second
 // derivations that drifted apart would have the command configure clients
 // against a daemon that is not the one this configuration starts.
 func stateDirectory(loaded config.Loaded) string {
-	return filepath.Dir(loaded.Config.Storage.DatabasePath)
+	directory := filepath.Dir(loaded.Config.Storage.DatabasePath)
+	if loaded.Profile != "" && filepath.Base(filepath.Dir(directory)) == "profiles" {
+		return filepath.Dir(filepath.Dir(directory))
+	}
+	return directory
 }
 
 // transport is what an integration command decides to write into a client.

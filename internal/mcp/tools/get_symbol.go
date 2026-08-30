@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -15,11 +16,12 @@ const getSymbolToolName = "get_symbol"
 // GetSymbolInput identifies one symbol, either by its durable stable key or by
 // the repository, path and qualified name every row of this surface carries.
 type GetSymbolInput struct {
-	StableKey      string `json:"stable_key,omitempty" jsonschema:"The symbol durable key, as a detailed result returns it. The triple below works instead."`
-	QualifiedName  string `json:"qualified_name,omitempty" jsonschema:"The symbol fully qualified name, as every row of this surface carries it."`
-	Repository     string `json:"repository,omitempty" jsonschema:"The repository that declares the symbol. Pass it with qualified_name and path."`
-	Path           string `json:"path,omitempty" jsonschema:"The repository-relative file that declares the symbol."`
-	ResponseFormat string `json:"response_format,omitempty" jsonschema:"concise (the default) omits the derived identifiers; detailed returns them."`
+	Profile        []string `json:"profile,omitempty" jsonschema:"Profiles to query; omit for the default, or use * alone for all."`
+	StableKey      string   `json:"stable_key,omitempty" jsonschema:"The symbol durable key, as a detailed result returns it. The triple below works instead."`
+	QualifiedName  string   `json:"qualified_name,omitempty" jsonschema:"The symbol fully qualified name, as every row of this surface carries it."`
+	Repository     string   `json:"repository,omitempty" jsonschema:"The repository that declares the symbol. Pass it with qualified_name and path."`
+	Path           string   `json:"path,omitempty" jsonschema:"The repository-relative file that declares the symbol."`
+	ResponseFormat string   `json:"response_format,omitempty" jsonschema:"concise (the default) omits the derived identifiers; detailed returns them."`
 }
 
 // SymbolDetails is the public detail shape returned for one symbol. The
@@ -27,22 +29,34 @@ type GetSymbolInput struct {
 // value is already spelled out by the name and the path beside it -- are
 // returned only for the detailed format.
 type SymbolDetails struct {
-	StableKey      string `json:"stable_key"`
-	Repository     string `json:"repository"`
-	RepositoryPath string `json:"repository_path"`
-	PackageName    string `json:"package_name"`
-	ModulePath     string `json:"module_path"`
-	FilePath       string `json:"file_path"`
-	Name           string `json:"name"`
-	QualifiedName  string `json:"qualified_name"`
-	Kind           string `json:"kind"`
-	Signature      string `json:"signature"`
-	Exported       bool   `json:"exported"`
-	StartLine      uint32 `json:"start_line"`
-	EndLine        uint32 `json:"end_line"`
+	Profiles       ProfileNames `json:"profile,omitempty"`
+	StableKey      string       `json:"stable_key"`
+	Repository     string       `json:"repository"`
+	RepositoryPath string       `json:"repository_path"`
+	PackageName    string       `json:"package_name"`
+	ModulePath     string       `json:"module_path"`
+	FilePath       string       `json:"file_path"`
+	Name           string       `json:"name"`
+	QualifiedName  string       `json:"qualified_name"`
+	Kind           string       `json:"kind"`
+	Signature      string       `json:"signature"`
+	Exported       bool         `json:"exported"`
+	StartLine      uint32       `json:"start_line"`
+	EndLine        uint32       `json:"end_line"`
 
-	CanonicalIdentity string `json:"canonical_identity,omitempty"`
-	RepositoryKey     string `json:"repository_key,omitempty"`
+	CanonicalIdentity string          `json:"canonical_identity,omitempty"`
+	RepositoryKey     string          `json:"repository_key,omitempty"`
+	Variants          []SymbolDetails `json:"-"`
+}
+
+// MarshalJSON preserves the historical object for one profile and emits the
+// independently observed variants as rows for a multi-profile union.
+func (details SymbolDetails) MarshalJSON() ([]byte, error) {
+	if details.Variants != nil {
+		return json.Marshal(details.Variants)
+	}
+	type wire SymbolDetails
+	return json.Marshal(wire(details))
 }
 
 // RegisterGetSymbol adds the read-only symbol lookup tool without a graph
@@ -77,7 +91,25 @@ func RegisterGetSymbolWithObserverAndSnapshotStore(
 		request *sdkmcp.CallToolRequest,
 		arguments GetSymbolInput,
 	) (*sdkmcp.CallToolResult, Response[SymbolDetails], error) {
-		return getSymbol(ctx, request, arguments, snapshotStore)
+		if snapshotStore != nil {
+			if profileErr := RequireStableKeyProfile(snapshotStore.ProfileCount(), arguments.StableKey, arguments.Profile); profileErr != nil {
+				return nil, Response[SymbolDetails]{}, profileErr
+			}
+			selected, selectionErr := snapshotStore.ResolveProfiles(arguments.Profile)
+			if selectionErr != nil {
+				return nil, Response[SymbolDetails]{}, WrapToolError(CodeInvalidArgument, selectionErr.Error(), selectionErr)
+			}
+			if len(selected) > 1 {
+				return getSymbolAcrossProfiles(ctx, request, arguments, selected)
+			}
+		}
+		store, profile, count, err := resolveSingleProfile(snapshotStore, arguments.Profile, arguments.StableKey)
+		if err != nil {
+			return nil, Response[SymbolDetails]{}, err
+		}
+		result, response, err := getSymbol(ctx, request, arguments, store)
+		scopeResponse(&response, profile, count)
+		return result, response, err
 	}
 	if observer != nil || callObserver != nil {
 		underlying := handler
@@ -97,6 +129,55 @@ func RegisterGetSymbolWithObserverAndSnapshotStore(
 		Description: "One symbol's package, signature, visibility and line range, by stable key or by repository, path and qualified name.",
 		Annotations: readOnlyClosedWorld(),
 	}, handler)
+}
+
+func getSymbolAcrossProfiles(
+	ctx context.Context,
+	request *sdkmcp.CallToolRequest,
+	arguments GetSymbolInput,
+	selected []hotsnapshot.ProfileStore,
+) (*sdkmcp.CallToolResult, Response[SymbolDetails], error) {
+	profiles := make([]ProfileSnapshot, 0, len(selected))
+	rows := make([]SymbolDetails, 0, len(selected))
+	variants := make(map[string]int)
+	for _, profile := range selected {
+		snapshot := profile.Store.Load()
+		if snapshot == nil {
+			return nil, Response[SymbolDetails]{}, ErrIndexNotReady()
+		}
+		profiles = append(profiles, ProfileSnapshot{Name: profile.Name, SnapshotID: snapshot.Metadata().ID})
+		profileArguments := arguments
+		profileArguments.Profile = nil
+		_, response, queryErr := getSymbol(ctx, request, profileArguments, profile.Store)
+		if queryErr != nil {
+			if code := ErrorCode(queryErr); code == CodeSymbolNotFound || code == CodeRepositoryNotFound {
+				continue
+			}
+			return nil, Response[SymbolDetails]{}, queryErr
+		}
+		row := response.Results
+		row.Profiles = ""
+		payload, marshalErr := json.Marshal(row)
+		if marshalErr != nil {
+			return nil, Response[SymbolDetails]{}, WrapToolError(CodeSnapshotUnavailable, "encode symbol details for profile merge", marshalErr)
+		}
+		key := row.StableKey + "\x00" + string(payload)
+		if position, found := variants[key]; found {
+			rows[position].Profiles = rows[position].Profiles.append(profile.Name)
+			continue
+		}
+		row.Profiles = profileNames(profile.Name)
+		variants[key] = len(rows)
+		rows = append(rows, row)
+	}
+	if len(rows) == 0 {
+		return nil, Response[SymbolDetails]{}, NewToolError(CodeSymbolNotFound, "symbol was not found in the selected profiles")
+	}
+	return nil, Response[SymbolDetails]{
+		Profiles: profiles, CrossProfileEdges: "not_resolved",
+		Total: len(rows), Returned: len(rows),
+		Results: SymbolDetails{Variants: rows},
+	}, nil
 }
 
 func getSymbol(

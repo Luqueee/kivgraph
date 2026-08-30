@@ -37,23 +37,25 @@ const (
 // dependencies of a repository into one entry, and `full` repeats every field
 // on every row. `files` is rejected: this answer is a set of repositories.
 type FindCrossRepoConsumersInput struct {
-	StableKey      string `json:"stable_key,omitempty" jsonschema:"The target symbol durable key, as a detailed result returns it. The triple works instead."`
-	QualifiedName  string `json:"qualified_name,omitempty" jsonschema:"The target symbol fully qualified name, as every row of this surface carries it."`
-	Repository     string `json:"repository,omitempty" jsonschema:"The repository that declares the target symbol, the provider side of the question."`
-	Path           string `json:"path,omitempty" jsonschema:"The repository-relative file that declares the target symbol."`
-	Repo           string `json:"repo,omitempty" jsonschema:"Keep only consumers found in this repository."`
-	Language       string `json:"language,omitempty" jsonschema:"Keep only consumers written in this language."`
-	Limit          int    `json:"limit,omitempty" jsonschema:"Consumers in one page. Defaults to 50."`
-	Cursor         string `json:"cursor,omitempty" jsonschema:"The next_cursor of the previous page. Every other argument must stay the same."`
-	ResponseFormat string `json:"response_format,omitempty" jsonschema:"concise (the default) omits the derived identifiers; detailed returns them."`
-	View           string `json:"view,omitempty" jsonschema:"Granularity, never a different answer: compact (the default) groups the package dependencies of a repository, full repeats every field. files is rejected."`
+	Profile        []string `json:"profile,omitempty" jsonschema:"Profiles to query; omit for the default, or use * alone for all."`
+	StableKey      string   `json:"stable_key,omitempty" jsonschema:"The target symbol durable key, as a detailed result returns it. The triple works instead."`
+	QualifiedName  string   `json:"qualified_name,omitempty" jsonschema:"The target symbol fully qualified name, as every row of this surface carries it."`
+	Repository     string   `json:"repository,omitempty" jsonschema:"The repository that declares the target symbol, the provider side of the question."`
+	Path           string   `json:"path,omitempty" jsonschema:"The repository-relative file that declares the target symbol."`
+	Repo           string   `json:"repo,omitempty" jsonschema:"Keep only consumers found in this repository."`
+	Language       string   `json:"language,omitempty" jsonschema:"Keep only consumers written in this language."`
+	Limit          int      `json:"limit,omitempty" jsonschema:"Consumers in one page. Defaults to 50."`
+	Cursor         string   `json:"cursor,omitempty" jsonschema:"The next_cursor of the previous page. Every other argument must stay the same."`
+	ResponseFormat string   `json:"response_format,omitempty" jsonschema:"concise (the default) omits the derived identifiers; detailed returns them."`
+	View           string   `json:"view,omitempty" jsonschema:"Granularity, never a different answer: compact (the default) groups the package dependencies of a repository, full repeats every field. files is rejected."`
 }
 
 // CrossRepoConsumerSummary is the common wire shape for exact symbol,
 // package-level, candidate, and unresolved consumer records. Empty fields are
 // intentional when the source fact has no symbol or file identity.
 type CrossRepoConsumerSummary struct {
-	Category string `json:"category"`
+	Profiles ProfileNames `json:"profile,omitempty"`
+	Category string       `json:"category"`
 
 	// The consumer, named and located the way every other row of this surface
 	// names one: enough to open it, and enough to address it in the next call.
@@ -178,8 +180,9 @@ type CompactCrossRepoGroup struct {
 // included: a shared reason is common enough to hoist to a group, and a
 // shared `detail` inside that group is a template, not per-row prose.
 type CompactCrossRepoConsumer struct {
-	Category string `json:"category,omitempty"`
-	Repo     string `json:"repo"`
+	Profiles ProfileNames `json:"profile,omitempty"`
+	Category string       `json:"category,omitempty"`
+	Repo     string       `json:"repo"`
 	// PackageName is the bare name while one package of the repository holds
 	// the fact, and the list of names when several do.
 	PackageName any    `json:"pkg,omitempty"`
@@ -297,7 +300,25 @@ func RegisterFindCrossRepoConsumersWithObserverAndSnapshotStore(
 		request *sdkmcp.CallToolRequest,
 		arguments FindCrossRepoConsumersInput,
 	) (*sdkmcp.CallToolResult, Response[CrossRepoConsumers], error) {
-		return findCrossRepoConsumers(ctx, request, arguments, snapshotStore)
+		if snapshotStore != nil {
+			if profileErr := RequireStableKeyProfile(snapshotStore.ProfileCount(), arguments.StableKey, arguments.Profile); profileErr != nil {
+				return nil, Response[CrossRepoConsumers]{}, profileErr
+			}
+			selected, selectionErr := snapshotStore.ResolveProfiles(arguments.Profile)
+			if selectionErr != nil {
+				return nil, Response[CrossRepoConsumers]{}, WrapToolError(CodeInvalidArgument, selectionErr.Error(), selectionErr)
+			}
+			if len(selected) > 1 {
+				return findCrossRepoConsumersAcrossProfiles(ctx, request, arguments, selected)
+			}
+		}
+		store, profile, count, err := resolveSingleProfile(snapshotStore, arguments.Profile, arguments.StableKey)
+		if err != nil {
+			return nil, Response[CrossRepoConsumers]{}, err
+		}
+		result, response, err := findCrossRepoConsumers(ctx, request, arguments, store)
+		scopeResponse(&response, profile, count)
+		return result, response, err
 	}
 	if observer != nil || callObserver != nil {
 		underlying := handler
@@ -317,6 +338,111 @@ func RegisterFindCrossRepoConsumersWithObserverAndSnapshotStore(
 		Description: "Consumers of a symbol in other repositories, exact uses kept apart from package-level dependencies that prove no use. A language server stops at its own workspace and cannot answer this.",
 		Annotations: readOnlyClosedWorld(),
 	}, handler)
+}
+
+func findCrossRepoConsumersAcrossProfiles(
+	_ context.Context,
+	_ *sdkmcp.CallToolRequest,
+	arguments FindCrossRepoConsumersInput,
+	selected []hotsnapshot.ProfileStore,
+) (*sdkmcp.CallToolResult, Response[CrossRepoConsumers], error) {
+	options, err := normalizeFindCrossRepoConsumersInput(arguments)
+	if err != nil {
+		return nil, Response[CrossRepoConsumers]{}, err
+	}
+	names := make([]string, 0, len(selected))
+	for _, profile := range selected {
+		names = append(names, profile.Name)
+	}
+	queryHash, err := HashQuery(struct {
+		Tool     string                      `json:"tool"`
+		Profiles []string                    `json:"profiles"`
+		Query    findCrossRepoConsumersQuery `json:"query"`
+	}{findCrossRepoConsumersToolName, names, findCrossRepoConsumersQuery{
+		Tool: findCrossRepoConsumersToolName, StableKey: options.Selector.StableKey,
+		QualifiedName: options.Selector.QualifiedName, Repository: options.Selector.Repository,
+		Path: options.Selector.Path, Repo: options.Repo, Language: options.Language,
+	}})
+	if err != nil {
+		return nil, Response[CrossRepoConsumers]{}, err
+	}
+	profiles := make([]ProfileSnapshot, 0, len(selected))
+	rows := make([]CrossRepoConsumerSummary, 0)
+	variants := make(map[string]int)
+	coverage := Coverage{}
+	mergedCompleteness := Completeness{Verdict: VerdictComplete}
+	var subject CrossRepoSubject
+	foundSubject := false
+	for _, profile := range selected {
+		snapshot := profile.Store.Load()
+		if snapshot == nil {
+			return nil, Response[CrossRepoConsumers]{}, ErrIndexNotReady()
+		}
+		profileCompleteness := Completeness{Verdict: VerdictComplete}
+		profileOptions := options
+		profileOptions.Format = ResponseFormatDetailed
+		targetID, resolveErr := resolveSymbolSelector(snapshot, profileOptions.Selector)
+		if resolveErr == nil {
+			target, locationErr := crossRepoTargetLocation(snapshot, targetID)
+			if locationErr != nil {
+				return nil, Response[CrossRepoConsumers]{}, WrapToolError(CodeSnapshotUnavailable, "active snapshot contains invalid target metadata", locationErr)
+			}
+			foundSubject = true
+			if subject.QualifiedName == "" {
+				subject = crossRepoSubject(target, options.Format)
+			}
+			profileRows, profileCoverage, collectErr := collectCrossRepoConsumers(snapshot, targetID, target, profileOptions)
+			if collectErr != nil {
+				return nil, Response[CrossRepoConsumers]{}, WrapToolError(CodeSnapshotUnavailable, "active snapshot contains invalid consumer metadata", collectErr)
+			}
+			addCoverage(&coverage, profileCoverage)
+			completeness, _, completenessErr := completenessFor(snapshot, target.SymbolName, hotsnapshot.InvalidRepositoryID)
+			if completenessErr != nil {
+				return nil, Response[CrossRepoConsumers]{}, WrapToolError(CodeSnapshotUnavailable, "active snapshot contains invalid unresolved metadata", completenessErr)
+			}
+			profileCompleteness = completeness
+			mergeCompleteness(&mergedCompleteness, &completeness)
+			for _, row := range profileRows {
+				identity := strings.Join([]string{row.ConsumerSymbolKey, row.ConsumerPackageKey, row.UnresolvedKey}, "\x00")
+				row.Profiles = ""
+				if options.Format != ResponseFormatDetailed {
+					row.ConsumerSymbolKey, row.ConsumerRepositoryKey, row.ConsumerPackageKey = "", "", ""
+					row.ConsumerFileKey, row.EvidenceKey, row.UnresolvedKey = "", "", ""
+				}
+				payload, marshalErr := json.Marshal(row)
+				if marshalErr != nil {
+					return nil, Response[CrossRepoConsumers]{}, WrapToolError(CodeSnapshotUnavailable, "encode consumer payload for profile merge", marshalErr)
+				}
+				key := identity + "\x00" + string(payload)
+				if position, duplicate := variants[key]; duplicate {
+					rows[position].Profiles = rows[position].Profiles.append(profile.Name)
+					continue
+				}
+				row.Profiles = profileNames(profile.Name)
+				variants[key] = len(rows)
+				rows = append(rows, row)
+			}
+		} else if code := ErrorCode(resolveErr); code != CodeSymbolNotFound && code != CodeRepositoryNotFound {
+			return nil, Response[CrossRepoConsumers]{}, resolveErr
+		}
+		completeness := profileCompleteness
+		profiles = append(profiles, ProfileSnapshot{Name: profile.Name, SnapshotID: snapshot.Metadata().ID, Completeness: &completeness})
+	}
+	if !foundSubject {
+		return nil, Response[CrossRepoConsumers]{}, NewToolError(CodeSymbolNotFound, "symbol was not found in the selected profiles")
+	}
+	offset, end, next, err := profilePageBounds(profiles, queryHash, SortingVersionCrossRepoConsumersV1, arguments.Cursor, options.Limit, len(rows))
+	if err != nil {
+		return nil, Response[CrossRepoConsumers]{}, err
+	}
+	return nil, Response[CrossRepoConsumers]{
+		Profiles: profiles, CrossProfileEdges: "not_resolved",
+		Total: len(rows), Returned: end - offset, Truncated: end < len(rows), NextCursor: next,
+		Coverage: coverage, Completeness: &mergedCompleteness,
+		Guidance: crossRepoGuidance(len(rows), end-offset, end < len(rows), mergedCompleteness.Verdict),
+		Results:  CrossRepoConsumers{Subject: subject, Consumers: rows[offset:end], View: options.View},
+		View:     options.View,
+	}, nil
 }
 
 func findCrossRepoConsumers(
@@ -1039,6 +1165,7 @@ func compactCrossRepoConsumerRows(rows []CrossRepoConsumerSummary, hoisted cross
 // accounted for above it, whether on the page or on its group.
 func crossRepoConsumerEntry(row CrossRepoConsumerSummary, hoisted crossRepoHoisted) CompactCrossRepoConsumer {
 	consumer := CompactCrossRepoConsumer{
+		Profiles:              row.Profiles,
 		Category:              crossRepoPerRow(hoisted.Category, row.Category),
 		Repo:                  row.Repository,
 		QualifiedName:         row.QualifiedName,
@@ -1110,7 +1237,7 @@ func crossRepoPerRow(hoisted, value string) string {
 // per package -- never merges two rows into one that could not carry both.
 func crossRepoPackageGroup(row CrossRepoConsumerSummary) string {
 	return strings.Join([]string{
-		row.Repository, row.EdgeKind, row.Confidence, row.Provenance,
+		string(row.Profiles), row.Repository, row.EdgeKind, row.Confidence, row.Provenance,
 		row.ConsumerRepositoryKey, row.ConsumerPackageKey, row.EvidenceKey,
 	}, "\x00")
 }

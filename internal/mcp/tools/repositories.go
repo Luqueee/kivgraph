@@ -20,6 +20,7 @@ import (
 // disagree, which is the only warning a caller gets that a path or a line
 // this server returns may no longer exist.
 type RepositorySummary struct {
+	Profile   string   `json:"profile,omitempty"`
 	Name      string   `json:"name"`
 	Path      string   `json:"path"`
 	Languages []string `json:"languages"`
@@ -41,8 +42,9 @@ type RepositorySummary struct {
 // ListRepositoriesInput contains the optional page controls for
 // list_repositories.
 type ListRepositoriesInput struct {
-	Cursor string `json:"cursor,omitempty" jsonschema:"The next_cursor of the previous page. Every other argument must stay the same."`
-	Limit  int    `json:"limit,omitempty" jsonschema:"Repositories in one page. Defaults to 50, maximum 500."`
+	Profile []string `json:"profile,omitempty" jsonschema:"Profiles to list; omit or use * alone for all."`
+	Cursor  string   `json:"cursor,omitempty" jsonschema:"The next_cursor of the previous page. Every other argument must stay the same."`
+	Limit   int      `json:"limit,omitempty" jsonschema:"Repositories in one page. Defaults to 50, maximum 500."`
 }
 
 const (
@@ -86,7 +88,27 @@ func RegisterListRepositoriesWithObserverAndSnapshotStore(
 		request *sdkmcp.CallToolRequest,
 		arguments ListRepositoriesInput,
 	) (*sdkmcp.CallToolResult, Response[[]RepositorySummary], error) {
-		return listRepositories(ctx, request, arguments, snapshotStore)
+		if snapshotStore == nil {
+			return listRepositories(ctx, request, arguments, nil)
+		}
+		requested := arguments.Profile
+		if len(requested) == 0 && snapshotStore.ProfileCount() > 1 {
+			requested = []string{"*"}
+		}
+		selected, selectionErr := snapshotStore.ResolveProfiles(requested)
+		if selectionErr != nil {
+			return nil, Response[[]RepositorySummary]{}, WrapToolError(CodeInvalidArgument, selectionErr.Error(), selectionErr)
+		}
+		if len(selected) > 1 {
+			return listRepositoriesAcrossProfiles(ctx, request, arguments, selected)
+		}
+		store, profile, count, err := resolveSingleProfile(snapshotStore, arguments.Profile, "")
+		if err != nil {
+			return nil, Response[[]RepositorySummary]{}, err
+		}
+		result, response, err := listRepositories(ctx, request, arguments, store)
+		scopeResponse(&response, profile, count)
+		return result, response, err
 	}
 	if observer != nil || callObserver != nil {
 		underlying := handler
@@ -106,6 +128,94 @@ func RegisterListRepositoriesWithObserverAndSnapshotStore(
 		Description: "The repositories the published graph covers, with the commit each was indexed at and which one is the derived provider.",
 		Annotations: readOnlyClosedWorld(),
 	}, handler)
+}
+
+func listRepositoriesAcrossProfiles(
+	ctx context.Context,
+	request *sdkmcp.CallToolRequest,
+	arguments ListRepositoriesInput,
+	selected []hotsnapshot.ProfileStore,
+) (*sdkmcp.CallToolResult, Response[[]RepositorySummary], error) {
+	limit, err := normalizeRepositoryLimit(arguments.Limit)
+	if err != nil {
+		return nil, Response[[]RepositorySummary]{}, err
+	}
+	names := make([]string, 0, len(selected))
+	profileSnapshots := make([]ProfileSnapshot, 0, len(selected))
+	rows := make([]RepositorySummary, 0)
+	for _, profile := range selected {
+		names = append(names, profile.Name)
+		snapshot := profile.Store.Load()
+		if snapshot == nil {
+			return nil, Response[[]RepositorySummary]{}, ErrIndexNotReady()
+		}
+		profileSnapshots = append(profileSnapshots, ProfileSnapshot{Name: profile.Name, SnapshotID: snapshot.Metadata().ID})
+		pageArguments := arguments
+		pageArguments.Profile = nil
+		pageArguments.Cursor = ""
+		pageArguments.Limit = MaximumRepositoryLimit
+		for {
+			_, response, err := listRepositories(ctx, request, pageArguments, profile.Store)
+			if err != nil {
+				return nil, Response[[]RepositorySummary]{}, err
+			}
+			for _, row := range response.Results {
+				row.Profile = profile.Name
+				rows = append(rows, row)
+			}
+			if response.NextCursor == nil {
+				break
+			}
+			pageArguments.Cursor = *response.NextCursor
+		}
+	}
+	queryHash, err := HashQuery(struct {
+		Tool     string   `json:"tool"`
+		Profiles []string `json:"profiles"`
+	}{repositoryQueryToolName, names})
+	if err != nil {
+		return nil, Response[[]RepositorySummary]{}, err
+	}
+	setID := ProfileSetSnapshotID(profileSnapshots)
+	offset := 0
+	if arguments.Cursor != "" {
+		cursor, err := DecodeCursor(arguments.Cursor)
+		if err != nil {
+			return nil, Response[[]RepositorySummary]{}, err
+		}
+		if err := cursor.ValidateAgainst(setID, queryHash, SortingVersionStableKeyV1); err != nil {
+			return nil, Response[[]RepositorySummary]{}, err
+		}
+		offset = cursor.Offset
+	}
+	if offset > len(rows) {
+		return nil, Response[[]RepositorySummary]{}, NewToolError(CodeCursorInvalid, "cursor offset is beyond the merged result")
+	}
+	end := offset + limit
+	if end > len(rows) {
+		end = len(rows)
+	}
+	var nextCursor *string
+	if end < len(rows) {
+		cursor, err := NewCursor(setID, queryHash, end, SortingVersionStableKeyV1)
+		if err != nil {
+			return nil, Response[[]RepositorySummary]{}, err
+		}
+		encoded, err := cursor.Encode()
+		if err != nil {
+			return nil, Response[[]RepositorySummary]{}, err
+		}
+		nextCursor = &encoded
+	}
+	return nil, Response[[]RepositorySummary]{
+		Profiles:          profileSnapshots,
+		CrossProfileEdges: "not_resolved",
+		Total:             len(rows),
+		Returned:          end - offset,
+		Truncated:         end < len(rows),
+		NextCursor:        nextCursor,
+		Results:           rows[offset:end],
+	}, nil
 }
 
 func listRepositories(

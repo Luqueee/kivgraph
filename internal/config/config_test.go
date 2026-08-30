@@ -365,6 +365,38 @@ storage:
 	}
 }
 
+func TestLoadConfigRejectsInvalidDefaultProfile(t *testing.T) {
+	for _, profile := range []string{"", "*", "../other", "nested/name", `nested\name`} {
+		t.Run(profile, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "config.yaml")
+			writeConfigFixture(t, path, "version: 1\nprofiles:\n  default: \""+profile+"\"\n")
+			_, err := LoadConfig(path)
+			if err == nil || !strings.Contains(err.Error(), "config.profiles.default") {
+				t.Fatalf("LoadConfig() error = %v, want invalid default profile", err)
+			}
+		})
+	}
+}
+
+func TestLoadConfigRejectsNonPositiveProfileCacheBound(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	writeConfigFixture(t, path, "version: 1\nprofiles:\n  max_open: 0\n")
+	_, err := LoadConfig(path)
+	if err == nil || !strings.Contains(err.Error(), "config.profiles.max_open") {
+		t.Fatalf("LoadConfig() error = %v, want invalid profile cache bound", err)
+	}
+}
+
+func TestDefaultConfigNamesTheDefaultProfile(t *testing.T) {
+	configuration := DefaultConfig()
+	if configuration.Profiles.Default != "default" {
+		t.Fatalf("profiles.default = %q, want default", configuration.Profiles.Default)
+	}
+	if configuration.Profiles.MaxOpen != 3 {
+		t.Fatalf("profiles.max_open = %d, want 3", configuration.Profiles.MaxOpen)
+	}
+}
+
 func TestLoadRepositoriesAllowsExplicitEmptyList(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "repositories.yaml")
 	writeConfigFixture(t, path, "version: 1\nrepositories: []\n")

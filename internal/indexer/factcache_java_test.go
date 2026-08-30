@@ -85,10 +85,22 @@ func TestUnitIdentitySeparatesEveryKind(t *testing.T) {
 		"dart":       {kind: unitSemantic, language: "dart", repository: repositoryNamed("shared")},
 		"java":       {kind: unitSemantic, language: "java", repository: repositoryNamed("shared")},
 	} {
-		identity := unitIdentity(unit)
+		identity := unitIdentity("default", unit)
 		if previous, clash := identities[identity]; clash {
 			t.Errorf("%s and %s share the cache identity %q", name, previous, identity)
 		}
 		identities[identity] = name
+	}
+}
+
+// Two profiles may contain the same repository while resolving its external
+// providers against different registries. Serving one profile's entry to the
+// other would therefore publish facts that pass never observed.
+func TestUnitIdentitySeparatesProfiles(t *testing.T) {
+	unit := analysisUnit{kind: unitGo, repository: repositoryNamed("shared")}
+	first := unitIdentity("backend", unit)
+	second := unitIdentity("frontend", unit)
+	if first == second {
+		t.Fatalf("two profiles share the cache identity %q", first)
 	}
 }

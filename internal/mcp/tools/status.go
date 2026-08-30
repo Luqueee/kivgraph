@@ -37,11 +37,17 @@ const (
 	graphStatusToolName = "graph_status"
 )
 
+// GraphStatusInput optionally narrows profile discovery to named graphs.
+type GraphStatusInput struct {
+	Profile []string `json:"profile,omitempty" jsonschema:"Profiles to report; omit or use * alone for all."`
+}
+
 // GraphStatus reports what the server is currently serving from. Snapshot and
 // host fields are never inferred; metrics are included only when the process
 // supplies the optional registry.
 type GraphStatus struct {
-	Status string `json:"status"`
+	Status   string               `json:"status"`
+	Profiles []GraphProfileStatus `json:"profiles,omitempty"`
 
 	SnapshotID        *uint64 `json:"snapshot_id"`
 	SnapshotBuiltAt   string  `json:"snapshot_built_at,omitempty"`
@@ -115,6 +121,15 @@ type GraphStatus struct {
 	// registry; an absent registry must not be reported as healthy or empty
 	// metrics.
 	Metrics *metrics.Report `json:"metrics,omitempty"`
+}
+
+// GraphProfileStatus is the discovery row graph_status owns once an
+// installation contains more than one profile.
+type GraphProfileStatus struct {
+	Name         string  `json:"name"`
+	SnapshotID   *uint64 `json:"snapshot_id"`
+	Repositories int     `json:"repositories"`
+	Default      bool    `json:"default,omitempty"`
 }
 
 type GraphStatusCount struct {
@@ -194,16 +209,36 @@ func RegisterGraphStatusWithObserverAndSnapshotStoreAndMetrics(
 	handler := func(
 		ctx context.Context,
 		request *sdkmcp.CallToolRequest,
-		arguments struct{},
+		arguments GraphStatusInput,
 	) (*sdkmcp.CallToolResult, Response[GraphStatus], error) {
-		return graphStatus(ctx, request, arguments, snapshotStore, probe, registry)
+		if snapshotStore == nil {
+			return graphStatus(ctx, request, struct{}{}, nil, probe, registry)
+		}
+		requested := arguments.Profile
+		if len(requested) == 0 && snapshotStore.ProfileCount() > 1 {
+			requested = []string{"*"}
+		}
+		selected, selectionErr := snapshotStore.ResolveProfiles(requested)
+		if selectionErr != nil {
+			return nil, Response[GraphStatus]{}, WrapToolError(CodeInvalidArgument, selectionErr.Error(), selectionErr)
+		}
+		if len(selected) > 1 {
+			return graphStatusAcrossProfiles(ctx, request, selected, snapshotStore.DefaultProfileName(), probe, registry)
+		}
+		store, profile, count, err := resolveSingleProfile(snapshotStore, arguments.Profile, "")
+		if err != nil {
+			return nil, Response[GraphStatus]{}, err
+		}
+		result, response, err := graphStatus(ctx, request, struct{}{}, store, probe, registry)
+		scopeResponse(&response, profile, count)
+		return result, response, err
 	}
 	if observer != nil || callObserver != nil {
 		underlying := handler
 		handler = func(
 			ctx context.Context,
 			request *sdkmcp.CallToolRequest,
-			arguments struct{},
+			arguments GraphStatusInput,
 		) (*sdkmcp.CallToolResult, Response[GraphStatus], error) {
 			start := time.Now()
 			result, status, err := underlying(ctx, request, arguments)
@@ -216,6 +251,94 @@ func RegisterGraphStatusWithObserverAndSnapshotStoreAndMetrics(
 		Description: "The published generation: counts, provenance, and whether a repository moved since it was indexed. Call it when an answer looks stale.",
 		Annotations: readOnlyClosedWorld(),
 	}, handler)
+}
+
+func graphStatusAcrossProfiles(
+	ctx context.Context,
+	request *sdkmcp.CallToolRequest,
+	selected []hotsnapshot.ProfileStore,
+	defaultProfile string,
+	probe HostStatusProbe,
+	registry *metrics.Registry,
+) (*sdkmcp.CallToolResult, Response[GraphStatus], error) {
+	combined := GraphStatus{
+		Status: GraphStatusReady, Profiles: make([]GraphProfileStatus, 0, len(selected)),
+		EdgesByKind: []GraphStatusCount{}, UnresolvedByReason: []GraphStatusCount{},
+		RepositoryFreshness: []RepositorySummary{},
+	}
+	profiles := make([]ProfileSnapshot, 0, len(selected))
+	edgesByKind := make(map[string]int)
+	unresolvedByReason := make(map[string]int)
+	for _, profile := range selected {
+		_, response, err := graphStatus(ctx, request, struct{}{}, profile.Store, probe, registry)
+		if err != nil {
+			return nil, Response[GraphStatus]{}, err
+		}
+		status := response.Results
+		if status.Status != GraphStatusReady {
+			combined.Status = GraphStatusEmpty
+		}
+		combined.Repositories += status.Repositories
+		combined.Packages += status.Packages
+		combined.Files += status.Files
+		combined.Symbols += status.Symbols
+		combined.Evidence += status.Evidence
+		combined.Edges += status.Edges
+		combined.PackageEdges += status.PackageEdges
+		combined.Unresolved += status.Unresolved
+		combined.RepositoriesMoved += status.RepositoriesMoved
+		for _, count := range status.EdgesByKind {
+			edgesByKind[count.Key] += count.Count
+		}
+		for _, count := range status.UnresolvedByReason {
+			unresolvedByReason[count.Key] += count.Count
+		}
+		for _, repository := range status.RepositoryFreshness {
+			repository.Profile = profile.Name
+			combined.RepositoryFreshness = append(combined.RepositoryFreshness, repository)
+		}
+		if status.Derived != nil {
+			if combined.Derived == nil {
+				combined.Derived = &GraphStatusDerived{}
+			}
+			combined.Derived.Repositories = append(combined.Derived.Repositories, status.Derived.Repositories...)
+			combined.Derived.Packages += status.Derived.Packages
+			combined.Derived.Files += status.Derived.Files
+			combined.Derived.Symbols += status.Derived.Symbols
+			combined.Derived.EdgesWithin += status.Derived.EdgesWithin
+			combined.Derived.EdgesInbound += status.Derived.EdgesInbound
+			combined.Derived.Unresolved += status.Derived.Unresolved
+		}
+		combined.Profiles = append(combined.Profiles, GraphProfileStatus{
+			Name: profile.Name, SnapshotID: response.SnapshotID,
+			Repositories: status.Repositories, Default: profile.Name == defaultProfile,
+		})
+		if response.SnapshotID != nil {
+			profiles = append(profiles, ProfileSnapshot{Name: profile.Name, SnapshotID: *response.SnapshotID})
+		}
+	}
+	combined.EdgesByKind = sortedGraphStatusCounts(edgesByKind)
+	combined.UnresolvedByReason = sortedGraphStatusCounts(unresolvedByReason)
+	return nil, Response[GraphStatus]{
+		Profiles:          profiles,
+		CrossProfileEdges: "not_resolved",
+		Total:             len(combined.Profiles),
+		Returned:          len(combined.Profiles),
+		Results:           combined,
+	}, nil
+}
+
+func sortedGraphStatusCounts(counts map[string]int) []GraphStatusCount {
+	keys := make([]string, 0, len(counts))
+	for key := range counts {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	result := make([]GraphStatusCount, 0, len(keys))
+	for _, key := range keys {
+		result = append(result, GraphStatusCount{Key: key, Count: counts[key]})
+	}
+	return result
 }
 
 // graphStatus never fails on a missing snapshot: reporting that the index is

@@ -1,0 +1,127 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/Luqueee/kivgraph/internal/config"
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/indexing"
+	"github.com/Luqueee/kivgraph/internal/version"
+)
+
+// profileProjectIndexer serializes full rebuilds across profiles and creates a
+// named profile before its first pass. Analyzer processes are shared by the
+// installation, so two profile rebuilds must not compete for them.
+type profileProjectIndexer struct {
+	gate       chan struct{}
+	configPath string
+	store      *hotsnapshot.SnapshotStore
+}
+
+type namedProfileReindexer struct {
+	indexer *profileProjectIndexer
+	profile string
+}
+
+func (indexer namedProfileReindexer) Reindex(ctx context.Context) error {
+	return indexer.indexer.ReindexProfile(ctx, indexer.profile)
+}
+
+func newProfileProjectIndexer(configPath string, store *hotsnapshot.SnapshotStore) *profileProjectIndexer {
+	return &profileProjectIndexer{gate: make(chan struct{}, 1), configPath: configPath, store: store}
+}
+
+func (indexer *profileProjectIndexer) IndexProjects(
+	ctx context.Context,
+	projects []indexing.Project,
+	progress func(indexing.ProjectProgress),
+) (indexing.ProjectResult, error) {
+	loaded, err := config.Load(indexer.configPath)
+	if err != nil {
+		return indexing.ProjectResult{}, err
+	}
+	return indexer.IndexProjectsInProfile(ctx, loaded.Config.Profiles.Default, projects, progress)
+}
+
+func (indexer *profileProjectIndexer) IndexProjectsInProfile(
+	ctx context.Context,
+	profile string,
+	projects []indexing.Project,
+	progress func(indexing.ProjectProgress),
+) (indexing.ProjectResult, error) {
+	if indexer == nil || indexer.store == nil {
+		return indexing.ProjectResult{}, errors.New("profile project indexer is not configured")
+	}
+	if err := config.ValidateProfileName(profile); err != nil {
+		return indexing.ProjectResult{}, fmt.Errorf("profile name: %w", err)
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	select {
+	case indexer.gate <- struct{}{}:
+		defer func() { <-indexer.gate }()
+	case <-ctx.Done():
+		return indexing.ProjectResult{}, ctx.Err()
+	}
+
+	loaded, profileStore, err := indexer.loadProfileStore(ctx, profile, true)
+	if err != nil {
+		return indexing.ProjectResult{}, err
+	}
+	service := indexing.NewService(loaded, profileStore, version.Value, "")
+	return service.IndexProjects(ctx, projects, progress)
+}
+
+func (indexer *profileProjectIndexer) ReindexProfile(ctx context.Context, profile string) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	select {
+	case indexer.gate <- struct{}{}:
+		defer func() { <-indexer.gate }()
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	loaded, profileStore, err := indexer.loadProfileStore(ctx, profile, false)
+	if err != nil {
+		return err
+	}
+	return indexing.NewService(loaded, profileStore, version.Value, "").Reindex(ctx)
+}
+
+func (indexer *profileProjectIndexer) loadProfileStore(
+	ctx context.Context,
+	profile string,
+	create bool,
+) (config.Loaded, *hotsnapshot.SnapshotStore, error) {
+	loaded, err := config.LoadProfile(indexer.configPath, profile)
+	if errors.Is(err, config.ErrProfileNotFound) {
+		if !create {
+			return config.Loaded{}, nil, err
+		}
+		if err := config.CreateProfile(indexer.configPath, profile); err != nil {
+			return config.Loaded{}, nil, err
+		}
+		loaded, err = config.LoadProfile(indexer.configPath, profile)
+	}
+	if err != nil {
+		return config.Loaded{}, nil, err
+	}
+
+	selected, err := indexer.store.ResolveProfiles([]string{profile})
+	if err != nil {
+		profileStore, openErr := openConfiguredSnapshot(ctx, loaded)
+		if openErr != nil {
+			return config.Loaded{}, nil, openErr
+		}
+		if addErr := indexer.store.AddProfile(profile, profileStore); addErr != nil {
+			profileStore.Close()
+			return config.Loaded{}, nil, addErr
+		}
+		selected = []hotsnapshot.ProfileStore{{Name: profile, Store: profileStore}}
+	}
+	return loaded, selected[0].Store, nil
+}

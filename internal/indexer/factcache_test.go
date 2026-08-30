@@ -50,8 +50,13 @@ func Greeting() string { return "hello" }
 }
 
 func (fixture *cachedFixture) index() (facts.Set, FullReport) {
+	return fixture.indexProfile("")
+}
+
+func (fixture *cachedFixture) indexProfile(profile string) (facts.Set, FullReport) {
 	fixture.t.Helper()
 	set, report, err := Full(context.Background(), FullOptions{
+		Profile:           profile,
 		Repositories:      []workspace.Repository{fixture.repository},
 		SyntheticWorkFile: fixture.workFile,
 		CacheMode:         fixture.mode,
@@ -61,6 +66,20 @@ func (fixture *cachedFixture) index() (facts.Set, FullReport) {
 		fixture.t.Fatalf("Full() error = %v", err)
 	}
 	return set, report
+}
+
+func TestFactCacheKeepsAlternatingProfilesWarm(t *testing.T) {
+	fixture := newCachedFixture(t)
+	for _, profile := range []string{"backend", "frontend"} {
+		if _, report := fixture.indexProfile(profile); report.Cache.Hits != 0 || report.Cache.Misses != 1 {
+			t.Fatalf("cold %s cache = %+v, want one miss", profile, report.Cache)
+		}
+	}
+	for _, profile := range []string{"backend", "frontend"} {
+		if _, report := fixture.indexProfile(profile); report.Cache.Hits != 1 || report.Cache.Misses != 0 {
+			t.Fatalf("warm %s cache = %+v, want one hit", profile, report.Cache)
+		}
+	}
 }
 
 func encodedFacts(t *testing.T, set facts.Set) string {

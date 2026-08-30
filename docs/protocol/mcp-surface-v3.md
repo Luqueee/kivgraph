@@ -23,6 +23,20 @@ get_blast_radius        get_source             graph_status
 Una `serve` configurada añade `index_project`, la única mutación, con su puerta
 de consentimiento.
 
+Todas las consultas aceptan `profile` como lista y omitirla usa el perfil por
+defecto. Todas aceptan varios nombres o `["*"]`;
+`graph_status` y `list_repositories` descubren todos cuando se omite. Una
+selección múltiple sustituye `snapshot_id` por `profiles`, fija
+`cross_profile_edges: "not_resolved"`, añade el perfil a cada fila y conserva
+la completitud más débil. Las filas idénticas se deduplican por `stable_key` y
+payload y enumeran los perfiles que las aportaron. El cursor queda ligado al
+conjunto canónico de nombres y generaciones. Una `stable_key` exige exactamente
+un perfil cuando la instalación contiene varios.
+
+`index_project` acepta en cambio un `profile` string: omitirlo escribe en el
+perfil por defecto y un nombre inexistente crea su directorio antes de la
+reconstrucción.
+
 `get_unresolved_references` **salió** de la superficie del modelo: responde una
 pregunta sobre el índice y no sobre el código, y cada tool de la lista cuesta
 descripción residente en cada petición de cada sesión. Sigue disponible desde el

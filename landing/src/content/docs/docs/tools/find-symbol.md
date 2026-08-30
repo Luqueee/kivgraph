@@ -9,6 +9,7 @@ description: Find where a symbol is declared, by name, qualified name, prefix or
 
 | Argument | Type | Default | Meaning |
 | --- | --- | --- | --- |
+| `profile` | array of strings | configured default | Profiles to query. `["*"]` alone selects all profiles. |
 | `name` | string | none, required | The text to search for. Rejected with `INVALID_ARGUMENT` when it is empty or carries surrounding whitespace. |
 | `mode` | string | `exact` | One of `exact`, `qualified_exact`, `prefix`, `substring`. Any other value is rejected with `INVALID_ARGUMENT`. `exact` and `qualified_exact` match a whole interned string; `prefix` and `substring` walk every symbol name in the snapshot. |
 | `kind` | string | unset | Keeps only symbols whose `kind` is exactly this string. |
