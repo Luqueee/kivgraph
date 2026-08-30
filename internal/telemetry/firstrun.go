@@ -79,12 +79,17 @@ type Options struct {
 // ping is the payload the endpoint validates. The field names and their closed
 // sets are the contract; `landing/src/install-report.mjs` refuses anything
 // else, including a sixth field.
+//
+// `Transport` carries `omitempty`: it belongs to `binary` alone, and the
+// endpoint refuses it present on any other row. `AnnounceSupervisorInstall`
+// leaves it unset for exactly that reason, rather than sending an empty
+// string the server would have to also special-case.
 type ping struct {
 	Emitter   string `json:"emitter"`
 	Version   string `json:"version"`
 	Platform  string `json:"platform"`
 	Channel   string `json:"channel"`
-	Transport string `json:"transport"`
+	Transport string `json:"transport,omitempty"`
 }
 
 // Announce reports the first run of this version, or does nothing.
@@ -94,6 +99,30 @@ type ping struct {
 // synchronous: a caller that must not wait runs it in a goroutine, and the
 // timeout above is what bounds that goroutine.
 func Announce(ctx context.Context, options Options) bool {
+	return announce(ctx, options, "binary", "first-run", true)
+}
+
+// AnnounceSupervisorInstall reports that `daemon install` registered this
+// machine's supervisor entry for this version, or does nothing.
+//
+// It is a third fact, next to the installer's and the binary's, and a
+// stronger one where it applies: a systemd or launchd unit is not something a
+// process acquires as a side effect of running once, so a row here means
+// someone asked the platform to keep the daemon around. The cost is scope --
+// it only ever fires for the shared-daemon arrangement, which is not how most
+// real use happens, per `docs/adr/0083-a-download-is-not-a-person.md`.
+//
+// The marker lives in its own namespace so that installing the daemon and
+// running it once are independent facts: a machine can do either first, or
+// both, and each is reported exactly once per version.
+func AnnounceSupervisorInstall(ctx context.Context, options Options) bool {
+	return announce(ctx, options, "supervisor", "supervisor-install", false)
+}
+
+// announce is what both public entry points share. `withTransport` is false
+// for every emitter but `binary`'s, because the endpoint refuses the field
+// present on any other row.
+func announce(ctx context.Context, options Options, emitter, markerNamespace string, withTransport bool) bool {
 	getenv := options.Getenv
 	if getenv == nil {
 		getenv = os.Getenv
@@ -119,17 +148,19 @@ func Announce(ctx context.Context, options Options) bool {
 		return false
 	}
 
-	created, err := claimTheVersion(options.StateDirectory, options.Version)
+	created, err := claimTheVersion(options.StateDirectory, markerNamespace, options.Version)
 	if err != nil || !created {
 		return false
 	}
 
 	body := ping{
-		Emitter:   "binary",
-		Version:   options.Version,
-		Platform:  Platform(),
-		Channel:   channel,
-		Transport: options.Transport,
+		Emitter:  emitter,
+		Version:  options.Version,
+		Platform: Platform(),
+		Channel:  channel,
+	}
+	if withTransport {
+		body.Transport = options.Transport
 	}
 	notice(options.Notice, body)
 	return send(ctx, options, body)
@@ -139,8 +170,13 @@ func Announce(ctx context.Context, options Options) bool {
 //
 // `O_EXCL` is the whole function. Two processes racing here get exactly one
 // `true`, which is what makes a burst of eight `serve` starts one ping.
-func claimTheVersion(stateDirectory, version string) (bool, error) {
-	directory := filepath.Join(stateDirectory, "first-run")
+//
+// `namespace` keeps `Announce` and `AnnounceSupervisorInstall` from sharing a
+// marker: a machine that installed the daemon and later ran `kivgraph daemon`
+// directly, or the other way around, reports both facts once each rather than
+// letting whichever happened first silence the other.
+func claimTheVersion(stateDirectory, namespace, version string) (bool, error) {
+	directory := filepath.Join(stateDirectory, namespace)
 	if err := os.MkdirAll(directory, 0o700); err != nil {
 		return false, err
 	}
@@ -232,16 +268,25 @@ func isExtensionManifest(path string) bool {
 //
 // It names the variable rather than describing a setting, so the answer to
 // "how do I stop this" is on the same line as the thing that prompted the
-// question.
+// question. The subject and the fields both depend on the emitter, because a
+// supervisor row has no transport to name and is not itself a "run".
 func notice(writer io.Writer, body ping) {
 	if writer == nil {
 		return
 	}
+	subject := fmt.Sprintf("first run of %s on this machine", body.Version)
+	if body.Emitter == "supervisor" {
+		subject = fmt.Sprintf("daemon install for %s on this machine", body.Version)
+	}
+	fields := fmt.Sprintf("version, platform (%s), channel (%s)", body.Platform, body.Channel)
+	if body.Transport != "" {
+		fields += fmt.Sprintf(" and transport (%s)", body.Transport)
+	}
 	fmt.Fprintf(writer,
-		"kivgraph: first run of %s on this machine: reporting version, platform (%s), channel (%s) and transport (%s), and nothing else.\n"+
+		"kivgraph: %s: reporting %s, and nothing else.\n"+
 			"kivgraph: no identifier is created and nothing about your code is sent. https://kivgraph.dev/telemetry/\n"+
 			"kivgraph: set %s=0 to turn it off.\n",
-		body.Version, body.Platform, body.Channel, body.Transport, DisableEnv)
+		subject, fields, DisableEnv)
 }
 
 // send posts the ping and drops every failure.

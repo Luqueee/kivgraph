@@ -186,13 +186,28 @@ here rather than discovered in a report.
 property exists: an install is not a visit, and mixing them moves
 visitors, bounce rate and the conversion rate that describes people.
 
-**`emitter` is why the two sources do not become one number.** An installer
+**`emitter` is why the sources do not become one number.** An installer
 that finished and a binary that started are different facts, and the second
 does not follow from the first: a bundle can be installed and never
 launched. Without the field the property would report an installer's
 success as a first run, which is the claim this ADR spends its length
-refusing to make. It is `installer` or `binary`, the two are aggregated
-separately, and only the `binary` rows answer *how many machines ran it*.
+refusing to make. It is `installer`, `binary` or `supervisor`, the three
+are aggregated separately, and only the `binary` rows answer *how many
+machines ran it*.
+
+**`supervisor` is a third fact, added once the other two were measured
+against a real actor and not just a hypothesis.** Within a day of
+publishing `/telemetry/`, `binary` rows for a released version arrived
+from datacentre addresses at a steady cadence, all `channel=archive` and
+`transport=daemon` -- the shape of something starting the daemon once,
+unattended, to see what it does, not of a person. Nothing in that row can
+tell the two apart, because from the endpoint's point of view both really
+did run the released binary. `kivgraph daemon install` registering a
+systemd or launchd unit is a fact that same actor has no reason to
+produce: persistence is a cost that observing a binary for a few seconds
+does not need. The row is therefore scarcer and worth more per row, at the
+declared cost of covering only the shared-daemon arrangement, which is not
+how most real use happens.
 
 **The endpoint is public, so the number is worth exactly its bounds.**
 Strict validation against the closed sets of platform, channel and

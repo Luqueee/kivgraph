@@ -39,6 +39,12 @@ const installer = {
   platform: "linux-amd64",
   channel: "installer",
 };
+const supervisorInstall = {
+  emitter: "supervisor",
+  version: "0.10.0",
+  platform: "linux-amd64",
+  channel: "archive",
+};
 
 describe("what is accepted", () => {
   it("takes a binary ping whole", () => {
@@ -53,6 +59,21 @@ describe("what is accepted", () => {
     // An installer has not started a server. A transport there would be a
     // default nobody chose, in the field that exists to measure the choice.
     const forged = { ...installer, transport: "daemon" };
+    assert.equal(parseFirstRun(JSON.stringify(forged)), null);
+  });
+
+  it("takes a supervisor-install ping, which also carries no transport", () => {
+    assert.deepEqual(
+      parseFirstRun(JSON.stringify(supervisorInstall)),
+      supervisorInstall,
+    );
+  });
+
+  it("refuses a transport on a supervisor-install row", () => {
+    // Registering the daemon with the platform's service manager is not
+    // starting it. A transport here would name an arrangement that has not
+    // happened yet.
+    const forged = { ...supervisorInstall, transport: "daemon" };
     assert.equal(parseFirstRun(JSON.stringify(forged)), null);
   });
 

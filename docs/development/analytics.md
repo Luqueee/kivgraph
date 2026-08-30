@@ -590,8 +590,8 @@ published release that carries the emitters; every version before it,
 One event, `first_run`, on a third property, `kivgraph FIRST RUNS`, with five
 flat string fields:
 
-- **`emitter`** -- `installer` or `binary`. Which of two different facts this
-  row is;
+- **`emitter`** -- `installer`, `binary` or `supervisor`. Which of three
+  different facts this row is;
 - **`version`** -- the version that arrived, `0.9.3`, validated against the
   published version pattern *and* against the floor below;
 - **`platform`** -- `linux-amd64`, `darwin-arm64` or `windows-amd64`. The same
@@ -606,12 +606,12 @@ flat string fields:
   a hand-extracted archive and one the installer placed -- which costs
   nothing, because the installer reports its own row;
 - **`transport`** -- `stdio` or `daemon` on a `binary` row, and **absent** on
-  an `installer` one, because an installer has not started a server and
-  reporting a default it did not choose would be inventing data. It is
+  an `installer` or a `supervisor` one, because neither has started a server
+  and reporting a default it did not choose would be inventing data. It is
   required on the rows that have it: a `binary` row without a transport is
   refused rather than defaulted.
 
-One machine installing one version therefore produces **at most two rows**,
+One machine installing one version therefore produces **at most three rows**,
 one per emitter, and they are never added together.
 
 **A binary that is not running from a release layout reports nothing**, and
@@ -633,7 +633,7 @@ installation, and nothing would say so.
 object *is* the event, and `run_first` would satisfy the shape at the cost of
 being unsearchable by the name everyone will use.
 
-### Why two emitters, and why the field cannot be dropped
+### Why three emitters, and why the field cannot be dropped
 
 An installer that finished and a binary that started are different facts, and
 the second does not follow from the first: a bundle can be installed and never
@@ -648,18 +648,33 @@ it. The split is counted in `LUQUE-2232` over the releases API from `v0.1.0`
 to `v0.9.1`: `39 %` of downloads were `.mcpb` and `5 %` were the installers,
 and Layer 0 now keeps that number current instead of quoting it.
 
+`supervisor` is the third, and it exists for a reason neither of the other two
+answers: nothing in a `binary` row distinguishes a machine that ran
+`kivgraph daemon` once, unattended, from one whose owner asked the platform to
+keep it around with `kivgraph daemon install`. Registering a systemd or
+launchd unit is not a side effect of running once -- an automated sandbox that
+starts a released archive to observe it has no reason to also write and enable
+a unit -- so a `supervisor` row is scarcer than a `binary` one and worth more
+per row. The cost is scope: it fires only for the shared-daemon arrangement,
+which most real use never touches, so it is a small, trustworthy number and
+not a replacement for the other two.
+
 ### What is measured is the first run of a version
 
-**The marker governs the `binary` emitter and nothing else.** An installer has
-no marker: it reports once per successful run, and a reader who runs it three
-times sends three, which the endpoint's window collapses. The binary reports
-from the three commands that serve the MCP surface -- `serve` in process,
-`serve` relaying, and the daemon -- and from no other, because what is measured
-is a machine that ran the server and because `transport` is required on those
-rows rather than defaulted. Sharing one marker
-between the two emitters would be the bug the dedupe key already avoids --
-whichever emitter got there first would suppress the other's row, and the two
-rows are the two different facts this property exists to keep apart.
+**The marker governs the `binary` and `supervisor` emitters, in separate
+namespaces, and not the installer.** An installer has no marker: it reports
+once per successful run, and a reader who runs it three times sends three,
+which the endpoint's window collapses. The binary reports from the three
+commands that serve the MCP surface -- `serve` in process, `serve` relaying,
+and the daemon -- and from no other, because what is measured is a machine that
+ran the server and because `transport` is required on those rows rather than
+defaulted. `daemon install` succeeding reports separately, under its own
+marker namespace, because installing the daemon and running it are independent
+facts: a machine can do either first, or both, for the same version, and each
+is one row. Sharing a marker between any two of the three would be the bug the
+dedupe key already avoids for the other pair -- whichever got there first
+would suppress the rest, and the rows are the different facts this property
+exists to keep apart.
 
 The marker lives under the state directory, not the bundle root: an update
 replaces the bundle, so a marker there would fire again on every update.

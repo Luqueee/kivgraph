@@ -13,7 +13,7 @@
 
 import { REPORTER_HEADERS } from "./ai-report.mjs";
 
-/** The path the installers and the binary post to. */
+/** The path the installers, the binary and `daemon install` post to. */
 export const FIRST_RUN_PATH = "/api/telemetry/first-run";
 
 /** The event name on the first-runs property. */
@@ -23,7 +23,7 @@ export const FIRST_RUN_EVENT = "first_run";
 // worth: the endpoint is public, so without it a forged `platform` invents a
 // row no release ever produced, and every report built on the field inherits
 // the invention.
-export const EMITTERS = Object.freeze(["installer", "binary"]);
+export const EMITTERS = Object.freeze(["installer", "binary", "supervisor"]);
 export const PLATFORMS = Object.freeze([
   "linux-amd64",
   "darwin-arm64",
@@ -118,6 +118,11 @@ export const DEDUPE_MAX_ENTRIES = 5000;
  * rather than ignored, because a client sending a sixth field is a client this
  * endpoint has not agreed to, and silently dropping it would let a field
  * appear in production that nothing here or in the documentation describes.
+ *
+ * `transport` belongs to `binary` alone, checked by exclusion rather than by
+ * naming `installer` and `supervisor`: a fourth emitter that also has nothing
+ * serving yet inherits the right refusal instead of needing this function
+ * edited to know about it too.
  */
 export function parseFirstRun(text) {
   let body;
@@ -151,10 +156,10 @@ export function parseFirstRun(text) {
   if (!PLATFORMS.includes(platform)) return null;
   if (!CHANNELS.includes(channel)) return null;
 
-  // `transport` belongs to the binary alone. An installer has not started a
-  // server, so a transport on that row would be a default nobody chose, and
-  // the field exists precisely to measure which arrangement actually served.
-  if (emitter === "installer") {
+  // Neither an installer nor a supervisor registration has started a server,
+  // so a transport on either row would be a default nobody chose, and the
+  // field exists precisely to measure which arrangement actually served.
+  if (emitter !== "binary") {
     if (transport !== undefined) return null;
     return { emitter, version, platform, channel };
   }

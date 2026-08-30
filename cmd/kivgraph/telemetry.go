@@ -71,3 +71,35 @@ func relayedFirstRunOptions(loaded config.Loaded) telemetry.Options {
 	options.Transport = "daemon"
 	return options
 }
+
+// supervisorInstallOptions builds what the emitter is handed when `daemon
+// install` succeeds.
+//
+// It does not reuse `firstRunOptions`: that function derives a transport from
+// a command name, and there is no arrangement to name here -- a supervisor
+// entry was registered, and nothing is serving yet.
+func supervisorInstallOptions(loaded config.Loaded) telemetry.Options {
+	executable, err := os.Executable()
+	if err != nil {
+		executable = ""
+	}
+	return telemetry.Options{
+		StateDirectory: stateDirectory(loaded),
+		Version:        version.Value,
+		Executable:     executable,
+		// Never os.Stdout, for the same reason as the two above, even though
+		// `daemon install` does not itself speak a protocol over it: the
+		// notice is one function shared with the paths that do.
+		Notice: os.Stderr,
+	}
+}
+
+// announceSupervisorInstall reports that `daemon install` gave this machine a
+// supervisor entry for this version, off the path of the command.
+//
+// Called once, from the success tail of `runSupervisorCommand`'s `"install"`
+// case, and from nowhere else: `daemon remove` and `daemon status` change or
+// read that entry but do not create it, and are not the fact this reports.
+func announceSupervisorInstall(loaded config.Loaded) {
+	go telemetry.AnnounceSupervisorInstall(context.Background(), supervisorInstallOptions(loaded))
+}
