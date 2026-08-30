@@ -50,6 +50,7 @@ jobs:
           bazelisk-cache: false
           disk-cache: false
           repository-cache: false
+          cache-save: false
 
       - name: Build benchmark harness
         run: go build -o "$RUNNER_TEMP/build-system-cost" ./benchmarks/build-system-cost

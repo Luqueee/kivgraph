@@ -48,6 +48,13 @@ func TestRunRecordsBothArmsWithoutUsingRealCaches(t *testing.T) {
 	if got.Trials[0].Arms[0].Name != armGo || got.Trials[1].Arms[0].Name != armBazel {
 		t.Fatalf("arm order was not alternated: %#v", got.Trials)
 	}
+	bazelLog, err := os.ReadFile(filepath.Join(output, "trial-01-bazel.log"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(bazelLog), "--disk_cache=") {
+		t.Fatalf("Bazel commands did not override a host disk cache:\n%s", bazelLog)
+	}
 	if _, err := os.Stat(filepath.Join(output, "report.md")); err != nil {
 		t.Fatal(err)
 	}
