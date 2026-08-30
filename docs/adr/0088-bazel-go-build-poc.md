@@ -57,10 +57,23 @@ suite is not claimed as a Bazel suite yet because several tests walk relative
 from the host `PATH`. Making those tests runfile-aware is a separate refactor,
 not a reason to weaken their existing contracts.
 
-This change does not claim a speedup. A follow-up must compare a clean build,
-a warm no-op build, and a small Go edit on a CI runner and on a developer
-machine before Bazel enters CI or replaces Make targets. The same comparison
-must include setup and external dependency download time.
+The initial measurements were completed locally on macOS arm64 with Bazel
+`9.2.0` and the Go toolchain required by `go.mod`, using the Kivgraph checkout as
+the corpus. A clean `make bazel-poc-test` run took `65.03 s` and performed `395`
+actions while setting up the Bazel SDK and resolving the external dependency
+graph; setup and dependency download are included in that wall-clock result but
+were not separately instrumented. A warm no-op run of the final 12-target smoke
+suite took `0.59 s`. After an isolated Go source edit, `bazel build
+//cmd/kivgraph:kivgraph` took `1.65 s`, compared with `4.63 s` for the equivalent
+`go build ./cmd/kivgraph`. These are developer-machine measurements, not CI
+promises, and they do not justify moving Bazel into CI or replacing Make yet.
+
+The follow-up benchmark and adoption decision are tracked in [issue
+#124](https://github.com/Luqueee/kivgraph/issues/124). It must repeat the clean,
+warm, and one-file-edit comparisons on a representative CI runner and a
+developer machine, record setup and external dependency download time
+separately, and decide whether Bazel should enter CI, expand its smoke suite,
+remain an optional POC, or be abandoned.
 
 ## Alternatives considered
 

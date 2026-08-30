@@ -47,4 +47,3 @@ diff --git a/bindings/go/binding.go b/bindings/go/binding.go
 +// #include "src/tree_sitter/parser.h"
 +// const TSLanguage *tree_sitter_rust(void);
  import "C"
-diff --git a/BUILD.bazel b/BUILD.bazel

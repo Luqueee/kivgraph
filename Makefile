@@ -1,5 +1,19 @@
 .PHONY: build test bazel-build bazel-poc-test semantic-coverage coverage version ladybug-lib test-ladybug build-linux-amd64 build-darwin-arm64 landing-check landing-build
 
+BAZEL_POC_TESTS := \
+	//:gazelle_test \
+	//internal/syntax:syntax_test \
+	//internal/release:release_test \
+	//internal/version:version_test \
+	//internal/mcp:mcp_test \
+	//internal/dartloader:dartloader_test \
+	//internal/scip/scipwire:scipwire_test \
+	//internal/csharploader:csharploader_test \
+	//internal/javaloader:javaloader_test \
+	//internal/rustloader:rustloader_test \
+	//internal/storage/ladybug:ladybug_test \
+	//cmd/kivgraph:kivgraph_test
+
 build: test version
 	go build ./cmd/kivgraph
 
@@ -17,13 +31,7 @@ bazel-build:
 # suite remains the canonical test target because some tests intentionally
 # inspect a real checkout and host toolchains rather than runfiles.
 bazel-poc-test:
-	bazel test //:gazelle_test //internal/syntax:syntax_test //internal/release:release_test \
-		//internal/version:version_test //internal/mcp:mcp_test \
-		//internal/dartloader:dartloader_test \
-		//internal/scip/scipwire:scipwire_test //internal/csharploader:csharploader_test \
-		//internal/javaloader:javaloader_test //internal/rustloader:rustloader_test \
-		//internal/storage/ladybug:ladybug_test //cmd/kivgraph:kivgraph_test \
-		--test_output=errors
+	bazel test $(BAZEL_POC_TESTS) --test_output=errors
 
 semantic-coverage:
 	scripts/verify-semantic-coverage.sh

@@ -58,6 +58,7 @@ go_test(
         "filelock_supported_test.go",
     ],
     embed = [":filelock"],
+    # keep: filelock_other_test.go is included on wasip1.
     deps = select({
         "@rules_go//go/platform:aix": [
             "//internal/testsupport",
@@ -81,6 +82,9 @@ go_test(
             "//internal/testsupport",
         ],
         "@rules_go//go/platform:js": [
+            "//internal/testsupport",
+        ],
+        "@rules_go//go/platform:wasip1": [
             "//internal/testsupport",
         ],
         "@rules_go//go/platform:linux": [
