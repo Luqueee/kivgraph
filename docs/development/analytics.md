@@ -787,17 +787,32 @@ nothing is forwarded, so a development landing cannot write to the dataset.
 ### What the collector stores, which is not nothing
 
 Read from the same `13` events, in the session and event rows they produced.
-A session row carries a **country and a city** derived from the address, and a
-device class that defaults to `desktop` for a request with no screen. The
-address itself is not stored.
+A session row carries a **country and, when the address resolves to one, a
+city**, plus a device class that defaults to `desktop` for a request with no
+screen. The address itself is not stored.
 
 The city is a correction, and it is the kind worth reading twice. The first
 measurement said the city came back empty, because it was taken with
 `8.8.8.8`, `1.1.1.1` and a reserved range: datacentre addresses resolve to a
-country and nothing finer. The first ping from a residential address, on
-2026-08-30, arrived as `ES` / `Sabadell`. A privacy claim measured on
-synthetic input was therefore weaker than what production does, which is the
-direction that matters -- `/telemetry/` now says city.
+country and nothing finer, so the reading was true of the input and false of
+the property.
+
+The first ping from a residential address, on 2026-08-30, arrived as `ES` /
+`Sabadell`. It was this, from a home connection, against the deployed endpoint
+rather than the collector -- so the address is the caller's own and the
+landing forwards it:
+
+```sh
+curl -sS -X POST https://kivgraph.dev/api/telemetry/first-run \
+  -H 'Content-Type: application/json' \
+  -d '{"emitter":"binary","version":"0.9.2","platform":"linux-amd64",
+       "channel":"archive","transport":"stdio"}'
+# then read the row with `umami_list_events` over that window
+```
+
+A privacy claim measured on synthetic input was therefore weaker than what
+production does, which is the direction that matters -- `/telemetry/` now
+says city.
 
 One more thing a report has to know: the stats endpoint answers `visitors: 0`
 for this property, because it counts sessions with **pageviews** and a first

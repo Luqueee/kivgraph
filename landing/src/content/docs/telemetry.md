@@ -44,12 +44,13 @@ no version of it that carries more.
   one NAT counts as one machine, and we would rather say that than let you
   find it out.
 - **A rough location, and that one is stored.** The collector derives a
-  country and a city from the address before discarding it, so the dataset
-  knows a first run happened in Sabadell rather than merely in Spain. No
-  street, no coordinates and no address kept -- but a city, and this page said
-  otherwise until 2026-08-30: the first measurement used datacentre addresses,
-  which resolve to a country and nothing finer, and the first real ping showed
-  a city.
+  country from the address before discarding it, and a city whenever the
+  address resolves to one -- a home connection usually does, a datacentre one
+  usually does not. So the dataset can know that a first run happened in
+  Sabadell rather than merely in Spain. No street, no coordinates and no
+  address kept. This page claimed the city was always empty until 2026-08-30:
+  that was measured with datacentre addresses, and the first real ping had a
+  city in it.
 
 ## Why the ping exists at all
 
