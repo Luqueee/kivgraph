@@ -504,6 +504,10 @@ jobs:
         shell: bash
         run: find dist/kivgraph-linux-amd64/bin -type f -exec chmod 0755 {} +
 
+      - name: Add bundled tools to PATH
+        shell: bash
+        run: echo "$GITHUB_WORKSPACE/dist/kivgraph-linux-amd64/bin" >> "$GITHUB_PATH"
+
       - name: Verify downloaded Linux distribution checksums
         run: |
           cd dist/kivgraph-linux-amd64
