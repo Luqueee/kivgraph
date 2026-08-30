@@ -1,0 +1,112 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "filelock",
+    srcs = [
+        "doc.go",
+        "filelock_other.go",
+        "filelock_unix.go",
+        "filelock_windows.go",
+    ],
+    importpath = "github.com/Luqueee/kivgraph/internal/filelock",
+    visibility = ["//:__subpackages__"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:android": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "filelock_test",
+    srcs = [
+        "filelock_other_test.go",
+        "filelock_supported_test.go",
+    ],
+    embed = [":filelock"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//internal/testsupport",
+        ],
+        "@rules_go//go/platform:android": [
+            "//internal/testsupport",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//internal/testsupport",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//internal/testsupport",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//internal/testsupport",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//internal/testsupport",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//internal/testsupport",
+        ],
+        "@rules_go//go/platform:js": [
+            "//internal/testsupport",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//internal/testsupport",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//internal/testsupport",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//internal/testsupport",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//internal/testsupport",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//internal/testsupport",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//internal/testsupport",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//internal/testsupport",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//internal/testsupport",
+        ],
+        "//conditions:default": [],
+    }),
+)

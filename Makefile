@@ -1,10 +1,29 @@
-.PHONY: build test semantic-coverage coverage version ladybug-lib test-ladybug build-linux-amd64 build-darwin-arm64 landing-check landing-build
+.PHONY: build test bazel-build bazel-poc-test semantic-coverage coverage version ladybug-lib test-ladybug build-linux-amd64 build-darwin-arm64 landing-check landing-build
 
 build: test version
 	go build ./cmd/kivgraph
 
 test:
 	go test ./...
+
+# bazel-build exercises the optional Go-only Bazel graph. Packaging, the
+# native LadybugDB build, and the independent pnpm projects remain on their
+# existing Make targets while this proof of concept is evaluated.
+bazel-build:
+	bazel build //cmd/kivgraph:kivgraph
+
+# bazel-poc-test covers the Bazel graph, generated BUILD files, native
+# Tree-sitter bindings, and repository-owned release fixtures. The full Go
+# suite remains the canonical test target because some tests intentionally
+# inspect a real checkout and host toolchains rather than runfiles.
+bazel-poc-test:
+	bazel test //:gazelle_test //internal/syntax:syntax_test //internal/release:release_test \
+		//internal/version:version_test //internal/mcp:mcp_test \
+		//internal/dartloader:dartloader_test \
+		//internal/scip/scipwire:scipwire_test //internal/csharploader:csharploader_test \
+		//internal/javaloader:javaloader_test //internal/rustloader:rustloader_test \
+		//internal/storage/ladybug:ladybug_test //cmd/kivgraph:kivgraph_test \
+		--test_output=errors
 
 semantic-coverage:
 	scripts/verify-semantic-coverage.sh

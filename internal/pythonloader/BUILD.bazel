@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "pythonloader",
+    srcs = ["loader.go"],
+    importpath = "github.com/Luqueee/kivgraph/internal/pythonloader",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/facts",
+        "//internal/workspace",
+    ],
+)
+
+go_test(
+    name = "pythonloader_test",
+    srcs = [
+        "loader_test.go",
+        "provider_test.go",
+    ],
+    data = ["//:project_files"],
+    embed = [":pythonloader"],
+    deps = [
+        "//internal/executable",
+        "//internal/facts",
+        "//internal/workspace",
+    ],
+)

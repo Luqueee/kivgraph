@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "nativeheap",
+    srcs = [
+        "doc.go",
+        "nativeheap_glibc.go",
+        "nativeheap_other.go",
+    ],
+    cgo = True,
+    importpath = "github.com/Luqueee/kivgraph/internal/nativeheap",
+    visibility = ["//:__subpackages__"],
+)
+
+go_test(
+    name = "nativeheap_test",
+    srcs = ["nativeheap_test.go"],
+    deps = [":nativeheap"],
+)

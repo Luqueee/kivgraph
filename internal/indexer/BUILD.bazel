@@ -1,0 +1,58 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "indexer",
+    srcs = [
+        "factcache.go",
+        "full.go",
+        "rust_unit.go",
+        "semantic.go",
+    ],
+    importpath = "github.com/Luqueee/kivgraph/internal/indexer",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/config",
+        "//internal/csharploader",
+        "//internal/dartloader",
+        "//internal/executable",
+        "//internal/facts",
+        "//internal/goloader",
+        "//internal/goworkspace",
+        "//internal/javaloader",
+        "//internal/pythonloader",
+        "//internal/rustloader",
+        "//internal/syntax",
+        "//internal/workspace",
+        "@org_golang_x_sync//errgroup",
+    ],
+)
+
+go_test(
+    name = "indexer_test",
+    srcs = [
+        "factcache_absent_test.go",
+        "factcache_csharp_test.go",
+        "factcache_fingerprint_test.go",
+        "factcache_java_test.go",
+        "factcache_python_test.go",
+        "factcache_test.go",
+        "full_test.go",
+        "rust_unit_test.go",
+        "semantic_test.go",
+    ],
+    data = [
+        "//:project_files",
+        "//:testdata",
+    ],
+    embed = [":indexer"],
+    deps = [
+        "//internal/config",
+        "//internal/executable",
+        "//internal/facts",
+        "//internal/goloader",
+        "//internal/goworkspace",
+        "//internal/rustloader",
+        "//internal/testsupport",
+        "//internal/workspace",
+    ],
+)

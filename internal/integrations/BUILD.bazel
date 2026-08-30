@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "integrations",
+    srcs = [
+        "hooks.go",
+        "hooks_entry.go",
+        "hooks_plugin.go",
+        "integrations.go",
+        "skill.go",
+        "skilllink.go",
+    ],
+    embedsrcs = [
+        "assets/hooks/opencode.js",
+        "assets/kivgraph/SKILL.md",
+    ],
+    importpath = "github.com/Luqueee/kivgraph/internal/integrations",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/durable",
+        "@com_github_burntsushi_toml//:toml",
+    ],
+)
+
+go_test(
+    name = "integrations_test",
+    srcs = [
+        "endpoint_test.go",
+        "hooks_test.go",
+        "integrations_test.go",
+        "migrate_test.go",
+        "scaffolding_test.go",
+        "skilllink_test.go",
+        "targets_test.go",
+        "windows_test.go",
+    ],
+    embed = [":integrations"],
+    deps = [
+        "//internal/executable",
+        "//internal/testsupport",
+        "@com_github_burntsushi_toml//:toml",
+    ],
+)

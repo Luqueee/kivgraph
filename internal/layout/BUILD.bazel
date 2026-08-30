@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "layout",
+    srcs = ["layout.go"],
+    importpath = "github.com/Luqueee/kivgraph/internal/layout",
+    visibility = ["//:__subpackages__"],
+    deps = ["//internal/hotsnapshot"],
+)
+
+go_test(
+    name = "layout_test",
+    srcs = ["layout_test.go"],
+    deps = [
+        ":layout",
+        "//internal/hotsnapshot",
+    ],
+)

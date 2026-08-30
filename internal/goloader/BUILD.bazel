@@ -1,0 +1,56 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "goloader",
+    srcs = [
+        "crossrepo.go",
+        "definitions.go",
+        "inspect.go",
+        "loader.go",
+        "methods.go",
+        "packagedependencies.go",
+        "precision.go",
+        "references.go",
+        "stablekey.go",
+        "typerelations.go",
+        "unresolved.go",
+        "uses.go",
+    ],
+    importpath = "github.com/Luqueee/kivgraph/internal/goloader",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/goworkspace",
+        "//internal/hotsnapshot",
+        "//internal/workspace",
+        "@org_golang_x_tools//go/packages",
+        "@org_golang_x_tools//go/types/objectpath",
+    ],
+)
+
+go_test(
+    name = "goloader_test",
+    srcs = [
+        "coverage_test.go",
+        "crossrepo_test.go",
+        "definitions_test.go",
+        "fixture_negative_test.go",
+        "fixture_positive_test.go",
+        "loader_test.go",
+        "methods_test.go",
+        "packagedependencies_test.go",
+        "precision_test.go",
+        "references_test.go",
+        "stablekey_test.go",
+        "typerelations_test.go",
+        "unresolved_test.go",
+        "uses_test.go",
+    ],
+    data = ["//:testdata"],
+    embed = [":goloader"],
+    deps = [
+        "//internal/goworkspace",
+        "//internal/hotsnapshot",
+        "//internal/testsupport",
+        "//internal/workspace",
+    ],
+)

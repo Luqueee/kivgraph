@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "goworkspace",
+    srcs = ["synthetic.go"],
+    importpath = "github.com/Luqueee/kivgraph/internal/goworkspace",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/durable",
+        "//internal/workspace",
+        "@org_golang_x_mod//modfile",
+        "@org_golang_x_mod//semver",
+    ],
+)
+
+go_test(
+    name = "goworkspace_test",
+    srcs = [
+        "synthetic_test.go",
+        "toolchain_test.go",
+    ],
+    embed = [":goworkspace"],
+    deps = [
+        "//internal/testsupport",
+        "//internal/workspace",
+    ],
+)

@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "webapi",
+    srcs = [
+        "binary.go",
+        "handler.go",
+        "server.go",
+    ],
+    importpath = "github.com/Luqueee/kivgraph/internal/webapi",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/facts",
+        "//internal/hotsnapshot",
+        "//internal/layout",
+        "//internal/webassets",
+    ],
+)
+
+go_test(
+    name = "webapi_test",
+    srcs = [
+        "binary_test.go",
+        "handler_test.go",
+        "server_test.go",
+    ],
+    embed = [":webapi"],
+    deps = [
+        "//internal/facts",
+        "//internal/hotsnapshot",
+    ],
+)

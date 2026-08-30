@@ -1,0 +1,51 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "ladybug",
+    srcs = [
+        "canonical_integrity.go",
+        "canonical_integrity_stub.go",
+        "canonical_load.go",
+        "canonical_load_stub.go",
+        "canonical_scan.go",
+        "canonical_scan_stub.go",
+        "canonical_schema.go",
+        "connection_stub.go",
+        "database.go",
+        "doctor.go",
+        "doctor_stub.go",
+        "errors.go",
+        "mutation.go",
+        "query.go",
+        "scan_config.go",
+    ],
+    cgo = True,
+    importpath = "github.com/Luqueee/kivgraph/internal/storage/ladybug",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/facts",
+        "//internal/hotsnapshot",
+    ],
+)
+
+go_test(
+    name = "ladybug_test",
+    srcs = [
+        "canonical_catalog_test.go",
+        "canonical_load_test.go",
+        "canonical_schema_test.go",
+        "connection_stub_test.go",
+        "doctor_stub_test.go",
+        "mutation_test.go",
+        "scan_config_test.go",
+    ],
+    data = [
+        "//:project_files",
+        "//internal/facts:facts.go",
+    ],
+    embed = [":ladybug"],
+    deps = [
+        "//internal/facts",
+        "//internal/hotsnapshot",
+    ],
+)

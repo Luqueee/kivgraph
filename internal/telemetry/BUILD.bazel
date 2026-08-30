@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "telemetry",
+    srcs = ["firstrun.go"],
+    importpath = "github.com/Luqueee/kivgraph/internal/telemetry",
+    visibility = ["//:__subpackages__"],
+)
+
+go_test(
+    name = "telemetry_test",
+    srcs = ["firstrun_test.go"],
+    embed = [":telemetry"],
+)

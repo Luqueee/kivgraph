@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "dartloader",
+    srcs = ["loader.go"],
+    importpath = "github.com/Luqueee/kivgraph/internal/dartloader",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/executable",
+        "//internal/facts",
+        "//internal/workspace",
+    ],
+)
+
+go_test(
+    name = "dartloader_test",
+    srcs = ["loader_test.go"],
+    data = ["//:testdata"],
+    embed = [":dartloader"],
+    deps = [
+        "//internal/facts",
+        "//internal/workspace",
+    ],
+)

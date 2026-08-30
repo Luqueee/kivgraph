@@ -1,0 +1,47 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+exports_files(["facts.go"])
+
+go_library(
+    name = "facts",
+    srcs = [
+        "codes.go",
+        "facts.go",
+        "golang.go",
+        "module_symbol.go",
+        "rust.go",
+        "semantic.go",
+        "typescript.go",
+    ],
+    importpath = "github.com/Luqueee/kivgraph/internal/facts",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/goloader",
+        "//internal/hotsnapshot",
+        "//internal/rustloader",
+        "//internal/workspace",
+    ],
+)
+
+go_test(
+    name = "facts_test",
+    srcs = [
+        "codes_test.go",
+        "facts_test.go",
+        "golang_test.go",
+        "rust_test.go",
+        "semantic_test.go",
+        "typescript_test.go",
+    ],
+    data = [
+        "facts.go",
+        "//:testdata",
+    ],
+    embed = [":facts"],
+    deps = [
+        "//internal/goloader",
+        "//internal/goworkspace",
+        "//internal/rustloader",
+        "//internal/workspace",
+    ],
+)
