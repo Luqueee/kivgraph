@@ -592,8 +592,8 @@ flat string fields:
 
 - **`emitter`** -- `installer` or `binary`. Which of two different facts this
   row is;
-- **`version`** -- the version that arrived, `0.9.2`, validated against the
-  published version pattern;
+- **`version`** -- the version that arrived, `0.9.3`, validated against the
+  published version pattern *and* against the floor below;
 - **`platform`** -- `linux-amd64`, `darwin-arm64` or `windows-amd64`. The same
   vocabulary the release assets use, so Layer 0 and Layer 1 can be read side
   by side instead of being joined by hand;
@@ -762,6 +762,36 @@ The `emitter` in that key is the easy one to leave out. An installer that has
 just finished and the first run that follows it carry the same address and the
 same version seconds apart, so a window keyed on those two alone would discard
 the second -- precisely the `binary` row the property exists to collect.
+
+### A version below the floor cannot have sent anything
+
+Validating the *shape* of a ping does not validate its *origin*, and the gap
+was found the hard way. Within a day of publishing `/telemetry/`, 25
+well-formed pings arrived from 25 distinct datacentre addresses -- San Jose,
+Chicago, Dulles, Des Moines, Cheyenne, Phoenix -- one every five to ten
+minutes, every one of them claiming:
+
+    emitter=binary version=0.9.2 platform=linux-amd64 channel=archive
+
+`v0.9.2` has no `internal/telemetry/firstrun.go` in its tree. The emitter
+landed after that tag, so no binary of that release has code to send with:
+those rows were **impossible**, not unlikely, and they became rows only
+because nothing read the version as a fact the project already knew.
+
+So the endpoint refuses any version at or below the last release cut without
+an emitter. That bound is a truth about a tag already made and never needs
+revising. A floor kept at the *current* release would refuse a stale replay
+for longer, and would also discard every real ping of a new release the first
+time someone forgot to raise it -- silently, on exactly the data this property
+exists to collect. Losing the real number is the worse failure.
+
+It is not authentication, and nothing here can be: the emitter is open source,
+so any secret it carried would ship inside it. Anyone who reads the repository
+can send a ping that passes. What the floor removes is every replay of a claim
+the project can prove false, which is what a public endpoint can honestly do.
+
+The comparison is numeric per component. `0.10.0` is above `0.9.2` and a
+string comparison puts it below.
 
 The window does **not** buy the headline number. Under a daily-rotating hash
 one address reinstalling in a loop is already **one** unique visitor, so

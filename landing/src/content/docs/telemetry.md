@@ -21,7 +21,7 @@ It carries five fields and nothing else:
 | field | values | what it says |
 | --- | --- | --- |
 | `emitter` | `installer`, `binary` | whether an install finished or a binary started |
-| `version` | `MAJOR.MINOR.PATCH`, as in `0.9.2` | which version |
+| `version` | `MAJOR.MINOR.PATCH`, as in `0.9.3` | which version |
 | `platform` | `linux-amd64`, `darwin-arm64`, `windows-amd64` | which build |
 | `channel` | `installer`, `mcpb`, `archive` | how it got there |
 | `transport` | `stdio`, `daemon` | which arrangement served, on `binary` rows only |
