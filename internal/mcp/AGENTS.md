@@ -15,6 +15,17 @@ declarado en la raíz.
   `get_source` va más allá y contesta en prosa: 302 tokens de fuente son 374
   dentro de una cadena JSON y 430 como fila, que es lo que cuesta la lectura de
   rango del anfitrión, así que servir código por el envoltorio no compra nada.
+- La única tool que publica `outputSchema` es `index_project`, y es una
+  excepción declarada, no un descuido: su respuesta es un informe de forma fija
+  cuyo peso son los nombres de campo -- `1.180` bytes en cada canal-- y se emite
+  una vez por reconstrucción, no una por pregunta. La regla se midió sobre una
+  página de cincuenta filas de `find_references`, donde el duplicado eran
+  `24.066` bytes en una pasada. Pagarla dos veces aquí compra un cliente que lee
+  los contadores sin parsearlos. `index_project` no pasa por `addQueryTool`, así
+  que ni el `panic` ni el test de la superficie servida la alcanzan; quien lo
+  fija es `TestIndexProjectIsTheOnlyToolWithAnOutputSchema`, y lo que ese test
+  vigila es la segunda tool que lo adquiera.
+
 - Toda fila que nombra un símbolo se puede abrir sin otra llamada: lleva
   repositorio, ruta, nombre cualificado y **el rango completo**. Y toda tool
   acepta esa tripleta en lugar de la clave estable, que son 35 tokens de base32
@@ -49,6 +60,21 @@ declarado en la raíz.
   tool y **dónde pierde**- y por eso ninguna descripción ni `instructions` puede
   llevar un número derivado del grafo: reescribiría el prompt de sistema del
   cliente en cada reindexado. Los datos volátiles se piden con `graph_status`.
+- Las dos mitades de una definición se pagan en sitios distintos y por eso se
+  escriben con presupuestos distintos. La descripción es lo residente y compite
+  contra el techo de `MaximumResidentSurfaceBytes`: ahí sólo cabe el enrutado.
+  El esquema no lo mantiene nadie en memoria, así que **todo argumento publicado
+  lleva su descripción** -- lo fija
+  `TestEveryPublishedArgumentDescribesItself`, que también entra en los objetos
+  de un array-- y ahí es donde se explica qué distingue `repo` de `repository`,
+  cuáles acotan lo alcanzable y cuáles sólo filtran la página. Una descripción
+  que ya no cabe residente no se compensa subiendo el techo: se mueve al
+  argumento al que pertenecía. Así se recuperó el presupuesto de
+  `find_references`, cuya frase sobre el nombre ambiguo vive hoy en `name`.
+- Toda tool de consulta anota `readOnlyClosedWorld()`, nunca un
+  `ToolAnnotations` a mano. `OpenWorldHint` vale `true` cuando falta, así que
+  omitirlo declara lo contrario de lo que este servidor hace: una respuesta sale
+  de la generación publicada y de nada más.
 - Una respuesta declara lo que su recuento significa sólo cuando la cifra
   engaña. Cero filas se lee como «no existe» salvo que algo diga que es una
   ausencia comprobada; una página truncada no dice si contiene lo que importaba.

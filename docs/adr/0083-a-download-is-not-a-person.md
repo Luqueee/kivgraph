@@ -1,6 +1,6 @@
 # ADR 0083: a download is not a person
 
-- **Status:** accepted; Layer 0 is implemented, Layer 1 is still a design
+- **Status:** accepted and implemented; nothing has shipped in a release
 - **Date:** 2026-08-28
 - **Implementation:** `LUQUE-2232`
 
@@ -91,13 +91,16 @@ machine fetching an asset seven times from seven machines fetching it once.
 Two layers. They answer different questions and neither is a step towards
 the other.
 
-**Layer 0 is built; Layer 1 is not.** The present tense states what each
-layer **must** do. Layer 0 does it: `scripts/downloads.jq`,
-`scripts/downloads.sh` and `.github/workflows/download-metrics.yml` are
-deployed, and where the implementation taught this section something the
-section says so. Nothing in Layer 1 exists. `LUQUE-2232` carries the rest
-and its gates, and a reader asking whether a control is deployed should
-read the task rather than this section.
+**Both layers are built.** Layer 0 is `scripts/downloads.jq`,
+`scripts/downloads.sh` and `.github/workflows/download-metrics.yml`, and it
+has been photographing the counters daily since it merged. Layer 1 is the
+endpoint in `landing/src/install-report.mjs` and the two emitters --
+`internal/telemetry` and the tail of both installers. The latest published
+release is `v0.9.2` and it predates them, so the property has no rows.
+
+Where the implementation taught this ADR something, the ADR says so: the
+address below is the case, and so is the binary declining to report from a
+layout that is not a release.
 
 ### Layer 0 -- the series, with no client involvement
 
@@ -146,7 +149,10 @@ live view over that same classification instead of a second opinion.
 - `install.sh` and `install.ps1`, after the archive is verified and the
   install has succeeded, so a ping means a working installation and not an
   attempt;
-- the binary, on the first run of each version it is installed as.
+- the binary, on the first run of each version it is installed as -- and
+  only when it is running from a release layout, because nothing tells a
+  developer's `go build` from a CI job's and this repository's own CI runs
+  the binary on five platforms on every push.
 
 The endpoint lives in `landing/server.mjs` and forwards to Umami, because
 the reporter, the header finding it depends on and the fail-closed
@@ -160,9 +166,17 @@ reported that day, and the address itself is never stored. An identifier of
 our own would answer better and would also have to be explained, stored and
 defended; this one is answered by software already deployed.
 
-The load-bearing consequence is that **the endpoint must forward the
-caller's address to the collector**. Without it every install on earth
-collapses into one visitor -- the landing server. And `REPORTER_HEADERS`
+The load-bearing consequence is that **the endpoint must give the collector
+the caller's address**. Without it every install on earth collapses into one
+visitor -- the landing server.
+
+*Forward* was the wrong verb, and measuring it said so. Both ends sit behind
+Cloudflare, which rewrites the address headers at its edge: `X-Forwarded-For`,
+`X-Real-IP` and `X-Client-IP` all landed in one session carrying the sender's
+own country, and `CF-Connecting-IP` was refused with `403`. `payload.ip` is
+what the collector reads -- one session per address, geography derived from
+it -- so the address travels in the body. The table is in
+`docs/development/analytics.md`. And `REPORTER_HEADERS`
 forces `User-Agent: ""` to survive the collector's `isbot` filter, so the
 address is the *only* discriminator left: a corporate NAT counts as one
 person. That is the bias every web analytics carries, and it is written

@@ -1,25 +1,39 @@
 ---
 // The nav is generated, so whether a link leaves the site is read off its own
-// `href` rather than repeated per row: a new entry cannot forget the rule.
-const links = [
+// `href` rather than repeated per row: a new entry cannot forget the rule. The
+// event is the one thing a row cannot derive any more -- two of these leave the
+// site now and they are not the same click -- so it is written out, and a row
+// without one carries no event at all.
+const rows: { href: string; label: string; event?: string }[] = [
   { href: "#ask-without-a-name", label: "find by intent" },
   { href: "#measured", label: "benchmark" },
+  { href: "#proof", label: "what it answers" },
   { href: "#cross-repository", label: "cross-repository" },
   { href: "#install", label: "install" },
   { href: "/docs/mcp-tools/", label: "docs" },
-  { href: "https://github.com/Luqueee/kivgraph", label: "github" },
-].map((link) => ({
+  {
+    href: "https://github.com/Luqueee/kivgraph",
+    label: "github",
+    event: "github_click",
+  },
+  { href: "https://glama.ai/mcp/servers/Luqueee/kivgraph", label: "glama" },
+];
+
+const links = rows.map((link) => ({
   ...link,
   external: /^https?:\/\//.test(link.href),
 }));
 
-// The six labels are 62 characters of monospace plus five gaps, so the row they
-// want is about 530px wide, and the bar only holds it beside the wordmark from
-// 768px up and beside the tagline as well from 1024px. Below that the whole bar
-// wrapped, and it wrapped badly: measured on the built page, the header stood
-// 137px tall at 320px, 113px at 390px and 89px through 540px, against the 41px
-// it costs on a desktop. That is a third of a phone's first screenful spent on
-// a pile of links before the page has said anything.
+// The seven labels are 67 characters of monospace plus six gaps -- `glama` and
+// its gap cost about 60px on top of the 530px the six wanted -- so the row is
+// about 590px wide, and the bar only holds it beside the wordmark from 768px up
+// and beside the tagline as well from 1024px. That leaves some 50px of slack at
+// 1024px, which is little enough that the next label has to be measured rather
+// than reasoned about. Below 768px the whole bar wrapped, and it wrapped badly:
+// measured on the built page, the header stood 137px tall at 320px, 113px at
+// 390px and 89px through 540px, against the 41px it costs on a desktop. That is
+// a third of a phone's first screenful spent on a pile of links before the page
+// has said anything.
 //
 // So the bar keeps one row at every width. What changes is what the row holds:
 // the tagline is decorative next to the wordmark and only appears where it
@@ -73,18 +87,21 @@ const links = [
       class="hidden w-full basis-full flex-col gap-y-3 pt-3 peer-checked:flex md:ml-auto md:flex md:w-auto md:basis-auto md:flex-row md:items-center md:gap-x-6 md:gap-y-2 md:pt-0"
       aria-label="Primary"
     >
-      {/* Only the link that leaves the site carries an event: an internal one is
-        already a pageview, and counting it twice would put a number on the
-        report that no visit produced. Umami reads `data-umami-event` off the
-        click, so this costs no JavaScript of ours. */}
+      {/* An internal link carries no event: it is already a pageview, and
+        counting it twice would put a number on the report that no visit
+        produced. Neither does every external one. `github_click` is defined as
+        a click on the repository, so the Glama listing stays out of it: sharing
+        the name would make one number mean two things and there would be no way
+        back to either. Umami reads `data-umami-event` off the click, so this
+        costs no JavaScript of ours. */}
       {
         links.map((link) => (
           <a
             href={link.href}
             target={link.external ? "_blank" : undefined}
             rel={link.external ? "noopener noreferrer" : undefined}
-            data-umami-event={link.external ? "github_click" : undefined}
-            data-umami-event-where={link.external ? "topbar" : undefined}
+            data-umami-event={link.event}
+            data-umami-event-where={link.event ? "topbar" : undefined}
             class="text-gray-400 underline-offset-4 transition-colors hover:text-gray-100 hover:underline"
           >
             {link.label}

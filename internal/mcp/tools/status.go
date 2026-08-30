@@ -214,7 +214,7 @@ func RegisterGraphStatusWithObserverAndSnapshotStoreAndMetrics(
 	addQueryTool(server, &sdkmcp.Tool{
 		Name:        graphStatusToolName,
 		Description: "The published generation: counts, provenance, and whether a repository moved since it was indexed. Call it when an answer looks stale.",
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
+		Annotations: readOnlyClosedWorld(),
 	}, handler)
 }
 

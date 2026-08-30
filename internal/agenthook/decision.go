@@ -7,13 +7,21 @@ import (
 
 // Decision is what the gate tells the agent.
 //
-// There are two of them and not three. A gate that has nothing to say writes
-// nothing, and that is not the same as approving: in Claude Code and Codex an
-// explicit `allow` **skips the permission prompt**, so a gate that answered
-// `allow` to every call it had no opinion about would silently auto-approve
-// every shell command in the session, including the ones the user configured a
-// prompt for. Saying nothing leaves the agent's own permission flow exactly
-// where it found it, which is the only safe meaning of "no opinion".
+// There are three of them, and exactly one grants anything. A gate that has
+// nothing to say writes nothing, and that is not the same as approving: in
+// Claude Code and Codex an explicit `allow` **skips the permission prompt**, so
+// a gate that answered `allow` to every call it had no opinion about would
+// silently auto-approve every shell command in the session, including the ones
+// the user configured a prompt for. Saying nothing leaves the agent's own
+// permission flow exactly where it found it, which is the only safe meaning of
+// "no opinion".
+//
+// The third is an advisory, and it is bound by that same rule rather than an
+// exception to it: it attaches context and answers the permission question with
+// silence. That is why it is a separate field and not a `Reason` on an allow --
+// the tempting shape, `permissionDecision: "allow"` with the text in
+// `permissionDecisionReason`, would deliver the same words and strip the user's
+// permission prompt from every call it rode along with.
 type Decision struct {
 	// Deny is set when the graph answers this question better.
 	Deny bool
@@ -21,6 +29,11 @@ type Decision struct {
 	// the call to make instead, because a refusal without one is an
 	// obstacle rather than a redirect.
 	Reason string
+	// Context is guidance attached to a call that is going ahead anyway.
+	// It is only ever read when Deny is false: a refusal already carries
+	// its own text, and saying two things about one call is how an agent
+	// ends up acting on the wrong half.
+	Context string
 }
 
 // Allow is the gate having no opinion.
@@ -32,10 +45,16 @@ var Allow = Decision{}
 // serves both: they differ in where the hook is registered, not in what it
 // says. OpenCode reads neither and gets this through a generated plugin that
 // turns a deny into a thrown error.
+// An advisory writes `additionalContext` and leaves both permission fields
+// out, which is the whole reason they carry `omitempty`: a block naming the
+// event and nothing else is a hook that added context without voting on
+// permission. A deny fills both and omits `additionalContext`, so its bytes are
+// what they always were.
 type hookSpecificOutput struct {
 	HookEventName            string `json:"hookEventName"`
-	PermissionDecision       string `json:"permissionDecision"`
-	PermissionDecisionReason string `json:"permissionDecisionReason"`
+	PermissionDecision       string `json:"permissionDecision,omitempty"`
+	PermissionDecisionReason string `json:"permissionDecisionReason,omitempty"`
+	AdditionalContext        string `json:"additionalContext,omitempty"`
 }
 
 // wireDecision is a deny on the wire.
@@ -44,10 +63,14 @@ type hookSpecificOutput struct {
 // they cost one line and they are what a harness predating `hookSpecificOutput`
 // reads. They are only ever written for a deny, so an old harness cannot read
 // an approval out of them either.
+// The three older fields carry `omitempty` for the same reason the comment
+// above gives: an advisory must not put the word `permission` on the wire at
+// all. A harness that predates `hookSpecificOutput` reads no verdict out of an
+// advisory, which is correct -- there is none.
 type wireDecision struct {
-	Permission         string             `json:"permission"`
-	UserMessage        string             `json:"user_message"`
-	AgentMessage       string             `json:"agent_message"`
+	Permission         string             `json:"permission,omitempty"`
+	UserMessage        string             `json:"user_message,omitempty"`
+	AgentMessage       string             `json:"agent_message,omitempty"`
 	HookSpecificOutput hookSpecificOutput `json:"hookSpecificOutput"`
 }
 
@@ -56,7 +79,15 @@ type wireDecision struct {
 // An allow writes nothing at all. See Decision for why that is deliberate.
 func (decision Decision) Write(stdout io.Writer) error {
 	if !decision.Deny {
-		return nil
+		if decision.Context == "" {
+			return nil
+		}
+		return json.NewEncoder(stdout).Encode(wireDecision{
+			HookSpecificOutput: hookSpecificOutput{
+				HookEventName:     "PreToolUse",
+				AdditionalContext: decision.Context,
+			},
+		})
 	}
 	return json.NewEncoder(stdout).Encode(wireDecision{
 		Permission:   "deny",

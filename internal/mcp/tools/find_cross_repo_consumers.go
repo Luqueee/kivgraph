@@ -37,16 +37,16 @@ const (
 // dependencies of a repository into one entry, and `full` repeats every field
 // on every row. `files` is rejected: this answer is a set of repositories.
 type FindCrossRepoConsumersInput struct {
-	StableKey      string `json:"stable_key,omitempty"`
-	QualifiedName  string `json:"qualified_name,omitempty"`
-	Repository     string `json:"repository,omitempty"`
-	Path           string `json:"path,omitempty"`
-	Repo           string `json:"repo,omitempty"`
-	Language       string `json:"language,omitempty"`
-	Limit          int    `json:"limit,omitempty"`
-	Cursor         string `json:"cursor,omitempty"`
-	ResponseFormat string `json:"response_format,omitempty"`
-	View           string `json:"view,omitempty"`
+	StableKey      string `json:"stable_key,omitempty" jsonschema:"The target symbol durable key, as a detailed result returns it. The triple works instead."`
+	QualifiedName  string `json:"qualified_name,omitempty" jsonschema:"The target symbol fully qualified name, as every row of this surface carries it."`
+	Repository     string `json:"repository,omitempty" jsonschema:"The repository that declares the target symbol, the provider side of the question."`
+	Path           string `json:"path,omitempty" jsonschema:"The repository-relative file that declares the target symbol."`
+	Repo           string `json:"repo,omitempty" jsonschema:"Keep only consumers found in this repository."`
+	Language       string `json:"language,omitempty" jsonschema:"Keep only consumers written in this language."`
+	Limit          int    `json:"limit,omitempty" jsonschema:"Consumers in one page. Defaults to 50."`
+	Cursor         string `json:"cursor,omitempty" jsonschema:"The next_cursor of the previous page. Every other argument must stay the same."`
+	ResponseFormat string `json:"response_format,omitempty" jsonschema:"concise (the default) omits the derived identifiers; detailed returns them."`
+	View           string `json:"view,omitempty" jsonschema:"Granularity, never a different answer: compact (the default) groups the package dependencies of a repository, full repeats every field. files is rejected."`
 }
 
 // CrossRepoConsumerSummary is the common wire shape for exact symbol,
@@ -314,8 +314,8 @@ func RegisterFindCrossRepoConsumersWithObserverAndSnapshotStore(
 	}
 	addQueryTool(server, &sdkmcp.Tool{
 		Name:        findCrossRepoConsumersToolName,
-		Description: "Consumers of a symbol in other repositories, exact uses kept apart from package-level dependencies. A language server stops at its workspace.",
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
+		Description: "Consumers of a symbol in other repositories, exact uses kept apart from package-level dependencies that prove no use. A language server stops at its own workspace and cannot answer this.",
+		Annotations: readOnlyClosedWorld(),
 	}, handler)
 }
 

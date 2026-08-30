@@ -33,14 +33,17 @@ const hookInputCeiling = 1 << 20
 
 // runHookRun answers one gate call.
 //
-// It returns 0 whatever happens, and writes nothing at all unless it is
-// refusing. Both hosting agents read a non-zero exit as a refusal of its own,
-// so a gate that failed and said so would block the call it had just failed to
-// form an opinion about -- which is the one outcome a gate must never produce.
+// It returns 0 whatever happens. Both hosting agents read a non-zero exit as a
+// refusal of its own, so a gate that failed and said so would block the call it
+// had just failed to form an opinion about -- which is the one outcome a gate
+// must never produce.
+//
+// Deciding what reaches stdout is Write's job and not this one's: an allow
+// writes nothing, a refusal writes a verdict and a briefing writes context
+// without one. Testing the decision here instead would put that rule in two
+// places and let them disagree.
 func runHookRun(stdin io.Reader, stdout io.Writer) int {
-	if decision := hookDecision(stdin); decision.Deny {
-		_ = decision.Write(stdout)
-	}
+	_ = hookDecision(stdin).Write(stdout)
 	return 0
 }
 
@@ -72,6 +75,21 @@ func hookDecision(stdin io.Reader) agenthook.Decision {
 	if !ok {
 		return agenthook.Allow
 	}
+
+	// A call to Kivgraph's own tools is never measured against the graph,
+	// so it takes neither the repository lookup nor the daemon: it needs
+	// only somewhere to remember the session. It also deliberately skips
+	// the cwd test the searches below apply -- these tools answer across
+	// every registered repository, so a session driving them from a
+	// directory outside all of them is still a session worth briefing.
+	if question.Kind == agenthook.KindGraphTool {
+		gate := agenthook.Gate{
+			Briefing:  agenthook.Briefing{Directory: briefDirectory(loaded)},
+			SessionID: payload.SessionID,
+		}
+		return gate.Decide(context.Background(), question)
+	}
+
 	repository, inside := repositoryHolding(loaded, payload.CWD)
 	if !inside {
 		return agenthook.Allow
@@ -87,6 +105,16 @@ func hookDecision(stdin io.Reader) agenthook.Decision {
 		gate.Graph = graph
 	}
 	return gate.Decide(ctx, question)
+}
+
+// briefDirectory is where the gate remembers which sessions it has briefed.
+//
+// It sits under the state directory rather than beside the graph generations
+// because nothing here is derived from a graph: the markers survive a re-index,
+// a rollback and a clean, and none of those should re-brief a session that is
+// still running.
+func briefDirectory(loaded config.Loaded) string {
+	return filepath.Join(stateDirectory(loaded), "briefs")
 }
 
 // loadForHook reads the configuration, and treats every failure as absence.

@@ -23,6 +23,13 @@ permissions:
 # toolchain that compiled it.
 env:
   GOTOOLCHAIN: local
+  # Every job here builds the binary and several run it, on five platforms, on
+  # every push. Those are not machines anybody installed Kivgraph on, and
+  # counting them would make the first-run number mostly us. The binary already
+  # declines to report unless it is running from a release layout; the smoke
+  # job builds exactly that layout, so this is the second half of the same
+  # rule and it is set once for the whole file.
+  KIVGRAPH_TELEMETRY: "0"
 
 # A push that supersedes another leaves four jobs running for a commit nobody
 # will merge, and the free plan allows twenty concurrent jobs across the
@@ -793,6 +800,23 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      # Nothing in this repository parsed `install.ps1`, and it is the one file
+      # here that no contributor runs before a release does: a syntax error in
+      # it is published, downloaded and piped into a shell before anyone finds
+      # out. The Linux runners ship PowerShell, so the parse costs seconds and
+      # needs no Windows job.
+      - name: Parse the Windows installer
+        shell: pwsh
+        run: |
+          $problems = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $PWD 'scripts/install.ps1'), [ref] $null, [ref] $problems) | Out-Null
+          if ($problems) {
+            $problems | ForEach-Object { Write-Host $_.ToString() }
+            exit 1
+          }
+          Write-Host 'scripts/install.ps1 parses'
 
       - name: Set up Go
         uses: actions/setup-go@v7

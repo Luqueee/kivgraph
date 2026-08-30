@@ -42,20 +42,20 @@ const (
 // (the default) spells the columns every row shares once in the header, `full`
 // repeats them on every row.
 type GetBlastRadiusInput struct {
-	StableKey      string   `json:"stable_key,omitempty"`
-	QualifiedName  string   `json:"qualified_name,omitempty"`
-	Repository     string   `json:"repository,omitempty"`
-	Path           string   `json:"path,omitempty"`
-	Depth          int      `json:"depth,omitempty"`
-	MaxNodes       int      `json:"max_nodes,omitempty"`
-	EdgeKinds      []string `json:"edge_kinds,omitempty"`
-	Confidence     string   `json:"confidence,omitempty"`
-	Kinds          []string `json:"kinds,omitempty"`
-	IncludeDerived bool     `json:"include_derived,omitempty"`
-	Limit          int      `json:"limit,omitempty"`
-	Cursor         string   `json:"cursor,omitempty"`
-	ResponseFormat string   `json:"response_format,omitempty"`
-	View           string   `json:"view,omitempty"`
+	StableKey      string   `json:"stable_key,omitempty" jsonschema:"The root symbol durable key, as a detailed result returns it. The triple works instead."`
+	QualifiedName  string   `json:"qualified_name,omitempty" jsonschema:"The root symbol fully qualified name, as every row of this surface carries it."`
+	Repository     string   `json:"repository,omitempty" jsonschema:"The repository that declares the root symbol."`
+	Path           string   `json:"path,omitempty" jsonschema:"The repository-relative file that declares the root symbol."`
+	Depth          int      `json:"depth,omitempty" jsonschema:"Hops the walk may follow inward, away from the root. Defaults to 3."`
+	MaxNodes       int      `json:"max_nodes,omitempty" jsonschema:"Nodes the walk may visit before it stops and declares that it did. Defaults to 5000."`
+	EdgeKinds      []string `json:"edge_kinds,omitempty" jsonschema:"Incoming relation kinds the walk may follow. It gates what counts as affected, not just what is shown."`
+	Confidence     string   `json:"confidence,omitempty" jsonschema:"Follow only edges resolved at this confidence, such as EXACT_TYPECHECKED."`
+	Kinds          []string `json:"kinds,omitempty" jsonschema:"Symbol kinds to report. Empty excludes variable and field, the local bindings a walk passes through; * reports every kind."`
+	IncludeDerived bool     `json:"include_derived,omitempty" jsonschema:"Include affected symbols of the derived provider, which is withheld by default."`
+	Limit          int      `json:"limit,omitempty" jsonschema:"Affected symbols in one page. Defaults to 50."`
+	Cursor         string   `json:"cursor,omitempty" jsonschema:"The next_cursor of the previous page. Every other argument must stay the same."`
+	ResponseFormat string   `json:"response_format,omitempty" jsonschema:"concise (the default) omits the derived identifiers; detailed returns them."`
+	View           string   `json:"view,omitempty" jsonschema:"Granularity, never a different answer: compact (the default) states once what every row shares, full repeats it on each."`
 }
 
 // BlastRadius is the impact of changing one symbol: the affected symbols
@@ -397,7 +397,7 @@ func RegisterGetBlastRadiusWithObserverAndSnapshotStore(
 	addQueryTool(server, &sdkmcp.Tool{
 		Name:        blastRadiusToolName,
 		Description: "What a change to this symbol reaches, by repository, package, depth and relation kind. Grep does not follow a chain.",
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
+		Annotations: readOnlyClosedWorld(),
 		Meta:        traversalMeta(MaximumTraversalResultChars),
 	}, handler)
 }

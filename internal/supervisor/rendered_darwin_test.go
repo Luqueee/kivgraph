@@ -12,7 +12,7 @@ func renderedUnit(t *testing.T, spec Spec) []byte {
 	if err != nil {
 		t.Fatalf("Label() error = %v", err)
 	}
-	rendered, err := plist(spec, label)
+	rendered, err := plist(spec, label, daemonPath())
 	if err != nil {
 		t.Fatalf("plist() error = %v", err)
 	}

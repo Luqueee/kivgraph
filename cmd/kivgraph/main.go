@@ -504,6 +504,10 @@ func runConfiguredServe(
 		options != nil && options.Introspection); relayed {
 		return err
 	}
+	// After the relay decision, because the transport reported is the one that
+	// is about to serve and not the one that was preferred. The relaying path
+	// returned above and reported for itself.
+	announceFirstRun(loaded, command)
 	store, err := openConfiguredSnapshot(ctx, loaded)
 	if err != nil {
 		return err
@@ -674,6 +678,16 @@ func resyncOnBranchChange(
 			},
 			OnError: func(err error) {
 				logger.Error("could not resynchronise the graph", "command", command, "error", err)
+			},
+			OnGaveUp: func(batch []indexing.RepositoryMovement, err error) {
+				// One line, at the end, naming the number of attempts: the
+				// failures themselves are already above it, and what a reader
+				// cannot infer from them is that no more are coming.
+				logger.Error("gave up resynchronising a movement that keeps failing",
+					"command", command, "repositories", len(batch),
+					"attempts", indexing.ResyncAttempts,
+					"remedy", "fix the failure and run `kivgraph index --full`, or move the tree again",
+					"error", err)
 			},
 		}
 		if err := indexing.Resync(resyncCtx, options); err != nil {

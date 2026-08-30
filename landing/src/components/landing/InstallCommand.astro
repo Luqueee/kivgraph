@@ -3,7 +3,11 @@ import CopyButton from "./CopyButton.astro";
 import { PLATFORMS } from "./platforms";
 
 interface Props {
-  /** Names the radio group and the location in install analytics. */
+  /**
+   * Where on the page this box sits. It names the radio group, so two boxes on
+   * one page do not share a selection, and it is the `where` of every
+   * `install_copy` this box reports.
+   */
   where: string;
   class?: string;
 }
@@ -11,8 +15,18 @@ interface Props {
 const { where, class: className = "" } = Astro.props;
 ---
 
-{/* A radio group and no JavaScript: every command remains in the served HTML,
-  so a crawler and a reader with CSS disabled still receive all platforms. */}
+{/* A radio group and no JavaScript, exactly like the tabs of `ProductProof`:
+  it is keyboard-navigable and announced without a line of script, all three
+  commands stay in the served HTML -- so a crawler and a reader with no CSS get
+  every platform rather than none -- and there is nothing to fetch on a tab
+  change. The inputs come before the tabs and the panels because the whole
+  control is one sibling combinator away from them, and they are `sr-only` and
+  never `display: none`, because a hidden radio cannot take focus.
+
+  The rules below key off `data-platform` rather than an id, which is what lets
+  this component appear twice on one page: an id is unique per box, the data
+  attribute is the same in both, and `~` cannot reach out of its own
+  fieldset. */}
 <fieldset class:list={["installer border-0", className]}>
   <legend class="sr-only">Choose your platform</legend>
 
@@ -47,6 +61,10 @@ const { where, class: className = "" } = Astro.props;
         }
       </div>
 
+      {/* One button per panel rather than one for the box: the value a copy
+        button carries is server-rendered, so a single button could not follow
+        the selection without the script this control exists to avoid. Only
+        the checked panel is displayed, so only its button is clickable. */}
       <div class="panels flex">
         {
           PLATFORMS.map((platform) => (
@@ -76,11 +94,21 @@ const { where, class: className = "" } = Astro.props;
 </fieldset>
 
 <style>
+  /* A `<fieldset>` for the semantics only, and the same three UA defaults to
+     clear as `ProductProof`: padding and border go on the element as
+     utilities, `min-width: min-content` has no utility and would break every
+     grid this box sits in. `margin: 0` is deliberately NOT here -- global.css
+     imports no preflight, so a component rule outside a layer beats any
+     utility, and it would swallow the caller's own `mt-*`. */
   .installer {
     min-width: 0;
     padding: 0;
   }
 
+  /* The unchecked panels stay in the served HTML instead of being fetched
+     later: with no CSS a reader sees all three commands, each under its own
+     platform, which is the honest degradation for a box whose whole job is to
+     name a command. */
   .panel {
     display: none;
   }
@@ -98,6 +126,9 @@ const { where, class: className = "" } = Astro.props;
     color: var(--color-gray-100);
   }
 
+  /* The focus ring belongs on the label, because the input that owns the focus
+     is the one thing on this control nobody can see. Same rule, same offset as
+     the tabs of `ProductProof.astro` and the disclosure of `TopBar.astro`. */
   input[data-platform="macos"]:focus-visible ~ * .tabs [data-tab="macos"],
   input[data-platform="linux"]:focus-visible ~ * .tabs [data-tab="linux"],
   input[data-platform="windows"]:focus-visible ~ * .tabs [data-tab="windows"] {

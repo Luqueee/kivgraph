@@ -41,8 +41,8 @@ type RepositorySummary struct {
 // ListRepositoriesInput contains the optional page controls for
 // list_repositories.
 type ListRepositoriesInput struct {
-	Cursor string `json:"cursor,omitempty"`
-	Limit  int    `json:"limit,omitempty"`
+	Cursor string `json:"cursor,omitempty" jsonschema:"The next_cursor of the previous page. Every other argument must stay the same."`
+	Limit  int    `json:"limit,omitempty" jsonschema:"Repositories in one page. Defaults to 50, maximum 500."`
 }
 
 const (
@@ -103,8 +103,8 @@ func RegisterListRepositoriesWithObserverAndSnapshotStore(
 	}
 	addQueryTool(server, &sdkmcp.Tool{
 		Name:        repositoryQueryToolName,
-		Description: "The repositories the published graph covers, with the commit each was indexed at.",
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
+		Description: "The repositories the published graph covers, with the commit each was indexed at and which one is the derived provider.",
+		Annotations: readOnlyClosedWorld(),
 	}, handler)
 }
 

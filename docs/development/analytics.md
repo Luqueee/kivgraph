@@ -119,7 +119,7 @@ the clipboard refused does not count.
 
 |event|when it fires|metadata|
 |---|---|---|
-|`install_copy`|the one-liner is copied|`where`: `hero`, `final_cta`|
+|`install_copy`|the one-liner is copied|`where`, `platform` — below|
 |`prompt_copy`|the agent prompt is copied|—|
 |`client_connect_copy`|`kivgraph mcp install` is copied|—|
 |`quickstart_copy`|a Quickstart command is copied|`step`: the step's title|
@@ -139,16 +139,30 @@ route:
 |`mcp_config_copy`|07, the JSON box|`#quickstart`|
 |`github_click`|topbar, footer and docs header|all 39 pages|
 
+`install_copy` carries two properties. `where` is `hero` or `final_cta`, the
+two boxes on the front page. `platform` is `macos`, `linux` or `windows`, and it
+exists because that box is a platform picker: three published bundles, three
+commands, and on Windows a different installer in a different language. Without
+it the report cannot tell a Windows visitor from a Linux one, which is the one
+question a three-way control exists to answer. Both dimensions are closed sets
+written in the code -- the ids of `landing/src/components/landing/platforms.ts`
+-- so no value a visitor controls can reach either.
+
 The five copy events live **only on the front page**. If a copy button is ever
 added outside it -- `/install/` is the obvious candidate -- the goals have to be
 revisited: one scoped to a route silently stops counting, and a conversion that
 drops without warning reads as people having stopped installing.
 
 `github_click` uses **no** JavaScript of ours: Umami reads `data-umami-event`
-off the click. In `TopBar.astro` the attribute is derived from the `href`
-itself, so a new entry cannot forget it, and **only** external links carry it:
-an internal one is already a pageview, and counting it twice would put a number
-in the report that no visit produced.
+off the click. In `TopBar.astro` each row writes its own event, and most rows
+write none. An internal link carries no event because it is already a pageview,
+and counting it twice would put a number in the report that no visit produced.
+An external one carries an event only when there is an event that means it: the
+bar also links the [Glama listing](https://glama.ai/mcp/servers/Luqueee/kivgraph),
+which is deliberately **untracked**, because `github_click` means a click on the
+repository and reusing the name would leave one number standing for two clicks
+with no way back to either. If that link is ever worth measuring it needs its
+own event, added here first.
 
 ### Naming convention
 
@@ -564,9 +578,12 @@ touches no client, reads GitHub's own counters and is deployed. This section
 is Layer 1 -- the one ping that says a version arrived on a machine and ran
 there.
 
-**Nothing below is emitted yet.** It is written here first because that is
-this document's own rule: an event is added here before it is added to the
-code. `LUQUE-2232` carries the emitters and their gates.
+**Both halves exist now.** The endpoint is `landing/src/install-report.mjs`,
+wired in `landing/server.mjs`; the emitters are `internal/telemetry` for the
+binary and the tail of `scripts/install.sh` and `scripts/install.ps1` for the
+installers. Everything below is observed behaviour. No published release
+carries the emitters -- `v0.9.2` is the latest and predates them -- so the
+property has no rows in it.
 
 ### The event
 
@@ -575,14 +592,19 @@ flat string fields:
 
 - **`emitter`** -- `installer` or `binary`. Which of two different facts this
   row is;
-- **`version`** -- the version that arrived, `0.9.1`, validated against the
+- **`version`** -- the version that arrived, `0.9.2`, validated against the
   published version pattern;
 - **`platform`** -- `linux-amd64`, `darwin-arm64` or `windows-amd64`. The same
   vocabulary the release assets use, so Layer 0 and Layer 1 can be read side
   by side instead of being joined by hand;
-- **`channel`** -- `installer`, `mcpb`, `archive` or `source`. How the binary
-  got there. It is what makes the `.mcpb` share of the volume visible from the
-  client side, where the download counters cannot see it;
+- **`channel`** -- `installer`, `mcpb` or `archive`. How the binary got there.
+  It is what makes the `.mcpb` share of the volume visible from the client
+  side, where the download counters cannot see it. The binary reads it from
+  the layout around itself: an unpacked extension has a manifest with an
+  `mcp_config` three directories up from the executable, a release archive has
+  the bundle manifest two directories up, and `archive` therefore covers both
+  a hand-extracted archive and one the installer placed -- which costs
+  nothing, because the installer reports its own row;
 - **`transport`** -- `stdio` or `daemon` on a `binary` row, and **absent** on
   an `installer` one, because an installer has not started a server and
   reporting a default it did not choose would be inventing data. It is
@@ -591,6 +613,21 @@ flat string fields:
 
 One machine installing one version therefore produces **at most two rows**,
 one per emitter, and they are never added together.
+
+**A binary that is not running from a release layout reports nothing**, and
+that is the declared hole in this number. Nothing distinguishes a developer's
+`go build` from a CI job's, and this repository's own CI builds and runs the
+binary on every push -- `ci.yml` has `verify`, `ladybug`, `smoke`,
+`darwin-bundle`, `macos` and `windows-cross`, and the `smoke` one serves a
+bundle it built -- so counting those would make the number mostly us. The cost
+is that somebody who ran `go install` is invisible.
+
+Both workflows set `KIVGRAPH_TELEMETRY=0` on top of that. `ci.yml` needs it:
+its smoke job builds and serves a real bundle, which is exactly the layout
+that reports. `release.yml` does not need it today -- it only asks the bundle
+for `version` and `--help` -- and has it anyway, because the day somebody adds
+a smoke `serve` there is the day a release runner starts counting as an
+installation, and nothing would say so.
 
 `first_run` is the one event name that does not obey `<object>_<action>`. The
 object *is* the event, and `run_first` would satisfy the shape at the cost of
@@ -615,7 +652,11 @@ and Layer 0 now keeps that number current instead of quoting it.
 
 **The marker governs the `binary` emitter and nothing else.** An installer has
 no marker: it reports once per successful run, and a reader who runs it three
-times sends three, which the endpoint's window collapses. Sharing one marker
+times sends three, which the endpoint's window collapses. The binary reports
+from the three commands that serve the MCP surface -- `serve` in process,
+`serve` relaying, and the daemon -- and from no other, because what is measured
+is a machine that ran the server and because `transport` is required on those
+rows rather than defaulted. Sharing one marker
 between the two emitters would be the bug the dedupe key already avoids --
 whichever emitter got there first would suppress the other's row, and the two
 rows are the two different facts this property exists to keep apart.
@@ -625,11 +666,12 @@ replaces the bundle, so a marker there would fire again on every update.
 Calling the number *installations* would be a claim the marker cannot support.
 
 It is created with `O_CREATE|O_EXCL` and only the process that created it
-sends. Reading the marker and then writing it would let a whole burst find it
-absent and report before any of them had created it -- and stdio starts
-bursts: `docs/adr/0069-el-demonio-es-el-defecto.md` measured `69` starts of
-`serve` with `8` alive at once, over one session of one client. That is one
-install turning into as many pings as the client happened to spawn.
+sends, in `internal/telemetry`. Reading the marker and then writing it would
+let a whole burst find it absent and report before any of them had created
+it -- and stdio starts bursts. `docs/adr/0069-el-demonio-es-el-defecto.md`
+measured `69` starts of `serve` with `8` alive at once, over one session of
+one client. That is one install turning into as many pings as the client
+happened to spawn.
 
 ### What is not sent
 
@@ -641,13 +683,69 @@ visitor from a daily-rotating hash of website id, hostname, address and user
 agent, so *unique visitors per day* is already distinct machines and the
 address itself is never stored.
 
-That has one load-bearing consequence: **the endpoint has to forward the
-caller's address to the collector**. Without it every install on earth
-collapses into one visitor -- the landing server itself. And since
-`REPORTER_HEADERS` forces `User-Agent: ""` to survive the collector's `isbot`
-filter, the address is the *only* discriminator left, so a corporate NAT
-counts as one person. That is the bias every web analytics carries, and it is
-written here rather than discovered in a report.
+That has one load-bearing consequence: **the endpoint has to give the
+collector the caller's address**. Without it every install on earth collapses
+into one visitor -- the landing server itself. And since `REPORTER_HEADERS`
+forces `User-Agent: ""` to survive the collector's `isbot` filter, the address
+is the *only* discriminator left, so a corporate NAT counts as one person.
+That is the bias every web analytics carries, and it is written here rather
+than discovered in a report.
+
+### The address goes in the body, and that was measured
+
+The design said *forward the header*. Against this instance no header works,
+and it fails the way the `User-Agent` failed: `200`, a session token, events
+stored, and one visitor.
+
+Both `kivgraph.dev` and `analytics.luqueee.dev` sit behind Cloudflare, which
+rewrites the address headers at its edge. Measured on a throwaway property,
+`13` events:
+
+|what was sent|what the collector recorded|
+|---|---|
+|`X-Forwarded-For: 203.0.113.7`|one session, country `ES` -- the sender's|
+|`X-Real-IP: 198.18.0.1`|the same session|
+|`X-Client-IP: 198.18.0.3`|the same session|
+|`CF-Connecting-IP: 198.18.0.2`|`403`, Cloudflare error `1000`|
+|`payload.ip: 8.8.8.8`, twice|**one session of its own**, country `US`|
+|`payload.ip: 1.1.1.1`|**another session**, country `AU`|
+|`payload.id: <a uuid>`|ignored; the event joined the sender's session|
+|`payload.userAgent: kivgraph-first-run`|`{"beep":"boop"}`, discarded|
+
+Reproduce it with a website of its own -- never an existing property, since
+every one of these lands as a real row:
+
+```sh
+site=<a throwaway website id>
+curl -sS -X POST https://analytics.luqueee.dev/api/send \
+  -H 'Content-Type: application/json' -H 'User-Agent;' \
+  -H 'X-Forwarded-For: 203.0.113.7' \
+  -d "{\"type\":\"event\",\"payload\":{\"website\":\"$site\",
+       \"hostname\":\"kivgraph.dev\",\"url\":\"/api/telemetry/first-run\",
+       \"name\":\"first_run\",\"data\":{\"emitter\":\"binary\"}}}"
+# and the same again with "ip":"8.8.8.8" inside payload instead of the header
+```
+
+`User-Agent;` is curl's way of sending the header empty rather than omitting
+it, which is the difference between being recorded and being discarded. The
+sessions are then read from the API -- `/api/websites/$site/sessions` over the
+window, or the `umami_list_sessions` and `umami_list_events` tools -- and the
+column that answers all of this is `sessionId`, one per distinct address.
+
+So `payload.ip` is what the collector reads, and it gives exactly the property
+the layer needs: the same address twice is one visitor, two addresses are two.
+`payload.id` being ignored matters for the opposite reason -- a visitor cannot
+be named from outside, so identity stays the collector's daily-rotating hash
+rather than something a caller can set.
+
+The last row is the crawler reporter's finding arriving a second time: the
+`isbot` filter reads a `userAgent` in the payload as well as the header, so
+there is neither.
+
+Two consequences for the endpoint, both in `landing/src/install-report.mjs`:
+it reads `CF-Connecting-IP` first when deciding whose install it is, because
+that is the header the edge sets and the socket address is the edge's; and it
+puts that address in `payload.ip` rather than in a header of its own.
 
 ### The endpoint, and the bounds on the number
 
@@ -686,13 +784,40 @@ not notice the day this stops being true.
 half fails closed the way the other two properties do: without its website id
 nothing is forwarded, so a development landing cannot write to the dataset.
 
-### What has to be verified before this measures anything
+### What the collector stores, which is not nothing
 
-That Umami honours the forwarded address is **wire behaviour, not documented
-contract**, and it is the same shape of risk as the `User-Agent` finding: it
-would fail with `200`, `{"beep":"boop"}` and nothing written. It gets the same
-treatment -- a check against the instance on a throwaway property, before the
-emitters are believed.
+Read from the same `13` events, in the session and event rows they produced.
+A session row carries a **country and, when the address resolves to one, a
+city**, plus a device class that defaults to `desktop` for a request with no
+screen. The address itself is not stored.
+
+The city is a correction, and it is the kind worth reading twice. The first
+measurement said the city came back empty, because it was taken with
+`8.8.8.8`, `1.1.1.1` and a reserved range: datacentre addresses resolve to a
+country and nothing finer, so the reading was true of the input and false of
+the property.
+
+The first ping from a residential address, on 2026-08-30, arrived as `ES` /
+`Sabadell`. It was this, from a home connection, against the deployed endpoint
+rather than the collector -- so the address is the caller's own and the
+landing forwards it:
+
+```sh
+curl -sS -X POST https://kivgraph.dev/api/telemetry/first-run \
+  -H 'Content-Type: application/json' \
+  -d '{"emitter":"binary","version":"0.9.2","platform":"linux-amd64",
+       "channel":"archive","transport":"stdio"}'
+# then read the row with `umami_list_events` over that window
+```
+
+A privacy claim measured on synthetic input was therefore weaker than what
+production does, which is the direction that matters -- `/telemetry/` now
+says city.
+
+One more thing a report has to know: the stats endpoint answers `visitors: 0`
+for this property, because it counts sessions with **pageviews** and a first
+run is an event. The machine count is read from sessions and events, not from
+the overview.
 
 ## PostHog: the behaviour, not the acquisition
 

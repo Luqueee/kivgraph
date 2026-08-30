@@ -280,6 +280,24 @@ superficie observable.
 - Un demonio que **no** nombra versión se sirve igual: es una release anterior a
   esta comprobación y tiene el mismo derecho a contestar que siempre tuvo.
 
+## El aviso de primer arranque
+
+- La primera vez que una versión sirve MCP en una máquina, `serve` y `daemon`
+  escriben tres líneas en `stderr` diciendo qué se reporta y cómo apagarlo, y
+  mandan un ping. **Nunca a `stdout`**: `serve` habla MCP por ese descriptor y
+  un byte suelto corrompe la sesión, así que `internal/telemetry` lo prueba
+  sustituyendo `os.Stdout` por un pipe. Lo que se envía está en
+  `docs/development/analytics.md` y publicado en `/telemetry/`.
+- **El transporte sale del comando, no de un literal.** `runConfiguredServe`
+  corre `serve` y `daemon`, y su llamada pasaba `"stdio"` fijo: el demonio
+  reportaba su primer arranque como stdio. El marcador se crea una vez por
+  versión, así que esa fila equivocada habría sido la única que esa versión
+  produjera nunca. Un `serve` que reenvía reporta `daemon`, que es el único caso
+  donde el comando y quien contesta discrepan.
+- No reporta un binario que no corre desde el layout de una release: nada
+  distingue un `go build` propio del de un job de CI, y contarlos haría que el
+  número fuésemos mayormente nosotros. `KIVGRAPH_TELEMETRY=0` lo apaga entero.
+
 ## `kivgraph daemon`
 
 - Sirve MCP a varios clientes desde un proceso, por **dos puertas a la vez**: un
@@ -333,6 +351,23 @@ superficie observable.
   La diferencia más grande no es la pendiente: es el **pico**, `179`–`186` contra
   `26`–`29 MB` a ocho clientes, sin una sola consulta. Lo que no es el ahorro en
   ninguna puerta es el snapshot: ya se comparte y esas páginas están limpias.
+- **La unit anota el `PATH` de la terminal que la instaló**, y sin eso el demonio
+  corre con el del supervisor: ni systemd ni launchd leen un perfil de shell, así
+  que el node de nvm y el de Homebrew no están, `kivgraph-ts-worker` muere en
+  `exec node` con un `127`, y el Go de `~/.local/go/bin` pierde en silencio
+  contra el de `/usr/bin` -- que es peor, porque no falla: publica otro grafo.
+  Nada de esto se ve desde la terminal, donde el mismo `index --full` funciona.
+  `status` compara la unit **sin** el `PATH` anotado, porque pertenece a la
+  terminal que instaló y no al demonio: compararlo diría `stale` desde cualquier
+  otra shell. Lo que sí compara es si hay alguno anotado, y por eso toda
+  instalación anterior a esto dice `stale` una vez. Ver ADR 0085.
+- El resincronizador **se rinde** tras `ResyncAttempts` fallos seguidos del mismo
+  lote sin cambios -- cinco, como el `StartLimitBurst` de la unit-- y lo dice una
+  vez por `OnGaveUp`. El lote se identifica por su contenido, así que un
+  movimiento nuevo recupera la cuenta entera y la cota nunca puede suprimir
+  trabajo que nadie ha intentado. Rendirse no rebobina: el tracker se queda en el
+  commit donde el árbol está, que es lo que impide que el lote se vuelva a
+  proponer.
 - `kivgraph mcp install --daemon` es lo que hace usable todo lo anterior: lee
   `daemon.json` del directorio de estado y escribe una entrada `url` con el
   token. Sin ese flag se escribe `serve`, y es deliberado -- detectar un demonio

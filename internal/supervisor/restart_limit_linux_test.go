@@ -28,7 +28,7 @@ import (
 // bundle, and that format has no uninstall hook. Deleting the extension leaves
 // the unit naming a binary that is gone, with nothing of ours left to run.
 func TestTheStartLimitCanActuallyTrip(t *testing.T) {
-	rendered := unit(testSpec(t.TempDir()))
+	rendered := unit(testSpec(t.TempDir()), daemonPath())
 	burst := unitInteger(t, rendered, "StartLimitBurst")
 	window := unitInteger(t, rendered, "StartLimitIntervalSec")
 	restartSec := unitInteger(t, rendered, "RestartSec")
@@ -52,7 +52,7 @@ func TestTheStartLimitCanActuallyTrip(t *testing.T) {
 // a real daemon is the binary's smoke test, not this suite -- these two lines
 // are what a wrong edit would take out, and they are checkable without one.
 func TestTheRenderedUnitStillAsksForARestart(t *testing.T) {
-	rendered := unit(testSpec(t.TempDir()))
+	rendered := unit(testSpec(t.TempDir()), daemonPath())
 	if !strings.Contains(rendered, "Restart=on-failure") {
 		t.Fatalf("the unit no longer restarts on failure:\n%s", rendered)
 	}
