@@ -325,8 +325,8 @@ func measureArm(ctx context.Context, name, source, state string, files []string,
 		repositoryCache := filepath.Join(state, "repository-cache")
 		diskCache := filepath.Join(state, "disk-cache")
 		env := []string{"BAZELISK_HOME=" + filepath.Join(state, "bazelisk")}
-		base := []string{"--output_user_root=" + userRoot}
-		output.Commands = commands{Setup: "bazel --output_user_root=<private> version", Dependencies: "bazel --output_user_root=<private> fetch " + target, Build: "bazel --output_user_root=<private> build " + target}
+		base := []string{"--ignore_all_rc_files", "--output_user_root=" + userRoot}
+		output.Commands = commands{Setup: "bazel --ignore_all_rc_files --output_user_root=<private> version", Dependencies: "bazel --ignore_all_rc_files --output_user_root=<private> fetch " + target, Build: "bazel --ignore_all_rc_files --output_user_root=<private> build " + target}
 		setup, err = timedCommand(ctx, source, env, logFile, "bazel", append(base, "version")...)
 		cacheOptions := []string{"--repository_cache=" + repositoryCache, "--disk_cache=" + diskCache}
 		fetch := append(append(append([]string{}, base...), "fetch"), cacheOptions...)

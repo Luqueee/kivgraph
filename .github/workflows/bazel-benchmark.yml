@@ -44,13 +44,10 @@ jobs:
           check-latest: true
           cache: false
 
-      - name: Set up Bazel launcher
-        uses: bazel-contrib/setup-bazel@0.19.0
-        with:
-          bazelisk-cache: false
-          disk-cache: false
-          repository-cache: false
-          cache-save: false
+      # GitHub's Ubuntu runner carries Bazelisk. The harness gives it a private
+      # BAZELISK_HOME and ignores host rc files so setup remains measurable.
+      - name: Verify Bazel launcher
+        run: command -v bazel
 
       - name: Build benchmark harness
         run: go build -o "$RUNNER_TEMP/build-system-cost" ./benchmarks/build-system-cost

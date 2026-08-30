@@ -52,8 +52,8 @@ func TestRunRecordsBothArmsWithoutUsingRealCaches(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(bazelLog), "--disk_cache=") {
-		t.Fatalf("Bazel commands did not override a host disk cache:\n%s", bazelLog)
+	if !strings.Contains(string(bazelLog), "--disk_cache=") || !strings.Contains(string(bazelLog), "--ignore_all_rc_files") {
+		t.Fatalf("Bazel commands did not isolate host configuration and caches:\n%s", bazelLog)
 	}
 	if _, err := os.Stat(filepath.Join(output, "report.md")); err != nil {
 		t.Fatal(err)
