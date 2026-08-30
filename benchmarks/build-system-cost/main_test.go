@@ -162,6 +162,12 @@ func TestMedianRejectsEmptyInput(t *testing.T) {
 	}
 }
 
+func TestFileDigestRejectsMissingFile(t *testing.T) {
+	if _, err := fileDigest(filepath.Join(t.TempDir(), "missing")); err == nil {
+		t.Fatal("fileDigest() succeeded for a missing file")
+	}
+}
+
 func TestMedianDoesNotMutateInput(t *testing.T) {
 	values := []float64{9, 1, 5, 3}
 	wantValues := append([]float64(nil), values...)

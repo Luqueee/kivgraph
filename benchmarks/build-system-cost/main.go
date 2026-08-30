@@ -235,10 +235,33 @@ func collectMetadata(ctx context.Context, root, commit string, files []string) (
 	}
 	var trackedBytes int64
 	for _, relative := range files {
-		info, err := os.Stat(filepath.Join(root, relative))
-		if err == nil && info.Mode().IsRegular() {
-			trackedBytes += info.Size()
+		path := filepath.Join(root, relative)
+		info, err := os.Lstat(path)
+		if err != nil {
+			return metadata{}, fmt.Errorf("inspect tracked file %s: %w", relative, err)
 		}
+		switch {
+		case info.Mode().IsRegular():
+			trackedBytes += info.Size()
+		case info.Mode()&os.ModeSymlink != 0:
+			target, err := os.Readlink(path)
+			if err != nil {
+				return metadata{}, fmt.Errorf("read tracked link %s: %w", relative, err)
+			}
+			trackedBytes += int64(len(target))
+		}
+	}
+	goModDigest, err := fileDigest(filepath.Join(root, "go.mod"))
+	if err != nil {
+		return metadata{}, err
+	}
+	moduleDigest, err := fileDigest(filepath.Join(root, "MODULE.bazel"))
+	if err != nil {
+		return metadata{}, err
+	}
+	moduleLockDigest, err := fileDigest(filepath.Join(root, "MODULE.bazel.lock"))
+	if err != nil {
+		return metadata{}, err
 	}
 	kind := "developer"
 	if os.Getenv("GITHUB_ACTIONS") == "true" {
@@ -253,9 +276,9 @@ func collectMetadata(ctx context.Context, root, commit string, files []string) (
 		Corpus: corpus{
 			Repository: "github.com/Luqueee/kivgraph", Commit: commit, BazelTarget: target,
 			GoTarget: goTarget, EditedFile: editFile, TrackedFiles: len(files), TrackedBytes: trackedBytes,
-			GoModSHA256:      fileDigest(filepath.Join(root, "go.mod")),
-			ModuleSHA256:     fileDigest(filepath.Join(root, "MODULE.bazel")),
-			ModuleLockSHA256: fileDigest(filepath.Join(root, "MODULE.bazel.lock")),
+			GoModSHA256:      goModDigest,
+			ModuleSHA256:     moduleDigest,
+			ModuleLockSHA256: moduleLockDigest,
 		},
 	}, nil
 }
@@ -669,11 +692,11 @@ func applyEdit(root, relative string, trial int) error {
 	return nil
 }
 
-func fileDigest(path string) string {
+func fileDigest(path string) (string, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
-		return "unavailable"
+		return "", fmt.Errorf("digest %s: %w", path, err)
 	}
 	digest := sha256.Sum256(content)
-	return hex.EncodeToString(digest[:])
+	return hex.EncodeToString(digest[:]), nil
 }
