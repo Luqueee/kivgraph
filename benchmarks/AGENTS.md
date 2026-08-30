@@ -25,6 +25,30 @@ declarado en la raíz.
   de `graph_status`, no del fixture. El brazo Rust se salta declarándose
   cuando falta su toolchain, y preserva `RUSTUP_HOME` porque un `HOME` aislado
   deja a `rustup` sin toolchains.
+- `benchmarks/edit-frequency` no mide una reconstrucción contra otra: mide qué
+  le cuesta el grafo a **un agente que edita**, que es la carga por la que la
+  issue `#106` reabrió el ADR 0057. Sus dos brazos se encuentran en una sola
+  cifra -- cuántas preguntas compra una reconstrucción-- porque es la única
+  unidad que comparten: editar no le cuesta nada al brazo de búsqueda, y
+  preguntar no le cuesta casi nada al grafo. Medido: `17,150 s` por pase tras
+  editar un fichero contra `0,101 s` por pregunta buscada y leída, o sea `169,5`
+  preguntas por reconstrucción, y `82,7 %` del pase es publicar.
+- **El pase de calentamiento se mide, se publica y no entra en ninguna
+  mediana.** Es el que llena la caché de hechos, y un agente que edita no lo
+  corre nunca: mezclarlo en la mediana informa de un coste que nadie paga. La
+  diferencia no es marginal -- `123,220 s` en frío contra `17,150` en caliente.
+- **Y la caché de hechos está clavada a la huella del binario que indexa**, así
+  que una corrida lanzada con `go run` recompila a otra ruta y no puede acertar
+  ni su propio calentamiento. Las corridas publicadas se hacen con un binario
+  construido, y el informe lo dice en su orden de reproducción. Un harness que
+  no lo hiciera mediría un pase frío y lo llamaría caliente.
+- El brazo de búsqueda declara **qué buscador corrió**. `rg` no siempre está en
+  el `PATH` -- los hosts de agente lo empaquetan dentro de su propio ejecutable--
+  y la alternativa `grep` necesita las exclusiones escritas a mano, porque
+  ripgrep no baja a un árbol de dependencias instaladas y un `grep` que sí bajara
+  cronometraría una búsqueda que ninguna sesión hace. El buscador más lento
+  **favorece al grafo**, así que la cifra publicada es una cota inferior y el
+  informe la nombra así.
 - `benchmarks/snapshot-heap` tampoco mide páginas residentes: separa, en lo que
   cuesta cargar un snapshot publicado, los bytes que un lector **conserva** de
   los que la carga asigna y tira. Toma el perfil con el snapshot **vivo**, que
