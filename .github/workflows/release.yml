@@ -433,17 +433,23 @@ jobs:
 
       - name: Verify published archive digest
         shell: bash
+        # Hashed by bare name from inside the download directory, never by a
+        # path built from $RUNNER_TEMP: on windows-2022 that variable is
+        # backslash-separated, and GNU sha256sum's response to a backslash in
+        # the name it is given is to prefix the whole line with one and
+        # double the ones in the name -- `\<hash> *D:\\a\\_temp/...`. A plain
+        # `awk '{print $1}'` then reads that leading backslash into the
+        # digest and no real mismatch is required to fail the comparison.
         run: |
-          archive="$RUNNER_TEMP/published/$ARCHIVE_NAME"
-          checksums="$RUNNER_TEMP/published/SHA256SUMS"
-          test -s "$archive"
-          test -s "$checksums"
+          cd "$RUNNER_TEMP/published"
+          test -s "$ARCHIVE_NAME"
+          test -s SHA256SUMS
           if command -v sha256sum >/dev/null 2>&1; then
-            actual=$(sha256sum "$archive" | awk '{print $1}')
+            actual=$(sha256sum "$ARCHIVE_NAME" | awk '{print $1}')
           else
-            actual=$(shasum -a 256 "$archive" | awk '{print $1}')
+            actual=$(shasum -a 256 "$ARCHIVE_NAME" | awk '{print $1}')
           fi
-          expected=$(awk -v name="$ARCHIVE_NAME" '$2 == name {print $1}' "$checksums")
+          expected=$(awk -v name="$ARCHIVE_NAME" '$2 == name {print $1}' SHA256SUMS)
           test -n "$expected"
           test "$actual" = "$expected"
 
