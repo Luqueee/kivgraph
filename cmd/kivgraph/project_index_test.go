@@ -86,6 +86,57 @@ func TestUpsertCurrentProjectIsIdempotentAndRefreshesLanguages(t *testing.T) {
 	}
 }
 
+// TestCurrentProjectRootUsesContainingGitRoot covers the invocation users make
+// after changing into a nested package: discovery and registration must target
+// the repository root rather than creating a second local project below it.
+func TestCurrentProjectRootUsesContainingGitRoot(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, ".git"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	nested := filepath.Join(root, "internal", "feature")
+	if err := os.MkdirAll(nested, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(nested)
+	wantRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatalf("EvalSymlinks(%q): %v", root, err)
+	}
+
+	projectRoot, err := currentProjectRoot()
+	if err != nil {
+		t.Fatalf("currentProjectRoot() error = %v", err)
+	}
+	if projectRoot != filepath.Clean(wantRoot) {
+		t.Fatalf("currentProjectRoot() = %q, want %q", projectRoot, wantRoot)
+	}
+	languages, err := config.DetectLanguages(projectRoot)
+	if err != nil {
+		t.Fatalf("DetectLanguages(%q) error = %v", projectRoot, err)
+	}
+	initialised, err := config.Initialize(config.InitOptions{
+		ConfigPath:       filepath.Join(projectRoot, ".kivgraph", "config.yaml"),
+		RepositoriesPath: filepath.Join(projectRoot, ".kivgraph", "repositories.yaml"),
+	})
+	if err != nil {
+		t.Fatalf("config.Initialize() error = %v", err)
+	}
+	if _, _, err := upsertCurrentProject(initialised.RepositoriesPath, projectRoot, languages); err != nil {
+		t.Fatalf("upsertCurrentProject() error = %v", err)
+	}
+	registry, err := config.LoadRepositories(initialised.RepositoriesPath)
+	if err != nil {
+		t.Fatalf("config.LoadRepositories() error = %v", err)
+	}
+	if got := registry.Repositories[0].Path; got != projectRoot {
+		t.Fatalf("registered project path = %q, want %q", got, projectRoot)
+	}
+}
+
 // TestRunIndexRejectsAProjectStateSymlink keeps the local convenience command
 // from writing through a project-controlled symlink into unrelated state.
 func TestRunIndexRejectsAProjectStateSymlink(t *testing.T) {

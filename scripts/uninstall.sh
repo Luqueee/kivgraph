@@ -50,10 +50,11 @@ esac
 [[ ! -L "$install_root" ]] || fail "refusing symbolic-link installation root: $install_root"
 
 launcher_is_managed() {
-  local launcher=$1 target=$2
-  [[ -e "$launcher" || -L "$launcher" ]] || return 1
+	local launcher=$1 target=$2
+	[[ -e "$launcher" || -L "$launcher" ]] || return 1
   [[ ! -L "$launcher" ]] || return 1
   [[ -f "$launcher" ]] || return 1
+  grep -Fqx -- '# Managed by the Kivgraph release installer.' "$launcher" || return 1
   grep -Fq -- "$target" "$launcher"
 }
 

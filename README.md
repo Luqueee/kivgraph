@@ -250,10 +250,12 @@ failure at any stage leaves the previous generation serving. A server already
 running follows the new generation on its own.
 
 When you are inside one project, `kivgraph index` detects its supported
-languages, creates or reuses `.kivgraph/`, registers that directory as
-`project`, and runs the same full rebuild. It does not alter the shared user
-registry. Use `kivgraph index --full` when you want the explicit registered-
-repositories workflow; both forms preserve the full-indexing contract.
+languages, creates or reuses `.kivgraph/`, registers the current project as
+`project` in its local registry, and runs the same full rebuild. With neither
+`--config` nor `--repositories`, it does not alter the shared user registry;
+those overrides intentionally select the configuration and registry to update.
+Use `kivgraph index --full` when you want the explicit registered-repositories
+workflow; both forms preserve the full-indexing contract.
 The command does not install language toolchains; `kivgraph doctor` reports any
 prerequisite that is missing on the host.
 

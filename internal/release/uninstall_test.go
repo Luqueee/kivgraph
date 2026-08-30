@@ -20,7 +20,8 @@ func TestUninstallRemovesOnlyTheManagedBundleAndLaunchers(t *testing.T) {
 
 	result := runUninstaller(t, home, installRoot, binDir, "--yes")
 	if result.err != nil {
-		t.Fatalf("uninstaller failed: %v\n%s", result.err, result.output)
+		t.Fatalf("uninstaller failed for installRoot=%q binDir=%q --yes: %v\n%s",
+			installRoot, binDir, result.err, result.output)
 	}
 	for _, path := range []string{installRoot, filepath.Join(binDir, "kivgraph"), filepath.Join(binDir, "kivgraph-ts-worker")} {
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
@@ -38,7 +39,8 @@ func TestUninstallRemovesOnlyTheManagedBundleAndLaunchers(t *testing.T) {
 func TestUninstallRefusesAnUnrelatedLauncher(t *testing.T) {
 	installRoot, binDir, home := fakeInstallation(t)
 	launcher := filepath.Join(binDir, "kivgraph")
-	if err := os.WriteFile(launcher, []byte("#!/bin/sh\necho user-owned\n"), 0o755); err != nil {
+	body := "#!/bin/sh\n# user-owned wrapper for " + filepath.Join(installRoot, "bin", "kivgraph") + "\necho user-owned\n"
+	if err := os.WriteFile(launcher, []byte(body), 0o755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -134,7 +136,7 @@ func fakeInstallation(t *testing.T) (installRoot, binDir, home string) {
 			t.Fatal(err)
 		}
 		launcher := filepath.Join(binDir, target)
-		body := "#!/usr/bin/env bash\nexec " + path + " \"$@\"\n"
+		body := "#!/usr/bin/env bash\n# Managed by the Kivgraph release installer.\nexec " + path + " \"$@\"\n"
 		if err := os.WriteFile(launcher, []byte(body), 0o755); err != nil {
 			t.Fatal(err)
 		}

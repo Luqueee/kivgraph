@@ -39,7 +39,12 @@ catch {
 foreach ($pair in @(
         @{ Name = 'KIVGRAPH_INSTALL_ROOT'; Value = $installRoot },
         @{ Name = 'KIVGRAPH_BIN_DIR'; Value = $binDir })) {
-    if ($pair.Value.TrimEnd('\', '/').Length -le 2) { Fail "$($pair.Name) must not be a drive root" }
+    $trimmed = $pair.Value.TrimEnd('\', '/')
+    $pathRoot = [System.IO.Path]::GetPathRoot($pair.Value)
+    $trimmedRoot = if ($pathRoot) { $pathRoot.TrimEnd('\', '/') } else { '' }
+    if ($trimmed.Length -le 2 -or ($trimmedRoot -and $trimmed -eq $trimmedRoot)) {
+        Fail "$($pair.Name) must not be a drive or UNC share root"
+    }
 }
 
 $root = Get-Item -LiteralPath $installRoot -Force -ErrorAction SilentlyContinue
@@ -62,7 +67,9 @@ function Test-ManagedLauncher([string]$Path, [string]$Target) {
     if ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { return $false }
     if (-not $item.PSIsContainer) {
         $body = Get-Content -LiteralPath $Path -Raw -ErrorAction SilentlyContinue
-        return [bool]($body -and $body.Contains($Target))
+        return [bool]($body -and
+            ($body -match '(?m)^rem Managed by the Kivgraph release installer\.\r?$') -and
+            $body.Contains($Target))
     }
     return $false
 }

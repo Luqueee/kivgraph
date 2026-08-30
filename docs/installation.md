@@ -338,12 +338,15 @@ kivgraph init \
 
 ### Indexar el proyecto actual
 
-Desde la carpeta raíz del proyecto, `kivgraph index` detecta los lenguajes
-soportados por sus extensiones y manifiestos, crea o reutiliza `.kivgraph/`,
-registra esa carpeta como `project` y ejecuta una reconstrucción completa. No
-modifica el registro compartido del usuario. `kivgraph index --full` mantiene la
-forma explícita que indexa todos los repositorios del registro configurado; las
-dos formas pasan por la misma publicación completa y validada.
+Desde cualquier carpeta dentro del proyecto, `kivgraph index` detecta la raíz
+del repositorio y los lenguajes soportados por sus extensiones y manifiestos,
+crea o reutiliza `.kivgraph/`, registra el proyecto como `project` y ejecuta una
+reconstrucción completa. Cuando no pasas `--config` ni `--repositories`, no
+modifica el registro compartido del usuario; esas opciones seleccionan el
+registro y la configuración que deben inicializarse o actualizarse.
+`kivgraph index --full` mantiene la forma explícita que indexa todos los
+repositorios del registro configurado; las dos formas pasan por la misma
+publicación completa y validada.
 El comando no instala toolchains del sistema; `kivgraph doctor` informa de los
 prerrequisitos que falten en el host.
 

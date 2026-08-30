@@ -16,7 +16,8 @@ languages and keep its state separate from the user's shared registry.
 
 `kivgraph index` is a convenience form that:
 
-1. resolves the current working directory as the project root;
+1. resolves the nearest containing Git repository as the project root, or uses
+   the current directory when no repository marker exists;
 2. detects supported languages from source extensions and project manifests;
 3. creates or reuses `.kivgraph/config.yaml` and
    `.kivgraph/repositories.yaml`;

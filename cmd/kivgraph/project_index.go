@@ -137,10 +137,35 @@ func currentProjectRoot() (string, error) {
 	if !info.IsDir() {
 		return "", fmt.Errorf("current path %q is not a directory", resolved)
 	}
-	if filepath.Clean(resolved) == filepath.Clean(filepath.Dir(resolved)) {
+	projectRoot, err := containingRepositoryRoot(filepath.Clean(resolved))
+	if err != nil {
+		return "", err
+	}
+	if filepath.Clean(projectRoot) == filepath.Clean(filepath.Dir(projectRoot)) {
 		return "", errors.New("refusing to index the filesystem root")
 	}
-	return filepath.Clean(resolved), nil
+	return filepath.Clean(projectRoot), nil
+}
+
+// containingRepositoryRoot finds the nearest Git repository marker. A project
+// without Git metadata keeps the current directory as its root, so the local
+// command remains useful in unpacked source trees too.
+func containingRepositoryRoot(start string) (string, error) {
+	candidate := filepath.Clean(start)
+	for {
+		marker := filepath.Join(candidate, ".git")
+		if _, err := os.Lstat(marker); err == nil {
+			return candidate, nil
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return "", fmt.Errorf("inspect repository marker %q: %w", marker, err)
+		}
+
+		parent := filepath.Dir(candidate)
+		if parent == candidate {
+			return start, nil
+		}
+		candidate = parent
+	}
 }
 
 func projectIndexPaths(projectRoot string, options indexProjectOptions) (string, string) {

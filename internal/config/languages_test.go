@@ -83,11 +83,11 @@ func TestDetectLanguagesUsesSourcesAndManifests(t *testing.T) {
 
 	got, err := DetectLanguages(root)
 	if err != nil {
-		t.Fatalf("DetectLanguages() error = %v", err)
+		t.Fatalf("DetectLanguages(%q) error = %v", root, err)
 	}
 	want := []string{"go", "typescript", "javascript", "rust", "python", "dart", "java", "csharp"}
 	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("DetectLanguages() = %q, want %q", got, want)
+		t.Fatalf("DetectLanguages(%q) = %q, want %q", root, got, want)
 	}
 }
 
