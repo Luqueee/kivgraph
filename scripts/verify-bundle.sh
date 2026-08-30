@@ -129,7 +129,9 @@ fi
 pinned_release=$(jq -er '.tools[] | select(.name == "rust-analyzer") | .release' "$tools_manifest")
 test "$(jq -er '.tools.rust_analyzer.release' "$manifest")" = "$pinned_release"
 test "$(jq -er '.rust_analyzer' <<<"$version_json")" = "$pinned_release"
-grep -q "$("$bundle/bin/rust-analyzer$program_suffix" --version | awk '{print $2}')" <<<"$pinned_release"
+reported_version=$("$bundle/bin/rust-analyzer$program_suffix" --version | awk '{print $2}')
+test -n "$reported_version"
+grep -qF -- "$reported_version" <<<"$pinned_release"
 
 # The viewer is part of a published bundle, while the landing site is not.
 test -f "$bundle/web/index.html"

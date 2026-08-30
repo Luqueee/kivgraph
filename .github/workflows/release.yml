@@ -151,11 +151,13 @@ jobs:
 
       - name: Verify bundle provenance and checksums
         shell: bash
+        env:
+          KIVGRAPH_VERSION: ${{ steps.release.outputs.version }}
         run: |
           scripts/verify-bundle.sh \
             --bundle "$RUNNER_TEMP/$BUNDLE_NAME" \
             --target "$TARGET_OS/$TARGET_ARCH" \
-            --version "${{ steps.release.outputs.version }}" \
+            --version "$KIVGRAPH_VERSION" \
             --commit "$GITHUB_SHA" \
             --source-tools-manifest tools/manifest.json
 
