@@ -787,11 +787,17 @@ nothing is forwarded, so a development landing cannot write to the dataset.
 ### What the collector stores, which is not nothing
 
 Read from the same `13` events, in the session and event rows they produced.
-A session row carries a **country** derived from the address -- `US` for
-`8.8.8.8`, `AU` for `1.1.1.1`, empty for a reserved range -- and a device
-class that defaults to `desktop` for a request with no screen. The address
-itself is not stored. Coarse geography is therefore part of what this property
-knows, and `/telemetry/` says so rather than leaving it to be discovered.
+A session row carries a **country and a city** derived from the address, and a
+device class that defaults to `desktop` for a request with no screen. The
+address itself is not stored.
+
+The city is a correction, and it is the kind worth reading twice. The first
+measurement said the city came back empty, because it was taken with
+`8.8.8.8`, `1.1.1.1` and a reserved range: datacentre addresses resolve to a
+country and nothing finer. The first ping from a residential address, on
+2026-08-30, arrived as `ES` / `Sabadell`. A privacy claim measured on
+synthetic input was therefore weaker than what production does, which is the
+direction that matters -- `/telemetry/` now says city.
 
 One more thing a report has to know: the stats endpoint answers `visitors: 0`
 for this property, because it counts sessions with **pageviews** and a first
