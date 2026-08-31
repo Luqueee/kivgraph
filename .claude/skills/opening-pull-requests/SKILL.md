@@ -48,6 +48,27 @@ Apply this convention only when creating a branch. If an existing PR already
 uses another name, keep its head branch while updating it; do not rename,
 delete, or recreate it as a side effect of ordinary PR work.
 
+Before pushing a new branch, check the complete remote head-ref namespace. An
+existing ancestor or descendant ref also blocks the name, even when the exact
+name is unused:
+
+```bash
+branch=docs/standardize-pr-branch-names
+conflict=""
+while IFS= read -r ref; do
+  case "$ref" in
+    "$branch"|"$branch"/*) conflict="$ref"; break ;;
+  esac
+  case "$branch" in
+    "$ref"|"$ref"/*) conflict="$ref"; break ;;
+  esac
+done < <(git ls-remote --heads origin | awk '{sub("refs/heads/", "", $2); print $2}')
+if [ -n "$conflict" ]; then
+  echo "remote branch namespace conflict: $conflict" >&2
+  exit 1
+fi
+```
+
 ## Before opening the PR
 
 1. Read the repository instructions, the originating issue or requested spec,
@@ -55,7 +76,7 @@ delete, or recreate it as a side effect of ordinary PR work.
 2. Inspect the branch, status, diff, commits, and target branch. Preserve
    unrelated user changes and do not create a duplicate PR for the same branch.
 3. If a new branch is needed, branch from the up-to-date target using the naming
-   convention above and verify that the name is not already used remotely.
+   convention above and verify that the name has no remote namespace conflict.
 4. Confirm that the diff has one reviewable purpose. Split unrelated work rather
    than hiding it in the PR description.
 5. Use the `running-tests` skill to select and run the gates required by the
