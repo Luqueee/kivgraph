@@ -9,6 +9,24 @@ import (
 	"github.com/Luqueee/kivgraph/internal/version"
 )
 
+// telemetryOptions builds the metadata shared by local telemetry emitters.
+//
+// Without an executable there is no release layout to inspect, so the
+// resulting empty channel makes telemetry decline to report.
+func telemetryOptions(loaded config.Loaded) telemetry.Options {
+	executable, err := os.Executable()
+	if err != nil {
+		executable = ""
+	}
+	return telemetry.Options{
+		StateDirectory: stateDirectory(loaded),
+		Version:        version.Value,
+		Executable:     executable,
+		// Never os.Stdout. `serve` speaks MCP over it.
+		Notice: os.Stderr,
+	}
+}
+
 // firstRunOptions builds what the emitter is handed for one serving command.
 //
 // The transport is derived here and cannot be passed in, which is the fix for
@@ -18,25 +36,13 @@ import (
 // version, so that wrong row was the only row that version would ever have
 // produced -- in the one field that exists to tell those two apart.
 func firstRunOptions(loaded config.Loaded, command string) telemetry.Options {
-	executable, err := os.Executable()
-	if err != nil {
-		// Without it there is no layout to read, so `Announce` declines. Which
-		// is the right answer: a binary this process cannot locate is not one
-		// whose channel it can report.
-		executable = ""
-	}
+	options := telemetryOptions(loaded)
 	transport := "stdio"
 	if command == "daemon" {
 		transport = "daemon"
 	}
-	return telemetry.Options{
-		StateDirectory: stateDirectory(loaded),
-		Version:        version.Value,
-		Transport:      transport,
-		Executable:     executable,
-		// Never os.Stdout. `serve` speaks MCP over it.
-		Notice: os.Stderr,
-	}
+	options.Transport = transport
+	return options
 }
 
 // announceFirstRun reports the first run of this version, off the path of the
@@ -76,30 +82,22 @@ func relayedFirstRunOptions(loaded config.Loaded) telemetry.Options {
 // install` succeeds.
 //
 // It does not reuse `firstRunOptions`: that function derives a transport from
-// a command name, and there is no arrangement to name here -- a supervisor
-// entry was registered, and nothing is serving yet.
+// a command name, while this row records supervisor registration. The platform
+// may start the daemon as a consequence, but that serving run is a separate
+// binary fact and is not what this row describes.
 func supervisorInstallOptions(loaded config.Loaded) telemetry.Options {
-	executable, err := os.Executable()
-	if err != nil {
-		executable = ""
-	}
-	return telemetry.Options{
-		StateDirectory: stateDirectory(loaded),
-		Version:        version.Value,
-		Executable:     executable,
-		// Never os.Stdout, for the same reason as the two above, even though
-		// `daemon install` does not itself speak a protocol over it: the
-		// notice is one function shared with the paths that do.
-		Notice: os.Stderr,
-	}
+	return telemetryOptions(loaded)
 }
 
 // announceSupervisorInstall reports that `daemon install` gave this machine a
-// supervisor entry for this version, off the path of the command.
+// supervisor entry for this version.
 //
 // Called once, from the success tail of `runSupervisorCommand`'s `"install"`
 // case, and from nowhere else: `daemon remove` and `daemon status` change or
 // read that entry but do not create it, and are not the fact this reports.
-func announceSupervisorInstall(loaded config.Loaded) {
-	go telemetry.AnnounceSupervisorInstall(context.Background(), supervisorInstallOptions(loaded))
+// This one-shot command waits for the bounded request to finish. The marker is
+// claimed before the request, so launching a goroutine here would let the
+// caller's os.Exit terminate the process with a marker but no report.
+func announceSupervisorInstall(ctx context.Context, loaded config.Loaded) {
+	telemetry.AnnounceSupervisorInstall(ctx, supervisorInstallOptions(loaded))
 }

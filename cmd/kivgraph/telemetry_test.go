@@ -70,24 +70,23 @@ func TestTheFirstRunNoticeNeverGoesToStdout(t *testing.T) {
 	}
 }
 
-// `daemon install` registers a supervisor entry; it does not itself start
-// serving anything, so there is no arrangement for this to name. Asserting a
-// literal empty string rather than "not stdio" or "not daemon" is deliberate:
-// a default that crept in here would pass either of those and still reach the
+// `daemon install` reports supervisor registration, not the serving
+// arrangement the platform may start as a consequence. Asserting a literal
+// empty string rather than "not stdio" or "not daemon" is deliberate: a
+// default that crept in here would pass either of those and still reach the
 // endpoint, which refuses a transport on a non-binary row.
 func TestSupervisorInstallOptionsCarryNoTransport(t *testing.T) {
+	state := t.TempDir()
 	loaded := config.Loaded{Config: config.Config{}}
-	loaded.Config.Storage.DatabasePath = filepath.Join(t.TempDir(), "kivgraph.db")
+	loaded.Config.Storage.DatabasePath = filepath.Join(state, "kivgraph.db")
 
 	options := supervisorInstallOptions(loaded)
 	if options.Transport != "" {
-		t.Fatalf("supervisorInstallOptions().Transport = %q, want empty", options.Transport)
+		t.Fatalf("supervisorInstallOptions(%q).Transport = %q, want empty",
+			loaded.Config.Storage.DatabasePath, options.Transport)
 	}
-	if options.Version != version.Value {
-		t.Fatalf("supervisorInstallOptions().Version = %q, want the compiled %q",
-			options.Version, version.Value)
-	}
-	if options.Notice != os.Stderr {
-		t.Fatalf("supervisorInstallOptions().Notice = %v, want os.Stderr", options.Notice)
+	if options.StateDirectory != state {
+		t.Fatalf("supervisorInstallOptions(%q).StateDirectory = %q, want %q",
+			loaded.Config.Storage.DatabasePath, options.StateDirectory, state)
 	}
 }

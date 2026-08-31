@@ -580,15 +580,16 @@ there.
 
 **Both halves exist now.** The endpoint is `landing/src/install-report.mjs`,
 wired in `landing/server.mjs`; the emitters are `internal/telemetry` for the
-binary and the tail of `scripts/install.sh` and `scripts/install.ps1` for the
-installers. Everything below is observed behaviour. `v0.9.3` is the first
-published release that carries the emitters; every version before it,
-`v0.9.2` included, predates them and can never have sent a row.
+binary and supervisor rows, and the tail of `scripts/install.sh` and
+`scripts/install.ps1` for the installers. The event shape and validation below
+are observed behaviour; the interpretation of its scope is labelled as
+analysis. `v0.9.3` is the first published release that carries the binary and
+installer emitters; supervisor telemetry is in source after that release.
 
 ### The event
 
-One event, `first_run`, on a third property, `kivgraph FIRST RUNS`, with five
-flat string fields:
+One event, `first_run`, on a third property, `kivgraph FIRST RUNS`, with up to
+five flat string fields:
 
 - **`emitter`** -- `installer`, `binary` or `supervisor`. Which of three
   different facts this row is;
@@ -606,13 +607,15 @@ flat string fields:
   a hand-extracted archive and one the installer placed -- which costs
   nothing, because the installer reports its own row;
 - **`transport`** -- `stdio` or `daemon` on a `binary` row, and **absent** on
-  an `installer` or a `supervisor` one, because neither has started a server
-  and reporting a default it did not choose would be inventing data. It is
-  required on the rows that have it: a `binary` row without a transport is
-  refused rather than defaulted.
+  an `installer` or a `supervisor` one. The installer does not start a server;
+  supervisor registration may start one as a platform consequence, but this
+  row records registration rather than the serving arrangement. Reporting a
+  default would invent data, so a binary row without a transport is refused.
 
-One machine installing one version therefore produces **at most three rows**,
-one per emitter, and they are never added together.
+For one address and version, the endpoint accepts at most one row per emitter
+inside its 24-hour dedupe window, so up to three emitter types can be present;
+the installer has no local marker and can report again after that window. The
+rows are never added together.
 
 **A binary that is not running from a release layout reports nothing**, and
 that is the declared hole in this number. Nothing distinguishes a developer's
@@ -651,13 +654,12 @@ and Layer 0 now keeps that number current instead of quoting it.
 `supervisor` is the third, and it exists for a reason neither of the other two
 answers: nothing in a `binary` row distinguishes a machine that ran
 `kivgraph daemon` once, unattended, from one whose owner asked the platform to
-keep it around with `kivgraph daemon install`. Registering a systemd or
-launchd unit is not a side effect of running once -- an automated sandbox that
-starts a released archive to observe it has no reason to also write and enable
-a unit -- so a `supervisor` row is scarcer than a `binary` one and worth more
-per row. The cost is scope: it fires only for the shared-daemon arrangement,
-which most real use never touches, so it is a small, trustworthy number and
-not a replacement for the other two.
+keep it around with `kivgraph daemon install`. Registration is a separate,
+narrower fact even when the platform starts the daemon as a consequence, and
+the row is not an actor-identification claim. This is an analysis of the
+signal's scope, not a measurement of how often either path occurs. It fires
+only for the shared-daemon arrangement, which most real use never touches, so
+it is not a replacement for the other two.
 
 ### What is measured is the first run of a version
 

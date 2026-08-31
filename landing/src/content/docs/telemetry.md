@@ -3,24 +3,25 @@ title: Telemetry
 description: What Kivgraph reports, what it never reports, and the one variable that turns it off.
 ---
 
-**As of `v0.9.3` -- the current release -- Kivgraph sends one ping.** `serve`
-and the daemon report it the first time each version runs on a machine, the
-installers report a second, independent one when they finish, and
-`kivgraph daemon install` reports a third when it registers a supervisor entry
-for the daemon. This page went up a release before the first two did, so that
-the opt-out was documented before there was anything to opt out of, and so
-that nobody has to read the source to find out what a version reports.
+**The published `v0.9.3` release sends two telemetry facts.** `serve` and the
+daemon report one when each version runs for the first time on a machine, and
+the installers report a second, independent one when they finish. Builds that
+include supervisor telemetry send a third when `kivgraph daemon install`
+successfully registers a supervisor entry. This page went up a release before
+the first two did, so that the opt-out was documented before there was anything
+to opt out of, and so that nobody has to read the source to find out what a
+version reports.
 
 ## The one thing it reports
 
-A single event: **this version arrived here, and what it just did**. One
-machine can produce **up to three** of them for one version -- one when an
-installer finishes, one when the binary starts for the first time, one when
-`daemon install` registers it with the platform -- and they are never added
-together: a bundle can be installed and never launched, and a daemon can be
-run once without ever being installed as a service.
+A single event: **this version arrived here, and what it just did**. For one
+address and version, the collector accepts at most one row per emitter inside
+its 24-hour dedupe window, so up to three emitter types can be present. The
+installer has no local marker and can report again after that window. The rows
+are never added together: a bundle can be installed and never launched, and a
+daemon can be run once without ever being installed as a service.
 
-It carries five fields and nothing else:
+It carries up to five fields and nothing else:
 
 | field | values | what it says |
 | --- | --- | --- |
@@ -28,7 +29,7 @@ It carries five fields and nothing else:
 | `version` | `MAJOR.MINOR.PATCH`, as in `0.9.3` | which version |
 | `platform` | `linux-amd64`, `darwin-arm64`, `windows-amd64` | which build |
 | `channel` | `installer`, `mcpb`, `archive` | how it got there |
-| `transport` | `stdio`, `daemon` | which arrangement served, on `binary` rows only |
+| `transport` | `stdio`, `daemon` | which arrangement served, on `binary` rows only; absent otherwise |
 
 That is the entire payload. There is no field for anything else, so there is
 no version of it that carries more.

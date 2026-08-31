@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -32,6 +33,28 @@ func collector(t *testing.T) (*httptest.Server, *[]ping, *atomic.Int64) {
 	}))
 	t.Cleanup(server.Close)
 	return server, &received, &count
+}
+
+// rawCollector keeps the wire payload so tests can distinguish an omitted
+// optional field from a field decoded as its zero value.
+func rawCollector(t *testing.T) (*httptest.Server, *[][]byte) {
+	t.Helper()
+	var mu sync.Mutex
+	received := make([][]byte, 0, 8)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		body, err := io.ReadAll(request.Body)
+		if err != nil {
+			t.Errorf("read request body: %v", err)
+			writer.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		mu.Lock()
+		received = append(received, body)
+		mu.Unlock()
+		writer.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(server.Close)
+	return server, &received
 }
 
 // releasedBinary builds the layout a release archive unpacks into and answers
@@ -298,20 +321,23 @@ func TestChannelOfReadsTheLayoutAroundTheExecutable(t *testing.T) {
 	}
 }
 
-// The third fact: `daemon install` reports separately from `Announce`, with
-// no transport, because nothing is serving yet -- only a supervisor entry was
-// registered.
+// The third fact: `daemon install` reports separately from `Announce`, with no
+// transport, because this row records supervisor registration rather than the
+// serving arrangement the platform may start as a consequence.
 func TestAnnounceSupervisorInstallSendsOnePingWithNoTransport(t *testing.T) {
-	server, received, _ := collector(t)
+	server, raw := rawCollector(t)
 	opts := options(t, server.URL)
 
 	if !AnnounceSupervisorInstall(context.Background(), opts) {
 		t.Fatal("AnnounceSupervisorInstall() = false, want a ping on the first install of a version")
 	}
-	if len(*received) != 1 {
-		t.Fatalf("received %d pings, want 1", len(*received))
+	if len(*raw) != 1 {
+		t.Fatalf("received %d pings, want 1", len(*raw))
 	}
-	got := (*received)[0]
+	var got ping
+	if err := json.Unmarshal((*raw)[0], &got); err != nil {
+		t.Fatalf("decode received ping: %v", err)
+	}
 	want := ping{
 		Emitter:  "supervisor",
 		Version:  "0.9.1",
@@ -320,6 +346,13 @@ func TestAnnounceSupervisorInstallSendsOnePingWithNoTransport(t *testing.T) {
 	}
 	if got != want {
 		t.Fatalf("received %+v, want %+v", got, want)
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal((*raw)[0], &fields); err != nil {
+		t.Fatalf("decode received fields: %v", err)
+	}
+	if _, present := fields["transport"]; present {
+		t.Fatalf("received supervisor ping %s with a transport field", (*raw)[0])
 	}
 }
 
@@ -351,7 +384,7 @@ func TestAnnounceSupervisorInstallReportsOncePerVersion(t *testing.T) {
 	AnnounceSupervisorInstall(context.Background(), opts)
 
 	if count.Load() != 2 {
-		t.Fatalf("the endpoint received %d pings, want 2: one per version", count.Load())
+		t.Fatalf("the endpoint received %d pings for supervisor versions 0.9.1 and 0.9.2, want 2: one per version", count.Load())
 	}
 }
 

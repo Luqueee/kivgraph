@@ -94,9 +94,10 @@ the other.
 **Both layers are built.** Layer 0 is `scripts/downloads.jq`,
 `scripts/downloads.sh` and `.github/workflows/download-metrics.yml`, and it
 has been photographing the counters daily since it merged. Layer 1 is the
-endpoint in `landing/src/install-report.mjs` and the two emitters --
-`internal/telemetry` and the tail of both installers. The latest published
-release is `v0.9.2` and it predates them, so the property has no rows.
+endpoint in `landing/src/install-report.mjs` and three emitters --
+`internal/telemetry` for binary and supervisor rows, and the tail of both
+installers. The latest published release is `v0.9.3`: it carries the binary
+and installer emitters; supervisor telemetry is in source after that release.
 
 Where the implementation taught this ADR something, the ADR says so: the
 address below is the case, and so is the binary declining to report from a
@@ -141,10 +142,11 @@ Layer 0 also fixes the classification the table above uses -- `bundle`,
 `bundle` class, per platform, per day. `scripts/downloads.sh` becomes the
 live view over that same classification instead of a second opinion.
 
-### Layer 1 -- one ping, two emitters, one endpoint
+### Layer 1 -- one ping, three emitters, one endpoint
 
-`POST https://kivgraph.dev/api/telemetry/first-run`, carrying `emitter`,
-`version`, `platform`, `channel` and `transport`, from:
+`POST https://kivgraph.dev/api/telemetry/first-run`, carrying up to five
+fields -- `emitter`, `version`, `platform`, `channel` and, on binary rows,
+`transport` -- from:
 
 - `install.sh` and `install.ps1`, after the archive is verified and the
   install has succeeded, so a ping means a working installation and not an
@@ -153,6 +155,9 @@ live view over that same classification instead of a second opinion.
   only when it is running from a release layout, because nothing tells a
   developer's `go build` from a CI job's and this repository's own CI runs
   the binary on five platforms on every push.
+- `kivgraph daemon install`, after supervisor registration succeeds. The
+  platform may start the daemon as a consequence, but this row records the
+  registration; the resulting serving run is a separate binary row.
 
 The endpoint lives in `landing/server.mjs` and forwards to Umami, because
 the reporter, the header finding it depends on and the fail-closed
@@ -195,19 +200,15 @@ refusing to make. It is `installer`, `binary` or `supervisor`, the three
 are aggregated separately, and only the `binary` rows answer *how many
 machines ran it*.
 
-**`supervisor` is a third fact, added once the other two were measured
-against a real actor and not just a hypothesis.** Within a day of
-publishing `/telemetry/`, `binary` rows for a released version arrived
-from datacentre addresses at a steady cadence, all `channel=archive` and
-`transport=daemon` -- the shape of something starting the daemon once,
-unattended, to see what it does, not of a person. Nothing in that row can
-tell the two apart, because from the endpoint's point of view both really
-did run the released binary. `kivgraph daemon install` registering a
-systemd or launchd unit is a fact that same actor has no reason to
-produce: persistence is a cost that observing a binary for a few seconds
-does not need. The row is therefore scarcer and worth more per row, at the
-declared cost of covering only the shared-daemon arrangement, which is not
-how most real use happens.
+**`supervisor` is a third fact, added to separate a remaining ambiguity.** A
+`binary` row cannot distinguish a machine that ran `kivgraph daemon` once from
+one whose owner asked the platform to keep it around with
+`kivgraph daemon install`: from the endpoint's point of view, both ran the
+released binary. The following distinction is an analysis of the signal's
+scope, not an actor-identification claim: registering a systemd, launchd or
+Task Scheduler entry is a narrower fact than running the binary, and the
+platform may start that daemon as part of registration. The row is therefore
+kept separate and is not a replacement for the other two.
 
 **The endpoint is public, so the number is worth exactly its bounds.**
 Strict validation against the closed sets of platform, channel and
@@ -268,8 +269,9 @@ decides that.** `kivgraph serve` runs the MCP surface over
 `sdkmcp.StdioTransport`, where a stray byte on stdout corrupts the
 session; the daemon serves the same surface over Streamable HTTP, where
 it would not. The ping is shared code, so it obeys the stdio rule
-everywhere: a goroutine with a short timeout, every failure dropped, and
-the first-run notice on stderr. `KIVGRAPH_TELEMETRY=0` disables both
+everywhere: long-running paths use a goroutine with a short timeout, while
+the one-shot install waits for that same bounded request; every failure is
+dropped and the notice goes to stderr. `KIVGRAPH_TELEMETRY=0` disables all
 emitters.
 
 ## Consequences

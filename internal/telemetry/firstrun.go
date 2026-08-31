@@ -1,5 +1,6 @@
-// Package telemetry reports that a version of Kivgraph ran on a machine for
-// the first time, once, and nothing else.
+// Package telemetry reports first-run and supervisor-registration facts for a
+// version of Kivgraph, once where the fact has a local marker, and nothing
+// else.
 //
 // What it measures and why it is not called *installations* is in
 // `docs/adr/0083-a-download-is-not-a-person.md`; the fields it sends are
@@ -48,11 +49,11 @@ const Endpoint = "https://kivgraph.dev/api/telemetry/first-run"
 // back in reports the version it is running rather than nothing.
 const DisableEnv = "KIVGRAPH_TELEMETRY"
 
-// sendTimeout bounds a ping. It is short because nothing waits for it and a
-// slow endpoint must not keep a goroutine alive across a session.
+// sendTimeout bounds a ping. Long-running callers send in a goroutine, while a
+// short-lived command may wait for this bounded duration before it exits.
 const sendTimeout = 2 * time.Second
 
-// Options is what a caller has to know to report a first run.
+// Options is the metadata a caller supplies for a telemetry fact.
 type Options struct {
 	// StateDirectory is where the marker lives. It is the state directory and
 	// not the bundle root because an update replaces the bundle: a marker
@@ -61,7 +62,9 @@ type Options struct {
 	StateDirectory string
 	// Version is the compiled version.Value.
 	Version string
-	// Transport is "stdio" or "daemon": which arrangement is about to serve.
+	// Transport is "stdio" or "daemon" for a binary row. It is empty for a
+	// fact that does not describe a serving arrangement, such as supervisor
+	// registration.
 	Transport string
 	// Executable is os.Executable(); the channel is read from its layout.
 	Executable string
@@ -106,9 +109,9 @@ func Announce(ctx context.Context, options Options) bool {
 // machine's supervisor entry for this version, or does nothing.
 //
 // It is a third fact, next to the installer's and the binary's, and a
-// stronger one where it applies: a systemd or launchd unit is not something a
-// process acquires as a side effect of running once, so a row here means
-// someone asked the platform to keep the daemon around. The cost is scope --
+// narrower one where it applies: a systemd, launchd or Task Scheduler entry is
+// not something a process acquires as a side effect of running once. A row here
+// means someone asked the platform to keep the daemon around. The cost is scope --
 // it only ever fires for the shared-daemon arrangement, which is not how most
 // real use happens, per `docs/adr/0083-a-download-is-not-a-person.md`.
 //
