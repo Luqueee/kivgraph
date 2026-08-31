@@ -14,8 +14,8 @@ no lo ha pedido explícitamente.
 
 - La versión sólo sube. Nunca se baja, se reinicia, se reutiliza ni se reescribe
   un tag que ya se haya empujado.
-- Las releases públicas son estables y usan vX.Y.Z. El workflow rechaza
-  cualquier versión que no sea X.Y.Z; no preparar prereleases con este flujo.
+- Las releases estables usan vX.Y.Z. Las releases de desarrollo usan un sufijo
+  SemVer, por ejemplo vX.Y.Z-dev.N; son prereleases y no se marcan como latest.
 - El tag debe apuntar al commit exacto que ya está integrado en main. No se
   etiqueta una rama de trabajo ni un árbol sucio.
 - La nota de release debe existir antes del tag. Si falta, CI quema el tiempo de
@@ -23,6 +23,13 @@ no lo ha pedido explícitamente.
 - Una release es un evento de distribución, no una marca de progreso del
   backlog. El número de tarea, un PASS en TASKS.md o una suite verde no son
   por sí solos un motivo.
+
+`kivgraph update` selecciona un canal y compara versiones con SemVer. El canal
+`stable` consulta `/releases/latest`; el canal `dev` enumera las primeras 100
+prereleases publicadas y elige la mayor versión válida. Sin `--channel`, una
+instalación estable usa `stable` y una instalación prerelease usa `dev`. También
+se puede seleccionar explícitamente con `--channel stable|dev` o
+`KIVGRAPH_UPDATE_CHANNEL`.
 
 ## 1. Decidir si hay release y qué número usar
 
@@ -234,6 +241,11 @@ git tag -a vX.Y.Z -m "Kivgraph vX.Y.Z"
 git push origin vX.Y.Z
 ~~~
 
+Para una release de desarrollo, sustituir el tag y el nombre de la nota por
+`vX.Y.Z-dev.N`. El workflow publica la GitHub Release como prerelease y no la
+marca como latest; tampoco la publica en el MCP Registry. La nota se llama
+exactamente `landing/src/content/releases/vX.Y.Z-dev.N.md`.
+
 No crear manualmente una GitHub Release antes del workflow: el push del tag
 dispara .github/workflows/release.yml y gh release create es responsabilidad
 del job publish.
@@ -249,8 +261,8 @@ etiquetado y después:
 3. crea un archivo reproducible y un MCPB (.mcpb) por plataforma;
 4. ensambla SHA256SUMS sobre todos los assets y adjunta attestations de
    provenance;
-5. lee el cuerpo de landing/src/content/releases/vX.Y.Z.md y crea la GitHub
-   Release como latest;
+5. lee el cuerpo de la nota correspondiente al tag y crea la GitHub Release;
+   una estable se marca como latest y una prerelease conserva `latest` intacto;
 6. descarga desde la release recién publicada cada archivo de las tres
    plataformas, comprueba su digest, lo extrae y vuelve a ejecutar
    scripts/verify-bundle.sh;
@@ -289,10 +301,11 @@ gh run view "$RUN_ID" --log-failed
 gh release view vX.Y.Z --json tagName,isDraft,isPrerelease,isLatest,assets,url
 ~~~
 
-El run sólo está cerrado cuando pasan verify, las tres filas de build, publish,
-las tres filas de post-publish-smoke y registry. La GitHub Release debe ser
-pública, no draft, no prerelease, estar marcada como latest y tener los 11
-assets anteriores.
+El run sólo está cerrado cuando pasan verify, las tres filas de build, publish y
+las tres filas de post-publish-smoke. En una estable también debe pasar registry
+y la GitHub Release debe ser pública, no draft, no prerelease, estar marcada
+como latest y tener los 11 assets anteriores. En una prerelease no se espera el
+job registry ni la marca latest.
 
 Descargar los assets publicados y verificar el manifest completo desde fuera de
 la workspace que los construyó:

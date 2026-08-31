@@ -1,7 +1,8 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-Install the latest published Kivgraph bundle for windows/amd64.
+Install the latest published Kivgraph bundle for windows/amd64. Set
+KIVGRAPH_VERSION to pin a stable or prerelease tag.
 
 .DESCRIPTION
 The Windows counterpart of scripts/install.sh, which cannot run where there is

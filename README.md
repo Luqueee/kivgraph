@@ -178,6 +178,21 @@ The update is atomic, preserves the configuration and graph state, verifies
 the release and bundle checksums, and replaces only the installed bundle.
 Restart the MCP client after updating so it launches the new binary.
 
+Development builds use a separate prerelease channel. Install one explicitly,
+then select that channel for later checks:
+
+```bash
+release=vX.Y.Z-dev.N
+curl -fsSL \
+  "https://github.com/Luqueee/kivgraph/releases/download/$release/install.sh" |
+  KIVGRAPH_VERSION="$release" bash
+kivgraph update --channel dev
+```
+
+For a prerelease binary, omitting `--channel` already follows `dev`; stable
+installations continue to follow the stable channel. `KIVGRAPH_UPDATE_CHANNEL`
+can be used instead of the flag, including for the interactive update notice.
+
 To remove the installed bundle and launchers without deleting configuration,
 repository registrations or graph state:
 

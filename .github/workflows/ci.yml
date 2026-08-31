@@ -41,8 +41,120 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
+  classify:
+    name: Classify change
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      release_only: ${{ steps.classify.outputs.release_only }}
+      base_sha: ${{ steps.classify.outputs.base_sha }}
+    steps:
+      - name: Checkout complete history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Classify the revision
+        id: classify
+        shell: bash
+        run: |
+          set -euo pipefail
+          base_sha=""
+          head_sha="$GITHUB_SHA"
+          case "$GITHUB_EVENT_NAME" in
+            push)
+              base_sha="$(jq -r '.before // empty' "$GITHUB_EVENT_PATH")"
+              ;;
+            pull_request)
+              base_sha="$(jq -r '.pull_request.base.sha // empty' "$GITHUB_EVENT_PATH")"
+              # `GITHUB_SHA` for a pull request is the synthetic merge commit;
+              # classify the contributor's head so its release subject is
+              # visible. The complete checkout still contains both commits.
+              head_sha="$(jq -r '.pull_request.head.sha // empty' "$GITHUB_EVENT_PATH")"
+              ;;
+            *)
+              # The release workflow calls this file with workflow_call. That
+              # path must always run the complete CI, regardless of the files
+              # changed by the tagged commit.
+              ;;
+          esac
+
+          if [[ -z "$base_sha" || "$base_sha" =~ ^0+$ ]]; then
+            echo "release_only=false" >> "$GITHUB_OUTPUT"
+            echo "base_sha=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
+          classifier="$RUNNER_TEMP/classify-release-change.sh"
+          release_only=false
+          if git show "$base_sha:scripts/classify-release-change.sh" >"$classifier" 2>/dev/null; then
+            chmod +x "$classifier"
+            if ! release_only="$("$classifier" "$GITHUB_EVENT_NAME" "$base_sha" "$head_sha")"; then
+              release_only=false
+            fi
+            "$classifier" selftest
+          else
+            echo "trusted classifier is unavailable at $base_sha; using complete CI"
+          fi
+          echo "release_only=$release_only" >> "$GITHUB_OUTPUT"
+          printf 'release-only change: %s\n' "$release_only"
+
+  release_preparation:
+    name: Validate release preparation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: classify
+    if: needs.classify.outputs.release_only == 'true'
+    steps:
+      - name: Checkout complete history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Check release metadata
+        run: |
+          go test ./internal/version
+          go test ./cmd/kivgraph -run '^$'
+          go vet ./internal/version ./cmd/kivgraph
+          go run ./cmd/kivgraph version
+
+      - name: Check documentation invariants
+        shell: bash
+        env:
+          BASE_SHA: ${{ needs.classify.outputs.base_sha }}
+        run: scripts/check-docs.sh "$BASE_SHA"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with:
+          version: 11.5.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: landing/pnpm-lock.yaml
+
+      - name: Check landing release metadata
+        working-directory: landing
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm check
+
   semantic-coverage:
     name: Verify semantic coverage gates
+    needs: classify
+    if: needs.classify.outputs.release_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -119,6 +231,8 @@ jobs:
 
   verify:
     name: Verify Go, web and landing packages
+    needs: classify
+    if: needs.classify.outputs.release_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -349,6 +463,8 @@ jobs:
 
   linux-bundle:
     name: Build and verify the Linux distribution bundle
+    needs: classify
+    if: needs.classify.outputs.release_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -436,6 +552,8 @@ jobs:
 
   ladybug:
     name: Verify against a real LadybugDB
+    needs: classify
+    if: needs.classify.outputs.release_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -475,9 +593,12 @@ jobs:
 
   smoke:
     name: Serve a graph the bundle built itself
+    needs:
+      - classify
+      - linux-bundle
+    if: needs.classify.outputs.release_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: linux-bundle
 
     # This is the flow AGENTS.md requires before closing an installation change,
     # and until now a person ran it by hand when they remembered. The two defects
@@ -618,6 +739,8 @@ jobs:
   # execute at all -- behind a version number that a failure burns.
   darwin-bundle:
     name: Build the macOS bundle a release publishes
+    needs: classify
+    if: needs.classify.outputs.release_only != 'true'
     runs-on: macos-15
     timeout-minutes: 30
     steps:
@@ -698,6 +821,8 @@ jobs:
 
   macos:
     name: Verify Go on macOS arm64
+    needs: classify
+    if: needs.classify.outputs.release_only != 'true'
     runs-on: macos-15
     timeout-minutes: 20
 
@@ -777,6 +902,8 @@ jobs:
   # whole of that.
   windows-cross:
     name: Cross-compile for windows/amd64
+    needs: classify
+    if: needs.classify.outputs.release_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -827,3 +954,60 @@ jobs:
       # is the half of this job that earns its place.
       - name: Vet for windows/amd64
         run: go vet ./...
+
+  ci_result:
+    name: CI result
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: always()
+    needs:
+      - classify
+      - release_preparation
+      - semantic-coverage
+      - verify
+      - linux-bundle
+      - ladybug
+      - smoke
+      - darwin-bundle
+      - macos
+      - windows-cross
+    steps:
+      - name: Check the selected path
+        shell: bash
+        env:
+          CLASSIFY_RESULT: ${{ needs.classify.result }}
+          RELEASE_ONLY: ${{ needs.classify.outputs.release_only }}
+          RELEASE_PREPARATION_RESULT: ${{ needs.release_preparation.result }}
+          SEMANTIC_COVERAGE_RESULT: ${{ needs['semantic-coverage'].result }}
+          VERIFY_RESULT: ${{ needs.verify.result }}
+          LINUX_BUNDLE_RESULT: ${{ needs['linux-bundle'].result }}
+          LADYBUG_RESULT: ${{ needs.ladybug.result }}
+          SMOKE_RESULT: ${{ needs.smoke.result }}
+          DARWIN_BUNDLE_RESULT: ${{ needs['darwin-bundle'].result }}
+          MACOS_RESULT: ${{ needs.macos.result }}
+          WINDOWS_CROSS_RESULT: ${{ needs['windows-cross'].result }}
+        run: |
+          set -euo pipefail
+          [[ "$CLASSIFY_RESULT" == success ]] ||
+            { echo "change classification failed" >&2; exit 1; }
+
+          if [[ "$RELEASE_ONLY" == true ]]; then
+            [[ "$RELEASE_PREPARATION_RESULT" == success ]] ||
+              { echo "release preparation failed" >&2; exit 1; }
+            echo "release preparation path passed"
+            exit 0
+          fi
+
+          for result in \
+            "$SEMANTIC_COVERAGE_RESULT" \
+            "$VERIFY_RESULT" \
+            "$LINUX_BUNDLE_RESULT" \
+            "$LADYBUG_RESULT" \
+            "$SMOKE_RESULT" \
+            "$DARWIN_BUNDLE_RESULT" \
+            "$MACOS_RESULT" \
+            "$WINDOWS_CROSS_RESULT"; do
+            [[ "$result" == success ]] ||
+              { echo "complete CI result: $result" >&2; exit 1; }
+          done
+          echo "complete CI path passed"

@@ -185,11 +185,13 @@ func writeUpdateNotice(stderr io.Writer) {
 		APIBaseURL:     os.Getenv("KIVGRAPH_UPDATE_API_URL"),
 		CurrentVersion: version.Value,
 		Token:          os.Getenv("KIVGRAPH_GITHUB_TOKEN"),
+		Channel:        os.Getenv("KIVGRAPH_UPDATE_CHANNEL"),
 	})
 	if err != nil || !result.UpdateAvailable {
 		return
 	}
-	writeWarning(stderr, "kivgraph update available: %s -> %s; run \"kivgraph update\" to install it",
+	writeWarning(stderr, "kivgraph update available%s: %s -> %s; run \"kivgraph update\" to install it",
+		channelLabel(result.Channel),
 		result.CurrentVersion, result.LatestVersion)
 }
 
@@ -952,6 +954,7 @@ type supervisedDaemonRestart func(targets []procstat.Process) (daemonRestart, er
 type updateOptions struct {
 	CheckOnly bool
 	StopStale bool
+	Channel   string
 }
 
 // updateFlagSet declares them in one place, so the parser that runs the
@@ -962,6 +965,7 @@ func updateFlagSet(options *updateOptions) *flag.FlagSet {
 	flags.SetOutput(io.Discard)
 	flags.BoolVar(&options.CheckOnly, "check", false, "check for a newer release without installing it")
 	flags.BoolVar(&options.StopStale, "stop", false, "stop the processes still running the previous release without asking")
+	flags.StringVar(&options.Channel, "channel", "", "release channel: stable or dev (default follows the installed version)")
 	return flags
 }
 
@@ -984,11 +988,16 @@ func runUpdateWithRunner(
 		writeCommandError(stderr, "update: unexpected arguments")
 		return 2
 	}
+	channel := options.Channel
+	if channel == "" {
+		channel = os.Getenv("KIVGRAPH_UPDATE_CHANNEL")
+	}
 	result, err := runner(context.Background(), update.Options{
 		APIBaseURL:     os.Getenv("KIVGRAPH_UPDATE_API_URL"),
 		CurrentVersion: version.Value,
 		Token:          os.Getenv("KIVGRAPH_GITHUB_TOKEN"),
 		CheckOnly:      options.CheckOnly,
+		Channel:        channel,
 	})
 	if err != nil {
 		writeCommandError(stderr, "update: %v", err)
@@ -999,15 +1008,22 @@ func runUpdateWithRunner(
 		return 0
 	}
 	if options.CheckOnly {
-		writeInfo(stdout, "kivgraph update available: %s -> %s", result.CurrentVersion, result.LatestVersion)
+		writeInfo(stdout, "kivgraph update available%s: %s -> %s", channelLabel(result.Channel), result.CurrentVersion, result.LatestVersion)
 		return 0
 	}
 	if !result.Updated {
 		writeCommandError(stderr, "update: release %s was not installed", result.LatestVersion)
 		return 1
 	}
-	writeSuccess(stdout, "kivgraph updated: %s -> %s", result.CurrentVersion, result.LatestVersion)
+	writeSuccess(stdout, "kivgraph updated%s: %s -> %s", channelLabel(result.Channel), result.CurrentVersion, result.LatestVersion)
 	return stopStaleProcesses(stdin, stdout, stderr, list, signal, restart, options.StopStale, result.LatestVersion, graceful)
+}
+
+func channelLabel(channel string) string {
+	if channel == "" || channel == update.ChannelStable {
+		return ""
+	}
+	return " (" + channel + " channel)"
 }
 
 // stopStaleProcesses offers to end the servers that outlived the bundle they

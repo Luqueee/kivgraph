@@ -29,6 +29,7 @@ type NoticeOptions struct {
 	CacheTTL       time.Duration
 	Timeout        time.Duration
 	Now            func() time.Time
+	Channel        string
 }
 
 // NoticeResult is the part of Result that the CLI needs to decide whether to
@@ -39,11 +40,13 @@ type NoticeResult struct {
 	LatestVersion   string
 	UpdateAvailable bool
 	FromCache       bool
+	Channel         string
 }
 
 type noticeCache struct {
 	CheckedAt     time.Time `json:"checked_at"`
 	LatestVersion string    `json:"latest_version"`
+	Channel       string    `json:"channel,omitempty"`
 }
 
 // CheckNotice checks the latest published release at most once per cache TTL.
@@ -60,6 +63,10 @@ func CheckNotice(ctx context.Context, options NoticeOptions) (NoticeResult, erro
 	currentSemver := semanticVersion(current)
 	if !semver.IsValid(currentSemver) {
 		return NoticeResult{}, fmt.Errorf("current Kivgraph version %q is not valid semver", current)
+	}
+	channel, err := resolveChannel(current, options.Channel)
+	if err != nil {
+		return NoticeResult{}, err
 	}
 	if options.Now == nil {
 		options.Now = time.Now
@@ -78,12 +85,19 @@ func CheckNotice(ctx context.Context, options NoticeOptions) (NoticeResult, erro
 	now := options.Now()
 	if cached, ok := readNoticeCache(cachePath, now, options.CacheTTL); ok {
 		latestSemver := semanticVersion(cached.LatestVersion)
-		if semver.IsValid(latestSemver) {
+		cachedChannel := cached.Channel
+		if cachedChannel == "" {
+			// Cache files written before channels existed describe the stable
+			// endpoint and remain valid for the default stable stream.
+			cachedChannel = ChannelStable
+		}
+		if cachedChannel == channel && semver.IsValid(latestSemver) {
 			return NoticeResult{
 				CurrentVersion:  current,
 				LatestVersion:   cached.LatestVersion,
 				UpdateAvailable: semver.Compare(currentSemver, latestSemver) < 0,
 				FromCache:       true,
+				Channel:         channel,
 			}, nil
 		}
 	}
@@ -104,11 +118,12 @@ func CheckNotice(ctx context.Context, options NoticeOptions) (NoticeResult, erro
 		Token:          options.Token,
 		CurrentVersion: current,
 		CheckOnly:      true,
+		Channel:        channel,
 	})
 	if err != nil {
 		return NoticeResult{}, err
 	}
-	cached := noticeCache{CheckedAt: now, LatestVersion: result.LatestVersion}
+	cached := noticeCache{CheckedAt: now, LatestVersion: result.LatestVersion, Channel: channel}
 	if err := writeNoticeCache(cachePath, cached); err != nil {
 		return NoticeResult{}, fmt.Errorf("write update notice cache: %w", err)
 	}
@@ -116,6 +131,7 @@ func CheckNotice(ctx context.Context, options NoticeOptions) (NoticeResult, erro
 		CurrentVersion:  result.CurrentVersion,
 		LatestVersion:   result.LatestVersion,
 		UpdateAvailable: result.UpdateAvailable,
+		Channel:         channel,
 	}, nil
 }
 

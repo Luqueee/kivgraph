@@ -73,6 +73,10 @@ type Options struct {
 	CurrentVersion string
 	ExecutablePath string
 	CheckOnly      bool
+	// Channel selects the release stream. An empty value follows the current
+	// version: prerelease binaries stay on the development stream, while a
+	// stable binary follows stable releases.
+	Channel string
 }
 
 // Result describes the release selected by the update check.
@@ -81,11 +85,19 @@ type Result struct {
 	LatestVersion   string
 	UpdateAvailable bool
 	Updated         bool
+	Channel         string
 }
 
+const (
+	ChannelStable      = "stable"
+	ChannelDevelopment = "dev"
+)
+
 type githubRelease struct {
-	TagName string        `json:"tag_name"`
-	Assets  []githubAsset `json:"assets"`
+	TagName    string        `json:"tag_name"`
+	Prerelease bool          `json:"prerelease"`
+	Draft      bool          `json:"draft"`
+	Assets     []githubAsset `json:"assets"`
 }
 
 type githubAsset struct {
@@ -124,6 +136,10 @@ func Run(ctx context.Context, options Options) (Result, error) {
 	if !semver.IsValid(currentSemver) {
 		return Result{}, fmt.Errorf("current Kivgraph version %q is not valid semver", current)
 	}
+	channel, err := resolveChannel(current, options.Channel)
+	if err != nil {
+		return Result{}, err
+	}
 
 	client := options.Client
 	if client == nil {
@@ -133,13 +149,14 @@ func Run(ctx context.Context, options Options) (Result, error) {
 	if apiBaseURL == "" {
 		apiBaseURL = DefaultAPIBase
 	}
-	release, err := latestRelease(ctx, client, apiBaseURL, options.Token, current)
+	release, err := latestRelease(ctx, client, apiBaseURL, options.Token, current, channel)
 	if err != nil {
 		return Result{}, err
 	}
 	result := Result{
 		CurrentVersion: current,
 		LatestVersion:  strings.TrimPrefix(release.TagName, "v"),
+		Channel:        channel,
 	}
 	result.UpdateAvailable = semver.Compare(currentSemver, release.TagName) < 0
 	if !result.UpdateAvailable || options.CheckOnly {
@@ -161,7 +178,10 @@ func Run(ctx context.Context, options Options) (Result, error) {
 	return result, nil
 }
 
-func latestRelease(ctx context.Context, client *http.Client, apiBaseURL, token, current string) (githubRelease, error) {
+func latestRelease(ctx context.Context, client *http.Client, apiBaseURL, token, current, channel string) (githubRelease, error) {
+	if channel == ChannelDevelopment {
+		return latestDevelopmentRelease(ctx, client, apiBaseURL, token, current)
+	}
 	url := strings.TrimRight(apiBaseURL, "/") + "/repos/" + Repository + "/releases/latest"
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -187,6 +207,9 @@ func latestRelease(ctx context.Context, client *http.Client, apiBaseURL, token, 
 	if !strings.HasPrefix(release.TagName, "v") || !semver.IsValid(release.TagName) {
 		return githubRelease{}, fmt.Errorf("latest release tag %q is not valid semver", release.TagName)
 	}
+	if release.Prerelease {
+		return githubRelease{}, fmt.Errorf("latest stable release %q is marked prerelease", release.TagName)
+	}
 	if _, err := releaseAsset(release, archiveName); err != nil {
 		return githubRelease{}, err
 	}
@@ -194,6 +217,63 @@ func latestRelease(ctx context.Context, client *http.Client, apiBaseURL, token, 
 		return githubRelease{}, err
 	}
 	return release, nil
+}
+
+func latestDevelopmentRelease(ctx context.Context, client *http.Client, apiBaseURL, token, current string) (githubRelease, error) {
+	url := strings.TrimRight(apiBaseURL, "/") + "/repos/" + Repository + "/releases?per_page=100"
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return githubRelease{}, fmt.Errorf("create development release request: %w", err)
+	}
+	setHeaders(request, token, current)
+	response, err := client.Do(request)
+	if err != nil {
+		return githubRelease{}, fmt.Errorf("query development releases: %w", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		body, readErr := io.ReadAll(io.LimitReader(response.Body, 4096))
+		if readErr != nil {
+			return githubRelease{}, fmt.Errorf("query development releases: HTTP %s: read response: %w", response.Status, readErr)
+		}
+		return githubRelease{}, fmt.Errorf("query development releases: HTTP %s: %s", response.Status, strings.TrimSpace(string(body)))
+	}
+	var releases []githubRelease
+	if err := json.NewDecoder(io.LimitReader(response.Body, 4<<20)).Decode(&releases); err != nil {
+		return githubRelease{}, fmt.Errorf("decode development releases: %w", err)
+	}
+	var selected githubRelease
+	for _, release := range releases {
+		if release.Draft || !release.Prerelease || !strings.HasPrefix(release.TagName, "v") || !semver.IsValid(release.TagName) || semver.Prerelease(release.TagName) == "" {
+			continue
+		}
+		if selected.TagName == "" || semver.Compare(selected.TagName, release.TagName) < 0 {
+			selected = release
+		}
+	}
+	if selected.TagName == "" {
+		return githubRelease{}, errors.New("no published development release is available")
+	}
+	if _, err := releaseAsset(selected, archiveName); err != nil {
+		return githubRelease{}, err
+	}
+	if _, err := releaseAsset(selected, checksumsName); err != nil {
+		return githubRelease{}, err
+	}
+	return selected, nil
+}
+
+func resolveChannel(current, requested string) (string, error) {
+	if requested == "" {
+		if semver.Prerelease(semanticVersion(current)) != "" {
+			return ChannelDevelopment, nil
+		}
+		return ChannelStable, nil
+	}
+	if requested != ChannelStable && requested != ChannelDevelopment {
+		return "", fmt.Errorf("update channel %q is invalid (want %s or %s)", requested, ChannelStable, ChannelDevelopment)
+	}
+	return requested, nil
 }
 
 func installRelease(ctx context.Context, client *http.Client, token string, release githubRelease, version, bundleRoot string) error {

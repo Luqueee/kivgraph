@@ -11,6 +11,7 @@ import (
 	"github.com/Luqueee/kivgraph/internal/eventlog"
 	"github.com/Luqueee/kivgraph/internal/integrations"
 	"github.com/Luqueee/kivgraph/internal/procstat"
+	"github.com/Luqueee/kivgraph/internal/update"
 	"github.com/Luqueee/kivgraph/internal/version"
 )
 
@@ -457,9 +458,10 @@ func commandTable() []commandSpec {
 		{
 			words:   []string{"update"},
 			group:   "Maintenance",
-			usage:   "update [--check] [--stop]",
-			summary: "Install the latest published release",
+			usage:   "update [--check] [--channel stable|dev] [--stop]",
+			summary: "Install the latest release from a selected channel",
 			flags:   func() *flag.FlagSet { var o updateOptions; return updateFlagSet(&o) },
+			hints:   map[string]flagHint{"channel": {values: func() []string { return []string{update.ChannelStable, update.ChannelDevelopment} }}},
 			run: func(_ dependencies, args []string, stdout, stderr io.Writer) int {
 				return runUpdate(args, stdout, stderr)
 			},
