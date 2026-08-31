@@ -209,6 +209,21 @@ En un checkout limpio, el `buildid` Go se deriva del commit y del estado
 toolchain y plataforma producen el mismo payload; un árbol modificado se marca
 `source.dirty: true` en el manifest.
 
+Para probar ese checkout sobre una instalación existente sin publicar una
+release:
+
+```bash
+scripts/install-dev.sh
+```
+
+El script construye un bundle completo, verifica sus checksums y comprueba que
+usa la misma biblioteca LadybugDB que la instalación. Después sustituye sólo
+`bin/kivgraph` mediante un rename atómico; el worker y los demás archivos del
+bundle no cambian. Si el perfil por defecto tiene un daemon supervisado,
+reinicia su unidad después del cambio; si el reinicio falla, recupera el
+binario anterior. `--bundle DIR` permite reutilizar un bundle ya construido y
+`--no-restart` omite de forma explícita la inspección y el reinicio del daemon.
+
 El comando `kivgraph ui` sirve `web/index.html` y los demás archivos generados
 del bundle. Un build sin el tag `webassets` o sin `web/` no sirve archivos del
 checkout: responde `503` con un fallback que indica que el bundle web no está
