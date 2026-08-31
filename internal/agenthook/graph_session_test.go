@@ -108,17 +108,18 @@ func TestAToolThatIsNotThereIsAnError(t *testing.T) {
 // TestIntentReadsRankedCandidates covers the other call, including the two
 // spellings of a qualified name the compact view may use.
 func TestIntentReadsRankedCandidates(t *testing.T) {
+	const intent, repository = "New.*Server", ""
 	const matches = `{"snapshot_id":90,"symbols":[` +
 		`{"repository":"kivgraph","file_path":"internal/mcp/server.go","qualified_name":"mcp.NewServer"},` +
 		`{"repository":"workspace","file_path":"internal/api/server.go","qn":"api.NewServer"}]}`
 	graph := &daemonGraph{session: answeringSession(t,
 		map[string]string{"find_by_intent": matches}, nil)}
-	facts, err := graph.Intent(context.Background(), "New.*Server", "")
+	facts, err := graph.Intent(context.Background(), intent, repository)
 	if err != nil {
-		t.Fatalf("Intent() error = %v", err)
+		t.Fatalf("Intent(%q, repository=%q) error = %v", intent, repository, err)
 	}
 	if facts.Declarations != 2 || facts.Repositories != 2 {
-		t.Fatalf("facts = %#v", facts)
+		t.Fatalf("Intent(%q, repository=%q) facts = %#v", intent, repository, facts)
 	}
 	want := []string{
 		"kivgraph internal/mcp/server.go mcp.NewServer",
@@ -126,7 +127,8 @@ func TestIntentReadsRankedCandidates(t *testing.T) {
 	}
 	for index, row := range want {
 		if facts.Sample[index] != row {
-			t.Fatalf("sample[%d] = %q, want %q", index, facts.Sample[index], row)
+			t.Fatalf("Intent(%q, repository=%q) sample[%d] = %q, want %q",
+				intent, repository, index, facts.Sample[index], row)
 		}
 	}
 }

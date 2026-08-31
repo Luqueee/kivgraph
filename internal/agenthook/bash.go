@@ -132,6 +132,9 @@ func classifyRGFiles(arguments []string) Question {
 	for index := 0; index < len(arguments); index++ {
 		argument := arguments[index]
 		switch {
+		case argument == "--":
+			paths = append(paths, arguments[index+1:]...)
+			index = len(arguments)
 		case argument == "--files":
 		case argument == "-g" || argument == "--glob":
 			if index+1 < len(arguments) {
@@ -162,6 +165,9 @@ func classifyRGFiles(arguments []string) Question {
 
 func hasArgument(arguments []string, wanted string) bool {
 	for _, argument := range arguments {
+		if argument == "--" {
+			return false
+		}
 		if argument == wanted {
 			return true
 		}

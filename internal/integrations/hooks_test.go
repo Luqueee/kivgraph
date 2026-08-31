@@ -310,7 +310,8 @@ func TestCodexKeepsItsOwnWrapper(t *testing.T) {
 	// the PreToolUse payload names the tool Bash. Codex matchers are literal,
 	// so matching the presentation label leaves the hook disconnected.
 	if entry["matcher"] != "Bash" {
-		t.Fatalf("codex matcher = %v, want Bash", entry["matcher"])
+		t.Fatalf("InstallHook(%q, %q) matcher = %v, want Bash",
+			TargetCodex, ScopeUser, entry["matcher"])
 	}
 }
 
