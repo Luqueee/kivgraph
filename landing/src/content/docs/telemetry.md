@@ -3,30 +3,28 @@ title: Telemetry
 description: What Kivgraph reports, what it never reports, and the one variable that turns it off.
 ---
 
-**The latest published release is `v0.9.3`.** `serve` and the daemon report
-one when each version runs for the first time on a machine, and the installers
-report a second, independent one when they finish. Builds that include
-supervisor telemetry send a third when `kivgraph daemon install` successfully
-registers a supervisor entry. This page went up a release before the first two
-did, so that the opt-out was documented before there was anything to opt out
-of, and so that nobody has to read the source to find out what a version
-reports.
+Releases from `v0.9.3` onward report one event when `serve` or the daemon runs
+for the first time on a machine, and the installers report a second,
+independent event when they finish. Builds that include supervisor telemetry
+send a third when `kivgraph daemon install` successfully registers a supervisor
+entry. The contract is tied to the first release that shipped it rather than a
+hand-maintained "latest release" label that can go stale.
 
 ## The one thing it reports
 
 A single event: **this version arrived here, and what it just did**. For one
-address and version, the collector accepts at most one row per emitter inside
-its 24-hour dedupe window, so up to three emitter types can be present. The
-installer has no local marker and can report again after that window. The rows
-are never added together: a bundle can be installed and never launched, and a
-daemon can be run once without ever being installed as a service.
+address, version and UTC day, the collector accepts at most one row per
+emitter, so up to three emitter types can be present. The installer has no
+local marker and can report again on another day. The rows are never added
+together: a bundle can be installed and never launched, and a daemon can be
+run once without ever being installed as a service.
 
 It carries up to five fields and nothing else:
 
 | field | values | what it says |
 | --- | --- | --- |
 | `emitter` | `installer`, `binary`, `supervisor` | which of the three just happened |
-| `version` | `MAJOR.MINOR.PATCH`, as in `0.9.3` | which version |
+| `version` | `MAJOR.MINOR.PATCH`, as in `0.9.5` | which version |
 | `platform` | `linux-amd64`, `darwin-arm64`, `windows-amd64` | which build |
 | `channel` | `installer`, `mcpb`, `archive` | how it got there |
 | `transport` | `stdio`, `daemon` | which arrangement served, on `binary` rows only; absent otherwise |
@@ -42,20 +40,14 @@ no version of it that carries more.
 - **No identifier minted by us.** Kivgraph does not generate a machine id, an
   install id or a user id, and does not store one.
 - **No hostname, no user name, no environment.**
-- **No address stored by us.** The request has one, as every HTTP request
-  does. It reaches the analytics collector, which turns it into a
-  daily-rotating hash together with a few other values, and keeps the hash
-  rather than the address. The practical consequence is that everyone behind
-  one NAT counts as one machine, and we would rather say that than let you
-  find it out.
-- **A rough location, and that one is stored.** The collector derives a
-  country from the address before discarding it, and a city whenever the
-  address resolves to one -- a home connection usually does, a datacentre one
-  usually does not. So the dataset can know that a first run happened in
-  Sabadell rather than merely in Spain. No street, no coordinates and no
-  address kept. This page claimed the city was always empty until 2026-08-30:
-  that was measured with datacentre addresses, and the first real ping had a
-  city in it.
+- **No address stored by us.** The Cloudflare edge sees an address, as it does
+  for every HTTP request. It combines that address with a secret salt, the UTC
+  day, version and emitter, stores only the SHA-256 result, and rotates the
+  result every day. For one emitter and version on one UTC day, everyone behind
+  one NAT counts as one machine.
+- **A country code, and only that rough location, is stored.** Cloudflare
+  derives it before the event reaches the database. No city, street,
+  coordinates or address are kept.
 
 ## Why the ping exists at all
 
@@ -127,10 +119,12 @@ changes.
 
 ## Where it goes
 
-To a self-hosted [Umami](https://umami.is/) instance run by this project, into
-a dataset of its own, separate from the one that records visits to this
-website. Not to a third-party analytics vendor, not to an ad network, and not
-anywhere it is joined with anything else.
+The exact `/api/telemetry/first-run` route terminates in a Cloudflare Worker.
+The Worker validates the closed payload, replaces the address with the daily
+hash described above and writes the event to the project's Cloudflare D1
+database. The internal dashboard reads daily aggregates from that database.
+It does not go to the website's Umami property, a third-party analytics vendor
+or an ad network.
 
 ## When it changes
 

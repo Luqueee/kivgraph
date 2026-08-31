@@ -1,15 +1,6 @@
-// The endpoint that receives a first-run ping, and the rules that decide
-// whether one becomes a row.
-//
-// It lives beside `ai-report.mjs` and not in a route of its own for the reason
-// that module gives: the reporter, the `User-Agent` finding it depends on and
-// the fail-closed configuration pair are already in `landing/server.mjs`, and
-// an Astro route would need a second copy of all three. What is here is
-// everything that can be tested without a listening socket; `server.mjs` wires
-// it to one.
-//
-// ADR 0083 designed this. `docs/development/analytics.md` documents the event
-// and its fields, and `/telemetry/` publishes them.
+// Historical first-run collector retained as tested evidence for ADR 0083.
+// The production server does not import this module: the edge Worker owns the
+// public route and writes accepted events to D1, as recorded by ADR 0092.
 
 import { REPORTER_HEADERS } from "./ai-report.mjs";
 
