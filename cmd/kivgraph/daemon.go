@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"log/slog"
-	"path/filepath"
 
 	"golang.org/x/sync/errgroup"
 
@@ -41,11 +40,11 @@ func runDaemon(logger *slog.Logger, flags *daemonOptions) configuredMCPRunner {
 		indexer indexing.ProjectIndexer,
 		events *eventlog.Writer,
 	) error {
-		// The state directory is where the generation lives, so it is the
-		// identity a daemon belongs to: two configurations pointing elsewhere
-		// must never answer each other's clients.
+		// Profiles own generations, but the daemon owns every profile in one
+		// installation. Keep its endpoint, token and socket at installation scope:
+		// this is the same directory mcp install, serve and update read.
 		options := daemon.Options{
-			StateDirectory: filepath.Dir(loaded.Config.Storage.DatabasePath),
+			StateDirectory: stateDirectory(loaded),
 			SnapshotStore:  store,
 			Registry:       toolMetricsRegistry(events),
 			Indexer:        indexer,
