@@ -584,9 +584,8 @@ binary and supervisor rows, and the tail of `scripts/install.sh` and
 `scripts/install.ps1` for the installers. The event shape and validation below
 are observed behaviour; the interpretation of its scope is labelled as
 analysis. Source version `v0.9.3` is the first one that carries the binary and
-installer emitters; the public releases page currently lists `v0.9.1` as its
-latest release, which predates them. Supervisor telemetry is in source after
-that public release.
+installer emitters, and it is the latest published release. Supervisor
+telemetry is in source after that release.
 
 ### The event
 

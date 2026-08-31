@@ -3,15 +3,14 @@ title: Telemetry
 description: What Kivgraph reports, what it never reports, and the one variable that turns it off.
 ---
 
-**The public releases page currently lists `v0.9.1` as its latest release, and
-that version predates these telemetry emitters.** A build of this source at
-`v0.9.3` or newer can send these facts: `serve` and the daemon report one when
-each version runs for the first time on a machine, and the installers report a
-second, independent one when they finish. Builds that include supervisor
-telemetry send a third when `kivgraph daemon install` successfully registers a
-supervisor entry. This page went up a release before the first two did, so that
-the opt-out was documented before there was anything to opt out of, and so that
-nobody has to read the source to find out what a version reports.
+**The latest published release is `v0.9.3`.** `serve` and the daemon report
+one when each version runs for the first time on a machine, and the installers
+report a second, independent one when they finish. Builds that include
+supervisor telemetry send a third when `kivgraph daemon install` successfully
+registers a supervisor entry. This page went up a release before the first two
+did, so that the opt-out was documented before there was anything to opt out
+of, and so that nobody has to read the source to find out what a version
+reports.
 
 ## The one thing it reports
 
