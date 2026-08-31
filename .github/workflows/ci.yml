@@ -87,12 +87,19 @@ jobs:
           fi
 
           echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
-          release_only="$(scripts/classify-release-change.sh "$GITHUB_EVENT_NAME" "$base_sha" "$head_sha")"
+          classifier="$RUNNER_TEMP/classify-release-change.sh"
+          release_only=false
+          if git show "$base_sha:scripts/classify-release-change.sh" >"$classifier" 2>/dev/null; then
+            chmod +x "$classifier"
+            if ! release_only="$("$classifier" "$GITHUB_EVENT_NAME" "$base_sha" "$head_sha")"; then
+              release_only=false
+            fi
+            "$classifier" selftest
+          else
+            echo "trusted classifier is unavailable at $base_sha; using complete CI"
+          fi
           echo "release_only=$release_only" >> "$GITHUB_OUTPUT"
           printf 'release-only change: %s\n' "$release_only"
-
-      - name: Test release classifier
-        run: scripts/classify-release-change.sh selftest
 
   release_preparation:
     name: Validate release preparation

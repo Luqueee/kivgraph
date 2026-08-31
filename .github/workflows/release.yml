@@ -288,6 +288,8 @@ jobs:
       - build
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    outputs:
+      prerelease: ${{ steps.release_channel.outputs.prerelease }}
     permissions:
       contents: write
       id-token: write
@@ -298,6 +300,20 @@ jobs:
         with:
           ref: ${{ github.ref }}
           fetch-depth: 0
+
+      - name: Resolve release channel
+        id: release_channel
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="${TAG#v}"
+          version="${version%%+*}"
+          prerelease=false
+          if [[ "$version" == *-* ]]; then
+            prerelease=true
+          fi
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
 
       - name: Download platform release archives
         uses: actions/download-artifact@v4
@@ -354,6 +370,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
+          PRERELEASE: ${{ steps.release_channel.outputs.prerelease }}
         run: |
           notes_file="landing/src/content/releases/${TAG}.md"
           if [ ! -f "$notes_file" ]; then
@@ -380,7 +397,7 @@ jobs:
               --title "Kivgraph $TAG"
               --notes-file "$RUNNER_TEMP/release-notes.md"
             )
-            if [[ "$TAG" == *-* ]]; then
+            if [[ "$PRERELEASE" == true ]]; then
               release_args+=(--prerelease)
             else
               release_args+=(--latest)
@@ -501,11 +518,13 @@ jobs:
   # published to -- `io.github.Luqueee/kivgraph`.
   registry:
     name: Publish to the MCP Registry
-    needs: post-publish-smoke
+    needs:
+      - publish
+      - post-publish-smoke
     # Development releases are GitHub prereleases for opt-in testing. The
     # public MCP Registry is the stable distribution channel and must not make
     # a prerelease discoverable to clients that did not opt into it.
-    if: ${{ !contains(github.ref_name, '-') }}
+    if: ${{ needs.publish.outputs.prerelease != 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

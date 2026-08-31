@@ -153,6 +153,37 @@ func TestResolveChannelTreatsBuildMetadataAsStable(t *testing.T) {
 	}
 }
 
+func TestRunUsesStableEndpointForBuildMetadataVersion(t *testing.T) {
+	requireReleasePlatform(t)
+	var requestPath string
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		requestPath = request.URL.Path
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(githubRelease{
+			TagName: "v0.1.1",
+			Assets: []githubAsset{
+				{Name: archiveName, BrowserDownloadURL: server.URL + "/archive"},
+				{Name: checksumsName, BrowserDownloadURL: server.URL + "/checksums"},
+			},
+		})
+	}))
+	defer server.Close()
+
+	result, err := Run(context.Background(), Options{
+		APIBaseURL:     server.URL,
+		Client:         server.Client(),
+		CurrentVersion: "0.1.0+build-dev",
+		CheckOnly:      true,
+	})
+	if err != nil {
+		t.Fatalf("Run(current=%q) error = %v", "0.1.0+build-dev", err)
+	}
+	if requestPath != "/repos/"+Repository+"/releases/latest" || result.Channel != ChannelStable {
+		t.Fatalf("Run(current=%q) path=%q channel=%q, want stable endpoint and channel %q", "0.1.0+build-dev", requestPath, result.Channel, ChannelStable)
+	}
+}
+
 func TestRunSelectsTheHighestPublishedDevelopmentRelease(t *testing.T) {
 	requireReleasePlatform(t)
 	var releaseBase string

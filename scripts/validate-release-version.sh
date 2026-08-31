@@ -20,6 +20,7 @@ is_semver() {
 		[[ "$identifier" == 0 || "$identifier" =~ ^[1-9][0-9]*$ ]] || return 1
 	done
 	if [[ -n "$prerelease" ]]; then
+		[[ "$prerelease" != .* && "$prerelease" != *. && "$prerelease" != *..* ]] || return 1
 		IFS=. read -ra identifiers <<<"$prerelease"
 		for identifier in "${identifiers[@]}"; do
 			[[ -n "$identifier" && "$identifier" =~ ^[0-9A-Za-z-]+$ ]] || return 1
@@ -29,6 +30,7 @@ is_semver() {
 		done
 	fi
 	if [[ -n "$build" ]]; then
+		[[ "$build" != .* && "$build" != *. && "$build" != *..* ]] || return 1
 		IFS=. read -ra identifiers <<<"$build"
 		for identifier in "${identifiers[@]}"; do
 			[[ -n "$identifier" && "$identifier" =~ ^[0-9A-Za-z-]+$ ]] || return 1
@@ -52,9 +54,11 @@ selftest() {
 		1.2.03 \
 		1.2.3- \
 		1.2.3-.dev \
+		1.2.3-dev. \
 		1.2.3-dev..1 \
 		1.2.3-01 \
 		1.2.3+build..7 \
+		1.2.3+build. \
 		1.2.3+build_dev; do
 		if is_semver "$invalid"; then
 			printf 'invalid version accepted: %s\n' "$invalid" >&2
