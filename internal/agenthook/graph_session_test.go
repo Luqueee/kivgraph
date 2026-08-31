@@ -2,9 +2,12 @@ package agenthook
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -22,6 +25,11 @@ func writeFile(path, body string) error {
 // names, the arguments, the error flag and the text envelope, and a fake that
 // implemented Graph would skip every one of them.
 func answeringSession(t *testing.T, answers map[string]string, failing map[string]bool) *sdkmcp.ClientSession {
+	return answeringSessionObserved(t, answers, failing, nil)
+}
+
+func answeringSessionObserved(t *testing.T, answers map[string]string, failing map[string]bool,
+	observe func(*sdkmcp.CallToolRequest)) *sdkmcp.ClientSession {
 	t.Helper()
 	ctx := context.Background()
 	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "fake-daemon", Version: "1.0.0"}, nil)
@@ -30,7 +38,10 @@ func answeringSession(t *testing.T, answers map[string]string, failing map[strin
 		isError := failing[name]
 		server.AddTool(
 			&sdkmcp.Tool{Name: name, InputSchema: map[string]any{"type": "object"}},
-			func(context.Context, *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
+			func(_ context.Context, request *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
+				if observe != nil {
+					observe(request)
+				}
 				return &sdkmcp.CallToolResult{
 					IsError: isError,
 					Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: text}},
@@ -89,7 +100,7 @@ func TestAToolThatIsNotThereIsAnError(t *testing.T) {
 	if _, err := graph.Symbol(context.Background(), "Load"); err == nil {
 		t.Fatal("a missing tool answered without complaining")
 	}
-	if _, err := graph.Intent(context.Background(), "New.*Server"); err == nil {
+	if _, err := graph.Intent(context.Background(), "New.*Server", ""); err == nil {
 		t.Fatal("a missing tool answered without complaining")
 	}
 }
@@ -97,17 +108,18 @@ func TestAToolThatIsNotThereIsAnError(t *testing.T) {
 // TestIntentReadsRankedCandidates covers the other call, including the two
 // spellings of a qualified name the compact view may use.
 func TestIntentReadsRankedCandidates(t *testing.T) {
+	const intent, repository = "New.*Server", ""
 	const matches = `{"snapshot_id":90,"symbols":[` +
 		`{"repository":"kivgraph","file_path":"internal/mcp/server.go","qualified_name":"mcp.NewServer"},` +
 		`{"repository":"workspace","file_path":"internal/api/server.go","qn":"api.NewServer"}]}`
 	graph := &daemonGraph{session: answeringSession(t,
 		map[string]string{"find_by_intent": matches}, nil)}
-	facts, err := graph.Intent(context.Background(), "New.*Server")
+	facts, err := graph.Intent(context.Background(), intent, repository)
 	if err != nil {
-		t.Fatalf("Intent() error = %v", err)
+		t.Fatalf("Intent(%q, repository=%q) error = %v", intent, repository, err)
 	}
 	if facts.Declarations != 2 || facts.Repositories != 2 {
-		t.Fatalf("facts = %#v", facts)
+		t.Fatalf("Intent(%q, repository=%q) facts = %#v", intent, repository, facts)
 	}
 	want := []string{
 		"kivgraph internal/mcp/server.go mcp.NewServer",
@@ -115,8 +127,53 @@ func TestIntentReadsRankedCandidates(t *testing.T) {
 	}
 	for index, row := range want {
 		if facts.Sample[index] != row {
-			t.Fatalf("sample[%d] = %q, want %q", index, facts.Sample[index], row)
+			t.Fatalf("Intent(%q, repository=%q) sample[%d] = %q, want %q",
+				intent, repository, index, facts.Sample[index], row)
 		}
+	}
+}
+
+// TestIntentReadsCandidatesInsideTheResponseEnvelope is the shape the
+// profile-aware MCP surface returns. The pre-profile response put symbols at
+// the root; decoding only that legacy shape succeeds with an empty slice and
+// silently lets every intent grep through the gate.
+func TestIntentReadsCandidatesInsideTheResponseEnvelope(t *testing.T) {
+	const intent = "HTTP endpoints and routes"
+	const repository = "kivgraph"
+	const matches = `{"snapshot_id":107,"results":{"symbols":[` +
+		`{"repository":"kivgraph","file_path":"internal/webapi/handler.go","qualified_name":"webapi.NewHandler"}` +
+		`]}}`
+	var calledTool string
+	var rawArguments json.RawMessage
+	graph := &daemonGraph{session: answeringSessionObserved(t,
+		map[string]string{"find_by_intent": matches}, nil,
+		func(request *sdkmcp.CallToolRequest) {
+			calledTool = request.Params.Name
+			rawArguments = append(rawArguments[:0], request.Params.Arguments...)
+		})}
+	facts, err := graph.Intent(context.Background(), intent, repository)
+	if err != nil {
+		t.Fatalf("Intent(intent=%q, repository=%q) error = %v", intent, repository, err)
+	}
+	var arguments map[string]any
+	if err := json.Unmarshal(rawArguments, &arguments); err != nil {
+		t.Fatalf("decode arguments of %q: %v", calledTool, err)
+	}
+	wantArguments := map[string]any{
+		"intent": intent, "repo": repository, "limit": float64(sampleRows), "view": "compact",
+	}
+	if calledTool != "find_by_intent" || !maps.Equal(arguments, wantArguments) {
+		t.Fatalf("call = %q %#v, want find_by_intent %#v",
+			calledTool, arguments, wantArguments)
+	}
+	if facts.Declarations != 1 || facts.Repositories != 1 {
+		t.Fatalf("intent=%q repo=%q facts = %#v", intent, repository, facts)
+	}
+	if got, want := facts.Sample, []string{
+		"kivgraph internal/webapi/handler.go webapi.NewHandler",
+	}; !slices.Equal(got, want) {
+		t.Fatalf("intent=%q repo=%q sample = %q, want %q",
+			intent, repository, got, want)
 	}
 }
 
@@ -127,7 +184,7 @@ func TestIntentTreatsAFailedCallAsNoOpinion(t *testing.T) {
 	graph := &daemonGraph{session: answeringSession(t,
 		map[string]string{"find_by_intent": `INDEX_NOT_READY: no graph is published yet`},
 		map[string]bool{"find_by_intent": true})}
-	facts, err := graph.Intent(context.Background(), "New.*Server")
+	facts, err := graph.Intent(context.Background(), "New.*Server", "")
 	if err != nil {
 		t.Fatalf("Intent() error = %v", err)
 	}
@@ -141,7 +198,7 @@ func TestIntentTreatsAFailedCallAsNoOpinion(t *testing.T) {
 func TestAMalformedIntentAnswerIsAnError(t *testing.T) {
 	graph := &daemonGraph{session: answeringSession(t,
 		map[string]string{"find_by_intent": "not json"}, nil)}
-	if _, err := graph.Intent(context.Background(), "New.*Server"); err == nil {
+	if _, err := graph.Intent(context.Background(), "New.*Server", ""); err == nil {
 		t.Fatal("a malformed answer decoded without complaining")
 	}
 }

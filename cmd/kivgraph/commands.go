@@ -483,8 +483,8 @@ func commandTable() []commandSpec {
 			// and it names this one in what it writes.
 			hidden:  true,
 			summary: "Answer an agent's pre-tool-use gate from stdin",
-			run: func(_ dependencies, _ []string, stdout, _ io.Writer) int {
-				return runHookRun(os.Stdin, stdout)
+			run: func(_ dependencies, _ []string, stdout, stderr io.Writer) int {
+				return runHookRun(os.Stdin, stdout, stderr)
 			},
 		},
 		{

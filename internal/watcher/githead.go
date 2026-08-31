@@ -52,6 +52,26 @@ type gitLayout struct {
 	commonDirectory string
 }
 
+// GitCommonDirectory returns the directory that owns the references shared by
+// every linked worktree of the repository rooted at repositoryPath.
+//
+// The main checkout returns its .git directory. A linked worktree follows its
+// gitdir pointer and commondir file, so comparing this value identifies two
+// checkout paths as views of the same Git repository without spawning git.
+func GitCommonDirectory(repositoryPath string) (string, error) {
+	layout, err := gitLayoutFor(repositoryPath)
+	if err != nil {
+		return "", fmt.Errorf("resolve Git common directory for %q: %w",
+			repositoryPath, err)
+	}
+	common, err := filepath.EvalSymlinks(layout.commonDirectory)
+	if err != nil {
+		return "", fmt.Errorf("resolve symlinks in Git common directory %q: %w",
+			layout.commonDirectory, err)
+	}
+	return common, nil
+}
+
 // ReadGitHead resolves the HEAD of the repository rooted at repositoryPath.
 //
 // It reads the repository layout directly instead of running git: the watcher

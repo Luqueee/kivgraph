@@ -245,6 +245,8 @@ The pre-tool-use gate supports `claude-code`, `claude-desktop`, `codex`,
 `opencode`, and `oh-my-pi`. Oh My Pi receives a native extension under
 `~/.omp/agent/extensions/` for user scope or `.omp/extensions/` for project
 scope. The gate is fail-open when its graph query cannot be answered.
+Searches wrapped as `rtk rg ...` or `rtk proxy rg ...` are classified by their
+inner command, while RTK's own commands are left alone.
 
 Inspect or remove a registration explicitly:
 

@@ -41,6 +41,11 @@ const hookOperation = "hook run"
 // quietly stopped firing for the newest one is the failure nobody would notice.
 const claudeMatcher = "Bash|Glob|Grep|Task|Agent|mcp__kivgraph_.*"
 
+// codexMatcher is the literal tool name in Codex's PreToolUse payload. The UI
+// labels the resulting command execution "Shell", but that presentation name
+// never reaches the matcher.
+const codexMatcher = "Bash"
+
 // hookTimeoutSeconds bounds the gate from the agent's side as well as its own.
 //
 // It is a belt on top of the command's braces: the command already gives up on
@@ -102,8 +107,8 @@ func (manager Manager) hookDocumentFor(target Target, scope Scope) (hookDocument
 	case TargetCodex:
 		document.path = filepath.Join(manager.scopeRoot(scope), ".codex", "hooks.json")
 		// Codex gates the shell, apply_patch and MCP calls. Only the
-		// first is a search.
-		document.matcher = "Bash"
+		// first is a search, under either host spelling.
+		document.matcher = codexMatcher
 	case TargetOpenCode:
 		document.kind = hookPlugin
 		if scope == ScopeUser {

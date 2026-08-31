@@ -166,6 +166,14 @@ func main() {
 		writeUpdateNotice(os.Stderr)
 	}
 
+	// A Codex PreToolUse refusal is a small wire protocol of its own: exit 2
+	// and a plain reason on stderr. The regular non-interactive CLI wraps stderr
+	// as structured logs and appends a generic failure record, which would turn
+	// that reason into two unrelated JSON messages before Codex reads it.
+	if len(os.Args) >= 3 && os.Args[1] == "hook" && os.Args[2] == "run" {
+		os.Exit(run(os.Args, os.Stdout, os.Stderr))
+	}
+
 	// A one-shot command reports to whoever is listening: plain text for the
 	// operator at a terminal, the structured record other tooling parses when
 	// stderr is a pipe or a file. serve and ui above always log structurally,

@@ -9,7 +9,7 @@ import (
 //
 // There are three of them, and exactly one grants anything. A gate that has
 // nothing to say writes nothing, and that is not the same as approving: in
-// Claude Code and Codex an explicit `allow` **skips the permission prompt**, so
+// Claude Code an explicit `allow` **skips the permission prompt**, so
 // a gate that answered `allow` to every call it had no opinion about would
 // silently auto-approve every shell command in the session, including the ones
 // the user configured a prompt for. Saying nothing leaves the agent's own
@@ -39,12 +39,13 @@ type Decision struct {
 // Allow is the gate having no opinion.
 var Allow = Decision{}
 
-// hookSpecificOutput is the block Claude Code and Codex both read.
+// hookSpecificOutput is the JSON block Claude Code and the generated adapters
+// read.
 //
-// The two agents are byte for byte identical here, which is why one binary
-// serves both: they differ in where the hook is registered, not in what it
-// says. OpenCode reads neither and gets this through a generated plugin that
-// turns a deny into a thrown error.
+// Codex sends nearly the same input but does not apply this JSON refusal; the
+// command wrapper translates a deny into its exit-2-plus-stderr contract.
+// OpenCode reads this through a generated plugin that turns a deny into a
+// thrown error.
 // An advisory writes `additionalContext` and leaves both permission fields
 // out, which is the whole reason they carry `omitempty`: a block naming the
 // event and nothing else is a hook that added context without voting on
@@ -74,7 +75,8 @@ type wireDecision struct {
 	HookSpecificOutput hookSpecificOutput `json:"hookSpecificOutput"`
 }
 
-// Write emits a decision in the form both hosting agents read.
+// Write emits a decision in the JSON form consumed by Claude Code and the
+// generated adapters.
 //
 // An allow writes nothing at all. See Decision for why that is deliberate.
 func (decision Decision) Write(stdout io.Writer) error {

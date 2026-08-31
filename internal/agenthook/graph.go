@@ -171,10 +171,15 @@ func referenceFacts(text string) (Facts, error) {
 }
 
 // Intent answers what a loose description most likely names.
-func (graph *daemonGraph) Intent(ctx context.Context, intent string) (Facts, error) {
+
+func (graph *daemonGraph) Intent(ctx context.Context, intent, repository string) (Facts, error) {
+	arguments := map[string]any{"intent": intent, "limit": sampleRows, "view": "compact"}
+	if repository != "" {
+		arguments["repo"] = repository
+	}
 	result, err := graph.session.CallTool(ctx, &sdkmcp.CallToolParams{
 		Name:      "find_by_intent",
-		Arguments: map[string]any{"intent": intent, "limit": sampleRows, "view": "compact"},
+		Arguments: arguments,
 	})
 	if err != nil {
 		return Facts{}, fmt.Errorf("call find_by_intent: %w", err)
@@ -182,20 +187,20 @@ func (graph *daemonGraph) Intent(ctx context.Context, intent string) (Facts, err
 	if result.IsError {
 		return Facts{}, nil
 	}
-	var matches struct {
-		Symbols []struct {
-			QualifiedName string `json:"qualified_name"`
-			QN            string `json:"qn"`
-			Repository    string `json:"repository"`
-			FilePath      string `json:"file_path"`
-		} `json:"symbols"`
-	}
+	var matches intentEnvelope
 	if err := json.Unmarshal([]byte(resultText(result)), &matches); err != nil {
 		return Facts{}, fmt.Errorf("decode find_by_intent: %w", err)
 	}
-	facts := Facts{Declarations: len(matches.Symbols)}
+	symbols := matches.Results.Symbols
+	if symbols == nil {
+		// Daemons before profiles wrapped tool responses put the result at
+		// the root. Keep accepting that shape while an updated hook may
+		// briefly reach the daemon an older installation still owns.
+		symbols = matches.Symbols
+	}
+	facts := Facts{Declarations: len(symbols)}
 	repositories := map[string]bool{}
-	for _, symbol := range matches.Symbols {
+	for _, symbol := range symbols {
 		name := symbol.QualifiedName
 		if name == "" {
 			name = symbol.QN
@@ -206,6 +211,22 @@ func (graph *daemonGraph) Intent(ctx context.Context, intent string) (Facts, err
 	}
 	facts.Repositories = len(repositories)
 	return facts, nil
+}
+
+type intentCandidate struct {
+	QualifiedName string `json:"qualified_name"`
+	QN            string `json:"qn"`
+	Repository    string `json:"repository"`
+	FilePath      string `json:"file_path"`
+}
+
+// intentEnvelope carries both response generations the hook can meet during
+// an update: the current profile-aware envelope and the former root result.
+type intentEnvelope struct {
+	Symbols []intentCandidate `json:"symbols"`
+	Results struct {
+		Symbols []intentCandidate `json:"symbols"`
+	} `json:"results"`
 }
 
 // resultText is the text a tool answered with.
