@@ -46,6 +46,33 @@ func TestDevInstallRefusesAnInstallationHeldByAnotherProcess(t *testing.T) {
 	assertDevMarker(t, installRoot, "old")
 }
 
+func TestDevInstallRefusesASymbolicLinkInsideTheCandidateBundle(t *testing.T) {
+	base := t.TempDir()
+	installRoot := fakeDevInstallation(t, base, "old", "absent")
+	bundle := fakeDevBundle(t, base, "new")
+	binary := filepath.Join(bundle, "bin", "kivgraph")
+	outside := filepath.Join(base, "outside-kivgraph")
+	writeDevBinary(t, outside, "outside", "absent")
+	if err := os.Remove(binary); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, binary); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	writeDevChecksums(t, bundle)
+
+	result := runDevInstaller(t, base, installRoot, bundle, false)
+	if result.err == nil {
+		t.Fatalf("dev installer accepted a symbolic-link candidate (installRoot=%q, bundle=%q)",
+			installRoot, bundle)
+	}
+	if !strings.Contains(result.output, "candidate bundle contains symbolic links") {
+		t.Fatalf("symbolic-link refusal gave no remedy (installRoot=%q, bundle=%q, target=%q):\n%s",
+			installRoot, bundle, outside, result.output)
+	}
+	assertDevMarker(t, installRoot, "old")
+}
+
 func TestDevInstallRefusesAStaleSupervisorBeforeReplacing(t *testing.T) {
 	base := t.TempDir()
 	installRoot := fakeDevInstallation(t, base, "old", "stale")
@@ -75,7 +102,8 @@ func TestDevInstallRefusesAnIncompatibleNativeLibrary(t *testing.T) {
 
 	result := runDevInstaller(t, base, installRoot, bundle, false)
 	if result.err == nil {
-		t.Fatal("dev installer combined a binary with an incompatible native library")
+		t.Fatalf("dev installer combined incompatible native libraries (installRoot=%q, bundle=%q)",
+			installRoot, bundle)
 	}
 	if !strings.Contains(result.output, "different LadybugDB library") {
 		t.Fatalf("native library mismatch gave no remedy:\n%s", result.output)

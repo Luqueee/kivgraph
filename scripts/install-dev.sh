@@ -52,7 +52,7 @@ while (( $# > 0 )); do
   esac
 done
 
-for command in awk cp mktemp mv uname; do
+for command in awk cp find mktemp mv uname; do
   command -v "$command" >/dev/null 2>&1 || fail "required command not found: $command"
 done
 if command -v sha256sum >/dev/null 2>&1; then
@@ -180,6 +180,10 @@ else
   "$root/scripts/build-bundle.sh" "$candidate" >/dev/null
 fi
 
+candidate_link=$(find "$candidate" -type l -print -quit) ||
+  fail "could not inspect candidate bundle for symbolic links: $candidate"
+[[ -z "$candidate_link" ]] ||
+  fail "candidate bundle contains symbolic links: $candidate"
 [[ -f "$candidate/manifest.json" && -f "$candidate/SHA256SUMS" && -x "$candidate/bin/kivgraph" ]] ||
   fail "candidate is not a complete Kivgraph bundle: $candidate"
 (
