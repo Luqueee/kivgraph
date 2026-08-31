@@ -30,6 +30,14 @@ test("extractPageSignals reads metadata, JSON-LD and internal links", () => {
   assert.deepEqual(signals.links, ["/", "/blog/"]);
 });
 
+test("HTML entity decoding is single-pass and title markup delimiters are removed", () => {
+  const signals = extractPageSignals(
+    '<title>&amp;lt;script&amp;gt;</title><meta name="description" content="ok">',
+  );
+
+  assert.equal(signals.title, "&lt;script&gt;");
+});
+
 test("the audit catches missing structural SEO signals and orphan routes", () => {
   const issues = auditBuiltSite({
     documents: [

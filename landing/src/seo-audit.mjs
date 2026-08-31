@@ -8,14 +8,21 @@ const REQUIRED_FILES = [
   "rss.xml",
 ];
 
-/** Decode the entities Astro writes into HTML attributes and text nodes. */
+const HTML_ENTITIES = Object.freeze({
+  amp: "&",
+  quot: '"',
+  "#39": "'",
+  apos: "'",
+  lt: "<",
+  gt: ">",
+});
+
+/** Decode HTML entities once, without recursively unescaping the result. */
 function decodeHtml(value) {
-  return value
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&apos;/g, "'")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">");
+  return value.replace(
+    /&(amp|quot|#39|apos|lt|gt);/g,
+    (_, entity) => HTML_ENTITIES[entity],
+  );
 }
 
 /** Read one HTML attribute without depending on attribute ordering. */
@@ -103,9 +110,7 @@ export function extractPageSignals(html) {
   return {
     h1Count: tags(html, "h1").length,
     title:
-      titleMatch === null
-        ? ""
-        : decodeHtml(titleMatch[1].replace(/<[^>]+>/g, "")),
+      titleMatch === null ? "" : decodeHtml(titleMatch[1]).replace(/[<>]/g, ""),
     description:
       descriptionTag === undefined
         ? ""
