@@ -5,6 +5,7 @@ import {
   extractPageSignals,
   markdownPathForRoute,
   normalisePath,
+  runtimePathsForBuild,
 } from "./seo-audit.mjs";
 
 const description = "A".repeat(120);
@@ -185,6 +186,16 @@ test("runtime edge routes do not hide other broken local links", () => {
     ),
     true,
   );
+});
+
+test("production runtime paths always include the edge-owned GitHub route", () => {
+  const post = article("/blog/post/");
+
+  assert.deepEqual(runtimePathsForBuild([post], false), ["/github"]);
+  assert.deepEqual(runtimePathsForBuild([post], true), [
+    "/github",
+    "/raw/blog/post.md",
+  ]);
 });
 
 test("a linked blog article with the required discovery files passes", () => {
