@@ -58,6 +58,12 @@ export function routeFromClientFile(relativeFile) {
   return `/${normalised}`;
 }
 
+/** Return the raw Markdown route paired with a published HTML route. */
+export function markdownPathForRoute(pathname) {
+  const path = normalisePath(pathname);
+  return path === "/" ? undefined : `/raw${path.slice(0, -1)}.md`;
+}
+
 /** Extract the signals the audit can verify without a browser or paid API. */
 export function extractPageSignals(html) {
   const titleMatch = html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i);
@@ -133,12 +139,39 @@ function issue(severity, path, code, message) {
   return { severity, path, code, message };
 }
 
+function emittedPaths(files) {
+  return new Set(
+    [...files].map((file) =>
+      file.endsWith(".html") ? routeFromClientFile(file) : `/${file}`,
+    ),
+  );
+}
+
+function localPath(value, siteOrigin) {
+  try {
+    const url = new URL(value, siteOrigin);
+    const origin = new URL(siteOrigin).origin;
+    return url.origin === origin ? normalisePath(url.pathname) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Audit built documents and shared discovery files. */
-export function auditBuiltSite({ documents, files }) {
+export function auditBuiltSite({
+  documents,
+  files,
+  runtimePaths = [],
+  siteOrigin = "https://kivgraph.dev",
+}) {
   const issues = [];
   const knownRoutes = new Set(
     documents.map(({ pathname }) => normalisePath(pathname)),
   );
+  const availablePaths = new Set([
+    ...emittedPaths(files),
+    ...runtimePaths.map((pathname) => normalisePath(pathname)),
+  ]);
   const inbound = new Map([...knownRoutes].map((pathname) => [pathname, 0]));
 
   for (const required of REQUIRED_FILES) {
@@ -176,9 +209,19 @@ export function auditBuiltSite({ documents, files }) {
       );
     } else {
       try {
-        const canonicalPath = normalisePath(
-          new URL(signals.canonical).pathname,
-        );
+        const canonicalUrl = new URL(signals.canonical);
+        const expectedOrigin = new URL(siteOrigin).origin;
+        const canonicalPath = normalisePath(canonicalUrl.pathname);
+        if (canonicalUrl.origin !== expectedOrigin) {
+          issues.push(
+            issue(
+              "error",
+              path,
+              "canonical-origin",
+              `Canonical uses ${canonicalUrl.origin}; expected ${expectedOrigin}`,
+            ),
+          );
+        }
         if (canonicalPath !== path) {
           issues.push(
             issue(
@@ -206,6 +249,39 @@ export function auditBuiltSite({ documents, files }) {
       );
     }
 
+    if (signals.markdownAlternate !== undefined) {
+      const alternatePath = localPath(signals.markdownAlternate, siteOrigin);
+      const expectedPath = markdownPathForRoute(path);
+      if (alternatePath === undefined) {
+        issues.push(
+          issue(
+            "error",
+            path,
+            "invalid-markdown-alternate",
+            "Markdown alternate is not a local URL",
+          ),
+        );
+      } else if (expectedPath !== alternatePath) {
+        issues.push(
+          issue(
+            "error",
+            path,
+            "markdown-alternate-mismatch",
+            `Markdown alternate points to ${alternatePath}; expected ${expectedPath}`,
+          ),
+        );
+      } else if (!availablePaths.has(alternatePath)) {
+        issues.push(
+          issue(
+            "error",
+            path,
+            "missing-markdown-target",
+            `Markdown alternate target ${alternatePath} is not emitted`,
+          ),
+        );
+      }
+    }
+
     if (path.startsWith("/blog/") && path !== "/blog/") {
       if (!signals.structuredTypes.has("BlogPosting")) {
         issues.push(
@@ -214,6 +290,16 @@ export function auditBuiltSite({ documents, files }) {
             path,
             "missing-blogposting",
             "Missing BlogPosting JSON-LD",
+          ),
+        );
+      }
+      if (!signals.structuredTypes.has("BreadcrumbList")) {
+        issues.push(
+          issue(
+            "error",
+            path,
+            "missing-breadcrumblist",
+            "Missing BreadcrumbList JSON-LD",
           ),
         );
       }
@@ -263,6 +349,17 @@ export function auditBuiltSite({ documents, files }) {
     }
 
     for (const link of signals.links) {
+      if (!knownRoutes.has(link) && !availablePaths.has(link)) {
+        issues.push(
+          issue(
+            "error",
+            path,
+            "broken-internal-link",
+            `Local link target ${link} is not emitted`,
+          ),
+        );
+        continue;
+      }
       if (knownRoutes.has(link)) {
         inbound.set(link, inbound.get(link) + 1);
       }

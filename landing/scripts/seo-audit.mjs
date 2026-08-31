@@ -1,9 +1,21 @@
+import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { auditBuiltSite, routeFromClientFile } from "../src/seo-audit.mjs";
+import {
+  auditBuiltSite,
+  extractPageSignals,
+  markdownPathForRoute,
+  routeFromClientFile,
+} from "../src/seo-audit.mjs";
+import { PRODUCTION_ORIGIN } from "../src/site.mjs";
 
 const CLIENT_DIR = new URL("../dist/client/", import.meta.url);
+const SERVER_ENTRY = new URL("../dist/server/entry.mjs", import.meta.url);
 const jsonOutput = process.argv.includes("--json");
+
+if (existsSync(".env")) {
+  process.loadEnvFile();
+}
 
 async function filesUnder(directory, prefix = "") {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -24,6 +36,15 @@ async function filesUnder(directory, prefix = "") {
   return files;
 }
 
+async function serverHasRawMarkdownRoute() {
+  try {
+    const serverEntry = await readFile(SERVER_ENTRY, "utf8");
+    return serverEntry.includes('"route":"/raw/[...slug].md"');
+  } catch {
+    return false;
+  }
+}
+
 const relativeFiles = await filesUnder(CLIENT_DIR);
 const documents = [];
 for (const relativeFile of relativeFiles.filter((file) =>
@@ -38,9 +59,18 @@ for (const relativeFile of relativeFiles.filter((file) =>
   });
 }
 
+const rawMarkdownRoute = await serverHasRawMarkdownRoute();
+const runtimePaths = rawMarkdownRoute
+  ? documents
+      .filter(({ html }) => extractPageSignals(html).markdownAlternate)
+      .map(({ pathname }) => markdownPathForRoute(pathname))
+      .filter((pathname) => pathname !== undefined)
+  : [];
 const issues = auditBuiltSite({
   documents,
   files: new Set(relativeFiles),
+  runtimePaths,
+  siteOrigin: process.env.KIVGRAPH_LANDING_URL ?? PRODUCTION_ORIGIN,
 });
 const errors = issues.filter((item) => item.severity === "error");
 const warnings = issues.filter((item) => item.severity === "warning");

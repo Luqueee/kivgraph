@@ -12,7 +12,7 @@ how to read what comes back. Per-tool arguments live under
 Which process answers does not change any of that. `serve` normally forwards
 the session to a daemon and holds no graph itself, so the tools, the arguments
 and the envelopes below are the same either way; what changes is what it costs.
-[Registering a client](/docs/mcp/clients/) has that part.
+[Registering a client](/mcp/clients/) has that part.
 
 ## Select a profile
 
