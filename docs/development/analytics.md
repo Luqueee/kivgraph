@@ -1452,7 +1452,8 @@ rejected_before="$($WRANGLER d1 execute kivgraph-analytics --remote \
     WHERE source = 'first_run_edge' AND version = '$rejected_version'" \
   --json | jq -er '.[0].results[0].count')"
 
-test "$(curl -sS -o /dev/null -w '%{http_code}' \
+test "$(curl -sS --connect-timeout 5 --max-time 10 \
+  -o /dev/null -w '%{http_code}' \
   -X POST https://kivgraph.dev/api/telemetry/first-run \
   -H 'Content-Type: application/json' \
   -d "$rejected_payload")" = 204
