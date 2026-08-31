@@ -13,10 +13,16 @@ import (
 //go:embed assets/hooks/opencode.js
 var embeddedOpenCodePlugin []byte
 
+// embeddedOhMyPiExtension is the extension Oh My Pi auto-discovers, before its
+// executable path is filled in.
+//
+//go:embed assets/hooks/oh-my-pi.js
+var embeddedOhMyPiExtension []byte
+
 // executablePlaceholder is what the template carries where the path goes.
 const executablePlaceholder = "__KIVGRAPH_EXECUTABLE__"
 
-// preToolUse is the event all three agents fire before running a tool.
+// preToolUse is the event all shell-hook clients fire before running a tool.
 const preToolUse = "PreToolUse"
 
 // hookOperation is the command an agent runs to reach the gate.
@@ -47,7 +53,7 @@ type hookKind uint8
 
 const (
 	// hookEntry is an entry in a file of hooks the agent already reads. It
-	// is the zero value because it is what three of the four targets are.
+	// is the zero value because it is what three of the five targets are.
 	hookEntry hookKind = iota
 	// hookPlugin is a file the agent loads as code, because it has no
 	// shell-hook contract at all.
@@ -65,10 +71,8 @@ type hookDocument struct {
 
 // hookDocumentFor resolves a target's gate.
 //
-// Four of the five clients can host one. Oh My Pi is the exception: its own
-// documentation calls its hook subsystem legacy and says the runtime uses an
-// extension runner instead, and writing a file against that would be writing
-// against a moving target.
+// Five clients can host one. OpenCode and Oh My Pi use code modules because
+// neither exposes the shell-hook document used by the other three.
 func (manager Manager) hookDocumentFor(target Target, scope Scope) (hookDocument, error) {
 	if err := validateScope(scope); err != nil {
 		return hookDocument{}, err
@@ -107,6 +111,13 @@ func (manager Manager) hookDocumentFor(target Target, scope Scope) (hookDocument
 			break
 		}
 		document.path = filepath.Join(manager.projectDir, ".opencode", "plugins", "kivgraph.js")
+	case TargetOhMyPi:
+		document.kind = hookPlugin
+		if scope == ScopeUser {
+			document.path = filepath.Join(manager.homeDir, ".omp", "agent", "extensions", "kivgraph.js")
+			break
+		}
+		document.path = filepath.Join(manager.projectDir, ".omp", "extensions", "kivgraph.js")
 	default:
 		return hookDocument{}, fmt.Errorf(
 			"target %q hosts no pre-tool-use gate (want %s)", target,
@@ -191,13 +202,20 @@ func (manager Manager) DetectHookTargets(scope Scope) ([]TargetDetection, error)
 
 // hookMarkers are the paths that say a client is installed.
 //
-// For three of the four it is the directory the client keeps its configuration
-// in, because the gate's own file may not exist yet and its absence says
-// nothing about the client. Claude Desktop needs its own answer: it writes into
-// `~/.claude`, which is Claude Code's directory, so keying off that would
-// report the desktop app as installed on every machine that has ever run the
-// CLI.
+// For the shell-hook clients it is the directory the client keeps its
+// configuration in, because the gate's own file may not exist yet and its
+// absence says nothing about the client. Claude Desktop needs its own answer:
+// it writes into `~/.claude`, which is Claude Code's directory, so keying off
+// that would report the desktop app as installed on every machine that has
+// ever run the CLI. Oh My Pi has a separate native agent root for user
+// configuration.
 func (manager Manager) hookMarkers(target Target, document hookDocument) []string {
+	if target == TargetOhMyPi {
+		if document.scope == ScopeUser {
+			return []string{filepath.Join(manager.homeDir, ".omp", "agent")}
+		}
+		return []string{filepath.Join(manager.projectDir, ".omp")}
+	}
 	if target != TargetClaudeDesktop {
 		return []string{filepath.Dir(document.path)}
 	}
@@ -274,11 +292,10 @@ func (manager Manager) plan(action Action, document hookDocument, status, detail
 
 // HookTargets are the clients that can host a pre-tool-use gate.
 //
-// It is a shorter list than KnownTargets and has to be said separately: help
-// text that named all five would send a reader to a --target that answers with
-// an error.
+// It is kept separate from KnownTargets because Claude Desktop still has no
+// project scope even though it can host a user-scoped gate.
 func HookTargets() []Target {
-	return []Target{TargetClaudeCode, TargetClaudeDesktop, TargetCodex, TargetOpenCode}
+	return []Target{TargetClaudeCode, TargetClaudeDesktop, TargetCodex, TargetOpenCode, TargetOhMyPi}
 }
 
 // targetNames spells a target list for an error message.

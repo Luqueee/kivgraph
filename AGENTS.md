@@ -111,10 +111,11 @@ cruza de repositorio-- y ninguna búsqueda de texto lo alcanza.
 
 `kivgraph hook install` registra un gancho que se ejecuta antes de cada tool del
 agente y niega la búsqueda cuando el grafo la contesta mejor. Lo alojan
-`claude-code`, `claude-desktop`, `codex` y `opencode`. Claude Desktop empaqueta
-un Claude Code y lo lanza sin darle configuración propia, así que lee
+`claude-code`, `claude-desktop`, `codex`, `opencode` y `oh-my-pi`. Claude Desktop
+empaqueta un Claude Code y lo lanza sin darle configuración propia, así que lee
 `~/.claude/settings.json`: comparte fichero con `claude-code` e instalar uno
-deja el otro `managed`. Oh My Pi es el único que no puede alojarlo.
+deja el otro `managed`. Oh My Pi recibe una extensión nativa en
+`~/.omp/agent/extensions/` o `.omp/extensions/`; el contrato está en ADR 0089.
 
 Se cierra por **un solo hecho**: el nombre lo declaran dos cosas o más, así que
 una búsqueda de texto no puede separar lo que encuentra. Un nombre sin homónimo
@@ -150,8 +151,9 @@ tokensave, donde un presupuesto ahí costó más que las llamadas que desaconsej
 
 Se recuerda por `session_id` con un marcador en `<estado>/briefs`, creado con
 `O_EXCL` para que dos llamadas simultáneas no avisen las dos, y se poda a las 24
-horas. Un host que no manda `session_id` -- el plugin de OpenCode-- no recibe
-aviso ninguno: sin identidad, avisar en cada llamada sería peor que no avisar.
+horas. Un host que no manda `session_id` -- los módulos de OpenCode y Oh My Pi--
+no recibe aviso ninguno: sin identidad, avisar en cada llamada sería peor que
+no avisar.
 
 El matcher se escribe al instalar, así que una instalación anterior a esto no ve
 las llamadas MCP hasta que se reejecuta `kivgraph hook install`.

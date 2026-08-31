@@ -738,8 +738,7 @@ func integrationTargetNames() []string {
 // hookTargetNames are the targets `hook --target` completes to.
 //
 // A completion is a promise, and the family's targets are not all the same:
-// only four clients host a pre-tool-use gate, so offering the fifth would
-// complete a word the command then refuses.
+// Claude Desktop has no project scope even though it hosts a user-scoped gate.
 func hookTargetNames() []string {
 	return targetNamesOf(integrations.HookTargets())
 }

@@ -97,7 +97,7 @@ delante de una tool que está esperando; arrancar un indexador ahí convertiría
 | `claude-desktop` | gancho de shell     | `~/.claude/settings.json`  |
 | `codex`          | gancho de shell     | `.codex/hooks.json`        |
 | `opencode`       | plugin generado     | `plugins/kivgraph.js`      |
-| `oh-my-pi`       | subsistema *legacy* | --                         |
+| `oh-my-pi`       | extensión nativa    | ADR 0089                  |
 
 Claude Code y Codex leen el **mismo veredicto**, byte a byte, así que un solo
 comando sirve a los dos; se diferencian en dónde se registra, no en lo que dice.
@@ -136,9 +136,10 @@ con la CLI: en Linux el paquete instala `com.anthropic.Claude.desktop`, y el
 marcador `claude.desktop` que este repositorio usaba no existía, así que ni
 `mcp install` ni `skill install` lo detectaban tampoco.
 
-Oh My Pi es el único que se niega por su nombre: su documentación llama *legacy*
-a su subsistema de ganchos y dice que el runtime usa un ejecutor de extensiones,
-así que escribir contra eso sería escribir contra un blanco móvil.
+La primera versión dejó Oh My Pi fuera por su subsistema *legacy*. La extensión
+nativa moderna se documenta en ADR 0089 y se instala en el directorio de
+extensiones que descubre el runtime; escribir ahí permite reutilizar el mismo
+`kivgraph hook run` sin depender del subsistema retirado.
 
 ### Lo que existe y no se usa
 
