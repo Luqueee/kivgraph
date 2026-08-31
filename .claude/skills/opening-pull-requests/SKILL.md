@@ -53,16 +53,25 @@ existing ancestor or descendant ref also blocks the name, even when the exact
 name is unused:
 
 ```bash
-branch=docs/standardize-pr-branch-names
+branch="$(git symbolic-ref --short HEAD)" || {
+  echo "cannot determine current branch" >&2
+  exit 1
+}
+refs="$(git ls-remote --heads origin)" || {
+  echo "cannot read remote branch refs from origin" >&2
+  exit 1
+}
 conflict=""
-while IFS= read -r ref; do
+while IFS= read -r line; do
+  [ -n "$line" ] || continue
+  ref="${line#*refs/heads/}"
   case "$ref" in
     "$branch"|"$branch"/*) conflict="$ref"; break ;;
   esac
   case "$branch" in
     "$ref"|"$ref"/*) conflict="$ref"; break ;;
   esac
-done < <(git ls-remote --heads origin | awk '{sub("refs/heads/", "", $2); print $2}')
+done <<<"$refs"
 if [ -n "$conflict" ]; then
   echo "remote branch namespace conflict: $conflict" >&2
   exit 1
