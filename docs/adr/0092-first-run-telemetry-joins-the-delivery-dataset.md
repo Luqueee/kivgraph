@@ -12,12 +12,25 @@ again: installer delivery and GitHub deltas were stored in D1, while the
 versioned completion and first-run events went to a dedicated Umami property.
 The internal dashboard queried only D1.
 
-That split made a real `v0.9.5` installation invisible. D1 had the request for
-`/install.sh`, but that request necessarily has no release version because the
-script has not run yet. The versioned installer event reached the landing
-collector, but the dashboard could not query it. The newest GitHub snapshot
-also predated the release, so no other row introduced `0.9.5` into the release
-table.
+That split made a real `v0.9.5` installation invisible. The evidence was the
+production log `/root/.pm2/logs/kivgraph-landing-out-2.log`, which contained two
+`installer` rows for `0.9.5` on `darwin-arm64`, and these D1 queries:
+
+```sql
+SELECT event_name, version, source, COUNT(*)
+FROM analytics_events
+WHERE occurred_at >= datetime('now', '-2 days')
+GROUP BY event_name, version, source;
+
+SELECT MAX(captured_at) FROM github_asset_snapshots;
+```
+
+They returned two versionless `installer_fetched` rows and a newest snapshot
+at `2026-08-31T09:43:51Z`, before the release. Fetching the production
+dashboard and listing its semantic versions returned only `0.9.1`, `0.9.2` and
+`0.9.3`. The script request necessarily has no release version because the
+script has not run yet, and the versioned installer rows lived in the other
+collector. No store the dashboard queried could introduce `0.9.5`.
 
 This is not eventual consistency. Two stores with no join never converge.
 
@@ -58,9 +71,11 @@ Only `binary_first_run.unique_count` is an activation count. Installer
 successes, binary first runs and supervisor registrations are never added
 together.
 
-The landing's original handler remains an origin-only fallback while deployed
-clients continue to use the same URL. The public Cloudflare route takes
-precedence, so production writes have one owner and one dataset.
+The implementation lives in `Luqueee/kivgraph-admin` from commit `3c03414` and
+Worker version `ec85e98d-437a-4e53-ad06-8a2fc4983a83`. The landing server no
+longer wires its original Umami handler, so the public route has one owner and
+one dataset. The unchanged client URL makes that move transparent to released
+emitters.
 
 ## Consequences
 
@@ -72,8 +87,8 @@ precedence, so production writes have one owner and one dataset.
   installs and first runs without joining a second analytics product.
 - Umami remains the website and crawler analytics system. It no longer owns
   the production first-run route.
-- A corporate NAT is one daily visitor. That bias is explicit and resets each
-  UTC day.
+- For one emitter and version on one UTC day, a corporate NAT contributes one
+  visitor. That bias is explicit and resets each UTC day.
 - A missing D1 migration or Worker hash secret makes release telemetry fail
   closed. The release procedure therefore verifies both before considering a
   publication complete.

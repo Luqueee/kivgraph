@@ -302,6 +302,14 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
   adaptador exporta y lo envuelve, así que estáticos, el `301` de barra final y
   el 404 salen del mismo sitio de siempre; lo único que añade es ver cada
   petición. Ahí vive el detector de agentes de IA.
+- **`server.mjs` no recibe la telemetría de primer arranque.** La ruta pública
+  exacta `POST /api/telemetry/first-run` pertenece al Worker de borde que
+  también sirve `/install.sh`, `/install.ps1` y `/github`; valida y agrega los
+  hechos en D1 para el dashboard interno. El módulo
+  `src/install-report.mjs` conserva la implementación histórica y sus pruebas,
+  pero no se importa desde el servidor ni es una ruta de producción. Volver a
+  conectarlo crearía dos propietarios y dos datasets sin join, el fallo que
+  documenta el ADR 0092.
 - Los crawlers de IA van a una **segunda propiedad de Umami** y jamás a la
   principal: un bot no puede mover visitantes, rebote, duración ni una tasa de
   conversión que describe personas. El filtro de bots de Umami se queda

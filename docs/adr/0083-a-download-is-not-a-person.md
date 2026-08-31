@@ -91,13 +91,14 @@ machine fetching an asset seven times from seven machines fetching it once.
 Two layers. They answer different questions and neither is a step towards
 the other.
 
-**Both layers are built.** Layer 0 is `scripts/downloads.jq`,
+**Both layers were built in this form.** Layer 0 is `scripts/downloads.jq`,
 `scripts/downloads.sh` and `.github/workflows/download-metrics.yml`, and it
-has been photographing the counters daily since it merged. Layer 1 is the
-endpoint in `landing/src/install-report.mjs` and three emitters --
+has been photographing the counters daily since it merged. Layer 1 originally
+used the endpoint in `landing/src/install-report.mjs` and three emitters --
 `internal/telemetry` for binary and supervisor rows, and the tail of both
-installers. The latest published release is `v0.9.3`; it carries the binary
-and installer emitters. Supervisor telemetry is in source after that release.
+installers. That collector and its Umami storage are historical evidence now;
+ADR 0092 moves the unchanged public route to the edge Worker and D1. The module
+remains tested but is no longer wired by `landing/server.mjs`.
 
 Where the implementation taught this ADR something, the ADR says so: the
 address below is the case, and so is the binary declining to report from a
@@ -165,7 +166,13 @@ now terminates at the Cloudflare edge and writes the same validated facts to
 D1, which is the dataset the internal dashboard reads. The emitter payload and
 the separation between installer, binary and supervisor facts do not change.
 
-**Identity is Umami's, and this repository mints none.** Umami derives a
+#### Historical collector evidence
+
+The following Umami behavior is the evidence that led to the first collector.
+ADR 0092 retires it for the public route; it is not the current identity or
+storage contract.
+
+**Identity was Umami's, and this repository minted none.** Umami derives a
 visitor from a daily-rotating hash of website id, hostname, address and
 user agent. *Unique visitors per day* is therefore distinct machines that
 reported that day, and the address itself is never stored. An identifier of
@@ -188,9 +195,11 @@ address is the *only* discriminator left: a corporate NAT counts as one
 person. That is the bias every web analytics carries, and it is written
 here rather than discovered in a report.
 
-**A third property, `kivgraph FIRST RUNS`,** for the reason the AI crawlers
+**A third property, `kivgraph FIRST RUNS`,** existed for the reason the AI crawlers
 property exists: an install is not a visit, and mixing them moves
 visitors, bounce rate and the conversion rate that describes people.
+
+#### Current fact separation
 
 **`emitter` is why the sources do not become one number.** An installer
 that finished and a binary that started are different facts, and the second
@@ -211,11 +220,10 @@ Task Scheduler entry is a narrower fact than running the binary, and the
 platform may start that daemon as part of registration. The row is therefore
 kept separate and is not a replacement for the other two.
 
-**The endpoint is public, so the number is worth exactly its bounds.**
-Strict validation against the closed sets of platform, channel and
-transport and the published version pattern, an in-process dedupe window
-per address, version **and `emitter`**, and `204` on every path so probing
-it teaches nothing.
+**The endpoint is public, so the number is worth exactly its bounds.** Strict
+validation against the closed sets of platform, channel and transport and the
+published version pattern, a salted daily hash per address, version **and
+`emitter`**, and `204` on every path so probing it teaches nothing.
 
 The `emitter` in that key is load-bearing and easy to leave out. An
 installer that has just finished and the first run that follows it carry
@@ -224,12 +232,11 @@ those two alone would discard the second, which is precisely the `binary`
 row the property exists to collect. The field that separates the two
 aggregates has to separate their deduplication too.
 
-What the dedupe window does **not** buy is the headline number, and saying
-otherwise would misread the identity above: under a daily-rotating hash one
-address reinstalling in a loop is already **one** unique visitor, so
-repetition inflates the event count and never the visitor count. The window
-bounds events and write volume; validation is what stops a forged `version`
-or `platform` from inventing a row no release ever produced.
+The D1 unique index covers the mapped event name, version and daily hash. Its
+insert trigger updates the aggregate only for a new raw row. For one emitter
+and version on one UTC day, an address reinstalling in a loop is therefore one
+visitor. Validation is what stops a forged `version` or `platform` from
+inventing a row no release ever produced.
 
 ### Why the binary reports and not only the installer
 

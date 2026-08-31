@@ -709,10 +709,11 @@ Cloudflare edge and immediately hashes a tuple of secret salt, UTC day,
 address, version and emitter. D1 stores the SHA-256 result, not the address.
 The salt is a Worker secret and never ships in the repository or client.
 
-The digest rotates every UTC day. One address behind a corporate NAT is one
-daily visitor, and one machine on two networks can be two. Cloudflare also
-supplies a country code. No city, coordinates, cookie, query string or user
-agent is stored for a first-run event.
+The digest rotates every UTC day. For one emitter and version on one UTC day,
+an address behind a corporate NAT is one visitor, and one machine on two
+networks can be two. Cloudflare also supplies a country code. No city,
+coordinates, cookie, query string or user agent is stored for a first-run
+event.
 
 ### Historical measurement of the retired Umami collector
 
@@ -776,8 +777,8 @@ evidence for ADR 0083, not as production operating instructions.
 
 `POST /api/telemetry/first-run` is an exact route of the installer edge Worker.
 The same Worker owns `/install.sh`, `/install.ps1` and `/github`, and all four
-write to the D1 dataset the internal dashboard reads. The landing handler is
-an origin-only fallback; the public Cloudflare route takes precedence.
+write to the D1 dataset the internal dashboard reads. The landing server no
+longer wires the retired Umami handler, so the public route is the only owner.
 
 It is public, so the number is worth exactly its bounds: validation against
 the closed sets above and the published version pattern, a unique daily digest
@@ -1362,6 +1363,63 @@ Apply the first-run migration before deploying the route. It creates the
 partial unique index and the trigger that updates `daily_metrics`. A release
 smoke checks the route, binding, secret and migration without sending a fake
 accepted event.
+
+Run the verification from the `kivgraph-admin` checkout. `--cwd /tmp` is
+intentional: it keeps Wrangler on its authenticated profile instead of loading
+the read-only D1 token used by the dashboard from that repository's `.env`.
+
+```bash
+ADMIN_REPO=/root/kivgraph-admin
+WRANGLER="$ADMIN_REPO/node_modules/.bin/wrangler"
+CONFIG="$ADMIN_REPO/wrangler.jsonc"
+
+deployment="$($WRANGLER deployments status \
+  --config "$CONFIG" --cwd /tmp --json)"
+version_id="$(printf '%s' "$deployment" | \
+  jq -r '.versions[] | select(.percentage == 100) | .version_id')"
+test -n "$version_id"
+
+$WRANGLER versions view "$version_id" \
+  --config "$CONFIG" --cwd /tmp --json | jq -e '
+  ([.resources.bindings[] |
+    select(.name == "ANALYTICS_DB" and .type == "d1")] | length == 1) and
+  ([.resources.bindings[] |
+    select(.name == "VISITOR_HASH_SECRET" and .type == "secret_text")] |
+    length == 1)'
+
+$WRANGLER d1 execute kivgraph-analytics --remote \
+  --config "$CONFIG" --cwd /tmp \
+  --command "SELECT type, name FROM sqlite_schema WHERE name IN (
+    'analytics_events_first_run_daily_idx',
+    'analytics_events_first_run_daily') ORDER BY type" \
+  --json | jq -e '
+  .[0].success and
+  ([.[0].results[].name] | sort == [
+    "analytics_events_first_run_daily",
+    "analytics_events_first_run_daily_idx"
+  ])'
+
+test "$(curl -sS -o /dev/null -w '%{http_code}' \
+  -X POST https://kivgraph.dev/api/telemetry/first-run \
+  -H 'Content-Type: application/json' \
+  -d '{"emitter":"binary","version":"0.9.2"}')" = 204
+```
+
+The two `jq -e` calls print `true`, and the final `test` is silent. Any other
+result is a failed collector smoke. The payload deliberately names the last
+version without an emitter, so the route exercises validation without writing
+a synthetic accepted event.
+
+If the release smoke ran a real published installer or binary, verify the
+observed version in the internal dashboard response:
+
+```bash
+VERSION=X.Y.Z
+ssh websites "curl -fsS http://127.0.0.1:4173/ | grep -F '$VERSION'"
+```
+
+This last command must print the matching HTML. Do not run it as a requirement
+when no real emitter ran; an empty dataset is then the honest result.
 
 The reports remain separate: `binary_first_run.unique_count` is machines that
 ran the server, `install_succeeded.event_count` is verified installer

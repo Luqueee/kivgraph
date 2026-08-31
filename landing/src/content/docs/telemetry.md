@@ -43,8 +43,8 @@ no version of it that carries more.
 - **No address stored by us.** The Cloudflare edge sees an address, as it does
   for every HTTP request. It combines that address with a secret salt, the UTC
   day, version and emitter, stores only the SHA-256 result, and rotates the
-  result every day. The practical consequence is that everyone behind one NAT
-  counts as one machine for that day.
+  result every day. For one emitter and version on one UTC day, everyone behind
+  one NAT counts as one machine.
 - **A country code, and only that rough location, is stored.** Cloudflare
   derives it before the event reaches the database. No city, street,
   coordinates or address are kept.

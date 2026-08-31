@@ -348,7 +348,9 @@ desde el `main` que contiene la release, construirla con `make landing-check` y
 ~~~bash
 curl -fsS https://kivgraph.dev/releases/ | grep -F "vX.Y.Z"
 curl -fsS https://kivgraph.dev/telemetry/ | grep -F "/api/telemetry/first-run"
-curl -fsSI https://kivgraph.dev/install.sh | grep -i '^location:'
+test "$(curl -sS -o /dev/null -w '%{http_code} %{redirect_url}' \
+  https://kivgraph.dev/install.sh)" = \
+  "302 https://github.com/Luqueee/kivgraph/releases/latest/download/install.sh"
 ~~~
 
 El collector de primer arranque y el dashboard D1 son parte del smoke de
@@ -359,7 +361,11 @@ un evento sintético para poner una versión en la gráfica: si el smoke ejecuta
 de verdad un instalador o un binario publicado, su fila debe aparecer en el
 dashboard; si no ejecuta ninguno, la ausencia todavía es el resultado honesto.
 Una instalación real observada que no aparece es una release incompleta, no
-algo que se difiere al siguiente cron.
+algo que se difiere al siguiente cron. Los comandos autoritativos, con los
+criterios de PASS para la versión desplegada, el binding, el secreto, la
+migración, la ruta y el dashboard, están en la sección **1i. The first-run
+Worker and D1** de `docs/development/analytics.md`; ejecutarlos, no sustituirlos
+por una inspección visual del panel.
 
 ## 7. Fallos y recuperación
 
