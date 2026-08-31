@@ -1,5 +1,5 @@
 ---
-title: How to Add an MCP Server to OpenAI Codex CLI
+title: "How to Add an MCP Server to OpenAI Codex CLI: Step by Step"
 description: Use codex mcp add to connect an MCP server to Codex CLI, then verify it with codex mcp list. Includes stdio, HTTP and Kivgraph setup.
 pubDate: 2026-08-31
 author: Kivgraph

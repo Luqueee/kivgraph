@@ -1,5 +1,5 @@
 ---
-title: How to Add an MCP Server to Claude Code
+title: "How to Add an MCP Server to Claude Code: Step by Step"
 description: Use claude mcp add to add an MCP server to Claude Code, then verify it with /mcp. This guide covers HTTP, stdio and Kivgraph setup.
 pubDate: 2026-08-31
 author: Kivgraph
