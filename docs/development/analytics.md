@@ -1442,21 +1442,25 @@ $WRANGLER d1 execute kivgraph-analytics --remote \
     }
   ])'
 
+rejected_version="0.0.$(date -u +%s)$BASHPID"
+rejected_payload="$(jq -nc --arg version "$rejected_version" \
+  '{emitter: "binary", version: $version}')"
+
 rejected_before="$($WRANGLER d1 execute kivgraph-analytics --remote \
   --config "$CONFIG" --cwd /tmp \
   --command "SELECT COUNT(*) AS count FROM analytics_events
-    WHERE source = 'first_run_edge' AND version = '0.9.2'" \
+    WHERE source = 'first_run_edge' AND version = '$rejected_version'" \
   --json | jq -er '.[0].results[0].count')"
 
 test "$(curl -sS -o /dev/null -w '%{http_code}' \
   -X POST https://kivgraph.dev/api/telemetry/first-run \
   -H 'Content-Type: application/json' \
-  -d '{"emitter":"binary","version":"0.9.2"}')" = 204
+  -d "$rejected_payload")" = 204
 
 rejected_after="$($WRANGLER d1 execute kivgraph-analytics --remote \
   --config "$CONFIG" --cwd /tmp \
   --command "SELECT COUNT(*) AS count FROM analytics_events
-    WHERE source = 'first_run_edge' AND version = '0.9.2'" \
+    WHERE source = 'first_run_edge' AND version = '$rejected_version'" \
   --json | jq -er '.[0].results[0].count')"
 test "$rejected_before" = "$rejected_after"
 ```
@@ -1467,10 +1471,12 @@ database id configured for `kivgraph-analytics`, so the schema query and Worker
 cannot silently address different databases. Any other result is a failed
 collector smoke.
 
-The payload deliberately names the last version without emitters and is
-incomplete for a binary row: it has no platform, channel or transport. The
-`204` proves only that the exact public route is reachable. Comparing the D1
-count before and after proves separately that this refused probe wrote no row.
+The payload uses a fresh numeric semantic version below the emitter floor on
+every run and is incomplete for a binary row: it has no platform, channel or
+transport. A previously accepted malformed probe therefore cannot be hidden by
+the daily uniqueness key. The `204` proves only that the exact public route is
+reachable. Comparing the D1 count before and after proves separately that this
+refused probe wrote no row.
 
 If the release smoke ran a real published installer or binary, verify the
 observed version in the internal dashboard response:
