@@ -583,8 +583,10 @@ wired in `landing/server.mjs`; the emitters are `internal/telemetry` for the
 binary and supervisor rows, and the tail of `scripts/install.sh` and
 `scripts/install.ps1` for the installers. The event shape and validation below
 are observed behaviour; the interpretation of its scope is labelled as
-analysis. `v0.9.3` is the first published release that carries the binary and
-installer emitters; supervisor telemetry is in source after that release.
+analysis. Source version `v0.9.3` is the first one that carries the binary and
+installer emitters; the public releases page currently lists `v0.9.1` as its
+latest release, which predates them. Supervisor telemetry is in source after
+that public release.
 
 ### The event
 

@@ -96,8 +96,9 @@ the other.
 has been photographing the counters daily since it merged. Layer 1 is the
 endpoint in `landing/src/install-report.mjs` and three emitters --
 `internal/telemetry` for binary and supervisor rows, and the tail of both
-installers. The latest published release is `v0.9.3`: it carries the binary
-and installer emitters; supervisor telemetry is in source after that release.
+installers. The public releases page currently lists `v0.9.1` as its latest
+release, and that version predates these emitters; it therefore could not have
+produced a row. Supervisor telemetry is in source after that release.
 
 Where the implementation taught this ADR something, the ADR says so: the
 address below is the case, and so is the binary declining to report from a
