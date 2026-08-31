@@ -27,13 +27,27 @@ import {
 interface Props {
   title: string;
   description: string;
+  canonical?: string;
+  type?: "website" | "article";
+  publishedTime?: string;
+  modifiedTime?: string;
+  structuredData?: Record<string, unknown>;
 }
 
-const { title, description } = Astro.props;
+const {
+  title,
+  description,
+  canonical: canonicalOverride,
+  type = "website",
+  publishedTime,
+  modifiedTime,
+  structuredData: structuredDataOverride,
+} = Astro.props;
 
 // Absolute and derived from `site`, never a literal: the deployment sets
 // KIVGRAPH_LANDING_URL and a hardcoded host would publish the wrong canonical.
-const canonical = absoluteUrl(Astro.site, Astro.url.pathname);
+const canonical =
+  canonicalOverride ?? absoluteUrl(Astro.site, Astro.url.pathname);
 const preview = absoluteUrl(Astro.site, "/og.png");
 
 // What the preview shows is declared once in `src/site.mjs`, because the
@@ -46,7 +60,7 @@ const umami = umamiTracker();
 // One graph, not three scripts. `SoftwareApplication` is what an answer engine
 // reads to say what Kivgraph is; `WebSite` is the node that ties the pages
 // together and that every documentation page points back to by `@id`.
-const structuredData = {
+const defaultStructuredData = {
   "@context": "https://schema.org",
   "@graph": [
     {
@@ -88,6 +102,8 @@ const structuredData = {
     },
   ],
 };
+
+const structuredData = structuredDataOverride ?? defaultStructuredData;
 ---
 
 <!doctype html>
@@ -112,7 +128,7 @@ const structuredData = {
     <link rel="manifest" href="/site.webmanifest" />
     <meta name="theme-color" content="#0a0b0d" />
 
-    <meta property="og:type" content="website" />
+    <meta property="og:type" content={type} />
     <meta property="og:site_name" content={PROJECT_NAME} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
@@ -124,6 +140,12 @@ const structuredData = {
     <meta property="og:image:alt" content={PREVIEW_ALT} />
     {/* The OG spec wants `language_TERRITORY`, not a bare language tag. */}
     <meta property="og:locale" content="en_US" />
+    {publishedTime && (
+      <meta property="article:published_time" content={publishedTime} />
+    )}
+    {modifiedTime && (
+      <meta property="article:modified_time" content={modifiedTime} />
+    )}
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
@@ -163,6 +185,8 @@ const structuredData = {
       href={absoluteUrl(Astro.site, "/llms-full.txt")}
       title="Full documentation as plain text"
     />
+
+    <slot name="head" />
 
     <script
       type="application/ld+json"

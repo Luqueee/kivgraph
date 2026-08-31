@@ -1,0 +1,27 @@
+---
+import type { BlogEntry } from "../../pages/_seo";
+import { blogPathname } from "../../pages/_seo";
+
+interface Props {
+  post: BlogEntry;
+}
+
+const { post } = Astro.props;
+const published = post.data.pubDate.toISOString().slice(0, 10);
+---
+
+<article class="border border-rule bg-panel p-6 transition-colors hover:border-rule-strong">
+  <a class="block" href={blogPathname(post.id)}>
+    <p class="font-mono text-xs uppercase tracking-wider text-gray-400">
+      {post.data.category}
+    </p>
+    <h2 class="mt-4 font-mono text-xl text-gray-100">{post.data.title}</h2>
+    <p class="mt-3 leading-7 text-gray-300">{post.data.description}</p>
+    <time
+      class="mt-5 block font-mono text-xs text-gray-400"
+      datetime={post.data.pubDate.toISOString()}
+    >
+      {published}
+    </time>
+  </a>
+</article>

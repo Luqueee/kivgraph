@@ -343,6 +343,10 @@ jobs:
         working-directory: landing
         run: pnpm build
 
+      - name: Audit landing SEO and AEO surfaces
+        working-directory: landing
+        run: node scripts/seo-audit.mjs
+
   linux-bundle:
     name: Build and verify the Linux distribution bundle
     runs-on: ubuntu-latest

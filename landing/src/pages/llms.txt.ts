@@ -46,6 +46,7 @@ export const GET: APIRoute = async ({ site }) => {
     `- The whole documentation in a single fetch: ${absoluteUrl(site, "/llms-full.txt")}`,
     `- Licensed ${LICENSE_NAME} (${LICENSE_URL}). Source: ${REPOSITORY_URL}`,
     `- The server registers ${MCP_TOOLS.length} tools over stdio: ${MCP_TOOLS.join(", ")}.`,
+    `- Blog articles for agents: ${absoluteUrl(site, "/llms-blog.txt")}.`,
     "",
   ];
 
@@ -61,6 +62,8 @@ export const GET: APIRoute = async ({ site }) => {
   lines.push(
     "## Optional",
     `- [Releases](${absoluteUrl(site, "/releases/")}): release notes and upgrade instructions.`,
+    `- [Blog](${absoluteUrl(site, "/blog/")}): practical articles for developers and AI coding agents.`,
+    `- [Blog index for agents](${absoluteUrl(site, "/llms-blog.txt")}): published blog article summaries and Markdown links.`,
     `- [Repository](${REPOSITORY_URL}): source and issue tracker.`,
     `- [License](${LICENSE_URL}): ${LICENSE_NAME}.`,
     "",
