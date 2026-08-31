@@ -38,26 +38,35 @@ The final gate is about the current head SHA, not merely whether CodeRabbit has
 reviewed the PR at some point.
 
 1. Before waiting, record the current head SHA and a snapshot of all existing
-   CodeRabbit review, inline-comment, and issue-comment IDs. Identify the bot by
-   its GitHub account/login returned by the API, not by a string in the comment
-   body. The usual login is `coderabbitai[bot]`, but do not assume it.
+   CodeRabbit reviews, inline comments, issue comments, and thread states. Keep
+   each artifact's ID, commit or timestamp fields, body digest, and resolution
+   state where available. Set `reviewCycleStartedAt` immediately after this
+   snapshot. Identify the bot by its GitHub account/login returned by the API,
+   not by a string in the comment body. The usual login is `coderabbitai[bot]`,
+   but do not assume it.
 2. Wait until the CodeRabbit check or review for that exact SHA has completed.
    A queued, in-progress, absent, or API-inaccessible review is a blocker.
 3. Fetch all three surfaces again:
    - pull-request reviews;
    - pull-request review comments, including replies and threads;
    - issue comments on the PR, which cover comments outside the diff.
-4. Compare the second snapshot with the first. Any new CodeRabbit finding that
-   requests a change blocks the merge, even if CI is green. A new clean summary
-   is not a finding, but it must be reported.
+4. Compare the second snapshot with the first and save the second as the
+   `postReviewSnapshot`. Any new CodeRabbit finding that requests a change
+   blocks the merge, even if CI is green. A new clean summary is not a finding,
+   but it must be reported.
 5. Check existing findings as well. Every CodeRabbit comment concerning the
    current head must be resolved, obsolete with an evidence-based explanation,
    or already fixed. Do not treat an old comment as harmless just because it
    was posted on an earlier SHA. Unresolved review threads or a
    `CHANGES_REQUESTED` review block the merge.
-6. If a comment cannot be tied to the current head or its status cannot be
-   established, stop and report the uncertainty instead of guessing. After any
-   fix and push, restart this gate from the new head SHA.
+6. Issue comments do not expose `commit_id`. Treat an issue comment as part of
+   the current review cycle when its ID is new after `reviewCycleStartedAt`, or
+   its body or `updated_at` changed after that checkpoint. Evaluate its body and
+   ID even without a commit field. Pre-existing unchanged issue comments remain
+   historical, but their unresolved actionable content still blocks the merge;
+   missing `commit_id` alone is not uncertainty. If identity, timing, or status
+   cannot otherwise be established, stop and report the uncertainty instead of
+   guessing. After any fix and push, restart this gate from the new head SHA.
 
 When using the GitHub CLI, the relevant read-only API surfaces are equivalent
 to:
@@ -75,11 +84,15 @@ the REST response does not expose whether an inline thread is resolved.
 
 ## Merge and branch deletion
 
-Immediately before mutating anything, refresh the PR and compare its head SHA
-with the SHA that passed the final CodeRabbit gate. If it changed, repeat the
-entire gate. Capture the verified SHA as `gatedHeadSha` and retain the PR's
-`headRepository.nameWithOwner` and `headRefName` as the cleanup target. Never
-use the base repository or a same-named branch as a fallback.
+Immediately before mutating anything, refresh the PR and take a fresh snapshot
+of all three CodeRabbit surfaces: reviews, review comments, and issue comments,
+including body digests, timestamps, commit IDs, states, and thread resolution
+states where available. Compare it with `postReviewSnapshot`. If any surface
+changed, or if the head SHA differs from the SHA that passed the final
+CodeRabbit gate, repeat the entire gate. Otherwise capture the verified SHA as
+`gatedHeadSha` and retain the PR's `headRepository.nameWithOwner` and
+`headRefName` as the cleanup target. Never use the base repository or a
+same-named branch as a fallback.
 
 Before requiring `--delete-branch`, determine whether the base branch requires
 a merge queue using live GitHub branch-protection or repository metadata. The
