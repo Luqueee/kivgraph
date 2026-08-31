@@ -43,7 +43,7 @@ It can then inspect the relevant source after narrowing the search to the symbol
 
 ## Code intelligence and MCP
 
-MCP is the transport and tool interface. Code intelligence is the capability behind the tools. An MCP server can expose many kinds of context, but a code intelligence server should answer structural questions with evidence from language-aware analysis.
+MCP is a protocol that lets AI applications exchange context and invoke tools through supported transports, including stdio and Streamable HTTP. The [MCP architecture specification](https://modelcontextprotocol.io/specification/2025-06-18/architecture) defines the client-server boundary. Code intelligence is the capability behind those tools. An MCP server can expose many kinds of context, but a code intelligence server should answer structural questions with evidence from language-aware analysis.
 
 Kivgraph runs locally and builds a canonical graph across Go, TypeScript, Rust, Python and Dart repositories. Read the [code intelligence guide](/code-intelligence/) for the supported resolution levels and the [quickstart](/quickstart/) to try it.
 

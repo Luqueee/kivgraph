@@ -130,7 +130,7 @@ function docsEntrySources(slug) {
 /** `/blog/semantic-code-search-vs-grep/` -> `content/blog/<slug>.md`. */
 function blogEntrySources(slug) {
   const base = `content/blog/${slug}`;
-  return [`${base}.md`, `${base}.mdx`].filter((relative) =>
+  return [`${base}.md`].filter((relative) =>
     existsSync(path.join(SRC_DIR, relative)),
   );
 }

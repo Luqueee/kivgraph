@@ -142,7 +142,7 @@ Separate registration problems from graph problems before changing the setup:
 3. For a local server, confirm that the executable is on the `PATH` available to
    Codex and that the command can start without an interactive shell.
 4. Start a new Codex session after changing the configuration.
-5. For Kivgraph, run `kivgraph doctor` and `kivgraph graph status` to check the
+5. For Kivgraph, run `kivgraph doctor` and `kivgraph graph status --root PATH` to check the
    executable, configuration and published graph.
 
 If the server is connected but returns no useful code answers, the MCP

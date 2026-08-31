@@ -150,7 +150,7 @@ The agent decides what to do and communicates with the user. The MCP server expo
 
 ### What should I ask first after connecting a code MCP server?
 
-Ask one question that has a verifiable answer, such as “where is this symbol declared?” or “who calls this function?”. Then inspect the returned source and evidence before asking for an edit. A small structural query is a better connection test than asking the agent to change a large feature immediately.
+Ask one question that has a verifiable answer, such as where this symbol is declared or who calls this function. Then inspect the returned source and evidence before asking for an edit. A small structural query is a better connection test than asking the agent to change a large feature immediately.
 
 ## Further reading
 
