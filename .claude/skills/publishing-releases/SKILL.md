@@ -1,213 +1,348 @@
 ---
 name: publishing-releases
-description: Cómo y sobre todo cuándo se publica una release de Kivgraph - la versión sólo sube, los tres sitios donde vive, qué verifica CI, y la lista de cambios que NO merecen release. Usar al proponer o preparar una release, al tocar `internal/version/version.go`, al crear un tag `vX.Y.Z`, o cuando alguien pida "saca una versión".
+description: Procedimiento seguro y reproducible para decidir, preparar, etiquetar, verificar y cerrar una release de Kivgraph. Usar cuando alguien pida sacar una versión, al tocar internal/version/version.go, una nota de release o un tag vX.Y.Z.
 ---
 
 # Publicar una release de Kivgraph
 
-## La regla que más cuesta descubrir
+Esta skill cubre el cambio completo: decidir si merece la pena publicar,
+actualizar las fuentes correctas, pasar los gates, crear el tag y comprobar lo
+que realmente llegó a GitHub y al MCP Registry. No publica nada si la persona
+no lo ha pedido explícitamente.
 
-**La versión sólo sube. Nunca baja, nunca se reinicia, nunca se reutiliza.**
+## Reglas que no se negocian
 
-`kivgraph update` pregunta a GitHub por `/releases/latest` y decide con una sola
-comparación (`internal/update/update.go:134`):
+- La versión sólo sube. Nunca se baja, se reinicia, se reutiliza ni se reescribe
+  un tag que ya se haya empujado.
+- Las releases públicas son estables y usan vX.Y.Z. El workflow rechaza
+  cualquier versión que no sea X.Y.Z; no preparar prereleases con este flujo.
+- El tag debe apuntar al commit exacto que ya está integrado en main. No se
+  etiqueta una rama de trabajo ni un árbol sucio.
+- La nota de release debe existir antes del tag. Si falta, CI quema el tiempo de
+  construir los artefactos y falla justo antes de publicarlos.
+- Una release es un evento de distribución, no una marca de progreso del
+  backlog. El número de tarea, un PASS en TASKS.md o una suite verde no son
+  por sí solos un motivo.
 
-```go
-result.UpdateAvailable = semver.Compare(currentSemver, release.TagName) < 0
-```
+## 1. Decidir si hay release y qué número usar
 
-Es `<`, estricto. Una release con número menor que el instalado **no existe** para
-esa instalación.
+Publicar sólo tiene sentido si quien actualiza obtiene algo ejecutable y
+observable:
 
-El 11 de agosto de 2026 el versionado se reinició: el proyecto había llegado a
-`v0.10.1` y un commit `chore(release): restart versioning at v0.1.0` volvió a
-empezar desde abajo. Toda instalación entre `v0.5.0` y `v0.10.1` quedó
-**huérfana para siempre**: `update` les responde que están al día y nunca les
-ofrecerá nada, porque `v0.4.0` no es mayor que `v0.10.1`.
+- una corrección que afecta al binario publicado;
+- una capacidad nueva del CLI, MCP o de un lenguaje soportado;
+- un cambio de compatibilidad, schema o migración;
+- una corrección del bundle, instaladores, checksums, analizador o visor web.
 
-No tiene arreglo salvo saltar por encima de `v0.10.1`, que tiraría el numerado
-actual. Ese fue el precio de hacerlo sin motivo.
+No publicar por documentación aislada, TASKS.md, ADRs, benchmarks, tests,
+refactors sin cambio observable, ni por completar una tarea LUQUE-####.
+Resume en una frase qué gana quien actualiza. Si la frase sólo habla del
+trabajo interno, no hay release.
 
-El 16 de agosto de 2026 se reinició otra vez, y esta vez la regla no protegía a
-nadie: el proyecto se renombró a Kivgraph y el nombre del asset que pide una
-instalación va compilado en el binario
-(`bundleDirName = "kivgraph-" + GOOS + GOARCH`, `internal/update/update.go:34`).
-Un `ladygraph` instalado pide `ladygraph-<os>-<arch>.tar.gz` y toda release
-futura publica `kivgraph-*`: `update` le falla por asset ausente antes de
-comparar un solo número. El rename ya cortó la línea de actualización de las 14
-releases anteriores -23 descargas de bundle en total, dos máquinas propias-, así
-que se borraron todas, se borraron sus tags y el numerado empezó en `v0.1.0`.
+En la serie 0.MINOR.PATCH:
 
-De ahí sale la condición, que es la regla de verdad: **un reinicio sólo es
-legítimo cuando ninguna instalación podría haber actualizado de todos modos, y
-eso hay que demostrarlo con el asset que pide, no con el número que tiene.**
-Fuera de ese caso, la versión sólo sube.
-
-## Cuándo NO se publica
-
-Esta sección existe porque el historial dice lo contrario: **21 commits
-`chore(release)` en dos días**, uno cada pocas horas.
-
-Una release es un **evento de distribución**, no un punto de control. Sólo tiene
-sentido si alguien que ejecute `kivgraph update` va a recibir algo que necesita.
-
-No se publica por:
-
-- documentación, `TASKS.md`, ADRs, benchmarks o `report.md`;
-- refactors sin cambio observable;
-- tests nuevos, por muchos que sean;
-- **terminar una tarea `LUQUE-XXXX` o cerrar una fase**;
-- dejar el trabajo «etiquetado» o «guardado»;
-- que el árbol esté limpio y la suite en verde.
-
-El backlog y la versión publicada son dos cosas distintas. Un `PASS` en `TASKS.md`
-no es un motivo para publicar; es un motivo para pasar a la siguiente tarea.
-
-**Si nadie ha pedido una release, no se propone una release.**
-
-## Cuándo sí
-
-- Un fallo que alguien está sufriendo **hoy en el binario publicado**.
-- Una capacidad que el usuario puede ejecutar: un comando, una tool MCP, un
-  lenguaje soportado.
-- Un cambio de esquema o de compatibilidad que necesita su camino de upgrade.
-- Una corrección en lo que se distribuye: el bundle, el instalador, los
-  checksums, el analizador fijado, los assets web.
-
-Prueba de una frase: **qué gana quien actualiza**. Si no se puede escribir sin
-mencionar el número de tarea, no hay release.
-
-## Qué número toca
-
-Proyecto en `0.x`, esquema `0.MINOR.PATCH`:
-
-| | Cuándo |
+| versión | usarla para |
 | --- | --- |
-| **PATCH** | Por defecto. Correcciones y todo lo que no cambia la superficie observable. |
-| **MINOR** | Sólo si la superficie crece o rompe: una tool MCP nueva, un comando nuevo, un cambio de esquema persistente, un flag retirado. |
+| PATCH | opción por defecto: bugs y cambios que no amplían ni rompen la superficie observable; |
+| MINOR | una tool MCP o comando nuevo, un cambio de schema persistente, una compatibilidad nueva o un flag retirado. |
 
-Ante la duda, **patch**. Subir un minor es gratis hoy y caro después, porque el
-número no baja.
+Antes de elegir el número, contrástalo con GitHub y con todos los tags. No uses
+un número recordado de una conversación ni una comparación lexicográfica:
 
-## El procedimiento
+~~~bash
+git fetch origin --tags
+gh api repos/Luqueee/kivgraph/releases/latest --jq .tag_name
+git tag --list 'v[0-9]*' --sort=-version:refname | head -1
+~~~
 
-Verificar primero. Un tag dispara CI, pero **CI no sabe si la release debía
-existir**.
+El nuevo tag tiene que ser semánticamente mayor que la release estable que
+GitHub sirve como latest, mayor que cualquier tag existente y no puede existir
+ya como tag ni como release:
 
-```bash
-gofmt -l <archivos-go-modificados>
+~~~bash
+TAG=vX.Y.Z
+if git show-ref --verify --quiet "refs/tags/$TAG"; then
+  echo "tag already exists: $TAG" >&2
+  exit 1
+fi
+if gh release view "$TAG" >/dev/null 2>&1; then
+  echo "GitHub release already exists: $TAG" >&2
+  exit 1
+fi
+~~~
+
+Si hay dudas sobre el orden semántico, detenerse y resolverlas; no forzar el
+número. kivgraph update compara versiones de forma estricta y una versión
+menor deja instalaciones sin camino de actualización.
+
+## 2. Preparar las fuentes de la release
+
+Trabajar desde main actualizado. Si los cambios aún están en una PR, primero
+se integran mediante el flujo normal del repositorio; el commit de preparación
+no se etiqueta desde la rama de la PR.
+
+Para preparar el commit desde una base conocida:
+
+~~~bash
+git switch main
+git pull --ff-only origin main
+git switch -c chore/release-vX.Y.Z
+~~~
+
+La fuente de versión y la nota obligatoria son:
+
+~~~text
+internal/version/version.go                 var Value = "X.Y.Z"
+landing/src/content/releases/vX.Y.Z.md      nombre de la nota y frontmatter
+~~~
+
+El resto de comandos fijados con KIVGRAPH_VERSION=v... son documentación
+derivada. No hay que mantener una lista manual: el test los descubre en
+README.md, docs/, landing/ y los scripts, excluyendo historiales y ledgers.
+Actualiza sólo los ejemplos que pretendan enseñar la versión actual; no hagas
+un reemplazo global que altere referencias históricas.
+
+~~~bash
+go test ./internal/version/ \
+  -run 'Test(DocumentedInstallVersionMatchesTheBinary|ReleaseNotes)$' \
+  -count=1
+~~~
+
+La nota landing/src/content/releases/vX.Y.Z.md debe tener este frontmatter:
+
+~~~yaml
+---
+version: vX.Y.Z
+date: YYYY-MM-DD
+requires_reindex: false
+---
+~~~
+
+Elige requires_reindex por el comportamiento, no por costumbre:
+
+- true si cambian loaders, resolución, identidades, aristas o el schema de
+  forma que un grafo existente ya no representa correctamente las fuentes;
+- false si el grafo existente sigue siendo válido.
+
+Si cambia el schema persistente o una superficie de compatibilidad, revisa el
+ADR y el camino de migración o full rebuild antes de escribir la nota. La nota
+debe explicar el impacto para el usuario, los cambios incompatibles y la acción
+necesaria para actualizar. Su cuerpo se publica en la landing y como GitHub
+Release Note, por lo que se escribe en inglés.
+
+server.json es una plantilla de metadatos del MCP Registry, no otra fuente de
+la versión del binario. El workflow genera su version y sus packages a partir
+de los artefactos de esa ejecución. No se añade una lista packages ni se
+inventan checksums; sólo se edita el template si cambia su metadata estable.
+
+No editar a mano dist/, .tooling/, web/dist, landing/dist, ts-worker/dist,
+manifests fijados ni lockfiles.
+
+## 3. Gates antes de crear el tag
+
+El tag dispara el pipeline, pero CI no puede decidir si el número ni la nota
+eran correctos. Ejecutar los gates relevantes antes de publicar y conservar el
+resultado:
+
+~~~bash
+git diff --check
+test -z "$(find . -type f -name '*.go' -not -path './.git/*' -exec gofmt -l {} +)"
 go vet ./...
 go test ./...
-make test-ladybug
 make build
-```
+make test-ladybug
+make lint-ladybug
+make coverage
+make semantic-coverage
+go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+go run honnef.co/go/tools/cmd/staticcheck@2025.1.1 \
+  -checks='all,-U1000' ./...
+go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+scripts/check-docs.sh origin/main
+go test -race \
+  ./cmd/kivgraph/... \
+  ./internal/hotsnapshot/... \
+  ./internal/indexing/... \
+  ./internal/daemon/... \
+  ./internal/storage/generation/...
+~~~
 
-La versión vive en **cuatro sitios** y los cuatro tienen que coincidir. Se
-editan a mano; lo que ya no hace falta recordar es cuáles son.
+make test-ladybug es el modo soportado para la suite nativa; no sustituirlo por
+go test -tags ladybug sin la biblioteca y el CGO_* que prepara el Makefile.
+make build produce el binario Go normal, no el bundle nativo que se distribuye.
 
-```bash
-grep -n 'Value = ' internal/version/version.go   # var Value = "X.Y.Z"
-go test ./internal/version/ -run DocumentedInstallVersion
-```
+Repetir los checks de los tres paquetes Node, igual que CI:
 
-Ese test descubre por sí mismo cada comando de instalación fijado del
-repositorio y falla nombrando archivo y línea del que no coincida. Esta sección
-decía «tres sitios» y su `grep` sólo miraba `README.md` y
-`docs/installation.md`; mientras los dos iban en `v0.5.0`,
-`landing/src/content/docs/install.md` llevaba **dos minors** de retraso
-diciéndole a un lector que fijara `v0.3.0`. Una lista escrita a mano vuelve a
-quedarse corta en cuanto una página nueva lleve el comando, así que el test la
-descubre en vez de enumerarla.
+~~~bash
+(cd ts-worker && pnpm install --frozen-lockfile && pnpm format:check && \
+  pnpm lint && pnpm typecheck && pnpm test && pnpm build)
+(cd web && pnpm install --frozen-lockfile && pnpm check && pnpm build)
+(cd landing && pnpm install --frozen-lockfile && pnpm check && pnpm build)
+~~~
 
-Y hay un quinto archivo que no lleva la versión dentro sino en su **nombre**:
+make semantic-coverage y los analizadores no deben convertirse en skips por
+falta de herramientas. Instalar el toolchain que exige CI y dejar visible el
+fallo si no se puede completar.
 
-```bash
-ls landing/src/content/releases/vX.Y.Z.md   # tiene que existir antes del tag
-```
+CI también cruza el código para windows/amd64 y parsea los dos scripts de
+PowerShell. Si se modifica código específico de Windows o un instalador,
+reproducir esos dos checks con las herramientas del workflow; que Linux compile
+no demuestra que el instalador de Windows sea válido.
 
-`release.yml` toma el cuerpo de esa página como las notas de la release, y si no
-existe **corta la publicación** -- después de reejecutar `ci.yml` y de construir
-los dos bundles en sus hosts nativos, porque el paso que la lee es el último. El
-frontmatter es `version`, `date` y `requires_reindex`, validado por el esquema de
-`landing/src/content.config.ts`; ese último campo es la única cosa que le dice a
-quien actualiza si su grafo publicado le sirve tal cual, así que se responde
-mirando si algún loader cambió lo que ve, no por costumbre.
+Si se está en un host de publicación, verificar además el bundle nativo de esa
+plataforma y su reproducibilidad:
 
-Esa página **se escribe en inglés**, y no por gusto: es a la vez una página
-publicada de la landing y el cuerpo de la release de GitHub, así que la leen
-usuarios y no el equipo. Las notas anteriores ya lo están; la regla completa --
-qué se escribe en inglés y qué se deja como está -- vive en la sección *El
-idioma de lo que se escribe* del `AGENTS.md` de la raíz.
+~~~bash
+make build-linux-amd64       # sólo en Linux amd64
+make build-darwin-arm64      # sólo en macOS arm64
+scripts/check-reproducible-bundle.sh
+~~~
 
-Un tag sin esa página es exactamente el fallo que se paga más caro: el número no
-se reutiliza, así que se quema un `vX.Y.Z` entero por un archivo de treinta
-líneas que se escribe en un minuto.
+El workflow de release es quien construye las tres plataformas —Linux amd64,
+macOS arm64 y Windows amd64— en hosts nativos. Nunca tratar un bundle local de
+otra plataforma como evidencia de esa plataforma.
 
-Un commit propio, un tag **anotado** -como todos los anteriores-, y el tag
-después del commit:
+## 4. Commit, integración y tag
 
-```bash
-git commit -am "chore(release): prepare vX.Y.Z"
+Después de actualizar Value, la nota y la documentación fijada, comprobar:
+
+~~~bash
+go test ./internal/version/ \
+  -run 'Test(DocumentedInstallVersionMatchesTheBinary|ReleaseNotes)$' \
+  -count=1
+git diff --check
+git status --short
+~~~
+
+Crear un commit de preparación con un mensaje en inglés:
+
+~~~bash
+git add internal/version/version.go landing/src/content/releases/vX.Y.Z.md
+# Añadir explícitamente, si cambiaron, los ficheros con ejemplos de instalación.
+git commit -m "chore(release): prepare vX.Y.Z"
+~~~
+
+Integrar ese commit en main mediante la protección habitual del repositorio.
+Cuando el commit ya esté en el remoto, crear el tag anotado sobre el SHA exacto
+de origin/main:
+
+~~~bash
+git fetch origin main --tags
+test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+test -z "$(git status --porcelain)"
 git tag -a vX.Y.Z -m "Kivgraph vX.Y.Z"
-git push origin main
 git push origin vX.Y.Z
-```
+~~~
 
-El árbol tiene que estar limpio antes del tag: el workflow hace checkout del
-commit exacto al que apunta, así que un tag sobre trabajo sin commitear publica
-algo que no existe en `main`.
+No crear manualmente una GitHub Release antes del workflow: el push del tag
+dispara .github/workflows/release.yml y gh release create es responsabilidad
+del job publish.
 
-## Qué verifica CI, y qué no verifica nadie
+## 5. Qué hace realmente el workflow
 
-`.github/workflows/release.yml` dispara con `v*.*.*` y, antes de construir nada,
-**vuelve a ejecutar `ci.yml` sobre el commit etiquetado**. Después, por
-plataforma y siempre en un host nativo -`linux/amd64` y `darwin/arm64`, no hay
-cross-compilation porque cgo enlaza la biblioteca nativa-:
+.github/workflows/release.yml vuelve a ejecutar ci.yml sobre el commit
+etiquetado y después:
 
-- que `kivgraph version` y `version --json` digan exactamente la versión del tag;
-- que `bin/rust-analyzer` sea el release fijado en `tools/manifest.json`;
-- que `web/index.html` esté en el payload **y** que la ayuda no diga
-  `unavailable: this build carries no web bundle` — un bundle con assets enlazado
-  sin el tag `webassets` serviría la página de error en todas las rutas;
-- los checksums externos e internos.
+1. construye y verifica el bundle completo en cada host nativo;
+2. comprueba versión, procedencia, checksums, rust-analyzer, web/index.html,
+   la ayuda de ui y la ausencia de landing/ en el payload;
+3. crea un archivo reproducible y un MCPB (.mcpb) por plataforma;
+4. ensambla SHA256SUMS sobre todos los assets y adjunta attestations de
+   provenance;
+5. lee el cuerpo de landing/src/content/releases/vX.Y.Z.md y crea la GitHub
+   Release como latest;
+6. descarga desde la release recién publicada cada archivo de las tres
+   plataformas, comprueba su digest, lo extrae y vuelve a ejecutar
+   scripts/verify-bundle.sh;
+7. sólo después valida y publica los tres MCPB en el MCP Registry usando OIDC.
 
-Y sólo al final, `gh release create --verify-tag --generate-notes --latest`.
+La publicación esperada contiene exactamente estos tipos de assets:
 
-Lo que no comprueba nadie es **si la release tenía que existir**. Eso es esta
-skill.
+~~~text
+kivgraph-linux-amd64.tar.gz
+kivgraph-darwin-arm64.tar.gz
+kivgraph-windows-amd64.zip
+kivgraph-linux-amd64.mcpb
+kivgraph-darwin-arm64.mcpb
+kivgraph-windows-amd64.mcpb
+install.sh
+install.ps1
+uninstall.sh
+uninstall.ps1
+SHA256SUMS
+~~~
 
-## Si algo sale mal
+Los tar.gz/zip son para instalación manual e instaladores; los mcpb son los
+paquetes que entiende el Registry. El server.json que se publica en el
+Registry se genera durante el job con los hashes de esos MCPB, no se toma del
+fichero commiteado sin packages.
 
-Un tag publicado no se retira ni se reescribe: hay instalaciones que ya lo vieron
-y `update` compara números, no contenidos. Se arregla **hacia delante**, con el
-patch siguiente.
+## 6. Comprobar y cerrar la publicación
 
-Si CI falla después de empujar el tag, no hay release en GitHub: `gh release
-create` es el último paso. Se corrige y el siguiente intento lleva un número
-nuevo; el que falló no se reutiliza.
+Esperar el run del tag y revisar todos los jobs, no sólo verify:
 
-## El historial que explica estas reglas
+~~~bash
+gh run list --workflow release.yml --limit 10
+RUN_ID="$(gh run list --workflow release.yml --limit 1 --json databaseId --jq '.[0].databaseId')"
+test -n "$RUN_ID"
+gh run view "$RUN_ID" --log-failed
+gh release view vX.Y.Z --json tagName,isDraft,isPrerelease,isLatest,assets,url
+~~~
 
-```text
-v0.5.0 … v0.10.1     numerado original, abandonado
-d6b9b61              chore(release): restart versioning at v0.1.0
-v0.1.0 … v0.6.0      catorce releases bajo el nombre Ladygraph
-58f018b              refactor: rename the project to kivgraph
-                     las catorce releases y sus tags, borrados
-v0.1.0 …             numerado actual, bajo el nombre Kivgraph
-```
+El run sólo está cerrado cuando pasan verify, las tres filas de build, publish,
+las tres filas de post-publish-smoke y registry. La GitHub Release debe ser
+pública, no draft, no prerelease, estar marcada como latest y tener los 11
+assets anteriores.
 
-Catorce tags publicados entre el 11 y el 14 de agosto de 2026 -más los del
-numerado original, que ya no están en ninguna parte-, veintitrés commits
-`chore(release)` y dos reinicios de numerado. Sólo el segundo tiene una razón
-que se puede comprobar. El ritmo no se repite.
+Descargar los assets publicados y verificar el manifest completo desde fuera de
+la workspace que los construyó:
 
-El mapa de lo que se borró, por si alguien busca a qué commit apuntaba un tag:
+~~~bash
+tmp_dir="$(mktemp -d)"
+gh release download vX.Y.Z --repo Luqueee/kivgraph --dir "$tmp_dir"
+(
+  cd "$tmp_dir"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum -c SHA256SUMS
+  else
+    shasum -a 256 -c SHA256SUMS
+  fi
+)
+~~~
 
-```text
-v0.1.0 d6b9b61   v0.3.1 5c3ef12   v0.3.5 13ab818   v0.6.0 d67bc0e
-v0.1.1 efe4bc3   v0.3.2 e13b9ad   v0.4.0 a07dc7b
-v0.1.2 bca77c4   v0.3.3 056d85b   v0.5.0 28b9e2d
-v0.2.0 515e101   v0.3.4 b1cf7b0   v0.5.1 a0372d4
-v0.3.0 ba091fe
-```
+Si falla post-publish-smoke, registry o la verificación externa, la release no
+se da por buena aunque GitHub muestre el tag. Registrar qué asset, job, digest o
+metadata falló antes de decidir la reparación.
+
+## 7. Fallos y recuperación
+
+- Antes de empujar el tag: corregir en la misma preparación y repetir todos los
+  gates.
+- Después de empujar el tag pero antes de crear la GitHub Release: el tag ya
+  está consumido. Corregir hacia delante con el siguiente número; no borrar ni
+  reutilizar el tag fallido.
+- Después de crear la GitHub Release: no retaggear, borrar la release ni
+  reemplazar artefactos sin una decisión explícita. El workflow usa --clobber;
+  repetirlo sobre una release existente puede sustituir assets y reiniciar sus
+  contadores de descarga.
+- Si sólo falla el MCP Registry, conservar la GitHub Release y separar el
+  diagnóstico del artefacto ya publicado. No atribuir al registry un éxito que
+  no aparece en el job registry.
+
+La corrección normal es una nueva release con un número mayor. Nunca se arregla
+una instalación publicada cambiando silenciosamente el contenido de un tag que
+ya vio un usuario.
+
+## Referencias de verdad
+
+Cuando una afirmación de esta skill parezca no coincidir con el comportamiento,
+consultar en este orden:
+
+1. .github/workflows/release.yml, que define la entrega real;
+2. internal/version/documented_test.go, que descubre las versiones documentadas
+   y la nota obligatoria;
+3. scripts/verify-bundle.sh, scripts/build-mcpb.sh y
+   scripts/build-server-json.sh, que definen los contratos de los artefactos;
+4. docs/development/mcp-registry.md y
+   docs/release/production-qualification.md, para las restricciones y la
+   evidencia de cualificación.
