@@ -87,12 +87,15 @@ the REST response does not expose whether an inline thread is resolved.
 Immediately before mutating anything, refresh the PR and take a fresh snapshot
 of all three CodeRabbit surfaces: reviews, review comments, and issue comments,
 including body digests, timestamps, commit IDs, states, and thread resolution
-states where available. Compare it with `postReviewSnapshot`. If any surface
-changed, or if the head SHA differs from the SHA that passed the final
-CodeRabbit gate, repeat the entire gate. Otherwise capture the verified SHA as
-`gatedHeadSha` and retain the PR's `headRepository.nameWithOwner` and
-`headRefName` as the cleanup target. Never use the base repository or a
-same-named branch as a fallback.
+states where available. In the same live refresh, revalidate `state=OPEN`,
+`isDraft=false`, `mergeable=MERGEABLE`, all required checks as complete and
+passing, the review state, and the absence of a merge conflict or other known
+blocker. Compare the CodeRabbit data with `postReviewSnapshot`. If any
+CodeRabbit surface changed, any prerequisite is no longer merge-ready, or the
+head SHA differs from the SHA that passed the final CodeRabbit gate, repeat the
+entire gate. Otherwise capture the verified SHA as `gatedHeadSha` and retain
+the PR's `headRepository.nameWithOwner` and `headRefName` as the cleanup target.
+Never use the base repository or a same-named branch as a fallback.
 
 Before requiring `--delete-branch`, determine whether the base branch requires
 a merge queue using live GitHub branch-protection or repository metadata. The
