@@ -103,6 +103,20 @@ internal/version/version.go                 var Value = "X.Y.Z"
 landing/src/content/releases/vX.Y.Z.md      nombre de la nota y frontmatter
 ~~~
 
+La página pública de telemetría también forma parte del contrato de una
+release. No lleva una copia manual de «la última versión»: nombra la primera
+release que introdujo cada emisor y describe el collector que está desplegado.
+Si cambian un campo, un emisor, la deduplicación, el almacenamiento, la
+retención o el opt-out, actualizar en el mismo commit:
+
+~~~text
+landing/src/content/docs/telemetry.md
+docs/development/analytics.md
+docs/adr/0083-a-download-is-not-a-person.md o un ADR que lo sustituya
+~~~
+
+Una nota nueva no basta si la página sigue describiendo el pipeline anterior.
+
 El resto de comandos fijados con KIVGRAPH_VERSION=v... son documentación
 derivada. No hay que mantener una lista manual: el test los descubre en
 README.md, docs/, landing/ y los scripts, excluyendo historiales y ledgers.
@@ -326,6 +340,26 @@ gh release download vX.Y.Z --repo Luqueee/kivgraph --dir "$tmp_dir"
 Si falla post-publish-smoke, registry o la verificación externa, la release no
 se da por buena aunque GitHub muestre el tag. Registrar qué asset, job, digest o
 metadata falló antes de decidir la reparación.
+
+La publicación tampoco termina en GitHub. Actualizar la landing desplegada
+desde el `main` que contiene la release, construirla con `make landing-check` y
+`make landing-build`, recargar `kivgraph-landing` y comprobar desde fuera:
+
+~~~bash
+curl -fsS https://kivgraph.dev/releases/ | grep -F "vX.Y.Z"
+curl -fsS https://kivgraph.dev/telemetry/ | grep -F "/api/telemetry/first-run"
+curl -fsSI https://kivgraph.dev/install.sh | grep -i '^location:'
+~~~
+
+El collector de primer arranque y el dashboard D1 son parte del smoke de
+distribución. Comprobar que la ruta exacta responde `204`, que el Worker
+desplegado tiene su binding D1 y su secreto de hash diario, y que la migración
+que agrega la versión está aplicada **antes** de publicar el emisor. No enviar
+un evento sintético para poner una versión en la gráfica: si el smoke ejecuta
+de verdad un instalador o un binario publicado, su fila debe aparecer en el
+dashboard; si no ejecuta ninguno, la ausencia todavía es el resultado honesto.
+Una instalación real observada que no aparece es una release incompleta, no
+algo que se difiere al siguiente cron.
 
 ## 7. Fallos y recuperación
 

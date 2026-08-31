@@ -1,6 +1,6 @@
 # ADR 0083: a download is not a person
 
-- **Status:** accepted and implemented; nothing has shipped in a release
+- **Status:** accepted and implemented; collector and storage superseded by ADR 0092
 - **Date:** 2026-08-28
 - **Implementation:** `LUQUE-2232`
 
@@ -159,10 +159,11 @@ fields -- `emitter`, `version`, `platform`, `channel` and, on binary rows,
   platform may start the daemon as a consequence, but this row records the
   registration; the resulting serving run is a separate binary row.
 
-The endpoint lives in `landing/server.mjs` and forwards to Umami, because
-the reporter, the header finding it depends on and the fail-closed
-configuration pair are already there; an Astro route would need a second
-copy of all three.
+The original endpoint lived in `landing/server.mjs` and forwarded to Umami.
+ADR 0092 supersedes that collector and storage choice: the exact public route
+now terminates at the Cloudflare edge and writes the same validated facts to
+D1, which is the dataset the internal dashboard reads. The emitter payload and
+the separation between installer, binary and supervisor facts do not change.
 
 **Identity is Umami's, and this repository mints none.** Umami derives a
 visitor from a daily-rotating hash of website id, hostname, address and
