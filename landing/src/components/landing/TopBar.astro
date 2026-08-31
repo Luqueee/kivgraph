@@ -11,6 +11,7 @@ const rows: { href: string; label: string; event?: string }[] = [
   { href: "#cross-repository", label: "cross-repository" },
   { href: "#install", label: "install" },
   { href: "/docs/mcp-tools/", label: "docs" },
+  { href: "/blog/", label: "blog" },
   {
     href: "https://github.com/Luqueee/kivgraph",
     label: "github",
@@ -24,25 +25,24 @@ const links = rows.map((link) => ({
   external: /^https?:\/\//.test(link.href),
 }));
 
-// The seven labels are 67 characters of monospace plus six gaps -- `glama` and
-// its gap cost about 60px on top of the 530px the six wanted -- so the row is
-// about 590px wide, and the bar only holds it beside the wordmark from 768px up
-// and beside the tagline as well from 1024px. That leaves some 50px of slack at
-// 1024px, which is little enough that the next label has to be measured rather
-// than reasoned about. Below 768px the whole bar wrapped, and it wrapped badly:
+// The nine labels are about 590px of monospace plus eight gaps. At the old
+// spacing that was wide enough to make the desktop row wrap after the blog link
+// was added. The narrower desktop gaps keep it beside the wordmark from 1024px
+// up; the tagline returns at 1280px, where the full row still fits. Below 1024px
+// the whole bar used the desktop row too early, and it wrapped badly:
 // measured on the built page, the header stood 137px tall at 320px, 113px at
-// 390px and 89px through 540px, against the 41px it costs on a desktop. That is
-// a third of a phone's first screenful spent on a pile of links before the page
-// has said anything.
+// 390px and 89px through 540px, against the 41px it costs on a desktop. The
+// disclosure now stays in charge through tablet widths, so the links do not
+// compete with the logo for a row that cannot hold them.
 //
 // So the bar keeps one row at every width. What changes is what the row holds:
 // the tagline is decorative next to the wordmark and only appears where it
-// already fitted, and the links collapse behind a disclosure below 768px.
+// already fitted, and the links collapse behind a disclosure below 1024px.
 ---
 
 <header class="border-b border-rule">
   <div
-    class="mx-auto box-border flex w-full max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-6 py-3 font-mono text-xs"
+    class="mx-auto box-border flex w-full max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-6 py-3 font-mono text-xs lg:flex-nowrap"
   >
     <a href="/" class="flex items-center gap-2 text-gray-100">
       <span class="inline-block h-2 w-2 bg-graph-repository" aria-hidden="true"
@@ -51,9 +51,9 @@ const links = rows.map((link) => ({
     </a>
 
     {/* The tagline repeats what the hero says one screen down, so it is the
-        first thing to go when the row is short. It returns at 1024px, which is
-        the width it already needed to sit on the same line as the links. */}
-    <span class="hidden text-gray-400 lg:inline"
+        first thing to go when the row is short. It returns at 1280px, where
+        the wordmark and the narrowed desktop navigation still fit together. */}
+    <span class="hidden text-gray-400 xl:inline"
       >cross-repository code intelligence</span
     >
 
@@ -66,7 +66,7 @@ const links = rows.map((link) => ({
     <input id="nav-open" class="peer sr-only" type="checkbox" />
     <label
       for="nav-open"
-      class="ml-auto cursor-pointer text-gray-400 transition-colors hover:text-gray-100 md:hidden"
+      class="ml-auto cursor-pointer text-gray-400 transition-colors hover:text-gray-100 lg:hidden"
     >
       <span data-when="closed">menu</span>
       <span data-when="open">close</span>
@@ -75,16 +75,17 @@ const links = rows.map((link) => ({
     {/* Closed, the nav is `display: none` and its links stay in the served
         HTML, which is what a crawler and a reader with no CSS get: the whole
         list, exactly as the front page's tabs degrade. Open, it is a column
-        under the wordmark rather than a row squeezed beside it. From 768px the
-        disclosure stops applying and this is the row it always was.
+        under the wordmark rather than a row squeezed beside it. From 1024px the
+        disclosure stops applying and this is the desktop row.
 
         Nothing closes it on a tap, and nothing needs to: this header does not
         stick, so following one of the four in-page anchors scrolls it out of
         the viewport along with the rest of the bar. A close-on-click would be
         the one piece of JavaScript on this control, bought for a state the
-        reader stops seeing anyway. */}
+        reader stops seeing anyway. From 1024px up, the desktop row is explicitly
+        non-wrapping and the links use the measured narrower gap. */}
     <nav
-      class="hidden w-full basis-full flex-col gap-y-3 pt-3 peer-checked:flex md:ml-auto md:flex md:w-auto md:basis-auto md:flex-row md:items-center md:gap-x-6 md:gap-y-2 md:pt-0"
+      class="hidden w-full basis-full flex-col gap-y-3 pt-3 peer-checked:flex lg:ml-auto lg:flex lg:w-auto lg:basis-auto lg:flex-row lg:items-center lg:gap-x-4 lg:gap-y-2 lg:pt-0"
       aria-label="Primary"
     >
       {/* An internal link carries no event: it is already a pageview, and

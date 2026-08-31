@@ -55,3 +55,108 @@
   --color-rule: #22262b;
   --color-rule-strong: #333a42;
 }
+
+/* Expressive Code renders fenced Markdown blocks in the blog and in
+   Starlight. The latter gets the rest of its skin from docs.css; the landing
+   shell needs the same contract here because it does not load that file. */
+:root {
+  --ec-brdRad: 0px;
+  --ec-brdWd: 1px;
+  --ec-brdCol: var(--color-rule);
+  --ec-codeFontFml: var(--font-mono);
+  --ec-codeFontSize: 0.8125rem;
+  --ec-codeFontWg: 400;
+  --ec-codeLineHt: 1.6;
+  --ec-codePadBlk: 0.75rem;
+  --ec-codePadInl: 1rem;
+  --ec-codeBg: var(--color-panel);
+  --ec-codeFg: var(--color-gray-300);
+  --ec-uiFontFml: var(--font-mono);
+  --ec-uiFontSize: 0.75rem;
+  --ec-uiFontWg: 400;
+  --ec-uiLineHt: 1.5;
+  --ec-uiPadBlk: 0.25rem;
+  --ec-uiPadInl: 1rem;
+  --ec-frm-edBg: var(--color-panel);
+  --ec-frm-trmBg: var(--color-panel);
+  --ec-frm-frameBoxShdCssVal: none;
+  --ec-frm-trmTtbBg: var(--color-panel);
+  --ec-frm-trmTtbFg: var(--color-gray-400);
+  --ec-frm-trmTtbBrdBtmCol: var(--color-rule);
+  --ec-frm-trmTtbDotsFg: var(--color-graph-repository);
+  --ec-frm-trmTtbDotsOpa: 1;
+  --ec-frm-trmIcon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='8'/%3E%3C/svg%3E");
+  --ec-frm-inlBtnFg: var(--color-gray-300);
+  --ec-frm-inlBtnBrd: var(--color-rule-strong);
+  --ec-frm-inlBtnBrdOpa: 1;
+  --ec-frm-inlBtnBg: var(--color-raise);
+  --ec-frm-inlBtnBgIdleOpa: 0;
+  --ec-frm-inlBtnBgHoverOrFocusOpa: 1;
+  --ec-frm-inlBtnBgActOpa: 1;
+  --ec-frm-copyIcon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75'%3E%3Cpath d='M3 19a2 2 0 0 1-1-2V2a2 2 0 0 1 1-1h13a2 2 0 0 1 2 1'/%3E%3Crect x='6' y='5' width='16' height='18' rx='1.5' ry='1.5'/%3E%3C/svg%3E");
+  --ec-frm-tooltipSuccessBg: var(--color-graph-exact);
+  --ec-frm-tooltipSuccessFg: var(--color-gray-100);
+  --ec-focusBrd: var(--color-accent-200);
+  --ec-sbThumbCol: var(--color-rule-strong);
+  --ec-sbThumbHoverCol: var(--color-gray-500);
+}
+
+@layer components {
+  /* The outer frame and its pre are flex content, so both need an explicit
+     floor of zero to stay inside the blog column on narrow viewports. */
+  .expressive-code,
+  .expressive-code .frame,
+  .expressive-code .frame pre {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .expressive-code .frame {
+    --header-border-radius: 0;
+    border-radius: 0;
+  }
+
+  .expressive-code .frame pre,
+  .expressive-code .frame pre::-webkit-scrollbar,
+  .expressive-code .frame pre::-webkit-scrollbar-track,
+  .expressive-code .frame pre::-webkit-scrollbar-thumb {
+    border-radius: 0;
+  }
+
+  .expressive-code .frame.is-terminal .header {
+    justify-content: flex-start;
+    padding-inline-start: calc(var(--ec-uiPadInl) + 0.875rem);
+  }
+
+  .expressive-code .frame.is-terminal .header::before {
+    width: 0.375rem;
+    height: 0.375rem;
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+  }
+
+  .expressive-code .copy button {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0;
+    opacity: 1;
+  }
+
+  .expressive-code .copy button::after {
+    margin: 0.4375rem;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Long commands remain readable without making the page itself scroll
+     sideways. Explicit line breaks and indentation are preserved. */
+  .expressive-code .frame .ec-line .code {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+  }
+
+  .expressive-code .frame .ec-line .code span.indent {
+    white-space: pre;
+  }
+}

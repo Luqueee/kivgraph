@@ -9,13 +9,14 @@ const groups = [
   {
     // `releases` is here because it was reachable from nothing: published, in
     // the sitemap, and with zero internal links pointing at it, which is the
-    // shape a crawler reports as discovered and never fetches. Every other
-    // published page has 37 or more inlinks from the Starlight sidebar.
+    // shape a crawler reports as discovered and never fetches. Blog articles
+    // are linked from the blog index as well as this footer.
     title: "start",
     links: [
       { href: "/install/", label: "install" },
       { href: "/quickstart/", label: "quickstart" },
       { href: "/releases/", label: "releases" },
+      { href: "/blog/", label: "blog" },
       { href: "/mcp/clients/", label: "MCP clients" },
       { href: "/limits/", label: "limits" },
     ],

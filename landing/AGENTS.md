@@ -112,6 +112,15 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
   `/raw/<ruta>.md`, que es lo que anuncia su `<link rel="alternate">`. Los tres
   se generan con `getCollection`, nunca desde una lista escrita a mano: una
   página nueva no puede dejarlos rancios.
+- El blog es la colección independiente `blog`, bajo `src/content/blog/`, y sus
+  rutas son `/blog/` y `/blog/<slug>/`. Sólo las entradas sin `draft: true` se
+  publican: el índice, `/rss.xml`, `/llms-blog.txt`, el sitemap y las twins de
+  Markdown deben salir de esa misma colección y no de listas duplicadas.
+- Una entrada del blog lleva un `BlogPosting` cuyo autor, fechas, título y
+  descripción coinciden con lo visible en la página. La plantilla publica el
+  enlace a `/raw/blog/<slug>.md` para agentes y el feed enlaza la URL HTML
+  canónica. El contenido editorial nuevo es inglés, como el resto del material
+  público del sitio.
 - Toda página publicada se alcanza desde un enlace interno, no sólo desde el
   sitemap. Un sitemap es un descubrimiento, no una recomendación: una URL que
   sólo vive ahí es lo que Search Console informa como «descubierta, actualmente

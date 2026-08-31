@@ -1,4 +1,10 @@
 import { type CollectionEntry, getCollection } from "astro:content";
+import {
+  blogPathname,
+  blogRawPathname,
+  isPublishedBlog,
+  sortBlogEntries,
+} from "../blog.mjs";
 import { PRODUCTION_HOST, PROJECT_TAGLINE } from "../site.mjs";
 
 // Every fact the machine-readable surfaces state lives here once. `robots.txt`,
@@ -28,6 +34,11 @@ export {
 
 /** A page of the `docs` content collection. */
 export type DocEntry = CollectionEntry<"docs">;
+
+/** A published article from the `blog` content collection. */
+export type BlogEntry = CollectionEntry<"blog">;
+
+export { blogPathname, blogRawPathname };
 
 // Search Console is verified by DNS, so no token lives here. The site used to
 // emit a `google-site-verification` meta tag, which is the HTML-tag method of a
@@ -181,6 +192,17 @@ export async function hasRawMarkdown(id: string): Promise<boolean> {
 /** A page's description, falling back to the project one so a link is never bare. */
 export function docDescription(entry: DocEntry): string {
   return entry.data.description ?? PROJECT_TAGLINE;
+}
+
+/** A blog description is required by the collection schema and by every head. */
+export function blogDescription(entry: BlogEntry): string {
+  return entry.data.description;
+}
+
+/** Every non-draft blog article, newest first. */
+export async function loadBlogEntries(): Promise<BlogEntry[]> {
+  const entries = await getCollection("blog", isPublishedBlog);
+  return sortBlogEntries(entries);
 }
 
 /** A named run of pages, in the order the sidebar presents them. */
