@@ -38,7 +38,7 @@ export type Platform = {
  * by `bash` and not `sh`: it uses arrays and `BASH_REMATCH`.
  */
 export const POSIX_COMMAND =
-  "curl -fsSL https://github.com/Luqueee/kivgraph/releases/latest/download/install.sh | bash";
+  "curl -fsSL https://kivgraph.dev/install.sh | bash";
 
 /**
  * `irm | iex` is the PowerShell shape of `curl | bash`, and it is symmetric
@@ -50,8 +50,7 @@ export const POSIX_COMMAND =
  * a reader and a broken install. Download it to a file and run it if you want
  * the guard back.
  */
-const WINDOWS_COMMAND =
-  "irm https://github.com/Luqueee/kivgraph/releases/latest/download/install.ps1 | iex";
+const WINDOWS_COMMAND = "irm https://kivgraph.dev/install.ps1 | iex";
 
 export const PLATFORMS: readonly Platform[] = [
   {

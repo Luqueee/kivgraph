@@ -3,9 +3,8 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   auditBuiltSite,
-  extractPageSignals,
-  markdownPathForRoute,
   routeFromClientFile,
+  runtimePathsForBuild,
 } from "../src/seo-audit.mjs";
 import { PRODUCTION_ORIGIN } from "../src/site.mjs";
 
@@ -60,12 +59,7 @@ for (const relativeFile of relativeFiles.filter((file) =>
 }
 
 const rawMarkdownRoute = await serverHasRawMarkdownRoute();
-const runtimePaths = rawMarkdownRoute
-  ? documents
-      .filter(({ html }) => extractPageSignals(html).markdownAlternate)
-      .map(({ pathname }) => markdownPathForRoute(pathname))
-      .filter((pathname) => pathname !== undefined)
-  : [];
+const runtimePaths = runtimePathsForBuild(documents, rawMarkdownRoute);
 const issues = auditBuiltSite({
   documents,
   files: new Set(relativeFiles),

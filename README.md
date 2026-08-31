@@ -124,13 +124,13 @@ Install the latest release in one command. On Linux and macOS the same line
 covers both, because the installer reads `uname` and picks its own archive:
 
 ```bash
-curl -fsSL https://github.com/Luqueee/kivgraph/releases/latest/download/install.sh | bash
+curl -fsSL https://kivgraph.dev/install.sh | bash
 ```
 
 On Windows, where `install.sh` cannot run because there is no POSIX shell:
 
 ```powershell
-irm https://github.com/Luqueee/kivgraph/releases/latest/download/install.ps1 | iex
+irm https://kivgraph.dev/install.ps1 | iex
 ```
 
 `install.ps1` is a second implementation of the same pre-extraction checks, and

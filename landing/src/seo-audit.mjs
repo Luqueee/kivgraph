@@ -8,6 +8,8 @@ const REQUIRED_FILES = [
   "rss.xml",
 ];
 
+const EDGE_RUNTIME_PATHS = Object.freeze(["/github"]);
+
 const HTML_ENTITIES = Object.freeze({
   amp: "&",
   quot: '"',
@@ -62,6 +64,17 @@ export function routeFromClientFile(relativeFile) {
 export function markdownPathForRoute(pathname) {
   const path = normalisePath(pathname);
   return path === "/" ? undefined : `/raw${path.slice(0, -1)}.md`;
+}
+
+/** Build the non-emitted routes that remain valid on the production origin. */
+export function runtimePathsForBuild(documents, rawMarkdownRoute) {
+  const markdownPaths = rawMarkdownRoute
+    ? documents
+        .filter(({ html }) => extractPageSignals(html).markdownAlternate)
+        .map(({ pathname }) => markdownPathForRoute(pathname))
+        .filter((pathname) => pathname !== undefined)
+    : [];
+  return [...EDGE_RUNTIME_PATHS, ...markdownPaths];
 }
 
 /** Extract the signals the audit can verify without a browser or paid API. */

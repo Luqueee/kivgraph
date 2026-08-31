@@ -5,6 +5,7 @@ import {
   extractPageSignals,
   markdownPathForRoute,
   normalisePath,
+  runtimePathsForBuild,
 } from "./seo-audit.mjs";
 
 const description = "A".repeat(120);
@@ -147,6 +148,54 @@ test("the audit rejects foreign canonicals and missing local targets", () => {
     mismatch.some((item) => item.code === "markdown-alternate-mismatch"),
     true,
   );
+});
+
+test("runtime edge routes do not hide other broken local links", () => {
+  const issues = auditBuiltSite({
+    documents: [
+      {
+        pathname: "/",
+        html: '<html><head><title>Home</title><meta name="description" content="Home"><link rel="canonical" href="https://kivgraph.dev/"></head><body><h1>Home</h1><a href="/github">GitHub</a><a href="/missing">Missing</a></body></html>',
+      },
+    ],
+    files: new Set([
+      "robots.txt",
+      "sitemap-index.xml",
+      "sitemap-0.xml",
+      "llms.txt",
+      "llms-full.txt",
+      "llms-blog.txt",
+      "rss.xml",
+    ]),
+    runtimePaths: ["/github"],
+  });
+
+  assert.equal(
+    issues.some(
+      (item) =>
+        item.code === "broken-internal-link" &&
+        item.message.includes("/github/"),
+    ),
+    false,
+  );
+  assert.equal(
+    issues.some(
+      (item) =>
+        item.code === "broken-internal-link" &&
+        item.message.includes("/missing/"),
+    ),
+    true,
+  );
+});
+
+test("production runtime paths always include the edge-owned GitHub route", () => {
+  const post = article("/blog/post/");
+
+  assert.deepEqual(runtimePathsForBuild([post], false), ["/github"]);
+  assert.deepEqual(runtimePathsForBuild([post], true), [
+    "/github",
+    "/raw/blog/post.md",
+  ]);
 });
 
 test("a linked blog article with the required discovery files passes", () => {
