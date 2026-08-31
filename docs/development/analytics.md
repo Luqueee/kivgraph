@@ -1374,6 +1374,14 @@ set -euo pipefail
 ADMIN_REPO=/root/kivgraph-admin
 WRANGLER="$ADMIN_REPO/node_modules/.bin/wrangler"
 CONFIG="$ADMIN_REPO/wrangler.jsonc"
+database_id="$(jq -er '
+  .d1_databases[] |
+  select(
+    .binding == "ANALYTICS_DB" and
+    .database_name == "kivgraph-analytics"
+  ) |
+  .database_id
+' "$CONFIG")"
 
 deployment="$($WRANGLER deployments status \
   --config "$CONFIG" --cwd /tmp --json)"
@@ -1382,9 +1390,14 @@ version_id="$(printf '%s' "$deployment" | \
 test -n "$version_id"
 
 $WRANGLER versions view "$version_id" \
-  --config "$CONFIG" --cwd /tmp --json | jq -e '
+  --config "$CONFIG" --cwd /tmp --json | jq -e \
+  --arg database_id "$database_id" '
   ([.resources.bindings[] |
-    select(.name == "ANALYTICS_DB" and .type == "d1")] | length == 1) and
+    select(
+      .name == "ANALYTICS_DB" and
+      .type == "d1" and
+      .id == $database_id
+    )] | length == 1) and
   ([.resources.bindings[] |
     select(.name == "VISITOR_HASH_SECRET" and .type == "secret_text")] |
     length == 1)'
@@ -1429,17 +1442,35 @@ $WRANGLER d1 execute kivgraph-analytics --remote \
     }
   ])'
 
+rejected_before="$($WRANGLER d1 execute kivgraph-analytics --remote \
+  --config "$CONFIG" --cwd /tmp \
+  --command "SELECT COUNT(*) AS count FROM analytics_events
+    WHERE source = 'first_run_edge' AND version = '0.9.2'" \
+  --json | jq -er '.[0].results[0].count')"
+
 test "$(curl -sS -o /dev/null -w '%{http_code}' \
   -X POST https://kivgraph.dev/api/telemetry/first-run \
   -H 'Content-Type: application/json' \
   -d '{"emitter":"binary","version":"0.9.2"}')" = 204
+
+rejected_after="$($WRANGLER d1 execute kivgraph-analytics --remote \
+  --config "$CONFIG" --cwd /tmp \
+  --command "SELECT COUNT(*) AS count FROM analytics_events
+    WHERE source = 'first_run_edge' AND version = '0.9.2'" \
+  --json | jq -er '.[0].results[0].count')"
+test "$rejected_before" = "$rejected_after"
 ```
 
-The two `jq -e` calls print `true`, and the final `test` is silent. Any other
-result is a failed collector smoke. The payload deliberately names the last
-version without emitters and is incomplete for a binary row: it has no
-platform, channel or transport. The route therefore exercises validation
-without writing a synthetic accepted event.
+The binding and migration `jq -e` calls print `true`; every other assertion is
+silent. The binding assertion compares the deployed binding id with the
+database id configured for `kivgraph-analytics`, so the schema query and Worker
+cannot silently address different databases. Any other result is a failed
+collector smoke.
+
+The payload deliberately names the last version without emitters and is
+incomplete for a binary row: it has no platform, channel or transport. The
+`204` proves only that the exact public route is reachable. Comparing the D1
+count before and after proves separately that this refused probe wrote no row.
 
 If the release smoke ran a real published installer or binary, verify the
 observed version in the internal dashboard response:
