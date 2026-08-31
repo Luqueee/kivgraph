@@ -457,11 +457,17 @@ jobs:
         shell: bash
         run: |
           archive="$RUNNER_TEMP/published/$ARCHIVE_NAME"
+          extract_root="$(mktemp -d "$RUNNER_TEMP/kivgraph-smoke.XXXXXX")"
           case "$TARGET_OS" in
-            windows) unzip -q "$archive" -d "$RUNNER_TEMP" ;;
-            *) tar -xzf "$archive" -C "$RUNNER_TEMP" ;;
+            # The published ZIP contains duplicate entries for some paths,
+            # including SHA256SUMS. `-o` makes that duplicate extraction
+            # non-interactive; the unique root also prevents leftovers from a
+            # previous job on a reused Windows runner from prompting.
+            windows) unzip -oq "$archive" -d "$extract_root" ;;
+            *) tar -xzf "$archive" -C "$extract_root" ;;
           esac
-          test -d "$RUNNER_TEMP/$BUNDLE_NAME"
+          test -d "$extract_root/$BUNDLE_NAME"
+          echo "KIVGRAPH_SMOKE_BUNDLE=$extract_root/$BUNDLE_NAME" >> "$GITHUB_ENV"
 
       # This is deliberately run against the archive fetched from the release,
       # not the build workspace or an intermediate Actions artifact. It proves
@@ -471,7 +477,7 @@ jobs:
         run: |
           version="${GITHUB_REF_NAME#v}"
           scripts/verify-bundle.sh \
-            --bundle "$RUNNER_TEMP/$BUNDLE_NAME" \
+            --bundle "$KIVGRAPH_SMOKE_BUNDLE" \
             --target "$TARGET_OS/$TARGET_ARCH" \
             --version "$version" \
             --commit "$GITHUB_SHA" \
