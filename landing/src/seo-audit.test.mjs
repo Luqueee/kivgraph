@@ -149,6 +149,44 @@ test("the audit rejects foreign canonicals and missing local targets", () => {
   );
 });
 
+test("runtime edge routes do not hide other broken local links", () => {
+  const issues = auditBuiltSite({
+    documents: [
+      {
+        pathname: "/",
+        html: '<html><head><title>Home</title><meta name="description" content="Home"><link rel="canonical" href="https://kivgraph.dev/"></head><body><h1>Home</h1><a href="/github">GitHub</a><a href="/missing">Missing</a></body></html>',
+      },
+    ],
+    files: new Set([
+      "robots.txt",
+      "sitemap-index.xml",
+      "sitemap-0.xml",
+      "llms.txt",
+      "llms-full.txt",
+      "llms-blog.txt",
+      "rss.xml",
+    ]),
+    runtimePaths: ["/github"],
+  });
+
+  assert.equal(
+    issues.some(
+      (item) =>
+        item.code === "broken-internal-link" &&
+        item.message.includes("/github/"),
+    ),
+    false,
+  );
+  assert.equal(
+    issues.some(
+      (item) =>
+        item.code === "broken-internal-link" &&
+        item.message.includes("/missing/"),
+    ),
+    true,
+  );
+});
+
 test("a linked blog article with the required discovery files passes", () => {
   const issues = auditBuiltSite({
     documents: [

@@ -60,12 +60,15 @@ for (const relativeFile of relativeFiles.filter((file) =>
 }
 
 const rawMarkdownRoute = await serverHasRawMarkdownRoute();
-const runtimePaths = rawMarkdownRoute
-  ? documents
-      .filter(({ html }) => extractPageSignals(html).markdownAlternate)
-      .map(({ pathname }) => markdownPathForRoute(pathname))
-      .filter((pathname) => pathname !== undefined)
-  : [];
+const runtimePaths = [
+  "/github",
+  ...(rawMarkdownRoute
+    ? documents
+        .filter(({ html }) => extractPageSignals(html).markdownAlternate)
+        .map(({ pathname }) => markdownPathForRoute(pathname))
+        .filter((pathname) => pathname !== undefined)
+    : []),
+];
 const issues = auditBuiltSite({
   documents,
   files: new Set(relativeFiles),

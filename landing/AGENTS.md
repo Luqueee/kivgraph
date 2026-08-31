@@ -130,6 +130,11 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
   `/releases/` recibía `0`, porque no está en la barra lateral y el footer de
   la landing no la nombraba. Por eso está en el grupo `start` del footer. Al
   añadir una página, contar sus enlaces entrantes antes de cerrar.
+- El auditor distingue lo que Astro emite de las rutas que otro componente
+  sirve en el mismo origen. Esas rutas se pasan como `runtimePaths`; `/github`
+  pertenece al Worker de redirecciones y por eso está ahí. La excepción es una
+  ruta exacta, no un prefijo: otro enlace local roto debe seguir cerrando el
+  gate.
 - El namespace de la documentación se renombró `reference` -> `docs` y el
   redirect de `astro.config.mjs` apunta a la forma **con** barra final, que es
   la única canónica del sitio. Sin ella el `301` aterrizaba en
