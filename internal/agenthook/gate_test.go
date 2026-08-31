@@ -10,10 +10,11 @@ import (
 // fakeGraph states facts outright, so a decision can be tested against the
 // shape of the graph rather than against a daemon that happens to be running.
 type fakeGraph struct {
-	symbol Facts
-	intent Facts
-	err    error
-	asked  int
+	symbol           Facts
+	intent           Facts
+	err              error
+	asked            int
+	intentRepository string
 }
 
 func (fake *fakeGraph) Symbol(_ context.Context, _ string) (Facts, error) {
@@ -21,8 +22,9 @@ func (fake *fakeGraph) Symbol(_ context.Context, _ string) (Facts, error) {
 	return fake.symbol, fake.err
 }
 
-func (fake *fakeGraph) Intent(_ context.Context, _ string) (Facts, error) {
+func (fake *fakeGraph) Intent(_ context.Context, _, repository string) (Facts, error) {
 	fake.asked++
+	fake.intentRepository = repository
 	return fake.intent, fake.err
 }
 
@@ -40,13 +42,23 @@ func TestGateStandsAsideWhenItHasNoGrounds(t *testing.T) {
 		{"no daemon is running",
 			Gate{}, Question{Kind: KindSymbol, Pattern: "NewServer"},
 			"a hook never starts a daemon, so an absent one is the common case"},
+		{"no daemon can answer an intent",
+			Gate{}, Question{Kind: KindIntent, Pattern: "New.*Server"},
+			"an intent refusal also needs a graph answer"},
 		{"the daemon failed",
 			Gate{Graph: &fakeGraph{err: errors.New("connection refused")}},
 			Question{Kind: KindSymbol, Pattern: "NewServer"},
 			"a gate that learned nothing has no standing to refuse"},
+		{"the daemon failed to answer an intent",
+			Gate{Graph: &fakeGraph{err: errors.New("connection refused")}},
+			Question{Kind: KindIntent, Pattern: "New.*Server"},
+			"a failed intent lookup established no candidate"},
 		{"the graph has never heard of it",
 			Gate{Graph: &fakeGraph{}}, Question{Kind: KindSymbol, Pattern: "NewServer"},
 			"grep reaches comments, strings and config the graph does not index"},
+		{"the graph found no intent candidate",
+			Gate{Graph: &fakeGraph{}}, Question{Kind: KindIntent, Pattern: "New.*Server"},
+			"find_by_intent cannot redirect a search it did not answer"},
 		{"a rare name in one repository",
 			Gate{Graph: &fakeGraph{symbol: unique}},
 			Question{Kind: KindSymbol, Pattern: "MergeAll"},
@@ -99,7 +111,10 @@ func TestGateRefusesWhatTheGraphAnswersBetter(t *testing.T) {
 			Question{Kind: KindSymbol, Pattern: "Publish"},
 			"get_blast_radius"},
 		{"a regex groping for a name",
-			Gate{Graph: &fakeGraph{intent: Facts{Declarations: 3, Repositories: 1}}},
+			Gate{Graph: &fakeGraph{intent: Facts{
+				Declarations: 3, Repositories: 1,
+				Sample: []string{"kivgraph internal/webapi/handler.go webapi.NewHandler"},
+			}}},
 			Question{Kind: KindIntent, Pattern: "New.*Server"},
 			"find_by_intent"},
 		{"a glob over indexed sources",
@@ -122,6 +137,26 @@ func TestGateRefusesWhatTheGraphAnswersBetter(t *testing.T) {
 				t.Fatalf("refusal offers no way to insist:\n%s", decision.Reason)
 			}
 		})
+	}
+}
+
+// TestIntentStaysInsideTheCurrentRepository keeps a workspace-wide intent
+// search from redirecting an agent to a similarly named symbol in another
+// project. The hook already established the repository from cwd, so dropping
+// it here loses information and makes the suggested call worse.
+func TestIntentStaysInsideTheCurrentRepository(t *testing.T) {
+	const intent = "HTTP.*route"
+	graph := &fakeGraph{intent: Facts{Declarations: 1, Repositories: 1}}
+	decision := Gate{Graph: graph, Repository: "kivgraph"}.Decide(
+		context.Background(), Question{Kind: KindIntent, Pattern: intent})
+	if !decision.Deny {
+		t.Fatalf("allowed intent %q in repository %q that the graph answers", intent, graph.intentRepository)
+	}
+	if graph.intentRepository != "kivgraph" {
+		t.Fatalf("queried repository %q, want kivgraph", graph.intentRepository)
+	}
+	if !strings.Contains(decision.Reason, `repo="kivgraph"`) {
+		t.Fatalf("suggested call lost its repository:\n%s", decision.Reason)
 	}
 }
 

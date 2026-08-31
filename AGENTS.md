@@ -117,16 +117,27 @@ empaqueta un Claude Code y lo lanza sin darle configuración propia, así que le
 deja el otro `managed`. Oh My Pi recibe una extensión nativa en
 `~/.omp/agent/extensions/` o `.omp/extensions/`; el contrato está en ADR 0089.
 
-Se cierra por **un solo hecho**: el nombre lo declaran dos cosas o más, así que
-una búsqueda de texto no puede separar lo que encuentra. Un nombre sin homónimo
-se deja pasar por muchos sitios que lo usen, porque ahí `grep` es más barato y
-está medido -- ver ADR 0077 para la tabla y para lo que haría falta medir para
-cerrarla también sobre recuentos altos.
+Para una búsqueda que ya deletrea un nombre, se cierra por **un solo hecho**: el
+nombre lo declaran dos cosas o más, así que una búsqueda de texto no puede
+separar lo que encuentra. Un nombre sin homónimo se deja pasar por muchos sitios
+que lo usen, porque ahí `grep` es más barato y está medido -- ver ADR 0077 para
+la tabla y para lo que haría falta medir para cerrarla también sobre recuentos
+altos.
+
+Una búsqueda que todavía no sabe el nombre toma la ruta de intención. Una regex
+con forma de código, o cuatro o más identificadores alternativos como
+`http|route|handler|serve`, consulta `find_by_intent` y sólo se niega cuando el
+grafo devuelve candidatos. Tres términos exactos como `error|warning|failed`
+siguen siendo una búsqueda textual.
 
 Todo fallo de la puerta es un permiso, y un permiso no escribe nada: en ese
 contrato un `allow` explícito se salta la petición de permiso del agente.
 
 Para saltársela una vez: `KIVGRAPH_DISABLE_HOOK=1` delante del comando.
+
+Los envoltorios de salida `rtk rg ...` y `rtk proxy rg ...` se clasifican por
+el comando interior. `rtk gain` y los demás comandos propios de RTK no se
+consideran búsquedas.
 
 La puerta hace además una cosa que no es negar. El matcher cubre las tools MCP
 de Kivgraph -- por nombre de servidor, `mcp__kivgraph_.*`, nunca por una lista de
@@ -157,6 +168,18 @@ no avisar.
 
 El matcher se escribe al instalar, así que una instalación anterior a esto no ve
 las llamadas MCP hasta que se reejecuta `kivgraph hook install`.
+
+En Codex el matcher es el literal `Bash`, aunque la transcripción presente la
+ejecución como `Shell`. Su payload añade `turn_id` y su negativa no es el JSON
+de Claude Code: exige código de salida `2` y el motivo en `stderr`.
+
+Un worktree enlazado está cubierto cuando su Git common dir identifica un único
+repositorio registrado. La ruta física no tiene que colgar del checkout que se
+indexó: Codex crea sus worktrees fuera de él. Si dos registros comparten esa
+identidad y la ruta no pertenece directamente a ninguno, la puerta no elige.
+Las búsquedas por intención se acotan al repositorio así identificado y leen
+los candidatos dentro de `results.symbols`, el envelope profile-aware de la
+respuesta.
 
 ## Herramientas MCP en Oh My Pi
 

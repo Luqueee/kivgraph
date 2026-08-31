@@ -306,9 +306,9 @@ func TestCodexKeepsItsOwnWrapper(t *testing.T) {
 		t.Fatalf("PreToolUse = %#v, want one entry", entries)
 	}
 	entry, _ := entries[0].(map[string]any)
-	// Codex names the shell Bash and has no glob tool at all, so gating
-	// Claude Code's four names here would register matchers Codex never
-	// fires.
+	// The desktop labels command executions "Shell" in its transcript, but
+	// the PreToolUse payload names the tool Bash. Codex matchers are literal,
+	// so matching the presentation label leaves the hook disconnected.
 	if entry["matcher"] != "Bash" {
 		t.Fatalf("codex matcher = %v, want Bash", entry["matcher"])
 	}

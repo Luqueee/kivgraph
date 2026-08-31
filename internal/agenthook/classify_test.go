@@ -32,14 +32,33 @@ func TestClassifyRefusesToGateWhatGrepAnswersBetter(t *testing.T) {
 			"not a search at all"},
 		{"a git log", "Bash", bashInput{Command: "git log --oneline -5"},
 			"history is not in the graph"},
+		{"an rtk status command", "Bash", bashInput{Command: "rtk gain --history"},
+			"the wrapper's own command is not a source search"},
+		{"rtk without a command", "Bash", bashInput{Command: "rtk"},
+			"a missing wrapped command cannot be classified"},
+		{"rtk proxy without a command", "Bash", bashInput{Command: "rtk proxy"},
+			"a missing proxied command cannot be classified"},
 		{"free text", "Bash", bashInput{Command: `grep -rn "TODO fix this later" .`},
 			"the graph has no text index and would answer worse"},
 		{"prose in a regex", "Grep", grepInput{Pattern: "the.*thing"},
 			"punctuation around ordinary words is not a name"},
+		{"a short lowercase alternation", "Bash",
+			bashInput{Command: `grep -E 'error|warning|failed' app.log`},
+			"three exact log levels are still a text search, not broad code discovery"},
+		{"four alternatives with a regular expression branch", "Grep",
+			grepInput{Pattern: "plain|lower|words|thing.*"},
+			"every branch must be an identifier before a lowercase alternation is intent"},
 		{"a short pattern", "Grep", grepInput{Pattern: "id"},
 			"two characters name nothing"},
 		{"a build", "Bash", bashInput{Command: "go build ./... && go test ./..."},
 			"neither segment searches"},
+		{"rg file listing under a directory", "Bash", bashInput{Command: "rg --files internal | sort"},
+			"the directory is a scope, not a symbol pattern"},
+		{"rg file listing missing its glob", "Bash", bashInput{Command: "rg --files -g"},
+			"a missing flag value cannot become a pattern"},
+		{"rg file listing with only an exclusion", "Bash",
+			bashInput{Command: "rg --files --glob=!vendor/**"},
+			"an exclusion says what not to list, not what source files to find"},
 		{"find by age", "Bash", bashInput{Command: "find . -mtime -1"},
 			"no filename predicate, so not a question about files"},
 		{"the escape hatch", "Bash",
@@ -54,7 +73,8 @@ func TestClassifyRefusesToGateWhatGrepAnswersBetter(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			question := Classify(payloadOf(t, testCase.tool, testCase.input))
 			if question.Kind != KindNone {
-				t.Fatalf("gated %s (%s): got %#v", testCase.name, testCase.because, question)
+				t.Fatalf("tool=%q input=%#v gated %s (%s): got %#v",
+					testCase.tool, testCase.input, testCase.name, testCase.because, question)
 			}
 		})
 	}
@@ -92,9 +112,31 @@ func TestClassifyReadsTheQuestionOutOfTheCall(t *testing.T) {
 		{"a name the caller cannot spell", "Grep",
 			grepInput{Pattern: "New.*Server", Glob: "*.go"},
 			Question{Kind: KindIntent, Pattern: "New.*Server", Paths: []string{"*.go"}, Tool: "grep"}},
+		{"four lowercase concepts", "Grep", grepInput{Pattern: "http|route|handler|serve"},
+			Question{Kind: KindIntent, Pattern: "http|route|handler|serve", Tool: "grep"}},
+		{"broad lowercase concepts from a natural-language task", "Bash",
+			bashInput{Command: `rg -l -i 'http|route|handler|listen|serve' --glob '*.go' --glob '*.md'`},
+			Question{Kind: KindIntent, Pattern: "http|route|handler|listen|serve", Paths: []string{}, Tool: "rg"}},
+		{"an intent search behind rtk", "Bash",
+			bashInput{Command: `rtk rg -n "IMPLEMENTS|CALLS|IMPORTS|interface|hierarchy|diagnostic|rename|edit|memory|onboard|query_project|external" internal/mcp internal/hotsnapshot internal/facts docs/adr docs/protocol | sed -n '1,280p'`},
+			Question{Kind: KindIntent,
+				Pattern: "IMPLEMENTS|CALLS|IMPORTS|interface|hierarchy|diagnostic|rename|edit|memory|onboard|query_project|external",
+				Paths:   []string{"internal/mcp", "internal/hotsnapshot", "internal/facts", "docs/adr", "docs/protocol"}, Tool: "rg"}},
+		{"a symbol search behind rtk proxy", "Bash",
+			bashInput{Command: `/usr/local/bin/rtk proxy rg -n NewServer internal`},
+			Question{Kind: KindSymbol, Pattern: "NewServer", Paths: []string{"internal"}, Tool: "rg"}},
 		{"a glob over sources", "Glob",
 			globInput{Pattern: "**/*.go"},
 			Question{Kind: KindFiles, Pattern: "**/*.go", Paths: []string{"**/*.go"}, Tool: "glob"}},
+		{"rg file listing with a source glob", "Bash",
+			bashInput{Command: `rg --files -g '*.go' internal | sort`},
+			Question{Kind: KindFiles, Pattern: "*.go", Paths: []string{"internal", "*.go"}, Tool: "rg"}},
+		{"rg file listing skips exclusions and valued flags", "Bash",
+			bashInput{Command: `rg --files --glob='!vendor/**' --glob='*.go' --type go --hidden internal`},
+			Question{Kind: KindFiles, Pattern: "*.go", Paths: []string{"internal", "*.go"}, Tool: "rg"}},
+		{"rg file listing tolerates a missing type", "Bash",
+			bashInput{Command: `rg --files --glob=*.go --type`},
+			Question{Kind: KindFiles, Pattern: "*.go", Paths: []string{"*.go"}, Tool: "rg"}},
 		{"find by name", "Bash",
 			bashInput{Command: `find . -name "*.go"`},
 			Question{Kind: KindFiles, Pattern: "*.go", Paths: []string{".", "*.go"}, Tool: "find"}},
@@ -104,8 +146,9 @@ func TestClassifyReadsTheQuestionOutOfTheCall(t *testing.T) {
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			got := Classify(payloadOf(t, testCase.tool, testCase.input))
-			if !questionsEqual(got, testCase.want) {
-				t.Fatalf("got %#v, want %#v", got, testCase.want)
+			if !reflect.DeepEqual(got, testCase.want) {
+				t.Fatalf("tool=%q input=%#v got %#v, want %#v",
+					testCase.tool, testCase.input, got, testCase.want)
 			}
 		})
 	}
@@ -142,21 +185,6 @@ func TestClassifyReadsEveryDialectsSpelling(t *testing.T) {
 			t.Fatalf("tool=%q input=%#v classified as %#v, want %#v", tool, input, got, want)
 		}
 	}
-}
-
-func questionsEqual(got, want Question) bool {
-	if got.Kind != want.Kind || got.Pattern != want.Pattern || got.Tool != want.Tool {
-		return false
-	}
-	if len(got.Paths) != len(want.Paths) {
-		return false
-	}
-	for index := range got.Paths {
-		if got.Paths[index] != want.Paths[index] {
-			return false
-		}
-	}
-	return true
 }
 
 // TestFirstLineBoundsWhatARefusalQuotes keeps a subagent's prompt from arriving
@@ -235,14 +263,26 @@ func TestGraphToolCarriesItsSpellingAndNothingElse(t *testing.T) {
 	}
 }
 
-// TestPayloadReadsTheSessionId is the field the briefing cannot work without.
-func TestPayloadReadsTheSessionId(t *testing.T) {
+// TestPayloadReadsHostIdentity checks the two temporal fields that affect the
+// protocol: session_id scopes a briefing, while Codex's turn_id selects its
+// exit-code refusal wire.
+func TestPayloadReadsHostIdentity(t *testing.T) {
 	var payload Payload
-	raw := `{"hook_event_name":"PreToolUse","cwd":"/w","tool_name":"Bash","session_id":"abc-123"}`
+	raw := `{"hook_event_name":"PreToolUse","cwd":"/w","tool_name":"Bash",` +
+		`"session_id":"abc-123","turn_id":"turn-456"}`
 	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
-		t.Fatalf("decode payload: %v", err)
+		t.Fatalf("decode payload %q: %v", raw, err)
 	}
 	if payload.SessionID != "abc-123" {
-		t.Fatalf("session id is %q; the briefing cannot be once per anything without it", payload.SessionID)
+		t.Fatalf("payload %q session id is %q; the briefing cannot be once per anything without it",
+			raw, payload.SessionID)
+	}
+	if payload.Dialect() != DialectCodex {
+		t.Fatalf("payload %q turn_id selected dialect %q, want %q",
+			raw, payload.Dialect(), DialectCodex)
+	}
+	payload.TurnID = ""
+	if payload.Dialect() != "" {
+		t.Fatalf("payload %q without turn_id selected dialect %q", raw, payload.Dialect())
 	}
 }

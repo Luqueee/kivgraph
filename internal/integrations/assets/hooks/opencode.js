@@ -1,8 +1,9 @@
 // Managed by Kivgraph. `kivgraph hook remove --target opencode` deletes it, and
 // `kivgraph hook install` rewrites it; edits here are lost.
 //
-// Claude Code and Codex run `kivgraph hook run` themselves and read its verdict
-// off stdout. OpenCode cannot: `tool.execute.before` returns `Promise<void>`
+// Claude Code and Codex run `kivgraph hook run` themselves; Claude reads its
+// JSON verdict while Codex reads its exit status and stderr. OpenCode cannot:
+// `tool.execute.before` returns `Promise<void>`
 // and the only way to stop a tool is to throw. So this file is the translation
 // and nothing else -- it forwards the same payload to the same command and
 // turns a refusal into an Error.

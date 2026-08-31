@@ -41,7 +41,7 @@ type Graph interface {
 	// not know is the zero Facts and a nil error.
 	Symbol(ctx context.Context, name string) (Facts, error)
 	// Intent answers what a loose description most likely names.
-	Intent(ctx context.Context, intent string) (Facts, error)
+	Intent(ctx context.Context, intent, repository string) (Facts, error)
 }
 
 // ambiguousAt is the number of declarations at which `grep` stops being able to
@@ -83,6 +83,10 @@ type Gate struct {
 	// SessionID is the conversation this call belongs to, and is empty for
 	// a host that does not send one.
 	SessionID string
+	// Repository narrows an intent question to the repository holding the
+	// caller's working directory. A symbol name remains workspace-wide so
+	// homonyms across repositories are still visible.
+	Repository string
 }
 
 // Decide answers a classified call.
@@ -198,14 +202,22 @@ func denySymbol(name string, facts Facts, because string) Decision {
 
 // decideIntent answers a pattern that gropes for a name.
 func (gate Gate) decideIntent(ctx context.Context, question Question) Decision {
-	facts, ok := gate.ask(ctx, question.Pattern, Graph.Intent)
-	if !ok || !facts.Known() {
+	if gate.Graph == nil {
 		return Allow
 	}
+	facts, err := gate.Graph.Intent(ctx, question.Pattern, gate.Repository)
+	if err != nil || !facts.Known() {
+		return Allow
+	}
+	call := "  find_by_intent(intent=" + quote(question.Pattern)
+	if gate.Repository != "" {
+		call += ", repo=" + quote(gate.Repository)
+	}
+	call += ")   ranked candidates"
 	lines := []string{
 		fmt.Sprintf("STOP: %s is a regular expression groping for a name the graph already knows.",
 			quote(question.Pattern)),
-		"  find_by_intent(intent=" + quote(question.Pattern) + ")   ranked candidates",
+		call,
 	}
 	if len(facts.Sample) > 0 {
 		lines = append(lines, "It matches:")

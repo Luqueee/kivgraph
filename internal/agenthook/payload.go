@@ -33,9 +33,8 @@ type Dialect string
 const (
 	// DialectClaudeCode is Claude Code, which reads `hookSpecificOutput`.
 	DialectClaudeCode Dialect = "claude-code"
-	// DialectCodex is the Codex CLI, whose PreToolUse contract is byte for
-	// byte the one Claude Code reads. The two differ in where the hook is
-	// registered, not in what it says.
+	// DialectCodex is the Codex CLI. Its input extends Claude Code's with a
+	// turn_id, and a refusal uses exit 2 plus stderr instead of a JSON verdict.
 	DialectCodex Dialect = "codex"
 	// DialectOpenCode is OpenCode, reached through a generated plugin because
 	// its `tool.execute.before` returns `Promise<void>` and blocks by
@@ -45,10 +44,9 @@ const (
 
 // Payload is the call an agent is about to make.
 //
-// The field names are Claude Code's and Codex's, which are the same, and the
-// generated OpenCode and Oh My Pi modules build this shape rather than
-// forwarding their own: one wire format is the reason a single `hook run`
-// serves all four integration paths.
+// Most field names are shared by Claude Code and Codex; Codex adds turn_id.
+// The generated OpenCode and Oh My Pi modules build the common shape rather
+// than forwarding their own, so one `hook run` still serves every path.
 type Payload struct {
 	HookEventName string          `json:"hook_event_name"`
 	CWD           string          `json:"cwd"`
@@ -61,6 +59,19 @@ type Payload struct {
 	// send it; generated modules have nothing to put here, and an empty
 	// one means the briefing does not fire at all -- see Briefing.
 	SessionID string `json:"session_id"`
+	// TurnID identifies a Codex turn. Claude Code and the generated adapters
+	// do not send it, so it also selects Codex's distinct refusal protocol.
+	TurnID string `json:"turn_id"`
+}
+
+// Dialect reports the host whose wire contract is positively identified.
+// The empty result deliberately keeps unknown hosts on the JSON protocol used
+// by Claude Code and the generated adapters.
+func (payload Payload) Dialect() Dialect {
+	if strings.TrimSpace(payload.TurnID) != "" {
+		return DialectCodex
+	}
+	return ""
 }
 
 // tool is a search-shaped tool, named once for all supported dialects.

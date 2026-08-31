@@ -56,10 +56,32 @@ func patternQuestion(pattern string) Question {
 	// symbol it cannot spell, and that is what `find_by_intent` is for --
 	// and not when it is punctuation around ordinary words.
 	fragments := nameFragment.FindAllString(text, -1)
-	if len(fragments) == 0 || !anyCodeShaped(fragments) {
+	if len(fragments) == 0 || (!anyCodeShaped(fragments) && !broadNameAlternation(text)) {
 		return Question{}
 	}
 	return Question{Kind: KindIntent, Pattern: text}
+}
+
+// broadNameAlternation recognises the file-discovery query an agent derives
+// from a natural-language task when it has no symbol name yet.
+//
+// `http|route|handler|listen|serve` is not code-shaped by capitalization, but
+// five alternative identifiers make it deliberately broad rather than a
+// request for one literal string. Four is the boundary: shorter alternations
+// such as `error|warning|failed` are ordinary text searches and stay with
+// grep. Every branch must still be a bare name, so punctuation-heavy regular
+// expressions do not cross this route by merely containing several pipes.
+func broadNameAlternation(text string) bool {
+	parts := strings.Split(text, "|")
+	if len(parts) < 4 {
+		return false
+	}
+	for _, part := range parts {
+		if !bareName.MatchString(part) {
+			return false
+		}
+	}
+	return true
 }
 
 // anyCodeShaped reports whether a fragment is spelled the way code is spelled
