@@ -88,6 +88,10 @@ func TestGitCommonDirectoryIdentifiesMainAndLinkedWorktree(t *testing.T) {
 	writeGitHeadTestFile(t, filepath.Join(common, "HEAD"), "ref: refs/heads/main\n")
 	writeGitHeadTestFile(t, filepath.Join(worktree, ".git"), "gitdir: "+gitDirectory+"\n")
 	writeGitHeadTestFile(t, filepath.Join(gitDirectory, "commondir"), "../..\n")
+	common, err := filepath.EvalSymlinks(common)
+	if err != nil {
+		t.Fatalf("resolve physical common directory: %v", err)
+	}
 
 	for name, repository := range map[string]string{"main": main, "worktree": worktree} {
 		t.Run(name, func(t *testing.T) {
