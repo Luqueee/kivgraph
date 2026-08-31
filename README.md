@@ -38,12 +38,13 @@ checkout, which is what a reader on a fork or without a network still has.
 | what does this reach outward | `trace_dependencies` |
 | who uses it from another repository | `find_cross_repo_consumers` |
 | where is it declared | `find_symbol` |
+| I don't know what it is called, what files to open | `find_by_intent` |
 | what is declared in this package | `get_file_outline` |
 | give me the code of these symbols | `get_source` |
 | everything about this one symbol | `get_symbol` |
 | what is indexed, and is the graph current | `list_repositories`, `graph_status` |
 
-Ten read-only tools, plus one consent-gated mutation (`index_project`) that a
+Eleven read-only tools, plus one consent-gated mutation (`index_project`) that a
 client has to authorize before it can register a repository or publish a
 generation.
 
@@ -80,7 +81,7 @@ backlog and the acceptance gate of every phase are in [`TASKS.md`](TASKS.md).
 - **Semantic dependencies:** Python and Dart imports can publish a package
   dependency when exactly one registered provider owns the requested package;
   symbol-level cross-repository edges require an explicit provider identity.
-- **Surface:** ten read-only tools over STDIO, plus one consent-gated
+- **Surface:** eleven read-only tools over STDIO, plus one consent-gated
   mutation (`index_project`). The contract is
   [docs/protocol/mcp-surface-v3.md](docs/protocol/mcp-surface-v3.md).
 - **Storage:** LadybugDB is canonical; queries are served from an immutable
