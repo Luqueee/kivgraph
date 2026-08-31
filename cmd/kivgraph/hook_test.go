@@ -104,10 +104,9 @@ func TestTheEscapeHatchIsReadTheWayAShellWouldWriteIt(t *testing.T) {
 	}
 }
 
-// TestHookCompletesOnlyTargetsItAccepts is a regression. The help footer was
-// fixed to name the four clients that host a gate and the completion was not,
-// so pressing tab offered `oh-my-pi` and the command that followed refused it.
-// A completion is a promise about what the next word may be.
+// TestHookCompletesOnlyTargetsItAccepts is a regression: completion and the
+// help footer must expose exactly the targets the command accepts. A
+// completion is a promise about what the next word may be.
 func TestHookCompletesOnlyTargetsItAccepts(t *testing.T) {
 	candidates := completionCandidates([]string{"hook", "install", "--target", ""})
 	for _, candidate := range candidates {

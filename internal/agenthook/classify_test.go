@@ -112,9 +112,9 @@ func TestClassifyReadsTheQuestionOutOfTheCall(t *testing.T) {
 }
 
 // TestClassifyReadsEveryDialectsSpelling defends the reason Dialect exists: the
-// same call, spelled as each of the three agents spells it, has to read as the
+// same call, spelled as each supported agent spells it, has to read as the
 // same question. A classifier that only knew Claude Code's capitals would let
-// every OpenCode call through in silence.
+// every lowercase module call through in silence.
 func TestClassifyReadsEveryDialectsSpelling(t *testing.T) {
 	for _, tool := range []string{"Bash", "bash", "shell"} {
 		question := Classify(payloadOf(t, tool, bashInput{Command: "grep -rn NewServer ."}))

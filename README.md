@@ -198,7 +198,7 @@ The optional check never blocks the command when the network is unavailable.
 Interactive command output uses semantic ANSI colors when the destination is a
 terminal. Set `NO_COLOR` or redirect output to keep it plain.
 
-### Configure an MCP client and install the skill
+### Configure an MCP client, install the skill, and enable the gate
 
 The release installer does not edit client configuration automatically. After
 installing Kivgraph, run the integration commands without `--target` to detect
@@ -207,6 +207,7 @@ the coding agents present on this machine and select one or more of them:
 ```bash
 kivgraph mcp install --scope user
 kivgraph skill install --scope user
+kivgraph hook install --scope user
 ```
 
 Kivgraph checks each client's known local configuration or installation roots
@@ -224,6 +225,11 @@ error; `--force` is required to replace or remove one. Existing files are
 written atomically with mode `0600` and receive a
 `*.kivgraph.bak` backup before replacement or removal.
 
+The pre-tool-use gate supports `claude-code`, `claude-desktop`, `codex`,
+`opencode`, and `oh-my-pi`. Oh My Pi receives a native extension under
+`~/.omp/agent/extensions/` for user scope or `.omp/extensions/` for project
+scope. The gate is fail-open when its graph query cannot be answered.
+
 Inspect or remove a registration explicitly:
 
 ```bash
@@ -231,6 +237,8 @@ kivgraph mcp status --target claude-code --scope user
 kivgraph mcp remove --target claude-code --scope user
 kivgraph skill status --target claude-code --scope user
 kivgraph skill remove --target claude-code --scope user
+kivgraph hook status --target claude-code --scope user
+kivgraph hook remove --target claude-code --scope user
 ```
 
 Initialize and publish a graph before starting the MCP server:

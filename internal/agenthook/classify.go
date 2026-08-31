@@ -77,7 +77,7 @@ func Classify(payload Payload) Question {
 	}
 }
 
-// grepInput is the shape all three agents give a native text search.
+// grepInput is the shape all supported agents give a native text search.
 type grepInput struct {
 	Pattern string `json:"pattern"`
 	Path    string `json:"path"`

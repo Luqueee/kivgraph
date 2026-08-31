@@ -61,6 +61,42 @@ func TestRunSkillInstallDryRunDoesNotWrite(t *testing.T) {
 		t.Fatalf("skill dry-run wrote %s: %v", path, err)
 	}
 }
+
+func TestRunHookInstallStatusRemoveOhMyPi(t *testing.T) {
+	home := t.TempDir()
+	testsupport.SetHome(t, home)
+	path := filepath.Join(home, ".omp", "agent", "extensions", "kivgraph.js")
+
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"kivgraph", "hook", "install", "--target", "oh-my-pi"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("install exit code = %d, stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "installed") {
+		t.Fatalf("install output = %q", stdout.String())
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("installed Oh My Pi hook missing: %v", err)
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if code := run([]string{"kivgraph", "hook", "status", "--target", "oh-my-pi"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("status exit code = %d, stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "managed") {
+		t.Fatalf("status output = %q", stdout.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if code := run([]string{"kivgraph", "hook", "remove", "--target", "oh-my-pi"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("remove exit code = %d, stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	if _, err := os.Stat(path + ".kivgraph.bak"); err != nil {
+		t.Fatalf("Oh My Pi hook backup missing: %v", err)
+	}
+}
+
 func TestRunMCPInstallInteractiveSelectsDetectedAgents(t *testing.T) {
 	home := t.TempDir()
 	testsupport.SetHome(t, home)

@@ -431,8 +431,8 @@ func writeIntegrationPlan(stdout io.Writer, kind string, plan integrations.Plan)
 // writeIntegrationHelp prints one integration family's operations.
 //
 // The targets are a parameter and not a constant because they are not the same
-// for every family: only three clients host a pre-tool-use gate, and naming the
-// other two here would send a reader to a --target that answers with an error.
+// for every family: Claude Desktop has no project scope, while MCP and skill
+// integrations support different client sets.
 func writeIntegrationHelp(stdout io.Writer, command, summary string, commands []string, targets []integrations.Target) {
 	paint := styleFor(stdout)
 	fmt.Fprintf(stdout, "%sUsage%s: kivgraph %s <operation> [flags]\n\n", paint.bold, paint.reset, command)
