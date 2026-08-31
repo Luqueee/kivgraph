@@ -10,21 +10,24 @@ description: >-
 This skill performs the final, destructive PR operation. A request to merge a
 specific PR authorizes both the merge and deletion of that PR's head branch.
 Do not use this skill for requests to prepare a PR, check whether it is ready,
-or enable auto-merge. Those requests stop at the handoff described by
-`opening-pull-requests`.
+or enable auto-merge. The workflow below is self-contained and must not load
+another skill's `SKILL.md` at runtime.
 
 ## Preconditions
 
-1. Read the repository instructions and
-   `.claude/skills/opening-pull-requests/SKILL.md`. If the PR is not already
-   review-ready, finish that workflow first; do not merge around an unresolved
-   finding.
+1. Treat the PR as review-ready only when the intended changes are committed
+   and pushed, relevant local gates have passed, required GitHub checks have
+   completed successfully, CodeRabbit has reviewed the latest head, every
+   actionable finding is addressed or explained, and GitHub reports no merge
+   conflict or other known blocker. Stop if any condition is missing; do not
+   merge around an unresolved finding.
 2. Resolve exactly one PR. Use the PR number or URL supplied by the user; if
    it is absent, use the current branch's PR only when there is exactly one.
    Stop if the target is ambiguous.
 3. Fetch live PR metadata from GitHub. Confirm that the PR is open, not a draft,
-   mergeable, and has a concrete `headRefOid`, `headRefName`, base branch, and
-   repository. Never infer these values from a stale local checkout.
+   mergeable, and has a concrete `headRefOid`, `headRefName`,
+   `headRepository.nameWithOwner`, base branch, and repository. Never infer
+   these values from a stale local checkout.
 4. Check required status checks and review state. Wait for pending checks and
    CodeRabbit; stop on a failure, conflict, missing required check, or a review
    decision that still requests changes.
@@ -74,21 +77,36 @@ the REST response does not expose whether an inline thread is resolved.
 
 Immediately before mutating anything, refresh the PR and compare its head SHA
 with the SHA that passed the final CodeRabbit gate. If it changed, repeat the
-entire gate. Also confirm that the branch to delete is exactly the PR's
-`headRefName`, never the base branch or a similarly named branch.
+entire gate. Capture the verified SHA as `gatedHeadSha` and retain the PR's
+`headRepository.nameWithOwner` and `headRefName` as the cleanup target. Never
+use the base repository or a same-named branch as a fallback.
 
-Use GitHub's normal, immediate merge command with the repository's configured
-or user-selected merge method, and include `--delete-branch` in that command.
-Do not use `--auto`: it can merge later after the verified review state is
-stale. Do not close the PR separately; a successful merge closes it.
+Before requiring `--delete-branch`, determine whether the base branch requires
+a merge queue using live GitHub branch-protection or repository metadata. The
+GitHub CLI does not support combining a merge queue with `--delete-branch`.
+When a queue is required, report a blocker and do not drop `--delete-branch`,
+delete the branch before merging, or use `--auto`. Proceed only if GitHub
+confirms a supported direct-merge path, the user explicitly authorizes any
+required bypass (such as administrator privileges), and that path still
+supports deletion after the merge.
+
+For a supported direct merge, use the repository's configured or user-selected
+method and include both `--delete-branch` and
+`--match-head-commit "$gatedHeadSha"` in the `gh pr merge` command. Do not use
+`--auto`: it can merge later after the verified review state is stale. Do not
+close the PR separately; a successful merge closes it.
 
 After the command:
 
 1. Refetch the PR and verify `state=MERGED`, a merge timestamp, and a merge
    commit or equivalent merge result.
-2. Verify that the exact remote head ref no longer exists. The preferred path is
-   the CLI's `--delete-branch` behavior; if it reports that deletion did not
-   happen, delete only that exact remote ref through GitHub and verify again.
+2. Resolve the remote repository from the saved
+   `headRepository.nameWithOwner`, then check whether
+   `refs/heads/<headRefName>` exists there. The preferred path is the CLI's
+   `--delete-branch` behavior. If that exact ref still exists after a
+   successful merge, including for a cross-repository PR, delete only that ref
+   through GitHub and verify it is absent afterward. URL-encode branch names as
+   needed; never check or delete a same-named ref in the base repository.
 3. A protected branch or a deletion failure is not success. Report the PR as
    merged but the cleanup as failed, including the exact branch name; never
    force-delete another ref.
