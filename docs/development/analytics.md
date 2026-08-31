@@ -1369,6 +1369,8 @@ intentional: it keeps Wrangler on its authenticated profile instead of loading
 the read-only D1 token used by the dashboard from that repository's `.env`.
 
 ```bash
+set -euo pipefail
+
 ADMIN_REPO=/root/kivgraph-admin
 WRANGLER="$ADMIN_REPO/node_modules/.bin/wrangler"
 CONFIG="$ADMIN_REPO/wrangler.jsonc"
@@ -1389,14 +1391,42 @@ $WRANGLER versions view "$version_id" \
 
 $WRANGLER d1 execute kivgraph-analytics --remote \
   --config "$CONFIG" --cwd /tmp \
-  --command "SELECT type, name FROM sqlite_schema WHERE name IN (
+  --command "SELECT type, name, sql FROM sqlite_schema WHERE name IN (
     'analytics_events_first_run_daily_idx',
-    'analytics_events_first_run_daily') ORDER BY type" \
+    'analytics_events_first_run_daily') ORDER BY name" \
   --json | jq -e '
+  def compact: gsub("[[:space:]]+"; " ");
   .[0].success and
-  ([.[0].results[].name] | sort == [
-    "analytics_events_first_run_daily",
-    "analytics_events_first_run_daily_idx"
+  ([.[0].results[] | .sql |= compact] == [
+    {
+      type: "trigger",
+      name: "analytics_events_first_run_daily",
+      sql: (
+        "CREATE TRIGGER analytics_events_first_run_daily " +
+        "AFTER INSERT ON analytics_events " +
+        "WHEN NEW.source = \u0027first_run_edge\u0027 BEGIN " +
+        "INSERT INTO daily_metrics ( day, event_name, version, platform, " +
+        "channel, client_family, is_ci, country, event_count, unique_count " +
+        ") VALUES ( substr(NEW.occurred_at, 1, 10), NEW.event_name, " +
+        "COALESCE(NEW.version, \u0027\u0027), " +
+        "COALESCE(NEW.platform, \u0027\u0027), " +
+        "COALESCE(NEW.channel, \u0027\u0027), \u0027\u0027, 0, " +
+        "COALESCE(NEW.country, \u0027\u0027), 1, 1 ) ON CONFLICT ( day, " +
+        "event_name, version, platform, channel, client_family, is_ci, " +
+        "country ) DO UPDATE SET event_count = event_count + 1, " +
+        "unique_count = unique_count + 1; END"
+      )
+    },
+    {
+      type: "index",
+      name: "analytics_events_first_run_daily_idx",
+      sql: (
+        "CREATE UNIQUE INDEX analytics_events_first_run_daily_idx " +
+        "ON analytics_events (event_name, version, daily_visitor_hash) " +
+        "WHERE source = \u0027first_run_edge\u0027 " +
+        "AND daily_visitor_hash IS NOT NULL"
+      )
+    }
   ])'
 
 test "$(curl -sS -o /dev/null -w '%{http_code}' \
@@ -1407,8 +1437,9 @@ test "$(curl -sS -o /dev/null -w '%{http_code}' \
 
 The two `jq -e` calls print `true`, and the final `test` is silent. Any other
 result is a failed collector smoke. The payload deliberately names the last
-version without an emitter, so the route exercises validation without writing
-a synthetic accepted event.
+version without emitters and is incomplete for a binary row: it has no
+platform, channel or transport. The route therefore exercises validation
+without writing a synthetic accepted event.
 
 If the release smoke ran a real published installer or binary, verify the
 observed version in the internal dashboard response:
