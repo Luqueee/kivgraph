@@ -380,11 +380,15 @@ func TestTheOhMyPiExtensionRunsTheGateAndBlocksItsDenial(t *testing.T) {
 	if err != nil {
 		t.Skipf("node is not installed: %v", err)
 	}
+	if output, err := exec.Command(node, "--input-type=module", "--eval", "").CombinedOutput(); err != nil {
+		t.Skipf("node cannot run the ESM harness: %v\n%s", err, output)
+	}
 	home := t.TempDir()
 	project := t.TempDir()
 	capture := filepath.Join(t.TempDir(), "payload.json")
+	count := filepath.Join(t.TempDir(), "invocations")
 	executable := filepath.Join(t.TempDir(), "kivgraph")
-	script := "#!/bin/sh\ncat > \"$KIVGRAPH_TEST_CAPTURE\"\nprintf '%s\\n' '{\"hookSpecificOutput\":{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"use find_symbol\"}}'\n"
+	script := "#!/bin/sh\nif [ -e \"$KIVGRAPH_TEST_COUNT\" ]; then\ncat >/dev/null\nprintf '%s\\n' 'malformed gate response'\nelse\ntouch \"$KIVGRAPH_TEST_COUNT\"\ncat > \"$KIVGRAPH_TEST_CAPTURE\"\nprintf '%s\\n' '{\"hookSpecificOutput\":{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"use find_symbol\"}}'\nfi\n"
 	if err := os.WriteFile(executable, []byte(script), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -416,9 +420,17 @@ const result = await handlers[0]({
 if (result?.block !== true || result.reason !== "use find_symbol") {
   throw new Error("unexpected hook result: " + JSON.stringify(result))
 }
+const failOpen = await handlers[0]({
+  toolName: "Grep",
+  input: { pattern: "Indexer", path: "internal" },
+}, { cwd: "/repo" })
+if (failOpen !== undefined) {
+  throw new Error("malformed gate response blocked the call: " + JSON.stringify(failOpen))
+}
 `
 	command := exec.Command(node, "--input-type=module", "--eval", harness)
-	command.Env = append(os.Environ(), "KIVGRAPH_TEST_CAPTURE="+capture, "OMP_EXTENSION="+path)
+	command.Env = append(os.Environ(), "KIVGRAPH_TEST_CAPTURE="+capture,
+		"KIVGRAPH_TEST_COUNT="+count, "OMP_EXTENSION="+path)
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("Oh My Pi handler failed for target=%s scope=%s path=%s: %v\n%s",
 			TargetOhMyPi, ScopeUser, path, err, output)

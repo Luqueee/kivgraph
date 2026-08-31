@@ -129,7 +129,7 @@ func TestClassifyReadsEveryDialectsSpelling(t *testing.T) {
 			Question{Kind: KindSymbol, Pattern: "NewServer", Paths: []string{"."}, Tool: "grep"}},
 	} {
 		got := Classify(payloadOf(t, testCase.tool, testCase.input))
-		if !questionsEqual(got, testCase.want) {
+		if !reflect.DeepEqual(got, testCase.want) {
 			t.Fatalf("tool=%q input=%#v classified as %#v, want %#v",
 				testCase.tool, testCase.input, got, testCase.want)
 		}
@@ -138,7 +138,7 @@ func TestClassifyReadsEveryDialectsSpelling(t *testing.T) {
 		input := agentInput{SubagentType: "explore", Description: "map the indexer"}
 		want := Question{Kind: KindResearchAgent, Pattern: "map the indexer", Tool: "agent"}
 		got := Classify(payloadOf(t, tool, input))
-		if !questionsEqual(got, want) {
+		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("tool=%q input=%#v classified as %#v, want %#v", tool, input, got, want)
 		}
 	}

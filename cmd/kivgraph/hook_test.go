@@ -116,6 +116,16 @@ func TestHookCompletesOnlyTargetsItAccepts(t *testing.T) {
 	if !strings.Contains(help.String(), "Targets:") {
 		t.Fatalf("hook --help omitted its target footer: %q", help.String())
 	}
+	hasOhMyPi := false
+	for _, candidate := range candidates {
+		if candidate == "oh-my-pi" {
+			hasOhMyPi = true
+			break
+		}
+	}
+	if !hasOhMyPi {
+		t.Fatalf("hook completion omitted oh-my-pi (candidates=%v)", candidates)
+	}
 	for _, candidate := range candidates {
 		if !strings.Contains(help.String(), candidate) {
 			t.Fatalf("hook --help omitted completed target %q (candidates=%v)", candidate, candidates)
