@@ -71,7 +71,8 @@ for required in bundle version target output; do
 	fi
 done
 
-if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if ! "$root/scripts/validate-release-version.sh" "$version"; then
 	printf 'build-mcpb: --version %s is not a semantic release version\n' "$version" >&2
 	exit 2
 fi

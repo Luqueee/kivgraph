@@ -244,7 +244,7 @@ func latestDevelopmentRelease(ctx context.Context, client *http.Client, apiBaseU
 	}
 	var selected githubRelease
 	for _, release := range releases {
-		if release.Draft || !release.Prerelease || !strings.HasPrefix(release.TagName, "v") || !semver.IsValid(release.TagName) {
+		if release.Draft || !release.Prerelease || !strings.HasPrefix(release.TagName, "v") || !semver.IsValid(release.TagName) || semver.Prerelease(release.TagName) == "" {
 			continue
 		}
 		if selected.TagName == "" || semver.Compare(selected.TagName, release.TagName) < 0 {
@@ -265,7 +265,7 @@ func latestDevelopmentRelease(ctx context.Context, client *http.Client, apiBaseU
 
 func resolveChannel(current, requested string) (string, error) {
 	if requested == "" {
-		if strings.Contains(strings.TrimPrefix(current, "v"), "-") {
+		if semver.Prerelease(semanticVersion(current)) != "" {
 			return ChannelDevelopment, nil
 		}
 		return ChannelStable, nil

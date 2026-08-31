@@ -50,9 +50,10 @@ jobs:
       base_sha: ${{ steps.classify.outputs.base_sha }}
     steps:
       - name: Checkout complete history
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Classify the revision
         id: classify
@@ -86,7 +87,7 @@ jobs:
           fi
 
           echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
-          release_only="$(scripts/classify-release-change.sh "$base_sha" "$head_sha")"
+          release_only="$(scripts/classify-release-change.sh "$GITHUB_EVENT_NAME" "$base_sha" "$head_sha")"
           echo "release_only=$release_only" >> "$GITHUB_OUTPUT"
           printf 'release-only change: %s\n' "$release_only"
 
@@ -101,12 +102,13 @@ jobs:
     if: needs.classify.outputs.release_only == 'true'
     steps:
       - name: Checkout complete history
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
           check-latest: true
@@ -125,12 +127,12 @@ jobs:
         run: scripts/check-docs.sh "$BASE_SHA"
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         with:
           version: 11.5.1
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
           cache: pnpm

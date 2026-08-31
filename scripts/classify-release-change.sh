@@ -7,8 +7,8 @@ set -euo pipefail
 # caller falls back to the complete CI.
 
 usage() {
-  printf 'usage: %s <base-commit> <head-commit>\n' "$0" >&2
-  printf '       %s selftest\n' "$0" >&2
+	printf 'usage: %s <event> <base-commit> <head-commit>\n' "$0" >&2
+	printf '       %s selftest\n' "$0" >&2
 }
 
 release_subject='^chore\(release\): prepare (v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?)( \(#[0-9]+\))?$'
@@ -34,7 +34,11 @@ is_allowed_path() {
 }
 
 classify() {
-	local base=$1 head=$2 subject path release_tag changed_paths
+	local event=$1 base=$2 head=$3 subject path release_tag changed_paths
+	if [[ "$event" == push ]] && ! git merge-base --is-ancestor "$base" "$head" 2>/dev/null; then
+		printf 'false\n'
+		return 0
+	fi
   [[ "$base" =~ ^[0-9a-fA-F]{40}$ && "$head" =~ ^[0-9a-fA-F]{40}$ ]] || {
     printf 'false\n'
     return 0
@@ -78,7 +82,7 @@ classify() {
 }
 
 selftest() {
-  local root base head got
+  local root base head got allowed_release_head force_base
   root=$(mktemp -d "${TMPDIR:-/tmp}/kivgraph-release-classifier.XXXXXX")
   trap 'rm -rf -- "$root"' RETURN
   git -C "$root" init -q
@@ -99,44 +103,49 @@ selftest() {
   git -C "$root" add README.md
   git -C "$root" commit -q -m 'chore(release): prepare v0.9.4'
   head=$(git -C "$root" rev-parse HEAD)
-  got=$(cd "$root" && "$script_path" "$base" "$head")
-  [[ "$got" == true ]] || { printf 'selftest: allowed release = %s\n' "$got" >&2; return 1; }
+	got=$(cd "$root" && "$script_path" pull_request "$base" "$head")
+	[[ "$got" == true ]] || { printf 'selftest: allowed release = %s\n' "$got" >&2; return 1; }
+	allowed_release_head=$head
 
   printf 'development notes\n' >"$root/landing/src/content/releases/v0.9.5-dev.1.md"
   git -C "$root" add landing/src/content/releases/v0.9.5-dev.1.md
   git -C "$root" commit -q -m 'chore(release): prepare v0.9.5-dev.1'
   head=$(git -C "$root" rev-parse HEAD)
-  got=$(cd "$root" && "$script_path" "$base" "$head")
+	got=$(cd "$root" && "$script_path" pull_request "$base" "$head")
   [[ "$got" == true ]] || { printf 'selftest: allowed development release = %s\n' "$got" >&2; return 1; }
 
   printf 'old notes\n' >"$root/landing/src/content/releases/v0.9.5.md"
   git -C "$root" add landing/src/content/releases/v0.9.5.md
   git -C "$root" commit -q -m 'chore(release): prepare v0.9.4'
   head=$(git -C "$root" rev-parse HEAD)
-  got=$(cd "$root" && "$script_path" "$base" "$head")
+	got=$(cd "$root" && "$script_path" pull_request "$base" "$head")
   [[ "$got" == false ]] || { printf 'selftest: wrong release note = %s\n' "$got" >&2; return 1; }
 
   printf 'code\n' >"$root/internal/unrelated.go"
   git -C "$root" add internal/unrelated.go
   git -C "$root" commit -q -m 'chore(release): prepare v0.9.5'
   head=$(git -C "$root" rev-parse HEAD)
-  got=$(cd "$root" && "$script_path" "$base" "$head")
+	got=$(cd "$root" && "$script_path" pull_request "$base" "$head")
   [[ "$got" == false ]] || { printf 'selftest: forbidden path = %s\n' "$got" >&2; return 1; }
 
   git -C "$root" rm -q internal/unrelated.go
   git -C "$root" commit -q -m 'chore(release): prepare v0.9.6'
   head=$(git -C "$root" rev-parse HEAD)
-  got=$(cd "$root" && "$script_path" "$base" "$head")
+	got=$(cd "$root" && "$script_path" pull_request "$base" "$head")
   [[ "$got" == false ]] || { printf 'selftest: multi-commit range = %s\n' "$got" >&2; return 1; }
 
   printf 'docs-only\n' >>"$root/README.md"
   git -C "$root" add README.md
   git -C "$root" commit -q -m 'docs: update release instructions'
   head=$(git -C "$root" rev-parse HEAD)
-  got=$(cd "$root" && "$script_path" "$base" "$head")
-  [[ "$got" == false ]] || { printf 'selftest: wrong subject = %s\n' "$got" >&2; return 1; }
+	got=$(cd "$root" && "$script_path" pull_request "$base" "$head")
+	[[ "$got" == false ]] || { printf 'selftest: wrong subject = %s\n' "$got" >&2; return 1; }
 
-  got=$(cd "$root" && "$script_path" not-a-commit "$head")
+	force_base=$(git -C "$root" rev-parse HEAD)
+	got=$(cd "$root" && "$script_path" push "$force_base" "$allowed_release_head")
+	[[ "$got" == false ]] || { printf 'selftest: non-fast-forward push = %s\n' "$got" >&2; return 1; }
+
+	got=$(cd "$root" && "$script_path" pull_request not-a-commit "$head")
   [[ "$got" == false ]] || { printf 'selftest: invalid base = %s\n' "$got" >&2; return 1; }
   printf 'selftest: ok\n'
 }
@@ -147,5 +156,5 @@ if [[ "${1:-}" == selftest ]]; then
   exit 0
 fi
 
-[[ "$#" -eq 2 ]] || { usage; exit 2; }
-classify "$1" "$2"
+[[ "$#" -eq 3 ]] || { usage; exit 2; }
+classify "$1" "$2" "$3"

@@ -25,10 +25,10 @@ no lo ha pedido explícitamente.
   por sí solos un motivo.
 
 `kivgraph update` selecciona un canal y compara versiones con SemVer. El canal
-`stable` consulta `/releases/latest`; el canal `dev` enumera las prereleases
-publicadas y elige la mayor versión válida. Sin `--channel`, una instalación
-estable usa `stable` y una instalación prerelease usa `dev`. También se puede
-seleccionar explícitamente con `--channel stable|dev` o
+`stable` consulta `/releases/latest`; el canal `dev` enumera las primeras 100
+prereleases publicadas y elige la mayor versión válida. Sin `--channel`, una
+instalación estable usa `stable` y una instalación prerelease usa `dev`. También
+se puede seleccionar explícitamente con `--channel stable|dev` o
 `KIVGRAPH_UPDATE_CHANNEL`.
 
 ## 1. Decidir si hay release y qué número usar

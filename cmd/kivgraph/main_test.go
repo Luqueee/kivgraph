@@ -118,6 +118,7 @@ func TestRunUpdateCheckUsesReleaseRunner(t *testing.T) {
 
 func TestRunUpdatePassesTheDevelopmentChannel(t *testing.T) {
 	var stdout, stderr bytes.Buffer
+	args := []string{"--check", "--channel", "dev"}
 	runner := func(_ context.Context, options update.Options) (update.Result, error) {
 		if options.Channel != update.ChannelDevelopment {
 			t.Fatalf("update channel = %q, want %q", options.Channel, update.ChannelDevelopment)
@@ -130,12 +131,12 @@ func TestRunUpdatePassesTheDevelopmentChannel(t *testing.T) {
 		}, nil
 	}
 
-	if got := runUpdateWithRunner([]string{"--check", "--channel", "dev"}, nil, &stdout, &stderr,
+	if got := runUpdateWithRunner(args, nil, &stdout, &stderr,
 		runner, noProcesses, nil, nil, true); got != 0 {
-		t.Fatalf("runUpdateWithRunner(, true) exit code = %d, stderr=%q", got, stderr.String())
+		t.Fatalf("runUpdateWithRunner(%#v, true) exit code = %d, stderr=%q", args, got, stderr.String())
 	}
 	if got, want := stdout.String(), "kivgraph update available (dev channel): "+version.Value+" -> 0.10.0-dev.1\n"; got != want {
-		t.Fatalf("stdout = %q, want %q", got, want)
+		t.Fatalf("runUpdateWithRunner(%#v, true) stdout = %q, want %q", args, got, want)
 	}
 }
 

@@ -12,8 +12,9 @@ A release-preparation commit updates version and installation metadata before a
 tag is created. It does not change the product, but the ordinary CI workflow
 previously scheduled every semantic, native, cross-platform, and bundle job.
 For example, commit 00c1510b6e6e16d63123635a12ef39ae22114e74 changed five
-metadata files in 28 lines while the complete workflow still took several
-minutes on every platform.
+metadata files in 28 lines while still selecting the complete workflow; the
+classifier keeps that distinction explicit without making an unsupported timing
+claim.
 
 The tag workflow calls this workflow through `workflow_call`. A tag must
 continue to receive the complete verification because it produces the published

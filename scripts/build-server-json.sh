@@ -68,12 +68,12 @@ if [[ ${#packages[@]} -eq 0 ]]; then
 	printf 'build-server-json: at least one --package target=sha256 is required\n' >&2
 	exit 2
 fi
-if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if ! "$root/scripts/validate-release-version.sh" "$version"; then
 	printf 'build-server-json: --version %s is not a semantic release version\n' "$version" >&2
 	exit 2
 fi
 
-root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 template="$root/server.json"
 test -f "$template"
 

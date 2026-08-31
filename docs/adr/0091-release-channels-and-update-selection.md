@@ -51,8 +51,8 @@ users are never moved to a prerelease unless they select it.
 Developers can test a release candidate with the same update command and can
 return to stable with `kivgraph update --channel stable`. Stable clients keep
 the existing behaviour and endpoint. The development endpoint makes one API
-request per check and is bounded to the first 100 releases; projects with more
-than that can add pagination without changing the channel contract.
+request per check and considers only the first 100 releases returned by GitHub.
+Releases beyond that first page are not selected by the current implementation.
 
 A prerelease may be lower than the corresponding final SemVer, so selecting
 `stable` from a dev installation is the explicit operation that moves

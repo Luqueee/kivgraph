@@ -139,26 +139,31 @@ func TestCheckNoticeDoesNotReuseStableCacheForDevelopment(t *testing.T) {
 
 	cachePath := filepath.Join(t.TempDir(), "update.json")
 	now := time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC)
+	stableCurrent := "0.3.0"
+	developmentCurrent := "0.3.0-dev.1"
+	stableChannel := ""
+	developmentChannel := ChannelDevelopment
 	if _, err := CheckNotice(context.Background(), NoticeOptions{
 		APIBaseURL:     server.URL,
-		CurrentVersion: "0.3.0",
+		CurrentVersion: stableCurrent,
 		CachePath:      cachePath,
+		Channel:        stableChannel,
 		Now:            func() time.Time { return now },
 	}); err != nil {
 		t.Fatalf("stable CheckNotice() error = %v", err)
 	}
 	result, err := CheckNotice(context.Background(), NoticeOptions{
 		APIBaseURL:     server.URL,
-		CurrentVersion: "0.3.0-dev.1",
+		CurrentVersion: developmentCurrent,
 		CachePath:      cachePath,
-		Channel:        ChannelDevelopment,
+		Channel:        developmentChannel,
 		Now:            func() time.Time { return now.Add(time.Hour) },
 	})
 	if err != nil {
 		t.Fatalf("development CheckNotice() error = %v", err)
 	}
 	if !result.UpdateAvailable || result.LatestVersion != "0.5.0-dev.1" || result.FromCache || result.Channel != ChannelDevelopment {
-		t.Fatalf("development result = %#v, want a fresh dev lookup", result)
+		t.Fatalf("development result = %#v, want a fresh dev lookup (stable channel=%q, development channel=%q, stable current=%q, development current=%q, cache=%q)", result, stableChannel, developmentChannel, stableCurrent, developmentCurrent, cachePath)
 	}
 	if got := requests.Load(); got != 2 {
 		t.Fatalf("release requests = %d, want one request per channel", got)

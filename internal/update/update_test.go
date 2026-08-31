@@ -143,6 +143,16 @@ func TestRunRejectsAnUnknownChannelBeforeTheNetwork(t *testing.T) {
 	}
 }
 
+func TestResolveChannelTreatsBuildMetadataAsStable(t *testing.T) {
+	channel, err := resolveChannel("0.1.0+build-dev", "")
+	if err != nil {
+		t.Fatalf("resolveChannel(current=%q, requested=%q) error = %v", "0.1.0+build-dev", "", err)
+	}
+	if channel != ChannelStable {
+		t.Fatalf("resolveChannel(current=%q, requested=%q) = %q, want %q", "0.1.0+build-dev", "", channel, ChannelStable)
+	}
+}
+
 func TestRunSelectsTheHighestPublishedDevelopmentRelease(t *testing.T) {
 	requireReleasePlatform(t)
 	var releaseBase string
@@ -162,6 +172,9 @@ func TestRunSelectsTheHighestPublishedDevelopmentRelease(t *testing.T) {
 			{TagName: "v0.1.1-dev.1", Prerelease: true, Assets: assets()},
 			{TagName: "v0.1.0", Assets: assets()},
 			{TagName: "v0.1.2-dev.1", Prerelease: true, Assets: assets()},
+			// GitHub's flag alone is not enough: a malformed stable tag marked
+			// prerelease must not enter the development stream.
+			{TagName: "v0.9.0+build-dev", Prerelease: true, Assets: assets()},
 			{TagName: "v0.1.3-dev.1", Prerelease: true, Draft: true, Assets: assets()},
 		})
 	}))
@@ -184,13 +197,14 @@ func TestRunSelectsTheHighestPublishedDevelopmentRelease(t *testing.T) {
 
 func TestRunReportsWhenNoDevelopmentReleaseExists(t *testing.T) {
 	requireReleasePlatform(t)
+	releaseList := []githubRelease{{TagName: "v0.1.0", Assets: nil}}
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.URL.Path != "/repos/"+Repository+"/releases" {
 			http.NotFound(writer, request)
 			return
 		}
 		writer.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(writer).Encode([]githubRelease{{TagName: "v0.1.0", Assets: nil}})
+		_ = json.NewEncoder(writer).Encode(releaseList)
 	}))
 	defer server.Close()
 
@@ -201,7 +215,7 @@ func TestRunReportsWhenNoDevelopmentReleaseExists(t *testing.T) {
 		CheckOnly:      true,
 	})
 	if err == nil || !strings.Contains(err.Error(), "no published development release") {
-		t.Fatalf("Run() error = %v, want no-development-release error", err)
+		t.Fatalf("Run(current=%q, release-list=%#v) error = %v, want no-development-release error", "0.1.0-dev.1", releaseList, err)
 	}
 }
 
