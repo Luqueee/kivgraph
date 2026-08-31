@@ -29,7 +29,7 @@
 # and then cannot start.
 #
 # Usage:
-#   scripts/build-mcpb.sh --bundle DIR --version X.Y.Z --target os/arch \
+#   scripts/build-mcpb.sh --bundle DIR --version X.Y.Z[-suffix] --target os/arch \
 #                         --output FILE.mcpb
 
 set -euo pipefail
@@ -71,8 +71,8 @@ for required in bundle version target output; do
 	fi
 done
 
-if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-	printf 'build-mcpb: --version %s is not X.Y.Z\n' "$version" >&2
+if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+	printf 'build-mcpb: --version %s is not a semantic release version\n' "$version" >&2
 	exit 2
 fi
 

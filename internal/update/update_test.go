@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -24,6 +25,17 @@ import (
 
 	"github.com/Luqueee/kivgraph/internal/executable"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return fn(request)
+}
+
+type failingReadCloser struct{}
+
+func (failingReadCloser) Read([]byte) (int, error) { return 0, errors.New("body read failed") }
+func (failingReadCloser) Close() error             { return nil }
 
 // requireReleasePlatform guards the tests that exercise the install path. They
 // need the platform to have a published bundle, because Run refuses everything
@@ -105,6 +117,258 @@ func TestValidateBundleRejectsAForeignTarget(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "plan9/mips") || !strings.Contains(err.Error(), runtime.GOOS+"/"+runtime.GOARCH) {
 		t.Fatalf("validateBundle() error = %v, want it to name plan9/mips and %s/%s", err, runtime.GOOS, runtime.GOARCH)
+	}
+}
+
+func TestRunRejectsAnUnknownChannelBeforeTheNetwork(t *testing.T) {
+	requireReleasePlatform(t)
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		requests++
+	}))
+	defer server.Close()
+
+	_, err := Run(context.Background(), Options{
+		APIBaseURL:     server.URL,
+		Client:         server.Client(),
+		CurrentVersion: "0.1.0",
+		Channel:        "nightly",
+		CheckOnly:      true,
+	})
+	if err == nil || !strings.Contains(err.Error(), "update channel") {
+		t.Fatalf("Run() error = %v, want invalid channel", err)
+	}
+	if requests != 0 {
+		t.Fatalf("requests = %d, want no network request for invalid channel", requests)
+	}
+}
+
+func TestRunSelectsTheHighestPublishedDevelopmentRelease(t *testing.T) {
+	requireReleasePlatform(t)
+	var releaseBase string
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/repos/"+Repository+"/releases" {
+			http.NotFound(writer, request)
+			return
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		assets := func() []githubAsset {
+			return []githubAsset{
+				{Name: archiveName, BrowserDownloadURL: releaseBase + "/archive"},
+				{Name: checksumsName, BrowserDownloadURL: releaseBase + "/checksums"},
+			}
+		}
+		_ = json.NewEncoder(writer).Encode([]githubRelease{
+			{TagName: "v0.1.1-dev.1", Prerelease: true, Assets: assets()},
+			{TagName: "v0.1.0", Assets: assets()},
+			{TagName: "v0.1.2-dev.1", Prerelease: true, Assets: assets()},
+			{TagName: "v0.1.3-dev.1", Prerelease: true, Draft: true, Assets: assets()},
+		})
+	}))
+	defer server.Close()
+	releaseBase = server.URL
+
+	result, err := Run(context.Background(), Options{
+		APIBaseURL:     server.URL,
+		Client:         server.Client(),
+		CurrentVersion: "0.1.1-dev.1",
+		CheckOnly:      true,
+	})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if !result.UpdateAvailable || result.LatestVersion != "0.1.2-dev.1" || result.Channel != ChannelDevelopment {
+		t.Fatalf("result = %#v, want the highest published dev release", result)
+	}
+}
+
+func TestRunReportsWhenNoDevelopmentReleaseExists(t *testing.T) {
+	requireReleasePlatform(t)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/repos/"+Repository+"/releases" {
+			http.NotFound(writer, request)
+			return
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode([]githubRelease{{TagName: "v0.1.0", Assets: nil}})
+	}))
+	defer server.Close()
+
+	_, err := Run(context.Background(), Options{
+		APIBaseURL:     server.URL,
+		Client:         server.Client(),
+		CurrentVersion: "0.1.0-dev.1",
+		CheckOnly:      true,
+	})
+	if err == nil || !strings.Contains(err.Error(), "no published development release") {
+		t.Fatalf("Run() error = %v, want no-development-release error", err)
+	}
+}
+
+func TestRunRejectsAStableEndpointMarkedPrerelease(t *testing.T) {
+	requireReleasePlatform(t)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/repos/"+Repository+"/releases/latest" {
+			http.NotFound(writer, request)
+			return
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(githubRelease{
+			TagName: "v0.1.1", Prerelease: true,
+		})
+	}))
+	defer server.Close()
+
+	_, err := Run(context.Background(), Options{
+		APIBaseURL:     server.URL,
+		Client:         server.Client(),
+		CurrentVersion: "0.1.0",
+		CheckOnly:      true,
+	})
+	if err == nil || !strings.Contains(err.Error(), "marked prerelease") {
+		t.Fatalf("Run() error = %v, want stable-channel rejection", err)
+	}
+}
+
+func TestRunRejectsADevelopmentReleaseWithoutThePlatformAsset(t *testing.T) {
+	requireReleasePlatform(t)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/repos/"+Repository+"/releases" {
+			http.NotFound(writer, request)
+			return
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode([]githubRelease{{TagName: "v0.1.1-dev.1", Prerelease: true}})
+	}))
+	defer server.Close()
+
+	_, err := Run(context.Background(), Options{
+		APIBaseURL:     server.URL,
+		Client:         server.Client(),
+		CurrentVersion: "0.1.0-dev.1",
+		CheckOnly:      true,
+	})
+	if err == nil || !strings.Contains(err.Error(), "missing asset") {
+		t.Fatalf("Run() error = %v, want missing-asset rejection", err)
+	}
+}
+
+func TestRunRejectsADevelopmentReleaseWithoutChecksums(t *testing.T) {
+	requireReleasePlatform(t)
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/repos/"+Repository+"/releases" {
+			http.NotFound(writer, request)
+			return
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode([]githubRelease{{
+			TagName: "v0.1.1-dev.1", Prerelease: true,
+			Assets: []githubAsset{{Name: archiveName, BrowserDownloadURL: server.URL + "/archive"}},
+		}})
+	}))
+	defer server.Close()
+
+	_, err := Run(context.Background(), Options{
+		APIBaseURL:     server.URL,
+		Client:         server.Client(),
+		CurrentVersion: "0.1.0-dev.1",
+		CheckOnly:      true,
+	})
+	if err == nil || !strings.Contains(err.Error(), "missing asset") {
+		t.Fatalf("Run() error = %v, want missing-checksum rejection", err)
+	}
+}
+
+func TestRunRejectsMalformedDevelopmentResponse(t *testing.T) {
+	requireReleasePlatform(t)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/repos/"+Repository+"/releases" {
+			http.NotFound(writer, request)
+			return
+		}
+		_, _ = io.WriteString(writer, "not-json")
+	}))
+	defer server.Close()
+
+	_, err := Run(context.Background(), Options{
+		APIBaseURL:     server.URL,
+		Client:         server.Client(),
+		CurrentVersion: "0.1.0-dev.1",
+		CheckOnly:      true,
+	})
+	if err == nil || !strings.Contains(err.Error(), "decode development releases") {
+		t.Fatalf("Run() error = %v, want malformed-response error", err)
+	}
+}
+
+func TestRunReportsDevelopmentRequestErrors(t *testing.T) {
+	requireReleasePlatform(t)
+	client := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return nil, errors.New("network unavailable")
+	})}
+	_, err := Run(context.Background(), Options{
+		APIBaseURL:     "https://example.invalid",
+		Client:         client,
+		CurrentVersion: "0.1.0-dev.1",
+		CheckOnly:      true,
+	})
+	if err == nil || !strings.Contains(err.Error(), "query development releases") {
+		t.Fatalf("Run() error = %v, want request error", err)
+	}
+}
+
+func TestRunReportsMalformedDevelopmentURL(t *testing.T) {
+	requireReleasePlatform(t)
+	_, err := Run(context.Background(), Options{
+		APIBaseURL:     "://invalid",
+		CurrentVersion: "0.1.0-dev.1",
+		CheckOnly:      true,
+	})
+	if err == nil || !strings.Contains(err.Error(), "create development release request") {
+		t.Fatalf("Run() error = %v, want malformed-URL error", err)
+	}
+}
+
+func TestRunReportsDevelopmentResponseBodyErrors(t *testing.T) {
+	requireReleasePlatform(t)
+	client := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusBadGateway,
+			Status:     "502 Bad Gateway",
+			Body:       failingReadCloser{},
+		}, nil
+	})}
+	_, err := Run(context.Background(), Options{
+		APIBaseURL:     "https://example.invalid",
+		Client:         client,
+		CurrentVersion: "0.1.0-dev.1",
+		CheckOnly:      true,
+	})
+	if err == nil || !strings.Contains(err.Error(), "read response") {
+		t.Fatalf("Run() error = %v, want response-body error", err)
+	}
+}
+
+func TestRunReportsDevelopmentHTTPStatus(t *testing.T) {
+	requireReleasePlatform(t)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/repos/"+Repository+"/releases" {
+			http.NotFound(writer, request)
+			return
+		}
+		http.Error(writer, "GitHub is unavailable", http.StatusBadGateway)
+	}))
+	defer server.Close()
+
+	_, err := Run(context.Background(), Options{
+		APIBaseURL:     server.URL,
+		Client:         server.Client(),
+		CurrentVersion: "0.1.0-dev.1",
+		CheckOnly:      true,
+	})
+	if err == nil || !strings.Contains(err.Error(), "GitHub is unavailable") {
+		t.Fatalf("Run() error = %v, want HTTP response detail", err)
 	}
 }
 

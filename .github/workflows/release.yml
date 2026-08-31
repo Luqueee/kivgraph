@@ -132,7 +132,7 @@ jobs:
         shell: bash
         run: |
           version="${GITHUB_REF_NAME#v}"
-          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       # The bundle carries the viewer. `ui` is advertised in the help of every
@@ -375,11 +375,17 @@ jobs:
             "release-assets/uninstall.ps1"
           )
           if ! gh release view "$TAG" >/dev/null 2>&1; then
-            gh release create "$TAG" \
-              --verify-tag \
-              --title "Kivgraph $TAG" \
-              --notes-file "$RUNNER_TEMP/release-notes.md" \
-              --latest
+            release_args=(
+              --verify-tag
+              --title "Kivgraph $TAG"
+              --notes-file "$RUNNER_TEMP/release-notes.md"
+            )
+            if [[ "$TAG" == *-* ]]; then
+              release_args+=(--prerelease)
+            else
+              release_args+=(--latest)
+            fi
+            gh release create "$TAG" "${release_args[@]}"
           fi
           gh release upload "$TAG" "${assets[@]}" --clobber
 
@@ -496,6 +502,10 @@ jobs:
   registry:
     name: Publish to the MCP Registry
     needs: post-publish-smoke
+    # Development releases are GitHub prereleases for opt-in testing. The
+    # public MCP Registry is the stable distribution channel and must not make
+    # a prerelease discoverable to clients that did not opt into it.
+    if: ${{ !contains(github.ref_name, '-') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

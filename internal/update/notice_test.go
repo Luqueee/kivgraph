@@ -106,3 +106,61 @@ func TestCheckNoticeRefreshesExpiredCache(t *testing.T) {
 		t.Fatalf("latest release requests = %d, want 2", got)
 	}
 }
+
+func TestCheckNoticeDoesNotReuseStableCacheForDevelopment(t *testing.T) {
+	var requests atomic.Int64
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		requests.Add(1)
+		writer.Header().Set("Content-Type", "application/json")
+		switch request.URL.Path {
+		case "/repos/" + Repository + "/releases/latest":
+			_ = json.NewEncoder(writer).Encode(map[string]any{
+				"tag_name": "v0.4.0",
+				"assets": []map[string]string{
+					{"name": archiveName, "browser_download_url": server.URL + "/archive"},
+					{"name": checksumsName, "browser_download_url": server.URL + "/checksums"},
+				},
+			})
+		case "/repos/" + Repository + "/releases":
+			_ = json.NewEncoder(writer).Encode([]map[string]any{{
+				"tag_name":   "v0.5.0-dev.1",
+				"prerelease": true,
+				"assets": []map[string]string{
+					{"name": archiveName, "browser_download_url": server.URL + "/archive"},
+					{"name": checksumsName, "browser_download_url": server.URL + "/checksums"},
+				},
+			}})
+		default:
+			http.NotFound(writer, request)
+		}
+	}))
+	defer server.Close()
+
+	cachePath := filepath.Join(t.TempDir(), "update.json")
+	now := time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC)
+	if _, err := CheckNotice(context.Background(), NoticeOptions{
+		APIBaseURL:     server.URL,
+		CurrentVersion: "0.3.0",
+		CachePath:      cachePath,
+		Now:            func() time.Time { return now },
+	}); err != nil {
+		t.Fatalf("stable CheckNotice() error = %v", err)
+	}
+	result, err := CheckNotice(context.Background(), NoticeOptions{
+		APIBaseURL:     server.URL,
+		CurrentVersion: "0.3.0-dev.1",
+		CachePath:      cachePath,
+		Channel:        ChannelDevelopment,
+		Now:            func() time.Time { return now.Add(time.Hour) },
+	})
+	if err != nil {
+		t.Fatalf("development CheckNotice() error = %v", err)
+	}
+	if !result.UpdateAvailable || result.LatestVersion != "0.5.0-dev.1" || result.FromCache || result.Channel != ChannelDevelopment {
+		t.Fatalf("development result = %#v, want a fresh dev lookup", result)
+	}
+	if got := requests.Load(); got != 2 {
+		t.Fatalf("release requests = %d, want one request per channel", got)
+	}
+}

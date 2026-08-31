@@ -22,7 +22,7 @@
 # would be worse.
 #
 # Usage:
-#   scripts/build-server-json.sh --version X.Y.Z --tag vX.Y.Z \
+#   scripts/build-server-json.sh --version X.Y.Z[-suffix] --tag vX.Y.Z[-suffix] \
 #       --package linux/amd64=SHA256 --package darwin/arm64=SHA256 \
 #       --output server.published.json
 
@@ -68,8 +68,8 @@ if [[ ${#packages[@]} -eq 0 ]]; then
 	printf 'build-server-json: at least one --package target=sha256 is required\n' >&2
 	exit 2
 fi
-if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-	printf 'build-server-json: --version %s is not X.Y.Z\n' "$version" >&2
+if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+	printf 'build-server-json: --version %s is not a semantic release version\n' "$version" >&2
 	exit 2
 fi
 
