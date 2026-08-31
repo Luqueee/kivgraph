@@ -47,6 +47,7 @@ func TestDevInstallRefusesAnInstallationHeldByAnotherProcess(t *testing.T) {
 }
 
 func TestDevInstallRefusesASymbolicLinkInsideTheCandidateBundle(t *testing.T) {
+	requireDevInstallerHost(t)
 	base := t.TempDir()
 	installRoot := fakeDevInstallation(t, base, "old", "absent")
 	bundle := fakeDevBundle(t, base, "new")
@@ -57,7 +58,7 @@ func TestDevInstallRefusesASymbolicLinkInsideTheCandidateBundle(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.Symlink(outside, binary); err != nil {
-		t.Skipf("symlinks unavailable: %v", err)
+		t.Fatalf("create candidate symbolic link %q -> %q: %v", binary, outside, err)
 	}
 	writeDevChecksums(t, bundle)
 
@@ -181,10 +182,7 @@ func TestDevInstallCanExplicitlySkipSupervisorDiscovery(t *testing.T) {
 
 func runDevInstaller(t *testing.T, base, installRoot, bundle string, failRestart bool, extra ...string) commandResult {
 	t.Helper()
-	if !((runtime.GOOS == "linux" && runtime.GOARCH == "amd64") ||
-		(runtime.GOOS == "darwin" && runtime.GOARCH == "arm64")) {
-		t.Skipf("development installer is unsupported on %s/%s", runtime.GOOS, runtime.GOARCH)
-	}
+	requireDevInstallerHost(t)
 	fakeBin := filepath.Join(base, "fake-bin")
 	if err := os.MkdirAll(fakeBin, 0o700); err != nil {
 		t.Fatal(err)
@@ -214,6 +212,14 @@ func runDevInstaller(t *testing.T, base, installRoot, bundle string, failRestart
 	)
 	output, err := command.CombinedOutput()
 	return commandResult{output: string(output), err: err}
+}
+
+func requireDevInstallerHost(t *testing.T) {
+	t.Helper()
+	if !((runtime.GOOS == "linux" && runtime.GOARCH == "amd64") ||
+		(runtime.GOOS == "darwin" && runtime.GOARCH == "arm64")) {
+		t.Skipf("development installer is unsupported on %s/%s", runtime.GOOS, runtime.GOARCH)
+	}
 }
 
 func expectedSupervisorInvocation(marker string) string {

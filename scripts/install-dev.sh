@@ -52,7 +52,7 @@ while (( $# > 0 )); do
   esac
 done
 
-for command in awk cp find mktemp mv uname; do
+for command in awk cat chmod cp dirname find mkdir mktemp mv rm rmdir uname; do
   command -v "$command" >/dev/null 2>&1 || fail "required command not found: $command"
 done
 if command -v sha256sum >/dev/null 2>&1; then
