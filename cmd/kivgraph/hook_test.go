@@ -10,7 +10,6 @@ import (
 
 	"github.com/Luqueee/kivgraph/internal/agenthook"
 	"github.com/Luqueee/kivgraph/internal/config"
-	"github.com/Luqueee/kivgraph/internal/integrations"
 	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
@@ -108,25 +107,31 @@ func TestTheEscapeHatchIsReadTheWayAShellWouldWriteIt(t *testing.T) {
 // help footer must expose exactly the targets the command accepts. A
 // completion is a promise about what the next word may be.
 func TestHookCompletesOnlyTargetsItAccepts(t *testing.T) {
+	testsupport.SetHome(t, t.TempDir())
 	candidates := completionCandidates([]string{"hook", "install", "--target", ""})
+	var help, helpErr strings.Builder
+	if code := runHookCommand([]string{"--help"}, &help, &helpErr); code != 0 {
+		t.Fatalf("hook --help exited %d: stdout=%q stderr=%q", code, help.String(), helpErr.String())
+	}
+	if !strings.Contains(help.String(), "Targets:") {
+		t.Fatalf("hook --help omitted its target footer: %q", help.String())
+	}
 	for _, candidate := range candidates {
-		if _, err := integrations.New(integrations.Options{}); err != nil {
-			t.Fatal(err)
+		if !strings.Contains(help.String(), candidate) {
+			t.Fatalf("hook --help omitted completed target %q (candidates=%v)", candidate, candidates)
 		}
-		found := false
-		for _, target := range integrations.HookTargets() {
-			if string(target) == candidate {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Fatalf("completion offers %q, which hook install refuses", candidate)
+		var stdout, stderr strings.Builder
+		args := []string{"install", "--target", candidate, "--scope", "user", "--dry-run"}
+		if code := runHookCommand(args, &stdout, &stderr); code != 0 {
+			t.Fatalf("hook install args=%v exited %d (candidates=%v): stdout=%q stderr=%q",
+				args, code, candidates, stdout.String(), stderr.String())
 		}
 	}
-	if len(candidates) != len(integrations.HookTargets()) {
-		t.Fatalf("completion offers %d targets, want the %d that host a gate",
-			len(candidates), len(integrations.HookTargets()))
+	var stdout, stderr strings.Builder
+	args := []string{"install", "--target", "cursor", "--scope", "user", "--dry-run"}
+	if code := runHookCommand(args, &stdout, &stderr); code == 0 {
+		t.Fatalf("hook install accepted rejected args=%v (candidates=%v): stdout=%q",
+			args, candidates, stdout.String())
 	}
 }
 

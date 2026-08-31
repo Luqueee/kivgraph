@@ -93,7 +93,10 @@ func TestRunHookInstallStatusRemoveOhMyPi(t *testing.T) {
 		t.Fatalf("remove exit code = %d, stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
 	if _, err := os.Stat(path + ".kivgraph.bak"); err != nil {
-		t.Fatalf("Oh My Pi hook backup missing: %v", err)
+		t.Fatalf("Oh My Pi hook backup missing for target=oh-my-pi scope=user path=%s: %v", path, err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("Oh My Pi hook was not removed for target=oh-my-pi scope=user path=%s: %v", path, err)
 	}
 }
 

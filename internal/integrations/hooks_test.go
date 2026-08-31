@@ -5,6 +5,7 @@ import (
 	"github.com/Luqueee/kivgraph/internal/executable"
 	"github.com/Luqueee/kivgraph/internal/testsupport"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -367,28 +368,79 @@ func TestOhMyPiIncompatibleExtensionRequiresForce(t *testing.T) {
 	}
 }
 
-// TestTheOhMyPiExtensionNamesThisInstallationsBinary keeps the extension from
-// resolving kivgraph on PATH, which a desktop-launched OMP process may not have.
-func TestTheOhMyPiExtensionNamesThisInstallationsBinary(t *testing.T) {
-	manager, home, _ := testManager(t)
-	if _, err := manager.InstallHook(TargetOhMyPi, ScopeUser, false, false); err != nil {
-		t.Fatalf("InstallHook() error = %v", err)
+// TestTheOhMyPiExtensionRunsTheGateAndBlocksItsDenial invokes the generated
+// extension through Node, the same module boundary Oh My Pi uses. A source
+// literal check would pass even if the handler sent the wrong payload or
+// ignored a denial.
+func TestTheOhMyPiExtensionRunsTheGateAndBlocksItsDenial(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the shell executable fixture is Unix-specific")
 	}
-	body, err := os.ReadFile(filepath.Join(home, ".omp", "agent", "extensions", "kivgraph.js"))
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skipf("node is not installed: %v", err)
+	}
+	home := t.TempDir()
+	project := t.TempDir()
+	capture := filepath.Join(t.TempDir(), "payload.json")
+	executable := filepath.Join(t.TempDir(), "kivgraph")
+	script := "#!/bin/sh\ncat > \"$KIVGRAPH_TEST_CAPTURE\"\nprintf '%s\\n' '{\"hookSpecificOutput\":{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"use find_symbol\"}}'\n"
+	if err := os.WriteFile(executable, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	manager, err := New(Options{HomeDir: home, ProjectDir: project,
+		Executable: executable, GOOS: runtime.GOOS})
 	if err != nil {
 		t.Fatal(err)
 	}
-	text := string(body)
-	if strings.Contains(text, executablePlaceholder) {
-		t.Fatal("the extension still carries its placeholder")
+	if _, err := manager.InstallHook(TargetOhMyPi, ScopeUser, false, false); err != nil {
+		t.Fatalf("InstallHook() error = %v", err)
 	}
-	if !strings.Contains(text, escapedPath(t, testsupport.InstalledExecutable())) {
-		t.Fatal("the extension does not name this installation's binary")
+	path := filepath.Join(home, ".omp", "agent", "extensions", "kivgraph.js")
+	if err := os.WriteFile(filepath.Join(home, ".omp", "agent", "package.json"),
+		[]byte(`{"type":"module"}`), 0o600); err != nil {
+		t.Fatal(err)
 	}
-	for _, marker := range []string{`pi.on("tool_call"`, "hook_event_name", "block: true"} {
-		if !strings.Contains(text, marker) {
-			t.Fatalf("the extension does not contain %q", marker)
-		}
+	harness := `import { pathToFileURL } from "node:url"
+const extension = await import(pathToFileURL(process.env.OMP_EXTENSION).href)
+const handlers = []
+extension.default({ on(name, handler) {
+  if (name !== "tool_call") throw new Error("unexpected event: " + name)
+  handlers.push(handler)
+} })
+if (handlers.length !== 1) throw new Error("extension registered the wrong handlers")
+const result = await handlers[0]({
+  toolName: "Grep",
+  input: { pattern: "NewServer", path: "internal" },
+}, { cwd: "/repo" })
+if (result?.block !== true || result.reason !== "use find_symbol") {
+  throw new Error("unexpected hook result: " + JSON.stringify(result))
+}
+`
+	command := exec.Command(node, "--input-type=module", "--eval", harness)
+	command.Env = append(os.Environ(), "KIVGRAPH_TEST_CAPTURE="+capture, "OMP_EXTENSION="+path)
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("Oh My Pi handler failed for target=%s scope=%s path=%s: %v\n%s",
+			TargetOhMyPi, ScopeUser, path, err, output)
+	}
+	body, err := os.ReadFile(capture)
+	if err != nil {
+		t.Fatalf("Oh My Pi handler did not invoke target=%s scope=%s path=%s: %v",
+			TargetOhMyPi, ScopeUser, path, err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("Oh My Pi handler sent invalid payload for target=%s scope=%s path=%s: %v",
+			TargetOhMyPi, ScopeUser, path, err)
+	}
+	if payload["hook_event_name"] != "PreToolUse" || payload["cwd"] != "/repo" || payload["tool_name"] != "Grep" {
+		t.Fatalf("Oh My Pi handler sent payload=%#v for target=%s scope=%s path=%s",
+			payload, TargetOhMyPi, ScopeUser, path)
+	}
+	input, ok := payload["tool_input"].(map[string]any)
+	if !ok || input["pattern"] != "NewServer" || input["path"] != "internal" {
+		t.Fatalf("Oh My Pi handler sent tool_input=%#v for target=%s scope=%s path=%s",
+			payload["tool_input"], TargetOhMyPi, ScopeUser, path)
 	}
 }
 

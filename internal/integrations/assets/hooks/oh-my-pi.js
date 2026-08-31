@@ -53,6 +53,8 @@ function refusalFor(payload) {
     const timer = setTimeout(() => finish(null), DEADLINE_MS)
 
     child.on("error", () => finish(null))
+    child.stdin.on("error", () => finish(null))
+    child.stdout.on("error", () => finish(null))
     child.stdout.on("data", (chunk) => {
       answer += chunk
     })

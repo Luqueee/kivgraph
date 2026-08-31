@@ -151,8 +151,9 @@ tokensave, donde un presupuesto ahí costó más que las llamadas que desaconsej
 
 Se recuerda por `session_id` con un marcador en `<estado>/briefs`, creado con
 `O_EXCL` para que dos llamadas simultáneas no avisen las dos, y se poda a las 24
-horas. Un host que no manda `session_id` -- el plugin de OpenCode-- no recibe
-aviso ninguno: sin identidad, avisar en cada llamada sería peor que no avisar.
+horas. Un host que no manda `session_id` -- los módulos de OpenCode y Oh My Pi--
+no recibe aviso ninguno: sin identidad, avisar en cada llamada sería peor que
+no avisar.
 
 El matcher se escribe al instalar, así que una instalación anterior a esto no ve
 las llamadas MCP hasta que se reejecuta `kivgraph hook install`.

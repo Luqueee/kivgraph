@@ -116,17 +116,30 @@ func TestClassifyReadsTheQuestionOutOfTheCall(t *testing.T) {
 // same question. A classifier that only knew Claude Code's capitals would let
 // every lowercase module call through in silence.
 func TestClassifyReadsEveryDialectsSpelling(t *testing.T) {
-	for _, tool := range []string{"Bash", "bash", "shell"} {
-		question := Classify(payloadOf(t, tool, bashInput{Command: "grep -rn NewServer ."}))
-		if question.Kind != KindSymbol {
-			t.Fatalf("tool %q read as %#v", tool, question)
+	for _, testCase := range []struct {
+		tool  string
+		input any
+		want  Question
+	}{
+		{"Bash", bashInput{Command: "grep -rn NewServer ."},
+			Question{Kind: KindSymbol, Pattern: "NewServer", Paths: []string{"."}, Tool: "grep"}},
+		{"bash", bashInput{Command: "grep -rn NewServer ."},
+			Question{Kind: KindSymbol, Pattern: "NewServer", Paths: []string{"."}, Tool: "grep"}},
+		{"shell", bashInput{Command: "grep -rn NewServer ."},
+			Question{Kind: KindSymbol, Pattern: "NewServer", Paths: []string{"."}, Tool: "grep"}},
+	} {
+		got := Classify(payloadOf(t, testCase.tool, testCase.input))
+		if !questionsEqual(got, testCase.want) {
+			t.Fatalf("tool=%q input=%#v classified as %#v, want %#v",
+				testCase.tool, testCase.input, got, testCase.want)
 		}
 	}
 	for _, tool := range []string{"Task", "Agent", "task"} {
-		question := Classify(payloadOf(t, tool,
-			agentInput{SubagentType: "explore", Description: "map the indexer"}))
-		if question.Kind != KindResearchAgent {
-			t.Fatalf("tool %q read as %#v", tool, question)
+		input := agentInput{SubagentType: "explore", Description: "map the indexer"}
+		want := Question{Kind: KindResearchAgent, Pattern: "map the indexer", Tool: "agent"}
+		got := Classify(payloadOf(t, tool, input))
+		if !questionsEqual(got, want) {
+			t.Fatalf("tool=%q input=%#v classified as %#v, want %#v", tool, input, got, want)
 		}
 	}
 }
