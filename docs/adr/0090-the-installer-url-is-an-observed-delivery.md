@@ -12,9 +12,10 @@ website measures command copies, but a copied command may never run. Kivgraph
 therefore had no source for the request that actually fetched an installer,
 and no way to separate `curl`, PowerShell and automated clients.
 
-The public installation command must keep using the release asset byte for
-byte. Analytics must not become an availability dependency, and the request
-arrives before `KIVGRAPH_TELEMETRY` exists in the downloaded shell.
+The deployed public installation command still uses the release asset byte for
+byte after one redirect. Its analytics write is best effort rather than an
+availability dependency, and the request is observed before the downloaded
+shell can read `KIVGRAPH_TELEMETRY`.
 
 ## Decision
 
@@ -66,13 +67,29 @@ observed user agents require a retention bound; the scheduled job removes event
 rows older than 90 days while daily aggregates remain.
 
 The direct GitHub command is less convenient but preserves a real opt-out for
-the delivery event. Documentation must name that distinction instead of
-claiming that a shell variable can affect a request already made.
+the delivery event. The telemetry page names that distinction instead of
+claiming that a shell variable affects a request already made.
 
 ## Risks
 
 The public endpoint can be called by anyone and its request count is not a
 person count. Client-family parsing is descriptive, not authentication. A
 Cloudflare route or Worker outage could affect the landing URL, so release
-documentation retains the direct GitHub fallback and deployment smoke tests
-must follow the redirect through to the official asset.
+documentation retains the direct GitHub fallback.
+
+Both deployed routes were smoke-tested on 2026-08-31. The installer check was:
+
+```sh
+curl -fsSI https://kivgraph.dev/install.sh |
+  sed -n '1p;/^location:/Ip'
+```
+
+It returned:
+
+```text
+HTTP/2 302
+location: https://github.com/Luqueee/kivgraph/releases/latest/download/install.sh
+```
+
+The same check against `/github` returned `HTTP/2 302` and
+`location: https://github.com/Luqueee/kivgraph`.

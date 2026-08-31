@@ -100,6 +100,10 @@ published asset directly:
 curl -fsSL https://github.com/Luqueee/kivgraph/releases/latest/download/install.sh | KIVGRAPH_TELEMETRY=0 bash
 ```
 
+Kivgraph's published release assets are public, and this fallback is an
+unauthenticated public-release download. A private GitHub release would require
+an authenticated download before starting the installer.
+
 The switch below controls the installer-completed, first-run and supervisor
 events.
 
