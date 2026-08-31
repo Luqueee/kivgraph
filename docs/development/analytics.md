@@ -580,18 +580,20 @@ there.
 
 **Both halves exist now.** The endpoint is `landing/src/install-report.mjs`,
 wired in `landing/server.mjs`; the emitters are `internal/telemetry` for the
-binary and the tail of `scripts/install.sh` and `scripts/install.ps1` for the
-installers. Everything below is observed behaviour. `v0.9.3` is the first
-published release that carries the emitters; every version before it,
-`v0.9.2` included, predates them and can never have sent a row.
+binary and supervisor rows, and the tail of `scripts/install.sh` and
+`scripts/install.ps1` for the installers. The event shape and validation below
+are observed behaviour; the interpretation of its scope is labelled as
+analysis. Source version `v0.9.3` is the first one that carries the binary and
+installer emitters, and it is the latest published release. Supervisor
+telemetry is in source after that release.
 
 ### The event
 
-One event, `first_run`, on a third property, `kivgraph FIRST RUNS`, with five
-flat string fields:
+One event, `first_run`, on a third property, `kivgraph FIRST RUNS`, with up to
+five flat string fields:
 
-- **`emitter`** -- `installer` or `binary`. Which of two different facts this
-  row is;
+- **`emitter`** -- `installer`, `binary` or `supervisor`. Which of three
+  different facts this row is;
 - **`version`** -- the version that arrived, `0.9.3`, validated against the
   published version pattern *and* against the floor below;
 - **`platform`** -- `linux-amd64`, `darwin-arm64` or `windows-amd64`. The same
@@ -606,13 +608,15 @@ flat string fields:
   a hand-extracted archive and one the installer placed -- which costs
   nothing, because the installer reports its own row;
 - **`transport`** -- `stdio` or `daemon` on a `binary` row, and **absent** on
-  an `installer` one, because an installer has not started a server and
-  reporting a default it did not choose would be inventing data. It is
-  required on the rows that have it: a `binary` row without a transport is
-  refused rather than defaulted.
+  an `installer` or a `supervisor` one. The installer does not start a server;
+  supervisor registration may start one as a platform consequence, but this
+  row records registration rather than the serving arrangement. Reporting a
+  default would invent data, so a binary row without a transport is refused.
 
-One machine installing one version therefore produces **at most two rows**,
-one per emitter, and they are never added together.
+For one address and version, the endpoint accepts at most one row per emitter
+inside its 24-hour dedupe window, so up to three emitter types can be present;
+the installer has no local marker and can report again after that window. The
+rows are never added together.
 
 **A binary that is not running from a release layout reports nothing**, and
 that is the declared hole in this number. Nothing distinguishes a developer's
@@ -633,7 +637,7 @@ installation, and nothing would say so.
 object *is* the event, and `run_first` would satisfy the shape at the cost of
 being unsearchable by the name everyone will use.
 
-### Why two emitters, and why the field cannot be dropped
+### Why three emitters, and why the field cannot be dropped
 
 An installer that finished and a binary that started are different facts, and
 the second does not follow from the first: a bundle can be installed and never
@@ -648,18 +652,32 @@ it. The split is counted in `LUQUE-2232` over the releases API from `v0.1.0`
 to `v0.9.1`: `39 %` of downloads were `.mcpb` and `5 %` were the installers,
 and Layer 0 now keeps that number current instead of quoting it.
 
+`supervisor` is the third, and it exists for a reason neither of the other two
+answers: nothing in a `binary` row distinguishes a machine that ran
+`kivgraph daemon` once, unattended, from one whose owner asked the platform to
+keep it around with `kivgraph daemon install`. Registration is a separate,
+narrower fact even when the platform starts the daemon as a consequence, and
+the row is not an actor-identification claim. This is an analysis of the
+signal's scope, not a measurement of how often either path occurs. It fires
+only for the shared-daemon arrangement, which most real use never touches, so
+it is not a replacement for the other two.
+
 ### What is measured is the first run of a version
 
-**The marker governs the `binary` emitter and nothing else.** An installer has
-no marker: it reports once per successful run, and a reader who runs it three
-times sends three, which the endpoint's window collapses. The binary reports
-from the three commands that serve the MCP surface -- `serve` in process,
-`serve` relaying, and the daemon -- and from no other, because what is measured
-is a machine that ran the server and because `transport` is required on those
-rows rather than defaulted. Sharing one marker
-between the two emitters would be the bug the dedupe key already avoids --
-whichever emitter got there first would suppress the other's row, and the two
-rows are the two different facts this property exists to keep apart.
+**The marker governs the `binary` and `supervisor` emitters, in separate
+namespaces, and not the installer.** An installer has no marker: it reports
+once per successful run, and a reader who runs it three times sends three,
+which the endpoint's window collapses. The binary reports from the three
+commands that serve the MCP surface -- `serve` in process, `serve` relaying,
+and the daemon -- and from no other, because what is measured is a machine that
+ran the server and because `transport` is required on those rows rather than
+defaulted. `daemon install` succeeding reports separately, under its own
+marker namespace, because installing the daemon and running it are independent
+facts: a machine can do either first, or both, for the same version, and each
+is one row. Sharing a marker between any two of the three would be the bug the
+dedupe key already avoids for the other pair -- whichever got there first
+would suppress the rest, and the rows are the different facts this property
+exists to keep apart.
 
 The marker lives under the state directory, not the bundle root: an update
 replaces the bundle, so a marker there would fire again on every update.

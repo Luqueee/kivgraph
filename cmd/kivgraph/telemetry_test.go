@@ -69,3 +69,24 @@ func TestTheFirstRunNoticeNeverGoesToStdout(t *testing.T) {
 		t.Fatalf("the first-run notice writes to %v, want os.Stderr", notice)
 	}
 }
+
+// `daemon install` reports supervisor registration, not the serving
+// arrangement the platform may start as a consequence. Asserting a literal
+// empty string rather than "not stdio" or "not daemon" is deliberate: a
+// default that crept in here would pass either of those and still reach the
+// endpoint, which refuses a transport on a non-binary row.
+func TestSupervisorInstallOptionsCarryNoTransport(t *testing.T) {
+	state := t.TempDir()
+	loaded := config.Loaded{Config: config.Config{}}
+	loaded.Config.Storage.DatabasePath = filepath.Join(state, "kivgraph.db")
+
+	options := supervisorInstallOptions(loaded)
+	if options.Transport != "" {
+		t.Fatalf("supervisorInstallOptions(%q).Transport = %q, want empty",
+			loaded.Config.Storage.DatabasePath, options.Transport)
+	}
+	if options.StateDirectory != state {
+		t.Fatalf("supervisorInstallOptions(%q).StateDirectory = %q, want %q",
+			loaded.Config.Storage.DatabasePath, options.StateDirectory, state)
+	}
+}

@@ -269,6 +269,7 @@ func runSupervisorCommand(operation string, args []string, stdout, stderr io.Wri
 	}
 
 	if operation == "install" {
+		announceSupervisorInstall(context.Background(), loaded)
 		warnAboutAnUnreachableNode(stderr, loaded)
 	}
 	writeSupervisorReport(stdout, stderr, operation, spec, report)

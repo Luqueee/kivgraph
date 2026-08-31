@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -32,6 +33,28 @@ func collector(t *testing.T) (*httptest.Server, *[]ping, *atomic.Int64) {
 	}))
 	t.Cleanup(server.Close)
 	return server, &received, &count
+}
+
+// rawCollector keeps the wire payload so tests can distinguish an omitted
+// optional field from a field decoded as its zero value.
+func rawCollector(t *testing.T) (*httptest.Server, *[][]byte) {
+	t.Helper()
+	var mu sync.Mutex
+	received := make([][]byte, 0, 8)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		body, err := io.ReadAll(request.Body)
+		if err != nil {
+			t.Errorf("read request body: %v", err)
+			writer.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		mu.Lock()
+		received = append(received, body)
+		mu.Unlock()
+		writer.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(server.Close)
+	return server, &received
 }
 
 // releasedBinary builds the layout a release archive unpacks into and answers
@@ -201,6 +224,27 @@ func TestNoticeNamesTheVariableThatStopsIt(t *testing.T) {
 	}
 }
 
+// A supervisor row is not a "run", and has no transport to name; the notice
+// must not claim either.
+func TestNoticeNamesTheSupervisorRowDifferently(t *testing.T) {
+	server, _, _ := collector(t)
+	opts := options(t, server.URL)
+	AnnounceSupervisorInstall(context.Background(), opts)
+
+	printed := opts.Notice.(*bytes.Buffer).String()
+	if bytes.Contains([]byte(printed), []byte("first run")) {
+		t.Fatalf("the supervisor notice %q claims a \"first run\", which this is not", printed)
+	}
+	if bytes.Contains([]byte(printed), []byte("transport")) {
+		t.Fatalf("the supervisor notice %q names a transport, and the ping sent none", printed)
+	}
+	for _, want := range []string{DisableEnv + "=0", "0.9.1", "daemon install"} {
+		if !bytes.Contains([]byte(printed), []byte(want)) {
+			t.Fatalf("the notice %q does not mention %q", printed, want)
+		}
+	}
+}
+
 // An endpoint that is down must cost nothing, and must not be retried: a
 // machine with no network would otherwise report on every start forever.
 func TestAnnounceSurvivesAnEndpointThatIsNotThere(t *testing.T) {
@@ -274,6 +318,73 @@ func TestChannelOfReadsTheLayoutAroundTheExecutable(t *testing.T) {
 	}
 	if got := channelOf(""); got != "" {
 		t.Fatalf("channelOf(no path) = %q, want no channel", got)
+	}
+}
+
+// The third fact: `daemon install` reports separately from `Announce`, with no
+// transport, because this row records supervisor registration rather than the
+// serving arrangement the platform may start as a consequence.
+func TestAnnounceSupervisorInstallSendsOnePingWithNoTransport(t *testing.T) {
+	server, raw := rawCollector(t)
+	opts := options(t, server.URL)
+
+	if !AnnounceSupervisorInstall(context.Background(), opts) {
+		t.Fatal("AnnounceSupervisorInstall() = false, want a ping on the first install of a version")
+	}
+	if len(*raw) != 1 {
+		t.Fatalf("received %d pings, want 1", len(*raw))
+	}
+	var got ping
+	if err := json.Unmarshal((*raw)[0], &got); err != nil {
+		t.Fatalf("decode received ping: %v", err)
+	}
+	want := ping{
+		Emitter:  "supervisor",
+		Version:  "0.9.1",
+		Platform: runtime.GOOS + "-" + runtime.GOARCH,
+		Channel:  "archive",
+	}
+	if got != want {
+		t.Fatalf("received %+v, want %+v", got, want)
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal((*raw)[0], &fields); err != nil {
+		t.Fatalf("decode received fields: %v", err)
+	}
+	if _, present := fields["transport"]; present {
+		t.Fatalf("received supervisor ping %s with a transport field", (*raw)[0])
+	}
+}
+
+// Installing the daemon and running it once are independent facts. A machine
+// that does both for the same version has to report both, in the field that
+// exists to tell them apart.
+func TestAnnounceAndSupervisorInstallDoNotShareAMarker(t *testing.T) {
+	server, _, count := collector(t)
+	opts := options(t, server.URL)
+
+	Announce(context.Background(), opts)
+	AnnounceSupervisorInstall(context.Background(), opts)
+
+	if count.Load() != 2 {
+		t.Fatalf("the endpoint received %d pings, want 2: one binary row and one supervisor row", count.Load())
+	}
+}
+
+// Reinstalling the same version -- an upgrade of flags, a reboot that redid
+// the unit -- must not report every time, for the same reason a burst of
+// `serve` starts must not: it is one machine, not one per invocation.
+func TestAnnounceSupervisorInstallReportsOncePerVersion(t *testing.T) {
+	server, _, count := collector(t)
+	opts := options(t, server.URL)
+
+	AnnounceSupervisorInstall(context.Background(), opts)
+	AnnounceSupervisorInstall(context.Background(), opts)
+	opts.Version = "0.9.2"
+	AnnounceSupervisorInstall(context.Background(), opts)
+
+	if count.Load() != 2 {
+		t.Fatalf("the endpoint received %d pings for supervisor versions 0.9.1 and 0.9.2, want 2: one per version", count.Load())
 	}
 }
 

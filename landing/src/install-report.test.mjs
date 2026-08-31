@@ -39,6 +39,12 @@ const installer = {
   platform: "linux-amd64",
   channel: "installer",
 };
+const supervisorInstall = {
+  emitter: "supervisor",
+  version: "0.10.0",
+  platform: "linux-amd64",
+  channel: "archive",
+};
 
 describe("what is accepted", () => {
   it("takes a binary ping whole", () => {
@@ -54,6 +60,21 @@ describe("what is accepted", () => {
     // default nobody chose, in the field that exists to measure the choice.
     const forged = { ...installer, transport: "daemon" };
     assert.equal(parseFirstRun(JSON.stringify(forged)), null);
+  });
+
+  it("refuses a transport on a supervisor-install row", () => {
+    // Registration is the fact reported here. The platform may start the
+    // daemon as a consequence, but that serving arrangement is a separate
+    // binary row and must not be invented on this one.
+    const forged = { ...supervisorInstall, transport: "daemon" };
+    assert.equal(parseFirstRun(JSON.stringify(forged)), null);
+  });
+
+  it("takes a supervisor-install ping, which also carries no transport", () => {
+    assert.deepEqual(
+      parseFirstRun(JSON.stringify(supervisorInstall)),
+      supervisorInstall,
+    );
   });
 
   it("refuses a binary ping with no transport", () => {
@@ -93,12 +114,10 @@ describe("what is accepted", () => {
   it("refuses a version that has no emitter to have sent it", () => {
     // The flood that prompted this: 25 well-formed pings from 25 datacentre
     // addresses, all claiming the last release cut before the emitter existed.
-    const forged = { ...binary, version: LAST_VERSION_WITHOUT_EMITTER };
-    assert.equal(parseFirstRun(JSON.stringify(forged)), null);
-    assert.equal(
-      parseFirstRun(JSON.stringify({ ...binary, version: "0.9.1" })),
-      null,
-    );
+    for (const version of ["0.9.1", LAST_VERSION_WITHOUT_EMITTER]) {
+      const forged = { ...binary, version };
+      assert.equal(parseFirstRun(JSON.stringify(forged)), null);
+    }
     assert.equal(
       parseFirstRun(JSON.stringify({ ...installer, version: "0.8.0" })),
       null,
