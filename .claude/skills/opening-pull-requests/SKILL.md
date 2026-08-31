@@ -24,7 +24,8 @@ feedback commit.
 ## Branch naming
 
 When creating a new branch, use a conventional type followed by one short,
-lowercase, kebab-case description:
+lowercase, kebab-case description. Release branches are the one exception:
+they retain the dotted SemVer so the branch maps directly to its release tag.
 
 ```text
 feat/add-python-loader
@@ -33,7 +34,7 @@ docs/harden-release-skill
 test/cover-registry-publish
 ci/update-release-gate
 chore/refresh-tool-manifest
-release/vX.Y.Z
+release/v1.2.3
 ```
 
 Use `feat`, `fix`, `docs`, `refactor`, `test`, `ci`, `build`, `perf`, `chore`,
