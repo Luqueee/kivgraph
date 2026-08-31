@@ -85,6 +85,24 @@ registers the entry that the third fact reports.
 
 ## Turning it off
 
+Fetching an installer from `kivgraph.dev` records one delivery request before
+the shell starts: timestamp, the observed `User-Agent`, its parsed client
+family and version, whether it names a known CI runner, and the country code
+Cloudflare supplies. It stores no address, cookie or query string. The request
+then redirects to the unmodified installer asset on GitHub, and a storage
+failure never blocks that redirect.
+
+That delivery fact cannot read `KIVGRAPH_TELEMETRY`, because the environment
+belongs to the shell that has not started yet. To avoid it, fetch the same
+published asset directly:
+
+```sh
+curl -fsSL https://github.com/Luqueee/kivgraph/releases/latest/download/install.sh | KIVGRAPH_TELEMETRY=0 bash
+```
+
+The switch below controls the installer-completed, first-run and supervisor
+events.
+
 ```sh
 export KIVGRAPH_TELEMETRY=0
 ```
@@ -97,7 +115,7 @@ The installers take the same variable. It has to reach the **shell**, not the
 download:
 
 ```sh
-curl -fsSL https://kivgraph.dev/install.sh | KIVGRAPH_TELEMETRY=0 sh
+curl -fsSL https://kivgraph.dev/install.sh | KIVGRAPH_TELEMETRY=0 bash
 ```
 
 Turning it off costs you nothing: no feature checks it, and no behaviour

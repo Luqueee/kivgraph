@@ -102,7 +102,7 @@ reciente para ella, verifica el checksum del archivo y después los checksums
 internos del bundle:
 
 ```bash
-curl -fsSL https://github.com/Luqueee/kivgraph/releases/latest/download/install.sh | bash
+curl -fsSL https://kivgraph.dev/install.sh | bash
 ```
 
 El instalador no requiere Go, pnpm ni un compilador C. Para fijar una versión:

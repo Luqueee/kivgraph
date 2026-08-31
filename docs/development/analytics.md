@@ -157,6 +157,13 @@ drops without warning reads as people having stopped installing.
 off the click. In `TopBar.astro` each row writes its own event, and most rows
 write none. An internal link carries no event because it is already a pageview,
 and counting it twice would put a number in the report that no visit produced.
+
+Repository links in the top bar, footer and documentation header target
+`/github`. That edge endpoint records a separate D1 `github_click` request and
+redirects to the repository. The Umami event measures a browser interaction;
+the D1 event measures a redirect request. They can differ when JavaScript is
+blocked or when `/github` is requested directly, and neither is a person count.
+
 An external one carries an event only when there is an event that means it: the
 bar also links the [Glama listing](https://glama.ai/mcp/servers/Luqueee/kivgraph),
 which is deliberately **untracked**, because `github_click` means a click on the

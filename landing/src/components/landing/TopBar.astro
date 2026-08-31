@@ -13,7 +13,7 @@ const rows: { href: string; label: string; event?: string }[] = [
   { href: "/docs/mcp-tools/", label: "docs" },
   { href: "/blog/", label: "blog" },
   {
-    href: "https://github.com/Luqueee/kivgraph",
+    href: "/github",
     label: "github",
     event: "github_click",
   },
@@ -22,7 +22,7 @@ const rows: { href: string; label: string; event?: string }[] = [
 
 const links = rows.map((link) => ({
   ...link,
-  external: /^https?:\/\//.test(link.href),
+  external: link.href === "/github" || /^https?:\/\//.test(link.href),
 }));
 
 // The nine labels are about 590px of monospace plus eight gaps. At the old
