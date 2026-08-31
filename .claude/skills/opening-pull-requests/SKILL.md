@@ -41,7 +41,8 @@ Use `feat`, `fix`, `docs`, `refactor`, `test`, `ci`, `build`, `perf`, `chore`,
 or `release` as appropriate. Never prefix a branch with the agent, model,
 client, or automation name, including `codex/`. Keep the name specific to the
 change, avoid spaces and ticket-only names, and include a ticket identifier
-only when it improves traceability, for example `fix/LUQUE-1234-daemon-path`.
+only when it improves traceability, preserving the repository's canonical
+spelling for that identifier.
 
 Apply this convention only when creating a branch. If an existing PR already
 uses another name, keep its head branch while updating it; do not rename,
