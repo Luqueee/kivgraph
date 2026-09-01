@@ -39,7 +39,7 @@ func compositionFixture() Topology {
 func TestComposeRejectsUnknownProfile(t *testing.T) {
 	_, err := compositionFixture().Compose(ProfileID("missing"))
 	if !errors.Is(err, ErrProfileNotFound) {
-		t.Fatalf("Compose() error = %v, want ErrProfileNotFound", err)
+		t.Fatalf("Compose(missing) error = %v, want ErrProfileNotFound", err)
 	}
 	if !strings.Contains(err.Error(), "missing") {
 		t.Fatalf("Compose() error = %q, want the profile name", err)
