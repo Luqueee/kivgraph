@@ -274,7 +274,7 @@ jobs:
           test -s "$assets/$BUNDLE_NAME.mcpb.sha256"
 
       - name: Upload release archive
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-assets-${{ matrix.os }}-${{ matrix.arch }}
           path: ${{ runner.temp }}/release-assets
@@ -316,7 +316,7 @@ jobs:
           echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
 
       - name: Download platform release archives
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: release-assets-*
           path: ${{ runner.temp }}/platform-assets
@@ -359,7 +359,7 @@ jobs:
           test -s "$assets/uninstall.ps1"
 
       - name: Attest release archives
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
             release-assets/*.tar.gz
@@ -538,7 +538,7 @@ jobs:
           fetch-depth: 0
 
       - name: Download platform release archives
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: release-assets-*
           path: ${{ runner.temp }}/platform-assets
