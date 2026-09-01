@@ -178,10 +178,11 @@ func TestAURLEntryNeedsPersistedOwnershipForMigration(t *testing.T) {
 func TestAnUnverifiedCodexEndpointNeedsForce(t *testing.T) {
 	home := t.TempDir()
 	path := filepath.Join(home, ".codex", "config.toml")
+	endpoint := Endpoint{URL: "http://127.0.0.1:7788/mcp", Token: "an-old-token"}
 	previous := "[mcp_servers.kivgraph]\n" +
-		"url = \"http://127.0.0.1:7788/mcp\"\n\n" +
+		"url = \"" + endpoint.URL + "\"\n\n" +
 		"[mcp_servers.kivgraph.http_headers]\n" +
-		"Authorization = \"Bearer an-old-token\"\n"
+		"Authorization = \"Bearer " + endpoint.Token + "\"\n"
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
@@ -203,7 +204,7 @@ func TestAnUnverifiedCodexEndpointNeedsForce(t *testing.T) {
 		t.Fatalf("ambiguous endpoint status = %q, want incompatible", status.Status)
 	}
 	if _, err := manager.InstallMCP(TargetCodex, ScopeUser, false, false); err == nil {
-		t.Fatal("InstallMCP() replaced an unverified endpoint without --force")
+		t.Fatalf("InstallMCP() replaced unverified endpoint %q without --force", endpoint.URL)
 	}
 	unchanged, err := os.ReadFile(path)
 	if err != nil {

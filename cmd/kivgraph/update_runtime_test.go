@@ -529,31 +529,11 @@ func TestRefreshInstalledRuntimeDoesNotCreateMissingConfiguration(t *testing.T) 
 func TestRefreshInstalledRuntimeUsesThePersistedEndpointAsOwnershipEvidence(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	result, err := config.Initialize(config.InitOptions{})
-	if err != nil {
-		t.Fatalf("config.Initialize() error = %v", err)
-	}
-	loaded, err := config.Load(result.ConfigPath)
-	if err != nil {
-		t.Fatalf("config.Load() error = %v", err)
-	}
-	directory := stateDirectory(loaded)
-	if err := os.MkdirAll(directory, 0o700); err != nil {
-		t.Fatalf("create state directory: %v", err)
-	}
-	endpoint := daemon.Endpoint{URL: "http://127.0.0.1:7788/mcp", Token: "persisted-token"}
-	encoded, err := json.Marshal(endpoint)
-	if err != nil {
-		t.Fatalf("json.Marshal() error = %v", err)
-	}
-	if err := os.WriteFile(daemon.EndpointPath(directory), encoded, 0o600); err != nil {
-		t.Fatalf("write endpoint: %v", err)
-	}
+	executable := filepath.Join(t.TempDir(), "bin", "kivgraph")
+	oldEndpoint := integrations.Endpoint{URL: "http://127.0.0.1:7788/mcp", Token: "old-token"}
+	currentEndpoint := integrations.Endpoint{URL: "http://127.0.0.1:7799/mcp", Token: "current-token"}
 	manager, err := integrations.New(integrations.Options{
-		HomeDir: home, ProjectDir: t.TempDir(),
-		Executable: filepath.Join(t.TempDir(), "bin", "kivgraph"), GOOS: "linux", Endpoint: integrations.Endpoint{
-			URL: endpoint.URL, Token: endpoint.Token,
-		},
+		HomeDir: home, ProjectDir: t.TempDir(), Executable: executable, GOOS: "linux", Endpoint: oldEndpoint,
 	})
 	if err != nil {
 		t.Fatalf("integrations.New() error = %v", err)
@@ -563,9 +543,27 @@ func TestRefreshInstalledRuntimeUsesThePersistedEndpointAsOwnershipEvidence(t *t
 	}
 
 	var stdout, stderr bytes.Buffer
-	refresh := refreshInstalledRuntimeWithResult(filepath.Join(t.TempDir(), "bin", "kivgraph"), &stdout, &stderr)
+	refresh := refreshInstalledRuntimeWith(executable, &stdout, &stderr, runtimeRefreshDependencies{
+		readEndpoint: func(waitForRestart bool) (installedDaemonEndpointResult, bool, error) {
+			if waitForRestart {
+				return installedDaemonEndpointResult{Endpoint: currentEndpoint, PID: 123}, true, nil
+			}
+			return installedDaemonEndpointResult{Endpoint: oldEndpoint}, true, nil
+		},
+		refreshDaemon:       func(string, io.Writer) (bool, error) { return true, nil },
+		refreshIntegrations: refreshInstalledIntegrations,
+	})
 	if refresh.Err != nil {
-		t.Fatalf("refreshInstalledRuntimeWithResult() error = %v", refresh.Err)
+		t.Fatalf("refreshInstalledRuntimeWith() error = %v", refresh.Err)
+	}
+	updated, err := os.ReadFile(filepath.Join(home, ".claude.json"))
+	if err != nil {
+		t.Fatalf("read refreshed MCP config: %v", err)
+	}
+	content := string(updated)
+	if strings.Contains(content, oldEndpoint.URL) || !strings.Contains(content, currentEndpoint.URL) {
+		t.Fatalf("MCP endpoint was not refreshed from old=%q to current=%q: %s",
+			oldEndpoint.URL, currentEndpoint.URL, updated)
 	}
 }
 

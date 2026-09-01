@@ -26,25 +26,45 @@ func refreshInstalledRuntime(executable string, stdout, stderr io.Writer) error 
 	return refreshInstalledRuntimeWithResult(executable, stdout, stderr).Err
 }
 
+type runtimeRefreshDependencies struct {
+	readEndpoint        func(bool) (installedDaemonEndpointResult, bool, error)
+	refreshDaemon       func(string, io.Writer) (bool, error)
+	refreshIntegrations func(integrations.Options, integrations.Endpoint, bool, io.Writer) error
+}
+
 func refreshInstalledRuntimeWithResult(executable string, stdout, stderr io.Writer) updatePostInstallResult {
+	return refreshInstalledRuntimeWith(executable, stdout, stderr, runtimeRefreshDependencies{
+		readEndpoint: installedDaemonEndpointWithPID,
+		refreshDaemon: func(executable string, stdout io.Writer) (bool, error) {
+			return refreshSupervisedDaemonWith(executable, config.Load, supervisor.Status,
+				supervisor.Restart, stdout)
+		},
+		refreshIntegrations: refreshInstalledIntegrations,
+	})
+}
+
+func refreshInstalledRuntimeWith(
+	executable string,
+	stdout, stderr io.Writer,
+	dependencies runtimeRefreshDependencies,
+) updatePostInstallResult {
 	var failures []error
-	previousEndpoint, hasPreviousEndpoint, _ := installedDaemonEndpoint(false)
-	restarted, err := refreshSupervisedDaemonWith(executable, config.Load, supervisor.Status,
-		supervisor.Restart, stdout)
+	previousEndpointResult, hasPreviousEndpoint, _ := dependencies.readEndpoint(false)
+	restarted, err := dependencies.refreshDaemon(executable, stdout)
 	if err != nil {
 		writeWarning(stderr, "update.daemon: %v", err)
 		failures = append(failures, err)
 	}
 
-	installedEndpoint, hasEndpoint, endpointErr := installedDaemonEndpointWithPID(restarted)
+	installedEndpoint, hasEndpoint, endpointErr := dependencies.readEndpoint(restarted)
 	if endpointErr != nil {
 		failures = append(failures, endpointErr)
 	}
 	integrationOptions := integrations.Options{Executable: executable}
 	if hasPreviousEndpoint {
-		integrationOptions.PreviousEndpoint = previousEndpoint
+		integrationOptions.PreviousEndpoint = previousEndpointResult.Endpoint
 	}
-	if err := refreshInstalledIntegrations(integrationOptions, installedEndpoint.Endpoint,
+	if err := dependencies.refreshIntegrations(integrationOptions, installedEndpoint.Endpoint,
 		hasEndpoint, stdout); err != nil {
 		failures = append(failures, err)
 	}
