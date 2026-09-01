@@ -301,7 +301,8 @@ kivgraph index --full
 `toolchain install pyright` pins and installs Pyright under Kivgraph's state,
 then activates exact Python analysis in the selected configuration. For a
 project-local configuration, pass `--config .kivgraph/config.yaml`. Removing
-it requires an explicit confirmation and restores the bundled Python fallback:
+it requires an explicit confirmation and restores the bundled Python fallback
+when the selected configuration uses the managed analyzer:
 
 ```bash
 kivgraph toolchain remove pyright --yes

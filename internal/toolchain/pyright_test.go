@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
-	"strings"
 	"testing"
 )
 
@@ -72,7 +71,8 @@ func TestStatusDistinguishesMissingAndTamperedInstallations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Status(state=%q) after tampering error = %v", state, err)
 	}
-	if statuses[0].State != "broken" || !strings.Contains(statuses[0].Detail, "digest") {
+	const wantDetail = "installed files do not match the manifest digest"
+	if statuses[0].State != "broken" || statuses[0].Detail != wantDetail {
 		t.Fatalf("Status(%q, version=%q, tampered package version=%q) = %#v, want broken digest status", state, DefaultPyrightVersion, "tampered", statuses[0])
 	}
 

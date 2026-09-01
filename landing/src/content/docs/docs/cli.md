@@ -41,8 +41,9 @@ its repository registry, fact cache, canonical database and generations.
   managed by this installation.
 - `toolchain install pyright [--config PATH] [--version VERSION] [--json]`:
   Install and activate the pinned Pyright analyzer.
-- `toolchain remove pyright [--config PATH] [--yes] [--json]`: Remove the
-  managed Pyright analyzer and restore fallback mode.
+- `toolchain remove pyright [--config PATH] --yes [--json]`: Remove the managed
+  Pyright analyzer and restore fallback mode when the selected configuration
+  uses the managed analyzer.
 
 The family is explicit: indexing never installs a host dependency. The first
 managed analyzer is Pyright, installed under Kivgraph state and enabled by

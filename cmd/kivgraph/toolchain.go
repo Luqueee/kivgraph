@@ -250,6 +250,15 @@ func runToolchainRemove(tool string, args []string, stdout, stderr io.Writer) in
 		analyzerMode := python.AnalyzerMode
 		if managed {
 			analyzerMode = "fallback"
+		} else if wasManaged {
+			// The compare-and-set found a different command; report the mode now on disk.
+			_, _, refreshed, refreshErr := toolchainContext(configPath)
+			if refreshErr != nil {
+				writeWarning(stderr, "python.analyzer: could not verify configuration after concurrent change: %v", refreshErr)
+				analyzerMode = ""
+			} else {
+				analyzerMode = refreshed.AnalyzerMode
+			}
 		}
 		return writeToolchainJSON(stdout, stderr, toolchainRemoveOutput{
 			Tool:             tool,

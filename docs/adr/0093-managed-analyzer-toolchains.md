@@ -31,7 +31,10 @@ Add an explicit, language-agnostic `kivgraph toolchain` command family:
   points at the managed analyzer.
 
 The default version is an exact version, not an npm range. The selected
-configuration may be passed with `--config`; no repository files are written.
+configuration may be passed with `--config`; source files in indexed
+repositories are not modified, but the selected configuration may be updated
+by `toolchain install`, including when `--config` points to a repository-local
+file.
 The command family exposes only tools this build can install, so completion
 does not promise an unsupported future tool.
 

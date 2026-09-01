@@ -67,7 +67,7 @@ func TestToolchainInstallActivatesAndRemoveRestoresPythonFallback(t *testing.T) 
 	}
 	stateDirectory := filepath.Dir(configuration.Storage.DatabasePath)
 	if configuration.Python.AnalyzerMode != "exact" || !toolchain.IsManagedPyrightCommand(configuration.Python.AnalyzerCommand, stateDirectory) {
-		t.Fatalf("Python configuration after install = %#v", configuration.Python)
+		t.Fatalf("Python configuration after install for analyzer=%q state=%q = %#v", configuration.Python.AnalyzerCommand, stateDirectory, configuration.Python)
 	}
 	pyrightRoot := toolchain.PyrightRoot(stateDirectory)
 	if _, err := os.Stat(pyrightRoot); err != nil {
