@@ -57,13 +57,17 @@ func supervisorFlagSet(operation string, configPath *string, options *supervisor
 // a missing node runtime is worth naming, and reloading it there would be the
 // same file read twice with a second failure path for the same error.
 func supervisorSpec(configPath string, options supervisorOptions) (supervisor.Spec, config.Loaded, error) {
+	executable, err := os.Executable()
+	if err != nil {
+		return supervisor.Spec{}, config.Loaded{}, fmt.Errorf("resolve this executable: %w", err)
+	}
+	return supervisorSpecWithExecutable(configPath, options, executable)
+}
+
+func supervisorSpecWithExecutable(configPath string, options supervisorOptions, executable string) (supervisor.Spec, config.Loaded, error) {
 	loaded, err := config.Load(configPath)
 	if err != nil {
 		return supervisor.Spec{}, config.Loaded{}, fmt.Errorf("read the configuration: %w", err)
-	}
-	executable, err := os.Executable()
-	if err != nil {
-		return supervisor.Spec{}, loaded, fmt.Errorf("resolve this executable: %w", err)
 	}
 	address := options.Address
 	if options.AllowRemote && address == "" {
@@ -173,6 +177,14 @@ func nodeRuns() bool {
 // produces a unit whose contents differ, `Status` reports it stale, and this
 // falls back to what the command did before -- conservative, and it says so.
 func restartSupervisedDaemon(targets []procstat.Process) (daemonRestart, error) {
+	executable, err := os.Executable()
+	if err != nil {
+		return daemonRestart{Ownership: ownershipUnknown}, fmt.Errorf("resolve this executable: %w", err)
+	}
+	return restartSupervisedDaemonAt(executable, targets)
+}
+
+func restartSupervisedDaemonAt(executable string, targets []procstat.Process) (daemonRestart, error) {
 	loaded, err := config.Load("")
 	if err != nil {
 		// A machine with no configuration of its own has no daemon of this
@@ -198,7 +210,7 @@ func restartSupervisedDaemon(targets []procstat.Process) (daemonRestart, error) 
 	}) {
 		return daemonRestart{Ownership: ownershipUnknown}, nil
 	}
-	spec, _, err := supervisorSpec("", supervisorOptions{})
+	spec, _, err := supervisorSpecWithExecutable("", supervisorOptions{}, executable)
 	if err != nil {
 		return daemonRestart{Ownership: ownershipUnknown}, err
 	}

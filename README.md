@@ -175,8 +175,11 @@ kivgraph update
 ```
 
 The update is atomic, preserves the configuration and graph state, verifies
-the release and bundle checksums, and replaces only the installed bundle.
-Restart the MCP client after updating so it launches the new binary.
+the release and bundle checksums, and replaces the installed bundle. It also
+restarts an existing supervised daemon and refreshes Kivgraph-managed user
+hooks, skills and MCP registrations. Missing, foreign and project-scoped
+integrations are left alone. Client-owned `serve` and `ui` processes still
+need a restart, or `--stop`, to use the new binary.
 
 Development builds use a separate prerelease channel. Install one explicitly,
 then select that channel for later checks:

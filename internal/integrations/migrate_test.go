@@ -142,6 +142,90 @@ func TestAURLEntryIsMigratedBackToStdio(t *testing.T) {
 	}
 }
 
+func TestAnOldDaemonEndpointIsRefreshedWithoutForce(t *testing.T) {
+	home := t.TempDir()
+	project := t.TempDir()
+	path := filepath.Join(home, ".claude.json")
+	oldEndpoint := Endpoint{URL: "http://127.0.0.1:7788/mcp", Token: "old-token"}
+	currentEndpoint := Endpoint{URL: "http://127.0.0.1:7799/mcp", Token: "current-token"}
+	base := Options{
+		HomeDir: home, ProjectDir: project,
+		Executable: testsupport.InstalledExecutable(), GOOS: "darwin",
+	}
+	oldManager, err := New(Options{HomeDir: base.HomeDir, ProjectDir: base.ProjectDir,
+		Executable: base.Executable, GOOS: base.GOOS, Endpoint: oldEndpoint})
+	if err != nil {
+		t.Fatalf("New(old) error = %v", err)
+	}
+	if _, err := oldManager.InstallMCP(TargetClaudeCode, ScopeUser, false, false); err != nil {
+		t.Fatalf("InstallMCP(old) error = %v", err)
+	}
+	currentManager, err := New(Options{HomeDir: base.HomeDir, ProjectDir: base.ProjectDir,
+		Executable: base.Executable, GOOS: base.GOOS, Endpoint: currentEndpoint})
+	if err != nil {
+		t.Fatalf("New(current) error = %v", err)
+	}
+	status, err := currentManager.StatusMCP(TargetClaudeCode, ScopeUser)
+	if err != nil {
+		t.Fatalf("StatusMCP() error = %v", err)
+	}
+	if status.Status != statusSuperseded {
+		t.Fatalf("old endpoint status = %q, want %q", status.Status, statusSuperseded)
+	}
+	if _, err := currentManager.InstallMCP(TargetClaudeCode, ScopeUser, false, false); err != nil {
+		t.Fatalf("InstallMCP(current) error = %v", err)
+	}
+	updated, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read updated config: %v", err)
+	}
+	if strings.Contains(string(updated), oldEndpoint.Token) || !strings.Contains(string(updated), currentEndpoint.Token) {
+		t.Fatalf("endpoint was not refreshed: %s", updated)
+	}
+}
+
+func TestAnOldCodexDaemonEndpointIsRefreshedWithoutForce(t *testing.T) {
+	home := t.TempDir()
+	project := t.TempDir()
+	path := filepath.Join(home, ".codex", "config.toml")
+	oldEndpoint := Endpoint{URL: "http://127.0.0.1:7788/mcp", Token: "old-token"}
+	currentEndpoint := Endpoint{URL: "http://127.0.0.1:7799/mcp", Token: "current-token"}
+	base := Options{
+		HomeDir: home, ProjectDir: project,
+		Executable: testsupport.InstalledExecutable(), GOOS: "darwin",
+	}
+	oldManager, err := New(Options{HomeDir: base.HomeDir, ProjectDir: base.ProjectDir,
+		Executable: base.Executable, GOOS: base.GOOS, Endpoint: oldEndpoint})
+	if err != nil {
+		t.Fatalf("New(old) error = %v", err)
+	}
+	if _, err := oldManager.InstallMCP(TargetCodex, ScopeUser, false, false); err != nil {
+		t.Fatalf("InstallMCP(old) error = %v", err)
+	}
+	currentManager, err := New(Options{HomeDir: base.HomeDir, ProjectDir: base.ProjectDir,
+		Executable: base.Executable, GOOS: base.GOOS, Endpoint: currentEndpoint})
+	if err != nil {
+		t.Fatalf("New(current) error = %v", err)
+	}
+	status, err := currentManager.StatusMCP(TargetCodex, ScopeUser)
+	if err != nil {
+		t.Fatalf("StatusMCP() error = %v", err)
+	}
+	if status.Status != statusSuperseded {
+		t.Fatalf("old endpoint status = %q, want %q", status.Status, statusSuperseded)
+	}
+	if _, err := currentManager.InstallMCP(TargetCodex, ScopeUser, false, false); err != nil {
+		t.Fatalf("InstallMCP(current) error = %v", err)
+	}
+	updated, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read updated config: %v", err)
+	}
+	if strings.Contains(string(updated), oldEndpoint.Token) || !strings.Contains(string(updated), currentEndpoint.Token) {
+		t.Fatalf("endpoint was not refreshed: %s", updated)
+	}
+}
+
 // TestCodexReplacesTheTableRatherThanAppending is the same rule in Codex's
 // format, where the hazard is concrete: the file is TOML and a table appended
 // beside the old one leaves `command` and `url` under one key.

@@ -666,14 +666,20 @@ func (manager Manager) expectedTOMLEntry() map[string]any {
 	return map[string]any{"command": manager.executable, "args": []any{"serve"}}
 }
 
-// ownsOtherTOMLTransport is the Codex half of ownsOtherTransport, and it reads
-// the same way: the command form is matched including the executable, and the
-// url form structurally, because a previous daemon's port and token are not
-// knowable from here.
+// ownsOtherTOMLTransport is the Codex half of ownsOtherTransport. The command
+// form is matched including the executable, and the url form structurally,
+// because a previous daemon's port and token are not knowable from here.
 func (manager Manager) ownsOtherTOMLTransport(table map[string]any) bool {
 	if manager.endpoint.set() {
-		return valuesEqual(table, map[string]any{"command": manager.executable, "args": []any{"serve"}})
+		if valuesEqual(table, map[string]any{"command": manager.executable, "args": []any{"serve"}}) {
+			return true
+		}
+		return isEndpointTOMLTable(table)
 	}
+	return isEndpointTOMLTable(table)
+}
+
+func isEndpointTOMLTable(table map[string]any) bool {
 	address, ok := table["url"].(string)
 	if !ok || address == "" {
 		return false
@@ -689,8 +695,9 @@ func (manager Manager) ownsOtherTOMLTransport(table map[string]any) bool {
 // bearer formats the header value every one of these clients sends verbatim.
 func bearer(token string) string { return "Bearer " + token }
 
-// statusSuperseded names an entry a previous `kivgraph mcp install` wrote with
-// the other transport.
+// statusSuperseded names an entry a previous `kivgraph mcp install` wrote that
+// the current integration should replace, whether its transport or endpoint
+// identity changed.
 //
 // It is not "incompatible", and the difference is the whole reason it exists.
 // `--force` protects an entry this tool did not write -- a hand-edited one, or a
@@ -711,8 +718,14 @@ const statusSuperseded = "superseded"
 // only this tool writes under its own key.
 func (manager Manager) ownsOtherTransport(raw json.RawMessage, target Target) bool {
 	if manager.endpoint.set() {
-		return rawJSONMatches(raw, manager.stdioJSONEntry(target))
+		if rawJSONMatches(raw, manager.stdioJSONEntry(target)) {
+			return true
+		}
 	}
+	return isEndpointJSONEntry(raw)
+}
+
+func isEndpointJSONEntry(raw json.RawMessage) bool {
 	var entry map[string]any
 	if err := json.Unmarshal(raw, &entry); err != nil {
 		return false
@@ -1154,8 +1167,11 @@ func removeTOMLSection(data []byte, name string) ([]byte, error) {
 			continue
 		}
 		if strings.HasPrefix(trimmed, "[") && !strings.HasPrefix(trimmed, "[[") {
-			end = index
-			break
+			header := tomlSectionName(trimmed)
+			if header == "" || !strings.HasPrefix(header, name+".") {
+				end = index
+				break
+			}
 		}
 	}
 	if start > 0 && strings.TrimSpace(strings.TrimSuffix(lines[start-1], "\n")) == "" {
@@ -1174,12 +1190,22 @@ func removeTOMLSection(data []byte, name string) ([]byte, error) {
 }
 
 func tomlHeaderMatches(line, name string) bool {
-	header := "[" + name + "]"
-	if line == header {
-		return true
+	return tomlSectionName(line) == name
+}
+
+func tomlSectionName(line string) string {
+	if !strings.HasPrefix(line, "[") || strings.HasPrefix(line, "[[") {
+		return ""
 	}
-	rest := strings.TrimSpace(strings.TrimPrefix(line, header))
-	return rest != line && strings.HasPrefix(rest, "#")
+	close := strings.IndexByte(line, ']')
+	if close < 0 {
+		return ""
+	}
+	rest := strings.TrimSpace(line[close+1:])
+	if rest != "" && !strings.HasPrefix(rest, "#") {
+		return ""
+	}
+	return line[1:close]
 }
 
 func (manager Manager) installSkillFile(target Target, scope Scope, path string, dryRun, force bool) (Plan, error) {

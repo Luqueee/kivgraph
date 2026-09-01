@@ -905,8 +905,17 @@ func runWithSnapshotBuilder(args []string, stdout, stderr io.Writer, diagnose st
 type updateRunner func(context.Context, update.Options) (update.Result, error)
 
 func runUpdate(args []string, stdout, stderr io.Writer) int {
-	return runUpdateWithRunner(args, os.Stdin, stdout, stderr, update.Run,
-		procstat.List, signalProcess, restartSupervisedDaemon, gracefulStopSupported)
+	executable, err := os.Executable()
+	if err != nil {
+		writeCommandError(stderr, "update: resolve this executable: %v", err)
+		return 1
+	}
+	restart := func(targets []procstat.Process) (daemonRestart, error) {
+		return restartSupervisedDaemonAt(executable, targets)
+	}
+	return runUpdateWithRunnerAtExecutable(args, os.Stdin, stdout, stderr, update.Run,
+		procstat.List, signalProcess, restart, gracefulStopSupported, executable,
+		refreshInstalledRuntime)
 }
 
 // daemonOwnership is what `update` managed to establish about who owns the
@@ -987,6 +996,44 @@ func runUpdateWithRunner(
 	restart supervisedDaemonRestart,
 	graceful bool,
 ) int {
+	return runUpdateWithRunnerAndPostInstall(args, stdin, stdout, stderr, runner, list,
+		signal, restart, graceful, nil)
+}
+
+func runUpdateWithRunnerAndPostInstall(
+	args []string,
+	stdin io.Reader,
+	stdout, stderr io.Writer,
+	runner updateRunner,
+	list processLister,
+	signal processSignaller,
+	restart supervisedDaemonRestart,
+	graceful bool,
+	postInstall updatePostInstall,
+) int {
+	executable, err := os.Executable()
+	if err != nil {
+		writeCommandError(stderr, "update: resolve this executable: %v", err)
+		return 1
+	}
+	return runUpdateWithRunnerAtExecutable(args, stdin, stdout, stderr, runner, list,
+		signal, restart, graceful, executable, postInstall)
+}
+
+type updatePostInstall func(executable string, stdout, stderr io.Writer) error
+
+func runUpdateWithRunnerAtExecutable(
+	args []string,
+	stdin io.Reader,
+	stdout, stderr io.Writer,
+	runner updateRunner,
+	list processLister,
+	signal processSignaller,
+	restart supervisedDaemonRestart,
+	graceful bool,
+	executable string,
+	postInstall updatePostInstall,
+) int {
 	var options updateOptions
 	flags := updateFlagSet(&options)
 	if parsed, code := parseCommandFlags("update", flags, args, stdout, stderr); !parsed {
@@ -1004,6 +1051,7 @@ func runUpdateWithRunner(
 		APIBaseURL:     os.Getenv("KIVGRAPH_UPDATE_API_URL"),
 		CurrentVersion: version.Value,
 		Token:          os.Getenv("KIVGRAPH_GITHUB_TOKEN"),
+		ExecutablePath: executable,
 		CheckOnly:      options.CheckOnly,
 		Channel:        channel,
 	})
@@ -1024,7 +1072,18 @@ func runUpdateWithRunner(
 		return 1
 	}
 	writeSuccess(stdout, "kivgraph updated%s: %s -> %s", channelLabel(result.Channel), result.CurrentVersion, result.LatestVersion)
-	return stopStaleProcesses(stdin, stdout, stderr, list, signal, restart, options.StopStale, result.LatestVersion, graceful)
+	postInstallCode := 0
+	if postInstall != nil {
+		if err := postInstall(executable, stdout, stderr); err != nil {
+			writeCommandError(stderr, "update: refresh installed runtime integrations: %v", err)
+			postInstallCode = 1
+		}
+	}
+	stopCode := stopStaleProcesses(stdin, stdout, stderr, list, signal, restart, options.StopStale, result.LatestVersion, graceful)
+	if stopCode != 0 {
+		return stopCode
+	}
+	return postInstallCode
 }
 
 func channelLabel(channel string) string {
