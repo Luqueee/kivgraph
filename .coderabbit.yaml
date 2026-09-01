@@ -88,6 +88,7 @@ reviews:
     drafts: false
     base_branches:
       - main
+      - feat/issue-147-worktree-aware-profiles
 
   path_filters:
     # Generated or vendored. AGENTS.md lists these under "Nunca modificar":
