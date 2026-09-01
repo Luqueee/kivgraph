@@ -11,6 +11,7 @@ go_library(
         "skilllink.go",
     ],
     embedsrcs = [
+        "assets/hooks/oh-my-pi.js",
         "assets/hooks/opencode.js",
         "assets/kivgraph/SKILL.md",
     ],

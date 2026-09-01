@@ -19,6 +19,9 @@ import (
 )
 
 const (
+	// CurrentSchemaVersion is the version of a persisted topology document.
+	CurrentSchemaVersion = 1
+
 	maximumOpaqueIDBytes    = 256
 	maximumProfileIDBytes   = 64
 	sourceObservationPrefix = "obs-"
@@ -127,6 +130,7 @@ type ProfileComposition struct {
 // source state changes what a future pass observes, not an already published
 // GenerationID.
 type Topology struct {
+	Version      int                 `yaml:"version"`
 	Repositories []LogicalRepository `yaml:"repositories,omitempty"`
 	Worktrees    []Worktree          `yaml:"worktrees,omitempty"`
 	Profiles     []Profile           `yaml:"profiles,omitempty"`

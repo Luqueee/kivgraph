@@ -1430,9 +1430,9 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 			return 1
 		}
 	}
-	registry, err := workspace.NewRegistry(ctx, loaded.Repositories)
+	registry, err := registryForProfile(ctx, loaded)
 	if err != nil {
-		writeCommandError(stderr, "index --full: register repositories: %v", err)
+		writeCommandError(stderr, "index --full: register profile repositories: %v", err)
 		return 1
 	}
 	workingDirectory, err := os.Getwd()
