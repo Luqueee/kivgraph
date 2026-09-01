@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/Luqueee/kivgraph/internal/config"
+	"github.com/Luqueee/kivgraph/internal/topology"
 )
 
 // Repository is the runtime metadata registered for one source repository.
@@ -32,6 +33,7 @@ type Repository struct {
 type Registry struct {
 	repositories []Repository
 	byName       map[string]int
+	composition  *topology.ProfileComposition
 }
 
 type gitRunner func(context.Context, string, ...string) (string, error)
@@ -186,6 +188,16 @@ func (registry *Registry) Get(name string) (Repository, bool) {
 		return Repository{}, false
 	}
 	return cloneRepository(registry.repositories[index]), true
+}
+
+// Composition returns the profile membership and selected worktrees that
+// produced this registry. The result is a copy suitable for diagnostics; a
+// plain registry has no composition provenance.
+func (registry *Registry) Composition() (topology.ProfileComposition, bool) {
+	if registry == nil || registry.composition == nil {
+		return topology.ProfileComposition{}, false
+	}
+	return cloneProfileComposition(*registry.composition), true
 }
 
 func cloneRepository(repository Repository) Repository {
