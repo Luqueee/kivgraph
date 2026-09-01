@@ -9,7 +9,10 @@ go_library(
 
 go_test(
     name = "topology_test",
-    srcs = ["model_test.go"],
+    srcs = [
+        "composition_test.go",
+        "model_test.go",
+    ],
     embed = [":topology"],
     deps = ["@in_gopkg_yaml_v3//:yaml_v3"],
 )

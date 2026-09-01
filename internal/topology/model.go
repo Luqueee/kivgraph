@@ -28,6 +28,7 @@ var (
 	ErrInvalidID                = errors.New("invalid topology identity")
 	ErrInvalidSourceObservation = errors.New("invalid source observation")
 	ErrInvalidTopology          = errors.New("invalid topology")
+	ErrProfileNotFound          = errors.New("profile does not exist in topology")
 )
 
 // LogicalRepositoryID identifies a source repository independently of any
@@ -108,6 +109,17 @@ type WorktreeSelection struct {
 type Profile struct {
 	ID        ProfileID           `yaml:"id"`
 	Worktrees []WorktreeSelection `yaml:"worktrees,omitempty"`
+}
+
+// ProfileComposition is the effective registry selected by one profile. The
+// order of Worktrees and Repositories follows the profile declaration so
+// diagnostics can explain exactly which inputs formed the resolution universe.
+// It contains membership only; source-backed dependency edges are produced by
+// language providers after this composition is selected.
+type ProfileComposition struct {
+	Profile      Profile
+	Repositories []LogicalRepository
+	Worktrees    []Worktree
 }
 
 // Topology is the declarative model used to validate profile composition. It
@@ -305,6 +317,51 @@ func validateProfileID(id ProfileID) error {
 func validateGenerationID(id GenerationID) error {
 	_, err := NewGenerationID(string(id))
 	return err
+}
+
+// Compose selects one profile's effective repository and worktree set. It
+// validates the complete topology first, so a malformed or conflicting
+// declaration cannot be narrowed into an apparently valid composition.
+func (topology Topology) Compose(profileID ProfileID) (ProfileComposition, error) {
+	if err := validateProfileID(profileID); err != nil {
+		return ProfileComposition{}, fmt.Errorf("profile id: %w", err)
+	}
+	if err := topology.Validate(); err != nil {
+		return ProfileComposition{}, err
+	}
+
+	repositories := make(map[LogicalRepositoryID]LogicalRepository, len(topology.Repositories))
+	for _, repository := range topology.Repositories {
+		repositories[repository.ID] = repository
+	}
+	worktrees := make(map[WorktreeID]Worktree, len(topology.Worktrees))
+	for _, worktree := range topology.Worktrees {
+		worktrees[worktree.ID] = worktree
+	}
+	for _, profile := range topology.Profiles {
+		if profile.ID != profileID {
+			continue
+		}
+		composition := ProfileComposition{
+			Profile:      cloneProfile(profile),
+			Repositories: make([]LogicalRepository, 0, len(profile.Worktrees)),
+			Worktrees:    make([]Worktree, 0, len(profile.Worktrees)),
+		}
+		for _, selection := range profile.Worktrees {
+			worktree := worktrees[selection.Worktree]
+			composition.Worktrees = append(composition.Worktrees, worktree)
+			composition.Repositories = append(composition.Repositories, repositories[selection.Repository])
+		}
+		return composition, nil
+	}
+	return ProfileComposition{}, fmt.Errorf("profile %q: %w", profileID, ErrProfileNotFound)
+}
+
+func cloneProfile(profile Profile) Profile {
+	if profile.Worktrees != nil {
+		profile.Worktrees = append([]WorktreeSelection{}, profile.Worktrees...)
+	}
+	return profile
 }
 
 // Validate rejects ambiguous or incomplete topology rather than choosing a
