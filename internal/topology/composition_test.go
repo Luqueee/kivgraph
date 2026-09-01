@@ -70,7 +70,7 @@ func TestComposeSelectsMultipleRepositoriesInDeclarationOrder(t *testing.T) {
 	topology := compositionFixture()
 	got, err := topology.Compose(ProfileID("feature-login"))
 	if err != nil {
-		t.Fatalf("Compose() error = %v", err)
+		t.Fatalf("Compose(feature-login) error = %v", err)
 	}
 	want := ProfileComposition{
 		Profile: topology.Profiles[0],
