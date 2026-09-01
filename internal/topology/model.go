@@ -358,7 +358,9 @@ func (topology Topology) Compose(profileID ProfileID) (ProfileComposition, error
 }
 
 func cloneProfile(profile Profile) Profile {
-	profile.Worktrees = append([]WorktreeSelection(nil), profile.Worktrees...)
+	if profile.Worktrees != nil {
+		profile.Worktrees = append([]WorktreeSelection{}, profile.Worktrees...)
+	}
 	return profile
 }
 

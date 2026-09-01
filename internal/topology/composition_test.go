@@ -66,6 +66,22 @@ func TestComposeRejectsInvalidTopologyBeforeSelecting(t *testing.T) {
 	}
 }
 
+func TestComposePreservesInitializedEmptyWorktrees(t *testing.T) {
+	topology := Topology{
+		Profiles: []Profile{{
+			ID:        ProfileID("empty"),
+			Worktrees: []WorktreeSelection{},
+		}},
+	}
+	composition, err := topology.Compose(ProfileID("empty"))
+	if err != nil {
+		t.Fatalf("Compose(empty) error = %v", err)
+	}
+	if composition.Profile.Worktrees == nil {
+		t.Fatal("Compose(empty) returned a nil profile worktrees slice")
+	}
+}
+
 func TestComposeSelectsMultipleRepositoriesInDeclarationOrder(t *testing.T) {
 	topology := compositionFixture()
 	got, err := topology.Compose(ProfileID("feature-login"))
