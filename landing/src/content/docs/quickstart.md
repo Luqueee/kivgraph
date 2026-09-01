@@ -36,6 +36,19 @@ the published graph. It names the language version ceiling this binary
 type-checks Go with, which is not the `go` on your `PATH` and is the number
 that decides whether a module can be indexed at all.
 
+If you want exact Python edges, install the optional managed analyzer before
+indexing:
+
+```bash
+kivgraph toolchain install pyright
+```
+
+The command installs the pinned Pyright release under Kivgraph's state and
+activates it in the selected configuration. Use
+`--config .kivgraph/config.yaml` for a project-local configuration. The
+bundled Python worker remains available as a `CANDIDATE`-only fallback, and
+`kivgraph toolchain status` reports which mode is active.
+
 ## 3. Index and publish
 
 ```bash

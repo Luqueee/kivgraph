@@ -288,8 +288,30 @@ languages, creates or reuses `.kivgraph/`, registers the current project as
 those overrides intentionally select the configuration and registry to update.
 Use `kivgraph index --full` when you want the explicit registered-repositories
 workflow; both forms preserve the full-indexing contract.
-The command does not install language toolchains; `kivgraph doctor` reports any
-prerequisite that is missing on the host.
+The command does not install language toolchains implicitly; `kivgraph doctor`
+reports any prerequisite that is missing on the host. Optional analyzers can be
+managed explicitly by Kivgraph:
+
+```bash
+kivgraph toolchain status
+kivgraph toolchain install pyright
+kivgraph index --full
+```
+
+`toolchain install pyright` pins and installs Pyright under Kivgraph's state,
+then activates exact Python analysis in the selected configuration. For a
+project-local configuration, pass `--config .kivgraph/config.yaml`. Removing
+it requires an explicit confirmation and restores the bundled Python fallback:
+
+```bash
+kivgraph toolchain remove pyright --yes
+```
+
+The first install requires npm and network access. Later status checks and
+reusing an installed version work offline.
+
+The command family is intentionally language-agnostic; more managed analyzers
+can use it without making `index` mutate the host or a repository.
 
 Day to day:
 

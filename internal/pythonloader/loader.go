@@ -13,7 +13,9 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/toolchain"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
@@ -60,7 +62,8 @@ func RunWithOptions(ctx context.Context, options Options, repository workspace.R
 	}
 	workingDirectory = absoluteWorkingDirectory
 	command := options.IndexerCommand
-	if strings.EqualFold(strings.TrimSpace(options.AnalyzerMode), "exact") {
+	exact := strings.EqualFold(strings.TrimSpace(options.AnalyzerMode), "exact")
+	if exact {
 		command = options.AnalyzerCommand
 	}
 	args, executable, fallback, err := resolveCommand(command, options.PythonPath, workingDirectory)
@@ -103,8 +106,15 @@ func RunWithOptions(ctx context.Context, options Options, repository workspace.R
 }
 
 func resolveCommand(command, pythonPath, workingDirectory string) ([]string, string, bool, error) {
-	fields := strings.Fields(strings.TrimSpace(command))
-	if strings.EqualFold(strings.TrimSpace(command), "auto") || (len(fields) > 0 && strings.EqualFold(fields[0], "kivgraph-python-pyright")) {
+	fields, err := toolchain.SplitCommandLine(command)
+	if err != nil {
+		// Preserve the historical whitespace-based behavior for malformed or
+		// unquoted commands. Generated managed-tool commands are quote-aware;
+		// this fallback keeps an existing custom command from becoming a new
+		// resolution error merely because its path contains an apostrophe.
+		fields = strings.Fields(strings.TrimSpace(command))
+	}
+	if strings.EqualFold(strings.TrimSpace(command), "auto") || (len(fields) > 0 && strings.EqualFold(fields[0], config.DefaultPythonAnalyzerCommand)) {
 		python, err := exec.LookPath(pythonPath)
 		if err != nil {
 			return nil, "", false, fmt.Errorf("unavailable Python executable %q: %w", pythonPath, err)

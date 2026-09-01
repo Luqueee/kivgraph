@@ -96,7 +96,7 @@ func TestRustDefaultsKeepBuildArtifactsOutsideEveryRepository(t *testing.T) {
 
 	configuration, err := LoadConfig(configPath)
 	if err != nil {
-		t.Fatalf("LoadConfig() error = %v", err)
+		t.Fatalf("LoadConfig(%q) error = %v", configPath, err)
 	}
 	if configuration.Rust.AnalyzerCommand != "rust-analyzer" {
 		t.Fatalf("analyzer command = %q", configuration.Rust.AnalyzerCommand)
@@ -656,7 +656,7 @@ func TestMigrateProjectSyntheticWorkFileLeavesCustomPathUntouched(t *testing.T) 
 	}
 	configuration, err := LoadConfig(configPath)
 	if err != nil {
-		t.Fatalf("LoadConfig() error = %v", err)
+		t.Fatalf("LoadConfig(%q) error = %v", configPath, err)
 	}
 	if configuration.Go.SyntheticWorkFile != custom {
 		t.Fatalf("synthetic_work_file = %q, want custom path %q", configuration.Go.SyntheticWorkFile, custom)
@@ -728,5 +728,142 @@ func TestInitializeAtTheDefaultLocationKeepsTheDefaultState(t *testing.T) {
 	want := filepath.Join(home, ".local", "state", "kivgraph", "graph.lbdb")
 	if loaded.Config.Storage.DatabasePath != want {
 		t.Fatalf("database_path = %q, want the default %q", loaded.Config.Storage.DatabasePath, want)
+	}
+}
+
+func TestSetPythonAnalyzerChangesOnlyPythonSettings(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	writeConfigFixture(t, configPath, `version: 1
+go:
+  # keep this comment with the user's setting
+  maximum_loads: 7
+python:
+  analyzer_command: kivgraph-python-pyright
+  analyzer_mode: fallback
+`)
+
+	wantCommand := `kivgraph-python-pyright --analyzer "/tmp/pyright-langserver"`
+	wantMode := "exact"
+	if err := SetPythonAnalyzer(configPath, wantCommand, wantMode); err != nil {
+		t.Fatalf("SetPythonAnalyzer(%q, %q) error = %v", wantCommand, wantMode, err)
+	}
+	configuration, err := LoadConfig(configPath)
+	if err != nil {
+		t.Fatalf("LoadConfig(%q) error = %v", configPath, err)
+	}
+	if configuration.Python.AnalyzerMode != wantMode || configuration.Python.AnalyzerCommand != wantCommand {
+		t.Fatalf("Python analyzer for command %q and mode %q = %#v", wantCommand, wantMode, configuration.Python)
+	}
+	if configuration.Go.MaximumLoads != 7 {
+		t.Fatalf("go.maximum_loads for %q = %d, want preserved value 7", configPath, configuration.Go.MaximumLoads)
+	}
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config %q after update: %v", configPath, err)
+	}
+	if !strings.Contains(string(data), "# keep this comment") {
+		t.Fatalf("config %q lost its comments after the analyzer update: %q", configPath, data)
+	}
+}
+
+func TestSetPythonAnalyzerRejectsInvalidSettingsBeforeWriting(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	original := "version: 1\n"
+	writeConfigFixture(t, configPath, original)
+	for name, settings := range map[string][2]string{
+		"empty command": {"", "exact"},
+		"unknown mode":  {"pyright", "automatic"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			command, mode := settings[0], settings[1]
+			if err := SetPythonAnalyzer(configPath, command, mode); err == nil {
+				t.Fatalf("SetPythonAnalyzer(%q, %q) error = nil, want validation error", command, mode)
+			}
+			data, err := os.ReadFile(configPath)
+			if err != nil {
+				t.Fatalf("read config after rejected settings for command %q and mode %q: %v", command, mode, err)
+			}
+			if string(data) != original {
+				t.Fatalf("configuration changed after rejected settings for command %q and mode %q: %q", command, mode, data)
+			}
+		})
+	}
+}
+
+func TestSetPythonAnalyzerAcceptsAnEmptyPythonMapping(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	writeConfigFixture(t, configPath, "version: 1\npython:\n")
+
+	command := "kivgraph-python-pyright --analyzer '/state/pyright'"
+	if err := SetPythonAnalyzer(configPath, command, "exact"); err != nil {
+		t.Fatalf("SetPythonAnalyzer() with empty Python mapping error = %v", err)
+	}
+	configuration, err := LoadConfig(configPath)
+	if err != nil {
+		t.Fatalf("LoadConfig() after empty Python mapping update error = %v", err)
+	}
+	if configuration.Python.AnalyzerCommand != command || configuration.Python.AnalyzerMode != "exact" {
+		t.Fatalf("Python analyzer after empty mapping update = %#v", configuration.Python)
+	}
+}
+
+func TestSetPythonAnalyzerAddsMissingPythonMapping(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	writeConfigFixture(t, configPath, "version: 1\n")
+
+	command := "kivgraph-python-pyright --analyzer '/state/pyright'"
+	if err := SetPythonAnalyzer(configPath, command, "exact"); err != nil {
+		t.Fatalf("SetPythonAnalyzer() without Python mapping error = %v", err)
+	}
+	configuration, err := LoadConfig(configPath)
+	if err != nil {
+		t.Fatalf("LoadConfig() after missing Python mapping update error = %v", err)
+	}
+	if configuration.Python.AnalyzerCommand != command || configuration.Python.AnalyzerMode != "exact" {
+		t.Fatalf("Python analyzer after missing mapping update = %#v", configuration.Python)
+	}
+}
+
+func TestSetPythonAnalyzerIfCurrentMatchesAndPreservesConcurrentChange(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	writeConfigFixture(t, configPath, `version: 1
+python:
+  analyzer_command: kivgraph-python-pyright
+  analyzer_mode: fallback
+`)
+
+	wantCommand := "kivgraph-python-pyright --analyzer '/state/pyright'"
+	changed, err := SetPythonAnalyzerIfCurrent(configPath, "kivgraph-python-pyright", wantCommand, "exact")
+	if err != nil {
+		t.Fatalf("SetPythonAnalyzerIfCurrent() matching error = %v", err)
+	}
+	if !changed {
+		t.Fatal("SetPythonAnalyzerIfCurrent() matching changed = false, want true")
+	}
+	configuration, err := LoadConfig(configPath)
+	if err != nil {
+		t.Fatalf("LoadConfig() after matching update error = %v", err)
+	}
+	if configuration.Python.AnalyzerCommand != wantCommand || configuration.Python.AnalyzerMode != "exact" {
+		t.Fatalf("Python analyzer after matching update = %#v", configuration.Python)
+	}
+
+	original, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config before non-matching update: %v", err)
+	}
+	changed, err = SetPythonAnalyzerIfCurrent(configPath, "another-analyzer", "ignored", "fallback")
+	if err != nil {
+		t.Fatalf("SetPythonAnalyzerIfCurrent() non-matching error = %v", err)
+	}
+	if changed {
+		t.Fatal("SetPythonAnalyzerIfCurrent() non-matching changed = true, want false")
+	}
+	after, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config after non-matching update: %v", err)
+	}
+	if string(after) != string(original) {
+		t.Fatalf("configuration changed after non-matching update: before=%q after=%q", original, after)
 	}
 }
