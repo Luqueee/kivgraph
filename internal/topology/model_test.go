@@ -131,26 +131,26 @@ func TestIdentityConstructorsRejectMalformedValues(t *testing.T) {
 
 func TestIdentityConstructorsAcceptStableValues(t *testing.T) {
 	if _, err := NewLogicalRepositoryID("github.com/acme/service"); err != nil {
-		t.Fatal(err)
+		t.Fatalf("NewLogicalRepositoryID(%q): %v", "github.com/acme/service", err)
 	}
 	if _, err := NewWorktreeID("service-main"); err != nil {
-		t.Fatal(err)
+		t.Fatalf("NewWorktreeID(%q): %v", "service-main", err)
 	}
 	if _, err := NewProfileID("Feature_login-09."); err != nil {
-		t.Fatal(err)
+		t.Fatalf("NewProfileID(%q): %v", "Feature_login-09.", err)
 	}
 	if _, err := NewGenerationID("000042"); err != nil {
-		t.Fatal(err)
+		t.Fatalf("NewGenerationID(%q): %v", "000042", err)
 	}
 	generation, err := NewPublishedGeneration(ProfileID("feature"), GenerationID("000042"))
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("NewPublishedGeneration(%q, %q): %v", "feature", "000042", err)
 	}
 	if err := generation.Validate(); err != nil {
-		t.Fatal(err)
+		t.Fatalf("PublishedGeneration.Validate(%#v): %v", generation, err)
 	}
 	if _, err := NewSourceObservation(WorktreeID("service"), "commit", "main", false, strings.Repeat("A", 64)); err != nil {
-		t.Fatal(err)
+		t.Fatalf("NewSourceObservation(%q, %q, %q, %t, %q): %v", "service", "commit", "main", false, strings.Repeat("A", 64), err)
 	}
 }
 
