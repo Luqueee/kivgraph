@@ -17,6 +17,7 @@ import (
 	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/daemon"
 	"github.com/Luqueee/kivgraph/internal/integrations"
+	"github.com/Luqueee/kivgraph/internal/procstat"
 	"github.com/Luqueee/kivgraph/internal/supervisor"
 	"github.com/Luqueee/kivgraph/internal/update"
 )
@@ -44,6 +45,46 @@ func TestUpdatePostInstallUsesExecutableCapturedBeforeBundleSwap(t *testing.T) {
 	}
 	if runnerPath == "" || postInstallPath == "" || runnerPath != postInstallPath {
 		t.Fatalf("captured executable paths differ: runner=%q post-install=%q", runnerPath, postInstallPath)
+	}
+}
+
+func TestUpdateDoesNotRestartTheRefreshedDaemonAgain(t *testing.T) {
+	fixture := &stopFixture{processes: []procstat.Process{kivgraphProcess(51, "daemon")}}
+	postInstallCalls := 0
+	staleRestartCalls := 0
+	postInstall := func(string, io.Writer, io.Writer) updatePostInstallResult {
+		postInstallCalls++
+		return updatePostInstallResult{RefreshedDaemonPID: 51}
+	}
+	restart := func([]procstat.Process) (daemonRestart, error) {
+		staleRestartCalls++
+		return daemonRestart{PID: 51, Ownership: ownershipSupervised}, nil
+	}
+
+	var stdout, stderr bytes.Buffer
+	if code := runUpdateWithRunnerAtExecutable(nil, nil, &stdout, &stderr,
+		installedRunner(), fixture.list, fixture.signal, restart, true,
+		"/bundle/bin/kivgraph", postInstall); code != 0 {
+		t.Fatalf("runUpdateWithRunnerAtExecutable() = %d, stderr=%q", code, stderr.String())
+	}
+	if postInstallCalls != 1 {
+		t.Fatalf("post-install calls = %d, want 1", postInstallCalls)
+	}
+	if staleRestartCalls != 0 {
+		t.Fatalf("stale daemon restart calls = %d, want 0", staleRestartCalls)
+	}
+	if strings.Contains(stdout.String(), "update.stale") {
+		t.Fatalf("refreshed daemon was still treated as stale:\n%s", stdout.String())
+	}
+}
+
+func TestUpdatePostInstallResultTracksOnlyAReachableRestart(t *testing.T) {
+	result := updatePostInstallResultFor(true, true, 91, nil)
+	if result.RefreshedDaemonPID != 91 || result.Err != nil {
+		t.Fatalf("reachable restart result = %#v, want pid 91 and no error", result)
+	}
+	if result := updatePostInstallResultFor(true, false, 91, errors.New("endpoint unavailable")); result.RefreshedDaemonPID != 0 || result.Err == nil {
+		t.Fatalf("unreachable restart result = %#v, want no pid and an error", result)
 	}
 }
 
@@ -183,6 +224,7 @@ func TestRefreshInstalledIntegrationsPreservesDaemonTransport(t *testing.T) {
 	var stdout bytes.Buffer
 	if err := refreshInstalledIntegrations(integrations.Options{
 		HomeDir: home, ProjectDir: project, Executable: executable, GOOS: "linux",
+		PreviousEndpoint: oldEndpoint,
 	}, currentEndpoint, true, &stdout); err != nil {
 		t.Fatalf("refreshInstalledIntegrations() error = %v", err)
 	}
@@ -198,6 +240,15 @@ func TestRefreshInstalledIntegrationsPreservesDaemonTransport(t *testing.T) {
 	}
 	if status.Status != "managed" {
 		t.Fatalf("daemon MCP entry status = %q, want managed", status.Status)
+	}
+	data, err := os.ReadFile(filepath.Join(home, ".claude.json"))
+	if err != nil {
+		t.Fatalf("read refreshed MCP config: %v", err)
+	}
+	if content := string(data); strings.Contains(content, oldEndpoint.URL) ||
+		!strings.Contains(content, currentEndpoint.URL) {
+		t.Fatalf("MCP endpoint was not refreshed from old=%q to current=%q: %s",
+			oldEndpoint.URL, currentEndpoint.URL, data)
 	}
 }
 
@@ -463,8 +514,58 @@ func TestRefreshInstalledRuntimeDoesNotCreateMissingConfiguration(t *testing.T) 
 	if err := refreshInstalledRuntime(filepath.Join(t.TempDir(), "bin", "kivgraph"), &stdout, &stderr); err != nil {
 		t.Fatalf("refreshInstalledRuntime() error = %v", err)
 	}
+	configPath, err := config.DefaultConfigPath()
+	if err != nil {
+		t.Fatalf("config.DefaultConfigPath() error = %v", err)
+	}
+	if _, err := os.Stat(configPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("refresh created the missing configuration at %q: %v", configPath, err)
+	}
 	if stdout.Len() != 0 || stderr.Len() != 0 {
 		t.Fatalf("missing configuration wrote stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+}
+
+func TestRefreshInstalledRuntimeUsesThePersistedEndpointAsOwnershipEvidence(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	result, err := config.Initialize(config.InitOptions{})
+	if err != nil {
+		t.Fatalf("config.Initialize() error = %v", err)
+	}
+	loaded, err := config.Load(result.ConfigPath)
+	if err != nil {
+		t.Fatalf("config.Load() error = %v", err)
+	}
+	directory := stateDirectory(loaded)
+	if err := os.MkdirAll(directory, 0o700); err != nil {
+		t.Fatalf("create state directory: %v", err)
+	}
+	endpoint := daemon.Endpoint{URL: "http://127.0.0.1:7788/mcp", Token: "persisted-token"}
+	encoded, err := json.Marshal(endpoint)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	if err := os.WriteFile(daemon.EndpointPath(directory), encoded, 0o600); err != nil {
+		t.Fatalf("write endpoint: %v", err)
+	}
+	manager, err := integrations.New(integrations.Options{
+		HomeDir: home, ProjectDir: t.TempDir(),
+		Executable: filepath.Join(t.TempDir(), "bin", "kivgraph"), GOOS: "linux", Endpoint: integrations.Endpoint{
+			URL: endpoint.URL, Token: endpoint.Token,
+		},
+	})
+	if err != nil {
+		t.Fatalf("integrations.New() error = %v", err)
+	}
+	if _, err := manager.InstallMCP(integrations.TargetClaudeCode, integrations.ScopeUser, false, false); err != nil {
+		t.Fatalf("InstallMCP() error = %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	refresh := refreshInstalledRuntimeWithResult(filepath.Join(t.TempDir(), "bin", "kivgraph"), &stdout, &stderr)
+	if refresh.Err != nil {
+		t.Fatalf("refreshInstalledRuntimeWithResult() error = %v", refresh.Err)
 	}
 }
 
@@ -499,6 +600,40 @@ func TestRefreshInstalledRuntimeLeavesMissingSurfacesMissing(t *testing.T) {
 	}
 	if stdout.Len() != 0 || stderr.Len() != 0 {
 		t.Fatalf("refresh of missing runtime surfaces wrote stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+	manager, err := integrations.New(integrations.Options{
+		HomeDir: home, ProjectDir: t.TempDir(), Executable: filepath.Join(t.TempDir(), "bin", "kivgraph"), GOOS: "linux",
+	})
+	if err != nil {
+		t.Fatalf("integrations.New() error = %v", err)
+	}
+	for _, target := range integrations.HookTargets() {
+		plan, err := manager.StatusHook(target, integrations.ScopeUser)
+		if err != nil {
+			t.Fatalf("StatusHook(%s) error = %v", target, err)
+		}
+		assertPathAbsent(t, plan.Path)
+	}
+	for _, target := range integrations.SkillTargets() {
+		plan, err := manager.StatusSkill(target, integrations.ScopeUser)
+		if err != nil {
+			t.Fatalf("StatusSkill(%s) error = %v", target, err)
+		}
+		assertPathAbsent(t, plan.Path)
+	}
+	for _, target := range integrations.KnownTargets() {
+		plan, err := manager.StatusMCP(target, integrations.ScopeUser)
+		if err != nil {
+			t.Fatalf("StatusMCP(%s) error = %v", target, err)
+		}
+		assertPathAbsent(t, plan.Path)
+	}
+}
+
+func assertPathAbsent(t *testing.T, path string) {
+	t.Helper()
+	if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("runtime refresh created %q: %v", path, err)
 	}
 }
 

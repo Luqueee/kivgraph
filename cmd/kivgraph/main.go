@@ -915,7 +915,7 @@ func runUpdate(args []string, stdout, stderr io.Writer) int {
 	}
 	return runUpdateWithRunnerAtExecutable(args, os.Stdin, stdout, stderr, update.Run,
 		procstat.List, signalProcess, restart, gracefulStopSupported, executable,
-		refreshInstalledRuntime)
+		refreshInstalledRuntimeWithResult)
 }
 
 // daemonOwnership is what `update` managed to establish about who owns the
@@ -1011,16 +1011,28 @@ func runUpdateWithRunnerAndPostInstall(
 	graceful bool,
 	postInstall updatePostInstall,
 ) int {
+	var postInstallWithResult updatePostInstallWithResult
+	if postInstall != nil {
+		postInstallWithResult = func(executable string, stdout, stderr io.Writer) updatePostInstallResult {
+			return updatePostInstallResult{Err: postInstall(executable, stdout, stderr)}
+		}
+	}
 	executable, err := os.Executable()
 	if err != nil {
 		writeCommandError(stderr, "update: resolve this executable: %v", err)
 		return 1
 	}
 	return runUpdateWithRunnerAtExecutable(args, stdin, stdout, stderr, runner, list,
-		signal, restart, graceful, executable, postInstall)
+		signal, restart, graceful, executable, postInstallWithResult)
 }
 
 type updatePostInstall func(executable string, stdout, stderr io.Writer) error
+type updatePostInstallWithResult func(executable string, stdout, stderr io.Writer) updatePostInstallResult
+
+type updatePostInstallResult struct {
+	RefreshedDaemonPID int
+	Err                error
+}
 
 func runUpdateWithRunnerAtExecutable(
 	args []string,
@@ -1032,7 +1044,7 @@ func runUpdateWithRunnerAtExecutable(
 	restart supervisedDaemonRestart,
 	graceful bool,
 	executable string,
-	postInstall updatePostInstall,
+	postInstall updatePostInstallWithResult,
 ) int {
 	var options updateOptions
 	flags := updateFlagSet(&options)
@@ -1072,18 +1084,22 @@ func runUpdateWithRunnerAtExecutable(
 		return 1
 	}
 	writeSuccess(stdout, "kivgraph updated%s: %s -> %s", channelLabel(result.Channel), result.CurrentVersion, result.LatestVersion)
-	postInstallCode := 0
+	postInstallResult := updatePostInstallResult{}
 	if postInstall != nil {
-		if err := postInstall(executable, stdout, stderr); err != nil {
-			writeCommandError(stderr, "update: refresh installed runtime integrations: %v", err)
-			postInstallCode = 1
+		postInstallResult = postInstall(executable, stdout, stderr)
+		if postInstallResult.Err != nil {
+			writeCommandError(stderr, "update: refresh installed runtime integrations: %v", postInstallResult.Err)
 		}
 	}
-	stopCode := stopStaleProcesses(stdin, stdout, stderr, list, signal, restart, options.StopStale, result.LatestVersion, graceful)
+	stopCode := stopStaleProcesses(stdin, stdout, stderr, list, signal, restart, options.StopStale,
+		result.LatestVersion, graceful, postInstallResult.RefreshedDaemonPID)
 	if stopCode != 0 {
 		return stopCode
 	}
-	return postInstallCode
+	if postInstallResult.Err != nil {
+		return 1
+	}
+	return 0
 }
 
 func channelLabel(channel string) string {
@@ -1117,6 +1133,7 @@ func stopStaleProcesses(
 	stopStale bool,
 	release string,
 	graceful bool,
+	refreshedDaemonPID int,
 ) int {
 	processes, err := list()
 	if err != nil {
@@ -1126,6 +1143,11 @@ func stopStaleProcesses(
 		return 0
 	}
 	targets := stoppableProcesses(processes, os.Getpid())
+	if refreshedDaemonPID != 0 {
+		targets = slices.DeleteFunc(targets, func(target procstat.Process) bool {
+			return target.PID == refreshedDaemonPID
+		})
+	}
 	if len(targets) == 0 {
 		return 0
 	}

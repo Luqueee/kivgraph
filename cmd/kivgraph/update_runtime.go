@@ -23,7 +23,12 @@ type updateSupervisorOperation func(supervisor.Spec) (supervisor.Report, error)
 // the executable path from before the replacement: on Unix, asking the running
 // updater for its path afterwards can return the old `.previous` directory.
 func refreshInstalledRuntime(executable string, stdout, stderr io.Writer) error {
+	return refreshInstalledRuntimeWithResult(executable, stdout, stderr).Err
+}
+
+func refreshInstalledRuntimeWithResult(executable string, stdout, stderr io.Writer) updatePostInstallResult {
 	var failures []error
+	previousEndpoint, hasPreviousEndpoint, _ := installedDaemonEndpoint(false)
 	restarted, err := refreshSupervisedDaemonWith(executable, config.Load, supervisor.Status,
 		supervisor.Restart, stdout)
 	if err != nil {
@@ -31,24 +36,47 @@ func refreshInstalledRuntime(executable string, stdout, stderr io.Writer) error 
 		failures = append(failures, err)
 	}
 
-	endpoint, hasEndpoint, endpointErr := installedDaemonEndpoint(restarted)
+	installedEndpoint, hasEndpoint, endpointErr := installedDaemonEndpointWithPID(restarted)
 	if endpointErr != nil {
 		failures = append(failures, endpointErr)
 	}
-	if err := refreshInstalledIntegrations(integrations.Options{Executable: executable},
-		endpoint, hasEndpoint, stdout); err != nil {
+	integrationOptions := integrations.Options{Executable: executable}
+	if hasPreviousEndpoint {
+		integrationOptions.PreviousEndpoint = previousEndpoint
+	}
+	if err := refreshInstalledIntegrations(integrationOptions, installedEndpoint.Endpoint,
+		hasEndpoint, stdout); err != nil {
 		failures = append(failures, err)
 	}
-	return errors.Join(failures...)
+	return updatePostInstallResultFor(restarted, hasEndpoint, installedEndpoint.PID,
+		errors.Join(failures...))
+}
+
+func updatePostInstallResultFor(restarted, hasEndpoint bool, daemonPID int, err error) updatePostInstallResult {
+	result := updatePostInstallResult{Err: err}
+	if restarted && hasEndpoint {
+		result.RefreshedDaemonPID = daemonPID
+	}
+	return result
 }
 
 func installedDaemonEndpoint(waitForRestart bool) (integrations.Endpoint, bool, error) {
+	endpoint, ok, err := installedDaemonEndpointWithPID(waitForRestart)
+	return endpoint.Endpoint, ok, err
+}
+
+type installedDaemonEndpointResult struct {
+	Endpoint integrations.Endpoint
+	PID      int
+}
+
+func installedDaemonEndpointWithPID(waitForRestart bool) (installedDaemonEndpointResult, bool, error) {
 	loaded, err := config.Load("")
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return integrations.Endpoint{}, false, nil
+			return installedDaemonEndpointResult{}, false, nil
 		}
-		return integrations.Endpoint{}, false, fmt.Errorf("read the configuration for MCP refresh: %w", err)
+		return installedDaemonEndpointResult{}, false, fmt.Errorf("read the configuration for MCP refresh: %w", err)
 	}
 	directory := stateDirectory(loaded)
 	var endpoint daemon.Endpoint
@@ -59,11 +87,14 @@ func installedDaemonEndpoint(waitForRestart bool) (integrations.Endpoint, bool, 
 	}
 	if err != nil {
 		if !waitForRestart {
-			return integrations.Endpoint{}, false, nil
+			return installedDaemonEndpointResult{}, false, nil
 		}
-		return integrations.Endpoint{}, false, fmt.Errorf("wait for the refreshed daemon endpoint: %w", err)
+		return installedDaemonEndpointResult{}, false, fmt.Errorf("wait for the refreshed daemon endpoint: %w", err)
 	}
-	return integrations.Endpoint{URL: endpoint.URL, Token: endpoint.Token}, true, nil
+	return installedDaemonEndpointResult{
+		Endpoint: integrations.Endpoint{URL: endpoint.URL, Token: endpoint.Token},
+		PID:      endpoint.PID,
+	}, true, nil
 }
 
 // refreshSupervisedDaemonWith restarts an already installed supervisor. It

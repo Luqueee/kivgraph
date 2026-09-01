@@ -174,10 +174,13 @@ kivgraph update --check
 kivgraph update
 ```
 
-The update is atomic, preserves the configuration and graph state, verifies
-the release and bundle checksums, and replaces the installed bundle. It also
-restarts an existing supervised daemon and refreshes Kivgraph-managed user
-hooks, skills and MCP registrations. Missing, foreign and project-scoped
+Bundle replacement is atomic, preserves the configuration and graph state,
+verifies the release and bundle checksums, and replaces the installed bundle.
+The post-install runtime refresh may partially complete, fail, and make the
+command exit non-zero. It also restarts an installed supervised daemon and
+refreshes Kivgraph-managed user hooks, skills and MCP registrations. A stale
+supervisor returns an error and is not restarted. Missing, foreign and
+project-scoped
 integrations are left alone. Client-owned `serve` and `ui` processes still
 need a restart, or `--stop`, to use the new binary.
 

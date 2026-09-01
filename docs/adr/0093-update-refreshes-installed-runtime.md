@@ -29,19 +29,23 @@ and uses that path for every post-install operation.
 
 After the bundle is installed, it performs these operations in order:
 
-1. If the default configuration has an already installed supervisor, restart
-   that daemon with the captured executable path. A missing supervisor is not
+1. If the default configuration has an installed supervisor, restart that
+   daemon with the captured executable path. A missing supervisor is not
    provisioned as a side effect of update. A stale or unsupported supervisor
-   is reported and remains untouched.
+   is reported and remains untouched; a stale installed supervisor makes the
+   update exit non-zero.
 2. Inspect user-scoped hooks and skills for every supported client. Existing
    Kivgraph-managed or broken entries are reinstalled; absent and incompatible
    entries are left alone. Project-scoped files are not changed by a
    user-level update.
 3. Inspect existing user-scoped MCP entries. Existing `stdio` registrations
    remain `stdio`; existing daemon registrations remain daemon registrations
-   and follow the currently published endpoint when it is available. A missing
-   endpoint never converts a daemon entry into `stdio`, and missing or foreign
-   entries are not created or overwritten.
+   and follow the currently published endpoint when it is available. A stale
+   endpoint is replaceable without `--force` only when it exactly matches the
+   endpoint persisted by the daemon before the update. A URL and bearer header
+   alone are not ownership evidence. A missing endpoint never converts a
+   daemon entry into `stdio`, and missing or foreign entries are not created or
+   overwritten.
 
 The normal integration ownership rules still apply. In particular, an edited
 canonical skill is preserved as defined by ADR 0078, and the update does not

@@ -107,14 +107,16 @@ func TestAnotherInstallationStillNeedsForce(t *testing.T) {
 	}
 }
 
-// TestAURLEntryIsMigratedBackToStdio covers the reverse direction, which is what
-// `--stdio` does on a machine already pointed at a daemon. The previous token and
-// port are not knowable from here, so the recognition is structural.
-func TestAURLEntryIsMigratedBackToStdio(t *testing.T) {
+// TestAURLEntryNeedsPersistedOwnershipForMigration covers the reverse direction,
+// which is what `--stdio` does on a machine already pointed at a daemon. The
+// endpoint shape alone is ambiguous, so an explicit previous endpoint is needed
+// before a non-forced migration can replace it.
+func TestAURLEntryNeedsPersistedOwnershipForMigration(t *testing.T) {
 	home := t.TempDir()
 	path := filepath.Join(home, ".claude.json")
-	previous := []byte(`{"mcpServers":{"kivgraph":{"type":"http","url":"http://127.0.0.1:7788/mcp",` +
-		`"headers":{"Authorization":"Bearer an-old-token"}}}}` + "\n")
+	previousEndpoint := Endpoint{URL: "http://127.0.0.1:7788/mcp", Token: "an-old-token"}
+	previous := []byte(`{"mcpServers":{"kivgraph":{"type":"http","url":"` + previousEndpoint.URL + `",` +
+		`"headers":{"Authorization":"Bearer ` + previousEndpoint.Token + `"}}}}` + "\n")
 	if err := os.WriteFile(path, previous, 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
@@ -127,8 +129,39 @@ func TestAURLEntryIsMigratedBackToStdio(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
+	status, err := manager.StatusMCP(TargetClaudeCode, ScopeUser)
+	if err != nil {
+		t.Fatalf("StatusMCP() error = %v", err)
+	}
+	if status.Status != "incompatible" {
+		t.Fatalf("ambiguous endpoint status = %q, want incompatible", status.Status)
+	}
+	if _, err := manager.InstallMCP(TargetClaudeCode, ScopeUser, false, false); err == nil {
+		t.Fatal("InstallMCP(--stdio) replaced an ambiguous endpoint without --force")
+	}
+	unchanged, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read unchanged config: %v", err)
+	}
+	if string(unchanged) != string(previous) {
+		t.Fatalf("ambiguous endpoint changed without force:\n%s", unchanged)
+	}
+
+	manager, err = New(Options{
+		HomeDir: home, ProjectDir: t.TempDir(),
+		Executable: testsupport.InstalledExecutable(), GOOS: "darwin",
+		PreviousEndpoint: previousEndpoint,
+	})
+	if err != nil {
+		t.Fatalf("New() with previous endpoint error = %v", err)
+	}
+	if status, err := manager.StatusMCP(TargetClaudeCode, ScopeUser); err != nil {
+		t.Fatalf("StatusMCP() with previous endpoint error = %v", err)
+	} else if status.Status != statusSuperseded {
+		t.Fatalf("owned endpoint status = %q, want %q", status.Status, statusSuperseded)
+	}
 	if _, err := manager.InstallMCP(TargetClaudeCode, ScopeUser, false, false); err != nil {
-		t.Fatalf("InstallMCP(--stdio) over our own url entry error = %v", err)
+		t.Fatalf("InstallMCP(--stdio) over the owned url entry error = %v", err)
 	}
 	written, err := os.ReadFile(path)
 	if err != nil {
@@ -139,6 +172,45 @@ func TestAURLEntryIsMigratedBackToStdio(t *testing.T) {
 	}
 	if !strings.Contains(string(written), `"command"`) {
 		t.Fatalf("no command entry was written:\n%s", written)
+	}
+}
+
+func TestAnUnverifiedCodexEndpointNeedsForce(t *testing.T) {
+	home := t.TempDir()
+	path := filepath.Join(home, ".codex", "config.toml")
+	previous := "[mcp_servers.kivgraph]\n" +
+		"url = \"http://127.0.0.1:7788/mcp\"\n\n" +
+		"[mcp_servers.kivgraph.http_headers]\n" +
+		"Authorization = \"Bearer an-old-token\"\n"
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(previous), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	manager, err := New(Options{
+		HomeDir: home, ProjectDir: t.TempDir(),
+		Executable: testsupport.InstalledExecutable(), GOOS: "darwin",
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	status, err := manager.StatusMCP(TargetCodex, ScopeUser)
+	if err != nil {
+		t.Fatalf("StatusMCP() error = %v", err)
+	}
+	if status.Status != "incompatible" {
+		t.Fatalf("ambiguous endpoint status = %q, want incompatible", status.Status)
+	}
+	if _, err := manager.InstallMCP(TargetCodex, ScopeUser, false, false); err == nil {
+		t.Fatal("InstallMCP() replaced an unverified endpoint without --force")
+	}
+	unchanged, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read unchanged config: %v", err)
+	}
+	if string(unchanged) != previous {
+		t.Fatalf("unverified endpoint changed without force:\n%s", unchanged)
 	}
 }
 
@@ -161,7 +233,8 @@ func TestAnOldDaemonEndpointIsRefreshedWithoutForce(t *testing.T) {
 		t.Fatalf("InstallMCP(old) error = %v", err)
 	}
 	currentManager, err := New(Options{HomeDir: base.HomeDir, ProjectDir: base.ProjectDir,
-		Executable: base.Executable, GOOS: base.GOOS, Endpoint: currentEndpoint})
+		Executable: base.Executable, GOOS: base.GOOS, Endpoint: currentEndpoint,
+		PreviousEndpoint: oldEndpoint})
 	if err != nil {
 		t.Fatalf("New(current) error = %v", err)
 	}
@@ -179,8 +252,10 @@ func TestAnOldDaemonEndpointIsRefreshedWithoutForce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read updated config: %v", err)
 	}
-	if strings.Contains(string(updated), oldEndpoint.Token) || !strings.Contains(string(updated), currentEndpoint.Token) {
-		t.Fatalf("endpoint was not refreshed: %s", updated)
+	content := string(updated)
+	if strings.Contains(content, oldEndpoint.URL) || !strings.Contains(content, currentEndpoint.URL) ||
+		strings.Contains(content, oldEndpoint.Token) || !strings.Contains(content, currentEndpoint.Token) {
+		t.Fatalf("endpoint was not refreshed from old=%q to current=%q: %s", oldEndpoint.URL, currentEndpoint.URL, updated)
 	}
 }
 
@@ -203,7 +278,8 @@ func TestAnOldCodexDaemonEndpointIsRefreshedWithoutForce(t *testing.T) {
 		t.Fatalf("InstallMCP(old) error = %v", err)
 	}
 	currentManager, err := New(Options{HomeDir: base.HomeDir, ProjectDir: base.ProjectDir,
-		Executable: base.Executable, GOOS: base.GOOS, Endpoint: currentEndpoint})
+		Executable: base.Executable, GOOS: base.GOOS, Endpoint: currentEndpoint,
+		PreviousEndpoint: oldEndpoint})
 	if err != nil {
 		t.Fatalf("New(current) error = %v", err)
 	}
@@ -221,8 +297,10 @@ func TestAnOldCodexDaemonEndpointIsRefreshedWithoutForce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read updated config: %v", err)
 	}
-	if strings.Contains(string(updated), oldEndpoint.Token) || !strings.Contains(string(updated), currentEndpoint.Token) {
-		t.Fatalf("endpoint was not refreshed: %s", updated)
+	content := string(updated)
+	if strings.Contains(content, oldEndpoint.URL) || !strings.Contains(content, currentEndpoint.URL) ||
+		strings.Contains(content, oldEndpoint.Token) || !strings.Contains(content, currentEndpoint.Token) {
+		t.Fatalf("endpoint was not refreshed from old=%q to current=%q: %s", oldEndpoint.URL, currentEndpoint.URL, updated)
 	}
 }
 
@@ -237,7 +315,7 @@ func TestCodexReplacesTheTableRatherThanAppending(t *testing.T) {
 		t.Fatalf("mkdir: %v", err)
 	}
 	path := filepath.Join(codex, "config.toml")
-	previous := "model = \"o3\"\n\n[mcp_servers.kivgraph]\ncommand = \"" + escapedPath(t, executable) + "\"\nargs = [\"serve\"]\n"
+	previous := "model = \"o3\"\n\n[mcp_servers.kivgraph]\ncommand = \"" + escapedPath(t, executable) + "\"\nargs = [\"serve\"]\n\n[[plugins]]\nname = \"formatter\"\n"
 	if err := os.WriteFile(path, []byte(previous), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
@@ -266,5 +344,8 @@ func TestCodexReplacesTheTableRatherThanAppending(t *testing.T) {
 	}
 	if !strings.Contains(string(written), "model = \"o3\"") {
 		t.Fatal("the rest of the Codex configuration was lost")
+	}
+	if !strings.Contains(string(written), "name = \"formatter\"") {
+		t.Fatal("the unrelated array table was lost")
 	}
 }
