@@ -147,7 +147,10 @@ func refreshSupervisedDaemonWith(
 		return false, fmt.Errorf("inspect the daemon supervisor: %w", err)
 	}
 	switch report.State {
-	case supervisor.StateAbsent, supervisor.StateUnsupported:
+	case supervisor.StateAbsent:
+		writeInfo(stdout, "update.daemon: no installed supervisor; daemon was not provisioned")
+		return false, nil
+	case supervisor.StateUnsupported:
 		return false, nil
 	case supervisor.StateStale:
 		return false, fmt.Errorf("%w: %s", errStaleDaemonUnit, report.Detail)

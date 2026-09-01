@@ -561,7 +561,8 @@ func TestRefreshInstalledRuntimeUsesThePersistedEndpointAsOwnershipEvidence(t *t
 		t.Fatalf("read refreshed MCP config: %v", err)
 	}
 	content := string(updated)
-	if strings.Contains(content, oldEndpoint.URL) || !strings.Contains(content, currentEndpoint.URL) {
+	if strings.Contains(content, oldEndpoint.URL) || !strings.Contains(content, currentEndpoint.URL) ||
+		strings.Contains(content, oldEndpoint.Token) || !strings.Contains(content, currentEndpoint.Token) {
 		t.Fatalf("MCP endpoint was not refreshed from old=%q to current=%q: %s",
 			oldEndpoint.URL, currentEndpoint.URL, updated)
 	}
@@ -596,7 +597,7 @@ func TestRefreshInstalledRuntimeLeavesMissingSurfacesMissing(t *testing.T) {
 		&stdout, &stderr); err != nil {
 		t.Fatalf("refreshInstalledRuntime() error = %v", err)
 	}
-	if stdout.Len() != 0 || stderr.Len() != 0 {
+	if !strings.Contains(stdout.String(), "update.daemon: no installed supervisor") || stderr.Len() != 0 {
 		t.Fatalf("refresh of missing runtime surfaces wrote stdout=%q stderr=%q", stdout.String(), stderr.String())
 	}
 	manager, err := integrations.New(integrations.Options{
