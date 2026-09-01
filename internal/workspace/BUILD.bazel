@@ -38,6 +38,7 @@ go_test(
     name = "workspace_test",
     srcs = [
         "cargo_discovery_test.go",
+        "composition_test.go",
         "discovery_test.go",
         "go_discovery_test.go",
         "go_registry_test.go",

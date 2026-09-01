@@ -454,6 +454,6 @@ func TestNewComposedRegistryKeepsWorktreeVariantsIsolated(t *testing.T) {
 	mainProvenance, _ := mainRegistry.Composition()
 	maintenanceProvenance, _ := maintenanceRegistry.Composition()
 	if mainProvenance.Profile.ID == maintenanceProvenance.Profile.ID {
-		t.Fatal("variant compositions share a profile identity")
+		t.Fatalf("profile IDs for main and maintenance worktrees = %q and %q, want distinct values", mainProvenance.Profile.ID, maintenanceProvenance.Profile.ID)
 	}
 }
