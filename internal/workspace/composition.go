@@ -64,6 +64,13 @@ func newComposedRegistry(
 	if err != nil {
 		return nil, fmt.Errorf("register composed profile %q: %w", composition.Profile.ID, err)
 	}
+	for index := range registry.repositories {
+		// newRegistry preserves selected's order, which is the validated
+		// composition order. The assignment binds the runtime provider to the
+		// mutable source identity selected for this profile without making that
+		// membership an edge in the graph.
+		registry.repositories[index].Worktree = composition.Worktrees[index].ID
+	}
 	cloned := cloneProfileComposition(composition)
 	registry.composition = &cloned
 	return registry, nil

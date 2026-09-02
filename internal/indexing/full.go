@@ -14,6 +14,7 @@ import (
 	"github.com/Luqueee/kivgraph/internal/indexer"
 	"github.com/Luqueee/kivgraph/internal/metrics"
 	"github.com/Luqueee/kivgraph/internal/rebuild"
+	"github.com/Luqueee/kivgraph/internal/sourceobservation"
 	"github.com/Luqueee/kivgraph/internal/storage/generation"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
@@ -232,7 +233,7 @@ func RunFull(ctx context.Context, options FullOptions) (result FullResult, resul
 		}()
 	}
 
-	factSet, indexReport, err := indexer.Full(ctx, indexer.FullOptions{
+	indexOptions := indexer.FullOptions{
 		Profile:                           options.Profile,
 		Repositories:                      options.Repositories,
 		SyntheticWorkFile:                 options.SyntheticWorkFile,
@@ -296,7 +297,19 @@ func RunFull(ctx context.Context, options FullOptions) (result FullResult, resul
 		CacheMode:                         options.CacheMode,
 		CacheDirectory:                    options.CacheDirectory,
 		Progress:                          options.Progress,
-	})
+	}
+	manifest, err := sourceobservation.Capture(
+		ctx,
+		options.Profile,
+		options.ResolverVersion,
+		indexer.AnalyzerFingerprint(indexOptions),
+		options.Repositories,
+	)
+	if err != nil {
+		return FullResult{}, fmt.Errorf("observe index sources: %w", err)
+	}
+
+	factSet, indexReport, err := indexer.Full(ctx, indexOptions)
 	result = FullResult{IndexReport: indexReport}
 	if err != nil {
 		return result, fmt.Errorf("index repositories: %w", err)
@@ -324,6 +337,20 @@ func RunFull(ctx context.Context, options FullOptions) (result FullResult, resul
 		Store:           options.Store,
 		Metrics:         options.Metrics,
 		Progress:        options.RebuildProgress,
+		SourceManifest:  &manifest,
+		VerifySources: func(verifyCtx context.Context) error {
+			current, observeErr := sourceobservation.Capture(
+				verifyCtx,
+				options.Profile,
+				options.ResolverVersion,
+				indexer.AnalyzerFingerprint(indexOptions),
+				options.Repositories,
+			)
+			if observeErr != nil {
+				return fmt.Errorf("observe current index sources: %w", observeErr)
+			}
+			return sourceobservation.Compare(manifest, current)
+		},
 	})
 	result.RebuildReport = rebuildReport
 	if err != nil {

@@ -284,8 +284,8 @@ func TestNewComposedRegistryUsesRealGitMetadataThroughExportedAPI(t *testing.T) 
 	if _, err := NewComposedRegistry(noContext(), source, composition); err != nil {
 		t.Fatalf("NewComposedRegistry(nil) error = %v", err)
 	}
-	if repository, ok := registry.Get("frontend"); !ok || repository.Branch != "main" || repository.Dirty {
-		t.Fatalf("registered Git metadata = %#v, want clean main worktree", repository)
+	if repository, ok := registry.Get("frontend"); !ok || repository.Branch != "main" || repository.Dirty || repository.Worktree != "frontend-main" {
+		t.Fatalf("registered Git metadata = %#v, want clean selected main worktree", repository)
 	}
 }
 
@@ -377,6 +377,7 @@ func TestNewComposedRegistryUsesSelectedWorktreesAndRetainsProviderMetadata(t *t
 	want := []Repository{
 		{
 			Name:       "frontend",
+			Worktree:   "frontend-feature",
 			Path:       frontend,
 			RealPath:   frontend,
 			Commit:     "commit",
@@ -388,6 +389,7 @@ func TestNewComposedRegistryUsesSelectedWorktreesAndRetainsProviderMetadata(t *t
 		},
 		{
 			Name:      "backend",
+			Worktree:  "backend-feature",
 			Path:      backend,
 			RealPath:  backend,
 			Commit:    "commit",
@@ -450,6 +452,9 @@ func TestNewComposedRegistryKeepsWorktreeVariantsIsolated(t *testing.T) {
 	}
 	if mainRegistry.List()[0].Path != mainWorktree || maintenanceRegistry.List()[0].Path != maintenanceWorktree {
 		t.Fatalf("variant paths = %q and %q, want isolated worktrees", mainRegistry.List()[0].Path, maintenanceRegistry.List()[0].Path)
+	}
+	if mainRegistry.List()[0].Worktree != "main" || maintenanceRegistry.List()[0].Worktree != "maintenance" {
+		t.Fatalf("variant source identities = %q and %q, want selected worktrees", mainRegistry.List()[0].Worktree, maintenanceRegistry.List()[0].Worktree)
 	}
 	mainProvenance, _ := mainRegistry.Composition()
 	maintenanceProvenance, _ := maintenanceRegistry.Composition()

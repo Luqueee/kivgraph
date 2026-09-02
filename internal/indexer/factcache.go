@@ -7,24 +7,21 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/csharploader"
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/goworkspace"
 	"github.com/Luqueee/kivgraph/internal/javaloader"
 	"github.com/Luqueee/kivgraph/internal/pythonloader"
+	"github.com/Luqueee/kivgraph/internal/sourceobservation"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
@@ -783,6 +780,13 @@ func lockfilePaths(root string) []string {
 	return paths
 }
 
+// AnalyzerFingerprint identifies what produces the facts, so an entry written
+// by one configuration is never treated as the product of another. Generation
+// source observations store the same value beside their captured inputs.
+func AnalyzerFingerprint(options FullOptions) string {
+	return analyzerFingerprint(options)
+}
+
 // analyzerFingerprint identifies what produces the facts, so an entry written
 // by one build of Kivgraph is never served to another.
 //
@@ -973,104 +977,33 @@ func (memo *fingerprintMemo) compute(key string, produce func() string) string {
 // thousands of files that are a function of the lockfile, which is hashed
 // instead: a hand-edited node_modules does not invalidate an entry.
 func treeFingerprint(root string) string {
-	if strings.TrimSpace(root) == "" {
+	digest, err := sourceobservation.TreeDigest(context.Background(), root)
+	if err == nil {
+		return digest
+	}
+	if errors.Is(err, sourceobservation.ErrAbsent) {
 		return "absent"
 	}
-	info, err := os.Stat(root)
-	if err != nil {
-		return "absent"
-	}
-	if !info.IsDir() {
-		return fileFingerprint(root)
-	}
-	hash := sha256.New()
-	walkErr := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if entry.IsDir() {
-			switch entry.Name() {
-			case "node_modules", ".git":
-				return fs.SkipDir
-			}
-			return nil
-		}
-		if !isFingerprintedSource(entry.Name()) {
-			return nil
-		}
-		relative, err := filepath.Rel(root, path)
-		if err != nil {
-			return err
-		}
-		file, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		defer file.Close()
-		fmt.Fprintf(hash, "%s\x00", filepath.ToSlash(relative))
-		if _, err := io.Copy(hash, file); err != nil {
-			return err
-		}
-		fmt.Fprint(hash, "\x00")
-		return nil
-	})
-	if walkErr != nil {
-		return "unreadable"
-	}
-	return hex.EncodeToString(hash.Sum(nil))
+	return "unreadable"
 }
 
 func fileFingerprint(path string) string {
-	file, err := os.Open(path)
-	if err != nil {
+	digest, err := sourceobservation.FileDigest(context.Background(), path)
+	if err == nil {
+		return digest
+	}
+	if errors.Is(err, sourceobservation.ErrAbsent) {
 		return "absent"
 	}
-	defer file.Close()
-	info, err := file.Stat()
-	if err != nil {
-		return "unreadable"
-	}
-	hash := sha256.New()
-	fmt.Fprintf(hash, "size=%s\x00", strconv.FormatInt(info.Size(), 10))
-	if _, err := io.Copy(hash, file); err != nil {
-		return "unreadable"
-	}
-	return hex.EncodeToString(hash.Sum(nil))
-}
-
-// fingerprintedExtensions is every extension a language this build analyses is
-// written in.
-//
-// It is derived from config rather than listed here, because listing it here is
-// how Rust went missing: the switch this replaces named nine extensions across
-// four languages and `.rs` was not one of them, so `treeFingerprint` over a
-// crate matched no file at all and hashed the empty string. Every Rust unit
-// therefore had a constant tree fingerprint, and an edit to a `.rs` file
-// invalidated nothing.
-var fingerprintedExtensions = config.SourceExtensionSet(config.SupportedLanguages())
-
-// fingerprintedManifests are the files that decide how those languages are
-// built. A change to one of them can change facts without any source changing.
-var fingerprintedManifests = map[string]struct{}{
-	"go.mod": {}, "go.sum": {}, "go.work": {}, "go.work.sum": {},
-	"package.json": {}, "tsconfig.json": {},
-	"cargo.toml": {}, "cargo.lock": {},
-	"pyproject.toml": {}, "setup.py": {}, "setup.cfg": {}, "requirements.txt": {},
-	"pipfile": {}, "pipfile.lock": {}, "poetry.lock": {}, "uv.lock": {},
-	"pubspec.yaml": {}, "pubspec.lock": {}, "analysis_options.yaml": {},
+	return "unreadable"
 }
 
 // isFingerprintedSource is what a unit can read: the languages this indexer
-// analyses, plus the manifests that decide how they are built.
+// analyses, plus the manifests that decide how they are built. It shares the
+// source-observation policy so the fact cache and a published generation do
+// not disagree about which changed inputs require fresh facts.
 func isFingerprintedSource(name string) bool {
-	base := strings.ToLower(filepath.Base(name))
-	if _, ok := fingerprintedManifests[base]; ok {
-		return true
-	}
-	if strings.HasPrefix(base, "requirements-") && strings.HasSuffix(base, ".txt") {
-		return true
-	}
-	return config.HasSourceExtension(fingerprintedExtensions, name)
+	return sourceobservation.IsAnalyzedSource(name)
 }
 
 // sameFacts reports what differs between a stored entry and a fresh analysis.
