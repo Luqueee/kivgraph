@@ -143,12 +143,14 @@ func TestComposedProfileDoesNotCreateEdgesFromCoMembership(t *testing.T) {
 func TestComposedProfileResolvesGoEdgesAcrossSelectedWorktrees(t *testing.T) {
 	registry, workFile := newComposedGoFixture(t, true)
 	composition, present := registry.Composition()
+	fixture := fmt.Sprintf("workFile=%q, worktrees=%#v", workFile, composition.Worktrees)
 	if !present || len(composition.Worktrees) != 2 {
-		t.Fatalf("composition = %#v, present %t, want two selected worktrees", composition, present)
+		t.Fatalf("composition (%s) = %#v, present %t, want two selected worktrees",
+			fixture, composition, present)
 	}
 	for _, worktree := range composition.Worktrees {
 		if worktree.Path == "" {
-			t.Fatalf("composition worktree = %#v, want an observed path", worktree)
+			t.Fatalf("composition worktree (%s) = %#v, want an observed path", fixture, worktree)
 		}
 	}
 
@@ -162,14 +164,16 @@ func TestComposedProfileResolvesGoEdgesAcrossSelectedWorktrees(t *testing.T) {
 		}
 		found = true
 		if !edge.Confidence.Exact() || edge.Provenance != facts.GoObjectPath {
-			t.Fatalf("cross-repository edge = %#v, want exact Go object-path evidence", edge)
+			t.Fatalf("cross-repository edge (%s) = %#v, want exact Go object-path evidence",
+				fixture, edge)
 		}
 		if edge.EvidenceKey == "" {
-			t.Fatalf("cross-repository edge = %#v, want source evidence", edge)
+			t.Fatalf("cross-repository edge (%s) = %#v, want source evidence", fixture, edge)
 		}
 	}
 	if !found {
-		t.Fatalf("no exact edge with dependency=true from consumer.Total to provider.Value: %#v", set.Edges)
+		t.Fatalf("no exact edge with dependency=true from consumer.Total to provider.Value (%s): %#v",
+			fixture, set.Edges)
 	}
 }
 
