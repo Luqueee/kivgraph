@@ -157,11 +157,25 @@ func TestAUserDropInMakesAUnitUnrepairable(t *testing.T) {
 }
 
 func TestAUnreadableDropInPathIsAnInspectionError(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "not-a-directory")
-	if err := os.WriteFile(path, []byte("file"), 0o600); err != nil {
-		t.Fatalf("write non-directory: %v", err)
+	home := t.TempDir()
+	testsupport.SetHome(t, home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	spec := testSpec(t.TempDir())
+	t.Setenv("PATH", "/usr/bin:/bin")
+	planned, err := Status(spec)
+	if err != nil {
+		t.Fatalf("Status() = %v", err)
 	}
-	if _, err := hasDropIns(path); err == nil || !strings.Contains(err.Error(), "read drop-ins") {
-		t.Fatalf("hasDropIns(%q) error = %v, want a named inspection error", path, err)
+	if err := os.MkdirAll(filepath.Dir(planned.Path), 0o755); err != nil {
+		t.Fatalf("create unit directory: %v", err)
+	}
+	if err := os.WriteFile(planned.Path, renderedUnit(t, spec), 0o644); err != nil {
+		t.Fatalf("write unit: %v", err)
+	}
+	if err := os.WriteFile(planned.Path+".d", []byte("not a directory"), 0o600); err != nil {
+		t.Fatalf("write invalid drop-in path: %v", err)
+	}
+	if _, err := Status(spec); err == nil || !strings.Contains(err.Error(), "read drop-ins") {
+		t.Fatalf("Status() with an invalid drop-in path error = %v, want a named inspection error", err)
 	}
 }

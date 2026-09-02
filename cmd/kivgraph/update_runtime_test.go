@@ -297,10 +297,10 @@ func TestRefreshSupervisedDaemonRepairsManagedStaleUnit(t *testing.T) {
 		return loaded, nil
 	}, status, restart, &stdout)
 	if err != nil {
-		t.Fatalf("refreshSupervisedDaemonWith() error = %v", err)
+		t.Fatalf("%s: refreshSupervisedDaemonWith() error = %v", t.Name(), err)
 	}
 	if !refreshed || !restarted {
-		t.Fatalf("refreshSupervisedDaemonWith() = refreshed %t, restarted %t; want both", refreshed, restarted)
+		t.Fatalf("%s: refreshSupervisedDaemonWith() = refreshed %t, restarted %t; want both", t.Name(), refreshed, restarted)
 	}
 }
 

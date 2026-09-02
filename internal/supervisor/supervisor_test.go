@@ -316,21 +316,21 @@ func TestRestartRepairsOnlyAnOwnedLegacyUnit(t *testing.T) {
 					return Report{State: StateInstalled}, nil
 				})
 			if err != nil {
-				t.Fatalf("restartWith() error = %v", err)
+				t.Fatalf("%s: restartWith() error = %v", t.Name(), err)
 			}
 			wantState := StateStale
 			if report.Managed && report.Repairable {
 				wantState = StateInstalled
 			}
 			if got.State != wantState {
-				t.Fatalf("restartWith() state = %q, want %q", got.State, wantState)
+				t.Fatalf("%s: restartWith() state = %q, want %q", t.Name(), got.State, wantState)
 			}
 			wantRepair, wantRestart := 0, 0
 			if report.Managed && report.Repairable {
 				wantRepair, wantRestart = 1, 1
 			}
 			if repaired != wantRepair || restarted != wantRestart {
-				t.Fatalf("repair/restart calls = %d/%d, want %d/%d", repaired, restarted, wantRepair, wantRestart)
+				t.Fatalf("%s: repair/restart calls = %d/%d, want %d/%d", t.Name(), repaired, restarted, wantRepair, wantRestart)
 			}
 		})
 	}
