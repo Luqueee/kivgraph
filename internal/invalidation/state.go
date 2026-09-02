@@ -31,6 +31,9 @@ const (
 	// StateFileName is the installation-level file containing the reverse index
 	// and the stale diagnostics for every profile.
 	StateFileName = "source-invalidation.json"
+
+	maxDetailSegments = 8
+	maxDetailChars    = 512
 )
 
 var (
@@ -332,6 +335,9 @@ func (manager *Manager) MarkStale(ctx context.Context, worktree topology.Worktre
 	if reason == "" {
 		return errors.New("invalidation reason is required")
 	}
+	if reason == ReasonSourceAdded || reason == ReasonSourceRemoved {
+		return errors.New("source membership changes require a profile manifest")
+	}
 	if strings.TrimSpace(detail) == "" {
 		return errors.New("invalidation detail is required")
 	}
@@ -367,8 +373,13 @@ func (manager *Manager) mutate(ctx context.Context, mutate func(*State) error) e
 	if err != nil {
 		return err
 	}
+	before := cloneState(state)
 	if err := mutate(&state); err != nil {
 		return err
+	}
+	if equalJSON(before, state) {
+		manager.state = state
+		return nil
 	}
 	if err := rebuildSources(&state); err != nil {
 		return err
@@ -414,6 +425,10 @@ func markStale(state *State, requestedProfile string, changes []SourceChange) {
 		tracked.Stale = true
 		for _, change := range changes {
 			profileChange := change
+			if (profileChange.Reason == ReasonSourceAdded || profileChange.Reason == ReasonSourceRemoved) &&
+				profile != requestedProfile {
+				continue
+			}
 			if profileChange.Worktree == "" {
 				if profile != requestedProfile {
 					continue
@@ -455,9 +470,11 @@ func staleReason(changes []SourceChange) string {
 }
 
 func mergeChange(changes *[]SourceChange, incoming SourceChange) {
+	incoming.Detail = boundDetail(incoming.Detail)
 	for index := range *changes {
 		current := &(*changes)[index]
-		if current.Worktree != incoming.Worktree || current.Repository != incoming.Repository {
+		if current.Worktree != incoming.Worktree || current.Repository != incoming.Repository ||
+			(incoming.Worktree == "" && current.Reason != incoming.Reason) {
 			continue
 		}
 		if current.Before == nil {
@@ -476,23 +493,72 @@ func mergeChange(changes *[]SourceChange, incoming SourceChange) {
 		return
 	}
 	*changes = append(*changes, cloneChange(incoming))
-	sort.Slice(*changes, func(left, right int) bool {
+	sort.SliceStable(*changes, func(left, right int) bool {
 		if (*changes)[left].Worktree != (*changes)[right].Worktree {
 			return (*changes)[left].Worktree < (*changes)[right].Worktree
 		}
-		return (*changes)[left].Repository < (*changes)[right].Repository
+		if (*changes)[left].Repository != (*changes)[right].Repository {
+			return (*changes)[left].Repository < (*changes)[right].Repository
+		}
+		return (*changes)[left].Reason < (*changes)[right].Reason
 	})
 }
 
 func joinDetail(first, second string) string {
 	first, second = strings.TrimSpace(first), strings.TrimSpace(second)
 	if first == "" {
-		return second
+		return boundDetail(second)
 	}
 	if second == "" || first == second || strings.Contains(first, second) {
-		return first
+		return boundDetail(first)
 	}
-	return first + "; " + second
+
+	segments := detailSegments(first)
+	for _, candidate := range detailSegments(second) {
+		if len(segments) >= maxDetailSegments || detailContained(segments, candidate) {
+			continue
+		}
+		joined := append(append([]string(nil), segments...), candidate)
+		if len([]rune(strings.Join(joined, "; "))) > maxDetailChars {
+			break
+		}
+		segments = joined
+	}
+	return boundDetail(strings.Join(segments, "; "))
+}
+
+func detailSegments(detail string) []string {
+	parts := strings.Split(strings.TrimSpace(detail), "; ")
+	segments := make([]string, 0, min(len(parts), maxDetailSegments))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		segments = append(segments, part)
+		if len(segments) == maxDetailSegments {
+			break
+		}
+	}
+	return segments
+}
+
+func detailContained(segments []string, candidate string) bool {
+	for _, segment := range segments {
+		if segment == candidate || strings.Contains(segment, candidate) {
+			return true
+		}
+	}
+	return false
+}
+
+func boundDetail(detail string) string {
+	detail = strings.TrimSpace(detail)
+	runes := []rune(detail)
+	if len(runes) <= maxDetailChars {
+		return detail
+	}
+	return string(runes[:maxDetailChars-1]) + "…"
 }
 
 func reasonPriority(reason Reason) int {
