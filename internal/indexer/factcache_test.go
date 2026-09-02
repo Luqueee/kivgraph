@@ -485,6 +485,20 @@ func TestAnalyzerFingerprintWatchesThePythonProducerThatRuns(t *testing.T) {
 	}
 }
 
+func TestObservedAnalyzerFingerprintIsStable(t *testing.T) {
+	first, err := AnalyzerFingerprint(FullOptions{TypeScriptWorker: "kivgraph-ts-worker"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := AnalyzerFingerprint(FullOptions{TypeScriptWorker: "kivgraph-ts-worker"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first != second {
+		t.Fatalf("AnalyzerFingerprint() = %q then %q, want stable observations", first, second)
+	}
+}
+
 // TestAnalyzerIdentityFollowsTheGoCommand keeps entries from surviving a
 // change in the toolchain that produces them. go/types is linked into this
 // binary, but the standard library it checks against and the versions the

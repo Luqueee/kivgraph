@@ -298,18 +298,26 @@ func RunFull(ctx context.Context, options FullOptions) (result FullResult, resul
 		CacheDirectory:                    options.CacheDirectory,
 		Progress:                          options.Progress,
 	}
+	effectiveRepositories, err := indexer.ResolveRepositories(indexOptions)
+	if err != nil {
+		return FullResult{}, fmt.Errorf("resolve effective index sources: %w", err)
+	}
+	analyzerFingerprint, err := indexer.AnalyzerFingerprint(indexOptions)
+	if err != nil {
+		return FullResult{}, fmt.Errorf("observe index analyzer configuration: %w", err)
+	}
 	manifest, err := sourceobservation.Capture(
 		ctx,
 		options.Profile,
 		options.ResolverVersion,
-		indexer.AnalyzerFingerprint(indexOptions),
-		options.Repositories,
+		analyzerFingerprint,
+		effectiveRepositories,
 	)
 	if err != nil {
 		return FullResult{}, fmt.Errorf("observe index sources: %w", err)
 	}
 
-	factSet, indexReport, err := indexer.Full(ctx, indexOptions)
+	factSet, indexReport, err := indexer.FullWithRepositories(ctx, indexOptions, effectiveRepositories)
 	result = FullResult{IndexReport: indexReport}
 	if err != nil {
 		return result, fmt.Errorf("index repositories: %w", err)
@@ -339,12 +347,20 @@ func RunFull(ctx context.Context, options FullOptions) (result FullResult, resul
 		Progress:        options.RebuildProgress,
 		SourceManifest:  &manifest,
 		VerifySources: func(verifyCtx context.Context) error {
+			currentRepositories, resolveErr := indexer.ResolveRepositories(indexOptions)
+			if resolveErr != nil {
+				return fmt.Errorf("resolve current index sources: %w", resolveErr)
+			}
+			currentAnalyzerFingerprint, analyzerErr := indexer.AnalyzerFingerprint(indexOptions)
+			if analyzerErr != nil {
+				return fmt.Errorf("observe current analyzer configuration: %w", analyzerErr)
+			}
 			current, observeErr := sourceobservation.Capture(
 				verifyCtx,
 				options.Profile,
 				options.ResolverVersion,
-				indexer.AnalyzerFingerprint(indexOptions),
-				options.Repositories,
+				currentAnalyzerFingerprint,
+				currentRepositories,
 			)
 			if observeErr != nil {
 				return fmt.Errorf("observe current index sources: %w", observeErr)

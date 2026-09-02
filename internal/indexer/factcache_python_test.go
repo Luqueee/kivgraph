@@ -70,12 +70,19 @@ func TestAnalyzerFingerprintIsStableWithoutAnyAnalyzer(t *testing.T) {
 // language on every pass. Nothing about that is visible: a pass that should
 // have been warm is simply slow.
 //
-// `go` present and failing keeps the timestamp, because then the toolchain
-// identity could not be read rather than being absent.
+// A present but failing `go` is a separate observation error because its
+// toolchain identity could not be read rather than being absent.
 func TestGoEnvironmentFingerprintIsStableWithoutTheToolchain(t *testing.T) {
 	t.Setenv("PATH", testsupport.TempDir(t))
-	absent := goEnvironmentFingerprint()
-	if absent != goEnvironmentFingerprint() {
+	absent, err := goEnvironmentFingerprint()
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := goEnvironmentFingerprint()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if absent != again {
 		t.Fatal("the Go environment fingerprint changes between two reads with no toolchain installed, so the fact cache is off for every language")
 	}
 	if absent != "absent" {

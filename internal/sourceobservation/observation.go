@@ -60,6 +60,7 @@ type Policy struct {
 // observation carries the mutable worktree identity and its captured state.
 type Source struct {
 	Repository  string                     `json:"repository"`
+	Derived     bool                       `json:"derived,omitempty"`
 	Observation topology.SourceObservation `json:"observation"`
 	Policy      Policy                     `json:"policy"`
 }
@@ -135,9 +136,19 @@ func Capture(
 		if err != nil {
 			return Manifest{}, fmt.Errorf("observe source repository %q content: %w", name, err)
 		}
-		refreshed, err := workspace.RefreshRepositoryState(ctx, repository)
-		if err != nil {
-			return Manifest{}, fmt.Errorf("observe source repository %q state: %w", name, err)
+		refreshed := repository
+		if repository.Derived {
+			// A provider discovered by an analyzer has no Git worktree. Its
+			// content digest is both the complete source state and its stable
+			// revision token; the empty branch truthfully says no branch exists.
+			refreshed.Commit = "content-" + digest
+			refreshed.Branch = ""
+			refreshed.Dirty = false
+		} else {
+			refreshed, err = workspace.RefreshRepositoryState(ctx, repository)
+			if err != nil {
+				return Manifest{}, fmt.Errorf("observe source repository %q state: %w", name, err)
+			}
 		}
 		worktree, err := sourceWorktreeID(refreshed)
 		if err != nil {
@@ -149,6 +160,7 @@ func Capture(
 		}
 		manifest.Sources = append(manifest.Sources, Source{
 			Repository:  name,
+			Derived:     refreshed.Derived,
 			Observation: observation,
 			Policy: Policy{
 				Languages:  append([]string(nil), refreshed.Languages...),
@@ -193,7 +205,8 @@ func Compare(expected, actual Manifest) error {
 		if before.Repository != after.Repository {
 			return fmt.Errorf("%w: provider set changed from %q to %q", ErrChanged, before.Repository, after.Repository)
 		}
-		if before.Observation.ID != after.Observation.ID || !bytes.Equal(mustEncode(before.Policy), mustEncode(after.Policy)) {
+		if before.Derived != after.Derived || before.Observation.ID != after.Observation.ID ||
+			!bytes.Equal(mustEncode(before.Policy), mustEncode(after.Policy)) {
 			return fmt.Errorf("%w: source %q no longer matches observation %q", ErrChanged, before.Repository, before.Observation.ID)
 		}
 	}
@@ -336,12 +349,16 @@ func TreeDigest(ctx context.Context, root string) (string, error) {
 		if err != nil {
 			return err
 		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
 		file, err := os.Open(path)
 		if err != nil {
 			return err
 		}
 		defer file.Close()
-		if _, err := fmt.Fprintf(hash, "%s\x00", filepath.ToSlash(relative)); err != nil {
+		if _, err := fmt.Fprintf(hash, "%s\x00size=%d\x00", filepath.ToSlash(relative), info.Size()); err != nil {
 			return err
 		}
 		if _, err := io.Copy(hash, file); err != nil {
@@ -429,6 +446,9 @@ var analyzedManifests = map[string]struct{}{
 func sourceWorktreeID(repository workspace.Repository) (topology.WorktreeID, error) {
 	if repository.Worktree != "" {
 		return topology.NewWorktreeID(string(repository.Worktree))
+	}
+	if repository.Derived {
+		return topology.NewWorktreeID("derived:" + strings.TrimSpace(repository.Name))
 	}
 	// Legacy registries predate topology.yaml. Their configured repository name
 	// is path-independent and unique within a profile, so it is a conservative

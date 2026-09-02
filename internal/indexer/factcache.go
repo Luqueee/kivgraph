@@ -209,10 +209,14 @@ func newFactCache(options FullOptions) (*factCache, error) {
 	if err := os.MkdirAll(directory, 0o755); err != nil {
 		return nil, fmt.Errorf("fact cache: prepare %q: %w", directory, err)
 	}
+	analyzer, err := AnalyzerFingerprint(options)
+	if err != nil {
+		return nil, fmt.Errorf("fact cache: observe analyzer configuration: %w", err)
+	}
 	return &factCache{
 		directory: directory,
 		mode:      mode,
-		analyzer:  analyzerFingerprint(options),
+		analyzer:  analyzer,
 		profile:   profile,
 		trees:     newFingerprintMemo(),
 	}, nil
@@ -781,20 +785,14 @@ func lockfilePaths(root string) []string {
 }
 
 // AnalyzerFingerprint identifies what produces the facts, so an entry written
-// by one configuration is never treated as the product of another. Generation
-// source observations store the same value beside their captured inputs.
-func AnalyzerFingerprint(options FullOptions) string {
-	return analyzerFingerprint(options)
-}
-
-// analyzerFingerprint identifies what produces the facts, so an entry written
 // by one build of Kivgraph is never served to another.
 //
 // The executable's own content is the identity, not its release string: a
 // development build changes the normaliser without changing a version number,
 // and an entry from before that change describes a graph this binary would
-// not produce.
-func analyzerFingerprint(options FullOptions) string {
+// not produce. An unavailable identity fails closed instead of being replaced
+// with a timestamp: a full pass observes it before and after analysis.
+func AnalyzerFingerprint(options FullOptions) (string, error) {
 	hash := sha256.New()
 	fmt.Fprintf(hash, "entry=%d\x00", cacheEntryVersion)
 	cgo := "default"
@@ -838,21 +836,30 @@ func analyzerFingerprint(options FullOptions) string {
 		strings.TrimSpace(options.CSharpTargetDirectory))
 	fmt.Fprintf(hash, "csharp-indexer=%s\x00", cSharpIndexerFingerprint(options))
 	fmt.Fprintf(hash, "python-worker=%s\x00", pythonProducerFingerprint(options))
-	if executable, err := os.Executable(); err == nil {
-		fmt.Fprintf(hash, "binary=%s\x00", fileFingerprint(executable))
-	} else {
-		// A timestamp here is right, and it is the distinction the three
-		// producer fingerprints above turn on. os.Executable failing does not
-		// mean this build has no identity; it means the identity could not be
-		// read, and serving one build's facts to another is exactly what this
-		// hash exists to prevent. Unknown is not absent, and only absent is a
-		// fact that repeats.
-		fmt.Fprintf(hash, "binary=unknown-%d\x00", time.Now().UnixNano())
+	executable, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("resolve Kivgraph executable: %w", err)
 	}
-	fmt.Fprintf(hash, "goenv=%s\x00", goEnvironmentFingerprint())
+	fmt.Fprintf(hash, "binary=%s\x00", fileFingerprint(executable))
+	goEnvironment, err := goEnvironmentFingerprint()
+	if err != nil {
+		return "", err
+	}
+	fmt.Fprintf(hash, "goenv=%s\x00", goEnvironment)
 	fmt.Fprintf(hash, "rust=%s\x00", rustAnalysisFingerprint(options))
 	fmt.Fprintf(hash, "tsworker=%s\x00", typeScriptWorkerFingerprint(options))
-	return hex.EncodeToString(hash.Sum(nil))
+	return hex.EncodeToString(hash.Sum(nil)), nil
+}
+
+// analyzerFingerprint keeps the fact-cache test helpers compact. Production
+// callers use AnalyzerFingerprint so an unreadable analyzer identity aborts
+// rather than silently producing a reusable cache key.
+func analyzerFingerprint(options FullOptions) string {
+	fingerprint, err := AnalyzerFingerprint(options)
+	if err != nil {
+		return "unavailable"
+	}
+	return fingerprint
 }
 
 // goEnvironmentFingerprint identifies the go command this pass will run.
@@ -868,19 +875,18 @@ func analyzerFingerprint(options FullOptions) string {
 // entirely, for every language, on every pass. `go` missing from the PATH is a
 // determinate fact that repeats, so it fingerprints as `absent`.
 //
-// A `go` that is present and fails is the other case and keeps the timestamp:
-// something about the toolchain could not be read, and a pass with Go units
-// must not guess at an identity it could not establish.
-func goEnvironmentFingerprint() string {
+// A `go` that is present and fails is an observation error: a pass cannot
+// truthfully record the analyzer configuration it actually used.
+func goEnvironmentFingerprint() (string, error) {
 	if _, err := exec.LookPath("go"); err != nil {
-		return "absent"
+		return "absent", nil
 	}
 	output, err := exec.Command("go", "env",
 		"GOVERSION", "GOROOT", "GOFLAGS", "GOMODCACHE", "GOPATH", "GOPRIVATE").Output()
 	if err != nil {
-		return fmt.Sprintf("unknown-%d", time.Now().UnixNano())
+		return "", fmt.Errorf("read Go environment: %w", err)
 	}
-	return strings.Join(strings.Fields(string(output)), "\x00")
+	return strings.Join(strings.Fields(string(output)), "\x00"), nil
 }
 
 // typeScriptWorkerFingerprint identifies the worker that produces TypeScript

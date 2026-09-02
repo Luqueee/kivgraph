@@ -90,7 +90,7 @@ func TestCaptureTracksDirtyAndCommittedSourceState(t *testing.T) {
 	}
 
 	runGit(t, repository.RealPath, "add", "main.go")
-	runGit(t, repository.RealPath, "commit", "-qm", "move source")
+	runGit(t, repository.RealPath, "-c", "user.email=source@example.test", "-c", "user.name=Source Fixture", "commit", "-qm", "move source")
 	committed, err := Capture(context.Background(), "feature", "resolver-1", "analyzer-1", []workspace.Repository{repository})
 	if err != nil {
 		t.Fatal(err)
@@ -103,6 +103,38 @@ func TestCaptureTracksDirtyAndCommittedSourceState(t *testing.T) {
 	}
 	if err := Compare(before, committed); !errors.Is(err, ErrChanged) {
 		t.Fatalf("Compare() error = %v, want committed source change", err)
+	}
+}
+
+func TestCaptureTracksDerivedProvidersByContent(t *testing.T) {
+	root := testsupport.TempDir(t)
+	path := filepath.Join(root, "external.dart")
+	if err := os.WriteFile(path, []byte("void external() {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	repository := workspace.Repository{
+		Name: "dart-package:external:1234", Derived: true, Path: root, RealPath: root,
+		Languages: []string{"dart"}, Roots: []string{"lib"},
+	}
+	before, err := Capture(context.Background(), "default", "resolver-1", "analyzer-1", []workspace.Repository{repository})
+	if err != nil {
+		t.Fatal(err)
+	}
+	observed := before.Sources[0]
+	if !observed.Derived || observed.Observation.Branch != "" || observed.Observation.Dirty ||
+		!strings.HasPrefix(observed.Observation.Commit, "content-") ||
+		observed.Observation.Worktree != "derived:dart-package:external:1234" {
+		t.Fatalf("derived observation = %#v, want a content-addressed derived source", observed)
+	}
+	if err := os.WriteFile(path, []byte("void external() { print('changed'); }\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	after, err := Capture(context.Background(), "default", "resolver-1", "analyzer-1", []workspace.Repository{repository})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Compare(before, after); !errors.Is(err, ErrChanged) || !strings.Contains(err.Error(), repository.Name) {
+		t.Fatalf("Compare() error = %v, want named derived-source change", err)
 	}
 }
 
@@ -176,6 +208,31 @@ func TestTreeDigestTracksAnalysedFilesButNotDocumentation(t *testing.T) {
 	}
 	if after, err := TreeDigest(context.Background(), root); err != nil || after == before {
 		t.Fatalf("source digest = %q, %v; want a changed digest from %q", after, err, before)
+	}
+}
+
+func TestTreeDigestFramesFileContentWithoutAmbiguousBoundaries(t *testing.T) {
+	combined := testsupport.TempDir(t)
+	if err := os.WriteFile(filepath.Join(combined, "a.go"), []byte("X\x00b.go\x00Y"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	separate := testsupport.TempDir(t)
+	if err := os.WriteFile(filepath.Join(separate, "a.go"), []byte("X"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(separate, "b.go"), []byte("Y"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	combinedDigest, err := TreeDigest(context.Background(), combined)
+	if err != nil {
+		t.Fatal(err)
+	}
+	separateDigest, err := TreeDigest(context.Background(), separate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if combinedDigest == separateDigest {
+		t.Fatal("TreeDigest() collided for file contents that mimic the old entry boundary")
 	}
 }
 

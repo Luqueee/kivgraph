@@ -19,23 +19,29 @@ worktree can move while still representing the same mutable instance.
 ## Decision
 
 Each new generation may carry `source-observations.json` beside its database and
-snapshot. The versioned manifest records, for every registered provider:
+snapshot. The versioned manifest records, for every effective provider:
 
 - the configured repository name and selected worktree identity;
 - commit, branch, dirty state and a deterministic digest of analysable files;
 - manifests, roots, exclusions and language provider policy; and
 - the resolver version and analyzer fingerprint used by the pass.
 
+An analyzer-discovered provider such as an opted-in Dart package or SDK has no
+Git worktree. Its record declares it as derived, leaves `branch` empty, and
+uses a `content-<sha256>` revision token. This records the state actually read
+without fabricating a Git commit.
+
 The digest deliberately covers every supported source file and build manifest
 under a repository, except `.git` and `node_modules`. It over-approximates
 language-specific source selection: an unnecessary rebuild is safe, whereas
 omitting bytes a provider could read would permit an unreproducible graph.
 
-`indexing.RunFull` captures this manifest before analysis. `rebuild.Run` writes
-it only into the candidate generation, then captures the same inputs again from
-inside the generation-store validation closure, after integrity and probes and
-before the atomic `CURRENT` update. A changed, missing or unreadable input
-rejects the candidate; the prior published generation stays active.
+`indexing.RunFull` resolves the effective provider set and captures this
+manifest before analysis. `rebuild.Run` writes it only into the candidate
+generation, then resolves and captures the same inputs again from inside the
+generation-store validation closure, after integrity and probes and before the
+atomic `CURRENT` update. A changed, missing or unreadable input rejects the
+candidate; the prior published generation stays active.
 
 Topology-backed registries preserve their declared `WorktreeID` in runtime
 provider metadata. A legacy registry has no topology declaration, so it uses a

@@ -22,7 +22,11 @@ type Repository struct {
 	// Worktree identifies the mutable checkout selected by a topology-backed
 	// profile. It is empty for legacy registries, which have no declared
 	// worktree identity yet.
-	Worktree   topology.WorktreeID
+	Worktree topology.WorktreeID
+	// Derived identifies a provider discovered by an analyzer instead of a Git
+	// worktree registered by the user. Its source observation is content-based:
+	// a derived provider has no commit or branch to refresh.
+	Derived    bool
 	Path       string
 	RealPath   string
 	Commit     string
@@ -66,6 +70,7 @@ func NewSyntheticRepository(name, path string, languages []string) (Repository, 
 	}
 	return Repository{
 		Name:      trimmed,
+		Derived:   true,
 		Path:      resolved,
 		RealPath:  realPath,
 		Languages: append([]string(nil), languages...),
@@ -215,8 +220,8 @@ func cloneRepository(repository Repository) Repository {
 
 // RefreshRepositoryState re-reads the Git state of one registered source
 // without changing its provider configuration. A long full pass captures this
-// immediately before and immediately before publication, so the fields cannot
-// be inherited from an earlier registry discovery.
+// immediately before indexing and again immediately before publication, so the
+// fields cannot be inherited from an earlier registry discovery.
 func RefreshRepositoryState(ctx context.Context, repository Repository) (Repository, error) {
 	if ctx == nil {
 		ctx = context.Background()
