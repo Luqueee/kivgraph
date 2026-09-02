@@ -160,7 +160,7 @@ func TestSaveProfileTopologyReportsLoadAndWriteFailures(t *testing.T) {
 		t.Fatalf("Mkdir(topology path) error = %v", err)
 	}
 	if err := SaveProfileTopology(configPath, "feature", value); err == nil || !strings.Contains(err.Error(), "write profile topology") {
-		t.Fatalf("SaveProfileTopology() error = %v, want a write error", err)
+		t.Fatalf("SaveProfileTopology() error = %v for topology path directory %q, want a write error", err, loaded.TopologyPath)
 	}
 }
 
