@@ -66,7 +66,8 @@ func TestRegistryForProfileUsesSelectedTopologyWorktree(t *testing.T) {
 	}
 	provenance, present := registry.Composition()
 	if !present || len(provenance.Worktrees) != 1 || provenance.Worktrees[0].Path != selectedPath {
-		t.Fatalf("registry composition = %#v, present %t, want selected provenance", provenance, present)
+		t.Fatalf("registry composition for profile %q and path %q = %#v, present %t, want selected provenance",
+			loaded.Profile, selectedPath, provenance, present)
 	}
 }
 
@@ -96,8 +97,12 @@ func TestRegistryForProfileKeepsLegacyRegistryWithoutTopology(t *testing.T) {
 	if err != nil {
 		t.Fatalf("registryForProfile() error = %v", err)
 	}
-	if _, present := registry.Composition(); present {
-		t.Fatalf("legacy registry unexpectedly carries topology provenance for config %q", loaded.ConfigPath)
+	var stdout bytes.Buffer
+	writeProfileDiagnostics(&stdout, loaded.Profile, registry)
+	want := fmt.Sprintf("index.profile: name=%s composition=legacy repositories=1\n", loaded.Profile)
+	if stdout.String() != want {
+		t.Fatalf("legacy profile diagnostics for profile %q = %q, want %q",
+			loaded.Profile, stdout.String(), want)
 	}
 	if items := registry.List(); len(items) != 1 || items[0].Path != path {
 		t.Fatalf("legacy registry = %#v, want configured path %q", items, path)
