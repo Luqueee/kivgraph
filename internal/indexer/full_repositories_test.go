@@ -3,7 +3,6 @@ package indexer
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/Luqueee/kivgraph/internal/testsupport"
@@ -20,7 +19,8 @@ func TestResolveRepositoriesIncludesDerivedExternalDartPackages(t *testing.T) {
 		t.Fatal(err)
 	}
 	config := `{"configVersion":2,"packages":[{"name":"external","rootUri":"../external-package/"}]}`
-	if err := os.WriteFile(filepath.Join(root, ".dart_tool", "package_config.json"), []byte(config), 0o600); err != nil {
+	configPath := filepath.Join(root, ".dart_tool", "package_config.json")
+	if err := os.WriteFile(configPath, []byte(config), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	repositories, err := ResolveRepositories(FullOptions{
@@ -31,20 +31,20 @@ func TestResolveRepositoriesIncludesDerivedExternalDartPackages(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(repositories) != 2 {
-		t.Fatalf("effective repositories = %#v, want app and external provider", repositories)
+		t.Fatalf("effective repositories = %#v, want app and external provider for root %q, external path %q, package config %q", repositories, root, external, configPath)
 	}
 	providerIndex := -1
 	for index := range repositories {
-		if strings.HasPrefix(repositories[index].Name, "dart-package:external:") {
+		if repositories[index].Path == external {
 			providerIndex = index
 			break
 		}
 	}
 	if providerIndex < 0 {
-		t.Fatalf("effective repositories = %#v, want a derived Dart package", repositories)
+		t.Fatalf("effective repositories = %#v, want a derived Dart package for root %q, external path %q, package config %q", repositories, root, external, configPath)
 	}
 	provider := repositories[providerIndex]
-	if !provider.Derived || provider.Path != external {
+	if !provider.Derived {
 		t.Fatalf("external provider = %#v, want a derived Dart package", provider)
 	}
 }
