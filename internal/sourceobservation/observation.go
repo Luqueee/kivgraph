@@ -214,35 +214,18 @@ func CaptureWithRepositories(
 // Compare reports a source state change with the first affected input. The
 // caller supplies observations captured before and after a full pass.
 func Compare(expected, actual Manifest) error {
-	if err := expected.Validate(); err != nil {
-		return fmt.Errorf("validate expected source observations: %w", err)
+	changes, err := Diff(expected, actual)
+	if err != nil {
+		return err
 	}
-	if err := actual.Validate(); err != nil {
-		return fmt.Errorf("validate current source observations: %w", err)
-	}
-	if bytes.Equal(mustEncode(expected), mustEncode(actual)) {
+	if len(changes) == 0 {
 		return nil
 	}
-	if expected.Profile != actual.Profile {
-		return fmt.Errorf("%w: profile changed from %q to %q", ErrChanged, expected.Profile, actual.Profile)
+	change := changes[0]
+	if change.Repository == "" {
+		return fmt.Errorf("%w: %s", ErrChanged, change.Reason)
 	}
-	if expected.ResolverVersion != actual.ResolverVersion {
-		return fmt.Errorf("%w: resolver changed from %q to %q", ErrChanged, expected.ResolverVersion, actual.ResolverVersion)
-	}
-	if expected.AnalyzerFingerprint != actual.AnalyzerFingerprint {
-		return fmt.Errorf("%w: analyzer configuration changed", ErrChanged)
-	}
-	for index := 0; index < len(expected.Sources) && index < len(actual.Sources); index++ {
-		before, after := expected.Sources[index], actual.Sources[index]
-		if before.Repository != after.Repository {
-			return fmt.Errorf("%w: provider set changed from %q to %q", ErrChanged, before.Repository, after.Repository)
-		}
-		if before.Derived != after.Derived || before.Observation.ID != after.Observation.ID ||
-			!bytes.Equal(mustEncode(before.Policy), mustEncode(after.Policy)) {
-			return fmt.Errorf("%w: source %q no longer matches observation %q", ErrChanged, before.Repository, before.Observation.ID)
-		}
-	}
-	return fmt.Errorf("%w: source count changed from %d to %d", ErrChanged, len(expected.Sources), len(actual.Sources))
+	return fmt.Errorf("%w: source %q: %s", ErrChanged, change.Repository, change.Reason)
 }
 
 // Validate checks that the persisted record is complete and each source state
@@ -381,6 +364,17 @@ func TreeDigest(ctx context.Context, root string) (string, error) {
 		if err != nil {
 			return err
 		}
+		if entry.Type()&fs.ModeSymlink != 0 {
+			target, err := os.Readlink(path)
+			if err != nil {
+				return err
+			}
+			_, err = fmt.Fprintf(hash, "%s\x00symlink=%s\x00", filepath.ToSlash(relative), filepath.ToSlash(target))
+			return err
+		}
+		if !entry.Type().IsRegular() {
+			return nil
+		}
 		info, err := entry.Info()
 		if err != nil {
 			return err
@@ -479,13 +473,19 @@ func sourceWorktreeID(repository workspace.Repository) (topology.WorktreeID, err
 	if repository.Worktree != "" {
 		return topology.NewWorktreeID(string(repository.Worktree))
 	}
+	prefix := "legacy:"
 	if repository.Derived {
-		return topology.NewWorktreeID("derived:" + strings.TrimSpace(repository.Name))
+		prefix = "derived:"
 	}
 	// Legacy registries predate topology.yaml. Their configured repository name
 	// is path-independent and unique within a profile, so it is a conservative
 	// compatibility identity until a declared worktree replaces it.
-	return topology.NewWorktreeID("legacy:" + strings.TrimSpace(repository.Name))
+	name := strings.TrimSpace(repository.Name)
+	if id, err := topology.NewWorktreeID(prefix + name); err == nil {
+		return id, nil
+	}
+	digest := sha256.Sum256([]byte(name))
+	return topology.NewWorktreeID(prefix + "name-" + hex.EncodeToString(digest[:]))
 }
 
 func classifyReadError(err error) error {

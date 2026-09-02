@@ -19,10 +19,12 @@ go_test(
     name = "sourceobservation_test",
     srcs = [
         "invalidation_test.go",
+        "observation_nonregular_test.go",
         "observation_test.go",
     ],
     data = ["//:testdata"],
     embed = [":sourceobservation"],
+    env_inherit = ["PATH"],
     deps = [
         "//internal/config",
         "//internal/testsupport",

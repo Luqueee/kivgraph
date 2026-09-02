@@ -253,7 +253,7 @@ func TestNewComposedRegistryPropagatesProviderRegistrationFailure(t *testing.T) 
 }
 
 func TestNewComposedRegistryUsesRealGitMetadataThroughExportedAPI(t *testing.T) {
-	if _, err := exec.LookPath("git"); err != nil {
+	if err := exec.Command("git", "--version").Run(); err != nil {
 		t.Skipf("git is required for composed registry registration: %v", err)
 	}
 	root := testsupport.TempDir(t)

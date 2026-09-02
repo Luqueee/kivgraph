@@ -159,6 +159,26 @@ func TestCaptureTracksDerivedProvidersByContent(t *testing.T) {
 	}
 }
 
+func TestCaptureAcceptsDerivedRepositoryNamesOutsideWorktreeIDAlphabet(t *testing.T) {
+	root := testsupport.TempDir(t)
+	repository := workspace.Repository{Name: "org/repo", Derived: true, RealPath: root}
+	first, err := Capture(context.Background(), "default", "resolver-1", "analyzer-1", []workspace.Repository{repository})
+	if err != nil {
+		t.Fatalf("Capture() error = %v", err)
+	}
+	worktree := string(first.Sources[0].Observation.Worktree)
+	if worktree == "derived:org/repo" || strings.Contains(worktree, "/") {
+		t.Fatalf("derived worktree = %q, want a valid path-independent identity", worktree)
+	}
+	second, err := Capture(context.Background(), "default", "resolver-1", "analyzer-1", []workspace.Repository{repository})
+	if err != nil {
+		t.Fatalf("second Capture() error = %v", err)
+	}
+	if got := string(second.Sources[0].Observation.Worktree); got != worktree {
+		t.Fatalf("derived worktree changed from %q to %q for the same repository name", worktree, got)
+	}
+}
+
 func TestManifestRoundTripsWithTheCandidateGeneration(t *testing.T) {
 	repository := sourceFixtureRepository(t)
 	manifest, err := Capture(context.Background(), "default", "resolver-1", "analyzer-1", []workspace.Repository{repository})
@@ -257,6 +277,31 @@ func TestTreeDigestFramesFileContentWithoutAmbiguousBoundaries(t *testing.T) {
 	}
 }
 
+func TestTreeDigestRecordsAnalyzedSymlinksWithoutOpeningTargets(t *testing.T) {
+	root := testsupport.TempDir(t)
+	link := filepath.Join(root, "link.go")
+	if err := os.Symlink("missing-first.go", link); err != nil {
+		t.Skipf("symbolic links are unavailable: %v", err)
+	}
+	first, err := TreeDigest(context.Background(), root)
+	if err != nil {
+		t.Fatalf("TreeDigest() with dangling symlink error = %v", err)
+	}
+	if err := os.Remove(link); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("missing-second.go", link); err != nil {
+		t.Fatal(err)
+	}
+	second, err := TreeDigest(context.Background(), root)
+	if err != nil {
+		t.Fatalf("TreeDigest() with second dangling symlink error = %v", err)
+	}
+	if first == second {
+		t.Fatalf("TreeDigest() = %q for different symlink targets", first)
+	}
+}
+
 func TestManifestValidateRejectsTamperedObservation(t *testing.T) {
 	observation, err := topology.NewSourceObservation("source-main", "0123456789abcdef", "main", false,
 		strings.Repeat("a", 64))
@@ -295,7 +340,7 @@ func TestCompareNamesEveryChangedDimension(t *testing.T) {
 			change: func(manifest *Manifest) {
 				manifest.ResolverVersion = "resolver-2"
 			},
-			want: "resolver changed",
+			want: "resolver configuration changed",
 		},
 		{
 			name: "analyzer",
@@ -309,7 +354,7 @@ func TestCompareNamesEveryChangedDimension(t *testing.T) {
 			change: func(manifest *Manifest) {
 				manifest.Sources[0].Repository = "other-source"
 			},
-			want: "provider set changed",
+			want: "source was added",
 		},
 		{
 			name: "policy",
@@ -325,7 +370,7 @@ func TestCompareNamesEveryChangedDimension(t *testing.T) {
 				extra.Repository = "second-source"
 				manifest.Sources = append(manifest.Sources, extra)
 			},
-			want: "source count changed",
+			want: "source was added",
 		},
 	}
 	for _, test := range cases {

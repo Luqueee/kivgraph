@@ -138,25 +138,59 @@ func TestDiffReportsProfileConfigurationChangeForAnEmptySourceSet(t *testing.T) 
 	}
 }
 
+func TestDiffReportsSourceAndProfileChangesSeparately(t *testing.T) {
+	before := validManifest(t)
+	after := manifestFor(t, "default", "source", "source-main", "commit-2")
+	after.AnalyzerFingerprint = "analyzer-2"
+
+	changes, err := Diff(before, after)
+	if err != nil {
+		t.Fatalf("Diff() error = %v", err)
+	}
+	if len(changes) != 2 || changes[0].Reason != "source commit changed" ||
+		changes[1].Reason != "analyzer configuration changed" || !changes[1].ProfileScoped ||
+		changes[1].Repository != "" || changes[1].Before.Repository != "" || changes[1].After.Repository != "" {
+		t.Fatalf("Diff() changes = %#v, want source and independent profile changes", changes)
+	}
+}
+
 func TestDiffReportsEachSourceStateChangeReason(t *testing.T) {
-	before := manifestFor(t, "default", "source", "source-main", "commit-1").Sources[0]
 	tests := []struct {
 		name   string
-		after  Source
+		change func(*Manifest)
 		reason string
 	}{
-		{name: "provider kind", after: func() Source { changed := before; changed.Derived = true; return changed }(), reason: "source provider kind changed"},
-		{name: "worktree", after: manifestFor(t, "default", "source", "source-other", "commit-1").Sources[0], reason: "worktree selection changed"},
-		{name: "content", after: manifestForDigest(t, "default", "source", "source-main", "commit-1", "b").Sources[0], reason: "source content changed"},
-		{name: "commit", after: manifestFor(t, "default", "source", "source-main", "commit-2").Sources[0], reason: "source commit changed"},
-		{name: "branch", after: manifestForDetails(t, "default", "source", "source-main", "commit-1", "feature", false, "a").Sources[0], reason: "source branch changed"},
-		{name: "dirty", after: manifestForDetails(t, "default", "source", "source-main", "commit-1", "main", true, "a").Sources[0], reason: "source dirty state changed"},
-		{name: "policy", after: func() Source { changed := before; changed.Policy.Languages = []string{"rust"}; return changed }(), reason: "source input policy changed"},
+		{name: "provider kind", change: func(manifest *Manifest) { manifest.Sources[0].Derived = true }, reason: "source provider kind changed"},
+		{name: "worktree", change: func(manifest *Manifest) {
+			manifest.Sources = manifestFor(t, "default", "source", "source-other", "commit-1").Sources
+		}, reason: "worktree selection changed"},
+		{name: "content", change: func(manifest *Manifest) {
+			manifest.Sources = manifestForDigest(t, "default", "source", "source-main", "commit-1", "b").Sources
+		}, reason: "source content changed"},
+		{name: "commit", change: func(manifest *Manifest) {
+			manifest.Sources = manifestFor(t, "default", "source", "source-main", "commit-2").Sources
+		}, reason: "source commit changed"},
+		{name: "branch", change: func(manifest *Manifest) {
+			manifest.Sources = manifestForDetails(t, "default", "source", "source-main", "commit-1", "feature", false, "a").Sources
+		}, reason: "source branch changed"},
+		{name: "dirty", change: func(manifest *Manifest) {
+			manifest.Sources = manifestForDetails(t, "default", "source", "source-main", "commit-1", "main", true, "a").Sources
+		}, reason: "source dirty state changed"},
+		{name: "policy", change: func(manifest *Manifest) {
+			manifest.Sources[0].Policy.Languages = []string{"rust"}
+		}, reason: "source input policy changed"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if got := sourceChangeReason(before, test.after); got != test.reason {
-				t.Fatalf("sourceChangeReason() = %q, want %q", got, test.reason)
+			before := manifestFor(t, "default", "source", "source-main", "commit-1")
+			after := manifestFor(t, "default", "source", "source-main", "commit-1")
+			test.change(&after)
+			changes, err := Diff(before, after)
+			if err != nil {
+				t.Fatalf("Diff(%s) error = %v", test.name, err)
+			}
+			if len(changes) != 1 || changes[0].Reason != test.reason {
+				t.Fatalf("Diff(%s) changes = %#v, want one change with reason %q", test.name, changes, test.reason)
 			}
 		})
 	}

@@ -106,9 +106,11 @@ type ResyncOptions struct {
 	OnMoved func([]RepositoryMovement)
 	// OnResynced reports a completed rebuild.
 	OnResynced func([]RepositoryMovement)
+	// OnSourceReady reports the manifest that became the observation baseline,
+	// either at start-up or after an unavailable source recovered.
+	OnSourceReady func(sourceobservation.Manifest)
 	// OnSourceChanged reports the manifest that caused an invalidation and the
 	// affected source movements. It is called before the debounce completes.
-	OnSourceReady   func(sourceobservation.Manifest)
 	OnSourceChanged func(sourceobservation.Manifest, []RepositoryMovement)
 	// OnSourcePublished reports a source manifest after the corresponding
 	// rebuild or safe skip completed.

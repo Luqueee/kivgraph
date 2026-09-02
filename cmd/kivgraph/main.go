@@ -772,8 +772,17 @@ func resyncOnBranchChange(
 		if len(repositories) == 0 {
 			return
 		}
+		indexOptions := indexing.OptionsFromConfig(loaded.Config)
+		indexOptions.Profile = loaded.Profile
+		indexOptions.Repositories = repositories
+		indexOptions.WorkingDirectory, _ = os.Getwd()
+		sourceRepositories, resolveErr := sourceRepositoriesForWatcher(indexOptions, repositories, indexing.ResolveRepositories)
+		if resolveErr != nil {
+			logger.Error("could not resolve effective source providers; source invalidation is limited to registered repositories",
+				"command", command, "profile", loaded.Profile, "error", resolveErr)
+		}
 		sourceEvents := make(chan struct{}, 1)
-		fileWatcher, watcherErr := watcher.New(repositories)
+		fileWatcher, watcherErr := watcher.New(sourceRepositories)
 		if watcherErr != nil {
 			logger.Warn("could not watch source files; periodic source reconciliation remains active",
 				"command", command, "error", watcherErr)
@@ -817,17 +826,6 @@ func resyncOnBranchChange(
 			}()
 		}
 
-		indexOptions := indexing.OptionsFromConfig(loaded.Config)
-		indexOptions.Profile = loaded.Profile
-		indexOptions.Repositories = repositories
-		indexOptions.WorkingDirectory, _ = os.Getwd()
-		sourceRepositories := repositories
-		if effective, resolveErr := indexing.ResolveRepositories(indexOptions); resolveErr != nil {
-			logger.Error("could not resolve effective source providers; source invalidation is limited to registered repositories",
-				"command", command, "profile", loaded.Profile, "error", resolveErr)
-		} else {
-			sourceRepositories = effective
-		}
 		analyzerFingerprint, fingerprintErr := indexing.AnalyzerFingerprint(indexOptions)
 		var sourceObserver func(context.Context) (sourceobservation.Manifest, error)
 		if fingerprintErr != nil {
@@ -952,6 +950,19 @@ func resyncOnBranchChange(
 		cancel()
 		<-done
 	}
+}
+
+func sourceRepositoriesForWatcher(
+	options indexing.FullOptions,
+	registered []workspace.Repository,
+	resolve func(indexing.FullOptions) ([]workspace.Repository, error),
+) ([]workspace.Repository, error) {
+	options.Repositories = append([]workspace.Repository(nil), registered...)
+	effective, err := resolve(options)
+	if err != nil {
+		return registered, err
+	}
+	return effective, nil
 }
 
 // commitChangedNothing reports whether the movement each repository made left

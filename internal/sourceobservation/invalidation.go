@@ -67,15 +67,8 @@ func Diff(expected, actual Manifest) ([]Change, error) {
 			}
 		}
 	}
-	if configurationReason != "" && len(changes) == 0 {
-		change := Change{Reason: configurationReason, ProfileScoped: true}
-		if len(names) > 0 {
-			name := names[0]
-			change.Repository = name
-			change.Before = before[name]
-			change.After = after[name]
-		}
-		changes = append(changes, change)
+	if configurationReason != "" {
+		changes = append(changes, Change{Reason: configurationReason, ProfileScoped: true})
 	}
 	return changes, nil
 }

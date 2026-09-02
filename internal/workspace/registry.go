@@ -230,6 +230,9 @@ func RefreshRepositoryState(ctx context.Context, repository Repository) (Reposit
 		return Repository{}, err
 	}
 	result := cloneRepository(repository)
+	if result.Derived {
+		return result, nil
+	}
 	root := strings.TrimSpace(result.RealPath)
 	if root == "" {
 		root = strings.TrimSpace(result.Path)

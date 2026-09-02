@@ -3,6 +3,7 @@ package indexer
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Luqueee/kivgraph/internal/testsupport"
@@ -87,6 +88,29 @@ func TestGoEnvironmentFingerprintIsStableWithoutTheToolchain(t *testing.T) {
 	}
 	if absent != "absent" {
 		t.Errorf("fingerprint = %q, want a stable value naming the absence", absent)
+	}
+}
+
+func TestGoEnvironmentFingerprintPreservesEmptyValuesAndPositions(t *testing.T) {
+	first, err := goEnvironmentFingerprintFromOutput([]byte("go1.24\n/root\n\n/mod\n/path\n\n"))
+	if err != nil {
+		t.Fatalf("goEnvironmentFingerprintFromOutput() error = %v", err)
+	}
+	second, err := goEnvironmentFingerprintFromOutput([]byte("go1.24\n\n/root\n/mod\n/path\n\n"))
+	if err != nil {
+		t.Fatalf("second goEnvironmentFingerprintFromOutput() error = %v", err)
+	}
+	if first == second {
+		t.Fatalf("fingerprint = %q for different environment variable positions", first)
+	}
+	if !strings.Contains(first, "GOFLAGS=0:\x00") || !strings.Contains(first, "GOPRIVATE=0:\x00") {
+		t.Fatalf("fingerprint = %q, want named empty values", first)
+	}
+}
+
+func TestGoEnvironmentFingerprintRejectsIncompleteOutput(t *testing.T) {
+	if _, err := goEnvironmentFingerprintFromOutput([]byte("go1.24\n/root\n")); err == nil || !strings.Contains(err.Error(), "got 2 values, want 6") {
+		t.Fatalf("goEnvironmentFingerprintFromOutput() error = %v, want value count refusal", err)
 	}
 }
 

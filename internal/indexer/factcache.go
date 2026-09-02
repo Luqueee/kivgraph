@@ -885,12 +885,32 @@ func goEnvironmentFingerprint() (string, error) {
 	if _, err := exec.LookPath("go"); err != nil {
 		return "absent", nil
 	}
-	output, err := exec.Command("go", "env",
-		"GOVERSION", "GOROOT", "GOFLAGS", "GOMODCACHE", "GOPATH", "GOPRIVATE").Output()
+	output, err := exec.Command("go", append([]string{"env"}, goEnvironmentVariables...)...).Output()
 	if err != nil {
 		return "", fmt.Errorf("read Go environment: %w", err)
 	}
-	return strings.Join(strings.Fields(string(output)), "\x00"), nil
+	fingerprint, err := goEnvironmentFingerprintFromOutput(output)
+	if err != nil {
+		return "", fmt.Errorf("parse Go environment: %w", err)
+	}
+	return fingerprint, nil
+}
+
+var goEnvironmentVariables = []string{
+	"GOVERSION", "GOROOT", "GOFLAGS", "GOMODCACHE", "GOPATH", "GOPRIVATE",
+}
+
+func goEnvironmentFingerprintFromOutput(output []byte) (string, error) {
+	lines := strings.Split(strings.TrimSuffix(string(output), "\n"), "\n")
+	if len(lines) != len(goEnvironmentVariables) {
+		return "", fmt.Errorf("got %d values, want %d", len(lines), len(goEnvironmentVariables))
+	}
+	var fingerprint strings.Builder
+	for index, name := range goEnvironmentVariables {
+		value := strings.TrimSuffix(lines[index], "\r")
+		fmt.Fprintf(&fingerprint, "%s=%d:%s\x00", name, len(value), value)
+	}
+	return fingerprint.String(), nil
 }
 
 // typeScriptWorkerFingerprint identifies the worker that produces TypeScript

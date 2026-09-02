@@ -62,6 +62,17 @@ func TestNewRegistryRecordsMetadataAndCopiesResults(t *testing.T) {
 	}
 }
 
+func TestRefreshRepositoryStateSkipsGitForDerivedProviders(t *testing.T) {
+	repository := Repository{Name: "org/repo", Derived: true}
+	refreshed, err := RefreshRepositoryState(context.Background(), repository)
+	if err != nil {
+		t.Fatalf("RefreshRepositoryState() error = %v, want derived provider without Git", err)
+	}
+	if refreshed.Name != repository.Name || !refreshed.Derived {
+		t.Fatalf("refreshed repository = %#v, want unchanged derived provider", refreshed)
+	}
+}
+
 func TestNewRegistryReadsRealGitMetadata(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Fatalf("git is required for repository registration: %v", err)

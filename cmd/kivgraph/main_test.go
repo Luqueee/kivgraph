@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -36,6 +37,7 @@ import (
 	"github.com/Luqueee/kivgraph/internal/testsupport"
 	"github.com/Luqueee/kivgraph/internal/update"
 	"github.com/Luqueee/kivgraph/internal/version"
+	"github.com/Luqueee/kivgraph/internal/watcher"
 	"github.com/Luqueee/kivgraph/internal/webassets"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
@@ -2287,20 +2289,80 @@ func TestCommitChangedNothingIsFalseWhenNothingMoved(t *testing.T) {
 	if commitChangedNothing(context.Background(), []indexing.RepositoryMovement{}) {
 		t.Fatal("commitChangedNothing(empty) = true, want false")
 	}
-	base := indexing.RepositoryMovement{
-		Repository: workspace.Repository{RealPath: t.TempDir()},
-		From:       "1111111111111111111111111111111111111111",
-		To:         "1111111111111111111111111111111111111111",
-	}
+	base := indexing.RepositoryMovement{Repository: workspace.Repository{RealPath: t.TempDir()}}
 	contentChange := base
 	contentChange.Reason = "source content changed"
 	if commitChangedNothing(context.Background(), []indexing.RepositoryMovement{contentChange}) {
 		t.Fatal("commitChangedNothing(content change) = true, want dirty content to rebuild")
 	}
-	branchChange := base
+	root := testsupport.TempDir(t)
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skipf("git is required for the commit tree fixture: %v", err)
+	}
+	gitTestCommand(t, "-C", root, "init", "-q")
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("initial\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	gitTestCommand(t, "-C", root, "add", "README.md")
+	gitTestCommand(t, "-C", root, "-c", "user.name=Kivgraph Test", "-c", "user.email=kivgraph-test@example.invalid", "commit", "-qm", "initial")
+	first, err := exec.Command("git", "-C", root, "rev-parse", "HEAD").Output()
+	if err != nil {
+		t.Fatalf("git rev-parse first commit: %v", err)
+	}
+	gitTestCommand(t, "-C", root, "commit", "--allow-empty", "-qm", "same tree")
+	second, err := exec.Command("git", "-C", root, "rev-parse", "HEAD").Output()
+	if err != nil {
+		t.Fatalf("git rev-parse second commit: %v", err)
+	}
+	branchChange := indexing.RepositoryMovement{
+		Repository: workspace.Repository{RealPath: root},
+		From:       strings.TrimSpace(string(first)),
+		To:         strings.TrimSpace(string(second)),
+	}
 	branchChange.Reason = "source branch changed"
 	if !commitChangedNothing(context.Background(), []indexing.RepositoryMovement{branchChange}) {
-		t.Fatal("commitChangedNothing(branch change) = false, want identical trees to skip")
+		t.Fatalf("commitChangedNothing(branch change) = false, want distinct commits %q and %q with identical trees to skip", branchChange.From, branchChange.To)
+	}
+}
+
+func TestSourceRepositoriesForWatcherIncludesEffectiveProviders(t *testing.T) {
+	registeredRoot := testsupport.TempDir(t)
+	derivedRoot := testsupport.TempDir(t)
+	registered := []workspace.Repository{{Name: "registered", RealPath: registeredRoot}}
+	derived := workspace.Repository{Name: "derived", Derived: true, RealPath: derivedRoot}
+	resolved, err := sourceRepositoriesForWatcher(indexing.FullOptions{}, registered,
+		func(options indexing.FullOptions) ([]workspace.Repository, error) {
+			if len(options.Repositories) != 1 || options.Repositories[0].Name != "registered" {
+				t.Fatalf("resolver repositories = %#v, want registered repositories", options.Repositories)
+			}
+			return append(options.Repositories, derived), nil
+		})
+	if err != nil {
+		t.Fatalf("sourceRepositoriesForWatcher() error = %v", err)
+	}
+	fileWatcher, err := watcher.New(resolved)
+	if err != nil {
+		t.Fatalf("watcher.New() error = %v", err)
+	}
+	t.Cleanup(func() { _ = fileWatcher.Close() })
+	for _, path := range fileWatcher.WatchedPaths() {
+		if path == derivedRoot {
+			return
+		}
+	}
+	t.Fatalf("watcher paths = %v, want effective provider root %q", fileWatcher.WatchedPaths(), derivedRoot)
+}
+
+func TestSourceRepositoriesForWatcherFallsBackWhenResolutionFails(t *testing.T) {
+	registered := []workspace.Repository{{Name: "registered", RealPath: testsupport.TempDir(t)}}
+	wantErr := errors.New("provider resolution failed")
+	resolved, err := sourceRepositoriesForWatcher(indexing.FullOptions{}, registered,
+		func(indexing.FullOptions) ([]workspace.Repository, error) { return nil, wantErr })
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("sourceRepositoriesForWatcher() error = %v, want %v", err, wantErr)
+	}
+	if len(resolved) != 1 || resolved[0].Name != "registered" {
+		t.Fatalf("fallback repositories = %#v, want registered repositories", resolved)
 	}
 }
 

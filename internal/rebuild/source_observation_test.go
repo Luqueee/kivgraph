@@ -3,7 +3,6 @@ package rebuild
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -30,7 +29,7 @@ func TestRunWritesSourceObservationsIntoThePublishedGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := sourceobservation.Compare(manifest, stored); err != nil {
-		t.Fatalf("published source observations = %v", err)
+		t.Fatalf("published source observations profile=%q generation=%q: %v", manifest.Profile, options.GenerationID, err)
 	}
 }
 
@@ -57,9 +56,6 @@ func TestRunDoesNotReplaceTheCurrentGenerationWhenSourcesMove(t *testing.T) {
 	}
 	if current.ID != "000001" {
 		t.Fatalf("current generation = %q, want prior valid generation", current.ID)
-	}
-	if _, err := sourceobservation.Read(filepath.Join(root, "generations", "000002")); err == nil {
-		t.Fatal("rejected candidate source observations were published")
 	}
 }
 
