@@ -76,6 +76,21 @@ func (fixture *cachedFixture) indexProfile(profile string) (facts.Set, FullRepor
 	return set, report
 }
 
+func (fixture *cachedFixture) indexResolver(resolver string) (facts.Set, FullReport) {
+	fixture.t.Helper()
+	set, report, err := Full(context.Background(), FullOptions{
+		ResolverVersion:   resolver,
+		Repositories:      []workspace.Repository{fixture.repository},
+		SyntheticWorkFile: fixture.workFile,
+		CacheMode:         fixture.mode,
+		CacheDirectory:    fixture.cache,
+	})
+	if err != nil {
+		fixture.t.Fatalf("Full() error = %v", err)
+	}
+	return set, report
+}
+
 func TestFactCacheKeepsAlternatingProfilesWarm(t *testing.T) {
 	fixture := newCachedFixture(t)
 	for index, profile := range []string{"backend", "frontend", "backend", "frontend"} {
@@ -86,6 +101,18 @@ func TestFactCacheKeepsAlternatingProfilesWarm(t *testing.T) {
 		if index > 0 && (report.Cache.Hits != 1 || report.Cache.Misses != 0) {
 			t.Fatalf("warm %s cache = %+v, want one hit", profile, report.Cache)
 		}
+	}
+}
+
+func TestFactCacheMissesWhenResolverChanges(t *testing.T) {
+	fixture := newCachedFixture(t)
+	fixture.indexResolver("resolver-a")
+
+	if _, report := fixture.indexResolver("resolver-b"); report.Cache.Hits != 0 || report.Cache.Misses != 1 || report.Cache.Refusals[CacheRefusalAnalyzer] != 1 {
+		t.Fatalf("changed resolver cache = %+v, want one analyzer refusal and one miss", report.Cache)
+	}
+	if _, report := fixture.indexResolver("resolver-b"); report.Cache.Hits != 1 || report.Cache.Misses != 0 {
+		t.Fatalf("same resolver cache = %+v, want the new resolver entry", report.Cache)
 	}
 }
 
@@ -472,8 +499,8 @@ func TestFactCacheReportsRefusalReasons(t *testing.T) {
 				}
 				return
 			}
-			if report.Cache.Hits != 0 || report.Cache.Refusals[test.want] != 1 {
-				t.Fatalf("refused cache = %+v, want one %q refusal and no hit", report.Cache, test.want)
+			if report.Cache.Hits != 0 || report.Cache.Misses != 1 || len(report.Cache.Refusals) != 1 || report.Cache.Refusals[test.want] != 1 {
+				t.Fatalf("refused cache = %+v, want one miss, no hit, and only one %q refusal", report.Cache, test.want)
 			}
 		})
 	}

@@ -71,15 +71,6 @@ func TestAnalyzerFingerprintSeparatesTheJavaOptions(t *testing.T) {
 	}
 }
 
-func TestAnalyzerFingerprintSeparatesResolverVersions(t *testing.T) {
-	base := FullOptions{ResolverVersion: "resolver-a"}
-	changed := base
-	changed.ResolverVersion = "resolver-b"
-	if analyzerFingerprint(base) == analyzerFingerprint(changed) {
-		t.Fatalf("changing resolver version from %q to %q did not invalidate the analyzer identity", base.ResolverVersion, changed.ResolverVersion)
-	}
-}
-
 // TestUnitIdentitySeparatesEveryKind is the regression for a defect the kind
 // refactor uncovered: unitIdentity had no branch for Rust, so every Rust
 // workspace was keyed as a TypeScript package with an empty name. One

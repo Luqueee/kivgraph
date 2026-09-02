@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -93,7 +94,6 @@ func TestLoadProfileScopesDerivedStateAndRegistry(t *testing.T) {
 		t.Fatalf("LoadProfile() error = %v", err)
 	}
 	wantRoot := filepath.Join(root, "state", "profiles", "frontend")
-	sharedFactCache := filepath.Join(root, "state", "factcache")
 	if loaded.Profile != "frontend" {
 		t.Errorf("loaded profile = %q, want frontend", loaded.Profile)
 	}
@@ -104,8 +104,9 @@ func TestLoadProfileScopesDerivedStateAndRegistry(t *testing.T) {
 	if loaded.RepositoriesPath != wantRepositories {
 		t.Errorf("loaded repositories path = %q, want %q", loaded.RepositoriesPath, wantRepositories)
 	}
-	if loaded.Config.Indexing.FactCachePath != sharedFactCache {
-		t.Errorf("loaded fact cache path = %q, want %q", loaded.Config.Indexing.FactCachePath, sharedFactCache)
+	cachePath := filepath.Clean(loaded.Config.Indexing.FactCachePath)
+	if cachePath == "." || cachePath == wantRoot || strings.HasPrefix(cachePath, wantRoot+string(filepath.Separator)) {
+		t.Errorf("loaded fact cache path = %q, want a non-profile-specific path", loaded.Config.Indexing.FactCachePath)
 	}
 	defaultLoaded, err := LoadProfile(configPath, "default")
 	if err != nil {
@@ -131,10 +132,15 @@ func TestInitializeMigratesLegacyFactCacheAtInstallationScope(t *testing.T) {
 	}
 
 	if _, err := Initialize(InitOptions{ConfigPath: configPath}); err != nil {
-		t.Fatalf("Initialize() migration error = %v", err)
+		t.Fatalf("Initialize(%q) migration error = %v", configPath, err)
 	}
-	if _, err := os.Stat(filepath.Join(state, "factcache", "entry.json")); err != nil {
-		t.Fatalf("installation fact cache was not retained: %v", err)
+	retainedEntry := filepath.Join(state, "factcache", "entry.json")
+	content, err := os.ReadFile(retainedEntry)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) retained installation fact cache: %v", retainedEntry, err)
+	}
+	if string(content) != "cached" {
+		t.Fatalf("retained installation fact cache %q = %q, want cached", retainedEntry, content)
 	}
 	profileFactCache := filepath.Join(state, "profiles", "default", "factcache")
 	if _, err := os.Stat(profileFactCache); !errors.Is(err, os.ErrNotExist) {

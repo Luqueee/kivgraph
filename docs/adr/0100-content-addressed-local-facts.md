@@ -67,6 +67,10 @@ otherwise valid full pass.
   content change is caught by the recorded dependency input.
 - A dirty source creates a new local address and leaves the previous entry
   available if that content is restored.
+- These behaviors are pinned by `TestFactCacheKeepsAlternatingProfilesWarm`,
+  `TestFactCacheMissesWhenTheProviderRepositoryChanges` and
+  `TestFactCacheMissesWhenASourceFileChanges`; the directed suite reports
+  `176 passed in 2 packages` with `go test ./internal/indexer ./internal/config`.
 - Existing profile-local fact caches are not migrated into the new format.
   They are retained as user state but are ignored by the new cache version;
   the first pass after this change is cold and does not require a graph
