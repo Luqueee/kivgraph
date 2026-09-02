@@ -449,6 +449,14 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 		if err != nil {
 			return facts.Set{}, report, fmt.Errorf("build Go module registry: %w", err)
 		}
+		for _, conflict := range plan.Conflicts {
+			if conflict.Kind != goworkspace.AmbiguousModule {
+				continue
+			}
+			conflictFacts := ambiguousModuleFacts(conflict, goRepositories)
+			sets = append(sets, conflictFacts)
+			report.GoUnresolved += len(conflictFacts.Unresolved)
+		}
 		modulesByRepository := modulesByRepository(plan.Modules)
 		conflictingModules = conflictSubjects(plan.Conflicts)
 		planConflicts = plan.Conflicts
@@ -842,6 +850,51 @@ func ambiguousPackageFacts(entry typeScriptConflict) facts.Set {
 			Detail:           "declared by " + strings.Join(entry.conflict.Manifests, " and "),
 		}},
 	}
+}
+
+// ambiguousModuleFacts records every repository that declared one Go module
+// path the synthetic workspace excluded. No selected worktree can be chosen
+// without evidence, and a dependent module may be untypecheckable precisely
+// because the workspace cannot select a provider. The conflict therefore
+// remains a repository-scoped unresolved fact rather than disappearing before
+// a source-level reference can be observed.
+//
+// BuildPlan derives every candidate from the same registry Full received, so
+// the repository names and module path have already been validated here.
+func ambiguousModuleFacts(
+	conflict goworkspace.Conflict,
+	repositories []workspace.Repository,
+) facts.Set {
+	byName := make(map[string]workspace.Repository, len(repositories))
+	for _, repository := range repositories {
+		byName[repository.Name] = repository
+	}
+	detail := "declared by repositories " + strings.Join(conflict.Repositories, " and ")
+	if len(conflict.Details) != 0 {
+		detail += "; manifests " + strings.Join(conflict.Details, " and ")
+	}
+	set := facts.Set{
+		Repositories: make([]facts.Repository, 0, len(conflict.Repositories)),
+		Unresolved:   make([]facts.UnresolvedReference, 0, len(conflict.Repositories)),
+	}
+	for _, name := range conflict.Repositories {
+		repository := byName[name]
+		repositoryKey := facts.RepositoryKey(repository.Name)
+		set.Repositories = append(set.Repositories, facts.Repository{
+			Key:       repositoryKey,
+			Name:      repository.Name,
+			RootPath:  repository.RealPath,
+			Languages: []facts.Language{facts.LanguageGo},
+		})
+		set.Unresolved = append(set.Unresolved, facts.UnresolvedReference{
+			RepositoryKey:    repositoryKey,
+			Language:         facts.LanguageGo,
+			RequestedPackage: conflict.Subject,
+			Reason:           string(goworkspace.AmbiguousModule),
+			Detail:           detail,
+		})
+	}
+	return set
 }
 
 func modulesByRepository(modules []goworkspace.Module) map[string][]goworkspace.Module {
