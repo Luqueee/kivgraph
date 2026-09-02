@@ -32,6 +32,7 @@ import (
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 	"github.com/Luqueee/kivgraph/internal/indexer"
 	"github.com/Luqueee/kivgraph/internal/indexing"
+	"github.com/Luqueee/kivgraph/internal/invalidation"
 	"github.com/Luqueee/kivgraph/internal/logging"
 	mcpserver "github.com/Luqueee/kivgraph/internal/mcp"
 	"github.com/Luqueee/kivgraph/internal/procstat"
@@ -615,8 +616,16 @@ func watchConfiguredProfiles(
 	if err != nil {
 		return nil, fmt.Errorf("watch configured profiles: %w", err)
 	}
+	manager, err := invalidation.Open(stateDirectory(loaded))
+	if err != nil {
+		return nil, fmt.Errorf("watch configured profiles: open invalidation state: %w", err)
+	}
+	scheduler := newInvalidationScheduler(ctx, manager, indexer, logging.New(os.Stderr))
 	var watchersMu sync.Mutex
-	stops := make([]func(), 0, len(profiles)*2)
+	stops := make([]func(), 0, len(profiles)*3+1)
+	// Profile watchers stop before the queue so no callback can enqueue work
+	// while the scheduler is shutting down.
+	stops = append(stops, scheduler.Close)
 	watched := make(map[string]struct{}, len(profiles))
 	closed := false
 	register := func(name string, profileLoaded config.Loaded, profileStore *hotsnapshot.SnapshotStore) {
@@ -633,6 +642,9 @@ func watchConfiguredProfiles(
 			followPublishedGeneration(ctx, profileLoaded, profileStore, command, indexing.FollowOptions{}),
 			resyncOnBranchChange(ctx, profileLoaded, profileStore, namedProfileReindexer{indexer, name}, command),
 		)
+		if profileLoaded.Config.Watcher.Enabled {
+			stops = append(stops, watchProfileSources(ctx, profileLoaded, manager, scheduler, command))
+		}
 	}
 	cleanup := func() {
 		watchersMu.Lock()
@@ -1452,6 +1464,12 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 	indexOptions.Repositories = registry.List()
 	indexOptions.WorkingDirectory = workingDirectory
 	indexOptions.ResolverVersion = options.ResolverVersion
+	invalidationManager, err := invalidation.Open(stateDirectory(loaded))
+	if err != nil {
+		writeCommandError(stderr, "index --full: open invalidation state: %v", err)
+		return 1
+	}
+	indexOptions.Invalidation = invalidationManager
 	if options.JSONOutput {
 		return runIndexFullEvents(ctx, indexOptions, events, progressStart, stdout, stderr)
 	}
@@ -1467,6 +1485,9 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 	}
 	fullResult, err := indexing.RunFull(ctx, indexOptions)
 	recordIndexRun(events, fullResult.RebuildReport, int64(fullResult.Counts.Symbols), time.Since(progressStart), err)
+	if fullResult.RecordingError != nil {
+		writeWarning(stdout, "index.invalidation: %v", fullResult.RecordingError)
+	}
 	indexReport := fullResult.IndexReport
 	writeResult(stdout, err == nil, "index.full: %s", passFail(err == nil))
 	writeIndexSummary(stdout, indexReport)

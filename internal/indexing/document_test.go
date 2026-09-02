@@ -2,11 +2,36 @@ package indexing
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/Luqueee/kivgraph/internal/indexer"
+	"github.com/Luqueee/kivgraph/internal/rebuild"
 )
+
+func TestDocumentPreservesPublishedPassWhenInvalidationRecordingFails(t *testing.T) {
+	document := DocumentFromResult(FullResult{
+		RebuildReport:  rebuild.Report{Passed: true, GenerationID: "000001"},
+		RecordingError: errors.New("record published source state: state is busy"),
+	})
+	if !document.Passed || document.GenerationID != "000001" {
+		t.Fatalf("document = %#v, want the published pass", document)
+	}
+	if document.Error != "" {
+		t.Fatalf("document.Error = %q, want no rebuild failure", document.Error)
+	}
+	if document.RecordingError == "" {
+		t.Fatal("document.RecordingError is empty, want bookkeeping failure")
+	}
+	encoded, err := json.Marshal(document)
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+	if !strings.Contains(string(encoded), `"recording_error":"record published source state: state is busy"`) {
+		t.Fatalf("encoded document = %s, want recording_error", encoded)
+	}
+}
 
 // TestSummaryCarriesEveryNotLoadedCount is the negative that matters: a caller
 // reading this protocol cannot tell a language with no code from a language this

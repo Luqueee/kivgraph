@@ -38,7 +38,7 @@ writes a validated temporary file, flushes it, and atomically replaces the
 state file.
 
 This stage provides the reverse index, durable stale state and comparison
-contract. It does not schedule rebuilds.
+contract. Rebuild scheduling and watcher ownership are defined in ADR 0099.
 
 ## Consequences
 
