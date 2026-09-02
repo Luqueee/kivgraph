@@ -85,6 +85,7 @@ func TestWatchSourcesRetriesARejectedChange(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	firstAttempt := make(chan struct{}, 1)
+	rejected := make(chan watcher.ReconciliationResult, 1)
 	delivered := make(chan watcher.ReconciliationResult, 1)
 	done := make(chan error, 1)
 	attempt := 0
@@ -99,7 +100,11 @@ func TestWatchSourcesRetriesARejectedChange(t *testing.T) {
 			OnChange: func(_ context.Context, result watcher.ReconciliationResult) error {
 				attempt++
 				if attempt == 1 {
-					firstAttempt <- struct{}{}
+					select {
+					case firstAttempt <- struct{}{}:
+					default:
+					}
+					rejected <- result
 					return errors.New("temporary change handler failure")
 				}
 				select {
@@ -128,13 +133,11 @@ func TestWatchSourcesRetriesARejectedChange(t *testing.T) {
 	}
 
 rejected:
-	if err := writeSourceWatchFile(path, "package source\n\nconst retry = 2\n"); err != nil {
-		t.Fatal(err)
-	}
+	firstResult := <-rejected
 	select {
 	case result := <-delivered:
-		if len(result.Modified) != 1 || result.Modified[0].Path != path {
-			t.Fatalf("retried source change = %#v, want one modification of %q", result, path)
+		if !reflect.DeepEqual(result, firstResult) {
+			t.Fatalf("retried source change = %#v, want rejected result %#v", result, firstResult)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatalf("WatchSources(%q) did not deliver rejected change", root)
@@ -177,7 +180,95 @@ func TestCoalesceReconciliationResultsRetainsLatestStatePerPath(t *testing.T) {
 		Removed: []watcher.FileState{{Repository: "repo", Path: "/repo/removed.go", Operations: watcher.OperationRemove}},
 	}
 	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("coalesceReconciliationResults() = %#v, want %#v", got, want)
+		t.Fatalf("coalesceReconciliationResults(first=%#v, next=%#v) = %#v, want %#v", first, next, got, want)
+	}
+}
+
+func TestCoalesceReconciliationResultsUsesLatestExclusiveState(t *testing.T) {
+	first := watcher.ReconciliationResult{
+		Added: []watcher.FileState{
+			{Repository: "repo-a", Path: "/repo-a/new.go", Operations: watcher.OperationCreate},
+			{Repository: "repo-z", Path: "/repo-z/another.go", Operations: watcher.OperationCreate},
+		},
+		Modified: []watcher.FileState{{
+			Repository:  "repo",
+			Path:        "/repo/a.go",
+			Operations:  watcher.OperationWrite,
+			ContentHash: "old",
+		}},
+		Unchanged: []watcher.FileState{{
+			Repository: "repo-a",
+			Path:       "/repo-a/unchanged.go",
+			Operations: watcher.OperationWrite,
+		}},
+		Removed: []watcher.FileState{{
+			Repository: "repo-a",
+			Path:       "/repo-a/old.go",
+			Operations: watcher.OperationRemove,
+		}},
+		Skipped: []watcher.FileState{{
+			Repository: "repo-a",
+			Path:       "/repo-a/skipped.go",
+			Operations: watcher.OperationWrite,
+		}},
+	}
+	next := watcher.ReconciliationResult{
+		Added: []watcher.FileState{{
+			Repository: "repo-z",
+			Path:       "/repo-z/new.go",
+			Operations: watcher.OperationCreate,
+		}},
+		Modified: []watcher.FileState{{
+			Repository:  "repo-a",
+			Path:        "/repo-a/new.go",
+			Operations:  watcher.OperationWrite,
+			ContentHash: "latest",
+		}},
+		Unchanged: []watcher.FileState{{
+			Repository: "repo-z",
+			Path:       "/repo-z/unchanged.go",
+			Operations: watcher.OperationWrite,
+		}},
+		Removed: []watcher.FileState{{
+			Repository: "repo",
+			Path:       "/repo/a.go",
+			Operations: watcher.OperationRemove,
+		}},
+		Skipped: []watcher.FileState{{
+			Repository: "repo-z",
+			Path:       "/repo-z/skipped.go",
+			Operations: watcher.OperationWrite,
+		}},
+	}
+	want := watcher.ReconciliationResult{
+		Added: []watcher.FileState{
+			{Repository: "repo-z", Path: "/repo-z/another.go", Operations: watcher.OperationCreate},
+			{Repository: "repo-z", Path: "/repo-z/new.go", Operations: watcher.OperationCreate},
+		},
+		Modified: []watcher.FileState{
+			{
+				Repository:  "repo-a",
+				Path:        "/repo-a/new.go",
+				Operations:  watcher.OperationWrite,
+				ContentHash: "latest",
+			},
+		},
+		Unchanged: []watcher.FileState{
+			{Repository: "repo-a", Path: "/repo-a/unchanged.go", Operations: watcher.OperationWrite},
+			{Repository: "repo-z", Path: "/repo-z/unchanged.go", Operations: watcher.OperationWrite},
+		},
+		Removed: []watcher.FileState{
+			{Repository: "repo", Path: "/repo/a.go", Operations: watcher.OperationRemove},
+			{Repository: "repo-a", Path: "/repo-a/old.go", Operations: watcher.OperationRemove},
+		},
+		Skipped: []watcher.FileState{
+			{Repository: "repo-a", Path: "/repo-a/skipped.go", Operations: watcher.OperationWrite},
+			{Repository: "repo-z", Path: "/repo-z/skipped.go", Operations: watcher.OperationWrite},
+		},
+	}
+	got := coalesceReconciliationResults(first, next)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("coalesceReconciliationResults(first=%#v, next=%#v) = %#v, want %#v", first, next, got, want)
 	}
 }
 
