@@ -106,6 +106,27 @@ func TestCaptureTracksDirtyAndCommittedSourceState(t *testing.T) {
 	}
 }
 
+func TestCaptureWithRepositoriesReturnsObservedMetadata(t *testing.T) {
+	repository := sourceFixtureRepository(t)
+	repository.Commit = "stale-commit"
+	repository.Branch = "stale-branch"
+	repository.Dirty = false
+	manifest, observed, err := CaptureWithRepositories(context.Background(), "default", "resolver-1", "analyzer-1", []workspace.Repository{repository})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(observed) != 1 || len(manifest.Sources) != 1 {
+		t.Fatalf("observed repositories = %#v, manifest sources = %#v, want one of each", observed, manifest.Sources)
+	}
+	want := manifest.Sources[0].Observation
+	if observed[0].Commit != want.Commit || observed[0].Branch != want.Branch || observed[0].Dirty != want.Dirty {
+		t.Fatalf("observed repository = %#v, want metadata from %#v", observed[0], want)
+	}
+	if observed[0].Commit == "stale-commit" || observed[0].Branch == "stale-branch" {
+		t.Fatalf("observed repository retained stale metadata: %#v", observed[0])
+	}
+}
+
 func TestCaptureTracksDerivedProvidersByContent(t *testing.T) {
 	root := testsupport.TempDir(t)
 	path := filepath.Join(root, "external.dart")
@@ -232,7 +253,7 @@ func TestTreeDigestFramesFileContentWithoutAmbiguousBoundaries(t *testing.T) {
 		t.Fatal(err)
 	}
 	if combinedDigest == separateDigest {
-		t.Fatal("TreeDigest() collided for file contents that mimic the old entry boundary")
+		t.Fatalf("TreeDigest() collided for %q and %q with digest %q; file paths and contents must remain distinguishable", combined, separate, combinedDigest)
 	}
 }
 

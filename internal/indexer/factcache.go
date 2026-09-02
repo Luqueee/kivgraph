@@ -840,7 +840,11 @@ func AnalyzerFingerprint(options FullOptions) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("resolve Kivgraph executable: %w", err)
 	}
-	fmt.Fprintf(hash, "binary=%s\x00", fileFingerprint(executable))
+	binaryDigest, err := sourceobservation.FileDigest(context.Background(), executable)
+	if err != nil {
+		return "", fmt.Errorf("digest Kivgraph executable: %w", err)
+	}
+	fmt.Fprintf(hash, "binary=%s\x00", binaryDigest)
 	goEnvironment, err := goEnvironmentFingerprint()
 	if err != nil {
 		return "", err

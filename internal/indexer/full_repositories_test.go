@@ -33,8 +33,18 @@ func TestResolveRepositoriesIncludesDerivedExternalDartPackages(t *testing.T) {
 	if len(repositories) != 2 {
 		t.Fatalf("effective repositories = %#v, want app and external provider", repositories)
 	}
-	provider := repositories[1]
-	if !provider.Derived || provider.Path != external || !strings.HasPrefix(provider.Name, "dart-package:external:") {
+	providerIndex := -1
+	for index := range repositories {
+		if strings.HasPrefix(repositories[index].Name, "dart-package:external:") {
+			providerIndex = index
+			break
+		}
+	}
+	if providerIndex < 0 {
+		t.Fatalf("effective repositories = %#v, want a derived Dart package", repositories)
+	}
+	provider := repositories[providerIndex]
+	if !provider.Derived || provider.Path != external {
 		t.Fatalf("external provider = %#v, want a derived Dart package", provider)
 	}
 }

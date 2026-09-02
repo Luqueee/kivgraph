@@ -306,7 +306,7 @@ func RunFull(ctx context.Context, options FullOptions) (result FullResult, resul
 	if err != nil {
 		return FullResult{}, fmt.Errorf("observe index analyzer configuration: %w", err)
 	}
-	manifest, err := sourceobservation.Capture(
+	manifest, observedRepositories, err := sourceobservation.CaptureWithRepositories(
 		ctx,
 		options.Profile,
 		options.ResolverVersion,
@@ -317,7 +317,7 @@ func RunFull(ctx context.Context, options FullOptions) (result FullResult, resul
 		return FullResult{}, fmt.Errorf("observe index sources: %w", err)
 	}
 
-	factSet, indexReport, err := indexer.FullWithRepositories(ctx, indexOptions, effectiveRepositories)
+	factSet, indexReport, err := indexer.FullWithRepositories(ctx, indexOptions, observedRepositories)
 	result = FullResult{IndexReport: indexReport}
 	if err != nil {
 		return result, fmt.Errorf("index repositories: %w", err)

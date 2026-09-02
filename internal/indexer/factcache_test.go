@@ -486,13 +486,14 @@ func TestAnalyzerFingerprintWatchesThePythonProducerThatRuns(t *testing.T) {
 }
 
 func TestObservedAnalyzerFingerprintIsStable(t *testing.T) {
-	first, err := AnalyzerFingerprint(FullOptions{TypeScriptWorker: "kivgraph-ts-worker"})
+	worker := "kivgraph-ts-worker"
+	first, err := AnalyzerFingerprint(FullOptions{TypeScriptWorker: worker})
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("AnalyzerFingerprint(TypeScriptWorker=%q): %v", worker, err)
 	}
-	second, err := AnalyzerFingerprint(FullOptions{TypeScriptWorker: "kivgraph-ts-worker"})
+	second, err := AnalyzerFingerprint(FullOptions{TypeScriptWorker: worker})
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("second AnalyzerFingerprint(TypeScriptWorker=%q): %v", worker, err)
 	}
 	if first != second {
 		t.Fatalf("AnalyzerFingerprint() = %q then %q, want stable observations", first, second)

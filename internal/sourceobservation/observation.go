@@ -179,6 +179,38 @@ func Capture(
 	return manifest, nil
 }
 
+// CaptureWithRepositories returns the provider metadata observed while
+// creating the manifest as well as the manifest itself. The full pass uses the
+// refreshed values when it stamps repository provenance onto merged facts;
+// otherwise a registry opened before a checkout or edit would publish stale
+// commit, branch, or dirty state.
+func CaptureWithRepositories(
+	ctx context.Context,
+	profile, resolverVersion, analyzerFingerprint string,
+	repositories []workspace.Repository,
+) (Manifest, []workspace.Repository, error) {
+	manifest, err := Capture(ctx, profile, resolverVersion, analyzerFingerprint, repositories)
+	if err != nil {
+		return Manifest{}, nil, err
+	}
+
+	byName := make(map[string]Source, len(manifest.Sources))
+	for _, source := range manifest.Sources {
+		byName[source.Repository] = source
+	}
+	observed := append([]workspace.Repository(nil), repositories...)
+	for index := range observed {
+		source, ok := byName[strings.TrimSpace(observed[index].Name)]
+		if !ok {
+			return Manifest{}, nil, fmt.Errorf("source observation repository %q missing from manifest", observed[index].Name)
+		}
+		observed[index].Commit = source.Observation.Commit
+		observed[index].Branch = source.Observation.Branch
+		observed[index].Dirty = source.Observation.Dirty
+	}
+	return manifest, observed, nil
+}
+
 // Compare reports a source state change with the first affected input. The
 // caller supplies observations captured before and after a full pass.
 func Compare(expected, actual Manifest) error {

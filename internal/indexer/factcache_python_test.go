@@ -76,11 +76,11 @@ func TestGoEnvironmentFingerprintIsStableWithoutTheToolchain(t *testing.T) {
 	t.Setenv("PATH", testsupport.TempDir(t))
 	absent, err := goEnvironmentFingerprint()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("go environment fingerprint with PATH=%q: %v", os.Getenv("PATH"), err)
 	}
 	again, err := goEnvironmentFingerprint()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("second go environment fingerprint with PATH=%q: %v", os.Getenv("PATH"), err)
 	}
 	if absent != again {
 		t.Fatal("the Go environment fingerprint changes between two reads with no toolchain installed, so the fact cache is off for every language")
