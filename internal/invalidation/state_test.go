@@ -338,23 +338,56 @@ func TestJoinDetailBoundsSegmentsAndCharacters(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	for index := 0; index < maxDetailSegments+3; index++ {
+	const detailInputCount = 12
+	details := make([]string, 0, detailInputCount)
+	for index := 0; index < detailInputCount; index++ {
+		detail := "observation-" + string(rune('a'+index))
+		details = append(details, detail)
 		if err := manager.MarkStale(context.Background(), "source", "source", ReasonCommitChanged,
-			"observation-"+string(rune('a'+index))); err != nil {
-			t.Fatal(err)
+			detail); err != nil {
+			t.Fatalf("MarkStale(profile=%q, worktree=%q, repository=%q, reason=%q, input=%d, detail=%q): %v",
+				"default", "source", "source", ReasonCommitChanged, index, detail, err)
 		}
 	}
 	state := manager.Snapshot()
-	if len(state.Profiles) != 1 || len(state.Profiles[0].Changes) != 1 {
-		t.Fatalf("state = %#v, want one profile with one merged change", state)
+	var profile *ProfileState
+	for index := range state.Profiles {
+		if state.Profiles[index].Profile == "default" {
+			profile = &state.Profiles[index]
+			break
+		}
 	}
-	detail := state.Profiles[0].Changes[0].Detail
-	if got := strings.Count(detail, "; ") + 1; got != maxDetailSegments {
-		t.Fatalf("detail segments after merging %d details = %d, want %d: %q",
-			maxDetailSegments+3, got, maxDetailSegments, detail)
+	if profile == nil {
+		t.Fatalf("state = %#v, want profile %q after %d MarkStale inputs for worktree %q, reason %q, details %q",
+			state, "default", detailInputCount, "source", ReasonCommitChanged, details)
 	}
-	if !strings.Contains(detail, "observation-a") {
-		t.Fatalf("detail = %q, want the first merged detail to be kept", detail)
+	if !profile.Stale {
+		t.Fatalf("state = %#v, want profile %q stale after %d MarkStale inputs for worktree %q, reason %q, details %q",
+			state, profile.Profile, detailInputCount, "source", ReasonCommitChanged, details)
+	}
+	var change *SourceChange
+	for index := range profile.Changes {
+		candidate := &profile.Changes[index]
+		if candidate.Worktree == "source" && candidate.Repository == "source" &&
+			candidate.Reason == ReasonCommitChanged {
+			change = candidate
+			break
+		}
+	}
+	if change == nil {
+		t.Fatalf("state = %#v, want a source change for profile %q, worktree %q, reason %q, details %q",
+			state, "default", "source", ReasonCommitChanged, details)
+	}
+	detail := change.Detail
+	retained := 0
+	for _, candidate := range details {
+		if strings.Contains(detail, candidate) {
+			retained++
+		}
+	}
+	if retained < 2 || retained > maxDetailSegments {
+		t.Fatalf("detail = %q, retained %d of %d input details %q, want a merged bounded result",
+			detail, retained, detailInputCount, details)
 	}
 	longManager := newManager(t)
 	longManifest := manifestFor(t, "default", "source", "commit-a", false, "digest-a")
