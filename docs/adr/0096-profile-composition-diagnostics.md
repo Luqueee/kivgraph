@@ -11,8 +11,9 @@ topology. A report that only contains language counts cannot show which source
 instances formed the provider universe, so an operator cannot distinguish an
 edge-resolution problem from an incorrectly selected worktree.
 
-The composition is membership and provenance metadata. It is not evidence for
-a dependency edge and must remain separate from the canonical fact set.
+The current implementation treats composition as membership and provenance
+metadata. It is not evidence for a dependency edge; dependency evidence is
+stored separately in the canonical fact set.
 
 ## Decision
 

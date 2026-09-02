@@ -169,7 +169,7 @@ func TestComposedProfileResolvesGoEdgesAcrossSelectedWorktrees(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatalf("no exact edge from consumer.Total to provider.Value: %#v", set.Edges)
+		t.Fatalf("no exact edge with dependency=true from consumer.Total to provider.Value: %#v", set.Edges)
 	}
 }
 
@@ -265,17 +265,19 @@ func newComposedGoFixture(t *testing.T, dependency bool) (*workspace.Registry, s
 
 func indexComposedGoFixture(t *testing.T, registry *workspace.Registry, workFile string) facts.Set {
 	t.Helper()
+	repositories := registry.List()
 	set, _, err := indexer.Full(context.Background(), indexer.FullOptions{
 		Profile:           "default",
-		Repositories:      registry.List(),
+		Repositories:      repositories,
 		SyntheticWorkFile: workFile,
 		GoMaximumLoads:    1,
 	})
 	if err != nil {
-		t.Fatalf("indexer.Full() error = %v", err)
+		t.Fatalf("indexer.Full(workFile=%q, repositories=%#v) error = %v", workFile, repositories, err)
 	}
 	if err := set.Validate(); err != nil {
-		t.Fatalf("composed facts validation error = %v", err)
+		t.Fatalf("composed facts validation for workFile=%q, repositories=%#v error = %v",
+			workFile, repositories, err)
 	}
 	return set
 }
