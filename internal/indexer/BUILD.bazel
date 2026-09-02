@@ -21,6 +21,7 @@ go_library(
         "//internal/javaloader",
         "//internal/pythonloader",
         "//internal/rustloader",
+        "//internal/sourceobservation",
         "//internal/syntax",
         "//internal/workspace",
         "@org_golang_x_sync//errgroup",
