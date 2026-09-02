@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -169,15 +170,21 @@ func TestComposedProfileResolvesGoEdgesAcrossSelectedWorktrees(t *testing.T) {
 
 func TestWriteProfileDiagnosticsReportsEffectiveWorktrees(t *testing.T) {
 	registry, _ := newComposedGoFixture(t, false)
+	composition, present := registry.Composition()
+	if !present {
+		t.Fatal("registry.Composition() = false, want the selected topology")
+	}
 	var stdout bytes.Buffer
 	writeProfileDiagnostics(&stdout, "default", registry)
 
 	report := stdout.String()
-	for _, want := range []string{
-		"index.profile: name=default composition=topology repositories=2",
-		"index.profile.worktree: repository=consumer worktree=consumer-main",
-		"index.profile.worktree: repository=provider worktree=provider-main",
-	} {
+	if !strings.Contains(report, "index.profile: name=default composition=topology repositories=2") {
+		t.Fatalf("profile diagnostics = %q, want the topology summary", report)
+	}
+	for index, repository := range composition.Repositories {
+		worktree := composition.Worktrees[index]
+		want := fmt.Sprintf("index.profile.worktree: repository=%s worktree=%s path=%s",
+			repository.ID, worktree.ID, worktree.Path)
 		if !strings.Contains(report, want) {
 			t.Fatalf("profile diagnostics = %q, want %q", report, want)
 		}
