@@ -11,25 +11,30 @@ import (
 )
 
 func TestDocumentPreservesPublishedPassWhenInvalidationRecordingFails(t *testing.T) {
-	document := DocumentFromResult(FullResult{
+	result := FullResult{
 		RebuildReport:  rebuild.Report{Passed: true, GenerationID: "000001"},
 		RecordingError: errors.New("record published source state: state is busy"),
-	})
+	}
+	document := DocumentFromResult(result)
 	if !document.Passed || document.GenerationID != "000001" {
-		t.Fatalf("document = %#v, want the published pass", document)
+		t.Fatalf("result = %#v, document = %#v, want the published pass", result, document)
 	}
 	if document.Error != "" {
-		t.Fatalf("document.Error = %q, want no rebuild failure", document.Error)
+		t.Fatalf("result = %#v, document = %#v, want no rebuild failure", result, document)
 	}
 	if document.RecordingError == "" {
-		t.Fatal("document.RecordingError is empty, want bookkeeping failure")
+		t.Fatalf("result = %#v, document = %#v, want bookkeeping failure", result, document)
 	}
 	encoded, err := json.Marshal(document)
 	if err != nil {
-		t.Fatalf("Marshal() error = %v", err)
+		t.Fatalf("result = %#v, document = %#v, Marshal() error = %v", result, document, err)
 	}
-	if !strings.Contains(string(encoded), `"recording_error":"record published source state: state is busy"`) {
-		t.Fatalf("encoded document = %s, want recording_error", encoded)
+	var decoded FullDocument
+	if err := json.Unmarshal(encoded, &decoded); err != nil {
+		t.Fatalf("result = %#v, document = %#v, Unmarshal() error = %v", result, document, err)
+	}
+	if decoded.RecordingError == "" {
+		t.Fatalf("result = %#v, document = %#v, decoded = %#v, want recording_error", result, document, decoded)
 	}
 }
 

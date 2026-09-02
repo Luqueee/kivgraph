@@ -23,7 +23,7 @@ func TestInvalidationSchedulerRebuildsEachStaleProfileOnce(t *testing.T) {
 		{Profile: "other", Generation: "000001", Manifest: second},
 	} {
 		if err := manager.RecordPublished(context.Background(), record); err != nil {
-			t.Fatal(err)
+			t.Fatalf("RecordPublished(%q) error = %v", record.Profile, err)
 		}
 	}
 	if err := manager.MarkStale(context.Background(), "shared", "shared", invalidation.ReasonContentChanged, "source changed"); err != nil {
