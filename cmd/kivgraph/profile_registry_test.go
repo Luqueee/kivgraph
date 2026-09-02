@@ -91,10 +91,10 @@ func TestRegistryForProfileKeepsLegacyRegistryWithoutTopology(t *testing.T) {
 		t.Fatalf("registryForProfile() error = %v", err)
 	}
 	if _, present := registry.Composition(); present {
-		t.Fatal("legacy registry unexpectedly carries topology provenance")
+		t.Fatalf("legacy registry unexpectedly carries topology provenance for config %q", loaded.ConfigPath)
 	}
 	if items := registry.List(); len(items) != 1 || items[0].Path != path {
-		t.Fatalf("legacy registry = %#v, want the configured path", items)
+		t.Fatalf("legacy registry = %#v, want configured path %q", items, path)
 	}
 }
 

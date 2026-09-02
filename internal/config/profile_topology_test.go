@@ -81,7 +81,7 @@ func TestLoadProfileTopologyRejectsMalformedDocuments(t *testing.T) {
 				t.Fatalf("LoadProfileTopology(%q) error = %q, want substring %q", test.name, err, test.want)
 			}
 			if test.class != nil && !errors.Is(err, test.class) {
-				t.Fatalf("LoadProfileTopology() error = %v, want %v", err, test.class)
+				t.Fatalf("LoadProfileTopology(%q) error = %v, want %v", test.name, err, test.class)
 			}
 		})
 	}
