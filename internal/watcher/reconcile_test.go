@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Luqueee/kivgraph/internal/config"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
@@ -191,6 +192,91 @@ func TestReconcilerValidatesRunArguments(t *testing.T) {
 	if err := reconciler.Run(context.Background(), time.Second, nil); err == nil {
 		t.Fatal("Run() with nil sink returned nil error")
 	}
+}
+
+func TestReconcilerProcessFiltersNonSourcesAndClassifiesEvents(t *testing.T) {
+	root := testsupport.TempDir(t)
+	source := filepath.Join(root, "main.go")
+	notes := filepath.Join(root, "notes.md")
+	manifest := filepath.Join(root, "go.mod")
+	excludedJSON := filepath.Join(root, "ignored", "package.json")
+	excludedGo := filepath.Join(root, "ignored", "ignored.go")
+	writeTestFile(t, source, "package source\n")
+	writeTestFile(t, notes, "documentation\n")
+	writeTestFile(t, manifest, "module example.test\n\ngo 1.23\n")
+	writeTestFile(t, excludedJSON, "{\"name\":\"ignored\"}\n")
+	writeTestFile(t, excludedGo, "package ignored\n")
+
+	hasher, err := NewContentHasher(nil)
+	if err != nil {
+		t.Fatalf("NewContentHasher() error = %v", err)
+	}
+	reconciler, err := NewReconciler([]workspace.Repository{{
+		Name: "repo", RealPath: root, Path: root, Languages: []string{"go"},
+		Exclusions: []string{"ignored/**"},
+	}}, hasher)
+	if err != nil {
+		t.Fatalf("NewReconciler() error = %v", err)
+	}
+	if _, err := reconciler.Reconcile(context.Background()); err != nil {
+		t.Fatalf("Reconcile(seed) error = %v", err)
+	}
+	if err := os.WriteFile(source, []byte("package source\n\nconst changed = true\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(notes, []byte("changed documentation\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := reconciler.Process(context.Background(), Batch{Events: []Event{
+		{Repository: "repo", Path: source, Operations: OperationWrite},
+		{Repository: "repo", Path: notes, Operations: OperationWrite},
+	}})
+	if err != nil {
+		t.Fatalf("Process() error = %v", err)
+	}
+	assertStatePaths(t, "modified source", result.Modified, source)
+	if len(result.Added) != 0 || len(result.Removed) != 0 || len(result.Unchanged) != 0 ||
+		len(result.Skipped) != 0 || len(result.ManifestChanges) != 0 {
+		t.Fatalf("Process(%q, %q) result = %#v, want only the source modification", source, notes, result)
+	}
+	result, err = reconciler.Process(context.Background(), Batch{Events: []Event{
+		{Repository: "repo", Path: excludedJSON, Operations: OperationWrite},
+		{Repository: "repo", Path: excludedGo, Operations: OperationWrite},
+	}})
+	if err != nil {
+		t.Fatalf("Process(excluded paths) error = %v", err)
+	}
+	if len(result.Added) != 0 || len(result.Modified) != 0 || len(result.Removed) != 0 ||
+		len(result.Unchanged) != 0 || len(result.Skipped) != 0 || len(result.ManifestChanges) != 0 {
+		t.Fatalf("Process(%q, %q) result = %#v, want no tracked changes", excludedJSON, excludedGo, result)
+	}
+	if err := os.Remove(source); err != nil {
+		t.Fatal(err)
+	}
+	result, err = reconciler.Process(context.Background(), Batch{Events: []Event{
+		{Repository: "repo", Path: source, Operations: OperationRemove},
+	}})
+	if err != nil {
+		t.Fatalf("Process(remove) error = %v", err)
+	}
+	assertStatePaths(t, "removed source", result.Removed, source)
+	if len(result.Added) != 0 || len(result.Modified) != 0 || len(result.Unchanged) != 0 ||
+		len(result.Skipped) != 0 || len(result.ManifestChanges) != 0 {
+		t.Fatalf("Process(remove) result = %#v, want only the source removal", result)
+	}
+
+	if err := os.WriteFile(manifest, []byte("module example.test\n\ngo 1.24\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	result, err = reconciler.Process(context.Background(), Batch{Events: []Event{{
+		Repository: "repo", Path: manifest, Operations: OperationWrite,
+	}}})
+	if err != nil {
+		t.Fatalf("Process(manifest) error = %v", err)
+	}
+	assertStatePaths(t, "modified manifest", result.Modified, manifest)
+	assertStatePaths(t, "manifest changes", result.ManifestChanges, manifest)
 }
 
 func writeTestFile(t *testing.T, path, content string) {

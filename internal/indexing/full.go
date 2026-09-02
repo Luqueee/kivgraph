@@ -12,6 +12,7 @@ import (
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/filelock"
 	"github.com/Luqueee/kivgraph/internal/indexer"
+	"github.com/Luqueee/kivgraph/internal/invalidation"
 	"github.com/Luqueee/kivgraph/internal/metrics"
 	"github.com/Luqueee/kivgraph/internal/rebuild"
 	"github.com/Luqueee/kivgraph/internal/sourceobservation"
@@ -104,6 +105,11 @@ type FullOptions struct {
 	ResolverVersion       string
 	Store                 generation.Config
 	Metrics               *metrics.Registry
+	// Invalidation records the source manifest only after the complete rebuild
+	// has passed and the generation has been published. A nil manager keeps the
+	// lower-level indexing API useful for callers that do not own installation
+	// state.
+	Invalidation *invalidation.Manager
 
 	Progress        func(indexer.ProgressEvent)
 	RebuildProgress func(rebuild.StageName)
@@ -185,55 +191,8 @@ func OptionsFromConfig(configuration config.Config) FullOptions {
 	}
 }
 
-// Counts is the number of authoritative facts produced by one full pass.
-type Counts struct {
-	Repositories int `json:"repositories"`
-	Packages     int `json:"packages"`
-	Files        int `json:"files"`
-	Symbols      int `json:"symbols"`
-	Evidence     int `json:"evidence"`
-	Edges        int `json:"edges"`
-	Unresolved   int `json:"unresolved"`
-}
-
-// FullResult contains the reports needed by CLI and MCP callers without
-// exposing the temporary facts set after the rebuild has completed.
-type FullResult struct {
-	Counts        Counts
-	IndexReport   indexer.FullReport
-	RebuildReport rebuild.Report
-}
-
-// RunFull indexes all repositories, validates the facts, and publishes one
-// canonical generation. It does not modify the repository registry; callers
-// that manage a candidate registry commit it separately.
-func RunFull(ctx context.Context, options FullOptions) (result FullResult, resultErr error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if options.Root == "" {
-		return FullResult{}, fmt.Errorf("full index: root is required")
-	}
-	if options.ResolverVersion == "" {
-		return FullResult{}, fmt.Errorf("full index: resolver version is required")
-	}
-	if options.SharedTargetsLockPath != "" {
-		lock, acquired, err := filelock.Acquire(options.SharedTargetsLockPath)
-		if err != nil {
-			return FullResult{}, fmt.Errorf("full index: acquire shared analyzer targets lock: %w", err)
-		}
-		if !acquired {
-			return FullResult{}, fmt.Errorf("full index: shared analyzer targets are busy; another profile is indexing")
-		}
-		defer func() {
-			if err := lock.Release(); err != nil {
-				resultErr = errors.Join(resultErr,
-					fmt.Errorf("full index: release shared analyzer targets lock: %w", err))
-			}
-		}()
-	}
-
-	indexOptions := indexer.FullOptions{
+func (options FullOptions) indexerOptions() indexer.FullOptions {
+	return indexer.FullOptions{
 		Profile:                           options.Profile,
 		Repositories:                      options.Repositories,
 		SyntheticWorkFile:                 options.SyntheticWorkFile,
@@ -298,13 +257,21 @@ func RunFull(ctx context.Context, options FullOptions) (result FullResult, resul
 		CacheDirectory:                    options.CacheDirectory,
 		Progress:                          options.Progress,
 	}
+}
+
+// ObserveSources resolves the providers a full pass will read and captures
+// their current mutable state. Watchers use the same route as RunFull so a
+// stale registry or analyzer fingerprint cannot make invalidation disagree
+// with the manifest that a subsequent rebuild publishes.
+func ObserveSources(ctx context.Context, options FullOptions) (sourceobservation.Manifest, []workspace.Repository, error) {
+	indexOptions := options.indexerOptions()
 	effectiveRepositories, err := indexer.ResolveRepositories(indexOptions)
 	if err != nil {
-		return FullResult{}, fmt.Errorf("resolve effective index sources: %w", err)
+		return sourceobservation.Manifest{}, nil, fmt.Errorf("resolve effective index sources: %w", err)
 	}
 	analyzerFingerprint, err := indexer.AnalyzerFingerprint(indexOptions)
 	if err != nil {
-		return FullResult{}, fmt.Errorf("observe index analyzer configuration: %w", err)
+		return sourceobservation.Manifest{}, nil, fmt.Errorf("observe index analyzer configuration: %w", err)
 	}
 	manifest, observedRepositories, err := sourceobservation.CaptureWithRepositories(
 		ctx,
@@ -314,7 +281,67 @@ func RunFull(ctx context.Context, options FullOptions) (result FullResult, resul
 		effectiveRepositories,
 	)
 	if err != nil {
-		return FullResult{}, fmt.Errorf("observe index sources: %w", err)
+		return sourceobservation.Manifest{}, nil, fmt.Errorf("observe index sources: %w", err)
+	}
+	return manifest, observedRepositories, nil
+}
+
+// Counts is the number of authoritative facts produced by one full pass.
+type Counts struct {
+	Repositories int `json:"repositories"`
+	Packages     int `json:"packages"`
+	Files        int `json:"files"`
+	Symbols      int `json:"symbols"`
+	Evidence     int `json:"evidence"`
+	Edges        int `json:"edges"`
+	Unresolved   int `json:"unresolved"`
+}
+
+// FullResult contains the reports needed by CLI and MCP callers without
+// exposing the temporary facts set after the rebuild has completed.
+type FullResult struct {
+	Counts        Counts
+	IndexReport   indexer.FullReport
+	RebuildReport rebuild.Report
+	// RecordingError means the graph was published but its derived source
+	// invalidation record could not be persisted. It must not turn a valid
+	// generation into a failed rebuild.
+	RecordingError error
+}
+
+// RunFull indexes all repositories, validates the facts, and publishes one
+// canonical generation. It does not modify the repository registry; callers
+// that manage a candidate registry commit it separately.
+func RunFull(ctx context.Context, options FullOptions) (result FullResult, resultErr error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if options.Root == "" {
+		return FullResult{}, fmt.Errorf("full index: root is required")
+	}
+	if options.ResolverVersion == "" {
+		return FullResult{}, fmt.Errorf("full index: resolver version is required")
+	}
+	if options.SharedTargetsLockPath != "" {
+		lock, acquired, err := filelock.Acquire(options.SharedTargetsLockPath)
+		if err != nil {
+			return FullResult{}, fmt.Errorf("full index: acquire shared analyzer targets lock: %w", err)
+		}
+		if !acquired {
+			return FullResult{}, fmt.Errorf("full index: shared analyzer targets are busy; another profile is indexing")
+		}
+		defer func() {
+			if err := lock.Release(); err != nil {
+				resultErr = errors.Join(resultErr,
+					fmt.Errorf("full index: release shared analyzer targets lock: %w", err))
+			}
+		}()
+	}
+
+	indexOptions := options.indexerOptions()
+	manifest, observedRepositories, err := ObserveSources(ctx, options)
+	if err != nil {
+		return FullResult{}, err
 	}
 
 	factSet, indexReport, err := indexer.FullWithRepositories(ctx, indexOptions, observedRepositories)
@@ -347,23 +374,9 @@ func RunFull(ctx context.Context, options FullOptions) (result FullResult, resul
 		Progress:        options.RebuildProgress,
 		SourceManifest:  &manifest,
 		VerifySources: func(verifyCtx context.Context) error {
-			currentRepositories, resolveErr := indexer.ResolveRepositories(indexOptions)
-			if resolveErr != nil {
-				return fmt.Errorf("resolve current index sources: %w", resolveErr)
-			}
-			currentAnalyzerFingerprint, analyzerErr := indexer.AnalyzerFingerprint(indexOptions)
-			if analyzerErr != nil {
-				return fmt.Errorf("observe current analyzer configuration: %w", analyzerErr)
-			}
-			current, observeErr := sourceobservation.Capture(
-				verifyCtx,
-				options.Profile,
-				options.ResolverVersion,
-				currentAnalyzerFingerprint,
-				currentRepositories,
-			)
+			current, _, observeErr := ObserveSources(verifyCtx, options)
 			if observeErr != nil {
-				return fmt.Errorf("observe current index sources: %w", observeErr)
+				return observeErr
 			}
 			return sourceobservation.Compare(manifest, current)
 		},
@@ -374,6 +387,15 @@ func RunFull(ctx context.Context, options FullOptions) (result FullResult, resul
 	}
 	if !rebuildReport.Passed {
 		return result, fmt.Errorf("rebuild graph did not pass its gates")
+	}
+	if options.Invalidation != nil {
+		if err := options.Invalidation.RecordPublished(ctx, invalidation.ProfileRecord{
+			Profile:    options.Profile,
+			Generation: rebuildReport.GenerationID,
+			Manifest:   manifest,
+		}); err != nil {
+			result.RecordingError = fmt.Errorf("record published source state: %w", err)
+		}
 	}
 	return result, nil
 }
