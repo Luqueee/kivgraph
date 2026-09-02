@@ -56,7 +56,7 @@ func TestRegistryForProfileUsesSelectedTopologyWorktree(t *testing.T) {
 	}
 	items := registry.List()
 	if len(items) != 1 || items[0].Path != selectedPath || items[0].Languages[0] != "go" {
-		t.Fatalf("composed registry = %#v, want selected path and provider metadata", items)
+		t.Fatalf("composed registry = %#v, want selected path %q and provider metadata", items, selectedPath)
 	}
 	provenance, present := registry.Composition()
 	if !present || len(provenance.Worktrees) != 1 || provenance.Worktrees[0].Path != selectedPath {

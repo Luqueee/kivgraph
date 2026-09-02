@@ -78,7 +78,7 @@ func TestLoadProfileTopologyRejectsMalformedDocuments(t *testing.T) {
 				t.Fatalf("LoadProfileTopology(%q) = present %t, error %v, want a rejected document", test.name, present, err)
 			}
 			if !strings.Contains(err.Error(), test.want) {
-				t.Fatalf("LoadProfileTopology() error = %q, want substring %q", err, test.want)
+				t.Fatalf("LoadProfileTopology(%q) error = %q, want substring %q", test.name, err, test.want)
 			}
 			if test.class != nil && !errors.Is(err, test.class) {
 				t.Fatalf("LoadProfileTopology() error = %v, want %v", err, test.class)
@@ -114,9 +114,11 @@ func TestSaveAndLoadProfileTopologyExpandsRelativeWorktreePaths(t *testing.T) {
 	if !present {
 		t.Fatal("LoadProfileTopology() present = false after save")
 	}
-	want.Worktrees[0].Path = sourcePath
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("loaded topology = %#v, want %#v", got, want)
+	expected := want
+	expected.Worktrees = append([]topology.Worktree(nil), want.Worktrees...)
+	expected.Worktrees[0].Path = sourcePath
+	if !reflect.DeepEqual(got, expected) {
+		t.Fatalf("loaded topology = %#v, want %#v", got, expected)
 	}
 }
 
@@ -137,7 +139,7 @@ func TestSaveProfileTopologyRequiresCurrentVersionAndSelectedProfile(t *testing.
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			if err := SaveProfileTopology(configPath, "feature", test.value); err == nil || !strings.Contains(err.Error(), test.want) {
-				t.Fatalf("SaveProfileTopology() error = %v, want substring %q", err, test.want)
+				t.Fatalf("SaveProfileTopology(%q) error = %v, want substring %q", test.name, err, test.want)
 			}
 		})
 	}
