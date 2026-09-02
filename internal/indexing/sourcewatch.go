@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/Luqueee/kivgraph/internal/watcher"
@@ -117,18 +118,24 @@ func WatchSources(ctx context.Context, options SourceWatchOptions) error {
 	watcherErrors := filesystemWatcher.Errors()
 	retryTicker := time.NewTicker(SourceWatchRetryInterval)
 	defer retryTicker.Stop()
-	var pending []watcher.ReconciliationResult
+	var pending *watcher.ReconciliationResult
 	queuePending := func(result watcher.ReconciliationResult) {
-		pending = append(pending, result)
+		if pending == nil {
+			pending = &result
+			return
+		}
+		coalesced := coalesceReconciliationResults(*pending, result)
+		pending = &coalesced
 	}
 	deliverPending := func() {
-		for len(pending) > 0 {
-			if err := options.OnChange(ctx, pending[0]); err != nil {
-				reportSourceWatchError(options.OnError, fmt.Errorf("handle source change: %w", err))
-				return
-			}
-			pending = pending[1:]
+		if pending == nil {
+			return
 		}
+		if err := options.OnChange(ctx, *pending); err != nil {
+			reportSourceWatchError(options.OnError, fmt.Errorf("handle source change: %w", err))
+			return
+		}
+		pending = nil
 	}
 	if options.ReportInitialChanges && hasSourceChanges(initial) {
 		queuePending(initial)
@@ -195,6 +202,141 @@ func WatchSources(ctx context.Context, options SourceWatchOptions) error {
 
 func hasSourceChanges(result watcher.ReconciliationResult) bool {
 	return len(result.Added) > 0 || len(result.Modified) > 0 || len(result.Removed) > 0
+}
+
+// coalesceReconciliationResults keeps one bounded pending result while a
+// change handler is unavailable. Repeated paths retain their latest state,
+// while distinct changes remain available to the next successful delivery.
+func coalesceReconciliationResults(
+	previous, next watcher.ReconciliationResult,
+) watcher.ReconciliationResult {
+	type stateCategory uint8
+	const (
+		addedCategory stateCategory = iota
+		modifiedCategory
+		unchangedCategory
+		removedCategory
+		skippedCategory
+	)
+	type pendingState struct {
+		category stateCategory
+		state    watcher.FileState
+	}
+	states := make(map[watcher.FileKey]pendingState)
+	merge := func(category stateCategory, group []watcher.FileState) {
+		for _, state := range group {
+			key := watcher.FileKey{Repository: state.Repository, Path: state.Path}
+			states[key] = pendingState{category: category, state: state}
+		}
+	}
+	mergeResult := func(result watcher.ReconciliationResult) {
+		merge(addedCategory, result.Added)
+		merge(modifiedCategory, result.Modified)
+		merge(unchangedCategory, result.Unchanged)
+		merge(removedCategory, result.Removed)
+		merge(skippedCategory, result.Skipped)
+	}
+	mergeResult(previous)
+	mergeResult(next)
+
+	result := watcher.ReconciliationResult{}
+	for _, pending := range states {
+		switch pending.category {
+		case addedCategory:
+			result.Added = append(result.Added, pending.state)
+		case modifiedCategory:
+			result.Modified = append(result.Modified, pending.state)
+		case unchangedCategory:
+			result.Unchanged = append(result.Unchanged, pending.state)
+		case removedCategory:
+			result.Removed = append(result.Removed, pending.state)
+		case skippedCategory:
+			result.Skipped = append(result.Skipped, pending.state)
+		}
+	}
+	sortFileStateGroups(&result)
+	result.Renamed = coalesceRenames(previous.Renamed, next.Renamed)
+	result.ManifestChanges = coalesceFileStates(previous.ManifestChanges, next.ManifestChanges)
+	return result
+}
+
+func sortFileStateGroups(result *watcher.ReconciliationResult) {
+	groups := [][]watcher.FileState{
+		result.Added,
+		result.Modified,
+		result.Unchanged,
+		result.Removed,
+		result.Skipped,
+	}
+	for _, group := range groups {
+		sort.Slice(group, func(left, right int) bool {
+			if group[left].Repository != group[right].Repository {
+				return group[left].Repository < group[right].Repository
+			}
+			return group[left].Path < group[right].Path
+		})
+	}
+}
+
+func coalesceFileStates(previous, next []watcher.FileState) []watcher.FileState {
+	result := append([]watcher.FileState(nil), previous...)
+	indices := make(map[watcher.FileKey]int, len(result))
+	for index, state := range result {
+		indices[watcher.FileKey{Repository: state.Repository, Path: state.Path}] = index
+	}
+	for _, state := range next {
+		key := watcher.FileKey{Repository: state.Repository, Path: state.Path}
+		if index, exists := indices[key]; exists {
+			result[index] = state
+			continue
+		}
+		indices[key] = len(result)
+		result = append(result, state)
+	}
+	sort.Slice(result, func(left, right int) bool {
+		if result[left].Repository != result[right].Repository {
+			return result[left].Repository < result[right].Repository
+		}
+		return result[left].Path < result[right].Path
+	})
+	return result
+}
+
+func coalesceRenames(previous, next []watcher.Rename) []watcher.Rename {
+	type renameKey struct {
+		from watcher.FileKey
+		to   watcher.FileKey
+	}
+	result := append([]watcher.Rename(nil), previous...)
+	indices := make(map[renameKey]int, len(result))
+	for index, rename := range result {
+		indices[renameKey{
+			from: watcher.FileKey{Repository: rename.From.Repository, Path: rename.From.Path},
+			to:   watcher.FileKey{Repository: rename.To.Repository, Path: rename.To.Path},
+		}] = index
+	}
+	for _, rename := range next {
+		key := renameKey{
+			from: watcher.FileKey{Repository: rename.From.Repository, Path: rename.From.Path},
+			to:   watcher.FileKey{Repository: rename.To.Repository, Path: rename.To.Path},
+		}
+		if index, exists := indices[key]; exists {
+			result[index] = rename
+			continue
+		}
+		indices[key] = len(result)
+		result = append(result, rename)
+	}
+	sort.Slice(result, func(left, right int) bool {
+		if result[left].From.Repository != result[right].From.Repository {
+			return result[left].From.Repository < result[right].From.Repository
+		}
+		if result[left].From.Path != result[right].From.Path {
+			return result[left].From.Path < result[right].From.Path
+		}
+		return result[left].To.Path < result[right].To.Path
+	})
+	return result
 }
 
 func reportSourceWatchError(sink func(error), err error) {
