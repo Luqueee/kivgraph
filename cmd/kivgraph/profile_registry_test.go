@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -71,6 +72,113 @@ func TestRegistryForProfileUsesSelectedTopologyWorktree(t *testing.T) {
 	}
 }
 
+// A composition changes source paths, not the provider configuration each
+// language-specific indexer receives. Every selected worktree must retain its
+// registered language metadata while replacing the stale ordinary path.
+func TestRegistryForProfileRetainsProviderConfigurationAcrossLanguages(t *testing.T) {
+	root := testsupport.TempDir(t)
+	configPath := filepath.Join(root, "config.yaml")
+	if _, err := config.Initialize(config.InitOptions{ConfigPath: configPath}); err != nil {
+		t.Fatalf("Initialize() error = %v", err)
+	}
+	loaded, err := config.LoadProfile(configPath, "default")
+	if err != nil {
+		t.Fatalf("LoadProfile() error = %v", err)
+	}
+	type provider struct {
+		name       string
+		languages  []string
+		manifests  []string
+		roots      []string
+		exclusions []string
+		path       string
+	}
+	providers := []provider{
+		{name: "go-provider", languages: []string{"go"}},
+		{name: "typescript-provider", languages: []string{"typescript"}, manifests: []string{"package.json"}, roots: []string{"src"}, exclusions: []string{"node_modules"}},
+		{name: "rust-provider", languages: []string{"rust"}},
+		{name: "java-provider", languages: []string{"java"}},
+		{name: "csharp-provider", languages: []string{"csharp"}},
+	}
+	source := config.RepositoriesFile{Version: config.CurrentSchemaVersion}
+	composition := topology.Topology{
+		Version:  topology.CurrentSchemaVersion,
+		Profiles: []topology.Profile{{ID: "default"}},
+	}
+	for index := range providers {
+		providers[index].path = testsupport.TempDir(t)
+		initGitRepository(t, providers[index].path)
+
+		worktree := providers[index].name + "-selected"
+		source.Repositories = append(source.Repositories, config.Repository{
+			Name:       providers[index].name,
+			Path:       filepath.Join(root, "stale-"+providers[index].name),
+			Languages:  providers[index].languages,
+			Manifests:  providers[index].manifests,
+			Roots:      providers[index].roots,
+			Exclusions: providers[index].exclusions,
+		})
+		composition.Repositories = append(composition.Repositories, topology.LogicalRepository{
+			ID: topology.LogicalRepositoryID(providers[index].name),
+		})
+		composition.Worktrees = append(composition.Worktrees, topology.Worktree{
+			ID:         topology.WorktreeID(worktree),
+			Repository: topology.LogicalRepositoryID(providers[index].name),
+			Path:       providers[index].path,
+		})
+		composition.Profiles[0].Worktrees = append(composition.Profiles[0].Worktrees, topology.WorktreeSelection{
+			Repository: topology.LogicalRepositoryID(providers[index].name), Worktree: topology.WorktreeID(worktree),
+		})
+	}
+	if err := config.SaveRepositories(loaded.RepositoriesPath, source); err != nil {
+		t.Fatalf("SaveRepositories() error = %v", err)
+	}
+	if err := config.SaveProfileTopology(configPath, "default", composition); err != nil {
+		t.Fatalf("SaveProfileTopology() error = %v", err)
+	}
+	loaded, err = config.LoadProfile(configPath, "default")
+	if err != nil {
+		t.Fatalf("LoadProfile(after topology) error = %v", err)
+	}
+	registry, err := registryForProfile(context.Background(), loaded)
+	if err != nil {
+		t.Fatalf("registryForProfile() error = %v", err)
+	}
+	registered := make(map[string]workspace.Repository, len(registry.List()))
+	for _, repository := range registry.List() {
+		registered[repository.Name] = repository
+	}
+	if len(registered) != len(providers) {
+		t.Fatalf("registered providers for inputs %#v = %#v, want %d selected worktrees",
+			providers, registered, len(providers))
+	}
+	for _, provider := range providers {
+		repository, ok := registered[provider.name]
+		if !ok {
+			t.Fatalf("selected provider %q is missing from %#v", provider.name, registered)
+		}
+		if repository.Path != provider.path || repository.RealPath != provider.path {
+			t.Fatalf("provider %q paths = %q and %q, want selected worktree %q",
+				provider.name, repository.Path, repository.RealPath, provider.path)
+		}
+		if !reflect.DeepEqual(repository.Languages, provider.languages) {
+			t.Fatalf("provider %q languages = %v, want %v", provider.name, repository.Languages, provider.languages)
+		}
+		if provider.name != "typescript-provider" {
+			continue
+		}
+		if want := []string{filepath.Join(provider.path, "package.json")}; !reflect.DeepEqual(repository.Manifests, want) {
+			t.Fatalf("TypeScript manifests = %v, want %v", repository.Manifests, want)
+		}
+		if want := []string{filepath.Join(provider.path, "src")}; !reflect.DeepEqual(repository.Roots, want) {
+			t.Fatalf("TypeScript roots = %v, want %v", repository.Roots, want)
+		}
+		if !reflect.DeepEqual(repository.Exclusions, provider.exclusions) {
+			t.Fatalf("TypeScript exclusions = %v, want %v", repository.Exclusions, provider.exclusions)
+		}
+	}
+}
+
 func TestRegistryForProfileKeepsLegacyRegistryWithoutTopology(t *testing.T) {
 	root := testsupport.TempDir(t)
 	configPath := filepath.Join(root, "config.yaml")
@@ -131,6 +239,39 @@ func TestComposedProfileDoesNotCreateEdgesFromCoMembership(t *testing.T) {
 	for _, edge := range set.Edges {
 		if edge.SourceKey == consumer.Key && edge.TargetKey == provider.Key {
 			t.Fatalf("co-membership created an edge with dependency=false: %#v", edge)
+		}
+	}
+}
+
+// Selecting two providers that declare the same module makes the provider
+// universe ambiguous. The profile must retain both candidates as unresolved
+// evidence instead of choosing a worktree or fabricating an exact edge.
+func TestComposedProfileRetainsAmbiguousGoProviders(t *testing.T) {
+	registry, workFile := newComposedGoFixtureWithProviders(t, true, "provider-one", "provider-two")
+	set := indexComposedGoFixture(t, registry, workFile)
+
+	providers := map[string]bool{"provider-one": false, "provider-two": false}
+	for _, unresolved := range set.Unresolved {
+		provider := facts.RepositoryNameFromKey(unresolved.RepositoryKey)
+		if _, selected := providers[provider]; !selected || unresolved.RequestedPackage != "example.com/provider" ||
+			unresolved.Reason != "AMBIGUOUS_MODULE_PROVIDER" {
+			continue
+		}
+		providers[provider] = true
+		for _, provider := range []string{"provider-one", "provider-two"} {
+			if !strings.Contains(unresolved.Detail, provider) {
+				t.Fatalf("ambiguous provider detail = %q, want candidate %q", unresolved.Detail, provider)
+			}
+		}
+	}
+	for provider, found := range providers {
+		if !found {
+			t.Fatalf("no ambiguous provider evidence for %q: %#v", provider, set.Unresolved)
+		}
+	}
+	for _, edge := range set.Edges {
+		if edge.Confidence.Exact() {
+			t.Fatalf("ambiguous providers created an exact edge: %#v", edge)
 		}
 	}
 }
@@ -200,12 +341,17 @@ func TestWriteProfileDiagnosticsReportsEffectiveWorktrees(t *testing.T) {
 
 func newComposedGoFixture(t *testing.T, dependency bool) (*workspace.Registry, string) {
 	t.Helper()
-	providerPath := testsupport.TempDir(t)
+	return newComposedGoFixtureWithProviders(t, dependency, "provider")
+}
+
+func newComposedGoFixtureWithProviders(
+	t *testing.T,
+	dependency bool,
+	providerNames ...string,
+) (*workspace.Registry, string) {
+	t.Helper()
 	consumerPath := testsupport.TempDir(t)
-	initGitRepository(t, providerPath)
 	initGitRepository(t, consumerPath)
-	writeComposedGoFile(t, filepath.Join(providerPath, "go.mod"), "module example.com/provider\n\ngo 1.24\n")
-	writeComposedGoFile(t, filepath.Join(providerPath, "value.go"), "package provider\n\nconst Value = 41\n")
 	consumerModule := "module example.com/consumer\n\ngo 1.24\n"
 	consumerSource := "package consumer\n\nfunc Total() int { return 1 }\n"
 	if dependency {
@@ -224,34 +370,48 @@ func newComposedGoFixture(t *testing.T, dependency bool) (*workspace.Registry, s
 	if err != nil {
 		t.Fatalf("LoadProfile() error = %v", err)
 	}
+	repositories := []config.Repository{{
+		Name: "consumer", Path: filepath.Join(configRoot, "stale-consumer"), Languages: []string{"go"},
+	}}
+	logicalRepositories := []topology.LogicalRepository{{ID: "consumer"}}
+	worktrees := []topology.Worktree{{ID: "consumer-main", Repository: "consumer", Path: consumerPath}}
+	selections := []topology.WorktreeSelection{{Repository: "consumer", Worktree: "consumer-main"}}
+	for _, providerName := range providerNames {
+		providerPath := testsupport.TempDir(t)
+		initGitRepository(t, providerPath)
+		writeComposedGoFile(t, filepath.Join(providerPath, "go.mod"), "module example.com/provider\n\ngo 1.24\n")
+		writeComposedGoFile(t, filepath.Join(providerPath, "value.go"), "package provider\n\nconst Value = 41\n")
+
+		worktreeName := providerName + "-main"
+		repositories = append(repositories, config.Repository{
+			Name: providerName, Path: filepath.Join(configRoot, "stale-"+providerName), Languages: []string{"go"},
+		})
+		logicalRepositories = append(logicalRepositories, topology.LogicalRepository{ID: topology.LogicalRepositoryID(providerName)})
+		worktrees = append(worktrees, topology.Worktree{
+			ID:         topology.WorktreeID(worktreeName),
+			Repository: topology.LogicalRepositoryID(providerName),
+			Path:       providerPath,
+		})
+		selections = append(selections, topology.WorktreeSelection{
+			Repository: topology.LogicalRepositoryID(providerName), Worktree: topology.WorktreeID(worktreeName),
+		})
+	}
 	// These paths are intentionally not usable. The topology-selected paths
 	// below are the only source locations the composed registry may register.
 	source := config.RepositoriesFile{
-		Version: config.CurrentSchemaVersion,
-		Repositories: []config.Repository{
-			{Name: "consumer", Path: filepath.Join(configRoot, "stale-consumer"), Languages: []string{"go"}},
-			{Name: "provider", Path: filepath.Join(configRoot, "stale-provider"), Languages: []string{"go"}},
-		},
+		Version:      config.CurrentSchemaVersion,
+		Repositories: repositories,
 	}
 	if err := config.SaveRepositories(loaded.RepositoriesPath, source); err != nil {
 		t.Fatalf("SaveRepositories() error = %v", err)
 	}
 	if err := config.SaveProfileTopology(configPath, "default", topology.Topology{
-		Version: topology.CurrentSchemaVersion,
-		Repositories: []topology.LogicalRepository{
-			{ID: "consumer"},
-			{ID: "provider"},
-		},
-		Worktrees: []topology.Worktree{
-			{ID: "consumer-main", Repository: "consumer", Path: consumerPath},
-			{ID: "provider-main", Repository: "provider", Path: providerPath},
-		},
+		Version:      topology.CurrentSchemaVersion,
+		Repositories: logicalRepositories,
+		Worktrees:    worktrees,
 		Profiles: []topology.Profile{{
-			ID: "default",
-			Worktrees: []topology.WorktreeSelection{
-				{Repository: "consumer", Worktree: "consumer-main"},
-				{Repository: "provider", Worktree: "provider-main"},
-			},
+			ID:        "default",
+			Worktrees: selections,
 		}},
 	}); err != nil {
 		t.Fatalf("SaveProfileTopology() error = %v", err)
