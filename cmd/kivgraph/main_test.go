@@ -2296,7 +2296,7 @@ func TestCommitChangedNothingIsFalseWhenNothingMoved(t *testing.T) {
 		t.Fatal("commitChangedNothing(content change) = true, want dirty content to rebuild")
 	}
 	root := testsupport.TempDir(t)
-	if _, err := exec.LookPath("git"); err != nil {
+	if _, err := exec.Command("git", "--version").CombinedOutput(); err != nil {
 		t.Skipf("git is required for the commit tree fixture: %v", err)
 	}
 	gitTestCommand(t, "-C", root, "init", "-q")
@@ -2344,13 +2344,41 @@ func TestSourceRepositoriesForWatcherIncludesEffectiveProviders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("watcher.New() error = %v", err)
 	}
-	t.Cleanup(func() { _ = fileWatcher.Close() })
-	for _, path := range fileWatcher.WatchedPaths() {
-		if path == derivedRoot {
-			return
+	ctx, cancel := context.WithCancel(context.Background())
+	runDone := make(chan error, 1)
+	go func() { runDone <- fileWatcher.Run(ctx) }()
+	t.Cleanup(func() {
+		cancel()
+		if err := <-runDone; err != nil && !errors.Is(err, context.Canceled) {
+			t.Errorf("Watcher.Run() error = %v", err)
+		}
+	})
+	sourcePath := filepath.Join(derivedRoot, "external.go")
+	if err := os.WriteFile(sourcePath, []byte("package external\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile(%q) error = %v", sourcePath, err)
+	}
+	timer := time.NewTimer(5 * time.Second)
+	defer timer.Stop()
+	for {
+		select {
+		case event, ok := <-fileWatcher.Events():
+			if !ok {
+				t.Fatal("Watcher.Events() closed before the derived-provider event")
+			}
+			if event.Repository == "derived" && event.Path == sourcePath {
+				if !event.Operations.Has(watcher.OperationCreate) {
+					t.Fatalf("derived-provider event operations = %s, want CREATE", event.Operations)
+				}
+				return
+			}
+		case err, ok := <-fileWatcher.Errors():
+			if ok && err != nil {
+				t.Fatalf("Watcher.Errors() = %v", err)
+			}
+		case <-timer.C:
+			t.Fatalf("timed out waiting for derived-provider event for %q", sourcePath)
 		}
 	}
-	t.Fatalf("watcher paths = %v, want effective provider root %q", fileWatcher.WatchedPaths(), derivedRoot)
 }
 
 func TestSourceRepositoriesForWatcherFallsBackWhenResolutionFails(t *testing.T) {

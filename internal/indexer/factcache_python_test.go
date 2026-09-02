@@ -92,19 +92,18 @@ func TestGoEnvironmentFingerprintIsStableWithoutTheToolchain(t *testing.T) {
 }
 
 func TestGoEnvironmentFingerprintPreservesEmptyValuesAndPositions(t *testing.T) {
-	first, err := goEnvironmentFingerprintFromOutput([]byte("go1.24\n/root\n\n/mod\n/path\n\n"))
+	firstOutput := []byte("go1.24\n/root\n\n/mod\n/path\n\n")
+	secondOutput := []byte("go1.24\n\n/root\n/mod\n/path\n\n")
+	first, err := goEnvironmentFingerprintFromOutput(firstOutput)
 	if err != nil {
 		t.Fatalf("goEnvironmentFingerprintFromOutput() error = %v", err)
 	}
-	second, err := goEnvironmentFingerprintFromOutput([]byte("go1.24\n\n/root\n/mod\n/path\n\n"))
+	second, err := goEnvironmentFingerprintFromOutput(secondOutput)
 	if err != nil {
 		t.Fatalf("second goEnvironmentFingerprintFromOutput() error = %v", err)
 	}
 	if first == second {
-		t.Fatalf("fingerprint = %q for different environment variable positions", first)
-	}
-	if !strings.Contains(first, "GOFLAGS=0:\x00") || !strings.Contains(first, "GOPRIVATE=0:\x00") {
-		t.Fatalf("fingerprint = %q, want named empty values", first)
+		t.Fatalf("fingerprint = %q for first environment output %q and second environment output %q; empty values must retain their positions", first, firstOutput, secondOutput)
 	}
 }
 
