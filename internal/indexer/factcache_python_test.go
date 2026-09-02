@@ -96,11 +96,11 @@ func TestGoEnvironmentFingerprintPreservesEmptyValuesAndPositions(t *testing.T) 
 	secondOutput := []byte("go1.24\n\n/root\n/mod\n/path\n\n")
 	first, err := goEnvironmentFingerprintFromOutput(firstOutput)
 	if err != nil {
-		t.Fatalf("goEnvironmentFingerprintFromOutput() error = %v", err)
+		t.Fatalf("goEnvironmentFingerprintFromOutput(%q) error = %v", firstOutput, err)
 	}
 	second, err := goEnvironmentFingerprintFromOutput(secondOutput)
 	if err != nil {
-		t.Fatalf("second goEnvironmentFingerprintFromOutput() error = %v", err)
+		t.Fatalf("second goEnvironmentFingerprintFromOutput(%q) error = %v", secondOutput, err)
 	}
 	if first == second {
 		t.Fatalf("fingerprint = %q for first environment output %q and second environment output %q; empty values must retain their positions", first, firstOutput, secondOutput)

@@ -2350,7 +2350,7 @@ func TestSourceRepositoriesForWatcherIncludesEffectiveProviders(t *testing.T) {
 	t.Cleanup(func() {
 		cancel()
 		if err := <-runDone; err != nil && !errors.Is(err, context.Canceled) {
-			t.Errorf("Watcher.Run() error = %v", err)
+			t.Errorf("Watcher.Run() for derived source %q error = %v", derivedRoot, err)
 		}
 	})
 	sourcePath := filepath.Join(derivedRoot, "external.go")
