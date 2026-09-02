@@ -5,12 +5,15 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/Luqueee/kivgraph/internal/filelock"
+	"github.com/Luqueee/kivgraph/internal/sourceobservation"
 	"github.com/Luqueee/kivgraph/internal/testsupport"
+	"github.com/Luqueee/kivgraph/internal/topology"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
@@ -56,6 +59,27 @@ func writeGitFile(t *testing.T, path, contents string) {
 	}
 	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
 		t.Fatalf("WriteFile(%q) error = %v", path, err)
+	}
+}
+
+func resyncSourceManifest(t *testing.T, profile, repository, worktree, commit string, dirty bool, digestCharacter string) sourceobservation.Manifest {
+	t.Helper()
+	observation, err := topology.NewSourceObservation(
+		topology.WorktreeID(worktree), commit, "main", dirty, strings.Repeat(digestCharacter, 64),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return sourceobservation.Manifest{
+		Version:             sourceobservation.CurrentVersion,
+		Profile:             profile,
+		ResolverVersion:     "resolver-1",
+		AnalyzerFingerprint: "analyzer-1",
+		Sources: []sourceobservation.Source{{
+			Repository:  repository,
+			Observation: observation,
+			Policy:      sourceobservation.Policy{Languages: []string{"go"}},
+		}},
 	}
 }
 
@@ -418,6 +442,9 @@ func TestResyncYieldsToAnotherWriter(t *testing.T) {
 	if err := held.Release(); err != nil {
 		t.Fatalf("release() error = %v", err)
 	}
+	if got := harness.awaitRebuild(t, 1); len(got) != 1 || got[0][0] != "alpha" {
+		t.Fatalf("rebuild after another writer released the lock = %#v, want alpha", got)
+	}
 }
 
 func TestResyncRejectsAnIncompleteRequest(t *testing.T) {
@@ -429,6 +456,223 @@ func TestResyncRejectsAnIncompleteRequest(t *testing.T) {
 	}); err == nil {
 		t.Fatal("Resync() without a lock path must fail")
 	}
+}
+
+func TestSourceMovementsHandleRemovedAndProfileOnlySources(t *testing.T) {
+	before := resyncSourceManifest(t, "default", "removed", "removed-worktree", "commit-1", false, "a").Sources[0]
+	movements, err := sourceMovements([]sourceobservation.Change{
+		{Repository: "removed", Before: before, Reason: "source was removed"},
+		{Reason: "analyzer configuration changed", ProfileScoped: true},
+	}, nil)
+	if err != nil {
+		t.Fatalf("sourceMovements() error = %v", err)
+	}
+	if len(movements) != 2 || movements[0].Repository.Name != "" || !movements[0].ProfileScoped ||
+		movements[1].Repository.Name != "removed" || movements[1].SourceObservation == "" {
+		t.Fatalf("source movements = %#v, want profile-only and removed-source movements", movements)
+	}
+	if got := fingerprintOf(movements[1:]); got == fingerprintOf([]RepositoryMovement{{
+		Repository: movements[1].Repository,
+		From:       movements[1].From,
+		To:         movements[1].To,
+		Reason:     movements[1].Reason,
+	}}) {
+		t.Fatalf("source observation identity was omitted from retry fingerprint: %q", got)
+	}
+}
+
+func TestResyncRejectsAnInvalidInitialSourceManifest(t *testing.T) {
+	if err := Resync(context.Background(), ResyncOptions{
+		LockPath:       filepath.Join(t.TempDir(), "resync.lock"),
+		Resync:         func(context.Context, []workspace.Repository) error { return nil },
+		SourceManifest: &sourceobservation.Manifest{},
+		SourceObserver: func(context.Context) (sourceobservation.Manifest, error) {
+			return sourceobservation.Manifest{}, nil
+		},
+	}); err == nil || !strings.Contains(err.Error(), "initial source observations") {
+		t.Fatalf("Resync() error = %v, want invalid initial source manifest", err)
+	}
+}
+
+func TestResyncReportsUnavailableSourceAndRegistersItAfterRecovery(t *testing.T) {
+	repository := gitFixture(t, "alpha", "main", "1111111111111111111111111111111111111111")
+	manifest := resyncSourceManifest(t, "default", "alpha", "alpha-worktree", "commit-1", false, "a")
+	sourceUnavailable := make(chan struct{}, 1)
+	sourceReady := make(chan struct{}, 1)
+	var calls int
+	harness := startResync(t, ResyncOptions{
+		Repositories:              []workspace.Repository{repository},
+		SourceObservationInterval: time.Minute,
+		SourceObserver: func(context.Context) (sourceobservation.Manifest, error) {
+			calls++
+			if calls == 1 {
+				return sourceobservation.Manifest{}, errors.New("source worktree disappeared")
+			}
+			return manifest, nil
+		},
+		OnSourceUnavailable: func(error) {
+			sourceUnavailable <- struct{}{}
+		},
+		OnSourceReady: func(sourceobservation.Manifest) {
+			sourceReady <- struct{}{}
+		},
+	})
+	select {
+	case <-sourceUnavailable:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for unavailable source report")
+	}
+	awaitSignalWithClock(t, harness, sourceReady, "recovered source observation")
+}
+
+func TestResyncDetectsDirtySourceChangesThroughAnEvent(t *testing.T) {
+	repository := gitFixture(t, "alpha", "main", "1111111111111111111111111111111111111111")
+	initial := resyncSourceManifest(t, "default", "alpha", "alpha-worktree", "commit-1", false, "a")
+	changed := resyncSourceManifest(t, "default", "alpha", "alpha-worktree", "commit-1", true, "b")
+	events := make(chan struct{}, 1)
+	var currentMu sync.Mutex
+	current := initial
+	sourceChanged := make(chan struct{}, 1)
+	harness := startResync(t, ResyncOptions{
+		Repositories:              []workspace.Repository{repository},
+		Debounce:                  30 * time.Second,
+		SourceManifest:            &initial,
+		SourceObservationInterval: time.Hour,
+		SourceEvents:              events,
+		SourceObserver: func(context.Context) (sourceobservation.Manifest, error) {
+			currentMu.Lock()
+			defer currentMu.Unlock()
+			return current, nil
+		},
+		OnSourceChanged: func(manifest sourceobservation.Manifest, movements []RepositoryMovement) {
+			if manifest.Sources[0].Observation.ContentDigest != changed.Sources[0].Observation.ContentDigest {
+				t.Errorf("changed manifest = %#v, want dirty content digest", manifest)
+			}
+			if len(movements) != 1 || movements[0].Reason != "source content changed" {
+				t.Errorf("source movements = %#v, want one content change", movements)
+			}
+			if len(movements) == 1 && (movements[0].From != "commit-1" || movements[0].To != "commit-1") {
+				t.Errorf("source movement revisions = %#v, want commit-1 to commit-1", movements[0])
+			}
+			sourceChanged <- struct{}{}
+		},
+	})
+	harness.awaitNoBatch(t)
+	currentMu.Lock()
+	current = changed
+	currentMu.Unlock()
+	events <- struct{}{}
+	awaitSourceChange(t, harness, sourceChanged)
+	if got := harness.observed(); len(got) != 0 {
+		t.Fatalf("dirty event rebuilt before debounce: %#v", got)
+	}
+	if got := harness.awaitRebuild(t, 1); len(got) != 1 || got[0][0] != "alpha" {
+		t.Fatalf("dirty source rebuild = %#v, want alpha", got)
+	}
+}
+
+func TestResyncRetriesAChangedSourceAfterFailedRebuild(t *testing.T) {
+	repository := gitFixture(t, "alpha", "main", "1111111111111111111111111111111111111111")
+	initial := resyncSourceManifest(t, "default", "alpha", "alpha-worktree", "commit-1", false, "a")
+	changed := resyncSourceManifest(t, "default", "alpha", "alpha-worktree", "commit-2", false, "b")
+	events := make(chan struct{}, 1)
+	var currentMu sync.Mutex
+	current := changed
+	sourceChanged := make(chan struct{}, 1)
+	harness := startResync(t, ResyncOptions{
+		Repositories:              []workspace.Repository{repository},
+		Debounce:                  30 * time.Second,
+		SourceManifest:            &initial,
+		SourceObservationInterval: time.Hour,
+		SourceEvents:              events,
+		SourceObserver: func(context.Context) (sourceobservation.Manifest, error) {
+			currentMu.Lock()
+			defer currentMu.Unlock()
+			return current, nil
+		},
+		OnSourceChanged: func(_ sourceobservation.Manifest, movements []RepositoryMovement) {
+			if len(movements) != 1 || movements[0].From != "commit-1" || movements[0].To != "commit-2" {
+				t.Errorf("source movement revisions = %#v, want commit-1 to commit-2", movements)
+			}
+			sourceChanged <- struct{}{}
+		},
+	})
+	harness.failNext(errors.New("rebuild exploded"), 1)
+	events <- struct{}{}
+	awaitSourceChange(t, harness, sourceChanged)
+	harness.awaitAttempts(t, 1)
+	if got := harness.observed(); len(got) != 0 {
+		t.Fatalf("failed source rebuild published a batch: %#v", got)
+	}
+	harness.setFailure(nil)
+	harness.clock.Advance(time.Minute)
+	if got := harness.awaitRebuild(t, 1); len(got) != 1 || got[0][0] != "alpha" {
+		t.Fatalf("source retry rebuild = %#v, want alpha", got)
+	}
+	if got := harness.attempted(); got != 2 {
+		t.Fatalf("source rebuild attempts = %d, want one failure and one retry", got)
+	}
+}
+
+func TestResyncStopsRetryingAChangedSourceAfterTheBound(t *testing.T) {
+	repository := gitFixture(t, "alpha", "main", "1111111111111111111111111111111111111111")
+	initial := resyncSourceManifest(t, "default", "alpha", "alpha-worktree", "commit-1", false, "a")
+	changed := resyncSourceManifest(t, "default", "alpha", "alpha-worktree", "commit-2", false, "b")
+	events := make(chan struct{}, 1)
+	var currentMu sync.Mutex
+	current := changed
+	harness := startResync(t, ResyncOptions{
+		Repositories:              []workspace.Repository{repository},
+		Attempts:                  1,
+		Debounce:                  30 * time.Second,
+		SourceManifest:            &initial,
+		SourceObservationInterval: time.Hour,
+		SourceEvents:              events,
+		SourceObserver: func(context.Context) (sourceobservation.Manifest, error) {
+			currentMu.Lock()
+			defer currentMu.Unlock()
+			return current, nil
+		},
+	})
+	harness.failNext(errors.New("rebuild exploded"), 1)
+	events <- struct{}{}
+	harness.awaitAttempts(t, 1)
+	if got := harness.observed(); len(got) != 0 {
+		t.Fatalf("failed source rebuild published a batch: %#v", got)
+	}
+	if got := harness.attempted(); got != 1 {
+		t.Fatalf("source rebuild attempts = %d, want the configured bound", got)
+	}
+
+	// The abandoned observation is no longer retried forever, but it remains
+	// the stale diagnostic until a new source movement or an explicit index.
+	harness.setFailure(nil)
+	for range 20 {
+		harness.clock.Advance(time.Minute)
+		time.Sleep(time.Millisecond)
+	}
+	if got := harness.attempted(); got != 1 {
+		t.Fatalf("source rebuild attempted again after the bound: %d", got)
+	}
+}
+
+func awaitSourceChange(t *testing.T, harness *resyncHarness, changed <-chan struct{}) {
+	awaitSignalWithClock(t, harness, changed, "the source change")
+}
+
+func awaitSignalWithClock(t *testing.T, harness *resyncHarness, signal <-chan struct{}, description string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		select {
+		case <-signal:
+			return
+		default:
+		}
+		harness.clock.Advance(time.Minute)
+		time.Sleep(2 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for %s", description)
 }
 
 // awaitAttempts waits until the loop has asked for count rebuilds, failed or

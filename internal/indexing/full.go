@@ -185,55 +185,22 @@ func OptionsFromConfig(configuration config.Config) FullOptions {
 	}
 }
 
-// Counts is the number of authoritative facts produced by one full pass.
-type Counts struct {
-	Repositories int `json:"repositories"`
-	Packages     int `json:"packages"`
-	Files        int `json:"files"`
-	Symbols      int `json:"symbols"`
-	Evidence     int `json:"evidence"`
-	Edges        int `json:"edges"`
-	Unresolved   int `json:"unresolved"`
+// AnalyzerFingerprint returns the identity of the analyzer configuration a
+// full pass would use. Source invalidation uses the same mapping as RunFull so
+// a configuration change cannot be mistaken for an unchanged source tree.
+func AnalyzerFingerprint(options FullOptions) (string, error) {
+	return indexer.AnalyzerFingerprint(indexerOptions(options))
 }
 
-// FullResult contains the reports needed by CLI and MCP callers without
-// exposing the temporary facts set after the rebuild has completed.
-type FullResult struct {
-	Counts        Counts
-	IndexReport   indexer.FullReport
-	RebuildReport rebuild.Report
+// ResolveRepositories returns the effective providers a full pass will read,
+// including analyzer-discovered providers. Resync uses the same expansion so
+// its source observation cannot silently omit an input the pass would consume.
+func ResolveRepositories(options FullOptions) ([]workspace.Repository, error) {
+	return indexer.ResolveRepositories(indexerOptions(options))
 }
 
-// RunFull indexes all repositories, validates the facts, and publishes one
-// canonical generation. It does not modify the repository registry; callers
-// that manage a candidate registry commit it separately.
-func RunFull(ctx context.Context, options FullOptions) (result FullResult, resultErr error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if options.Root == "" {
-		return FullResult{}, fmt.Errorf("full index: root is required")
-	}
-	if options.ResolverVersion == "" {
-		return FullResult{}, fmt.Errorf("full index: resolver version is required")
-	}
-	if options.SharedTargetsLockPath != "" {
-		lock, acquired, err := filelock.Acquire(options.SharedTargetsLockPath)
-		if err != nil {
-			return FullResult{}, fmt.Errorf("full index: acquire shared analyzer targets lock: %w", err)
-		}
-		if !acquired {
-			return FullResult{}, fmt.Errorf("full index: shared analyzer targets are busy; another profile is indexing")
-		}
-		defer func() {
-			if err := lock.Release(); err != nil {
-				resultErr = errors.Join(resultErr,
-					fmt.Errorf("full index: release shared analyzer targets lock: %w", err))
-			}
-		}()
-	}
-
-	indexOptions := indexer.FullOptions{
+func indexerOptions(options FullOptions) indexer.FullOptions {
+	return indexer.FullOptions{
 		Profile:                           options.Profile,
 		Repositories:                      options.Repositories,
 		SyntheticWorkFile:                 options.SyntheticWorkFile,
@@ -296,8 +263,59 @@ func RunFull(ctx context.Context, options FullOptions) (result FullResult, resul
 		WorkingDirectory:                  options.WorkingDirectory,
 		CacheMode:                         options.CacheMode,
 		CacheDirectory:                    options.CacheDirectory,
-		Progress:                          options.Progress,
 	}
+}
+
+// Counts is the number of authoritative facts produced by one full pass.
+type Counts struct {
+	Repositories int `json:"repositories"`
+	Packages     int `json:"packages"`
+	Files        int `json:"files"`
+	Symbols      int `json:"symbols"`
+	Evidence     int `json:"evidence"`
+	Edges        int `json:"edges"`
+	Unresolved   int `json:"unresolved"`
+}
+
+// FullResult contains the reports needed by CLI and MCP callers without
+// exposing the temporary facts set after the rebuild has completed.
+type FullResult struct {
+	Counts        Counts
+	IndexReport   indexer.FullReport
+	RebuildReport rebuild.Report
+}
+
+// RunFull indexes all repositories, validates the facts, and publishes one
+// canonical generation. It does not modify the repository registry; callers
+// that manage a candidate registry commit it separately.
+func RunFull(ctx context.Context, options FullOptions) (result FullResult, resultErr error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if options.Root == "" {
+		return FullResult{}, fmt.Errorf("full index: root is required")
+	}
+	if options.ResolverVersion == "" {
+		return FullResult{}, fmt.Errorf("full index: resolver version is required")
+	}
+	if options.SharedTargetsLockPath != "" {
+		lock, acquired, err := filelock.Acquire(options.SharedTargetsLockPath)
+		if err != nil {
+			return FullResult{}, fmt.Errorf("full index: acquire shared analyzer targets lock: %w", err)
+		}
+		if !acquired {
+			return FullResult{}, fmt.Errorf("full index: shared analyzer targets are busy; another profile is indexing")
+		}
+		defer func() {
+			if err := lock.Release(); err != nil {
+				resultErr = errors.Join(resultErr,
+					fmt.Errorf("full index: release shared analyzer targets lock: %w", err))
+			}
+		}()
+	}
+
+	indexOptions := indexerOptions(options)
+	indexOptions.Progress = options.Progress
 	effectiveRepositories, err := indexer.ResolveRepositories(indexOptions)
 	if err != nil {
 		return FullResult{}, fmt.Errorf("resolve effective index sources: %w", err)

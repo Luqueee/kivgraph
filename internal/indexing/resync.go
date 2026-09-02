@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Luqueee/kivgraph/internal/filelock"
+	"github.com/Luqueee/kivgraph/internal/sourceobservation"
 	"github.com/Luqueee/kivgraph/internal/storage/generation"
 	"github.com/Luqueee/kivgraph/internal/watcher"
 	"github.com/Luqueee/kivgraph/internal/workspace"
@@ -24,6 +25,13 @@ import (
 // at the old inode, and under kqueue every watched path is a descriptor the
 // source-tree watcher already needs.
 const ResyncInterval = 2 * time.Second
+
+// SourceObservationInterval is the fallback interval for detecting a source
+// edit when a filesystem notification was dropped. Normal dirty edits are
+// signalled by SourceEvents and are observed after the ordinary debounce; this
+// slower pass is the correctness backstop and does not hash every tree on each
+// HEAD poll.
+const SourceObservationInterval = 10 * time.Minute
 
 // ResyncDebounce is how long HEAD must hold still before a move is acted on.
 // A checkout is not atomic seen from outside: HEAD moves, then thousands of
@@ -53,6 +61,10 @@ type ResyncOptions struct {
 	// Repositories are the registered repositories to follow. A repository
 	// whose HEAD cannot be read is reported once and skipped, never guessed.
 	Repositories []workspace.Repository
+	// SourceRepositories are the effective providers whose mutable state is
+	// observed. It may include analyzer-discovered providers that are not in the
+	// registry polled through Repositories. When absent, Repositories is used.
+	SourceRepositories []workspace.Repository
 	// LockPath is the file that elects the single writer. Several servers
 	// may follow the same repositories; only one may rebuild them.
 	LockPath string
@@ -68,6 +80,19 @@ type ResyncOptions struct {
 	// instead of a second try ever being scheduled.
 	Attempts int
 
+	// SourceManifest seeds source tracking from the last valid generation. When
+	// absent, SourceObserver captures the baseline before the first poll.
+	SourceManifest *sourceobservation.Manifest
+	// SourceObserver captures the current mutable source state. It is called on
+	// a source event and periodically as a dropped-event backstop.
+	SourceObserver func(context.Context) (sourceobservation.Manifest, error)
+	// SourceObservationInterval controls the dropped-event backstop.
+	SourceObservationInterval time.Duration
+	// SourceEvents carries a signal that one or more source paths changed. The
+	// channel is deliberately only a wake-up; SourceObserver remains the
+	// authority for the actual bytes and Git state.
+	SourceEvents <-chan struct{}
+
 	// ContentUnchanged, when set, is asked whether the bytes the graph
 	// describes are still the ones on disk for the repositories that moved.
 	//
@@ -81,6 +106,16 @@ type ResyncOptions struct {
 	OnMoved func([]RepositoryMovement)
 	// OnResynced reports a completed rebuild.
 	OnResynced func([]RepositoryMovement)
+	// OnSourceChanged reports the manifest that caused an invalidation and the
+	// affected source movements. It is called before the debounce completes.
+	OnSourceReady   func(sourceobservation.Manifest)
+	OnSourceChanged func(sourceobservation.Manifest, []RepositoryMovement)
+	// OnSourcePublished reports a source manifest after the corresponding
+	// rebuild or safe skip completed.
+	OnSourcePublished func(sourceobservation.Manifest)
+	// OnSourceUnavailable reports a source that could not be observed. The last
+	// valid generation remains active and the next observation retries it.
+	OnSourceUnavailable func(error)
 	// OnError receives a failure the loop absorbed. A resynchroniser never
 	// stops on the loop's own account: the published graph keeps answering
 	// and, unless the batch has now used up Attempts, the next tick tries
@@ -104,18 +139,23 @@ type ResyncOptions struct {
 // RepositoryMovement is one repository whose working tree left the commit the
 // graph was built from.
 type RepositoryMovement struct {
-	Repository workspace.Repository
-	From       string
-	To         string
-	Branch     string
+	Repository        workspace.Repository
+	From              string
+	To                string
+	Branch            string
+	Reason            string
+	ProfileScoped     bool
+	SourceObservation string
 }
 
 // Resync keeps the published graph on the code that is actually checked out.
 //
-// It observes one thing -- HEAD moving -- because that one thing covers every
-// way a tree changes wholesale: checkout, pull, merge, rebase, reset, and
-// commit. A push is not among them: it moves no local ref and rewrites no
-// file, so the code the graph describes is identical before and after.
+// It observes Git HEAD moving and, when configured, mutable source state. HEAD
+// covers every way a tree changes wholesale: checkout, pull, merge, rebase,
+// reset, and commit. A push is not among them: it moves no local ref and
+// rewrites no file, so the code the graph describes is identical before and
+// after. Source events cover the complementary case: dirty bytes can change
+// while HEAD stays still.
 //
 // Debouncing is per workspace and not per repository on purpose. A pull across
 // thirty-three repositories must produce one rebuild: a rebuild costs the
@@ -152,6 +192,29 @@ func Resync(ctx context.Context, options ResyncOptions) error {
 
 	tracker := newHeadTracker(options.Repositories, options.OnError)
 	tracker.prime()
+	sourceInterval := options.SourceObservationInterval
+	if sourceInterval <= 0 {
+		sourceInterval = SourceObservationInterval
+	}
+	sources := newSourceStateTracker(options)
+	sourceRepositories := options.SourceRepositories
+	if len(sourceRepositories) == 0 {
+		sourceRepositories = options.Repositories
+	}
+	if sources != nil {
+		if err := sources.prime(ctx, now()); err != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
+			if options.SourceManifest != nil {
+				return fmt.Errorf("resync: invalid initial source observations: %w", err)
+			}
+			reportSourceUnavailable(options, err)
+		}
+		if sources.ready && options.OnSourceReady != nil {
+			options.OnSourceReady(sources.baseline)
+		}
+	}
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -159,25 +222,64 @@ func Resync(ctx context.Context, options ResyncOptions) error {
 	pending := map[string]RepositoryMovement{}
 	var failures repeatedFailures
 	var quietSince time.Time
+	sourceRequested := sources != nil && options.SourceManifest != nil
+	sourceEvents := options.SourceEvents
+	if sourceRequested {
+		quietSince = now()
+	}
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
+		case _, ok := <-sourceEvents:
+			if !ok {
+				// A closed notification channel means the producer has gone
+				// away. Disable this wake-up path and keep the periodic
+				// reconciliation backstop alive.
+				sourceEvents = nil
+				continue
+			}
+			if sources == nil {
+				continue
+			}
+			sourceRequested = true
+			quietSince = now()
 		case <-ticker.C:
+			nowValue := now()
 			moved := tracker.poll()
 			if len(moved) > 0 {
-				for _, movement := range moved {
-					// A repository that moves twice keeps the commit it
-					// started from, so the report describes the whole
-					// journey rather than its last leg.
-					if previous, seen := pending[movement.Repository.Name]; seen {
-						movement.From = previous.From
-					}
-					pending[movement.Repository.Name] = movement
-				}
-				quietSince = now()
+				mergeMovements(pending, moved)
+				quietSince = nowValue
 				reportMovements(options.OnMoved, sortedMovements(pending))
-				continue
+				if sources != nil {
+					sourceRequested = true
+				}
+			}
+
+			if sources != nil {
+				periodic := !sourceRequested && nowValue.Sub(sources.lastCheck) >= sourceInterval
+				debouncedEvent := sourceRequested && !quietSince.IsZero() && nowValue.Sub(quietSince) >= debounce
+				if periodic || debouncedEvent {
+					sourceRequested = false
+					wasReady := sources.ready
+					changes, actual, err := sources.check(ctx, sourceRepositories)
+					sources.lastCheck = nowValue
+					if err != nil {
+						reportSourceUnavailable(options, err)
+						// Leave the retry to the periodic backstop. A source that is
+						// absent must not make a daemon hash it every debounce window.
+						quietSince = time.Time{}
+					} else {
+						if !wasReady && sources.ready && options.OnSourceReady != nil {
+							options.OnSourceReady(actual)
+						}
+						if len(changes) > 0 {
+							mergeMovements(pending, changes)
+							quietSince = nowValue
+							reportSourceChanged(options, actual, changes)
+						}
+					}
+				}
 			}
 			if len(pending) == 0 {
 				continue
@@ -194,7 +296,7 @@ func Resync(ctx context.Context, options ResyncOptions) error {
 
 			batch := sortedMovements(pending)
 			pending = map[string]RepositoryMovement{}
-			rebuilt, err := resyncBatch(ctx, options, batch)
+			outcome, err := resyncBatch(ctx, options, batch)
 			if err != nil {
 				if ctx.Err() != nil {
 					return nil
@@ -209,15 +311,38 @@ func Resync(ctx context.Context, options ResyncOptions) error {
 					// which is the one event that could make a sixth
 					// attempt different from the five that failed.
 					reportGaveUp(options.OnGaveUp, batch, err)
+					if sources != nil {
+						sources.abandon()
+					}
 					continue
 				}
 				// The tree is still where it moved to, so the next tick
 				// must not conclude that nothing happened.
 				tracker.rewind(batch)
+				if sources != nil {
+					sourceRequested = true
+					quietSince = nowValue
+				}
+				continue
+			}
+			if outcome == resyncBusy {
+				// Another process is rebuilding the same workspace. Keep the
+				// batch so this loop can observe and report the completion rather
+				// than silently dropping the only source movement it saw.
+				mergeMovements(pending, batch)
+				quietSince = nowValue
+				if sources != nil {
+					sourceRequested = true
+				}
 				continue
 			}
 			failures.clear()
-			if rebuilt {
+			if sources != nil {
+				if published, ok := sources.publish(); ok {
+					reportSourcePublished(options, published)
+				}
+			}
+			if outcome == resyncBuilt {
 				reportMovements(options.OnResynced, batch)
 				continue
 			}
@@ -229,14 +354,208 @@ func Resync(ctx context.Context, options ResyncOptions) error {
 	}
 }
 
+// sourceStateTracker keeps the source manifest that the active generation was
+// built from. A source observation is only committed after the matching
+// rebuild succeeds; a failed rebuild therefore keeps detecting the same source
+// movement and can use the existing bounded retry policy.
+type sourceStateTracker struct {
+	observer  func(context.Context) (sourceobservation.Manifest, error)
+	baseline  sourceobservation.Manifest
+	latest    sourceobservation.Manifest
+	ready     bool
+	lastCheck time.Time
+}
+
+func newSourceStateTracker(options ResyncOptions) *sourceStateTracker {
+	if options.SourceObserver == nil {
+		return nil
+	}
+	return &sourceStateTracker{observer: options.SourceObserver, baseline: manifestOrZero(options.SourceManifest)}
+}
+
+func manifestOrZero(manifest *sourceobservation.Manifest) sourceobservation.Manifest {
+	if manifest == nil {
+		return sourceobservation.Manifest{}
+	}
+	return *manifest
+}
+
+func (tracker *sourceStateTracker) prime(ctx context.Context, now time.Time) error {
+	if tracker.baseline.Profile != "" {
+		if err := tracker.baseline.Validate(); err != nil {
+			return fmt.Errorf("validate initial source observations: %w", err)
+		}
+		tracker.ready = true
+		tracker.lastCheck = now
+		return nil
+	}
+	manifest, err := tracker.observer(ctx)
+	tracker.lastCheck = now
+	if err != nil {
+		return fmt.Errorf("observe initial source state: %w", err)
+	}
+	if err := manifest.Validate(); err != nil {
+		return fmt.Errorf("validate initial source state: %w", err)
+	}
+	tracker.baseline = manifest
+	tracker.ready = true
+	return nil
+}
+
+func (tracker *sourceStateTracker) check(
+	ctx context.Context,
+	repositories []workspace.Repository,
+) ([]RepositoryMovement, sourceobservation.Manifest, error) {
+	manifest, err := tracker.observer(ctx)
+	if err != nil {
+		return nil, sourceobservation.Manifest{}, fmt.Errorf("observe current source state: %w", err)
+	}
+	if err := manifest.Validate(); err != nil {
+		return nil, sourceobservation.Manifest{}, fmt.Errorf("validate current source state: %w", err)
+	}
+	if !tracker.ready {
+		tracker.baseline = manifest
+		tracker.ready = true
+		return nil, manifest, nil
+	}
+	changes, err := sourceobservation.Diff(tracker.baseline, manifest)
+	if err != nil {
+		return nil, sourceobservation.Manifest{}, err
+	}
+	if len(changes) == 0 {
+		tracker.latest = manifest
+		return nil, manifest, nil
+	}
+	movements, err := sourceMovements(changes, repositories)
+	if err != nil {
+		return nil, sourceobservation.Manifest{}, err
+	}
+	tracker.latest = manifest
+	return movements, manifest, nil
+}
+
+func (tracker *sourceStateTracker) publish() (sourceobservation.Manifest, bool) {
+	if tracker == nil || tracker.latest.Profile == "" {
+		return sourceobservation.Manifest{}, false
+	}
+	tracker.baseline = tracker.latest
+	tracker.latest = sourceobservation.Manifest{}
+	return tracker.baseline, true
+}
+
+func (tracker *sourceStateTracker) abandon() {
+	if tracker == nil || tracker.latest.Profile == "" {
+		return
+	}
+	tracker.baseline = tracker.latest
+	tracker.latest = sourceobservation.Manifest{}
+}
+
+func sourceMovements(changes []sourceobservation.Change, repositories []workspace.Repository) ([]RepositoryMovement, error) {
+	byName := make(map[string]workspace.Repository, len(repositories))
+	for _, repository := range repositories {
+		byName[repository.Name] = repository
+	}
+	movements := make([]RepositoryMovement, 0, len(changes))
+	for _, change := range changes {
+		if change.ProfileScoped && change.Before.Repository == "" && change.After.Repository == "" {
+			movements = append(movements, RepositoryMovement{
+				Reason:        change.Reason,
+				ProfileScoped: true,
+			})
+			continue
+		}
+		repository, exists := byName[change.Repository]
+		if !exists {
+			if change.Before.Repository != "" && change.After.Repository == "" {
+				// A removed provider cannot be looked up in the current effective
+				// set. Its name is still enough for the full profile rebuild,
+				// which receives the current provider set from the indexer.
+				repository = workspace.Repository{Name: change.Repository}
+			} else {
+				return nil, fmt.Errorf("source change %q is not a registered repository", change.Repository)
+			}
+		}
+		movement := RepositoryMovement{
+			Repository:        repository,
+			From:              change.Before.Observation.Commit,
+			To:                change.After.Observation.Commit,
+			Branch:            change.After.Observation.Branch,
+			Reason:            change.Reason,
+			ProfileScoped:     change.ProfileScoped,
+			SourceObservation: sourceObservationID(change),
+		}
+		movements = append(movements, movement)
+	}
+	sort.Slice(movements, func(left, right int) bool {
+		return movements[left].Repository.Name < movements[right].Repository.Name
+	})
+	return movements, nil
+}
+
+func sourceObservationID(change sourceobservation.Change) string {
+	if change.After.Repository != "" {
+		return string(change.After.Observation.ID)
+	}
+	return string(change.Before.Observation.ID)
+}
+
+func mergeMovements(pending map[string]RepositoryMovement, movements []RepositoryMovement) {
+	for _, movement := range movements {
+		if previous, seen := pending[movement.Repository.Name]; seen {
+			movement.From = previous.From
+			if movement.Reason == "" {
+				movement.Reason = previous.Reason
+			}
+			if movement.SourceObservation == "" {
+				movement.SourceObservation = previous.SourceObservation
+			}
+			if previous.ProfileScoped {
+				movement.ProfileScoped = true
+			}
+		}
+		pending[movement.Repository.Name] = movement
+	}
+}
+
+func reportSourceChanged(options ResyncOptions, manifest sourceobservation.Manifest, movements []RepositoryMovement) {
+	if options.OnSourceChanged != nil {
+		options.OnSourceChanged(manifest, movements)
+	}
+}
+
+func reportSourcePublished(options ResyncOptions, manifest sourceobservation.Manifest) {
+	if options.OnSourcePublished != nil {
+		options.OnSourcePublished(manifest)
+	}
+}
+
+func reportSourceUnavailable(options ResyncOptions, err error) {
+	if options.OnSourceUnavailable != nil {
+		options.OnSourceUnavailable(err)
+	}
+	report(options.OnError, err)
+}
+
 // resyncBatch runs one rebuild under the writer lock.
 //
 // Losing the lock is not a failure: another process is already rebuilding the
 // same repositories, and every server follows the CURRENT pointer, so this one
 // will serve the result without having produced it.
-func resyncBatch(ctx context.Context, options ResyncOptions, batch []RepositoryMovement) (bool, error) {
+type resyncOutcome uint8
+
+const (
+	resyncBuilt resyncOutcome = iota
+	resyncSkipped
+	resyncBusy
+)
+
+func resyncBatch(ctx context.Context, options ResyncOptions, batch []RepositoryMovement) (resyncOutcome, error) {
 	repositories := make([]workspace.Repository, 0, len(batch))
 	for _, movement := range batch {
+		if movement.Repository.Name == "" {
+			continue
+		}
 		repositories = append(repositories, movement.Repository)
 	}
 
@@ -246,19 +565,19 @@ func resyncBatch(ctx context.Context, options ResyncOptions, batch []RepositoryM
 	if options.ContentUnchanged != nil {
 		unchanged, err := options.ContentUnchanged(ctx, batch)
 		if err != nil {
-			return false, fmt.Errorf("compare indexed content: %w", err)
+			return resyncSkipped, fmt.Errorf("compare indexed content: %w", err)
 		}
 		if unchanged {
-			return false, nil
+			return resyncSkipped, nil
 		}
 	}
 
 	lock, acquired, err := filelock.Acquire(options.LockPath)
 	if err != nil {
-		return false, fmt.Errorf("acquire resync lock: %w", err)
+		return resyncBusy, fmt.Errorf("acquire resync lock: %w", err)
 	}
 	if !acquired {
-		return false, nil
+		return resyncBusy, nil
 	}
 	defer func() {
 		if closeErr := lock.Release(); closeErr != nil {
@@ -273,11 +592,11 @@ func resyncBatch(ctx context.Context, options ResyncOptions, batch []RepositoryM
 		// follows anyway. Reporting it would put an ERROR in a server's log
 		// for a system that is working.
 		if errors.Is(err, generation.ErrPublishInProgress) {
-			return false, nil
+			return resyncBusy, nil
 		}
-		return false, fmt.Errorf("resync %d repository(ies): %w", len(repositories), err)
+		return resyncBusy, fmt.Errorf("resync %d repository(ies): %w", len(repositories), err)
 	}
-	return true, nil
+	return resyncBuilt, nil
 }
 
 // repeatedFailures counts how many times in a row one batch failed.
@@ -327,6 +646,16 @@ func fingerprintOf(batch []RepositoryMovement) string {
 		fingerprint.WriteString(movement.From)
 		fingerprint.WriteByte(0)
 		fingerprint.WriteString(movement.To)
+		fingerprint.WriteByte(0)
+		fingerprint.WriteString(movement.Reason)
+		fingerprint.WriteByte(0)
+		fingerprint.WriteString(movement.SourceObservation)
+		fingerprint.WriteByte(0)
+		if movement.ProfileScoped {
+			fingerprint.WriteByte('1')
+		} else {
+			fingerprint.WriteByte('0')
+		}
 		fingerprint.WriteByte(0)
 	}
 	return fingerprint.String()
@@ -394,6 +723,9 @@ func (tracker *headTracker) poll() []RepositoryMovement {
 // the batch.
 func (tracker *headTracker) anyBusy(pending map[string]RepositoryMovement) bool {
 	for _, movement := range pending {
+		if movement.Repository.RealPath == "" {
+			continue
+		}
 		if watcher.GitOperationInProgress(movement.Repository.RealPath) {
 			return true
 		}

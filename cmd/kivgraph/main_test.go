@@ -2287,6 +2287,21 @@ func TestCommitChangedNothingIsFalseWhenNothingMoved(t *testing.T) {
 	if commitChangedNothing(context.Background(), []indexing.RepositoryMovement{}) {
 		t.Fatal("commitChangedNothing(empty) = true, want false")
 	}
+	base := indexing.RepositoryMovement{
+		Repository: workspace.Repository{RealPath: t.TempDir()},
+		From:       "1111111111111111111111111111111111111111",
+		To:         "1111111111111111111111111111111111111111",
+	}
+	contentChange := base
+	contentChange.Reason = "source content changed"
+	if commitChangedNothing(context.Background(), []indexing.RepositoryMovement{contentChange}) {
+		t.Fatal("commitChangedNothing(content change) = true, want dirty content to rebuild")
+	}
+	branchChange := base
+	branchChange.Reason = "source branch changed"
+	if !commitChangedNothing(context.Background(), []indexing.RepositoryMovement{branchChange}) {
+		t.Fatal("commitChangedNothing(branch change) = false, want identical trees to skip")
+	}
 }
 
 // A pid that names no process is an error, not a silent success: `stop`

@@ -37,6 +37,7 @@ import (
 	"github.com/Luqueee/kivgraph/internal/procstat"
 	"github.com/Luqueee/kivgraph/internal/rebuild"
 	"github.com/Luqueee/kivgraph/internal/rustloader"
+	"github.com/Luqueee/kivgraph/internal/sourceobservation"
 	"github.com/Luqueee/kivgraph/internal/storage/generation"
 	"github.com/Luqueee/kivgraph/internal/storage/ladybug"
 	"github.com/Luqueee/kivgraph/internal/synthetic"
@@ -618,6 +619,7 @@ func watchConfiguredProfiles(
 	var watchersMu sync.Mutex
 	stops := make([]func(), 0, len(profiles)*2)
 	watched := make(map[string]struct{}, len(profiles))
+	sourceTracker := sourceobservation.NewTracker()
 	closed := false
 	register := func(name string, profileLoaded config.Loaded, profileStore *hotsnapshot.SnapshotStore) {
 		watchersMu.Lock()
@@ -629,9 +631,13 @@ func watchConfiguredProfiles(
 			return
 		}
 		watched[name] = struct{}{}
+		// Each profile owns its resynchronisation loop because it must rebuild
+		// and publish its own effective graph. A shared worktree is therefore
+		// observed by every consuming profile, while sourceTracker provides the
+		// reverse dependency and stale-generation diagnostics across those loops.
 		stops = append(stops,
 			followPublishedGeneration(ctx, profileLoaded, profileStore, command, indexing.FollowOptions{}),
-			resyncOnBranchChange(ctx, profileLoaded, profileStore, namedProfileReindexer{indexer, name}, command),
+			resyncOnBranchChange(ctx, profileLoaded, profileStore, namedProfileReindexer{indexer, name}, command, sourceTracker),
 		)
 	}
 	cleanup := func() {
@@ -715,19 +721,21 @@ func followPublishedGeneration(
 // every path and line the server returns describing something else; without
 // this the only way back is a person remembering to run `index --full`.
 //
-// It observes HEAD and nothing else. A push moves no local ref and rewrites no
-// file, so it changes nothing the graph describes. A commit does move HEAD
-// without rewriting anything, so before rebuilding, the content the graph
-// recorded is compared against the bytes on disk: the cheapest rebuild is the
-// one that does not happen.
+// It observes HEAD and mutable source events. A push moves no local ref and
+// rewrites no file, so it changes nothing the graph describes. A commit does
+// move HEAD without rewriting anything, so before rebuilding, the content the
+// graph recorded is compared against the bytes on disk: the cheapest rebuild
+// is the one that does not happen. Dirty edits take the source-observation path
+// and invalidate every profile that shares the affected worktree.
 //
 // Like the follower, it never fails the command and never outlives it.
 func resyncOnBranchChange(
 	ctx context.Context,
 	loaded config.Loaded,
 	store *hotsnapshot.SnapshotStore,
-	indexer interface{ Reindex(context.Context) error },
+	reindexer interface{ Reindex(context.Context) error },
 	command string,
+	trackers ...*sourceobservation.Tracker,
 ) func() {
 	logger := logging.New(os.Stderr)
 	resyncCtx, cancel := context.WithCancel(ctx)
@@ -764,22 +772,152 @@ func resyncOnBranchChange(
 		if len(repositories) == 0 {
 			return
 		}
+		sourceEvents := make(chan struct{}, 1)
+		fileWatcher, watcherErr := watcher.New(repositories)
+		if watcherErr != nil {
+			logger.Warn("could not watch source files; periodic source reconciliation remains active",
+				"command", command, "error", watcherErr)
+		} else {
+			watchDone := make(chan struct{})
+			eventsDone := make(chan struct{})
+			go func() {
+				defer close(watchDone)
+				if err := fileWatcher.Run(resyncCtx); err != nil && !errors.Is(err, context.Canceled) {
+					logger.Error("source file watcher stopped", "command", command, "error", err)
+				}
+			}()
+			go func() {
+				defer close(eventsDone)
+				for {
+					select {
+					case <-resyncCtx.Done():
+						return
+					case _, ok := <-fileWatcher.Events():
+						if !ok {
+							return
+						}
+						select {
+						case sourceEvents <- struct{}{}:
+						default:
+						}
+					case err, ok := <-fileWatcher.Errors():
+						if !ok {
+							return
+						}
+						if err != nil {
+							logger.Error("source file watcher reported an error", "command", command, "error", err)
+						}
+					}
+				}
+			}()
+			defer func() {
+				_ = fileWatcher.Close()
+				<-watchDone
+				<-eventsDone
+			}()
+		}
+
+		indexOptions := indexing.OptionsFromConfig(loaded.Config)
+		indexOptions.Profile = loaded.Profile
+		indexOptions.Repositories = repositories
+		indexOptions.WorkingDirectory, _ = os.Getwd()
+		sourceRepositories := repositories
+		if effective, resolveErr := indexing.ResolveRepositories(indexOptions); resolveErr != nil {
+			logger.Error("could not resolve effective source providers; source invalidation is limited to registered repositories",
+				"command", command, "profile", loaded.Profile, "error", resolveErr)
+		} else {
+			sourceRepositories = effective
+		}
+		analyzerFingerprint, fingerprintErr := indexing.AnalyzerFingerprint(indexOptions)
+		var sourceObserver func(context.Context) (sourceobservation.Manifest, error)
+		if fingerprintErr != nil {
+			logger.Error("could not prepare source observation; periodic source invalidation is disabled",
+				"command", command, "profile", loaded.Profile, "error", fingerprintErr)
+		} else {
+			sourceObserver = func(observeCtx context.Context) (sourceobservation.Manifest, error) {
+				return sourceobservation.Capture(observeCtx, loaded.Profile, version.Value, analyzerFingerprint, sourceRepositories)
+			}
+		}
+		initialManifest, initialErr := publishedSourceManifest(resyncCtx, loaded)
+		if initialErr != nil {
+			logger.Warn("could not load the published source observation; using a fresh baseline",
+				"command", command, "profile", loaded.Profile, "error", initialErr)
+		}
+		var tracker *sourceobservation.Tracker
+		if len(trackers) != 0 {
+			tracker = trackers[0]
+		}
 		state := filepath.Dir(loaded.Config.Storage.DatabasePath)
 		options := indexing.ResyncOptions{
-			Repositories: repositories,
-			LockPath:     filepath.Join(state, "resync.lock"),
-			Resync: func(ctx context.Context, moved []workspace.Repository) error {
+			Repositories:       repositories,
+			SourceRepositories: sourceRepositories,
+			LockPath:           filepath.Join(state, "resync.lock"),
+			Resync: func(ctx context.Context, _ []workspace.Repository) error {
 				// The indexer decides the route. This loop only decides when.
-				return indexer.Reindex(ctx)
+				return reindexer.Reindex(ctx)
 			},
+			SourceManifest:            initialManifest,
+			SourceObserver:            sourceObserver,
+			SourceObservationInterval: time.Duration(loaded.Config.Watcher.ReconciliationInterval),
+			SourceEvents:              sourceEvents,
 			ContentUnchanged: func(ctx context.Context, moved []indexing.RepositoryMovement) (bool, error) {
 				return commitChangedNothing(ctx, moved), nil
+			},
+			OnSourceReady: func(manifest sourceobservation.Manifest) {
+				if tracker == nil {
+					return
+				}
+				if err := tracker.Register(loaded.Profile, store.GenerationID(), manifest); err != nil {
+					logger.Error("could not register source dependencies", "command", command,
+						"profile", loaded.Profile, "error", err)
+				}
+			},
+			OnSourceChanged: func(manifest sourceobservation.Manifest, moved []indexing.RepositoryMovement) {
+				if tracker == nil {
+					return
+				}
+				report, err := tracker.Observe(loaded.Profile, manifest)
+				if err != nil {
+					logger.Error("could not invalidate source dependents", "command", command,
+						"profile", loaded.Profile, "error", err)
+					return
+				}
+				logger.Warn("source invalidated dependent profiles", "command", command,
+					"profile", loaded.Profile, "repositories", len(moved),
+					"profiles", strings.Join(report.Profiles, ","), "reason", report.Reason)
+			},
+			OnSourcePublished: func(manifest sourceobservation.Manifest) {
+				if tracker == nil {
+					return
+				}
+				if err := tracker.Commit(loaded.Profile, store.GenerationID(), manifest); err != nil {
+					logger.Error("could not commit source dependencies", "command", command,
+						"profile", loaded.Profile, "error", err)
+				}
+			},
+			OnSourceUnavailable: func(err error) {
+				if tracker == nil {
+					logger.Error("source observation unavailable", "command", command,
+						"profile", loaded.Profile, "profiles", loaded.Profile, "error", err)
+					return
+				}
+				report, markErr := tracker.MarkUnavailable(loaded.Profile, err.Error())
+				if markErr != nil {
+					logger.Error("could not mark source dependents stale", "command", command,
+						"profile", loaded.Profile, "error", markErr)
+					logger.Error("source observation unavailable", "command", command,
+						"profile", loaded.Profile, "profiles", loaded.Profile, "error", err)
+					return
+				}
+				logger.Error("source observation unavailable", "command", command,
+					"profile", loaded.Profile, "profiles", strings.Join(report.Profiles, ","), "error", err)
 			},
 			OnMoved: func(batch []indexing.RepositoryMovement) {
 				for _, movement := range batch {
 					logger.Info("working tree moved",
 						"command", command, "repository", movement.Repository.Name,
-						"from", movement.From, "to", movement.To, "branch", movement.Branch)
+						"from", movement.From, "to", movement.To, "branch", movement.Branch,
+						"reason", movement.Reason)
 				}
 			},
 			OnResynced: func(batch []indexing.RepositoryMovement) {
@@ -791,6 +929,9 @@ func resyncOnBranchChange(
 			},
 			OnError: func(err error) {
 				logger.Error("could not resynchronise the graph", "command", command, "error", err)
+				if tracker != nil {
+					_ = tracker.RecordFailure(loaded.Profile, err.Error())
+				}
 			},
 			OnGaveUp: func(batch []indexing.RepositoryMovement, err error) {
 				// One line, at the end, naming the number of attempts: the
@@ -822,11 +963,45 @@ func resyncOnBranchChange(
 // published.
 func commitChangedNothing(ctx context.Context, moved []indexing.RepositoryMovement) bool {
 	for _, movement := range moved {
+		// A dirty edit, provider change or source addition/removal cannot be
+		// proven equivalent by comparing Git commits. Only a clean commit or
+		// branch movement may use the tree comparison shortcut; source
+		// movements carry the same reason so their latest manifest can still be
+		// published without rebuilding when the tree is identical.
+		if movement.Reason != "" && movement.Reason != "source commit changed" &&
+			movement.Reason != "source branch changed" {
+			return false
+		}
+		if movement.From == "" || movement.To == "" {
+			return false
+		}
 		if !watcher.CommitsHaveIdenticalTrees(ctx, movement.Repository.RealPath, movement.From, movement.To) {
 			return false
 		}
 	}
 	return len(moved) > 0
+}
+
+// publishedSourceManifest loads the source state that produced the active
+// generation. It is the baseline for dirty-source invalidation: a daemon that
+// starts after an edit must compare against the indexed bytes, not silently
+// adopt the current worktree as if it had already been published.
+func publishedSourceManifest(ctx context.Context, loaded config.Loaded) (*sourceobservation.Manifest, error) {
+	layout, err := rebuild.Roles(ctx, rebuild.LayoutOptions{
+		Root:  filepath.Dir(loaded.Config.Storage.DatabasePath),
+		Store: generation.DefaultConfig(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	if layout.Active.ID == "" {
+		return nil, nil
+	}
+	manifest, err := sourceobservation.Read(layout.Active.Path)
+	if err != nil {
+		return nil, err
+	}
+	return &manifest, nil
 }
 
 func isLoopbackListenAddress(address string) bool {

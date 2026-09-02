@@ -20,6 +20,7 @@ go_library(
         "//internal/indexer",
         "//internal/metrics",
         "//internal/rebuild",
+        "//internal/sourceobservation",
         "//internal/storage/generation",
         "//internal/version",
         "//internal/watcher",
@@ -47,6 +48,8 @@ go_test(
         "//internal/indexer",
         "//internal/storage/generation",
         "//internal/testsupport",
+        "//internal/sourceobservation",
+        "//internal/topology",
         "//internal/workspace",
     ],
 )
