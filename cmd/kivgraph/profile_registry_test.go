@@ -130,7 +130,7 @@ func TestComposedProfileDoesNotCreateEdgesFromCoMembership(t *testing.T) {
 	provider := factSymbol(t, set, "provider", "Value")
 	for _, edge := range set.Edges {
 		if edge.SourceKey == consumer.Key && edge.TargetKey == provider.Key {
-			t.Fatalf("co-membership created an edge = %#v", edge)
+			t.Fatalf("co-membership created an edge with dependency=false: %#v", edge)
 		}
 	}
 }
