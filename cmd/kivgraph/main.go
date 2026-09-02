@@ -1435,6 +1435,9 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 		writeCommandError(stderr, "index --full: register profile repositories: %v", err)
 		return 1
 	}
+	if !options.JSONOutput {
+		writeProfileDiagnostics(stdout, loaded.Profile, registry)
+	}
 	workingDirectory, err := os.Getwd()
 	if err != nil {
 		writeCommandError(stderr, "index --full: resolve working directory: %v", err)
