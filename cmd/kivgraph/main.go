@@ -1030,8 +1030,9 @@ type updatePostInstall func(executable string, stdout, stderr io.Writer) error
 type updatePostInstallWithResult func(executable string, stdout, stderr io.Writer) updatePostInstallResult
 
 type updatePostInstallResult struct {
-	RefreshedDaemonPID int
-	Err                error
+	RefreshedDaemonPID  int
+	SupervisedDaemonPID int
+	Err                 error
 }
 
 func runUpdateWithRunnerAtExecutable(
@@ -1092,7 +1093,8 @@ func runUpdateWithRunnerAtExecutable(
 		}
 	}
 	stopCode := stopStaleProcesses(stdin, stdout, stderr, list, signal, restart, options.StopStale,
-		result.LatestVersion, graceful, postInstallResult.RefreshedDaemonPID)
+		result.LatestVersion, graceful, postInstallResult.RefreshedDaemonPID,
+		postInstallResult.SupervisedDaemonPID)
 	if stopCode != 0 {
 		return stopCode
 	}
@@ -1134,6 +1136,7 @@ func stopStaleProcesses(
 	release string,
 	graceful bool,
 	refreshedDaemonPID int,
+	supervisedDaemonPID int,
 ) int {
 	processes, err := list()
 	if err != nil {
@@ -1143,9 +1146,12 @@ func stopStaleProcesses(
 		return 0
 	}
 	targets := stoppableProcesses(processes, os.Getpid())
-	if refreshedDaemonPID != 0 {
+	for _, protectedPID := range []int{refreshedDaemonPID, supervisedDaemonPID} {
+		if protectedPID == 0 {
+			continue
+		}
 		targets = slices.DeleteFunc(targets, func(target procstat.Process) bool {
-			return target.PID == refreshedDaemonPID
+			return target.PID == protectedPID
 		})
 	}
 	if len(targets) == 0 {

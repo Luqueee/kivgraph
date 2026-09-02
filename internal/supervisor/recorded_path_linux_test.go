@@ -3,8 +3,12 @@
 package supervisor
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
 // The negatives first, and the first of them is the one that would write a
@@ -111,5 +115,68 @@ func TestAnotherEnvironmentDirectiveIsNotStripped(t *testing.T) {
 	}
 	if !strings.Contains(stripped, "Environment=GOFLAGS=-mod=mod") {
 		t.Fatalf("an environment directive nobody here wrote was stripped away:\n%s", stripped)
+	}
+}
+
+func TestAUserDropInMakesAUnitUnrepairable(t *testing.T) {
+	home := t.TempDir()
+	testsupport.SetHome(t, home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	spec := testSpec(t.TempDir())
+	t.Setenv("PATH", "/usr/bin:/bin")
+	planned, err := Status(spec)
+	if err != nil {
+		t.Fatalf("Status() = %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(planned.Path), 0o755); err != nil {
+		t.Fatalf("create unit directory: %v", err)
+	}
+	if err := os.WriteFile(planned.Path, renderedUnit(t, spec), 0o644); err != nil {
+		t.Fatalf("write unit: %v", err)
+	}
+	dropInDirectory := planned.Path + ".d"
+	if err := os.Mkdir(dropInDirectory, 0o755); err != nil {
+		t.Fatalf("create drop-in directory: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dropInDirectory, "10-toolchain-path.conf"),
+		[]byte("[Service]\nEnvironment=PATH=/custom/bin\n"), 0o644); err != nil {
+		t.Fatalf("write drop-in: %v", err)
+	}
+
+	report, err := Status(spec)
+	if err != nil {
+		t.Fatalf("Status() with a drop-in = %v", err)
+	}
+	if report.State != StateStale || report.Managed || report.Repairable {
+		t.Fatalf("Status() with a drop-in = state=%q managed=%t repairable=%t; want stale, unmanaged, unrepairable",
+			report.State, report.Managed, report.Repairable)
+	}
+	if !strings.Contains(report.Detail, "drop-ins") {
+		t.Fatalf("Status() detail %q does not name the drop-in policy", report.Detail)
+	}
+}
+
+func TestAUnreadableDropInPathIsAnInspectionError(t *testing.T) {
+	home := t.TempDir()
+	testsupport.SetHome(t, home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	spec := testSpec(t.TempDir())
+	t.Setenv("PATH", "/usr/bin:/bin")
+	planned, err := Status(spec)
+	if err != nil {
+		t.Fatalf("Status() = %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(planned.Path), 0o755); err != nil {
+		t.Fatalf("create unit directory: %v", err)
+	}
+	if err := os.WriteFile(planned.Path, renderedUnit(t, spec), 0o644); err != nil {
+		t.Fatalf("write unit: %v", err)
+	}
+	if err := os.WriteFile(planned.Path+".d", []byte("not a directory"), 0o600); err != nil {
+		t.Fatalf("write invalid drop-in path: %v", err)
+	}
+	if _, err := Status(spec); err == nil || !strings.Contains(err.Error(), "read drop-ins") {
+		t.Fatalf("Status() with invalid drop-in path %q error = %v, want a named inspection error",
+			planned.Path+".d", err)
 	}
 }

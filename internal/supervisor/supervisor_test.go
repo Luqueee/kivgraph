@@ -287,6 +287,113 @@ func TestRestartingAnIncompleteSpecIsRefused(t *testing.T) {
 	}
 }
 
+func TestRestartRepairsAnOwnedLegacyUnit(t *testing.T) {
+	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
+		t.Skipf("this platform has no supervisor: %s", runtime.GOOS)
+	}
+	home := t.TempDir()
+	testsupport.SetHome(t, home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	spec := testSpec(t.TempDir())
+
+	// The fake command records the public operation without requiring a user
+	// supervisor in the test environment. The installed file and command log
+	// together are the observable rewrite, reload and restart contract.
+	commandDirectory := filepath.Join(home, "bin")
+	if err := os.MkdirAll(commandDirectory, 0o755); err != nil {
+		t.Fatalf("create fake supervisor directory: %v", err)
+	}
+	commandLog := filepath.Join(home, "supervisor-commands.log")
+	t.Setenv("KIVGRAPH_TEST_SUPERVISOR_LOG", commandLog)
+	command := "systemctl"
+	if runtime.GOOS == "darwin" {
+		command = "launchctl"
+	}
+	if err := os.WriteFile(filepath.Join(commandDirectory, command), []byte("#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$KIVGRAPH_TEST_SUPERVISOR_LOG\"\n"), 0o755); err != nil {
+		t.Fatalf("write fake supervisor command: %v", err)
+	}
+
+	// An empty PATH produces the legacy definition. Restart must replace it
+	// with the current definition before asking the supervisor to bring it back.
+	t.Setenv("PATH", "")
+	planned, err := Status(spec)
+	if err != nil {
+		t.Fatalf("Status() = %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(planned.Path), 0o755); err != nil {
+		t.Fatalf("create unit directory: %v", err)
+	}
+	if err := os.WriteFile(planned.Path, renderedUnit(t, spec), 0o644); err != nil {
+		t.Fatalf("write legacy unit: %v", err)
+	}
+
+	t.Setenv("PATH", commandDirectory)
+	wanted := renderedUnit(t, spec)
+	got, err := Restart(spec)
+	if err != nil {
+		t.Fatalf("Restart() = %v", err)
+	}
+	if got.State != StateInstalled {
+		t.Fatalf("Restart() state = %q, want %q", got.State, StateInstalled)
+	}
+	installed, err := os.ReadFile(planned.Path)
+	if err != nil {
+		t.Fatalf("read repaired unit: %v", err)
+	}
+	if string(installed) != string(wanted) {
+		t.Fatalf("repaired unit differs from the current rendering:\n%s\n---\n%s", installed, wanted)
+	}
+	log, err := os.ReadFile(commandLog)
+	if err != nil {
+		t.Fatalf("read supervisor command log: %v", err)
+	}
+	for _, operation := range map[string][]string{
+		"linux":  {"daemon-reload", "enable --now", "restart"},
+		"darwin": {"bootstrap", "kickstart"},
+	}[runtime.GOOS] {
+		if !strings.Contains(string(log), operation) {
+			t.Fatalf("supervisor command log %q does not contain %q", log, operation)
+		}
+	}
+}
+
+func TestRestartPropagatesInspectionRepairAndRestartFailures(t *testing.T) {
+	spec := testSpec("/state")
+	operationError := errors.New("operation failed")
+	tests := []struct {
+		name      string
+		state     State
+		repair    bool
+		inspect   error
+		repairErr error
+		startErr  error
+	}{
+		{name: "inspection", inspect: operationError},
+		{name: "repair", state: StateStale, repair: true, repairErr: operationError},
+		{name: "restart", state: StateInstalled, startErr: operationError},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := restartWith(spec,
+				func(Spec) (Report, error) {
+					return Report{State: test.state, Managed: test.repair, Repairable: test.repair}, test.inspect
+				},
+				func(Spec) (Report, error) {
+					return Report{State: StateInstalled}, test.repairErr
+				},
+				func(Spec) (Report, error) {
+					return Report{State: StateInstalled}, test.startErr
+				})
+			if !errors.Is(err, operationError) {
+				t.Fatalf("%s: restartWith() error = %v, want %v", t.Name(), err, operationError)
+			}
+			if test.inspect != nil && got.State != test.state {
+				t.Fatalf("%s: inspection failure report state = %q, want %q", t.Name(), got.State, test.state)
+			}
+		})
+	}
+}
+
 // TestTheUnitRecordsThePathThatInstalledIt is the fix for a daemon that cannot
 // find node. Neither supervisor reads a shell profile, so a unit that declares
 // no PATH runs the daemon on the platform's own -- which holds nothing anybody
@@ -381,6 +488,12 @@ func TestAUnitCarryingNoPathIsStale(t *testing.T) {
 	}
 	if report.State != StateStale {
 		t.Fatalf("Status() over a unit with no recorded PATH = %q, want %q", report.State, StateStale)
+	}
+	if !report.Repairable {
+		t.Fatal("Status() did not identify the legacy generated unit as repairable")
+	}
+	if !report.Managed {
+		t.Fatal("Status() did not establish ownership of the legacy generated unit")
 	}
 	if !strings.Contains(report.Detail, "PATH") {
 		t.Fatalf("Status() detail %q does not say what is missing", report.Detail)

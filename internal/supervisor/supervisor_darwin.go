@@ -279,8 +279,9 @@ func status(spec Spec) (Report, error) {
 	if recordsPath != wantsPath {
 		return Report{State: StateStale, Label: label, Path: path,
 			Detail: "the installed agent records no PATH, so the daemon cannot reach the toolchains " +
-				"this shell can: reinstall to replace it"}, nil
+				"this shell can: update can repair this legacy Kivgraph agent", Managed: true,
+			Repairable: true}, nil
 	}
 	return Report{State: StateInstalled, Label: label, Path: path,
-		Detail: "launchd starts it at login and restarts it if it dies"}, nil
+		Detail: "launchd starts it at login and restarts it if it dies", Managed: true}, nil
 }

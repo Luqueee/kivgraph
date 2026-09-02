@@ -257,6 +257,12 @@ func status(spec Spec) (Report, error) {
 	if readErr != nil {
 		return Report{}, fmt.Errorf("supervisor: read %s: %w", path, readErr)
 	}
+	if hasDropIns, err := hasDropIns(path + ".d"); err != nil {
+		return Report{}, err
+	} else if hasDropIns {
+		return Report{State: StateStale, Label: label, Path: path,
+			Detail: "the installed unit has user drop-ins; update leaves operator-managed supervisor configuration untouched"}, nil
+	}
 	installed, recordsPath := withoutRecordedPath(string(existing))
 	wanted, wantsPath := withoutRecordedPath(unit(spec, daemonPath()))
 	if installed != wanted {
@@ -266,8 +272,20 @@ func status(spec Spec) (Report, error) {
 	if recordsPath != wantsPath {
 		return Report{State: StateStale, Label: label, Path: path,
 			Detail: "the installed unit records no PATH, so the daemon cannot reach the toolchains " +
-				"this shell can: reinstall to replace it"}, nil
+				"this shell can: update can repair this legacy Kivgraph unit", Managed: true,
+			Repairable: true}, nil
 	}
 	return Report{State: StateInstalled, Label: label, Path: path,
-		Detail: "systemd starts it with the session and restarts it if it dies"}, nil
+		Detail: "systemd starts it with the session and restarts it if it dies", Managed: true}, nil
+}
+
+func hasDropIns(directory string) (bool, error) {
+	entries, err := os.ReadDir(directory)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("supervisor: read drop-ins %s: %w", directory, err)
+	}
+	return len(entries) > 0, nil
 }
