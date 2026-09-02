@@ -7,24 +7,21 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/csharploader"
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/goworkspace"
 	"github.com/Luqueee/kivgraph/internal/javaloader"
 	"github.com/Luqueee/kivgraph/internal/pythonloader"
+	"github.com/Luqueee/kivgraph/internal/sourceobservation"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
@@ -212,10 +209,14 @@ func newFactCache(options FullOptions) (*factCache, error) {
 	if err := os.MkdirAll(directory, 0o755); err != nil {
 		return nil, fmt.Errorf("fact cache: prepare %q: %w", directory, err)
 	}
+	analyzer, err := AnalyzerFingerprint(options)
+	if err != nil {
+		return nil, fmt.Errorf("fact cache: observe analyzer configuration: %w", err)
+	}
 	return &factCache{
 		directory: directory,
 		mode:      mode,
-		analyzer:  analyzerFingerprint(options),
+		analyzer:  analyzer,
 		profile:   profile,
 		trees:     newFingerprintMemo(),
 	}, nil
@@ -783,14 +784,15 @@ func lockfilePaths(root string) []string {
 	return paths
 }
 
-// analyzerFingerprint identifies what produces the facts, so an entry written
+// AnalyzerFingerprint identifies what produces the facts, so an entry written
 // by one build of Kivgraph is never served to another.
 //
 // The executable's own content is the identity, not its release string: a
 // development build changes the normaliser without changing a version number,
 // and an entry from before that change describes a graph this binary would
-// not produce.
-func analyzerFingerprint(options FullOptions) string {
+// not produce. An unavailable identity fails closed instead of being replaced
+// with a timestamp: a full pass observes it before and after analysis.
+func AnalyzerFingerprint(options FullOptions) (string, error) {
 	hash := sha256.New()
 	fmt.Fprintf(hash, "entry=%d\x00", cacheEntryVersion)
 	cgo := "default"
@@ -834,21 +836,34 @@ func analyzerFingerprint(options FullOptions) string {
 		strings.TrimSpace(options.CSharpTargetDirectory))
 	fmt.Fprintf(hash, "csharp-indexer=%s\x00", cSharpIndexerFingerprint(options))
 	fmt.Fprintf(hash, "python-worker=%s\x00", pythonProducerFingerprint(options))
-	if executable, err := os.Executable(); err == nil {
-		fmt.Fprintf(hash, "binary=%s\x00", fileFingerprint(executable))
-	} else {
-		// A timestamp here is right, and it is the distinction the three
-		// producer fingerprints above turn on. os.Executable failing does not
-		// mean this build has no identity; it means the identity could not be
-		// read, and serving one build's facts to another is exactly what this
-		// hash exists to prevent. Unknown is not absent, and only absent is a
-		// fact that repeats.
-		fmt.Fprintf(hash, "binary=unknown-%d\x00", time.Now().UnixNano())
+	executable, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("resolve Kivgraph executable: %w", err)
 	}
-	fmt.Fprintf(hash, "goenv=%s\x00", goEnvironmentFingerprint())
+	binaryDigest, err := sourceobservation.FileDigest(context.Background(), executable)
+	if err != nil {
+		return "", fmt.Errorf("digest Kivgraph executable: %w", err)
+	}
+	fmt.Fprintf(hash, "binary=%s\x00", binaryDigest)
+	goEnvironment, err := goEnvironmentFingerprint()
+	if err != nil {
+		return "", err
+	}
+	fmt.Fprintf(hash, "goenv=%s\x00", goEnvironment)
 	fmt.Fprintf(hash, "rust=%s\x00", rustAnalysisFingerprint(options))
 	fmt.Fprintf(hash, "tsworker=%s\x00", typeScriptWorkerFingerprint(options))
-	return hex.EncodeToString(hash.Sum(nil))
+	return hex.EncodeToString(hash.Sum(nil)), nil
+}
+
+// analyzerFingerprint keeps the fact-cache test helpers compact. Production
+// callers use AnalyzerFingerprint so an unreadable analyzer identity aborts
+// rather than silently producing a reusable cache key.
+func analyzerFingerprint(options FullOptions) string {
+	fingerprint, err := AnalyzerFingerprint(options)
+	if err != nil {
+		return "unavailable"
+	}
+	return fingerprint
 }
 
 // goEnvironmentFingerprint identifies the go command this pass will run.
@@ -864,19 +879,18 @@ func analyzerFingerprint(options FullOptions) string {
 // entirely, for every language, on every pass. `go` missing from the PATH is a
 // determinate fact that repeats, so it fingerprints as `absent`.
 //
-// A `go` that is present and fails is the other case and keeps the timestamp:
-// something about the toolchain could not be read, and a pass with Go units
-// must not guess at an identity it could not establish.
-func goEnvironmentFingerprint() string {
+// A `go` that is present and fails is an observation error: a pass cannot
+// truthfully record the analyzer configuration it actually used.
+func goEnvironmentFingerprint() (string, error) {
 	if _, err := exec.LookPath("go"); err != nil {
-		return "absent"
+		return "absent", nil
 	}
 	output, err := exec.Command("go", "env",
 		"GOVERSION", "GOROOT", "GOFLAGS", "GOMODCACHE", "GOPATH", "GOPRIVATE").Output()
 	if err != nil {
-		return fmt.Sprintf("unknown-%d", time.Now().UnixNano())
+		return "", fmt.Errorf("read Go environment: %w", err)
 	}
-	return strings.Join(strings.Fields(string(output)), "\x00")
+	return strings.Join(strings.Fields(string(output)), "\x00"), nil
 }
 
 // typeScriptWorkerFingerprint identifies the worker that produces TypeScript
@@ -973,104 +987,33 @@ func (memo *fingerprintMemo) compute(key string, produce func() string) string {
 // thousands of files that are a function of the lockfile, which is hashed
 // instead: a hand-edited node_modules does not invalidate an entry.
 func treeFingerprint(root string) string {
-	if strings.TrimSpace(root) == "" {
+	digest, err := sourceobservation.TreeDigest(context.Background(), root)
+	if err == nil {
+		return digest
+	}
+	if errors.Is(err, sourceobservation.ErrAbsent) {
 		return "absent"
 	}
-	info, err := os.Stat(root)
-	if err != nil {
-		return "absent"
-	}
-	if !info.IsDir() {
-		return fileFingerprint(root)
-	}
-	hash := sha256.New()
-	walkErr := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if entry.IsDir() {
-			switch entry.Name() {
-			case "node_modules", ".git":
-				return fs.SkipDir
-			}
-			return nil
-		}
-		if !isFingerprintedSource(entry.Name()) {
-			return nil
-		}
-		relative, err := filepath.Rel(root, path)
-		if err != nil {
-			return err
-		}
-		file, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		defer file.Close()
-		fmt.Fprintf(hash, "%s\x00", filepath.ToSlash(relative))
-		if _, err := io.Copy(hash, file); err != nil {
-			return err
-		}
-		fmt.Fprint(hash, "\x00")
-		return nil
-	})
-	if walkErr != nil {
-		return "unreadable"
-	}
-	return hex.EncodeToString(hash.Sum(nil))
+	return "unreadable"
 }
 
 func fileFingerprint(path string) string {
-	file, err := os.Open(path)
-	if err != nil {
+	digest, err := sourceobservation.FileDigest(context.Background(), path)
+	if err == nil {
+		return digest
+	}
+	if errors.Is(err, sourceobservation.ErrAbsent) {
 		return "absent"
 	}
-	defer file.Close()
-	info, err := file.Stat()
-	if err != nil {
-		return "unreadable"
-	}
-	hash := sha256.New()
-	fmt.Fprintf(hash, "size=%s\x00", strconv.FormatInt(info.Size(), 10))
-	if _, err := io.Copy(hash, file); err != nil {
-		return "unreadable"
-	}
-	return hex.EncodeToString(hash.Sum(nil))
-}
-
-// fingerprintedExtensions is every extension a language this build analyses is
-// written in.
-//
-// It is derived from config rather than listed here, because listing it here is
-// how Rust went missing: the switch this replaces named nine extensions across
-// four languages and `.rs` was not one of them, so `treeFingerprint` over a
-// crate matched no file at all and hashed the empty string. Every Rust unit
-// therefore had a constant tree fingerprint, and an edit to a `.rs` file
-// invalidated nothing.
-var fingerprintedExtensions = config.SourceExtensionSet(config.SupportedLanguages())
-
-// fingerprintedManifests are the files that decide how those languages are
-// built. A change to one of them can change facts without any source changing.
-var fingerprintedManifests = map[string]struct{}{
-	"go.mod": {}, "go.sum": {}, "go.work": {}, "go.work.sum": {},
-	"package.json": {}, "tsconfig.json": {},
-	"cargo.toml": {}, "cargo.lock": {},
-	"pyproject.toml": {}, "setup.py": {}, "setup.cfg": {}, "requirements.txt": {},
-	"pipfile": {}, "pipfile.lock": {}, "poetry.lock": {}, "uv.lock": {},
-	"pubspec.yaml": {}, "pubspec.lock": {}, "analysis_options.yaml": {},
+	return "unreadable"
 }
 
 // isFingerprintedSource is what a unit can read: the languages this indexer
-// analyses, plus the manifests that decide how they are built.
+// analyses, plus the manifests that decide how they are built. It shares the
+// source-observation policy so the fact cache and a published generation do
+// not disagree about which changed inputs require fresh facts.
 func isFingerprintedSource(name string) bool {
-	base := strings.ToLower(filepath.Base(name))
-	if _, ok := fingerprintedManifests[base]; ok {
-		return true
-	}
-	if strings.HasPrefix(base, "requirements-") && strings.HasSuffix(base, ".txt") {
-		return true
-	}
-	return config.HasSourceExtension(fingerprintedExtensions, name)
+	return sourceobservation.IsAnalyzedSource(name)
 }
 
 // sameFacts reports what differs between a stored entry and a fresh analysis.

@@ -318,31 +318,18 @@ type FullReport struct {
 	SyntheticWorkFile string
 }
 
-// Full loads every configured repository and normalises the authoritative Go
-// and TypeScript facts into one validated set. A loader diagnostic aborts the
-// pass instead of publishing a graph that is known to be incomplete.
-func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if err := ctx.Err(); err != nil {
-		return facts.Set{}, FullReport{}, err
-	}
-
+// ResolveRepositories expands the configured registry into every provider a
+// full pass will read. Derived Dart packages and the optional SDK are explicit
+// inputs rather than an implementation detail hidden inside Full.
+func ResolveRepositories(options FullOptions) ([]workspace.Repository, error) {
 	repositories := append([]workspace.Repository(nil), options.Repositories...)
 	sort.SliceStable(repositories, func(left, right int) bool {
 		return repositories[left].Name < repositories[right].Name
 	})
-	if options.WorkingDirectory == "" {
-		workingDirectory, err := os.Getwd()
-		if err != nil {
-			return facts.Set{}, FullReport{}, fmt.Errorf("resolve indexing working directory: %w", err)
-		}
-		options.WorkingDirectory = workingDirectory
-	}
 	if err := validateLanguages(repositories); err != nil {
-		return facts.Set{}, FullReport{}, err
+		return nil, err
 	}
+
 	configuredDartRepositories := repositoriesForLanguage(repositories, "dart")
 	if options.DartIncludeExternal {
 		for _, repository := range configuredDartRepositories {
@@ -350,15 +337,62 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 			if root == "" {
 				root = repository.Path
 			}
-			providers := dartloader.ExternalPackageRepositories(root, options.DartPackageConfig)
-			for _, provider := range providers {
-				if _, exists := repositoryByName(repositories, provider.Name); exists {
-					continue
+			for _, provider := range dartloader.ExternalPackageRepositories(root, options.DartPackageConfig) {
+				if _, exists := repositoryByName(repositories, provider.Name); !exists {
+					repositories = append(repositories, provider)
 				}
-				repositories = append(repositories, provider)
-				options.Repositories = append(options.Repositories, provider)
 			}
 		}
+	}
+	if options.DartIncludeSDK {
+		sdkRoot, err := dartloader.SDKRoot(options.DartSDKPath)
+		if err != nil {
+			return nil, fmt.Errorf("discover Dart SDK provider: %w", err)
+		}
+		const sdkRepositoryName = "dart-sdk"
+		if _, exists := repositoryByName(repositories, sdkRepositoryName); !exists {
+			repositories = append(repositories, workspace.Repository{
+				Name: sdkRepositoryName, Derived: true, Path: sdkRoot, RealPath: sdkRoot,
+				Languages: []string{"dart"}, Roots: []string{"lib"},
+			})
+		}
+	}
+	return repositories, nil
+}
+
+// Full loads every configured repository and normalises the authoritative Go
+// and TypeScript facts into one validated set. A loader diagnostic aborts the
+// pass instead of publishing a graph that is known to be incomplete.
+func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, error) {
+	repositories, err := ResolveRepositories(options)
+	if err != nil {
+		return facts.Set{}, FullReport{}, err
+	}
+	return FullWithRepositories(ctx, options, repositories)
+}
+
+// FullWithRepositories runs a full pass over a provider set previously
+// resolved by ResolveRepositories. It lets a caller capture the exact inputs
+// before analysis and verify that same effective set before publication.
+func FullWithRepositories(ctx context.Context, options FullOptions, repositories []workspace.Repository) (facts.Set, FullReport, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return facts.Set{}, FullReport{}, err
+	}
+
+	repositories = append([]workspace.Repository(nil), repositories...)
+	if err := validateLanguages(repositories); err != nil {
+		return facts.Set{}, FullReport{}, err
+	}
+	options.Repositories = repositories
+	if options.WorkingDirectory == "" {
+		workingDirectory, err := os.Getwd()
+		if err != nil {
+			return facts.Set{}, FullReport{}, fmt.Errorf("resolve indexing working directory: %w", err)
+		}
+		options.WorkingDirectory = workingDirectory
 	}
 
 	goRepositories := repositoriesForLanguage(repositories, "go")
@@ -370,19 +404,6 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 	cSharpRepositories := repositoriesForLanguage(repositories, "csharp")
 	cSharpRepositories = append(cSharpRepositories, repositoriesForLanguage(repositories, "cs")...)
 	cSharpRepositories = dedupeRepositories(cSharpRepositories)
-	if options.DartIncludeSDK {
-		sdkRoot, sdkErr := dartloader.SDKRoot(options.DartSDKPath)
-		if sdkErr != nil {
-			return facts.Set{}, FullReport{}, fmt.Errorf("discover Dart SDK provider: %w", sdkErr)
-		}
-		const sdkRepositoryName = "dart-sdk"
-		if _, exists := repositoryByName(repositories, sdkRepositoryName); !exists {
-			sdkRepository := workspace.Repository{Name: sdkRepositoryName, Path: sdkRoot, RealPath: sdkRoot, Languages: []string{"dart"}, Roots: []string{"lib"}}
-			repositories = append(repositories, sdkRepository)
-			options.Repositories = append(options.Repositories, sdkRepository)
-			dartRepositories = append(dartRepositories, sdkRepository)
-		}
-	}
 	report := FullReport{
 		GoRepositories:         len(goRepositories),
 		TypeScriptRepositories: len(typeScriptRepositories),

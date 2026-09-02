@@ -35,6 +35,7 @@ import (
 
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/metrics"
+	"github.com/Luqueee/kivgraph/internal/sourceobservation"
 	"github.com/Luqueee/kivgraph/internal/storage/generation"
 	"github.com/Luqueee/kivgraph/internal/storage/ladybug"
 )
@@ -99,6 +100,14 @@ type Options struct {
 	SnapshotID      int64
 	Store           generation.Config
 	Metrics         *metrics.Registry
+	// SourceManifest is written into the candidate generation. It records the
+	// mutable source state that supplied the fact set without changing the
+	// canonical graph schema.
+	SourceManifest *sourceobservation.Manifest
+	// VerifySources re-observes SourceManifest's inputs from inside the
+	// generation-store validation closure, immediately before CURRENT can move.
+	// A mismatch aborts the candidate and preserves the prior generation.
+	VerifySources func(context.Context) error
 
 	// Progress, when set, is called with the name of each stage as it
 	// starts. A rebuild reports nothing else while it runs: the bulk load
@@ -147,6 +156,14 @@ func Run(ctx context.Context, options Options) (Report, error) {
 	}
 	if options.ResolverVersion == "" {
 		return report, fmt.Errorf("%w: resolver version is required", ErrRebuildFailed)
+	}
+	if options.SourceManifest != nil {
+		if err := options.SourceManifest.Validate(); err != nil {
+			return report, fmt.Errorf("%w: source observations: %w", ErrRebuildFailed, err)
+		}
+	}
+	if options.VerifySources != nil && options.SourceManifest == nil {
+		return report, fmt.Errorf("%w: source verifier requires source observations", ErrRebuildFailed)
 	}
 
 	// facts: an invalid set aborts before the store is even opened, so a
@@ -314,6 +331,12 @@ func Run(ctx context.Context, options Options) (Report, error) {
 		if writeErr := writePublishedSnapshot(candidatePath, builtSnapshot, hotSnapshotReport.Digest); writeErr != nil {
 			published = fmt.Sprintf("no %s (%v)", PublishedSnapshotFileName, writeErr)
 		}
+		if options.SourceManifest != nil {
+			if writeErr := sourceobservation.Write(candidatePath, *options.SourceManifest); writeErr != nil {
+				snapshotStage = Stage{Name: StageSnapshot, Detail: writeErr.Error(), DurationMS: elapsedMS(snapshotStart)}
+				return fmt.Errorf("write source observations: %w", writeErr)
+			}
+		}
 		snapshotStage = Stage{
 			Name:   StageSnapshot,
 			Passed: true,
@@ -391,33 +414,38 @@ func Run(ctx context.Context, options Options) (Report, error) {
 				Detail:     "fact set has no symbols or edges to probe",
 				DurationMS: elapsedMS(probesStart),
 			}
-			return nil
-		}
-		results, probesErr := runProbes(validateCtx, candidate.DatabasePath, goldenProbes)
-		if probesErr != nil {
-			probesStage = Stage{Name: StageProbes, Detail: probesErr.Error(), DurationMS: elapsedMS(probesStart)}
-			return fmt.Errorf("run golden probes: %w", probesErr)
-		}
-		if len(results) != len(goldenProbes) {
-			detail := fmt.Sprintf("expected %d probe result(s), got %d", len(goldenProbes), len(results))
-			probesStage = Stage{Name: StageProbes, Detail: detail, DurationMS: elapsedMS(probesStart)}
-			return errors.New(detail)
-		}
-		probeResults = results
-		failed := 0
-		for _, result := range results {
-			if !result.Passed {
-				failed++
+		} else {
+			results, probesErr := runProbes(validateCtx, candidate.DatabasePath, goldenProbes)
+			if probesErr != nil {
+				probesStage = Stage{Name: StageProbes, Detail: probesErr.Error(), DurationMS: elapsedMS(probesStart)}
+				return fmt.Errorf("run golden probes: %w", probesErr)
+			}
+			if len(results) != len(goldenProbes) {
+				detail := fmt.Sprintf("expected %d probe result(s), got %d", len(goldenProbes), len(results))
+				probesStage = Stage{Name: StageProbes, Detail: detail, DurationMS: elapsedMS(probesStart)}
+				return errors.New(detail)
+			}
+			probeResults = results
+			failed := 0
+			for _, result := range results {
+				if !result.Passed {
+					failed++
+				}
+			}
+			probesStage = Stage{
+				Name:       StageProbes,
+				Passed:     failed == 0,
+				Detail:     probesDetail(results, failed),
+				DurationMS: elapsedMS(probesStart),
+			}
+			if failed != 0 {
+				return fmt.Errorf("golden probes failed: %d of %d probe(s) did not pass", failed, len(results))
 			}
 		}
-		probesStage = Stage{
-			Name:       StageProbes,
-			Passed:     failed == 0,
-			Detail:     probesDetail(results, failed),
-			DurationMS: elapsedMS(probesStart),
-		}
-		if failed != 0 {
-			return fmt.Errorf("golden probes failed: %d of %d probe(s) did not pass", failed, len(results))
+		if options.VerifySources != nil {
+			if err := options.VerifySources(validateCtx); err != nil {
+				return fmt.Errorf("verify source observations: %w", err)
+			}
 		}
 		return nil
 	}

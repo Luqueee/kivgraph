@@ -2007,7 +2007,7 @@ func ExternalPackageRepositories(root, configured string) []workspace.Repository
 		}
 		digest := sha256.Sum256([]byte(entry.Root))
 		name := fmt.Sprintf("dart-package:%s:%x", entry.Name, digest[:4])
-		providers = append(providers, workspace.Repository{Name: name, Path: entry.Root, RealPath: entry.Root, Languages: []string{"dart"}, Roots: []string{"lib"}})
+		providers = append(providers, workspace.Repository{Name: name, Derived: true, Path: entry.Root, RealPath: entry.Root, Languages: []string{"dart"}, Roots: []string{"lib"}})
 	}
 	return providers
 }

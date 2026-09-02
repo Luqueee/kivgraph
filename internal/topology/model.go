@@ -79,8 +79,10 @@ type Worktree struct {
 	Git        GitLayout           `yaml:"git,omitempty"`
 }
 
-// SourceObservation is the source state captured for one analysis. Content
-// digest covers the bytes the pass analysed, including dirty content.
+// SourceObservation is the source state captured for one analysis. Commit is
+// a Git commit when the source has one, or a content-derived revision token for
+// an analyzer-discovered provider. Content digest covers the bytes the pass
+// analysed, including dirty content.
 type SourceObservation struct {
 	ID            SourceObservationID `yaml:"id"`
 	Worktree      WorktreeID          `yaml:"worktree"`
