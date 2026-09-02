@@ -447,7 +447,7 @@ func TestFileAndTreeDigestsRejectUnavailableOrCancelledInputs(t *testing.T) {
 	if err := os.WriteFile(path, []byte("package source\nconst Two = 2\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	after, err := FileDigest(nil, path)
+	after, err := FileDigest(context.Background(), path)
 	if err != nil {
 		t.Fatal(err)
 	}
