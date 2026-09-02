@@ -54,8 +54,8 @@ supplies selected worktree paths.
   logical repository and worktree identities remain independent of those paths.
 - The topology file is configuration metadata; it does not change the canonical
   graph schema or turn profile membership into dependency evidence.
-- MCP lifecycle commands and topology diagnostics beyond the registry boundary
-  remain follow-up work.
+- This decision covers configuration persistence and registry construction; it
+  does not define MCP lifecycle commands or topology diagnostics.
 
 ## Rejected alternatives
 

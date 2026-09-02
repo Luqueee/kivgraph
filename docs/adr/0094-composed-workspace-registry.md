@@ -53,7 +53,7 @@ source evidence to emit an exact relationship.
   identities.
 - Existing callers of `NewRegistry` and existing configuration files are
   unchanged. Profile topology persistence and CLI wiring are defined in ADR
-  0095; MCP lifecycle commands remain later integration work.
+  0095; this ADR covers registry construction and its validation boundary.
 
 ## Rejected alternatives
 

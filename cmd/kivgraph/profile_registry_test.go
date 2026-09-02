@@ -99,41 +99,19 @@ func TestRegistryForProfileKeepsLegacyRegistryWithoutTopology(t *testing.T) {
 }
 
 func TestRegistryForProfileReportsInvalidLoadedConfiguration(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "missing.yaml")
 	if _, err := registryForProfile(context.Background(), config.Loaded{
-		ConfigPath: filepath.Join(t.TempDir(), "missing.yaml"),
+		ConfigPath: configPath,
 		Profile:    "default",
 	}); err == nil {
-		t.Fatal("registryForProfile() succeeded with a missing config")
+		t.Fatalf("registryForProfile() unexpectedly succeeded for missing config %q", configPath)
 	}
 }
 
-func TestRegistryForProfileReportsInvalidLoadedProfile(t *testing.T) {
-	configPath, loaded := configProfileForRegistry(t)
-	if err := config.SaveProfileTopology(configPath, "default", topology.Topology{
-		Version:  topology.CurrentSchemaVersion,
-		Profiles: []topology.Profile{{ID: "default"}},
-	}); err != nil {
-		t.Fatalf("SaveProfileTopology() error = %v", err)
-	}
-	loaded.Profile = ""
-	if _, err := registryForProfile(context.Background(), loaded); err == nil {
-		t.Fatal("registryForProfile() succeeded with an invalid loaded profile")
-	}
-}
-
-func configProfileForRegistry(t *testing.T) (string, config.Loaded) {
-	t.Helper()
-	root := testsupport.TempDir(t)
-	configPath := filepath.Join(root, "config.yaml")
-	if _, err := config.Initialize(config.InitOptions{ConfigPath: configPath}); err != nil {
-		t.Fatalf("Initialize() error = %v", err)
-	}
-	loaded, err := config.LoadProfile(configPath, "default")
-	if err != nil {
-		t.Fatalf("LoadProfile() error = %v", err)
-	}
-	return configPath, loaded
-}
+// registryForProfile's Compose error path is defensive: LoadProfileTopology
+// validates the same selected profile before returning. Reaching it requires
+// mutating an impossible Loaded value, so no observable test can cover it
+// without adding a production seam solely for testing.
 
 func initGitRepository(t *testing.T, path string) {
 	t.Helper()

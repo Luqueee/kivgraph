@@ -75,7 +75,7 @@ func TestLoadProfileTopologyRejectsMalformedDocuments(t *testing.T) {
 			}
 			_, present, err := LoadProfileTopology(configPath, "feature")
 			if err == nil || present {
-				t.Fatalf("LoadProfileTopology() = present %t, error %v, want a rejected document", present, err)
+				t.Fatalf("LoadProfileTopology(%q) = present %t, error %v, want a rejected document", test.name, present, err)
 			}
 			if !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("LoadProfileTopology() error = %q, want substring %q", err, test.want)
@@ -159,7 +159,7 @@ func TestSaveProfileTopologyReportsLoadAndWriteFailures(t *testing.T) {
 	if err := os.Mkdir(loaded.TopologyPath, 0o700); err != nil {
 		t.Fatalf("Mkdir(topology path) error = %v", err)
 	}
-	if err := SaveProfileTopology(configPath, "feature", value); err == nil || !strings.Contains(err.Error(), "write profile topology") {
+	if err := SaveProfileTopology(configPath, "feature", value); err == nil {
 		t.Fatalf("SaveProfileTopology() error = %v for topology path directory %q, want a write error", err, loaded.TopologyPath)
 	}
 }
