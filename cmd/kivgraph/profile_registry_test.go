@@ -191,8 +191,8 @@ func TestWriteProfileDiagnosticsReportsEffectiveWorktrees(t *testing.T) {
 
 func newComposedGoFixture(t *testing.T, dependency bool) (*workspace.Registry, string) {
 	t.Helper()
-	providerPath := t.TempDir()
-	consumerPath := t.TempDir()
+	providerPath := testsupport.TempDir(t)
+	consumerPath := testsupport.TempDir(t)
 	initGitRepository(t, providerPath)
 	initGitRepository(t, consumerPath)
 	writeComposedGoFile(t, filepath.Join(providerPath, "go.mod"), "module example.com/provider\n\ngo 1.24\n")
@@ -206,7 +206,7 @@ func newComposedGoFixture(t *testing.T, dependency bool) (*workspace.Registry, s
 	writeComposedGoFile(t, filepath.Join(consumerPath, "go.mod"), consumerModule)
 	writeComposedGoFile(t, filepath.Join(consumerPath, "main.go"), consumerSource)
 
-	configRoot := t.TempDir()
+	configRoot := testsupport.TempDir(t)
 	configPath := filepath.Join(configRoot, "config.yaml")
 	if _, err := config.Initialize(config.InitOptions{ConfigPath: configPath}); err != nil {
 		t.Fatalf("Initialize() error = %v", err)
@@ -255,7 +255,7 @@ func newComposedGoFixture(t *testing.T, dependency bool) (*workspace.Registry, s
 	if err != nil {
 		t.Fatalf("registryForProfile() error = %v", err)
 	}
-	return registry, filepath.Join(t.TempDir(), "go.work")
+	return registry, filepath.Join(testsupport.TempDir(t), "go.work")
 }
 
 func indexComposedGoFixture(t *testing.T, registry *workspace.Registry, workFile string) facts.Set {
