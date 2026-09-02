@@ -273,6 +273,37 @@ func TestRefreshSupervisedDaemonReportsStaleUnit(t *testing.T) {
 	}
 }
 
+func TestRefreshSupervisedDaemonRepairsManagedStaleUnit(t *testing.T) {
+	loaded := config.Loaded{Config: config.Config{Storage: config.StorageConfig{
+		DatabasePath: filepath.Join(t.TempDir(), "graph.lbdb"),
+	}}}
+	restarted := false
+	status := func(supervisor.Spec) (supervisor.Report, error) {
+		return supervisor.Report{
+			State:      supervisor.StateStale,
+			Label:      "test.daemon",
+			Managed:    true,
+			Repairable: true,
+			Detail:     "the installed unit has the legacy supervisor format",
+		}, nil
+	}
+	restart := func(supervisor.Spec) (supervisor.Report, error) {
+		restarted = true
+		return supervisor.Report{State: supervisor.StateInstalled, Label: "test.daemon"}, nil
+	}
+
+	var stdout bytes.Buffer
+	refreshed, err := refreshSupervisedDaemonWith("/bundle/bin/kivgraph", func(string) (config.Loaded, error) {
+		return loaded, nil
+	}, status, restart, &stdout)
+	if err != nil {
+		t.Fatalf("refreshSupervisedDaemonWith() error = %v", err)
+	}
+	if !refreshed || !restarted {
+		t.Fatalf("refreshSupervisedDaemonWith() = refreshed %t, restarted %t; want both", refreshed, restarted)
+	}
+}
+
 func TestRefreshSupervisedDaemonReportsOperationFailures(t *testing.T) {
 	loaded := config.Loaded{
 		Config: config.Config{Storage: config.StorageConfig{
@@ -550,7 +581,9 @@ func TestRefreshInstalledRuntimeUsesThePersistedEndpointAsOwnershipEvidence(t *t
 			}
 			return installedDaemonEndpointResult{Endpoint: oldEndpoint}, true, nil
 		},
-		refreshDaemon:       func(string, io.Writer) (bool, error) { return true, nil },
+		refreshDaemon: func(string, io.Writer) (daemonRefreshResult, error) {
+			return daemonRefreshResult{Restarted: true}, nil
+		},
 		refreshIntegrations: refreshInstalledIntegrations,
 	})
 	if refresh.Err != nil {
@@ -565,6 +598,54 @@ func TestRefreshInstalledRuntimeUsesThePersistedEndpointAsOwnershipEvidence(t *t
 		strings.Contains(content, oldEndpoint.Token) || !strings.Contains(content, currentEndpoint.Token) {
 		t.Fatalf("MCP endpoint was not refreshed from old=%q to current=%q: %s",
 			oldEndpoint.URL, currentEndpoint.URL, updated)
+	}
+}
+
+func TestRefreshInstalledRuntimeProtectsTheSupervisedPIDAfterFailure(t *testing.T) {
+	oldEndpoint := integrations.Endpoint{URL: "http://127.0.0.1:7788/mcp", Token: "old-token"}
+	var stdout, stderr bytes.Buffer
+	refresh := refreshInstalledRuntimeWith("/bundle/bin/kivgraph", &stdout, &stderr, runtimeRefreshDependencies{
+		readEndpoint: func(waitForRestart bool) (installedDaemonEndpointResult, bool, error) {
+			if waitForRestart {
+				return installedDaemonEndpointResult{}, false, errors.New("daemon did not come back")
+			}
+			return installedDaemonEndpointResult{
+				Endpoint: oldEndpoint,
+				PID:      321,
+			}, true, nil
+		},
+		refreshDaemon: func(string, io.Writer) (daemonRefreshResult, error) {
+			return daemonRefreshResult{Supervised: true}, errors.New("stale unit could not be repaired")
+		},
+		refreshIntegrations: func(integrations.Options, integrations.Endpoint, bool, io.Writer) error {
+			return nil
+		},
+	})
+	if refresh.SupervisedDaemonPID != 321 {
+		t.Fatalf("SupervisedDaemonPID = %d, want 321", refresh.SupervisedDaemonPID)
+	}
+	if refresh.RefreshedDaemonPID != 0 {
+		t.Fatalf("RefreshedDaemonPID = %d after a failed refresh, want 0", refresh.RefreshedDaemonPID)
+	}
+	if refresh.Err == nil {
+		t.Fatal("refreshInstalledRuntimeWith() succeeded after the daemon refresh failed")
+	}
+}
+
+func TestUpdateDoesNotOfferASupervisedDaemonForStoppingAfterRefreshFailure(t *testing.T) {
+	fixture := &stopFixture{processes: []procstat.Process{kivgraphProcess(121, "daemon")}}
+	var stdout, stderr bytes.Buffer
+	if code := runUpdateWithRunnerAtExecutable(nil, nil, &stdout, &stderr,
+		installedRunner(), fixture.list, fixture.signal, func([]procstat.Process) (daemonRestart, error) {
+			t.Fatal("the supervised daemon was offered to stale-process cleanup")
+			return daemonRestart{}, nil
+		}, true, "/bundle/bin/kivgraph", func(string, io.Writer, io.Writer) updatePostInstallResult {
+			return updatePostInstallResult{SupervisedDaemonPID: 121, Err: errors.New("stale unit could not be repaired")}
+		}); code != 1 {
+		t.Fatalf("runUpdateWithRunnerAtExecutable() = %d, want 1; stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	if strings.Contains(stdout.String(), "update.stale") || strings.Contains(stdout.String(), "stop them now") {
+		t.Fatalf("supervised daemon was offered for stopping after refresh failure: %s", stdout.String())
 	}
 }
 

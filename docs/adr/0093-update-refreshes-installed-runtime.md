@@ -29,11 +29,15 @@ and uses that path for every post-install operation.
 
 After the bundle is installed, it performs these operations in order:
 
-1. If the default configuration has an installed supervisor, restart that
+1. If the default configuration has an installed supervisor, refresh that
    daemon with the captured executable path. A missing supervisor is not
-   provisioned as a side effect of update. A stale or unsupported supervisor
-   is reported and remains untouched; a stale installed supervisor makes the
-   update exit non-zero.
+   provisioned as a side effect of update. A unit whose main definition exactly
+   matches a Kivgraph-rendered legacy format is explicit ownership evidence:
+   update rewrites it, reloads it and restarts the daemon. A hand-edited or
+   foreign definition remains untouched and makes the update exit non-zero.
+   On Linux, any user unit drop-in is treated as operator-managed configuration
+   and has the same preservation rule; update does not merge or overwrite
+   drop-ins.
 2. Inspect user-scoped hooks and skills for every supported client. Existing
    Kivgraph-managed or broken entries are reinstalled; absent and incompatible
    entries are left alone. Project-scoped files are not changed by a
@@ -65,6 +69,8 @@ not install new integrations, mutate project files or overwrite foreign or
 user-edited content.
 
 An operator may still need `kivgraph daemon install` when the supervisor is
-stale or absent, and a user-edited skill still requires the explicit `--force`
-choice to replace it. Those are reported limitations rather than silent data
-loss.
+foreign, hand-edited or absent, and a user-edited skill still requires the
+explicit `--force` choice to replace it. Those are reported limitations rather
+than silent data loss. If a managed daemon refresh fails, update keeps its
+published process out of stale-process cleanup, so the normal recovery prompt
+cannot stop the only supervised daemon.

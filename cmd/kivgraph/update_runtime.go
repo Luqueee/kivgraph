@@ -28,15 +28,20 @@ func refreshInstalledRuntime(executable string, stdout, stderr io.Writer) error 
 
 type runtimeRefreshDependencies struct {
 	readEndpoint        func(bool) (installedDaemonEndpointResult, bool, error)
-	refreshDaemon       func(string, io.Writer) (bool, error)
+	refreshDaemon       func(string, io.Writer) (daemonRefreshResult, error)
 	refreshIntegrations func(integrations.Options, integrations.Endpoint, bool, io.Writer) error
+}
+
+type daemonRefreshResult struct {
+	Restarted  bool
+	Supervised bool
 }
 
 func refreshInstalledRuntimeWithResult(executable string, stdout, stderr io.Writer) updatePostInstallResult {
 	return refreshInstalledRuntimeWith(executable, stdout, stderr, runtimeRefreshDependencies{
 		readEndpoint: installedDaemonEndpointWithPID,
-		refreshDaemon: func(executable string, stdout io.Writer) (bool, error) {
-			return refreshSupervisedDaemonWith(executable, config.Load, supervisor.Status,
+		refreshDaemon: func(executable string, stdout io.Writer) (daemonRefreshResult, error) {
+			return refreshSupervisedDaemonWithResult(executable, config.Load, supervisor.Status,
 				supervisor.Restart, stdout)
 		},
 		refreshIntegrations: refreshInstalledIntegrations,
@@ -50,13 +55,13 @@ func refreshInstalledRuntimeWith(
 ) updatePostInstallResult {
 	var failures []error
 	previousEndpointResult, hasPreviousEndpoint, _ := dependencies.readEndpoint(false)
-	restarted, err := dependencies.refreshDaemon(executable, stdout)
+	daemonResult, err := dependencies.refreshDaemon(executable, stdout)
 	if err != nil {
 		writeWarning(stderr, "update.daemon: %v", err)
 		failures = append(failures, err)
 	}
 
-	installedEndpoint, hasEndpoint, endpointErr := dependencies.readEndpoint(restarted)
+	installedEndpoint, hasEndpoint, endpointErr := dependencies.readEndpoint(daemonResult.Restarted)
 	if endpointErr != nil {
 		failures = append(failures, endpointErr)
 	}
@@ -68,8 +73,12 @@ func refreshInstalledRuntimeWith(
 		hasEndpoint, stdout); err != nil {
 		failures = append(failures, err)
 	}
-	return updatePostInstallResultFor(restarted, hasEndpoint, installedEndpoint.PID,
+	result := updatePostInstallResultFor(daemonResult.Restarted, hasEndpoint, installedEndpoint.PID,
 		errors.Join(failures...))
+	if daemonResult.Supervised && hasPreviousEndpoint {
+		result.SupervisedDaemonPID = previousEndpointResult.PID
+	}
+	return result
 }
 
 func updatePostInstallResultFor(restarted, hasEndpoint bool, daemonPID int, err error) updatePostInstallResult {
@@ -127,12 +136,23 @@ func refreshSupervisedDaemonWith(
 	restart updateSupervisorOperation,
 	stdout io.Writer,
 ) (bool, error) {
+	result, err := refreshSupervisedDaemonWithResult(executable, load, status, restart, stdout)
+	return result.Restarted, err
+}
+
+func refreshSupervisedDaemonWithResult(
+	executable string,
+	load updateConfigLoader,
+	status updateSupervisorOperation,
+	restart updateSupervisorOperation,
+	stdout io.Writer,
+) (daemonRefreshResult, error) {
 	loaded, err := load("")
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return false, nil
+			return daemonRefreshResult{}, nil
 		}
-		return false, fmt.Errorf("read the configuration: %w", err)
+		return daemonRefreshResult{}, fmt.Errorf("read the configuration: %w", err)
 	}
 	spec := supervisor.Spec{
 		Executable:     executable,
@@ -142,27 +162,34 @@ func refreshSupervisedDaemonWith(
 	report, err := status(spec)
 	if err != nil {
 		if errors.Is(err, supervisor.ErrUnsupportedPlatform) {
-			return false, nil
+			return daemonRefreshResult{}, nil
 		}
-		return false, fmt.Errorf("inspect the daemon supervisor: %w", err)
+		return daemonRefreshResult{}, fmt.Errorf("inspect the daemon supervisor: %w", err)
 	}
 	switch report.State {
 	case supervisor.StateAbsent:
 		writeInfo(stdout, "update.daemon: no installed supervisor; daemon was not provisioned")
-		return false, nil
+		return daemonRefreshResult{}, nil
 	case supervisor.StateUnsupported:
-		return false, nil
+		return daemonRefreshResult{}, nil
 	case supervisor.StateStale:
-		return false, fmt.Errorf("%w: %s", errStaleDaemonUnit, report.Detail)
-	case supervisor.StateInstalled:
-		if _, err := restart(spec); err != nil {
-			return false, fmt.Errorf("restart %s: %w", report.Label, err)
+		if !report.Managed || !report.Repairable {
+			return daemonRefreshResult{Supervised: true}, fmt.Errorf("%w: %s", errStaleDaemonUnit, report.Detail)
 		}
-		writeSuccess(stdout, "update.daemon: %s refreshed", report.Label)
-		return true, nil
+	case supervisor.StateInstalled:
 	default:
-		return false, fmt.Errorf("inspect the daemon supervisor: unknown state %q", report.State)
+		return daemonRefreshResult{Supervised: true}, fmt.Errorf("inspect the daemon supervisor: unknown state %q", report.State)
 	}
+	restarted, err := restart(spec)
+	if err != nil {
+		return daemonRefreshResult{Supervised: true}, fmt.Errorf("restart %s: %w", report.Label, err)
+	}
+	if restarted.State != supervisor.StateInstalled {
+		return daemonRefreshResult{Supervised: true}, fmt.Errorf("restart %s returned supervisor state %q",
+			report.Label, restarted.State)
+	}
+	writeSuccess(stdout, "update.daemon: %s refreshed", report.Label)
+	return daemonRefreshResult{Restarted: true, Supervised: true}, nil
 }
 
 // refreshInstalledIntegrations updates only user-scoped entries that already

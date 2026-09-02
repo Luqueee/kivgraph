@@ -287,6 +287,92 @@ func TestRestartingAnIncompleteSpecIsRefused(t *testing.T) {
 	}
 }
 
+func TestRestartRepairsOnlyAnOwnedLegacyUnit(t *testing.T) {
+	spec := testSpec("/state")
+	for name, report := range map[string]Report{
+		"owned legacy": {
+			State:      StateStale,
+			Managed:    true,
+			Repairable: true,
+		},
+		"hand edited": {
+			State: StateStale,
+		},
+		"unowned repair marker": {
+			State:      StateStale,
+			Repairable: true,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var repaired, restarted int
+			got, err := restartWith(spec,
+				func(Spec) (Report, error) { return report, nil },
+				func(Spec) (Report, error) {
+					repaired++
+					return Report{State: StateInstalled}, nil
+				},
+				func(Spec) (Report, error) {
+					restarted++
+					return Report{State: StateInstalled}, nil
+				})
+			if err != nil {
+				t.Fatalf("restartWith() error = %v", err)
+			}
+			wantState := StateStale
+			if report.Managed && report.Repairable {
+				wantState = StateInstalled
+			}
+			if got.State != wantState {
+				t.Fatalf("restartWith() state = %q, want %q", got.State, wantState)
+			}
+			wantRepair, wantRestart := 0, 0
+			if report.Managed && report.Repairable {
+				wantRepair, wantRestart = 1, 1
+			}
+			if repaired != wantRepair || restarted != wantRestart {
+				t.Fatalf("repair/restart calls = %d/%d, want %d/%d", repaired, restarted, wantRepair, wantRestart)
+			}
+		})
+	}
+}
+
+func TestRestartPropagatesInspectionRepairAndRestartFailures(t *testing.T) {
+	spec := testSpec("/state")
+	operationError := errors.New("operation failed")
+	tests := []struct {
+		name      string
+		state     State
+		repair    bool
+		inspect   error
+		repairErr error
+		startErr  error
+	}{
+		{name: "inspection", inspect: operationError},
+		{name: "repair", state: StateStale, repair: true, repairErr: operationError},
+		{name: "restart", state: StateInstalled, startErr: operationError},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := restartWith(spec,
+				func(Spec) (Report, error) {
+					return Report{State: test.state, Managed: test.repair, Repairable: test.repair}, test.inspect
+				},
+				func(Spec) (Report, error) {
+					return Report{State: StateInstalled}, test.repairErr
+				},
+				func(Spec) (Report, error) {
+					return Report{State: StateInstalled}, test.startErr
+				})
+			if !errors.Is(err, operationError) {
+				t.Fatalf("restartWith() error = %v, want %v", err, operationError)
+			}
+			if test.inspect != nil && got.State != test.state {
+				t.Fatalf("inspection failure report state = %q, want %q", got.State, test.state)
+			}
+		})
+	}
+}
+
 // TestTheUnitRecordsThePathThatInstalledIt is the fix for a daemon that cannot
 // find node. Neither supervisor reads a shell profile, so a unit that declares
 // no PATH runs the daemon on the platform's own -- which holds nothing anybody
@@ -381,6 +467,12 @@ func TestAUnitCarryingNoPathIsStale(t *testing.T) {
 	}
 	if report.State != StateStale {
 		t.Fatalf("Status() over a unit with no recorded PATH = %q, want %q", report.State, StateStale)
+	}
+	if !report.Repairable {
+		t.Fatal("Status() did not identify the legacy generated unit as repairable")
+	}
+	if !report.Managed {
+		t.Fatal("Status() did not establish ownership of the legacy generated unit")
 	}
 	if !strings.Contains(report.Detail, "PATH") {
 		t.Fatalf("Status() detail %q does not say what is missing", report.Detail)
