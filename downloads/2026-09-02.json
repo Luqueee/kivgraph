@@ -1,0 +1,1159 @@
+{
+  "schema": 1,
+  "repository": "Luqueee/kivgraph",
+  "captured_at": "2026-09-02T07:54:12Z",
+  "assets": [
+    {
+      "tag": "v0.1.0",
+      "asset": "SHA256SUMS",
+      "id": 516749326,
+      "class": "checksums",
+      "platform": "",
+      "downloads": 3
+    },
+    {
+      "tag": "v0.1.0",
+      "asset": "install.sh",
+      "id": 516749327,
+      "class": "installer",
+      "platform": "",
+      "downloads": 2
+    },
+    {
+      "tag": "v0.1.0",
+      "asset": "kivgraph-darwin-arm64.tar.gz",
+      "id": 516749331,
+      "class": "bundle",
+      "platform": "darwin-arm64",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.1.0",
+      "asset": "kivgraph-linux-amd64.tar.gz",
+      "id": 516749328,
+      "class": "bundle",
+      "platform": "linux-amd64",
+      "downloads": 2
+    },
+    {
+      "tag": "v0.1.1",
+      "asset": "SHA256SUMS",
+      "id": 516891453,
+      "class": "checksums",
+      "platform": "",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.1.1",
+      "asset": "install.sh",
+      "id": 516891450,
+      "class": "installer",
+      "platform": "",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.1.1",
+      "asset": "kivgraph-darwin-arm64.tar.gz",
+      "id": 516891452,
+      "class": "bundle",
+      "platform": "darwin-arm64",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.1.1",
+      "asset": "kivgraph-linux-amd64.tar.gz",
+      "id": 516891451,
+      "class": "bundle",
+      "platform": "linux-amd64",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.1.2",
+      "asset": "SHA256SUMS",
+      "id": 516919653,
+      "class": "checksums",
+      "platform": "",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.1.2",
+      "asset": "install.sh",
+      "id": 516919652,
+      "class": "installer",
+      "platform": "",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.1.2",
+      "asset": "kivgraph-darwin-arm64.tar.gz",
+      "id": 516919651,
+      "class": "bundle",
+      "platform": "darwin-arm64",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.1.2",
+      "asset": "kivgraph-linux-amd64.tar.gz",
+      "id": 516919650,
+      "class": "bundle",
+      "platform": "linux-amd64",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.1.4",
+      "asset": "SHA256SUMS",
+      "id": 516996829,
+      "class": "checksums",
+      "platform": "",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.1.4",
+      "asset": "install.sh",
+      "id": 516996830,
+      "class": "installer",
+      "platform": "",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.1.4",
+      "asset": "kivgraph-darwin-arm64.tar.gz",
+      "id": 516996828,
+      "class": "bundle",
+      "platform": "darwin-arm64",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.1.4",
+      "asset": "kivgraph-linux-amd64.tar.gz",
+      "id": 516996831,
+      "class": "bundle",
+      "platform": "linux-amd64",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.1.5",
+      "asset": "SHA256SUMS",
+      "id": 517138661,
+      "class": "checksums",
+      "platform": "",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.1.5",
+      "asset": "install.sh",
+      "id": 517138662,
+      "class": "installer",
+      "platform": "",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.1.5",
+      "asset": "kivgraph-darwin-arm64.tar.gz",
+      "id": 517138663,
+      "class": "bundle",
+      "platform": "darwin-arm64",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.1.5",
+      "asset": "kivgraph-linux-amd64.tar.gz",
+      "id": 517138664,
+      "class": "bundle",
+      "platform": "linux-amd64",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.2.1",
+      "asset": "SHA256SUMS",
+      "id": 517236649,
+      "class": "checksums",
+      "platform": "",
+      "downloads": 2
+    },
+    {
+      "tag": "v0.2.1",
+      "asset": "install.sh",
+      "id": 517236646,
+      "class": "installer",
+      "platform": "",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.2.1",
+      "asset": "kivgraph-darwin-arm64.tar.gz",
+      "id": 517236647,
+      "class": "bundle",
+      "platform": "darwin-arm64",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.2.1",
+      "asset": "kivgraph-linux-amd64.tar.gz",
+      "id": 517236645,
+      "class": "bundle",
+      "platform": "linux-amd64",
+      "downloads": 2
+    },
+    {
+      "tag": "v0.3.0",
+      "asset": "SHA256SUMS",
+      "id": 520662796,
+      "class": "checksums",
+      "platform": "",
+      "downloads": 2
+    },
+    {
+      "tag": "v0.3.0",
+      "asset": "install.sh",
+      "id": 520662797,
+      "class": "installer",
+      "platform": "",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.3.0",
+      "asset": "kivgraph-darwin-arm64.tar.gz",
+      "id": 520662795,
+      "class": "bundle",
+      "platform": "darwin-arm64",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.3.0",
+      "asset": "kivgraph-linux-amd64.tar.gz",
+      "id": 520662798,
+      "class": "bundle",
+      "platform": "linux-amd64",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.3.1",
+      "asset": "SHA256SUMS",
+      "id": 521385011,
+      "class": "checksums",
+      "platform": "",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.3.1",
+      "asset": "install.sh",
+      "id": 521385010,
+      "class": "installer",
+      "platform": "",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.3.1",
+      "asset": "kivgraph-darwin-arm64.tar.gz",
+      "id": 521385012,
+      "class": "bundle",
+      "platform": "darwin-arm64",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.3.1",
+      "asset": "kivgraph-linux-amd64.tar.gz",
+      "id": 521385009,
+      "class": "bundle",
+      "platform": "linux-amd64",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.3.2",
+      "asset": "SHA256SUMS",
+      "id": 522170511,
+      "class": "checksums",
+      "platform": "",
+      "downloads": 2
+    },
+    {
+      "tag": "v0.3.2",
+      "asset": "install.sh",
+      "id": 522170513,
+      "class": "installer",
+      "platform": "",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.3.2",
+      "asset": "kivgraph-darwin-arm64.tar.gz",
+      "id": 522170510,
+      "class": "bundle",
+      "platform": "darwin-arm64",
+      "downloads": 2
+    },
+    {
+      "tag": "v0.3.2",
+      "asset": "kivgraph-linux-amd64.tar.gz",
+      "id": 522170512,
+      "class": "bundle",
+      "platform": "linux-amd64",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.3.3",
+      "asset": "SHA256SUMS",
+      "id": 523529276,
+      "class": "checksums",
+      "platform": "",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.3.3",
+      "asset": "install.sh",
+      "id": 523529274,
+      "class": "installer",
+      "platform": "",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.3.3",
+      "asset": "kivgraph-darwin-arm64.tar.gz",
+      "id": 523529273,
+      "class": "bundle",
+      "platform": "darwin-arm64",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.3.3",
+      "asset": "kivgraph-linux-amd64.tar.gz",
+      "id": 523529275,
+      "class": "bundle",
+      "platform": "linux-amd64",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.3.4",
+      "asset": "SHA256SUMS",
+      "id": 523539317,
+      "class": "checksums",
+      "platform": "",
+      "downloads": 2
+    },
+    {
+      "tag": "v0.3.4",
+      "asset": "install.sh",
+      "id": 523539316,
+      "class": "installer",
+      "platform": "",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.3.4",
+      "asset": "kivgraph-darwin-arm64.tar.gz",
+      "id": 523539318,
+      "class": "bundle",
+      "platform": "darwin-arm64",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.3.4",
+      "asset": "kivgraph-linux-amd64.tar.gz",
+      "id": 523539315,
+      "class": "bundle",
+      "platform": "linux-amd64",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.3.5",
+      "asset": "SHA256SUMS",
+      "id": 523713872,
+      "class": "checksums",
+      "platform": "",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.3.5",
+      "asset": "install.sh",
+      "id": 523713869,
+      "class": "installer",
+      "platform": "",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.3.5",
+      "asset": "kivgraph-darwin-arm64.tar.gz",
+      "id": 523713870,
+      "class": "bundle",
+      "platform": "darwin-arm64",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.3.5",
+      "asset": "kivgraph-linux-amd64.tar.gz",
+      "id": 523713871,
+      "class": "bundle",
+      "platform": "linux-amd64",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.3.6",
+      "asset": "SHA256SUMS",
+      "id": 523785910,
+      "class": "checksums",
+      "platform": "",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.3.6",
+      "asset": "install.sh",
+      "id": 523785911,
+      "class": "installer",
+      "platform": "",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.3.6",
+      "asset": "kivgraph-darwin-arm64.tar.gz",
+      "id": 523785913,
+      "class": "bundle",
+      "platform": "darwin-arm64",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.3.6",
+      "asset": "kivgraph-linux-amd64.tar.gz",
+      "id": 523785912,
+      "class": "bundle",
+      "platform": "linux-amd64",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.4.0",
+      "asset": "SHA256SUMS",
+      "id": 524450745,
+      "class": "checksums",
+      "platform": "",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.4.0",
+      "asset": "install.sh",
+      "id": 524450747,
+      "class": "installer",
+      "platform": "",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.4.0",
+      "asset": "kivgraph-darwin-arm64.tar.gz",
+      "id": 524450746,
+      "class": "bundle",
+      "platform": "darwin-arm64",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.4.0",
+      "asset": "kivgraph-linux-amd64.tar.gz",
+      "id": 524450748,
+      "class": "bundle",
+      "platform": "linux-amd64",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.5.0",
+      "asset": "SHA256SUMS",
+      "id": 524836552,
+      "class": "checksums",
+      "platform": "",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.5.0",
+      "asset": "install.sh",
+      "id": 524836556,
+      "class": "installer",
+      "platform": "",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.5.0",
+      "asset": "kivgraph-darwin-arm64.tar.gz",
+      "id": 524836551,
+      "class": "bundle",
+      "platform": "darwin-arm64",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.5.0",
+      "asset": "kivgraph-linux-amd64.tar.gz",
+      "id": 524836553,
+      "class": "bundle",
+      "platform": "linux-amd64",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.6.4",
+      "asset": "SHA256SUMS",
+      "id": 529195719,
+      "class": "checksums",
+      "platform": "",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.6.4",
+      "asset": "install.sh",
+      "id": 529195718,
+      "class": "installer",
+      "platform": "",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.6.4",
+      "asset": "kivgraph-darwin-arm64.tar.gz",
+      "id": 529195720,
+      "class": "bundle",
+      "platform": "darwin-arm64",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.6.4",
+      "asset": "kivgraph-linux-amd64.tar.gz",
+      "id": 529195721,
+      "class": "bundle",
+      "platform": "linux-amd64",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.7.0",
+      "asset": "SHA256SUMS",
+      "id": 529423929,
+      "class": "checksums",
+      "platform": "",
+      "downloads": 3
+    },
+    {
+      "tag": "v0.7.0",
+      "asset": "install.sh",
+      "id": 529423925,
+      "class": "installer",
+      "platform": "",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.7.0",
+      "asset": "kivgraph-darwin-arm64.tar.gz",
+      "id": 529423927,
+      "class": "bundle",
+      "platform": "darwin-arm64",
+      "downloads": 2
+    },
+    {
+      "tag": "v0.7.0",
+      "asset": "kivgraph-linux-amd64.tar.gz",
+      "id": 529423928,
+      "class": "bundle",
+      "platform": "linux-amd64",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.8.0",
+      "asset": "SHA256SUMS",
+      "id": 530491766,
+      "class": "checksums",
+      "platform": "",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.8.0",
+      "asset": "install.sh",
+      "id": 530491765,
+      "class": "installer",
+      "platform": "",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.8.0",
+      "asset": "kivgraph-darwin-arm64.tar.gz",
+      "id": 530491763,
+      "class": "bundle",
+      "platform": "darwin-arm64",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.8.0",
+      "asset": "kivgraph-linux-amd64.tar.gz",
+      "id": 530491764,
+      "class": "bundle",
+      "platform": "linux-amd64",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.8.1",
+      "asset": "SHA256SUMS",
+      "id": 532347375,
+      "class": "checksums",
+      "platform": "",
+      "downloads": 3
+    },
+    {
+      "tag": "v0.8.1",
+      "asset": "install.sh",
+      "id": 532347376,
+      "class": "installer",
+      "platform": "",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.8.1",
+      "asset": "kivgraph-darwin-arm64.tar.gz",
+      "id": 532347378,
+      "class": "bundle",
+      "platform": "darwin-arm64",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.8.1",
+      "asset": "kivgraph-linux-amd64.tar.gz",
+      "id": 532347377,
+      "class": "bundle",
+      "platform": "linux-amd64",
+      "downloads": 3
+    },
+    {
+      "tag": "v0.8.2",
+      "asset": "SHA256SUMS",
+      "id": 532924643,
+      "class": "checksums",
+      "platform": "",
+      "downloads": 2
+    },
+    {
+      "tag": "v0.8.2",
+      "asset": "install.sh",
+      "id": 532924651,
+      "class": "installer",
+      "platform": "",
+      "downloads": 2
+    },
+    {
+      "tag": "v0.8.2",
+      "asset": "kivgraph-darwin-arm64.mcpb",
+      "id": 532924646,
+      "class": "mcpb",
+      "platform": "darwin-arm64",
+      "downloads": 8
+    },
+    {
+      "tag": "v0.8.2",
+      "asset": "kivgraph-darwin-arm64.tar.gz",
+      "id": 532924645,
+      "class": "bundle",
+      "platform": "darwin-arm64",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.8.2",
+      "asset": "kivgraph-linux-amd64.mcpb",
+      "id": 532924642,
+      "class": "mcpb",
+      "platform": "linux-amd64",
+      "downloads": 11
+    },
+    {
+      "tag": "v0.8.2",
+      "asset": "kivgraph-linux-amd64.tar.gz",
+      "id": 532924644,
+      "class": "bundle",
+      "platform": "linux-amd64",
+      "downloads": 2
+    },
+    {
+      "tag": "v0.9.1",
+      "asset": "SHA256SUMS",
+      "id": 533042023,
+      "class": "checksums",
+      "platform": "",
+      "downloads": 7
+    },
+    {
+      "tag": "v0.9.1",
+      "asset": "install.ps1",
+      "id": 533042026,
+      "class": "installer",
+      "platform": "",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.9.1",
+      "asset": "install.sh",
+      "id": 533042025,
+      "class": "installer",
+      "platform": "",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.9.1",
+      "asset": "kivgraph-darwin-arm64.mcpb",
+      "id": 533041977,
+      "class": "mcpb",
+      "platform": "darwin-arm64",
+      "downloads": 9
+    },
+    {
+      "tag": "v0.9.1",
+      "asset": "kivgraph-darwin-arm64.tar.gz",
+      "id": 533041972,
+      "class": "bundle",
+      "platform": "darwin-arm64",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.9.1",
+      "asset": "kivgraph-linux-amd64.mcpb",
+      "id": 533041979,
+      "class": "mcpb",
+      "platform": "linux-amd64",
+      "downloads": 12
+    },
+    {
+      "tag": "v0.9.1",
+      "asset": "kivgraph-linux-amd64.tar.gz",
+      "id": 533041976,
+      "class": "bundle",
+      "platform": "linux-amd64",
+      "downloads": 7
+    },
+    {
+      "tag": "v0.9.1",
+      "asset": "kivgraph-windows-amd64.mcpb",
+      "id": 533042020,
+      "class": "mcpb",
+      "platform": "windows-amd64",
+      "downloads": 9
+    },
+    {
+      "tag": "v0.9.1",
+      "asset": "kivgraph-windows-amd64.zip",
+      "id": 533041975,
+      "class": "bundle",
+      "platform": "windows-amd64",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.9.2",
+      "asset": "SHA256SUMS",
+      "id": 534488681,
+      "class": "checksums",
+      "platform": "",
+      "downloads": 8
+    },
+    {
+      "tag": "v0.9.2",
+      "asset": "install.ps1",
+      "id": 534488684,
+      "class": "installer",
+      "platform": "",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.9.2",
+      "asset": "install.sh",
+      "id": 534488682,
+      "class": "installer",
+      "platform": "",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.9.2",
+      "asset": "kivgraph-darwin-arm64.mcpb",
+      "id": 534488667,
+      "class": "mcpb",
+      "platform": "darwin-arm64",
+      "downloads": 12
+    },
+    {
+      "tag": "v0.9.2",
+      "asset": "kivgraph-darwin-arm64.tar.gz",
+      "id": 534488663,
+      "class": "bundle",
+      "platform": "darwin-arm64",
+      "downloads": 3
+    },
+    {
+      "tag": "v0.9.2",
+      "asset": "kivgraph-linux-amd64.mcpb",
+      "id": 534488666,
+      "class": "mcpb",
+      "platform": "linux-amd64",
+      "downloads": 12
+    },
+    {
+      "tag": "v0.9.2",
+      "asset": "kivgraph-linux-amd64.tar.gz",
+      "id": 534488669,
+      "class": "bundle",
+      "platform": "linux-amd64",
+      "downloads": 7
+    },
+    {
+      "tag": "v0.9.2",
+      "asset": "kivgraph-windows-amd64.mcpb",
+      "id": 534488680,
+      "class": "mcpb",
+      "platform": "windows-amd64",
+      "downloads": 12
+    },
+    {
+      "tag": "v0.9.2",
+      "asset": "kivgraph-windows-amd64.zip",
+      "id": 534488668,
+      "class": "bundle",
+      "platform": "windows-amd64",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.9.3",
+      "asset": "SHA256SUMS",
+      "id": 536814310,
+      "class": "checksums",
+      "platform": "",
+      "downloads": 10
+    },
+    {
+      "tag": "v0.9.3",
+      "asset": "install.ps1",
+      "id": 536814311,
+      "class": "installer",
+      "platform": "",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.9.3",
+      "asset": "install.sh",
+      "id": 536814309,
+      "class": "installer",
+      "platform": "",
+      "downloads": 3
+    },
+    {
+      "tag": "v0.9.3",
+      "asset": "kivgraph-darwin-arm64.mcpb",
+      "id": 536814200,
+      "class": "mcpb",
+      "platform": "darwin-arm64",
+      "downloads": 7
+    },
+    {
+      "tag": "v0.9.3",
+      "asset": "kivgraph-darwin-arm64.tar.gz",
+      "id": 536814202,
+      "class": "bundle",
+      "platform": "darwin-arm64",
+      "downloads": 4
+    },
+    {
+      "tag": "v0.9.3",
+      "asset": "kivgraph-linux-amd64.mcpb",
+      "id": 536814205,
+      "class": "mcpb",
+      "platform": "linux-amd64",
+      "downloads": 9
+    },
+    {
+      "tag": "v0.9.3",
+      "asset": "kivgraph-linux-amd64.tar.gz",
+      "id": 536814201,
+      "class": "bundle",
+      "platform": "linux-amd64",
+      "downloads": 2
+    },
+    {
+      "tag": "v0.9.3",
+      "asset": "kivgraph-windows-amd64.mcpb",
+      "id": 536814303,
+      "class": "mcpb",
+      "platform": "windows-amd64",
+      "downloads": 7
+    },
+    {
+      "tag": "v0.9.3",
+      "asset": "kivgraph-windows-amd64.zip",
+      "id": 536814196,
+      "class": "bundle",
+      "platform": "windows-amd64",
+      "downloads": 4
+    },
+    {
+      "tag": "v0.9.3",
+      "asset": "uninstall.ps1",
+      "id": 536814317,
+      "class": "uninstaller",
+      "platform": "",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.9.3",
+      "asset": "uninstall.sh",
+      "id": 536814316,
+      "class": "uninstaller",
+      "platform": "",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.9.4",
+      "asset": "SHA256SUMS",
+      "id": 537948556,
+      "class": "checksums",
+      "platform": "",
+      "downloads": 5
+    },
+    {
+      "tag": "v0.9.4",
+      "asset": "install.ps1",
+      "id": 537948558,
+      "class": "installer",
+      "platform": "",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.9.4",
+      "asset": "install.sh",
+      "id": 537948557,
+      "class": "installer",
+      "platform": "",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.9.4",
+      "asset": "kivgraph-darwin-arm64.mcpb",
+      "id": 537948513,
+      "class": "mcpb",
+      "platform": "darwin-arm64",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.9.4",
+      "asset": "kivgraph-darwin-arm64.tar.gz",
+      "id": 537948511,
+      "class": "bundle",
+      "platform": "darwin-arm64",
+      "downloads": 2
+    },
+    {
+      "tag": "v0.9.4",
+      "asset": "kivgraph-linux-amd64.mcpb",
+      "id": 537948515,
+      "class": "mcpb",
+      "platform": "linux-amd64",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.9.4",
+      "asset": "kivgraph-linux-amd64.tar.gz",
+      "id": 537948510,
+      "class": "bundle",
+      "platform": "linux-amd64",
+      "downloads": 2
+    },
+    {
+      "tag": "v0.9.4",
+      "asset": "kivgraph-windows-amd64.mcpb",
+      "id": 537948555,
+      "class": "mcpb",
+      "platform": "windows-amd64",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.9.4",
+      "asset": "kivgraph-windows-amd64.zip",
+      "id": 537948514,
+      "class": "bundle",
+      "platform": "windows-amd64",
+      "downloads": 6
+    },
+    {
+      "tag": "v0.9.4",
+      "asset": "uninstall.ps1",
+      "id": 537948570,
+      "class": "uninstaller",
+      "platform": "",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.9.4",
+      "asset": "uninstall.sh",
+      "id": 537948568,
+      "class": "uninstaller",
+      "platform": "",
+      "downloads": 0
+    },
+    {
+      "tag": "v0.9.5",
+      "asset": "SHA256SUMS",
+      "id": 538081311,
+      "class": "checksums",
+      "platform": "",
+      "downloads": 9
+    },
+    {
+      "tag": "v0.9.5",
+      "asset": "install.ps1",
+      "id": 538081314,
+      "class": "installer",
+      "platform": "",
+      "downloads": 2
+    },
+    {
+      "tag": "v0.9.5",
+      "asset": "install.sh",
+      "id": 538081313,
+      "class": "installer",
+      "platform": "",
+      "downloads": 7
+    },
+    {
+      "tag": "v0.9.5",
+      "asset": "kivgraph-darwin-arm64.mcpb",
+      "id": 538081254,
+      "class": "mcpb",
+      "platform": "darwin-arm64",
+      "downloads": 7
+    },
+    {
+      "tag": "v0.9.5",
+      "asset": "kivgraph-darwin-arm64.tar.gz",
+      "id": 538081253,
+      "class": "bundle",
+      "platform": "darwin-arm64",
+      "downloads": 4
+    },
+    {
+      "tag": "v0.9.5",
+      "asset": "kivgraph-linux-amd64.mcpb",
+      "id": 538081255,
+      "class": "mcpb",
+      "platform": "linux-amd64",
+      "downloads": 9
+    },
+    {
+      "tag": "v0.9.5",
+      "asset": "kivgraph-linux-amd64.tar.gz",
+      "id": 538081258,
+      "class": "bundle",
+      "platform": "linux-amd64",
+      "downloads": 5
+    },
+    {
+      "tag": "v0.9.5",
+      "asset": "kivgraph-windows-amd64.mcpb",
+      "id": 538081309,
+      "class": "mcpb",
+      "platform": "windows-amd64",
+      "downloads": 8
+    },
+    {
+      "tag": "v0.9.5",
+      "asset": "kivgraph-windows-amd64.zip",
+      "id": 538081256,
+      "class": "bundle",
+      "platform": "windows-amd64",
+      "downloads": 2
+    },
+    {
+      "tag": "v0.9.5",
+      "asset": "uninstall.ps1",
+      "id": 538081333,
+      "class": "uninstaller",
+      "platform": "",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.9.5",
+      "asset": "uninstall.sh",
+      "id": 538081332,
+      "class": "uninstaller",
+      "platform": "",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.9.6",
+      "asset": "SHA256SUMS",
+      "id": 539564265,
+      "class": "checksums",
+      "platform": "",
+      "downloads": 7
+    },
+    {
+      "tag": "v0.9.6",
+      "asset": "install.ps1",
+      "id": 539564275,
+      "class": "installer",
+      "platform": "",
+      "downloads": 4
+    },
+    {
+      "tag": "v0.9.6",
+      "asset": "install.sh",
+      "id": 539564272,
+      "class": "installer",
+      "platform": "",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.9.6",
+      "asset": "kivgraph-darwin-arm64.mcpb",
+      "id": 539564219,
+      "class": "mcpb",
+      "platform": "darwin-arm64",
+      "downloads": 6
+    },
+    {
+      "tag": "v0.9.6",
+      "asset": "kivgraph-darwin-arm64.tar.gz",
+      "id": 539564215,
+      "class": "bundle",
+      "platform": "darwin-arm64",
+      "downloads": 2
+    },
+    {
+      "tag": "v0.9.6",
+      "asset": "kivgraph-linux-amd64.mcpb",
+      "id": 539564213,
+      "class": "mcpb",
+      "platform": "linux-amd64",
+      "downloads": 9
+    },
+    {
+      "tag": "v0.9.6",
+      "asset": "kivgraph-linux-amd64.tar.gz",
+      "id": 539564212,
+      "class": "bundle",
+      "platform": "linux-amd64",
+      "downloads": 3
+    },
+    {
+      "tag": "v0.9.6",
+      "asset": "kivgraph-windows-amd64.mcpb",
+      "id": 539564264,
+      "class": "mcpb",
+      "platform": "windows-amd64",
+      "downloads": 6
+    },
+    {
+      "tag": "v0.9.6",
+      "asset": "kivgraph-windows-amd64.zip",
+      "id": 539564214,
+      "class": "bundle",
+      "platform": "windows-amd64",
+      "downloads": 5
+    },
+    {
+      "tag": "v0.9.6",
+      "asset": "uninstall.ps1",
+      "id": 539564286,
+      "class": "uninstaller",
+      "platform": "",
+      "downloads": 1
+    },
+    {
+      "tag": "v0.9.6",
+      "asset": "uninstall.sh",
+      "id": 539564282,
+      "class": "uninstaller",
+      "platform": "",
+      "downloads": 1
+    }
+  ]
+}
