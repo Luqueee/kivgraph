@@ -176,6 +176,7 @@ func TestAUnreadableDropInPathIsAnInspectionError(t *testing.T) {
 		t.Fatalf("write invalid drop-in path: %v", err)
 	}
 	if _, err := Status(spec); err == nil || !strings.Contains(err.Error(), "read drop-ins") {
-		t.Fatalf("Status() with an invalid drop-in path error = %v, want a named inspection error", err)
+		t.Fatalf("Status() with invalid drop-in path %q error = %v, want a named inspection error",
+			planned.Path+".d", err)
 	}
 }

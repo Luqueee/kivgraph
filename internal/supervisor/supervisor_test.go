@@ -287,52 +287,73 @@ func TestRestartingAnIncompleteSpecIsRefused(t *testing.T) {
 	}
 }
 
-func TestRestartRepairsOnlyAnOwnedLegacyUnit(t *testing.T) {
-	spec := testSpec("/state")
-	for name, report := range map[string]Report{
-		"owned legacy": {
-			State:      StateStale,
-			Managed:    true,
-			Repairable: true,
-		},
-		"hand edited": {
-			State: StateStale,
-		},
-		"unowned repair marker": {
-			State:      StateStale,
-			Repairable: true,
-		},
-	} {
-		t.Run(name, func(t *testing.T) {
-			var repaired, restarted int
-			got, err := restartWith(spec,
-				func(Spec) (Report, error) { return report, nil },
-				func(Spec) (Report, error) {
-					repaired++
-					return Report{State: StateInstalled}, nil
-				},
-				func(Spec) (Report, error) {
-					restarted++
-					return Report{State: StateInstalled}, nil
-				})
-			if err != nil {
-				t.Fatalf("%s: restartWith() error = %v", t.Name(), err)
-			}
-			wantState := StateStale
-			if report.Managed && report.Repairable {
-				wantState = StateInstalled
-			}
-			if got.State != wantState {
-				t.Fatalf("%s: restartWith() state = %q, want %q", t.Name(), got.State, wantState)
-			}
-			wantRepair, wantRestart := 0, 0
-			if report.Managed && report.Repairable {
-				wantRepair, wantRestart = 1, 1
-			}
-			if repaired != wantRepair || restarted != wantRestart {
-				t.Fatalf("%s: repair/restart calls = %d/%d, want %d/%d", t.Name(), repaired, restarted, wantRepair, wantRestart)
-			}
-		})
+func TestRestartRepairsAnOwnedLegacyUnit(t *testing.T) {
+	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
+		t.Skipf("this platform has no supervisor: %s", runtime.GOOS)
+	}
+	home := t.TempDir()
+	testsupport.SetHome(t, home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	spec := testSpec(t.TempDir())
+
+	// The fake command records the public operation without requiring a user
+	// supervisor in the test environment. The installed file and command log
+	// together are the observable rewrite, reload and restart contract.
+	commandDirectory := filepath.Join(home, "bin")
+	if err := os.MkdirAll(commandDirectory, 0o755); err != nil {
+		t.Fatalf("create fake supervisor directory: %v", err)
+	}
+	commandLog := filepath.Join(home, "supervisor-commands.log")
+	t.Setenv("KIVGRAPH_TEST_SUPERVISOR_LOG", commandLog)
+	command := "systemctl"
+	if runtime.GOOS == "darwin" {
+		command = "launchctl"
+	}
+	if err := os.WriteFile(filepath.Join(commandDirectory, command), []byte("#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$KIVGRAPH_TEST_SUPERVISOR_LOG\"\n"), 0o755); err != nil {
+		t.Fatalf("write fake supervisor command: %v", err)
+	}
+
+	// An empty PATH produces the legacy definition. Restart must replace it
+	// with the current definition before asking the supervisor to bring it back.
+	t.Setenv("PATH", "")
+	planned, err := Status(spec)
+	if err != nil {
+		t.Fatalf("Status() = %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(planned.Path), 0o755); err != nil {
+		t.Fatalf("create unit directory: %v", err)
+	}
+	if err := os.WriteFile(planned.Path, renderedUnit(t, spec), 0o644); err != nil {
+		t.Fatalf("write legacy unit: %v", err)
+	}
+
+	t.Setenv("PATH", commandDirectory)
+	wanted := renderedUnit(t, spec)
+	got, err := Restart(spec)
+	if err != nil {
+		t.Fatalf("Restart() = %v", err)
+	}
+	if got.State != StateInstalled {
+		t.Fatalf("Restart() state = %q, want %q", got.State, StateInstalled)
+	}
+	installed, err := os.ReadFile(planned.Path)
+	if err != nil {
+		t.Fatalf("read repaired unit: %v", err)
+	}
+	if string(installed) != string(wanted) {
+		t.Fatalf("repaired unit differs from the current rendering:\n%s\n---\n%s", installed, wanted)
+	}
+	log, err := os.ReadFile(commandLog)
+	if err != nil {
+		t.Fatalf("read supervisor command log: %v", err)
+	}
+	for _, operation := range map[string][]string{
+		"linux":  {"daemon-reload", "enable --now", "restart"},
+		"darwin": {"bootstrap", "kickstart"},
+	}[runtime.GOOS] {
+		if !strings.Contains(string(log), operation) {
+			t.Fatalf("supervisor command log %q does not contain %q", log, operation)
+		}
 	}
 }
 
@@ -364,10 +385,10 @@ func TestRestartPropagatesInspectionRepairAndRestartFailures(t *testing.T) {
 					return Report{State: StateInstalled}, test.startErr
 				})
 			if !errors.Is(err, operationError) {
-				t.Fatalf("restartWith() error = %v, want %v", err, operationError)
+				t.Fatalf("%s: restartWith() error = %v, want %v", t.Name(), err, operationError)
 			}
 			if test.inspect != nil && got.State != test.state {
-				t.Fatalf("inspection failure report state = %q, want %q", got.State, test.state)
+				t.Fatalf("%s: inspection failure report state = %q, want %q", t.Name(), got.State, test.state)
 			}
 		})
 	}
