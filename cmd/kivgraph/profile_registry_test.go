@@ -176,16 +176,16 @@ func TestWriteProfileDiagnosticsReportsEffectiveWorktrees(t *testing.T) {
 	writeProfileDiagnostics(&stdout, profile, registry)
 
 	report := stdout.String()
-	if !strings.Contains(report, "index.profile: name=default composition=topology repositories=2") {
-		t.Fatalf("profile diagnostics for profile %q = %q, want the topology summary", profile, report)
-	}
+	var want strings.Builder
+	fmt.Fprintf(&want, "index.profile: name=%s composition=topology repositories=%d\n",
+		profile, len(composition.Repositories))
 	for index, repository := range composition.Repositories {
 		worktree := composition.Worktrees[index]
-		want := fmt.Sprintf("index.profile.worktree: repository=%s worktree=%s path=%s",
+		fmt.Fprintf(&want, "index.profile.worktree: repository=%s worktree=%s path=%s\n",
 			repository.ID, worktree.ID, worktree.Path)
-		if !strings.Contains(report, want) {
-			t.Fatalf("profile diagnostics = %q, want %q", report, want)
-		}
+	}
+	if report != want.String() {
+		t.Fatalf("profile diagnostics for profile %q = %q, want %q", profile, report, want.String())
 	}
 }
 
