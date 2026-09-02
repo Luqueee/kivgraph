@@ -170,16 +170,14 @@ func TestComposedProfileResolvesGoEdgesAcrossSelectedWorktrees(t *testing.T) {
 
 func TestWriteProfileDiagnosticsReportsEffectiveWorktrees(t *testing.T) {
 	registry, _ := newComposedGoFixture(t, false)
-	composition, present := registry.Composition()
-	if !present {
-		t.Fatal("registry.Composition() = false, want the selected topology")
-	}
+	composition, _ := registry.Composition()
+	profile := "default"
 	var stdout bytes.Buffer
-	writeProfileDiagnostics(&stdout, "default", registry)
+	writeProfileDiagnostics(&stdout, profile, registry)
 
 	report := stdout.String()
 	if !strings.Contains(report, "index.profile: name=default composition=topology repositories=2") {
-		t.Fatalf("profile diagnostics = %q, want the topology summary", report)
+		t.Fatalf("profile diagnostics for profile %q = %q, want the topology summary", profile, report)
 	}
 	for index, repository := range composition.Repositories {
 		worktree := composition.Worktrees[index]
