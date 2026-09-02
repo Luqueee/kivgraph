@@ -23,6 +23,7 @@ type Profile struct {
 	Default          bool
 	StateDirectory   string
 	RepositoriesPath string
+	TopologyPath     string
 }
 
 func profilesRoot(configuration Config) string {
@@ -36,6 +37,7 @@ func profileAt(configuration Config, name string) Profile {
 		Default:          name == configuration.Profiles.Default,
 		StateDirectory:   directory,
 		RepositoriesPath: filepath.Join(directory, "repositories.yaml"),
+		TopologyPath:     filepath.Join(directory, "topology.yaml"),
 	}
 }
 
@@ -277,6 +279,7 @@ func LoadProfile(configPath, name string) (Loaded, error) {
 	loaded.Profile = name
 	loaded.Repositories = repositories
 	loaded.RepositoriesPath = repositoriesPath
+	loaded.TopologyPath = profile.TopologyPath
 	loaded.Config.Workspace.RepositoriesFile = repositoriesPath
 	loaded.Config.Storage.DatabasePath = filepath.Join(profile.StateDirectory, "graph.lbdb")
 	loaded.Config.Storage.BackupsPath = filepath.Join(profile.StateDirectory, "backups")

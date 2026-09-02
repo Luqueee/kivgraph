@@ -52,8 +52,8 @@ source evidence to emit an exact relationship.
 - Separate compositions produce separate registries and retain their variant
   identities.
 - Existing callers of `NewRegistry` and existing configuration files are
-  unchanged. Loading and persisting topology, and wiring this boundary into
-  CLI or MCP lifecycle commands, remain later integration work.
+  unchanged. Profile topology persistence and CLI wiring are defined in ADR
+  0095; this ADR covers registry construction and its validation boundary.
 
 ## Rejected alternatives
 

@@ -1,0 +1,137 @@
+package main
+
+import (
+	"context"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"testing"
+
+	"github.com/Luqueee/kivgraph/internal/config"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
+	"github.com/Luqueee/kivgraph/internal/topology"
+)
+
+func TestRegistryForProfileUsesSelectedTopologyWorktree(t *testing.T) {
+	root := testsupport.TempDir(t)
+	configPath := filepath.Join(root, "config.yaml")
+	if _, err := config.Initialize(config.InitOptions{ConfigPath: configPath}); err != nil {
+		t.Fatalf("Initialize() error = %v", err)
+	}
+	loaded, err := config.LoadProfile(configPath, "default")
+	if err != nil {
+		t.Fatalf("LoadProfile() error = %v", err)
+	}
+	selectedPath := testsupport.TempDir(t)
+	initGitRepository(t, selectedPath)
+	source := config.RepositoriesFile{
+		Version: config.CurrentSchemaVersion,
+		Repositories: []config.Repository{{
+			Name: "backend", Path: filepath.Join(root, "old-worktree"), Languages: []string{"go"},
+		}},
+	}
+	if err := config.SaveRepositories(loaded.RepositoriesPath, source); err != nil {
+		t.Fatalf("SaveRepositories() error = %v", err)
+	}
+	composition := topology.Topology{
+		Version:      topology.CurrentSchemaVersion,
+		Repositories: []topology.LogicalRepository{{ID: "backend"}},
+		Worktrees:    []topology.Worktree{{ID: "backend-main", Repository: "backend", Path: selectedPath}},
+		Profiles: []topology.Profile{{
+			ID:        "default",
+			Worktrees: []topology.WorktreeSelection{{Repository: "backend", Worktree: "backend-main"}},
+		}},
+	}
+	if err := config.SaveProfileTopology(configPath, "default", composition); err != nil {
+		t.Fatalf("SaveProfileTopology() error = %v", err)
+	}
+	loaded, err = config.LoadProfile(configPath, "default")
+	if err != nil {
+		t.Fatalf("LoadProfile(after topology) error = %v", err)
+	}
+
+	registry, err := registryForProfile(context.Background(), loaded)
+	if err != nil {
+		t.Fatalf("registryForProfile() error = %v", err)
+	}
+	items := registry.List()
+	if len(items) != 1 || items[0].Path != selectedPath || items[0].Languages[0] != "go" {
+		t.Fatalf("composed registry = %#v, want selected path %q and provider metadata", items, selectedPath)
+	}
+	provenance, present := registry.Composition()
+	if !present || len(provenance.Worktrees) != 1 || provenance.Worktrees[0].Path != selectedPath {
+		t.Fatalf("registry composition = %#v, present %t, want selected provenance", provenance, present)
+	}
+}
+
+func TestRegistryForProfileKeepsLegacyRegistryWithoutTopology(t *testing.T) {
+	root := testsupport.TempDir(t)
+	configPath := filepath.Join(root, "config.yaml")
+	if _, err := config.Initialize(config.InitOptions{ConfigPath: configPath}); err != nil {
+		t.Fatalf("Initialize() error = %v", err)
+	}
+	path := testsupport.TempDir(t)
+	initGitRepository(t, path)
+	loaded, err := config.LoadProfile(configPath, "default")
+	if err != nil {
+		t.Fatalf("LoadProfile() error = %v", err)
+	}
+	if err := config.SaveRepositories(loaded.RepositoriesPath, config.RepositoriesFile{
+		Version:      config.CurrentSchemaVersion,
+		Repositories: []config.Repository{{Name: "backend", Path: path, Languages: []string{"go"}}},
+	}); err != nil {
+		t.Fatalf("SaveRepositories() error = %v", err)
+	}
+	loaded, err = config.LoadProfile(configPath, "default")
+	if err != nil {
+		t.Fatalf("LoadProfile(after registry) error = %v", err)
+	}
+	registry, err := registryForProfile(context.Background(), loaded)
+	if err != nil {
+		t.Fatalf("registryForProfile() error = %v", err)
+	}
+	if _, present := registry.Composition(); present {
+		t.Fatalf("legacy registry unexpectedly carries topology provenance for config %q", loaded.ConfigPath)
+	}
+	if items := registry.List(); len(items) != 1 || items[0].Path != path {
+		t.Fatalf("legacy registry = %#v, want configured path %q", items, path)
+	}
+}
+
+func TestRegistryForProfileReportsInvalidLoadedConfiguration(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "missing.yaml")
+	if _, err := registryForProfile(context.Background(), config.Loaded{
+		ConfigPath: configPath,
+		Profile:    "default",
+	}); err == nil {
+		t.Fatalf("registryForProfile() unexpectedly succeeded for missing config %q", configPath)
+	}
+}
+
+// registryForProfile's Compose error path is defensive: LoadProfileTopology
+// validates the same selected profile before returning. Reaching it requires
+// mutating an impossible Loaded value, so no observable test can cover it
+// without adding a production seam solely for testing.
+
+func initGitRepository(t *testing.T, path string) {
+	t.Helper()
+	for _, args := range [][]string{
+		{"-C", path, "init", "-q"},
+		{"-C", path, "config", "user.email", "tests@example.com"},
+		{"-C", path, "config", "user.name", "Kivgraph Tests"},
+	} {
+		runGitTestCommand(t, args...)
+	}
+	if err := os.WriteFile(filepath.Join(path, "README.md"), []byte("fixture\n"), 0o600); err != nil {
+		t.Fatalf("write Git fixture: %v", err)
+	}
+	runGitTestCommand(t, "-C", path, "add", "README.md")
+	runGitTestCommand(t, "-C", path, "commit", "-qm", "fixture")
+}
+
+func runGitTestCommand(t *testing.T, args ...string) {
+	t.Helper()
+	if output, err := exec.Command("git", args...).CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v (%s)", args, err, output)
+	}
+}
