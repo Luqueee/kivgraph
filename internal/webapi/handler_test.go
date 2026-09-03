@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -334,18 +335,37 @@ func TestTopologyRelationshipCacheRespectsMaximumOpenProfiles(t *testing.T) {
 		store:                 store,
 		topologyRelationships: make(map[string]topologyRelationshipCacheEntry),
 	}
-	for _, data := range []topologyProfileData{
-		{Name: "default", GenerationID: "000007", Snapshot: testSnapshotWithTopologyID(t, 7)},
-		{Name: "other", GenerationID: "000008", Snapshot: testSnapshotWithTopologyID(t, 8)},
-	} {
-		if err := handler.addSnapshotRelationships(context.Background(), newTopologyAssembler(), data); err != nil {
-			t.Fatalf("addSnapshotRelationships(%q) error = %v", data.Name, err)
-		}
+	defaultData := topologyProfileData{Name: "default", GenerationID: "000007", Snapshot: testSnapshotWithTopologyID(t, 7)}
+	otherData := topologyProfileData{Name: "other", GenerationID: "000008", Snapshot: testSnapshotWithTopologyID(t, 8)}
+	defaultAssembler := newTopologyAssembler()
+	if err := handler.addSnapshotRelationships(context.Background(), defaultAssembler, defaultData); err != nil {
+		t.Fatalf("addSnapshotRelationships(%q) error = %v", defaultData.Name, err)
+	}
+	defaultRelationships := append([]topologyRelationshipView(nil), defaultAssembler.relationships...)
+	otherAssembler := newTopologyAssembler()
+	if err := handler.addSnapshotRelationships(context.Background(), otherAssembler, otherData); err != nil {
+		t.Fatalf("addSnapshotRelationships(%q) error = %v", otherData.Name, err)
+	}
+	otherRelationships := append([]topologyRelationshipView(nil), otherAssembler.relationships...)
+
+	residentOther := newTopologyAssembler()
+	if err := handler.addSnapshotRelationships(context.Background(), residentOther, otherData); err != nil {
+		t.Fatalf("reusing addSnapshotRelationships(%q) error = %v", otherData.Name, err)
+	}
+	if !reflect.DeepEqual(residentOther.relationships, otherRelationships) {
+		t.Fatalf("reused relationships = %#v, want %#v", residentOther.relationships, otherRelationships)
+	}
+	evictedDefault := newTopologyAssembler()
+	if err := handler.addSnapshotRelationships(context.Background(), evictedDefault, defaultData); err != nil {
+		t.Fatalf("reloading addSnapshotRelationships(%q) error = %v", defaultData.Name, err)
+	}
+	if !reflect.DeepEqual(evictedDefault.relationships, defaultRelationships) {
+		t.Fatalf("reloaded relationships = %#v, want %#v", evictedDefault.relationships, defaultRelationships)
 	}
 	if len(handler.topologyRelationships) != 1 {
 		t.Fatalf("relationship cache size = %d, want 1", len(handler.topologyRelationships))
 	}
-	if _, found := handler.topologyRelationships["other"]; !found {
+	if _, found := handler.topologyRelationships["default"]; !found {
 		t.Fatalf("relationship cache = %#v, want most recently used profile", handler.topologyRelationships)
 	}
 }

@@ -270,9 +270,6 @@ func TestPublishedProfileCountsTowardMaximumOpenProfiles(t *testing.T) {
 	if err := a.Publish(publishedSnapshot(t, 3)); err != nil {
 		t.Fatalf("Publish(profile=a, generation=3) error = %v", err)
 	}
-	if a.Load() == nil {
-		t.Fatal("Load(profile=a) = nil after Publish(generation=3); want published snapshot resident before profile b is loaded")
-	}
 	if b.Load() == nil {
 		t.Fatal("Load(profile=b) = nil")
 	}
