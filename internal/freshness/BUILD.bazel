@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "freshness",
+    srcs = ["freshness.go"],
+    importpath = "github.com/Luqueee/kivgraph/internal/freshness",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/config",
+        "//internal/workspace",
+    ],
+)
+
+go_test(
+    name = "freshness_test",
+    srcs = ["freshness_test.go"],
+    embed = [":freshness"],
+    deps = ["//internal/workspace"],
+)

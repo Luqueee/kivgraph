@@ -9,6 +9,7 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/freshness"
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 	"github.com/Luqueee/kivgraph/internal/metrics"
 	"github.com/Luqueee/kivgraph/internal/storage/ladybug"
@@ -46,8 +47,9 @@ type GraphStatusInput struct {
 // host fields are never inferred; metrics are included only when the process
 // supplies the optional registry.
 type GraphStatus struct {
-	Status   string               `json:"status"`
-	Profiles []GraphProfileStatus `json:"profiles,omitempty"`
+	ContentFreshness *freshness.Status    `json:"content_freshness,omitempty"`
+	Status           string               `json:"status"`
+	Profiles         []GraphProfileStatus `json:"profiles,omitempty"`
 
 	SnapshotID        *uint64 `json:"snapshot_id"`
 	SnapshotBuiltAt   string  `json:"snapshot_built_at,omitempty"`
@@ -147,10 +149,11 @@ type ComponentHealth struct {
 // HostStatus is what only the process hosting the server can know: when the
 // graph was last rebuilt or updated, and whether its dependencies answer.
 type HostStatus struct {
-	LastRebuildAt time.Time
-	LastUpdateAt  time.Time
-	Worker        ComponentHealth
-	Storage       ComponentHealth
+	ContentFreshness *freshness.Status
+	LastRebuildAt    time.Time
+	LastUpdateAt     time.Time
+	Worker           ComponentHealth
+	Storage          ComponentHealth
 }
 
 // HostStatusProbe supplies HostStatus. It runs on the graph_status fast path,
@@ -227,6 +230,11 @@ func RegisterGraphStatusWithObserverAndSnapshotStoreAndMetrics(
 		}
 		store, profile, count := selected[0].Store, selected[0].Name, snapshotStore.ProfileCount()
 		result, response, err := graphStatus(ctx, request, struct{}{}, store, probe, registry)
+		// The service probe attests only its default profile. Generation IDs
+		// are profile-local, so equal IDs do not make another profile fresh.
+		if profile != snapshotStore.DefaultProfileName() {
+			response.Results.ContentFreshness = nil
+		}
 		scopeResponse(&response, profile, count)
 		return result, response, err
 	}
@@ -418,6 +426,7 @@ func applyHostStatus(ctx context.Context, status *GraphStatus, probe HostStatusP
 	if err != nil {
 		return WrapToolError(CodeSnapshotUnavailable, "host status is unavailable", err)
 	}
+	status.ContentFreshness = host.ContentFreshness
 	if !host.LastRebuildAt.IsZero() {
 		status.LastRebuildAt = host.LastRebuildAt.UTC().Format(time.RFC3339)
 	}

@@ -60,6 +60,14 @@ Claude Desktop supports the `user` scope only; asking for `--scope project`
 fails. It is also the one target with no local skill target, so it is absent
 from the skill selector.
 
+## Visible tool use
+
+The server's connection instructions ask the agent to announce every Kivgraph
+MCP call in chat, with the tool, target and purpose. The local skill carries
+the same rule where supported. These notices are best effort, not messages
+injected by Kivgraph into the client UI; see [Visible tool use](/mcp/skills/#visible-tool-use)
+for examples, client limitations and upgrade behavior.
+
 ## What gets written
 
 In every case the server is named `kivgraph`, and `command` is the absolute

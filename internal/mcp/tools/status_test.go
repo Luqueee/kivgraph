@@ -12,6 +12,7 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/freshness"
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 	"github.com/Luqueee/kivgraph/internal/metrics"
 	"github.com/Luqueee/kivgraph/internal/storage/ladybug"
@@ -154,10 +155,11 @@ func TestGraphStatusReportsHostProbeResults(t *testing.T) {
 	store := graphStatusStore(t, 62)
 	probe := func(context.Context) (HostStatus, error) {
 		return HostStatus{
-			LastRebuildAt: time.Unix(1_700_000_100, 0).UTC(),
-			LastUpdateAt:  time.Unix(1_700_000_200, 0).UTC(),
-			Worker:        ComponentHealth{State: "healthy", Detail: "typescript worker v1"},
-			Storage:       ComponentHealth{State: "degraded", Detail: "integrity sample pending"},
+			ContentFreshness: &freshness.Status{Generation: 62, State: "fresh"},
+			LastRebuildAt:    time.Unix(1_700_000_100, 0).UTC(),
+			LastUpdateAt:     time.Unix(1_700_000_200, 0).UTC(),
+			Worker:           ComponentHealth{State: "healthy", Detail: "typescript worker v1"},
+			Storage:          ComponentHealth{State: "degraded", Detail: "integrity sample pending"},
 		}, nil
 	}
 
@@ -166,6 +168,9 @@ func TestGraphStatusReportsHostProbeResults(t *testing.T) {
 		t.Fatal(err)
 	}
 	status := response.Results
+	if !reflect.DeepEqual(status.ContentFreshness, &freshness.Status{Generation: 62, State: "fresh"}) {
+		t.Fatalf("content freshness lost: %#v", status.ContentFreshness)
+	}
 	if status.LastRebuildAt != "2023-11-14T22:15:00Z" || status.LastUpdateAt != "2023-11-14T22:16:40Z" {
 		t.Fatalf("host timestamps = %q/%q", status.LastRebuildAt, status.LastUpdateAt)
 	}

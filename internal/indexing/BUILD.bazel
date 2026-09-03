@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "document.go",
         "follow.go",
+        "freshness.go",
         "full.go",
         "resync.go",
         "service.go",
@@ -16,6 +17,7 @@ go_library(
         "//internal/config",
         "//internal/facts",
         "//internal/filelock",
+        "//internal/freshness",
         "//internal/hotsnapshot",
         "//internal/indexer",
         "//internal/metrics",

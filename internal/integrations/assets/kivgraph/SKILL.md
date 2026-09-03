@@ -11,6 +11,18 @@ Use the `kivgraph` MCP server when the task needs evidence from the indexed
 Go, TypeScript, Rust, Python, Dart, Java or C# repositories rather than a
 text-only search.
 
+## Visible tool use
+
+Before every Kivgraph MCP tool call, send a brief user-visible chat preamble
+in the conversation's language: Kivgraph · <tool> — <target>: <purpose>.
+Name the exact tool, the symbol/file/repository/scope being queried, and the
+question the call will answer. For parallel calls, one preamble may list a
+separate line for each call; announce each repeated call too. State intent,
+not success; do not dump arguments or secrets. This notice is not approval
+for index_project.
+
+For example: `Kivgraph · find_references — NewServer: check who calls it.`
+
 ## Workflow
 
 Start with the question, not with a survey of the corpus. Two of these tools
