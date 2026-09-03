@@ -164,9 +164,14 @@ function aggregateStatus(
   if (statuses.length === 0) {
     return fallback;
   }
-  return statuses.reduce((selected, status) =>
-    statusRank(status) > statusRank(selected) ? status : selected,
-  );
+  return statuses.reduce((selected, status) => {
+    const selectedRank = statusRank(selected);
+    const statusRankValue = statusRank(status);
+    if (statusRankValue !== selectedRank) {
+      return statusRankValue > selectedRank ? status : selected;
+    }
+    return status < selected ? status : selected;
+  });
 }
 
 function repositoriesByWorktree(

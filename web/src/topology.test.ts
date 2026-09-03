@@ -125,17 +125,23 @@ describe("topology model", () => {
     expect(model.layout.width).toBe(804);
   });
 
-  it.each(["current", "ready"] as const)(
-    "preserves a %s source status on its worktree",
-    (status) => {
+  it.each([
+    ["current", "ready"],
+    ["ready", "current"],
+  ] as const)(
+    "selects the same status for sources ordered %s then %s",
+    (firstStatus, secondStatus) => {
       const model = createTopologyModel({
         ...topology,
-        sources: [{ ...topology.sources[0], status }],
+        sources: [
+          { ...topology.sources[0], status: firstStatus },
+          { ...topology.sources[0], status: secondStatus },
+        ],
       });
 
       expect(
         model.nodes.find((node) => node.key === "worktree:wt-shared")?.status,
-      ).toBe(status);
+      ).toBe("current");
     },
   );
 
