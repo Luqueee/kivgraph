@@ -18758,3 +18758,46 @@ sobre un formato durable que esta ficha no abrió. La línea sí lleva el códig
 `AMBIGUOUS_SYMBOL` a la vista, así que el lector no se queda sin el dato.
 
 **Estado:** hecho.
+
+## LUQUE-2236 - Cada uso de Kivgraph se anuncia en el chat
+
+**Dependencias:** ninguna. Decisión del usuario: todos los clientes, antes de
+cada llamada MCP, con herramienta, objetivo y motivo; garantía best effort.
+
+La regla viaja al principio de las instrucciones MCP tanto con grafo como sin
+él, porque `index_project` puede existir antes de publicar uno. La skill
+distribuida lleva el mismo párrafo. No se cambian las tools ni sus respuestas,
+la autorización de indexado, los logs ni la configuración de los clientes.
+
+Cada llamada repetida se anuncia; las paralelas pueden compartir un preámbulo
+con una línea por llamada. El aviso usa el idioma de la conversación y declara
+intención, no éxito. Claude Desktop depende sólo de las instrucciones MCP.
+La UI y el modelo del cliente siguen teniendo la última palabra: no hay un
+evento del servidor que fuerce un mensaje del asistente. Ver ADR 0085.
+
+**Verificación:** el test de integración instala la skill en ambos ámbitos
+para los cuatro clientes compatibles y compara su contrato con el handshake
+de servidores sin grafo, con indexador sin grafo y con grafo publicado.
+Falló primero por ausencia del contrato y pasa tras añadirlo. No equivale a
+validar que un modelo lo cumpla en una conversación real.
+
+**Gates:** suites MCP e integraciones, carrera del CLI, `go vet ./...`,
+`make build`, `scripts/check-docs.sh`, `make landing-check` y
+`make landing-build`. La cualificación visual por cliente se registra aparte.
+
+**Resultado:** MCP, carrera del CLI y `go vet` pasan. El binario compilado
+entrega el contrato por STDIO en configuración aislada: handshake frío de
+`668` bytes, doce tools de introspección y respuesta de `graph_status` sin
+duplicación de canal. El check y build de la landing pasan, con aviso de
+conflicto en la ruta `/404`; los HTML generados contienen la sección y enlaces.
+
+`make build` se detiene por `TestClaudeDesktopIsDetectedByItsOwnEntry`, que
+también falla en un archivo limpio de `HEAD`: consulta el marcador global
+`/Applications/Claude.app` fuera de su home temporal. Las demás integraciones
+pasan excluyendo expresamente ese test, y `go build` pasa por separado. No se
+ha cambiado ese test ajeno al alcance. El validador genérico de skills rechaza
+el campo `compatibility`, preexistente y conservado.
+
+**Estado:** implementado y verificado por protocolo; cualificación visual de
+los chats pendiente. No se han sustituido skills instaladas, reiniciado
+servicios ni publicado una release. Las limitaciones quedan en el ADR 0085.

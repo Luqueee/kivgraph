@@ -6,9 +6,9 @@ description: What Kivgraph's Agent Skill tells a coding agent, how to install it
 ## What a skill is here
 
 An Agent Skill is a Markdown instruction file a coding agent loads alongside its
-tools. Kivgraph ships one, and it exists for a single reason: to route a
-question to the right tool before the agent reaches for grep or starts opening
-files. It is not required in order to use the MCP server. Install it to change
+tools. Kivgraph ships one to route a question to the right tool before the agent
+reaches for grep or starts opening files, and to request visible notices of
+tool use. It is not required in order to use the MCP server. Install it to change
 which tool the agent picks; skip it and the twelve tools still work.
 
 ## Install
@@ -68,9 +68,38 @@ the MCP server for it and it uses the tools without the skill.
 
 ## What the skill says
 
-The skill teaches one contract: reach for the graph when the question is about
+The skill's routing contract is to reach for the graph when the question is about
 callers, references, impact or cross-repository consumers, and reach for the
 files only after the graph has named them.
+
+### Visible tool use
+
+Before every Kivgraph MCP call, the skill asks the agent to send a short chat
+notice naming the exact tool, its target (symbol, file, repository or scope),
+and the question it will answer, in the conversation's language. For example:
+
+`Kivgraph · find_references — NewServer: check who calls it.`
+
+Repeated calls each get a notice. Parallel calls may share a preamble, with a
+separate line for each call. The notice states intent, not success, and does not
+replace user approval for `index_project`. There is no additional mandatory
+completion message, setting or change to tool results.
+
+The MCP server sends the same rule in its connection instructions, including
+when no graph exists. This is **best effort**: the client decides whether to
+give the instructions to its model and display the model's preamble. Claude
+Desktop has no local skill and relies on the MCP instructions alone. This is
+not a server-generated chat event or an audit log.
+
+After upgrading the running server, reconnect the client (or start a new chat)
+so it receives the new instructions. Existing skills, including local edits,
+are not overwritten automatically; installs without an existing skill receive
+the new skill.
+To adopt the skill notice without replacing your customizations, copy its
+"Visible tool use" section from the shipped skill into your existing one.
+User-scope links share `~/.config/kivgraph/skills/kivgraph/SKILL.md`;
+project-scoped skills are separate copies. CLI commands such as `kivgraph ui`
+are outside this chat-notice contract.
 
 ### Routing
 

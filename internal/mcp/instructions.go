@@ -1,7 +1,12 @@
 package mcp
 
-// serverInstructions is the one string this server can send that survives every
-// client's schema deferral.
+// toolVisibilityInstructions is shared by both availability states: even a
+// cold server can expose index_project. Keep it aligned with the installed
+// skill; visibility is client/model behavior, not a server-injected chat event.
+const toolVisibilityInstructions = `Before every Kivgraph MCP tool call, send a brief user-visible chat preamble in the conversation's language: Kivgraph · <tool> — <target>: <purpose>. Name the exact tool, the symbol/file/repository/scope being queried, and the question the call will answer. For parallel calls, one preamble may list a separate line for each call; announce each repeated call too. State intent, not success; do not dump arguments or secrets. This notice is not approval for index_project.`
+
+// serverInstructions carries routing and visibility guidance across schema
+// deferral in clients that consume MCP connection instructions.
 //
 // Oh My Pi mounts each MCP tool as a device whose documentation is read on
 // demand; Claude Code defers tool schemas behind its tool search and injects
@@ -18,7 +23,9 @@ package mcp
 // The last paragraph is the part most servers omit: where this one loses. A tool
 // that claims to win everywhere gets called where it does not and spends the
 // call twice.
-const serverInstructions = `Kivgraph answers "what breaks if I change this" from a published code graph over Go, TypeScript, Rust, Python, Dart, Java and C#. Go, TypeScript and Rust edges are type-checked; Dart edges are resolved by Dart Analysis Server; Java and C# edges come from SCIP indexes scip-java and scip-dotnet emit through javac and Roslyn; Python uses exact semantic facts when a configured analyzer provides them and CANDIDATE facts in its bundled AST fallback. Before grepping or reading files to find callers, references or impact, call find_references or get_blast_radius; to read the code they name, call get_source.
+const serverInstructions = toolVisibilityInstructions + `
+
+Kivgraph answers "what breaks if I change this" from a published code graph over Go, TypeScript, Rust, Python, Dart, Java and C#. Go, TypeScript and Rust edges are type-checked; Dart edges are resolved by Dart Analysis Server; Java and C# edges come from SCIP indexes scip-java and scip-dotnet emit through javac and Roslyn; Python uses exact semantic facts when a configured analyzer provides them and CANDIDATE facts in its bundled AST fallback. Before grepping or reading files to find callers, references or impact, call find_references or get_blast_radius; to read the code they name, call get_source.
 
 Its edges are resolved by language analyzers or explicitly marked as CANDIDATE/UNRESOLVED; they are never created by matching names. Read confidence and completeness before treating an empty or partial answer as proof of absence. Grep cannot provide that distinction.
 
@@ -46,4 +53,6 @@ Where it loses: a rare name in a single small repository is cheaper to grep, and
 // spending the budget on it is how a paragraph that routes becomes a paragraph
 // that is skipped. What a client needs here is the one command that repairs
 // this.
-const staleServerInstructions = `Kivgraph has no published graph, so no query tool can answer from one. Run "kivgraph index --full" to build one, then restart this server. Until then, use the host's own search and file tools.`
+const staleServerInstructions = toolVisibilityInstructions + `
+
+Kivgraph has no published graph, so no query tool can answer from one. Run "kivgraph index --full" to build one, then restart this server. Until then, use the host's own search and file tools.`
