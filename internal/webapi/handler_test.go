@@ -188,7 +188,7 @@ func TestHandlerTopologyRejectsUnknownProfileSelection(t *testing.T) {
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 
-	assertAPIError(t, response, http.StatusBadRequest, "INVALID_ARGUMENT")
+	assertAPIError(t, response, http.StatusBadRequest, "INVALID_ARGUMENT", request.URL.String())
 }
 
 func TestHandlerTopologyReturnsPinnedProfilesAndRelationships(t *testing.T) {
@@ -406,6 +406,84 @@ func TestTopologyDeclaredRepositoryWinsSynthesizedRecord(t *testing.T) {
 	}
 }
 
+func TestHandlerTopologyReportsAmbiguousRepositoryDeclarations(t *testing.T) {
+	configPath, _ := topologyTestConfiguration(t, "default", "other")
+	for _, declaration := range []struct {
+		profile string
+		name    string
+	}{
+		{profile: "default", name: "Default repository"},
+		{profile: "other", name: "Other repository"},
+	} {
+		value, present, err := config.LoadProfileTopology(configPath, declaration.profile)
+		if err != nil {
+			t.Fatalf("LoadProfileTopology(%q) error = %v", declaration.profile, err)
+		}
+		if !present || len(value.Repositories) != 1 {
+			t.Fatalf("profile %q topology = %#v, want one repository", declaration.profile, value)
+		}
+		value.Repositories[0].Name = declaration.name
+		if err := config.SaveProfileTopology(configPath, declaration.profile, value); err != nil {
+			t.Fatalf("SaveProfileTopology(%q) error = %v", declaration.profile, err)
+		}
+	}
+
+	store, err := hotsnapshot.NewProfileSnapshotStore("default", map[string]*hotsnapshot.SnapshotStore{
+		"default": hotsnapshot.NewSnapshotStore(testSnapshotWithTopologyID(t, 7)),
+		"other":   hotsnapshot.NewSnapshotStore(testSnapshotWithTopologyID(t, 8)),
+	})
+	if err != nil {
+		t.Fatalf("NewProfileSnapshotStore() error = %v", err)
+	}
+	handler := NewHandlerWithTopology(store, TopologyOptions{ConfigPath: configPath})
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/topology?profile=default&profile=other", nil)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	assertAPIError(t, response, http.StatusConflict, "TOPOLOGY_AMBIGUOUS", request.URL.String())
+}
+
+func TestTopologyAssemblerHidesUnobservedStaleCurrent(t *testing.T) {
+	observation, err := topology.NewSourceObservation("shared-worktree", "commit-a", "main", false, strings.Repeat("a", 64))
+	if err != nil {
+		t.Fatalf("NewSourceObservation() error = %v", err)
+	}
+	assembler := newTopologyAssembler()
+	assembler.addSources(topologyProfileData{
+		Name: "default", ManifestOK: true,
+		Manifest: sourceobservation.Manifest{Sources: []sourceobservation.Source{{
+			Repository: "repo", Observation: observation,
+		}}},
+		Composition: topology.ProfileComposition{Worktrees: []topology.Worktree{{
+			ID: observation.Worktree, Repository: "repo",
+		}}},
+		State: &invalidation.ProfileState{Changes: []invalidation.SourceChange{{
+			Worktree: observation.Worktree, Repository: "repo",
+			Reason: invalidation.ReasonCommitChanged, Detail: "commit changed",
+		}}},
+	})
+
+	if len(assembler.sources) != 1 || assembler.sources[0].Status != "stale" || assembler.sources[0].Current != nil {
+		t.Fatalf("stale source view = %#v, want stale without an observed current", assembler.sources)
+	}
+}
+
+func TestTopologyResponseReportsIncompleteAndTruncatedReasons(t *testing.T) {
+	assembler := newTopologyAssembler()
+	assembler.sources = []topologySourceView{{Status: "missing"}}
+	assembler.truncated = true
+	assembler.truncatedReason = "relationship limit reached"
+
+	response := assembler.response()
+	if response.Completeness.Complete || !response.Completeness.Truncated {
+		t.Fatalf("completeness = %#v, want incomplete and truncated", response.Completeness)
+	}
+	want := "one or more source observations or indexed manifests are missing or unavailable; relationship limit reached"
+	if response.Completeness.Reason != want {
+		t.Fatalf("completeness reason = %q, want %q", response.Completeness.Reason, want)
+	}
+}
+
 func hasTopologyRelationship(relationships []topologyRelationshipView, typ, status string) bool {
 	for _, relationship := range relationships {
 		if relationship.Type == typ && relationship.Status == status {
@@ -452,17 +530,21 @@ func topologyTestConfiguration(t *testing.T, profiles ...string) (string, string
 	return configPath, stateRoot
 }
 
-func assertAPIError(t *testing.T, response *httptest.ResponseRecorder, status int, code string) {
+func assertAPIError(t *testing.T, response *httptest.ResponseRecorder, status int, code string, request ...string) {
 	t.Helper()
+	requestContext := ""
+	if len(request) > 0 {
+		requestContext = "request=" + request[0] + "; "
+	}
 	if response.Code != status {
-		t.Fatalf("status = %d, want %d; body=%s", response.Code, status, response.Body.String())
+		t.Fatalf("%sstatus = %d, want %d; body=%s", requestContext, response.Code, status, response.Body.String())
 	}
 	var apiErr apiError
 	if err := json.Unmarshal(response.Body.Bytes(), &apiErr); err != nil {
-		t.Fatalf("decode error: %v", err)
+		t.Fatalf("%sdecode error: %v", requestContext, err)
 	}
 	if apiErr.Code != code {
-		t.Fatalf("error code = %q, want %q", apiErr.Code, code)
+		t.Fatalf("%serror code = %q, want %q", requestContext, apiErr.Code, code)
 	}
 }
 

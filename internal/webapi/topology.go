@@ -175,6 +175,8 @@ func (assembler *topologyAssembler) applySourceState(view *topologySourceView, s
 			view.Status = "stale"
 			if change.After != nil {
 				view.Current = observationView(*change.After)
+			} else {
+				view.Current = nil
 			}
 		}
 	}
@@ -454,11 +456,14 @@ func (assembler *topologyAssembler) response() topologyResponse {
 		Relationships: assembler.relationships,
 		Completeness:  topologyCompletenessView{Complete: complete && !assembler.truncated, Truncated: assembler.truncated},
 	}
+	reasons := make([]string, 0, 2)
 	if !complete {
-		response.Completeness.Reason = "one or more source observations are missing or unavailable"
-	} else if assembler.truncated {
-		response.Completeness.Reason = assembler.truncatedReason
+		reasons = append(reasons, "one or more source observations or indexed manifests are missing or unavailable")
 	}
+	if assembler.truncated {
+		reasons = append(reasons, assembler.truncatedReason)
+	}
+	response.Completeness.Reason = strings.Join(reasons, "; ")
 	if len(assembler.profiles) == 1 {
 		response.GenerationID = assembler.profiles[0].GenerationID
 	}

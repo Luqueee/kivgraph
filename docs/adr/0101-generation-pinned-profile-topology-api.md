@@ -38,7 +38,8 @@ Relationships are bounded at 10,000 unique emitted relationships per response.
 Relationships with distinct evidence remain distinct. When the bound is
 reached, the server keeps the deterministic prefix and sets
 `completeness.truncated`; it never presents a partial relationship set as
-complete.
+complete. When source metadata is also incomplete, `completeness.reason` names
+both the incompleteness and truncation reasons.
 
 Structural membership is emitted separately from source-backed code
 dependencies. Exact and candidate relationships retain their confidence,
