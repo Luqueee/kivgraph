@@ -179,8 +179,12 @@ func Farewell() string { return "bye" }
 // Greeting is the definition every assertion below counts.
 func Greeting() string { return "hello" }
 `)
-	if _, report := fixture.index(); report.Cache.Hits != 1 || report.Cache.Misses != 0 {
+	restored, report := fixture.index()
+	if report.Cache.Hits != 1 || report.Cache.Misses != 0 {
 		t.Fatalf("restored source cache = %+v, want the previous content address to be warm", report.Cache)
+	}
+	if encodedFacts(t, restored) != encodedFacts(t, cold) {
+		t.Fatalf("restored source facts differ from the original facts")
 	}
 }
 
