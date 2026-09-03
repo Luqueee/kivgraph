@@ -1,0 +1,80 @@
+---
+import BlogCard from "../../components/landing/BlogCard.astro";
+import BlogLayout from "../../components/landing/BlogLayout.astro";
+import { absoluteUrl, blogPathname, loadBlogEntries } from "../_seo";
+
+export const prerender = true;
+
+const entries = await loadBlogEntries();
+const canonical = absoluteUrl(Astro.site, "/blog/");
+const structuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "CollectionPage",
+      "@id": `${canonical}#page`,
+      name: "Kivgraph Blog",
+      description:
+        "Practical writing about AI coding agents, MCP, code intelligence and software architecture.",
+      url: canonical,
+      inLanguage: "en",
+      isPartOf: { "@id": absoluteUrl(Astro.site, "/#website") },
+      about: { "@id": absoluteUrl(Astro.site, "/#software") },
+      hasPart: entries.map((entry) => ({
+        "@type": "BlogPosting",
+        "@id": `${absoluteUrl(Astro.site, blogPathname(entry.id))}#article`,
+        headline: entry.data.title,
+        url: absoluteUrl(Astro.site, blogPathname(entry.id)),
+        datePublished: entry.data.pubDate.toISOString(),
+      })),
+    },
+    {
+      "@type": "BreadcrumbList",
+      "@id": `${canonical}#breadcrumb`,
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: "Kivgraph",
+          item: absoluteUrl(Astro.site, "/"),
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: "Blog",
+          item: canonical,
+        },
+      ],
+    },
+  ],
+};
+---
+
+<BlogLayout
+  title="Kivgraph Blog: code intelligence for AI coding agents"
+  description="Practical writing about AI coding agents, MCP, code intelligence, semantic code search and cross-repository software architecture."
+  canonical={canonical}
+  structuredData={structuredData}
+>
+  <div class="mx-auto w-full max-w-6xl px-6 py-14">
+    <header class="max-w-3xl">
+      <p class="font-mono text-xs uppercase tracking-wider text-gray-400">
+        Kivgraph / blog
+      </p>
+      <h1 class="mt-5 font-mono text-3xl text-gray-100 sm:text-4xl">
+        Code intelligence for the way agents code
+      </h1>
+      <p class="mt-5 max-w-2xl text-base leading-7 text-gray-300">
+        Practical explanations, benchmarks and implementation notes for AI
+        coding agents, MCP servers and large codebases.
+      </p>
+    </header>
+
+    <section
+      class="mt-10 grid grid-cols-1 gap-5 md:grid-cols-2"
+      aria-label="Articles"
+    >
+      {entries.map((post) => <BlogCard post={post} />)}
+    </section>
+  </div>
+</BlogLayout>

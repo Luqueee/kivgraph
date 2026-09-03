@@ -1,0 +1,47 @@
+---
+import Footer from "./Footer.astro";
+import Layout from "./Layout.astro";
+import TopBar from "./TopBar.astro";
+import { absoluteUrl } from "../../pages/_seo";
+
+interface Props {
+  title: string;
+  description: string;
+  canonical?: string;
+  type?: "website" | "article";
+  publishedTime?: string;
+  modifiedTime?: string;
+  structuredData?: Record<string, unknown>;
+  markdown?: string;
+}
+
+const { markdown, ...layoutProps } = Astro.props;
+---
+
+<Layout {...layoutProps}>
+  <Fragment slot="head">
+    <link
+      rel="alternate"
+      type="application/rss+xml"
+      href={absoluteUrl(Astro.site, "/rss.xml")}
+      title="Kivgraph Blog RSS feed"
+    />
+    <link
+      rel="describedby"
+      href={absoluteUrl(Astro.site, "/llms-blog.txt")}
+    />
+  </Fragment>
+  {markdown && (
+    <Fragment slot="head">
+      <link
+        rel="alternate"
+        type="text/markdown"
+        href={markdown}
+        title={layoutProps.title + " as markdown"}
+      />
+    </Fragment>
+  )}
+  <TopBar />
+  <main id="main"><slot /></main>
+  <Footer />
+</Layout>

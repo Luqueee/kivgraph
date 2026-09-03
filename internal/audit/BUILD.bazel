@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "audit",
+    srcs = [
+        "audit.go",
+        "buildtags.go",
+        "golang.go",
+        "rust.go",
+        "typescript.go",
+    ],
+    importpath = "github.com/Luqueee/kivgraph/internal/audit",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/config",
+        "//internal/goloader",
+        "//internal/goworkspace",
+        "//internal/rustloader",
+        "//internal/workspace",
+    ],
+)
+
+go_test(
+    name = "audit_test",
+    srcs = ["audit_test.go"],
+    embed = [":audit"],
+    deps = [
+        "//internal/testsupport",
+        "//internal/workspace",
+    ],
+)

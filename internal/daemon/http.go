@@ -13,7 +13,9 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	sdkauth "github.com/modelcontextprotocol/go-sdk/auth"
@@ -34,11 +36,18 @@ const EndpointName = "daemon.json"
 // MCPPath is where the streamable HTTP transport is served.
 const MCPPath = "/mcp"
 
-// DefaultAddress is the daemon's HTTP bind, loopback and on a port of its own.
+// DefaultAddress is the daemon's preferred HTTP bind, loopback and on a port of
+// its own. If that port is busy and the caller did not choose an address, the
+// daemon selects and persists another loopback port.
 //
 // It is not the viewer's 7777: those are two contracts versioned independently,
 // and sharing a port would mix them.
 const DefaultAddress = "127.0.0.1:7788"
+
+// PortName is the state file that keeps an automatically selected port stable
+// across supervisor restarts. It contains only the decimal TCP port, not a
+// secret or a public address.
+const PortName = "daemon.port"
 
 // tokenBytes is the length of the bearer token before encoding.
 const tokenBytes = 32
@@ -60,6 +69,26 @@ type Endpoint struct {
 // EndpointPath returns the file a daemon for stateDirectory publishes.
 func EndpointPath(stateDirectory string) string {
 	return filepath.Join(stateDirectory, EndpointName)
+}
+
+// PortPath returns the persisted automatic HTTP port for a state directory.
+func PortPath(stateDirectory string) string {
+	return filepath.Join(stateDirectory, PortName)
+}
+
+func readPersistedPort(stateDirectory string) (int, error) {
+	raw, err := os.ReadFile(PortPath(stateDirectory))
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, fmt.Errorf("read %s: %w", PortName, err)
+	}
+	port, err := strconv.Atoi(strings.TrimSpace(string(raw)))
+	if err != nil || port < 1 || port > 65535 {
+		return 0, fmt.Errorf("decode %s: %q is not a TCP port", PortName, strings.TrimSpace(string(raw)))
+	}
+	return port, nil
 }
 
 // ReadEndpoint reads a published endpoint.
@@ -172,7 +201,8 @@ func LoopbackAddress(address string) bool {
 
 // HTTPOptions are what the daemon's HTTP listener needs.
 type HTTPOptions struct {
-	// Address is the bind. Empty means DefaultAddress.
+	// Address is the bind. Empty means the persisted port, or DefaultAddress on
+	// the first start, with an automatic loopback fallback if it is occupied.
 	Address string
 	// AllowRemote permits a bind outside loopback. Without it a non-loopback
 	// address is refused rather than warned about: the socket's whole guarantee
@@ -216,8 +246,17 @@ func (served *HTTPServer) Close() error {
 // because it holds the token that replaces the socket's mode as the key.
 func ListenHTTP(options Options, httpOptions HTTPOptions) (*HTTPServer, error) {
 	address := httpOptions.Address
+	automaticPort := address == ""
 	if address == "" {
-		address = DefaultAddress
+		persistedPort, err := readPersistedPort(options.StateDirectory)
+		if err != nil {
+			return nil, err
+		}
+		if persistedPort != 0 {
+			address = net.JoinHostPort("127.0.0.1", strconv.Itoa(persistedPort))
+		} else {
+			address = DefaultAddress
+		}
 	}
 	if !LoopbackAddress(address) {
 		if !httpOptions.AllowRemote {
@@ -239,15 +278,37 @@ func ListenHTTP(options Options, httpOptions HTTPOptions) (*HTTPServer, error) {
 	}
 
 	var listener net.Listener
-	if err := withPrivateUmask(func() error {
-		bound, err := net.Listen("tcp", address)
-		if err != nil {
-			return fmt.Errorf("listen on %s: %w", address, err)
-		}
-		listener = bound
-		return nil
-	}); err != nil {
+	bind := func() error {
+		return withPrivateUmask(func() error {
+			bound, err := net.Listen("tcp", address)
+			if err != nil {
+				return fmt.Errorf("listen on %s: %w", address, err)
+			}
+			listener = bound
+			return nil
+		})
+	}
+	err = bind()
+	if err != nil && automaticPort && errors.Is(err, syscall.EADDRINUSE) {
+		// The historical port is a preference, not an identity. Bind port zero
+		// only after the preferred port is unavailable, then persist the result
+		// so the URL remains stable for every later supervisor restart.
+		address = "127.0.0.1:0"
+		err = bind()
+	}
+	if err != nil {
 		return nil, err
+	}
+	if automaticPort {
+		_, port, err := net.SplitHostPort(listener.Addr().String())
+		if err != nil {
+			_ = listener.Close()
+			return nil, fmt.Errorf("read the bound HTTP port: %w", err)
+		}
+		if err := writePrivateFile(PortPath(options.StateDirectory), []byte(port+"\n")); err != nil {
+			_ = listener.Close()
+			return nil, fmt.Errorf("persist %s: %w", PortName, err)
+		}
 	}
 
 	socket, socketErr := SocketPath(options.StateDirectory)

@@ -3,11 +3,11 @@
 //
 // The decision is a gate in front of a tool call, not a policy: it runs before
 // `grep`, refuses the calls the graph answers better, and names the call that
-// answers them. Three agents can host it -- Claude Code, Codex and OpenCode --
-// and the first two hand it the same payload on stdin and read the same verdict
-// on stdout. OpenCode cannot spawn a process itself, so a generated plugin
-// speaks for it; the payload it forwards is this one, which is why the dialect
-// is a field rather than three parsers.
+// answers them. Shell hooks in Claude Code and Codex, plus generated modules in
+// OpenCode and Oh My Pi, hand the gate this payload on stdin and read its
+// verdict on stdout. The modules speak for clients that cannot spawn a shell
+// hook directly, which is why the dialect is a field rather than separate
+// parsers.
 //
 // Every failure here is an allow. A gate that cannot read its input, cannot
 // find the graph or cannot reach the daemon has learned nothing about the call,
@@ -22,7 +22,7 @@ import (
 
 // Dialect is the agent whose tool vocabulary a payload speaks.
 //
-// It exists because the three agents spell the same four tools differently --
+// It exists because the supported agents spell the same four tools differently --
 // Claude Code's `Task` is OpenCode's `task`, and Codex names its editor
 // `apply_patch` where the others say `Edit` -- and a classifier that matched on
 // the spelling of one of them would silently pass every call from the other
@@ -33,9 +33,8 @@ type Dialect string
 const (
 	// DialectClaudeCode is Claude Code, which reads `hookSpecificOutput`.
 	DialectClaudeCode Dialect = "claude-code"
-	// DialectCodex is the Codex CLI, whose PreToolUse contract is byte for
-	// byte the one Claude Code reads. The two differ in where the hook is
-	// registered, not in what it says.
+	// DialectCodex is the Codex CLI. Its input extends Claude Code's with a
+	// turn_id, and a refusal uses exit 2 plus stderr instead of a JSON verdict.
 	DialectCodex Dialect = "codex"
 	// DialectOpenCode is OpenCode, reached through a generated plugin because
 	// its `tool.execute.before` returns `Promise<void>` and blocks by
@@ -45,17 +44,37 @@ const (
 
 // Payload is the call an agent is about to make.
 //
-// The field names are Claude Code's and Codex's, which are the same, and the
-// generated OpenCode plugin builds this shape rather than forwarding its own:
-// one wire format is the reason a single `hook run` serves all three.
+// Most field names are shared by Claude Code and Codex; Codex adds turn_id.
+// The generated OpenCode and Oh My Pi modules build the common shape rather
+// than forwarding their own, so one `hook run` still serves every path.
 type Payload struct {
 	HookEventName string          `json:"hook_event_name"`
 	CWD           string          `json:"cwd"`
 	ToolName      string          `json:"tool_name"`
 	ToolInput     json.RawMessage `json:"tool_input"`
+	// SessionID is the conversation this call belongs to, and it is the
+	// only field the gate reads that says anything about *when* rather than
+	// *what*. It exists for the briefing, which happens once per session
+	// and cannot be once per anything without it. Claude Code and Codex
+	// send it; generated modules have nothing to put here, and an empty
+	// one means the briefing does not fire at all -- see Briefing.
+	SessionID string `json:"session_id"`
+	// TurnID identifies a Codex turn. Claude Code and the generated adapters
+	// do not send it, so it also selects Codex's distinct refusal protocol.
+	TurnID string `json:"turn_id"`
 }
 
-// tool is a search-shaped tool, named once for all three dialects.
+// Dialect reports the host whose wire contract is positively identified.
+// The empty result deliberately keeps unknown hosts on the JSON protocol used
+// by Claude Code and the generated adapters.
+func (payload Payload) Dialect() Dialect {
+	if strings.TrimSpace(payload.TurnID) != "" {
+		return DialectCodex
+	}
+	return ""
+}
+
+// tool is a search-shaped tool, named once for all supported dialects.
 type tool uint8
 
 const (
@@ -64,9 +83,13 @@ const (
 	toolGrep
 	toolGlob
 	toolAgent
+	// toolGraph is one of Kivgraph's own MCP tools. It is the one entry
+	// here that is not search-shaped: the gate never refuses it, and
+	// recognises it only so the first one of a session can be briefed.
+	toolGraph
 )
 
-// toolNames maps every spelling the three agents use onto the tool it names.
+// toolNames maps every spelling the supported agents use onto the tool it names.
 //
 // The spellings are the agents', not ours. Claude Code dispatches research to
 // `Task` and this harness to `Agent`; OpenCode lowercases everything; Codex
@@ -80,7 +103,26 @@ var toolNames = map[string]tool{
 	"task": toolAgent, "agent": toolAgent,
 }
 
+// graphToolPrefixes are the spellings a host gives one of Kivgraph's own MCP
+// tools.
+//
+// There is no table of operations here on purpose. The gate would have to grow
+// a line every time the server publishes a tool, and a briefing that silently
+// stopped firing for the newest tool is worse than one keyed on the server
+// name. The trailing separator is what keeps `mcp__kivgraphx_...` -- a
+// different server whose name starts the same way -- out of the match.
+var graphToolPrefixes = []string{"mcp__kivgraph_", "kivgraph_1mcp_"}
+
 // classifyTool answers which search-shaped tool a payload names.
 func classifyTool(name string) tool {
-	return toolNames[strings.ToLower(strings.TrimSpace(name))]
+	name = strings.ToLower(strings.TrimSpace(name))
+	if named, ok := toolNames[name]; ok {
+		return named
+	}
+	for _, prefix := range graphToolPrefixes {
+		if strings.HasPrefix(name, prefix) {
+			return toolGraph
+		}
+	}
+	return toolOther
 }

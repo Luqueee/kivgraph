@@ -75,6 +75,52 @@ func TestReadGitHeadResolvesWorktreeReferencesThroughCommonDirectory(t *testing.
 	}
 }
 
+func TestGitCommonDirectoryIdentifiesMainAndLinkedWorktree(t *testing.T) {
+	root := t.TempDir()
+	absent := filepath.Join(root, "absent")
+	if _, err := GitCommonDirectory(absent); err == nil {
+		t.Fatalf("GitCommonDirectory(%q) accepted a directory with no Git layout", absent)
+	}
+	main := filepath.Join(root, "main")
+	common := filepath.Join(main, ".git")
+	worktree := filepath.Join(root, "worktree")
+	gitDirectory := filepath.Join(common, "worktrees", "agent")
+	writeGitHeadTestFile(t, filepath.Join(common, "HEAD"), "ref: refs/heads/main\n")
+	writeGitHeadTestFile(t, filepath.Join(worktree, ".git"), "gitdir: "+gitDirectory+"\n")
+	writeGitHeadTestFile(t, filepath.Join(gitDirectory, "commondir"), "../..\n")
+	logicalCommon := common
+	common, err := filepath.EvalSymlinks(logicalCommon)
+	if err != nil {
+		t.Fatalf("resolve physical common directory %q: %v", logicalCommon, err)
+	}
+
+	for name, repository := range map[string]string{"main": main, "worktree": worktree} {
+		t.Run(name, func(t *testing.T) {
+			got, err := GitCommonDirectory(repository)
+			if err != nil {
+				t.Fatalf("GitCommonDirectory(%q) error = %v", repository, err)
+			}
+			if got != common {
+				t.Fatalf("GitCommonDirectory(%q) = %q, want %q", repository, got, common)
+			}
+		})
+	}
+	alias := filepath.Join(root, "main-alias")
+	if err := os.Symlink(main, alias); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	got, err := GitCommonDirectory(alias)
+	if err != nil {
+		t.Fatalf("GitCommonDirectory(%q) through symlink error = %v", alias, err)
+	}
+	if got != common {
+		t.Fatalf("GitCommonDirectory(%q) through symlink = %q, want %q", alias, got, common)
+	}
+	// The remaining error branch requires the common directory to disappear
+	// between gitLayoutFor's Stat and EvalSymlinks; a deterministic test would
+	// need a production filesystem seam that exists only for that race.
+}
+
 func TestReadGitHeadFallsBackToPackedReferences(t *testing.T) {
 	repository := testsupport.TempDir(t)
 	writeGitHeadTestFile(t, filepath.Join(repository, ".git", "HEAD"), "ref: refs/heads/feature/x\n")

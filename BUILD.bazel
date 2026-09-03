@@ -1,0 +1,47 @@
+load("@gazelle//:def.bzl", "gazelle", "gazelle_test")
+
+# gazelle:prefix github.com/Luqueee/kivgraph
+# Keep fixture and non-Go trees out of this first Go-only POC. They have their
+# own build systems or are repositories/benchmark inputs that must not gain
+# generated BUILD files.
+# gazelle:exclude benchmarks
+# gazelle:exclude testdata
+# gazelle:exclude docs
+# gazelle:exclude landing
+# gazelle:exclude ts-worker
+# gazelle:exclude web
+# gazelle:exclude python-worker
+# gazelle:exclude grammars
+# gazelle:exclude schemas
+# gazelle:exclude tools
+
+filegroup(
+    name = "project_files",
+    srcs = glob([
+        ".github/workflows/release.yml",
+        "docs/**",
+        "grammars/manifest.json",
+        "landing/src/content/releases/**",
+        "python-worker/**",
+        "schemas/**",
+        "scripts/**",
+        "server.json",
+        "tools/manifest.json",
+    ]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "testdata",
+    srcs = glob(["testdata/**"]),
+    visibility = ["//visibility:public"],
+)
+
+gazelle(
+    name = "gazelle",
+)
+
+gazelle_test(
+    name = "gazelle_test",
+    workspace = "//:BUILD.bazel",
+)

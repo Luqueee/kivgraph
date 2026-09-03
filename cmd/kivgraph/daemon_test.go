@@ -8,11 +8,70 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/daemon"
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 )
+
+// TestProfileDaemonPublishesTheInstallationEndpointThatUpdateReads covers the
+// profile migration boundary. A profile owns graph state, but one daemon owns
+// every profile in the installation: its socket, token and endpoint therefore
+// stay above profiles/. Both `mcp install` and the post-update restart read that
+// installation endpoint; publishing beside the default profile leaves the
+// daemon running while both commands report that none answered.
+func TestProfileDaemonPublishesTheInstallationEndpointThatUpdateReads(t *testing.T) {
+	installation, err := os.MkdirTemp("", "kgd-")
+	if err != nil {
+		t.Fatalf("create short installation state: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(installation) })
+	profile := filepath.Join(installation, "profiles", "default")
+	if err := os.MkdirAll(profile, 0o700); err != nil {
+		t.Fatalf("create default profile: %v", err)
+	}
+
+	loaded := config.Loaded{Profile: "default"}
+	loaded.Config.Storage.DatabasePath = filepath.Join(profile, "graph.lbdb")
+	store := hotsnapshot.NewSnapshotStore(nil)
+	t.Cleanup(store.Close)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- runDaemon(
+			slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
+			&daemonOptions{Address: "127.0.0.1:0"},
+		)(ctx, loaded, store, nil, nil)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Errorf("stop profile daemon: %v", err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Error("profile daemon did not stop after cancellation")
+		}
+	})
+
+	endpoint, err := daemon.WaitReachable(context.Background(), installation, time.Second)
+	if err != nil {
+		t.Fatalf("wait for installation endpoint: %v", err)
+	}
+	wantSocket, err := daemon.SocketPath(installation)
+	if err != nil {
+		t.Fatalf("installation socket path: %v", err)
+	}
+	if endpoint.Socket != wantSocket {
+		t.Fatalf("endpoint socket = %q, want installation socket %q", endpoint.Socket, wantSocket)
+	}
+	if _, err := os.Stat(daemon.EndpointPath(profile)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("profile owns the daemon endpoint: %v", err)
+	}
+}
 
 // TestAFailedStartLeavesNoEndpointBehind covers the half-started daemon.
 //

@@ -4,7 +4,9 @@ import {
   LICENSE_URL,
   PROJECT_NAME,
   absoluteUrl,
+  blogPathname,
   docPathname,
+  loadBlogEntries,
   loadDocsInOrder,
 } from "../_seo";
 
@@ -38,11 +40,21 @@ export const prerender = false;
 
 export const GET: APIRoute = async ({ params, site }) => {
   const slug = params.slug;
-  const entries = await loadDocsInOrder();
+  const [entries, blogEntries] = await Promise.all([
+    loadDocsInOrder(),
+    loadBlogEntries(),
+  ]);
+  const blogSlug = slug?.startsWith("blog/")
+    ? slug.slice("blog/".length)
+    : undefined;
+  const blogEntry =
+    blogSlug === undefined
+      ? undefined
+      : blogEntries.find((post) => post.id === blogSlug);
   const entry =
     slug === undefined ? undefined : entries.find((page) => page.id === slug);
 
-  if (entry === undefined) {
+  if (entry === undefined && blogEntry === undefined) {
     return new Response(
       `No markdown source is published at /raw/${slug}.md\n`,
       {
@@ -55,17 +67,32 @@ export const GET: APIRoute = async ({ params, site }) => {
   // The header is plain markdown, not a comment: whatever reads this file reads
   // markdown, and an HTML comment would be noise in a plain-text pipeline. The
   // body goes out exactly as authored, fences and captured tool output included.
-  const body = [
-    `# ${entry.data.title}`,
-    "",
-    `Source: ${absoluteUrl(site, docPathname(entry.id))}`,
-    `${PROJECT_NAME} documentation, licensed ${LICENSE_NAME} (${LICENSE_URL}).`,
-    "",
-    "---",
-    "",
-    (entry.body ?? "").trim(),
-    "",
-  ].join("\n");
+  const body =
+    blogEntry !== undefined
+      ? [
+          `# ${blogEntry.data.title}`,
+          "",
+          `Source: ${absoluteUrl(site, blogPathname(blogEntry.id))}`,
+          `${PROJECT_NAME} blog, licensed ${LICENSE_NAME} (${LICENSE_URL}).`,
+          "",
+          "---",
+          "",
+          (blogEntry.body ?? "").trim(),
+          "",
+        ].join("\n")
+      : entry !== undefined
+        ? [
+            `# ${entry.data.title}`,
+            "",
+            `Source: ${absoluteUrl(site, docPathname(entry.id))}`,
+            `${PROJECT_NAME} documentation, licensed ${LICENSE_NAME} (${LICENSE_URL}).`,
+            "",
+            "---",
+            "",
+            (entry.body ?? "").trim(),
+            "",
+          ].join("\n")
+        : "";
 
   return new Response(body, {
     headers: { "Content-Type": "text/markdown; charset=utf-8" },

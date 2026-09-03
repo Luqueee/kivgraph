@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "durable",
+    srcs = [
+        "directory_other.go",
+        "directory_unix.go",
+        "doc.go",
+        "durable.go",
+    ],
+    importpath = "github.com/Luqueee/kivgraph/internal/durable",
+    visibility = ["//:__subpackages__"],
+)
+
+go_test(
+    name = "durable_test",
+    srcs = ["durable_test.go"],
+    deps = [":durable"],
+)

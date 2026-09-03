@@ -38,12 +38,13 @@ checkout, which is what a reader on a fork or without a network still has.
 | what does this reach outward | `trace_dependencies` |
 | who uses it from another repository | `find_cross_repo_consumers` |
 | where is it declared | `find_symbol` |
+| I don't know what it is called, what files to open | `find_by_intent` |
 | what is declared in this package | `get_file_outline` |
 | give me the code of these symbols | `get_source` |
 | everything about this one symbol | `get_symbol` |
 | what is indexed, and is the graph current | `list_repositories`, `graph_status` |
 
-Ten read-only tools, plus one consent-gated mutation (`index_project`) that a
+Eleven read-only tools, plus one consent-gated mutation (`index_project`) that a
 client has to authorize before it can register a repository or publish a
 generation.
 
@@ -80,7 +81,7 @@ backlog and the acceptance gate of every phase are in [`TASKS.md`](TASKS.md).
 - **Semantic dependencies:** Python and Dart imports can publish a package
   dependency when exactly one registered provider owns the requested package;
   symbol-level cross-repository edges require an explicit provider identity.
-- **Surface:** ten read-only tools over STDIO, plus one consent-gated
+- **Surface:** eleven read-only tools over STDIO, plus one consent-gated
   mutation (`index_project`). The contract is
   [docs/protocol/mcp-surface-v3.md](docs/protocol/mcp-surface-v3.md).
 - **Storage:** LadybugDB is canonical; queries are served from an immutable
@@ -104,25 +105,41 @@ further for anyone packaging an `.mcpb`: it leaves out the pinned
 packaged against 24.9 MB. It downloads nothing later, so that bundle reads
 Rust only where the machine already has an analyzer on its `PATH`.
 
-Published bundles: Linux `amd64` and macOS `arm64`.
+Published bundles: Linux `amd64`, macOS `arm64` and Windows `amd64`.
 
-Runtime requirements: Bash, Node.js `22` or later, Python 3.10 or later when
-indexing Python, `curl`, `tar`, and `sha256sum` or `shasum`. The bundle carries
-its own `rust-analyzer`; indexing Rust repositories additionally needs `cargo`
-on the `PATH`, and indexing Dart needs the Dart or Flutter SDK.
+Runtime requirements: Bash on Linux and macOS or PowerShell `5.1` or later on
+Windows, Node.js `22` or later, Python 3.10 or later when indexing Python, and
+on the POSIX platforms `curl`, `tar`, and `sha256sum` or `shasum`. The bundle
+carries its own `rust-analyzer`; indexing Rust repositories additionally needs
+`cargo` on the `PATH`, and indexing Dart needs the Dart or Flutter SDK. On
+Windows the installer also installs the Visual C++ redistributable, without
+which `kivgraph.exe` does not start.
 
 On macOS the binaries are not notarized. A release downloaded with `curl` is
 not quarantined and runs; a copy downloaded with a browser needs `xattr -dr
 com.apple.quarantine`. See
 [docs/development/macos.md](docs/development/macos.md).
 
-Install the latest release in one command:
+Install the latest release in one command. On Linux and macOS the same line
+covers both, because the installer reads `uname` and picks its own archive:
 
 ```bash
-curl -fsSL https://github.com/Luqueee/kivgraph/releases/latest/download/install.sh | bash
+curl -fsSL https://kivgraph.dev/install.sh | bash
 ```
 
-From a checkout, the same installer can be run directly:
+On Windows, where `install.sh` cannot run because there is no POSIX shell:
+
+```powershell
+irm https://kivgraph.dev/install.ps1 | iex
+```
+
+`install.ps1` is a second implementation of the same pre-extraction checks, and
+`internal/release/install_parity_test.go` fails when either script grows a check
+the other lacks. Piping it into `Invoke-Expression` turns its
+`#Requires -Version 5.1` into a comment; download it to a file and run it as one
+to keep that guard.
+
+From a checkout, either installer can be run directly:
 
 ```bash
 ./scripts/install.sh
@@ -131,13 +148,14 @@ From a checkout, the same installer can be run directly:
 To install a specific release instead of the latest one:
 
 ```bash
-KIVGRAPH_VERSION=v0.9.2 ./scripts/install.sh
+KIVGRAPH_VERSION=v0.9.8 ./scripts/install.sh
 ```
 
 The script installs the bundle in `~/.local/opt/kivgraph` and puts launchers
-in `~/.local/bin`. It never modifies a registered repository, creates an index,
-or replaces configuration files. To use a different location, set
-`KIVGRAPH_INSTALL_ROOT` and `KIVGRAPH_BIN_DIR`.
+in `~/.local/bin`; on Windows it is `%LOCALAPPDATA%\Programs\kivgraph` and
+`%LOCALAPPDATA%\Programs\kivgraph-bin`. It never modifies a registered
+repository, creates an index, or replaces configuration files. To use a
+different location, set `KIVGRAPH_INSTALL_ROOT` and `KIVGRAPH_BIN_DIR`.
 
 Add the launcher directory to the current shell and verify both runtimes:
 
@@ -156,9 +174,42 @@ kivgraph update --check
 kivgraph update
 ```
 
-The update is atomic, preserves the configuration and graph state, verifies
-the release and bundle checksums, and replaces only the installed bundle.
-Restart the MCP client after updating so it launches the new binary.
+Bundle replacement is atomic, preserves the configuration and graph state,
+verifies the release and bundle checksums, and replaces the installed bundle.
+The post-install runtime refresh may partially complete, fail, and make the
+command exit non-zero. It also restarts an installed supervised daemon and
+refreshes Kivgraph-managed user hooks, skills and MCP registrations. A stale
+supervisor returns an error and is not restarted. Missing, foreign and
+project-scoped
+integrations are left alone. Client-owned `serve` and `ui` processes still
+need a restart, or `--stop`, to use the new binary.
+
+Development builds use a separate prerelease channel. Install one explicitly,
+then select that channel for later checks:
+
+```bash
+release=vX.Y.Z-dev.N
+curl -fsSL \
+  "https://github.com/Luqueee/kivgraph/releases/download/$release/install.sh" |
+  KIVGRAPH_VERSION="$release" bash
+kivgraph update --channel dev
+```
+
+For a prerelease binary, omitting `--channel` already follows `dev`; stable
+installations continue to follow the stable channel. `KIVGRAPH_UPDATE_CHANNEL`
+can be used instead of the flag, including for the interactive update notice.
+
+To remove the installed bundle and launchers without deleting configuration,
+repository registrations or graph state:
+
+```bash
+uninstall_url=https://github.com/Luqueee/kivgraph/releases/latest/download/uninstall.sh
+curl -fsSL "$uninstall_url" -o /tmp/kivgraph-uninstall.sh
+bash /tmp/kivgraph-uninstall.sh
+```
+
+Use `bash /tmp/kivgraph-uninstall.sh --yes` for a non-interactive removal.
+Windows users can run the corresponding `uninstall.ps1` with PowerShell.
 
 When `kivgraph` is invoked without a command from an interactive terminal, it
 checks for a newer release with an 800 ms timeout and a 24-hour cache in the
@@ -169,7 +220,7 @@ The optional check never blocks the command when the network is unavailable.
 Interactive command output uses semantic ANSI colors when the destination is a
 terminal. Set `NO_COLOR` or redirect output to keep it plain.
 
-### Configure an MCP client and install the skill
+### Configure an MCP client, install the skill, and enable the gate
 
 The release installer does not edit client configuration automatically. After
 installing Kivgraph, run the integration commands without `--target` to detect
@@ -178,6 +229,7 @@ the coding agents present on this machine and select one or more of them:
 ```bash
 kivgraph mcp install --scope user
 kivgraph skill install --scope user
+kivgraph hook install --scope user
 ```
 
 Kivgraph checks each client's known local configuration or installation roots
@@ -195,6 +247,13 @@ error; `--force` is required to replace or remove one. Existing files are
 written atomically with mode `0600` and receive a
 `*.kivgraph.bak` backup before replacement or removal.
 
+The pre-tool-use gate supports `claude-code`, `claude-desktop`, `codex`,
+`opencode`, and `oh-my-pi`. Oh My Pi receives a native extension under
+`~/.omp/agent/extensions/` for user scope or `.omp/extensions/` for project
+scope. The gate is fail-open when its graph query cannot be answered.
+Searches wrapped as `rtk rg ...` or `rtk proxy rg ...` are classified by their
+inner command, while RTK's own commands are left alone.
+
 Inspect or remove a registration explicitly:
 
 ```bash
@@ -202,6 +261,8 @@ kivgraph mcp status --target claude-code --scope user
 kivgraph mcp remove --target claude-code --scope user
 kivgraph skill status --target claude-code --scope user
 kivgraph skill remove --target claude-code --scope user
+kivgraph hook status --target claude-code --scope user
+kivgraph hook remove --target claude-code --scope user
 ```
 
 Initialize and publish a graph before starting the MCP server:
@@ -219,6 +280,16 @@ elsewhere, its state, cache and registry hang off that directory, so a throwaway
 index never touches the real one. `index --full` republishes atomically — a
 failure at any stage leaves the previous generation serving. A server already
 running follows the new generation on its own.
+
+When you are inside one project, `kivgraph index` detects its supported
+languages, creates or reuses `.kivgraph/`, registers the current project as
+`project` in its local registry, and runs the same full rebuild. With neither
+`--config` nor `--repositories`, it does not alter the shared user registry;
+those overrides intentionally select the configuration and registry to update.
+Use `kivgraph index --full` when you want the explicit registered-repositories
+workflow; both forms preserve the full-indexing contract.
+The command does not install language toolchains; `kivgraph doctor` reports any
+prerequisite that is missing on the host.
 
 Day to day:
 

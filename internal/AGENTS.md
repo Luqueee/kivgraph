@@ -60,8 +60,9 @@ superficie MCP el suyo en `internal/mcp/AGENTS.md`.
 ## La pasada de indexación
 
 - **Toda pasada es una reconstrucción completa.** No hay camino incremental:
-  `indexer.Full` es la única entrada, `kivgraph index` acepta sólo `--full`, y
-  cada pasada publica una generación nueva en vez de mutar la vigente. El delta
+  `indexer.Full` es la única entrada, `kivgraph index` prepara el proyecto
+  actual y `kivgraph index --full` recorre el registro configurado; cada pasada
+  publica una generación nueva en vez de mutar la vigente. El delta
   -- `Update`, `Diff`, el enrutado por planes de invalidación, las clases de
   cambio semántico y la mutación canónica incremental -- se retiró en el ADR
   0057: no lo llamaba nadie, su techo medido era `1,67x` sobre un pase de

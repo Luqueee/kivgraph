@@ -89,6 +89,50 @@ El gancho tampoco arranca el demonio. Se ejecuta sobre la pulsación del usuario
 delante de una tool que está esperando; arrancar un indexador ahí convertiría un
 `grep` en un minuto de espera.
 
+### Un worktree sigue siendo el repositorio registrado
+
+Codex ejecuta el trabajo en `~/.codex/worktrees/`, fuera de la ruta absoluta que
+se registró. Comparar sólo ancestros declaraba por ello que el grafo no cubría el
+directorio y permitía toda búsqueda antes de consultar el demonio.
+
+La identidad se completa con el Git common dir: el checkout registrado lleva
+`.git/` y el worktree llega al mismo directorio mediante su fichero `.git` y
+`commondir`. Se reconoce sin lanzar `git`. Cuando la ruta no pertenece
+directamente a ningún registro y dos repositorios registrados resuelven al mismo
+common dir, no se elige entre ellos y la llamada se permite. Una ruta contenida
+por un registro sigue siendo la señal más específica y conserva ese registro.
+
+La intención se acota al repositorio que sostiene el `cwd`. El hook ya conoce
+ese dato y perderlo hacía que una pregunta en Kivgraph citase primero símbolos
+de otro repositorio. La negativa incluye el mismo `repo` en la llamada que
+propone.
+
+El cliente interno acepta las dos generaciones de respuesta que puede encontrar
+durante una actualización: `symbols` en la raíz, en demonios anteriores a los
+perfiles, y `results.symbols` en el envelope profile-aware actual. Decodificar
+sólo la primera forma no fallaba: producía una lista vacía y permitía todas las
+regex de intención en silencio.
+
+Una lista amplia de conceptos en minúsculas también es intención. El agente
+traduce una pregunta como «qué endpoints HTTP hay» a
+`http|route|handler|listen|serve`; exigir una mayúscula interior o un guion bajo
+dejaba pasar precisamente la búsqueda nacida de lenguaje natural. Cuatro o más
+alternativas que son identificadores completos se envían a `find_by_intent`.
+Tres conservan el significado de búsqueda textual exacta: por ejemplo,
+`error|warning|failed` sobre un log no se intercepta.
+
+`rg --files` es otra gramática: sus argumentos posicionales son directorios,
+no patrones. `rg --files internal` se permite en vez de preguntar al grafo por
+un símbolo llamado `internal`; cuando lleva un `--glob` positivo de fuente se
+clasifica como listado de archivos, conservando las exclusiones sólo como
+límites y nunca como el patrón que se propone buscar.
+
+Un envoltorio que sólo reduce la salida tampoco cambia la pregunta. `rtk rg`
+y `rtk proxy rg` se desempaquetan antes de clasificar el programa interior; los
+comandos propios de RTK, como `rtk gain`, siguen sin ser búsquedas. No se
+desempaqueta una CLI arbitraria: atribuir semántica transparente sin conocer su
+contrato convertiría cualquier subcomando llamado `rg` en un falso positivo.
+
 ## Qué clientes la alojan
 
 | cliente          | mecanismo           | fichero                    |
@@ -97,10 +141,18 @@ delante de una tool que está esperando; arrancar un indexador ahí convertiría
 | `claude-desktop` | gancho de shell     | `~/.claude/settings.json`  |
 | `codex`          | gancho de shell     | `.codex/hooks.json`        |
 | `opencode`       | plugin generado     | `plugins/kivgraph.js`      |
-| `oh-my-pi`       | subsistema *legacy* | --                         |
+| `oh-my-pi`       | extensión nativa    | ADR 0089                  |
 
-Claude Code y Codex leen el **mismo veredicto**, byte a byte, así que un solo
-comando sirve a los dos; se diferencian en dónde se registra, no en lo que dice.
+Claude Code y Codex envían casi la misma entrada, pero no leen el mismo
+veredicto. Claude Code consume el JSON `hookSpecificOutput`; Codex 0.151 ignora
+su `permissionDecision: "deny"` y sólo bloquea cuando el proceso termina con
+código `2` y escribe el motivo en `stderr`. El `turn_id` adicional de Codex
+selecciona ese protocolo sin cambiar el de Claude Code ni el de los adaptadores.
+
+El matcher de Codex es el literal `Bash`. La interfaz llama `Shell` a la
+ejecución en la transcripción, pero el payload `PreToolUse` observado conserva
+`tool_name: "Bash"`; `Bash|Shell` no es una alternancia para este matcher y no
+ejecuta el hook.
 Ojo con Claude Code: sus ganchos viven en `settings.json`, no en el
 `.claude.json` donde están sus servidores MCP. Son dos ficheros de un cliente.
 
@@ -136,9 +188,10 @@ con la CLI: en Linux el paquete instala `com.anthropic.Claude.desktop`, y el
 marcador `claude.desktop` que este repositorio usaba no existía, así que ni
 `mcp install` ni `skill install` lo detectaban tampoco.
 
-Oh My Pi es el único que se niega por su nombre: su documentación llama *legacy*
-a su subsistema de ganchos y dice que el runtime usa un ejecutor de extensiones,
-así que escribir contra eso sería escribir contra un blanco móvil.
+La primera versión dejó Oh My Pi fuera por su subsistema *legacy*. La extensión
+nativa moderna se documenta en ADR 0089 y se instala en el directorio de
+extensiones que descubre el runtime; escribir ahí permite reutilizar el mismo
+`kivgraph hook run` sin depender del subsistema retirado.
 
 ### Lo que existe y no se usa
 

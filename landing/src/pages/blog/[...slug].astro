@@ -1,0 +1,274 @@
+---
+import { render } from "astro:content";
+import BlogLayout from "../../components/landing/BlogLayout.astro";
+import {
+  absoluteUrl,
+  blogDescription,
+  blogPathname,
+  blogRawPathname,
+  loadBlogEntries,
+} from "../_seo";
+
+export const prerender = true;
+
+export async function getStaticPaths() {
+  const entries = await loadBlogEntries();
+  return entries.map((entry) => ({
+    params: { slug: entry.id },
+    props: { entry },
+  }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+const canonical = absoluteUrl(Astro.site, blogPathname(entry.id));
+const markdown = absoluteUrl(Astro.site, blogRawPathname(entry.id));
+const publishedTime = entry.data.pubDate.toISOString();
+const modifiedTime = (
+  entry.data.updatedDate ?? entry.data.pubDate
+).toISOString();
+const description = blogDescription(entry);
+const faq = entry.data.faq;
+const related = (await loadBlogEntries())
+  .filter((post) => post.id !== entry.id)
+  .filter((post) => post.data.tags.some((tag) => entry.data.tags.includes(tag)))
+  .slice(0, 3);
+const authorUrl = absoluteUrl(Astro.site, "/#organization");
+const faqSchema = faq.length
+  ? {
+      "@type": "FAQPage",
+      "@id": `${canonical}#faq`,
+      url: canonical,
+      inLanguage: "en",
+      isPartOf: { "@id": absoluteUrl(Astro.site, "/#website") },
+      about: { "@id": absoluteUrl(Astro.site, "/#software") },
+      mainEntity: faq.map(({ question, answer }) => ({
+        "@type": "Question",
+        name: question,
+        acceptedAnswer: { "@type": "Answer", text: answer },
+      })),
+    }
+  : null;
+const structuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "BlogPosting",
+      "@id": `${canonical}#article`,
+      headline: entry.data.title,
+      description,
+      url: canonical,
+      mainEntityOfPage: canonical,
+      inLanguage: "en",
+      datePublished: publishedTime,
+      dateModified: modifiedTime,
+      author: {
+        "@type": "Organization",
+        "@id": authorUrl,
+        name: entry.data.author,
+        url: absoluteUrl(Astro.site, "/"),
+        sameAs: ["https://github.com/Luqueee/kivgraph"],
+      },
+      image: [absoluteUrl(Astro.site, "/og.png")],
+      keywords: entry.data.tags,
+      isAccessibleForFree: true,
+      isPartOf: { "@id": absoluteUrl(Astro.site, "/#website") },
+      about: { "@id": absoluteUrl(Astro.site, "/#software") },
+    },
+    {
+      "@type": "BreadcrumbList",
+      "@id": `${canonical}#breadcrumb`,
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: "Kivgraph",
+          item: absoluteUrl(Astro.site, "/"),
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: "Blog",
+          item: absoluteUrl(Astro.site, "/blog/"),
+        },
+        {
+          "@type": "ListItem",
+          position: 3,
+          name: entry.data.title,
+          item: canonical,
+        },
+      ],
+    },
+    ...(faqSchema ? [faqSchema] : []),
+  ],
+};
+---
+
+<BlogLayout
+  title={entry.data.title}
+  description={description}
+  canonical={canonical}
+  type="article"
+  publishedTime={publishedTime}
+  modifiedTime={modifiedTime}
+  structuredData={structuredData}
+  markdown={markdown}
+>
+  <article class="mx-auto w-full max-w-3xl px-6 py-14">
+    <nav aria-label="Breadcrumb" class="font-mono text-xs text-gray-400">
+      <a
+        class="underline-offset-4 hover:text-gray-100 hover:underline"
+        href="/blog/"
+      >
+        blog
+      </a>
+      <span aria-hidden="true"> / </span>
+      <span>{entry.data.category}</span>
+    </nav>
+
+    <header class="mt-8 border-b border-rule pb-8">
+      <p class="font-mono text-xs uppercase tracking-wider text-gray-400">
+        {entry.data.category}
+      </p>
+      <h1 class="mt-4 font-mono text-3xl leading-tight text-gray-100 sm:text-4xl">
+        {entry.data.title}
+      </h1>
+      <p class="mt-5 text-base leading-7 text-gray-300">{description}</p>
+      <p class="mt-5 font-mono text-xs text-gray-400">
+        By {entry.data.author} ·
+        <time datetime={publishedTime}>
+          {entry.data.pubDate.toISOString().slice(0, 10)}
+        </time>
+        {entry.data.updatedDate && (
+          <>
+            {" · "}Updated
+            <time datetime={modifiedTime}>
+              {entry.data.updatedDate.toISOString().slice(0, 10)}
+            </time>
+          </>
+        )}
+      </p>
+      <p class="mt-2 max-w-2xl text-xs leading-5 text-gray-500">
+        Kivgraph builds local semantic code intelligence for AI coding agents,
+        with exact references, dependency paths and cross-repository impact.
+      </p>
+    </header>
+
+    <div class="blog-prose mt-10">
+      <Content />
+    </div>
+
+    {related.length > 0 && (
+      <aside class="mt-14 border-t border-rule pt-6">
+        <h2 class="font-mono text-base text-gray-100">Related articles</h2>
+        <ul class="mt-4 space-y-3">
+          {related.map((post) => (
+            <li>
+              <a
+                class="text-accent-200 underline underline-offset-4"
+                href={blogPathname(post.id)}
+              >
+                {post.data.title}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </aside>
+    )}
+
+    <footer class="mt-14 border-t border-rule pt-6">
+      <a
+        class="font-mono text-xs text-accent-200 underline underline-offset-4"
+        href="/blog/"
+      >
+        ← More from the Kivgraph blog
+      </a>
+    </footer>
+  </article>
+</BlogLayout>
+
+<style>
+  .blog-prose :global(p),
+  .blog-prose :global(ul),
+  .blog-prose :global(ol),
+  .blog-prose :global(pre:not(:where(.expressive-code *))),
+  .blog-prose :global(blockquote) {
+    margin-top: 1.25rem;
+  }
+
+  .blog-prose :global(.expressive-code) {
+    margin-top: 1.25rem;
+  }
+
+  .blog-prose :global(p),
+  .blog-prose :global(li),
+  .blog-prose :global(blockquote) {
+    color: var(--color-gray-300);
+    line-height: 1.75;
+  }
+
+  .blog-prose :global(h2),
+  .blog-prose :global(h3) {
+    margin-top: 3rem;
+    font-family: var(--font-mono);
+    color: var(--color-gray-100);
+    line-height: 1.35;
+  }
+
+  .blog-prose :global(h2) {
+    border-top: 1px solid var(--color-rule);
+    padding-top: 1rem;
+    font-size: 1.25rem;
+  }
+
+  .blog-prose :global(h3) {
+    font-size: 1rem;
+  }
+
+  .blog-prose :global(a) {
+    color: var(--color-accent-200);
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+
+  .blog-prose :global(ul),
+  .blog-prose :global(ol) {
+    padding-left: 1.5rem;
+  }
+
+  .blog-prose :global(ul) {
+    list-style: disc;
+  }
+
+  .blog-prose :global(ol) {
+    list-style: decimal;
+  }
+
+  .blog-prose :global(li + li) {
+    margin-top: 0.5rem;
+  }
+
+  .blog-prose :global(blockquote) {
+    border-left: 2px solid var(--color-rule-strong);
+    padding-left: 1rem;
+  }
+
+  .blog-prose :global(pre:not(:where(.expressive-code *))) {
+    overflow-x: auto;
+    border: 1px solid var(--color-rule);
+    background: var(--color-panel);
+    padding: 1rem;
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    line-height: 1.6;
+  }
+
+  .blog-prose :global(code:not(pre code)) {
+    border: 1px solid var(--color-rule);
+    background: var(--color-panel);
+    padding: 0.1rem 0.3rem;
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+    color: var(--color-gray-200);
+  }
+</style>

@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "syntax",
+    srcs = [
+        "grammar_manifest.go",
+        "inventory.go",
+        "parser_manager.go",
+    ],
+    importpath = "github.com/Luqueee/kivgraph/internal/syntax",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "@com_github_tree_sitter_go_tree_sitter//:go-tree-sitter",
+        "@com_github_tree_sitter_tree_sitter_go//bindings/go",
+        "@com_github_tree_sitter_tree_sitter_javascript//bindings/go",
+        "@com_github_tree_sitter_tree_sitter_python//bindings/go",
+        "@com_github_tree_sitter_tree_sitter_rust//bindings/go",
+        "@com_github_tree_sitter_tree_sitter_typescript//bindings/go",
+    ],
+)
+
+go_test(
+    name = "syntax_test",
+    srcs = [
+        "false_homonym_test.go",
+        "grammar_manifest_test.go",
+        "inventory_test.go",
+        "parser_manager_test.go",
+    ],
+    data = [
+        "//:project_files",
+        "//:testdata",
+    ],
+    embed = [":syntax"],
+)

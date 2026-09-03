@@ -210,6 +210,18 @@ least one of them, as in `kivgraph daemon install --addr 127.0.0.1:7789`. Nothin
 daemon you start by hand with `kivgraph daemon &`; it dies with the shell that
 launched it.
 
+The unit also records the `PATH` of the shell you installed it from, and that
+is not decoration. Neither supervisor reads a shell profile: a systemd user unit
+that declares no `PATH` inherits systemd's, and a launchd agent gets
+`/usr/bin:/bin:/usr/sbin:/sbin`. Node installed through nvm or Homebrew is on
+neither list, so the TypeScript worker would die on `exec node` -- while the same
+`kivgraph index --full` typed in your terminal works, because your terminal has
+the `PATH` the unit lacked. The consequence is that the recording is a snapshot:
+after an nvm upgrade moves node to a new versioned directory, run
+`kivgraph daemon install` again. `daemon status` reports a unit that records no
+`PATH` as stale, which is what every daemon installed before this existed will
+say once.
+
 The url and its token come from `~/.local/state/kivgraph/daemon.json`, mode
 `0600`. HTTP is the door that matters: no MCP client configuration dials a unix
 socket -- it takes an executable or a url.

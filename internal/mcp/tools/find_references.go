@@ -35,21 +35,22 @@ const (
 // hoists whatever every row shares, `full` keeps the field-per-row shape, and
 // `files` answers only which files hold references and how many each holds.
 type FindReferencesInput struct {
-	StableKey      string   `json:"stable_key,omitempty"`
-	QualifiedName  string   `json:"qualified_name,omitempty"`
-	Name           string   `json:"name,omitempty"`
-	Repository     string   `json:"repository,omitempty"`
-	Path           string   `json:"path,omitempty"`
-	Direction      string   `json:"direction,omitempty"`
-	Repo           string   `json:"repo,omitempty"`
-	Language       string   `json:"language,omitempty"`
-	EdgeKinds      []string `json:"edge_kinds,omitempty"`
-	Confidence     string   `json:"confidence,omitempty"`
-	IncludeDerived bool     `json:"include_derived,omitempty"`
-	ResponseFormat string   `json:"response_format,omitempty"`
-	View           string   `json:"view,omitempty"`
-	Limit          int      `json:"limit,omitempty"`
-	Cursor         string   `json:"cursor,omitempty"`
+	Profile        []string `json:"profile,omitempty" jsonschema:"Profiles to query; omit for the default, or use * alone for all."`
+	StableKey      string   `json:"stable_key,omitempty" jsonschema:"The subject durable key, as a detailed result returns it. A name or the triple works instead."`
+	QualifiedName  string   `json:"qualified_name,omitempty" jsonschema:"The subject fully qualified name, as every row of this surface carries it."`
+	Name           string   `json:"name,omitempty" jsonschema:"The subject unqualified name. Enough on its own: an ambiguous one answers with its candidates rather than picking."`
+	Repository     string   `json:"repository,omitempty" jsonschema:"The repository that declares the subject, to separate an ambiguous name."`
+	Path           string   `json:"path,omitempty" jsonschema:"The repository-relative file that declares the subject, to separate an ambiguous name."`
+	Direction      string   `json:"direction,omitempty" jsonschema:"incoming (the default) answers who uses the subject; outgoing answers what it uses."`
+	Repo           string   `json:"repo,omitempty" jsonschema:"Keep only rows from this repository. Naming the derived provider also opts it in."`
+	Language       string   `json:"language,omitempty" jsonschema:"Keep only rows written in this language."`
+	EdgeKinds      []string `json:"edge_kinds,omitempty" jsonschema:"Relation kinds to return, such as CALLS or IMPORTS_SYMBOL. EXPORTS and REEXPORTS are withheld by default; * returns every kind."`
+	Confidence     string   `json:"confidence,omitempty" jsonschema:"Return only edges resolved at this confidence, such as EXACT_TYPECHECKED or CANDIDATE."`
+	IncludeDerived bool     `json:"include_derived,omitempty" jsonschema:"Include rows of the derived provider, which is withheld by default."`
+	ResponseFormat string   `json:"response_format,omitempty" jsonschema:"concise (the default) omits the derived identifiers; detailed returns them."`
+	View           string   `json:"view,omitempty" jsonschema:"Granularity, never a different answer: compact (the default), full, or files for which files hold references and how many each holds."`
+	Limit          int      `json:"limit,omitempty" jsonschema:"Rows in one page. Defaults to 50."`
+	Cursor         string   `json:"cursor,omitempty" jsonschema:"The next_cursor of the previous page. Every other argument must stay the same."`
 }
 
 // ReferenceSubject is the symbol the query asked about. It is stated once per
@@ -77,17 +78,18 @@ type ReferenceSubject struct {
 // without EndLine every row cost one `get_symbol` first, which measured 15
 // extra calls across the six questions of `benchmarks/mcp-token-cost`.
 type ReferenceSummary struct {
-	Name          string `json:"name"`
-	QualifiedName string `json:"qualified_name"`
-	Kind          string `json:"kind"`
-	Repository    string `json:"repository"`
-	FilePath      string `json:"file_path"`
-	StartLine     uint32 `json:"start_line"`
-	EndLine       uint32 `json:"end_line"`
-	Language      string `json:"language"`
-	EdgeKind      string `json:"edge_kind"`
-	Confidence    string `json:"confidence"`
-	Provenance    string `json:"provenance"`
+	Profiles      ProfileNames `json:"profile,omitempty"`
+	Name          string       `json:"name"`
+	QualifiedName string       `json:"qualified_name"`
+	Kind          string       `json:"kind"`
+	Repository    string       `json:"repository"`
+	FilePath      string       `json:"file_path"`
+	StartLine     uint32       `json:"start_line"`
+	EndLine       uint32       `json:"end_line"`
+	Language      string       `json:"language"`
+	EdgeKind      string       `json:"edge_kind"`
+	Confidence    string       `json:"confidence"`
+	Provenance    string       `json:"provenance"`
 	// Via is the interface method this reference reached the subject through,
 	// set only when the subject is the one implementation of it. Empty means
 	// the row is a direct reference to the subject itself.
@@ -225,12 +227,12 @@ func referenceFileGroups(rows []ReferenceSummary, hoistedRepository, kind, edgeK
 	files := make([]compactReferenceFile, 0, len(rows))
 	index := make(map[string]int, len(rows))
 	for _, row := range rows {
-		key := row.Repository + "\x00" + row.FilePath
+		key := string(row.Profiles) + "\x00" + row.Repository + "\x00" + row.FilePath
 		position, seen := index[key]
 		if !seen {
 			position = len(files)
 			index[key] = position
-			file := compactReferenceFile{File: row.FilePath}
+			file := compactReferenceFile{Profiles: row.Profiles, File: row.FilePath}
 			if row.Repository != hoistedRepository {
 				file.Repository = row.Repository
 			}
@@ -260,11 +262,12 @@ func (result ReferenceResult) files() referenceFilesResult {
 	index := make(map[string]int, len(result.References))
 	for _, row := range result.References {
 		path := row.Repository + "/" + row.FilePath
-		position, seen := index[path]
+		key := string(row.Profiles) + "\x00" + path
+		position, seen := index[key]
 		if !seen {
 			position = len(files.Files)
-			index[path] = position
-			files.Files = append(files.Files, referenceFileCount{File: path})
+			index[key] = position
+			files.Files = append(files.Files, referenceFileCount{Profiles: row.Profiles, File: path})
 		}
 		files.Files[position].Count++
 	}
@@ -324,9 +327,10 @@ type compactReferenceGroup struct {
 // An entry is `qualified_name@line`, and becomes an array when this row had to
 // carry a column neither the page nor its group could hoist.
 type compactReferenceFile struct {
-	Repository string `json:"repo,omitempty"`
-	File       string `json:"file"`
-	At         []any  `json:"at"`
+	Profiles   ProfileNames `json:"profile,omitempty"`
+	Repository string       `json:"repo,omitempty"`
+	File       string       `json:"file"`
+	At         []any        `json:"at"`
 }
 
 // referenceFilesResult answers which files hold references, and how many each
@@ -342,8 +346,9 @@ type referenceFilesResult struct {
 }
 
 type referenceFileCount struct {
-	File  string `json:"file"`
-	Count int    `json:"count"`
+	Profiles ProfileNames `json:"profile,omitempty"`
+	File     string       `json:"file"`
+	Count    int          `json:"count"`
 }
 
 type findReferencesOptions struct {
@@ -414,7 +419,20 @@ func RegisterFindReferencesWithObserverAndSnapshotStore(
 		request *sdkmcp.CallToolRequest,
 		arguments FindReferencesInput,
 	) (*sdkmcp.CallToolResult, Response[ReferenceResult], error) {
-		return findReferences(ctx, request, arguments, snapshotStore)
+		selected, count, err := resolveProfileSelection(snapshotStore, arguments.Profile, arguments.StableKey)
+		if err != nil {
+			return nil, Response[ReferenceResult]{}, err
+		}
+		if len(selected) > 1 {
+			return findReferencesAcrossProfiles(ctx, request, arguments, selected)
+		}
+		store, profile := selected[0].Store, selected[0].Name
+		result, response, err := findReferences(ctx, request, arguments, store)
+		scopeResponse(&response, profile, count)
+		if err == nil {
+			addOverlapGuidance(&response, snapshotStore, profile)
+		}
+		return result, response, err
 	}
 	if observer != nil || callObserver != nil {
 		underlying := handler
@@ -444,10 +462,142 @@ func RegisterFindReferencesWithObserverAndSnapshotStore(
 		// is 2,480 tokens against 912 for the same files, the same precision and
 		// the same recall -- and one page instead of two where 66 references
 		// collapse into 9 files. Both were already supported; nothing said so.
-		Description: "Who calls or references a symbol. Type-checked, not name-matched: grep cannot separate homonyms, and an empty answer means nobody calls it. A bare name suffices: an ambiguous one returns its candidates, so no lookup call first. `view: \"files\"` answers which files without a line each.",
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
+		Description: "Who calls or references a symbol, or what it uses with direction outgoing. Type-checked, not name-matched: grep cannot separate homonyms, and an empty answer means nobody calls it. A bare name suffices.",
+		Annotations: readOnlyClosedWorld(),
 		Meta:        alwaysLoadMeta(),
 	}, handler)
+}
+
+func findReferencesAcrossProfiles(
+	ctx context.Context,
+	request *sdkmcp.CallToolRequest,
+	arguments FindReferencesInput,
+	selected []hotsnapshot.ProfileStore,
+) (*sdkmcp.CallToolResult, Response[ReferenceResult], error) {
+	options, err := normalizeFindReferencesInput(arguments)
+	if err != nil {
+		return nil, Response[ReferenceResult]{}, err
+	}
+	format, err := normalizeResponseFormat(arguments.ResponseFormat)
+	if err != nil {
+		return nil, Response[ReferenceResult]{}, err
+	}
+	names := make([]string, 0, len(selected))
+	for _, profile := range selected {
+		names = append(names, profile.Name)
+	}
+	queryArguments := arguments
+	queryArguments.Profile = nil
+	queryArguments.Cursor = ""
+	queryArguments.Limit = 0
+	queryArguments.ResponseFormat = ""
+	queryArguments.View = ""
+	queryHash, err := HashQuery(struct {
+		Tool     string              `json:"tool"`
+		Profiles []string            `json:"profiles"`
+		Query    FindReferencesInput `json:"query"`
+	}{findReferencesToolName, names, queryArguments})
+	if err != nil {
+		return nil, Response[ReferenceResult]{}, err
+	}
+	profiles := make([]ProfileSnapshot, 0, len(selected))
+	rows := make([]ReferenceSummary, 0)
+	variants := make(map[string]int)
+	coverage := Coverage{}
+	mergedCompleteness := Completeness{Verdict: VerdictComplete}
+	var subject ReferenceSubject
+	direction := options.Direction
+	excluded := options.EdgeKinds.defaultExcluded()
+	dispatch := make(map[string]struct{})
+	foundSubject := false
+	divergentSubjects := make([]string, 0)
+	for _, profile := range selected {
+		snapshot := profile.Store.Load()
+		if snapshot == nil {
+			return nil, Response[ReferenceResult]{}, ErrIndexNotReady()
+		}
+		profileCompleteness := Completeness{Verdict: VerdictComplete}
+		pageArguments := arguments
+		pageArguments.Profile = nil
+		pageArguments.Cursor = ""
+		pageArguments.Limit = MaximumReferenceLimit
+		pageArguments.ResponseFormat = ResponseFormatDetailed
+		pageArguments.View = ViewFull
+		firstPage := true
+		for {
+			_, response, queryErr := findReferences(ctx, request, pageArguments, profile.Store)
+			if queryErr != nil {
+				if firstPage && (ErrorCode(queryErr) == CodeSymbolNotFound || ErrorCode(queryErr) == CodeRepositoryNotFound) {
+					break
+				}
+				return nil, Response[ReferenceResult]{}, queryErr
+			}
+			if firstPage {
+				foundSubject = true
+				if subject.QualifiedName == "" {
+					subject = response.Results.Subject
+				} else if subject != response.Results.Subject {
+					divergentSubjects = append(divergentSubjects, profile.Name)
+				}
+				addCoverage(&coverage, response.Coverage)
+				if response.Completeness != nil {
+					profileCompleteness = *response.Completeness
+					mergeCompleteness(&mergedCompleteness, response.Completeness)
+				}
+				for _, value := range response.Results.DispatchThrough {
+					dispatch[value] = struct{}{}
+				}
+			}
+			for _, row := range response.Results.References {
+				stableKey := row.StableKey
+				row.Profiles = ""
+				if format != ResponseFormatDetailed {
+					row.StableKey, row.FileKey, row.RepositoryKey, row.EvidenceKind = "", "", "", ""
+				}
+				payload, marshalErr := json.Marshal(row)
+				if marshalErr != nil {
+					return nil, Response[ReferenceResult]{}, WrapToolError(CodeSnapshotUnavailable, "encode reference payload for profile merge", marshalErr)
+				}
+				key := stableKey + "\x00" + string(payload)
+				if position, duplicate := variants[key]; duplicate {
+					rows[position].Profiles = rows[position].Profiles.append(profile.Name)
+					continue
+				}
+				row.Profiles = profileNames(profile.Name)
+				variants[key] = len(rows)
+				rows = append(rows, row)
+			}
+			firstPage = false
+			if response.NextCursor == nil {
+				break
+			}
+			pageArguments.Cursor = *response.NextCursor
+		}
+		completeness := profileCompleteness
+		profiles = append(profiles, ProfileSnapshot{Name: profile.Name, SnapshotID: snapshot.Metadata().ID, Completeness: &completeness})
+	}
+	if !foundSubject {
+		return nil, Response[ReferenceResult]{}, NewToolError(CodeSymbolNotFound, "symbol was not found in the selected profiles")
+	}
+	offset, end, next, err := profilePageBounds(profiles, queryHash, SortingVersionReferencesV1, arguments.Cursor, options.Limit, len(rows))
+	if err != nil {
+		return nil, Response[ReferenceResult]{}, err
+	}
+	guidance := referenceGuidance(direction, len(rows), end-offset, end < len(rows), mergedCompleteness.Verdict)
+	if len(divergentSubjects) > 0 {
+		guidance = strings.TrimSpace(guidance + " The selector resolved to different declarations in profiles: " + strings.Join(divergentSubjects, ", ") + "; narrow by repository and path.")
+	}
+	return nil, Response[ReferenceResult]{
+		Profiles: profiles, CrossProfileEdges: "not_resolved",
+		Total: len(rows), Returned: end - offset, Truncated: end < len(rows), NextCursor: next,
+		Coverage: coverage, Completeness: &mergedCompleteness,
+		Guidance: guidance,
+		Results: ReferenceResult{
+			Subject: subject, Direction: direction, References: rows[offset:end], View: options.View,
+			EdgeKindsExcluded: excluded, DispatchThrough: sortedKeys(dispatch),
+		},
+		View: options.View,
+	}, nil
 }
 
 func findReferences(

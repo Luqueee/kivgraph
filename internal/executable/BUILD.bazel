@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "executable",
+    srcs = [
+        "doc.go",
+        "executable_unix.go",
+        "executable_windows.go",
+    ],
+    importpath = "github.com/Luqueee/kivgraph/internal/executable",
+    visibility = ["//:__subpackages__"],
+)
+
+go_test(
+    name = "executable_test",
+    srcs = [
+        "executable_test.go",
+        "executable_windows_test.go",
+    ],
+    deps = [":executable"],
+)

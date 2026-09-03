@@ -119,7 +119,7 @@ the clipboard refused does not count.
 
 |event|when it fires|metadata|
 |---|---|---|
-|`install_copy`|the one-liner is copied|`where`: `hero`, `final_cta`|
+|`install_copy`|the one-liner is copied|`where`, `platform` — below|
 |`prompt_copy`|the agent prompt is copied|—|
 |`client_connect_copy`|`kivgraph mcp install` is copied|—|
 |`quickstart_copy`|a Quickstart command is copied|`step`: the step's title|
@@ -139,16 +139,37 @@ route:
 |`mcp_config_copy`|07, the JSON box|`#quickstart`|
 |`github_click`|topbar, footer and docs header|all 39 pages|
 
+`install_copy` carries two properties. `where` is `hero` or `final_cta`, the
+two boxes on the front page. `platform` is `macos`, `linux` or `windows`, and it
+exists because that box is a platform picker: three published bundles, three
+commands, and on Windows a different installer in a different language. Without
+it the report cannot tell a Windows visitor from a Linux one, which is the one
+question a three-way control exists to answer. Both dimensions are closed sets
+written in the code -- the ids of `landing/src/components/landing/platforms.ts`
+-- so no value a visitor controls can reach either.
+
 The five copy events live **only on the front page**. If a copy button is ever
 added outside it -- `/install/` is the obvious candidate -- the goals have to be
 revisited: one scoped to a route silently stops counting, and a conversion that
 drops without warning reads as people having stopped installing.
 
 `github_click` uses **no** JavaScript of ours: Umami reads `data-umami-event`
-off the click. In `TopBar.astro` the attribute is derived from the `href`
-itself, so a new entry cannot forget it, and **only** external links carry it:
-an internal one is already a pageview, and counting it twice would put a number
-in the report that no visit produced.
+off the click. In `TopBar.astro` each row writes its own event, and most rows
+write none. An internal link carries no event because it is already a pageview,
+and counting it twice would put a number in the report that no visit produced.
+
+Repository links in the top bar, footer and documentation header target
+`/github`. That edge endpoint records a separate D1 `github_click` request and
+redirects to the repository. The Umami event measures a browser interaction;
+the D1 event measures a redirect request. They can differ when JavaScript is
+blocked or when `/github` is requested directly, and neither is a person count.
+
+An external one carries an event only when there is an event that means it: the
+bar also links the [Glama listing](https://glama.ai/mcp/servers/Luqueee/kivgraph),
+which is deliberately **untracked**, because `github_click` means a click on the
+repository and reusing the name would leave one number standing for two clicks
+with no way back to either. If that link is ever worth measuring it needs its
+own event, added here first.
 
 ### Naming convention
 
@@ -556,7 +577,7 @@ One JSON line per detection on `stdout`, which is where pm2 already collects:
 It is the source of truth that survives Umami being down or an event being
 deduplicated, and it does not add a second logging system.
 
-## First runs: the third property
+## First runs: the D1 adoption dataset
 
 A download is not a person, and an install is not a visit. Counting the
 downloads is Layer 0 of `docs/adr/0083-a-download-is-not-a-person.md`: it
@@ -564,22 +585,25 @@ touches no client, reads GitHub's own counters and is deployed. This section
 is Layer 1 -- the one ping that says a version arrived on a machine and ran
 there.
 
-**Both halves exist now.** The endpoint is `landing/src/install-report.mjs`,
-wired in `landing/server.mjs`; the emitters are `internal/telemetry` for the
-binary and the tail of `scripts/install.sh` and `scripts/install.ps1` for the
-installers. Everything below is observed behaviour. No published release
-carries the emitters -- `v0.9.2` is the latest and predates them -- so the
-property has no rows in it.
+**Both halves exist now.** The public endpoint is the exact Cloudflare Worker
+route `/api/telemetry/first-run`; ADR 0092 records why it moved from the
+landing's Umami collector to the D1 dataset used by the internal dashboard.
+The emitters are `internal/telemetry` for the binary and supervisor rows, and
+the tail of `scripts/install.sh` and `scripts/install.ps1` for the installers.
+The payload did not change. Release `v0.9.3` is the first one that carries the
+binary and installer emitters; the contract does not carry a hand-maintained
+copy of whichever release happens to be latest.
 
 ### The event
 
-One event, `first_run`, on a third property, `kivgraph FIRST RUNS`, with five
-flat string fields:
+One public payload with up to five flat string fields. The Worker maps its
+emitter to one of three D1 events: `install_succeeded`, `binary_first_run` or
+`supervisor_registered`.
 
-- **`emitter`** -- `installer` or `binary`. Which of two different facts this
-  row is;
-- **`version`** -- the version that arrived, `0.9.2`, validated against the
-  published version pattern;
+- **`emitter`** -- `installer`, `binary` or `supervisor`. Which of three
+  different facts this row is;
+- **`version`** -- the version that arrived, for example `0.9.5`, validated
+  against the published version pattern *and* against the floor below;
 - **`platform`** -- `linux-amd64`, `darwin-arm64` or `windows-amd64`. The same
   vocabulary the release assets use, so Layer 0 and Layer 1 can be read side
   by side instead of being joined by hand;
@@ -592,13 +616,15 @@ flat string fields:
   a hand-extracted archive and one the installer placed -- which costs
   nothing, because the installer reports its own row;
 - **`transport`** -- `stdio` or `daemon` on a `binary` row, and **absent** on
-  an `installer` one, because an installer has not started a server and
-  reporting a default it did not choose would be inventing data. It is
-  required on the rows that have it: a `binary` row without a transport is
-  refused rather than defaulted.
+  an `installer` or a `supervisor` one. The installer does not start a server;
+  supervisor registration may start one as a platform consequence, but this
+  row records registration rather than the serving arrangement. Reporting a
+  default would invent data, so a binary row without a transport is refused.
 
-One machine installing one version therefore produces **at most two rows**,
-one per emitter, and they are never added together.
+For one address, version and UTC day, the endpoint accepts at most one row per
+emitter, so up to three emitter types can be present. The installer has no
+local marker and can report again on another day. The rows are never added
+together.
 
 **A binary that is not running from a release layout reports nothing**, and
 that is the declared hole in this number. Nothing distinguishes a developer's
@@ -615,11 +641,11 @@ for `version` and `--help` -- and has it anyway, because the day somebody adds
 a smoke `serve` there is the day a release runner starts counting as an
 installation, and nothing would say so.
 
-`first_run` is the one event name that does not obey `<object>_<action>`. The
-object *is* the event, and `run_first` would satisfy the shape at the cost of
-being unsearchable by the name everyone will use.
+The wire path keeps the historical name `first-run` because changing it would
+break every released emitter. D1 uses the event names above, which say which
+fact each row records.
 
-### Why two emitters, and why the field cannot be dropped
+### Why three emitters, and why the field cannot be dropped
 
 An installer that finished and a binary that started are different facts, and
 the second does not follow from the first: a bundle can be installed and never
@@ -634,18 +660,32 @@ it. The split is counted in `LUQUE-2232` over the releases API from `v0.1.0`
 to `v0.9.1`: `39 %` of downloads were `.mcpb` and `5 %` were the installers,
 and Layer 0 now keeps that number current instead of quoting it.
 
+`supervisor` is the third, and it exists for a reason neither of the other two
+answers: nothing in a `binary` row distinguishes a machine that ran
+`kivgraph daemon` once, unattended, from one whose owner asked the platform to
+keep it around with `kivgraph daemon install`. Registration is a separate,
+narrower fact even when the platform starts the daemon as a consequence, and
+the row is not an actor-identification claim. This is an analysis of the
+signal's scope, not a measurement of how often either path occurs. It fires
+only for the shared-daemon arrangement, which most real use never touches, so
+it is not a replacement for the other two.
+
 ### What is measured is the first run of a version
 
-**The marker governs the `binary` emitter and nothing else.** An installer has
-no marker: it reports once per successful run, and a reader who runs it three
-times sends three, which the endpoint's window collapses. The binary reports
-from the three commands that serve the MCP surface -- `serve` in process,
-`serve` relaying, and the daemon -- and from no other, because what is measured
-is a machine that ran the server and because `transport` is required on those
-rows rather than defaulted. Sharing one marker
-between the two emitters would be the bug the dedupe key already avoids --
-whichever emitter got there first would suppress the other's row, and the two
-rows are the two different facts this property exists to keep apart.
+**The marker governs the `binary` and `supervisor` emitters, in separate
+namespaces, and not the installer.** An installer has no marker: it reports
+once per successful run, and a reader who runs it three times sends three,
+which the endpoint's window collapses. The binary reports from the three
+commands that serve the MCP surface -- `serve` in process, `serve` relaying,
+and the daemon -- and from no other, because what is measured is a machine that
+ran the server and because `transport` is required on those rows rather than
+defaulted. `daemon install` succeeding reports separately, under its own
+marker namespace, because installing the daemon and running it are independent
+facts: a machine can do either first, or both, for the same version, and each
+is one row. Sharing a marker between any two of the three would be the bug the
+dedupe key already avoids for the other pair -- whichever got there first
+would suppress the rest, and the rows are the different facts this property
+exists to keep apart.
 
 The marker lives under the state directory, not the bundle root: an update
 replaces the bundle, so a marker there would fire again on every update.
@@ -664,20 +704,22 @@ happened to spawn.
 No identifier of ours, no repository name, no path, no hostname, no user name,
 nothing about the code that was indexed, and no address stored by us.
 
-**Identity is Umami's, and this repository mints none.** Umami derives a
-visitor from a daily-rotating hash of website id, hostname, address and user
-agent, so *unique visitors per day* is already distinct machines and the
-address itself is never stored.
+**The Worker mints no persistent identity.** It observes the address at the
+Cloudflare edge and immediately hashes a tuple of secret salt, UTC day,
+address, version and emitter. D1 stores the SHA-256 result, not the address.
+The salt is a Worker secret and never ships in the repository or client.
 
-That has one load-bearing consequence: **the endpoint has to give the
-collector the caller's address**. Without it every install on earth collapses
-into one visitor -- the landing server itself. And since `REPORTER_HEADERS`
-forces `User-Agent: ""` to survive the collector's `isbot` filter, the address
-is the *only* discriminator left, so a corporate NAT counts as one person.
-That is the bias every web analytics carries, and it is written here rather
-than discovered in a report.
+The digest rotates every UTC day. For one emitter and version on one UTC day,
+an address behind a corporate NAT is one visitor, and one machine on two
+networks can be two. Cloudflare also supplies a country code. No city,
+coordinates, cookie, query string or user agent is stored for a first-run
+event.
 
-### The address goes in the body, and that was measured
+### Historical measurement of the retired Umami collector
+
+The rest of this subsection records why the original landing-to-Umami design
+was fragile. ADR 0092 replaced it with edge hashing and D1; none of the wire
+forms below is used by the public first-run route now.
 
 The design said *forward the header*. Against this instance no header works,
 and it fails the way the `User-Agent` failed: `200`, a session token, events
@@ -728,32 +770,61 @@ The last row is the crawler reporter's finding arriving a second time: the
 `isbot` filter reads a `userAgent` in the payload as well as the header, so
 there is neither.
 
-Two consequences for the endpoint, both in `landing/src/install-report.mjs`:
-it reads `CF-Connecting-IP` first when deciding whose install it is, because
-that is the header the edge sets and the socket address is the edge's; and it
-puts that address in `payload.ip` rather than in a header of its own.
+Those measurements explain the retired landing fallback. They are retained as
+evidence for ADR 0083, not as production operating instructions.
 
 ### The endpoint, and the bounds on the number
 
-`POST /api/telemetry/first-run`, in `landing/server.mjs` because the reporter,
-the `User-Agent` finding it depends on and the fail-closed configuration pair
-are already there; an Astro route would need a second copy of all three.
+`POST /api/telemetry/first-run` is an exact route of the installer edge Worker.
+The same Worker owns `/install.sh`, `/install.ps1` and `/github`, and all four
+write to the D1 dataset the internal dashboard reads. The landing server no
+longer wires the retired Umami handler, so the public route is the only owner.
 
 It is public, so the number is worth exactly its bounds: validation against
-the closed sets above and the published version pattern, a dedupe window per
-address, version **and `emitter`**, and `204` on every path so that probing it
-teaches nothing.
+the closed sets above and the published version pattern, a unique daily digest
+per address, version **and `emitter`**, and `204` on every path so that probing
+it teaches nothing.
 
 The `emitter` in that key is the easy one to leave out. An installer that has
 just finished and the first run that follows it carry the same address and the
 same version seconds apart, so a window keyed on those two alone would discard
 the second -- precisely the `binary` row the property exists to collect.
 
-The window does **not** buy the headline number. Under a daily-rotating hash
-one address reinstalling in a loop is already **one** unique visitor, so
-repetition inflates the event count and never the visitor count. The window
-bounds events and write volume; validation is what stops a forged `version`
-from inventing a row no release ever produced.
+### A version below the floor cannot have sent anything
+
+Validating the *shape* of a ping does not validate its *origin*, and the gap
+was found the hard way. Within a day of publishing `/telemetry/`, 25
+well-formed pings arrived from 25 distinct datacentre addresses -- San Jose,
+Chicago, Dulles, Des Moines, Cheyenne, Phoenix -- one every five to ten
+minutes, every one of them claiming:
+
+    emitter=binary version=0.9.2 platform=linux-amd64 channel=archive
+
+`v0.9.2` has no `internal/telemetry/firstrun.go` in its tree. The emitter
+landed after that tag, so no binary of that release has code to send with:
+those rows were **impossible**, not unlikely, and they became rows only
+because nothing read the version as a fact the project already knew.
+
+So the endpoint refuses any version at or below the last release cut without
+an emitter. That bound is a truth about a tag already made and never needs
+revising. A floor kept at the *current* release would refuse a stale replay
+for longer, and would also discard every real ping of a new release the first
+time someone forgot to raise it -- silently, on exactly the data this property
+exists to collect. Losing the real number is the worse failure.
+
+It is not authentication, and nothing here can be: the emitter is open source,
+so any secret it carried would ship inside it. Anyone who reads the repository
+can send a ping that passes. What the floor removes is every replay of a claim
+the project can prove false, which is what a public endpoint can honestly do.
+
+The comparison is numeric per component. `0.10.0` is above `0.9.2` and a
+string comparison puts it below.
+
+The unique index is what buys the daily number. It covers event name, version
+and the salted daily visitor hash; the event name is the D1 form of `emitter`.
+An `AFTER INSERT` trigger updates `daily_metrics` only for a newly accepted raw
+row, so the fact and its aggregate cannot diverge. Validation is what stops a
+forged `version` from inventing a row no release ever produced.
 
 ### Nothing may reach stdout, and stdio decides that
 
@@ -764,20 +835,46 @@ two everywhere: a goroutine with a short timeout, failures dropped, and the
 first-run notice on stderr. A test that does not try to write to stdout will
 not notice the day this stops being true.
 
-### Off by a variable, on both ends
+### Opt-out and collector configuration
 
-`KIVGRAPH_TELEMETRY=0` in the environment stops the client sending. The server
-half fails closed the way the other two properties do: without its website id
-nothing is forwarded, so a development landing cannot write to the dataset.
+`KIVGRAPH_TELEMETRY=0` in the environment stops the client sending. The Worker
+half fails closed without its D1 binding or `VISITOR_HASH_SECRET`; the public
+request still receives `204`, but no row is written. The secret is configured
+in Cloudflare and is never a client-side value.
 
-### What the collector stores, which is not nothing
+### What the retired collector stored
+
+This subsection is historical evidence from the Umami implementation. The
+current D1 collector stores a daily hash and country code only, as described
+above; it stores no city or device class.
 
 Read from the same `13` events, in the session and event rows they produced.
-A session row carries a **country** derived from the address -- `US` for
-`8.8.8.8`, `AU` for `1.1.1.1`, empty for a reserved range -- and a device
-class that defaults to `desktop` for a request with no screen. The address
-itself is not stored. Coarse geography is therefore part of what this property
-knows, and `/telemetry/` says so rather than leaving it to be discovered.
+A session row carries a **country and, when the address resolves to one, a
+city**, plus a device class that defaults to `desktop` for a request with no
+screen. The address itself is not stored.
+
+The city is a correction, and it is the kind worth reading twice. The first
+measurement said the city came back empty, because it was taken with
+`8.8.8.8`, `1.1.1.1` and a reserved range: datacentre addresses resolve to a
+country and nothing finer, so the reading was true of the input and false of
+the property.
+
+The first ping from a residential address, on 2026-08-30, arrived as `ES` /
+`Sabadell`. It was this, from a home connection, against the deployed endpoint
+rather than the collector -- so the address is the caller's own and the
+landing forwards it:
+
+```sh
+curl -sS -X POST https://kivgraph.dev/api/telemetry/first-run \
+  -H 'Content-Type: application/json' \
+  -d '{"emitter":"binary","version":"0.9.2","platform":"linux-amd64",
+       "channel":"archive","transport":"stdio"}'
+# then read the row with `umami_list_events` over that window
+```
+
+A privacy claim measured on synthetic input was therefore weaker than what
+production does, which is the direction that matters -- `/telemetry/` now
+says city.
 
 One more thing a report has to know: the stats endpoint answers `visitors: 0`
 for this property, because it counts sessions with **pageviews** and a first
@@ -1252,31 +1349,151 @@ causation, do not infer Google keywords from PostHog, do not assume that
 figures without considering that they measure in different ways.
 ```
 
-### 1i. The first-runs property and its variables
+### 1i. The first-run Worker and D1
 
-*Settings -> Websites -> Add website*, name `kivgraph FIRST RUNS`, domain
-`kivgraph.dev`. Its id goes in the **host's** `landing/.env` beside the others:
+The Worker owns the exact `/api/telemetry/first-run` route and binds the
+`kivgraph-analytics` D1 database. Its only additional configuration is the
+secret used to make daily visitor hashes:
 
-```env
-KIVGRAPH_UMAMI_FIRST_RUN_WEBSITE_ID=<the first-runs property's id>
+```sh
+wrangler secret put VISITOR_HASH_SECRET
 ```
 
-Never the main property's id, and never the crawler property's: three
-questions, three datasets, and an install landing in the site's property moves
-visitors, bounce and the conversion rate that describes people. It fails
-closed like the other pair -- without the id nothing is forwarded -- and
-`KIVGRAPH_UMAMI_FIRST_RUN_TRACKING=off` disables it without deleting anything.
+Apply the first-run migration before deploying the route. It creates the
+partial unique index and the trigger that updates `daily_metrics`. A release
+smoke checks the route, binding, secret and migration without sending a fake
+accepted event.
 
-Read by `server.mjs` at startup, so no rebuild is needed to change it. The pm2
-warning in **1b** applies unchanged: `restart` reuses the saved process
-definition, and the startup line is what says which entry is running.
+Run the verification from the `kivgraph-admin` checkout. `--cwd /tmp` is
+intentional: it keeps Wrangler on its authenticated profile instead of loading
+the read-only D1 token used by the dashboard from that repository's `.env`.
 
-The reports worth having are one per emitter, because the two must never be
-added up: *first runs by platform* filtered to `emitter = binary`, which is
-the machines number, and *installs by channel* filtered to
-`emitter = installer`, which is the installer's own success rate. A third,
-`transport` on the `binary` rows, is the only measurement of how often the
-stdio entry ends up serving in process rather than relaying.
+```bash
+set -euo pipefail
+
+ADMIN_REPO=/root/kivgraph-admin
+WRANGLER="$ADMIN_REPO/node_modules/.bin/wrangler"
+CONFIG="$ADMIN_REPO/wrangler.jsonc"
+database_id="$(jq -er '
+  .d1_databases[] |
+  select(
+    .binding == "ANALYTICS_DB" and
+    .database_name == "kivgraph-analytics"
+  ) |
+  .database_id
+' "$CONFIG")"
+
+deployment="$($WRANGLER deployments status \
+  --config "$CONFIG" --cwd /tmp --json)"
+version_id="$(printf '%s' "$deployment" | \
+  jq -r '.versions[] | select(.percentage == 100) | .version_id')"
+test -n "$version_id"
+
+$WRANGLER versions view "$version_id" \
+  --config "$CONFIG" --cwd /tmp --json | jq -e \
+  --arg database_id "$database_id" '
+  ([.resources.bindings[] |
+    select(
+      .name == "ANALYTICS_DB" and
+      .type == "d1" and
+      .id == $database_id
+    )] | length == 1) and
+  ([.resources.bindings[] |
+    select(.name == "VISITOR_HASH_SECRET" and .type == "secret_text")] |
+    length == 1)'
+
+$WRANGLER d1 execute kivgraph-analytics --remote \
+  --config "$CONFIG" --cwd /tmp \
+  --command "SELECT type, name, sql FROM sqlite_schema WHERE name IN (
+    'analytics_events_first_run_daily_idx',
+    'analytics_events_first_run_daily') ORDER BY name" \
+  --json | jq -e '
+  def compact: gsub("[[:space:]]+"; " ");
+  .[0].success and
+  ([.[0].results[] | .sql |= compact] == [
+    {
+      type: "trigger",
+      name: "analytics_events_first_run_daily",
+      sql: (
+        "CREATE TRIGGER analytics_events_first_run_daily " +
+        "AFTER INSERT ON analytics_events " +
+        "WHEN NEW.source = \u0027first_run_edge\u0027 BEGIN " +
+        "INSERT INTO daily_metrics ( day, event_name, version, platform, " +
+        "channel, client_family, is_ci, country, event_count, unique_count " +
+        ") VALUES ( substr(NEW.occurred_at, 1, 10), NEW.event_name, " +
+        "COALESCE(NEW.version, \u0027\u0027), " +
+        "COALESCE(NEW.platform, \u0027\u0027), " +
+        "COALESCE(NEW.channel, \u0027\u0027), \u0027\u0027, 0, " +
+        "COALESCE(NEW.country, \u0027\u0027), 1, 1 ) ON CONFLICT ( day, " +
+        "event_name, version, platform, channel, client_family, is_ci, " +
+        "country ) DO UPDATE SET event_count = event_count + 1, " +
+        "unique_count = unique_count + 1; END"
+      )
+    },
+    {
+      type: "index",
+      name: "analytics_events_first_run_daily_idx",
+      sql: (
+        "CREATE UNIQUE INDEX analytics_events_first_run_daily_idx " +
+        "ON analytics_events (event_name, version, daily_visitor_hash) " +
+        "WHERE source = \u0027first_run_edge\u0027 " +
+        "AND daily_visitor_hash IS NOT NULL"
+      )
+    }
+  ])'
+
+rejected_version="0.0.$(date -u +%s)$BASHPID"
+rejected_payload="$(jq -nc --arg version "$rejected_version" \
+  '{emitter: "binary", version: $version}')"
+
+rejected_before="$($WRANGLER d1 execute kivgraph-analytics --remote \
+  --config "$CONFIG" --cwd /tmp \
+  --command "SELECT COUNT(*) AS count FROM analytics_events
+    WHERE source = 'first_run_edge' AND version = '$rejected_version'" \
+  --json | jq -er '.[0].results[0].count')"
+
+test "$(curl -sS --connect-timeout 5 --max-time 10 \
+  -o /dev/null -w '%{http_code}' \
+  -X POST https://kivgraph.dev/api/telemetry/first-run \
+  -H 'Content-Type: application/json' \
+  -d "$rejected_payload")" = 204
+
+rejected_after="$($WRANGLER d1 execute kivgraph-analytics --remote \
+  --config "$CONFIG" --cwd /tmp \
+  --command "SELECT COUNT(*) AS count FROM analytics_events
+    WHERE source = 'first_run_edge' AND version = '$rejected_version'" \
+  --json | jq -er '.[0].results[0].count')"
+test "$rejected_before" = "$rejected_after"
+```
+
+The binding and migration `jq -e` calls print `true`; every other assertion is
+silent. The binding assertion compares the deployed binding id with the
+database id configured for `kivgraph-analytics`, so the schema query and Worker
+cannot silently address different databases. Any other result is a failed
+collector smoke.
+
+The payload uses a fresh numeric semantic version below the emitter floor on
+every run and is incomplete for a binary row: it has no platform, channel or
+transport. A previously accepted malformed probe therefore cannot be hidden by
+the daily uniqueness key. The `204` proves only that the exact public route is
+reachable. Comparing the D1 count before and after proves separately that this
+refused probe wrote no row.
+
+If the release smoke ran a real published installer or binary, verify the
+observed version in the internal dashboard response:
+
+```bash
+VERSION=X.Y.Z
+ssh websites "curl -fsS http://127.0.0.1:4173/ | grep -F '$VERSION'"
+```
+
+This last command must print the matching HTML. Do not run it as a requirement
+when no real emitter ran; an empty dataset is then the honest result.
+
+The reports remain separate: `binary_first_run.unique_count` is machines that
+ran the server, `install_succeeded.event_count` is verified installer
+completions, and `supervisor_registered` is successful service registration.
+Adding them would still invent a number no event observed.
 
 ### 2. The site's domain in Umami
 

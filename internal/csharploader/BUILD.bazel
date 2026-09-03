@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "csharploader",
+    srcs = ["loader.go"],
+    importpath = "github.com/Luqueee/kivgraph/internal/csharploader",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/facts",
+        "//internal/scip",
+        "//internal/scip/scipwire",
+        "//internal/scratchtree",
+        "//internal/workspace",
+    ],
+)
+
+go_test(
+    name = "csharploader_test",
+    srcs = [
+        "coverage_test.go",
+        "isolation_test.go",
+        "loader_test.go",
+    ],
+    data = ["//:testdata"],
+    embed = [":csharploader"],
+    deps = [
+        "//internal/facts",
+        "//internal/scip/scipwire",
+        "//internal/testsupport",
+        "//internal/workspace",
+    ],
+)

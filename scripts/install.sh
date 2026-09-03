@@ -15,7 +15,7 @@ Environment:
   KIVGRAPH_INSTALL_ROOT  Bundle directory (default: ~/.local/opt/kivgraph)
   KIVGRAPH_BIN_DIR        Launcher directory (default: ~/.local/bin)
   KIVGRAPH_RELEASE_BASE_URL  Releases URL (default: GitHub Luqueee/kivgraph)
-  KIVGRAPH_VERSION        Pin a release tag such as vX.Y.Z instead of latest
+  KIVGRAPH_VERSION        Pin a release tag such as vX.Y.Z-dev.1 instead of latest
   KIVGRAPH_GITHUB_TOKEN   Optional token for a private GitHub repository
 EOF
 }

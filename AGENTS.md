@@ -14,7 +14,7 @@ trabajar en él; ninguno repite lo que ya está aquí ni lo contradice.
 |`internal/`|`internal/AGENTS.md`|carga de Go, la pasada, caché de hechos, grafo canónico, generaciones, configuración, procesos|
 |`internal/mcp/`|`internal/mcp/AGENTS.md`|superficie de tools, `index_project`, la skill, coste en tokens|
 |`internal/rustloader/`|`internal/rustloader/AGENTS.md`|`rust-analyzer scip`, identidad SCIP, sysroot, descubrimiento Cargo|
-|`cmd/kivgraph/`|`cmd/kivgraph/AGENTS.md`|ayuda, registro, `index --full --json`, `clean`, `stop`, `ui`|
+|`cmd/kivgraph/`|`cmd/kivgraph/AGENTS.md`|ayuda, registro, `index [--full]`, `clean`, `stop`, `ui`|
 |`ts-worker/`|`ts-worker/AGENTS.md`|worker TypeScript e identidad cross-repository|
 |`web/`|`web/AGENTS.md`|el visor: layout, dibujo, coste por fotograma|
 |`landing/`|`landing/AGENTS.md`|landing y documentación de usuario: capas, paleta, SEO, iconos|
@@ -111,21 +111,75 @@ cruza de repositorio-- y ninguna búsqueda de texto lo alcanza.
 
 `kivgraph hook install` registra un gancho que se ejecuta antes de cada tool del
 agente y niega la búsqueda cuando el grafo la contesta mejor. Lo alojan
-`claude-code`, `claude-desktop`, `codex` y `opencode`. Claude Desktop empaqueta
-un Claude Code y lo lanza sin darle configuración propia, así que lee
+`claude-code`, `claude-desktop`, `codex`, `opencode` y `oh-my-pi`. Claude Desktop
+empaqueta un Claude Code y lo lanza sin darle configuración propia, así que lee
 `~/.claude/settings.json`: comparte fichero con `claude-code` e instalar uno
-deja el otro `managed`. Oh My Pi es el único que no puede alojarlo.
+deja el otro `managed`. Oh My Pi recibe una extensión nativa en
+`~/.omp/agent/extensions/` o `.omp/extensions/`; el contrato está en ADR 0089.
 
-Se cierra por **un solo hecho**: el nombre lo declaran dos cosas o más, así que
-una búsqueda de texto no puede separar lo que encuentra. Un nombre sin homónimo
-se deja pasar por muchos sitios que lo usen, porque ahí `grep` es más barato y
-está medido -- ver ADR 0077 para la tabla y para lo que haría falta medir para
-cerrarla también sobre recuentos altos.
+Para una búsqueda que ya deletrea un nombre, se cierra por **un solo hecho**: el
+nombre lo declaran dos cosas o más, así que una búsqueda de texto no puede
+separar lo que encuentra. Un nombre sin homónimo se deja pasar por muchos sitios
+que lo usen, porque ahí `grep` es más barato y está medido -- ver ADR 0077 para
+la tabla y para lo que haría falta medir para cerrarla también sobre recuentos
+altos.
+
+Una búsqueda que todavía no sabe el nombre toma la ruta de intención. Una regex
+con forma de código, o cuatro o más identificadores alternativos como
+`http|route|handler|serve`, consulta `find_by_intent` y sólo se niega cuando el
+grafo devuelve candidatos. Tres términos exactos como `error|warning|failed`
+siguen siendo una búsqueda textual.
 
 Todo fallo de la puerta es un permiso, y un permiso no escribe nada: en ese
 contrato un `allow` explícito se salta la petición de permiso del agente.
 
 Para saltársela una vez: `KIVGRAPH_DISABLE_HOOK=1` delante del comando.
+
+Los envoltorios de salida `rtk rg ...` y `rtk proxy rg ...` se clasifican por
+el comando interior. `rtk gain` y los demás comandos propios de RTK no se
+consideran búsquedas.
+
+La puerta hace además una cosa que no es negar. El matcher cubre las tools MCP
+de Kivgraph -- por nombre de servidor, `mcp__kivgraph_.*`, nunca por una lista de
+operaciones que habría que ampliar con cada tool nueva-- y a la **primera de
+cada sesión** le adjunta el presupuesto de llamadas. Nunca la niega: una llamada
+al grafo ya es el resultado que las demás ramas defienden, así que exigir la
+skill antes de dejarla pasar pondría fricción justo en la conducta que la puerta
+existe para fomentar, y dejaría las tools inservibles la sesión en que el aviso
+fallara.
+
+Va como `additionalContext` **sin** `permissionDecision`, y eso no es un detalle
+de formato: la forma corta -- `allow` con el texto en
+`permissionDecisionReason`-- entrega las mismas palabras y de paso le quita al
+usuario la petición de permiso de cada llamada con la que viaje. El aviso añade
+contexto y no vota.
+
+No repite el campo `instructions` del servidor, que ya llega en el handshake.
+Lleva lo que ese campo deja fuera a propósito: el coste por tool, que no puede
+vivir en un system prompt que se reescribe en cada reindexado --
+`internal/mcp/instructions.go` explica por qué, y cita el issue #260 de
+tokensave, donde un presupuesto ahí costó más que las llamadas que desaconsejaba.
+
+Se recuerda por `session_id` con un marcador en `<estado>/briefs`, creado con
+`O_EXCL` para que dos llamadas simultáneas no avisen las dos, y se poda a las 24
+horas. Un host que no manda `session_id` -- los módulos de OpenCode y Oh My Pi--
+no recibe aviso ninguno: sin identidad, avisar en cada llamada sería peor que
+no avisar.
+
+El matcher se escribe al instalar, así que una instalación anterior a esto no ve
+las llamadas MCP hasta que se reejecuta `kivgraph hook install`.
+
+En Codex el matcher es el literal `Bash`, aunque la transcripción presente la
+ejecución como `Shell`. Su payload añade `turn_id` y su negativa no es el JSON
+de Claude Code: exige código de salida `2` y el motivo en `stderr`.
+
+Un worktree enlazado está cubierto cuando su Git common dir identifica un único
+repositorio registrado. La ruta física no tiene que colgar del checkout que se
+indexó: Codex crea sus worktrees fuera de él. Si dos registros comparten esa
+identidad y la ruta no pertenece directamente a ninguno, la puerta no elige.
+Las búsquedas por intención se acotan al repositorio así identificado y leen
+los candidatos dentro de `results.symbols`, el envelope profile-aware de la
+respuesta.
 
 ## Herramientas MCP en Oh My Pi
 
@@ -225,8 +279,9 @@ un enlace absoluto se commitearía roto. Ver ADR 0078.
   silencio.
 - **El único camino de indexado es la reconstrucción completa.** No existe un
   camino incremental: se retiró en el ADR 0057, medido a `1,67x` de un pase
-  completo y sin ningún llamante en producción. `kivgraph index` acepta sólo
-  `--full`, y eso es el diseño, no una limitación de la superficie.
+  completo y sin ningún llamante en producción. `kivgraph index` autodetecta
+  el proyecto actual y ejecuta esa reconstrucción; `kivgraph index --full`
+  conserva la forma explícita sobre el registro configurado. Ver ADR 0086.
 - Si alguna vez vuelve un camino incremental, el contrato de retirada del ADR
   0056 es el punto de partida y **no se puede relajar**: todo hecho afirmado por
   un archivo se retira y se vuelve a afirmar junto con ese archivo, y lo que un

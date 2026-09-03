@@ -1,0 +1,54 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "indexing",
+    srcs = [
+        "document.go",
+        "follow.go",
+        "freshness.go",
+        "full.go",
+        "resync.go",
+        "service.go",
+        "subprocess.go",
+    ],
+    importpath = "github.com/Luqueee/kivgraph/internal/indexing",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/config",
+        "//internal/facts",
+        "//internal/filelock",
+        "//internal/freshness",
+        "//internal/hotsnapshot",
+        "//internal/indexer",
+        "//internal/metrics",
+        "//internal/rebuild",
+        "//internal/storage/generation",
+        "//internal/version",
+        "//internal/watcher",
+        "//internal/workspace",
+    ],
+)
+
+go_test(
+    name = "indexing_test",
+    srcs = [
+        "document_test.go",
+        "fakechild_test.go",
+        "follow_test.go",
+        "profile_lock_test.go",
+        "resync_test.go",
+        "service_child_test.go",
+        "service_test.go",
+        "subprocess_test.go",
+    ],
+    embed = [":indexing"],
+    deps = [
+        "//internal/config",
+        "//internal/filelock",
+        "//internal/hotsnapshot",
+        "//internal/indexer",
+        "//internal/storage/generation",
+        "//internal/testsupport",
+        "//internal/workspace",
+    ],
+)

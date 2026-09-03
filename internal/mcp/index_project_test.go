@@ -20,6 +20,63 @@ type fakeProjectIndexer struct {
 	progress int
 }
 
+type fakeProfileProjectIndexer struct {
+	fakeProjectIndexer
+	profile string
+}
+
+func (fake *fakeProfileProjectIndexer) IndexProjectsInProfile(
+	ctx context.Context,
+	profile string,
+	projects []indexing.Project,
+	progress func(indexing.ProjectProgress),
+) (indexing.ProjectResult, error) {
+	fake.profile = profile
+	return fake.IndexProjects(ctx, projects, progress)
+}
+
+func TestIndexProjectRejectsNamedProfileWhenIndexerCannotRouteIt(t *testing.T) {
+	fake := &fakeProjectIndexer{}
+	session := connectToServer(t, NewServerWithIndexer(fake))
+	result, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name: "index_project",
+		Arguments: map[string]any{
+			"profile": "other", "name": "demo", "path": "/tmp/demo",
+			"languages": []any{"go"}, "confirmed": true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("CallTool() transport error = %v", err)
+	}
+	if result == nil || !result.IsError {
+		t.Fatalf("CallTool() result = %#v, want indexing error", result)
+	}
+	if calls := fake.callCount(); calls != 0 {
+		t.Fatalf("default indexer calls = %d, want 0", calls)
+	}
+}
+
+func TestIndexProjectRoutesNamedProfile(t *testing.T) {
+	fake := &fakeProfileProjectIndexer{}
+	session := connectToServer(t, NewServerWithIndexer(fake))
+	result, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name: "index_project",
+		Arguments: map[string]any{
+			"profile": "other", "name": "demo", "path": "/tmp/demo",
+			"languages": []any{"go"}, "confirmed": true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("CallTool() transport error = %v", err)
+	}
+	if result == nil || result.IsError {
+		t.Fatalf("CallTool() result = %#v, want success", result)
+	}
+	if fake.profile != "other" {
+		t.Fatalf("profile = %q, want other", fake.profile)
+	}
+}
+
 func (fake *fakeProjectIndexer) IndexProjects(
 	_ context.Context,
 	projects []indexing.Project,

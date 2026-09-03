@@ -3,12 +3,13 @@ title: find_cross_repo_consumers
 description: Consumers of one symbol in other repositories, with exact uses counted apart from package-level dependencies.
 ---
 
-> Consumers of a symbol in other repositories, exact uses kept apart from package-level dependencies. A language server stops at its workspace.
+> Consumers of a symbol in other repositories, exact uses kept apart from package-level dependencies that prove no use. A language server stops at its own workspace and cannot answer this.
 
 ## Arguments
 
 | Argument | Type | Default | Meaning |
 | --- | --- | --- | --- |
+| `profile` | array of strings | configured default | Profiles to query. `["*"]` alone selects all. A stable key requires exactly one named profile when several profiles exist. |
 | `cursor` | string | none | Opaque token taken from `next_cursor`. Resumes the same query at the next offset. |
 | `language` | string | none | Keeps only consumers carrying this language: `go`, `typescript` or `rust`. Compared exactly; surrounding whitespace is rejected. |
 | `limit` | integer | `50` | Rows in this page. Must be between 1 and 500. |

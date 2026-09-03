@@ -365,6 +365,38 @@ storage:
 	}
 }
 
+func TestLoadConfigRejectsInvalidDefaultProfile(t *testing.T) {
+	for _, profile := range []string{"", "*", "../other", "nested/name", `nested\name`} {
+		t.Run(profile, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "config.yaml")
+			writeConfigFixture(t, path, "version: 1\nprofiles:\n  default: \""+profile+"\"\n")
+			_, err := LoadConfig(path)
+			if err == nil || !strings.Contains(err.Error(), "config.profiles.default") {
+				t.Fatalf("LoadConfig() error = %v, want invalid default profile", err)
+			}
+		})
+	}
+}
+
+func TestLoadConfigRejectsNonPositiveProfileCacheBound(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	writeConfigFixture(t, path, "version: 1\nprofiles:\n  max_open: 0\n")
+	_, err := LoadConfig(path)
+	if err == nil || !strings.Contains(err.Error(), "config.profiles.max_open") {
+		t.Fatalf("LoadConfig() error = %v, want invalid profile cache bound", err)
+	}
+}
+
+func TestDefaultConfigNamesTheDefaultProfile(t *testing.T) {
+	configuration := DefaultConfig()
+	if configuration.Profiles.Default != "default" {
+		t.Fatalf("profiles.default = %q, want default", configuration.Profiles.Default)
+	}
+	if configuration.Profiles.MaxOpen != 3 {
+		t.Fatalf("profiles.max_open = %d, want 3", configuration.Profiles.MaxOpen)
+	}
+}
+
 func TestLoadRepositoriesAllowsExplicitEmptyList(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "repositories.yaml")
 	writeConfigFixture(t, path, "version: 1\nrepositories: []\n")
@@ -532,6 +564,8 @@ func TestInitializeCreatesSecureStateAndRegistersRepositories(t *testing.T) {
 // generations into the state of the installation it was meant to leave alone.
 func TestInitializeKeepsACustomLocationSelfContained(t *testing.T) {
 	directory := t.TempDir()
+	home := t.TempDir()
+	testsupport.SetHome(t, home)
 	configPath := filepath.Join(directory, "config.yaml")
 
 	result, err := Initialize(InitOptions{ConfigPath: configPath})
@@ -548,7 +582,6 @@ func TestInitializeKeepsACustomLocationSelfContained(t *testing.T) {
 		"storage.database_path":       loaded.Config.Storage.DatabasePath,
 		"storage.backups_path":        loaded.Config.Storage.BackupsPath,
 		"indexing.fact_cache_path":    loaded.Config.Indexing.FactCachePath,
-		"go.synthetic_work_file":      loaded.Config.Go.SyntheticWorkFile,
 		"workspace.repositories_file": loaded.Config.Workspace.RepositoriesFile,
 	} {
 		if !strings.HasPrefix(path, directory) {
@@ -557,6 +590,120 @@ func TestInitializeKeepsACustomLocationSelfContained(t *testing.T) {
 		if strings.Contains(path, "state") && !strings.HasPrefix(path, state) {
 			t.Fatalf("%s = %q, want it under %q", name, path, state)
 		}
+	}
+	wantWorkParent := filepath.Join(home, ".local", "state", "kivgraph", "workspaces")
+	if !strings.HasPrefix(loaded.Config.Go.SyntheticWorkFile, wantWorkParent+string(filepath.Separator)) {
+		t.Fatalf("go.synthetic_work_file = %q, want it under %q", loaded.Config.Go.SyntheticWorkFile, wantWorkParent)
+	}
+	if strings.HasPrefix(loaded.Config.Go.SyntheticWorkFile, directory+string(filepath.Separator)) {
+		t.Fatalf("go.synthetic_work_file = %q, want it outside the configuration directory %q", loaded.Config.Go.SyntheticWorkFile, directory)
+	}
+}
+
+func TestInitializeGivesEachCustomConfigurationAStableSyntheticWorkspace(t *testing.T) {
+	home := t.TempDir()
+	testsupport.SetHome(t, home)
+	configPaths := []string{
+		filepath.Join(t.TempDir(), ".kivgraph", "config.yaml"),
+		filepath.Join(t.TempDir(), ".kivgraph", "config.yaml"),
+	}
+	workFiles := make([]string, 0, len(configPaths))
+	for _, configPath := range configPaths {
+		result, err := Initialize(InitOptions{ConfigPath: configPath})
+		if err != nil {
+			t.Fatalf("Initialize(%q) error = %v", configPath, err)
+		}
+		loaded, err := Load(result.ConfigPath)
+		if err != nil {
+			t.Fatalf("Load(%q) error = %v", result.ConfigPath, err)
+		}
+		workFiles = append(workFiles, loaded.Config.Go.SyntheticWorkFile)
+
+		second, err := Initialize(InitOptions{ConfigPath: configPath})
+		if err != nil {
+			t.Fatalf("second Initialize(%q) error = %v", configPath, err)
+		}
+		loadedAgain, err := Load(second.ConfigPath)
+		if err != nil {
+			t.Fatalf("second Load(%q) error = %v", second.ConfigPath, err)
+		}
+		if loadedAgain.Config.Go.SyntheticWorkFile != loaded.Config.Go.SyntheticWorkFile {
+			t.Fatalf("config %q synthetic workspace changed from %q to %q", configPath, loaded.Config.Go.SyntheticWorkFile, loadedAgain.Config.Go.SyntheticWorkFile)
+		}
+	}
+	if workFiles[0] == workFiles[1] {
+		t.Fatalf("configurations %q and %q share synthetic workspace %q", configPaths[0], configPaths[1], workFiles[0])
+	}
+}
+
+func TestMigrateProjectSyntheticWorkFileLeavesCustomPathUntouched(t *testing.T) {
+	directory := t.TempDir()
+	home := t.TempDir()
+	testsupport.SetHome(t, home)
+	configPath := filepath.Join(directory, ".kivgraph", "config.yaml")
+	custom := filepath.Join(t.TempDir(), "custom.go.work")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	writeConfigFixture(t, configPath, "version: 1\ngo:\n  synthetic_work_file: "+custom+"\n")
+
+	migrated, err := MigrateProjectSyntheticWorkFile(configPath)
+	if err != nil {
+		t.Fatalf("MigrateProjectSyntheticWorkFile() error = %v", err)
+	}
+	if migrated {
+		t.Fatal("MigrateProjectSyntheticWorkFile() migrated = true, want false")
+	}
+	configuration, err := LoadConfig(configPath)
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+	if configuration.Go.SyntheticWorkFile != custom {
+		t.Fatalf("synthetic_work_file = %q, want custom path %q", configuration.Go.SyntheticWorkFile, custom)
+	}
+}
+
+func TestMigrateProjectSyntheticWorkFileMovesLegacyPathAndKeepsConfigurationsIsolated(t *testing.T) {
+	home := t.TempDir()
+	testsupport.SetHome(t, home)
+	paths := []string{
+		filepath.Join(t.TempDir(), ".kivgraph", "config.yaml"),
+		filepath.Join(t.TempDir(), ".kivgraph", "config.yaml"),
+	}
+	workFiles := make([]string, 0, len(paths))
+	for _, configPath := range paths {
+		if err := os.MkdirAll(filepath.Dir(configPath), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		legacy := filepath.Join(filepath.Dir(configPath), "state", "go.work")
+		writeConfigFixture(t, configPath, "version: 1\ngo:\n  synthetic_work_file: "+legacy+"\n  maximum_loads: 7\n")
+
+		migrated, err := MigrateProjectSyntheticWorkFile(configPath)
+		if err != nil {
+			t.Fatalf("MigrateProjectSyntheticWorkFile(%q) error = %v", configPath, err)
+		}
+		if !migrated {
+			t.Fatalf("MigrateProjectSyntheticWorkFile(%q) migrated = false, want true", configPath)
+		}
+		configuration, err := LoadConfig(configPath)
+		if err != nil {
+			t.Fatalf("LoadConfig(%q) error = %v", configPath, err)
+		}
+		if configuration.Go.MaximumLoads != 7 {
+			t.Fatalf("maximum_loads = %d, want preserved value 7", configuration.Go.MaximumLoads)
+		}
+		if _, err := os.Stat(filepath.Dir(configuration.Go.SyntheticWorkFile)); err != nil {
+			t.Fatalf("synthetic workspace directory: %v", err)
+		}
+		workFiles = append(workFiles, configuration.Go.SyntheticWorkFile)
+
+		again, err := MigrateProjectSyntheticWorkFile(configPath)
+		if err != nil || again {
+			t.Fatalf("second migration for %q = %t, %v; want false, nil", configPath, again, err)
+		}
+	}
+	if workFiles[0] == workFiles[1] {
+		t.Fatalf("configurations %q and %q share synthetic workspace %q", paths[0], paths[1], workFiles[0])
 	}
 }
 

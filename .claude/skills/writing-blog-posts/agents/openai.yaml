@@ -1,0 +1,4 @@
+interface:
+  display_name: "Writing Blog Posts"
+  short_description: "Create SEO-ready Kivgraph blog posts"
+  default_prompt: "Use $writing-blog-posts to draft and validate an SEO-ready Kivgraph blog post."

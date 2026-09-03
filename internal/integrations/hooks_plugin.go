@@ -14,6 +14,16 @@ import (
 // resolved `kivgraph` at call time would work from a terminal and silently
 // stop working everywhere else.
 func (manager Manager) pluginBody() []byte {
+	return manager.pluginBodyFor(TargetOpenCode)
+}
+
+// pluginBodyFor is the client-native module with this installation's
+// executable in it.
+func (manager Manager) pluginBodyFor(target Target) []byte {
+	template := embeddedOpenCodePlugin
+	if target == TargetOhMyPi {
+		template = embeddedOhMyPiExtension
+	}
 	// The placeholder stands where a JavaScript string goes, quotes included,
 	// and the value is encoded rather than pasted. A Windows path is mostly
 	// backslashes, and JavaScript does not refuse an escape it does not know:
@@ -32,12 +42,12 @@ func (manager Manager) pluginBody() []byte {
 		encoded = []byte(`""`)
 	}
 	return []byte(strings.ReplaceAll(
-		string(embeddedOpenCodePlugin), executablePlaceholder, string(encoded)))
+		string(template), executablePlaceholder, string(encoded)))
 }
 
-// installPlugin writes the OpenCode shim.
+// installPlugin writes a client-native code module.
 func (manager Manager) installPlugin(document hookDocument, dryRun, force bool) (Plan, error) {
-	body := manager.pluginBody()
+	body := manager.pluginBodyFor(document.target)
 	data, exists, err := readDestination(document.path)
 	if err != nil {
 		return Plan{}, err
@@ -73,7 +83,7 @@ func (manager Manager) installPlugin(document hookDocument, dryRun, force bool) 
 	return plan, nil
 }
 
-// removePlugin deletes the OpenCode shim.
+// removePlugin deletes a client-native code module.
 func (manager Manager) removePlugin(document hookDocument, dryRun, force bool) (Plan, error) {
 	data, exists, err := readDestination(document.path)
 	if err != nil {
@@ -85,7 +95,7 @@ func (manager Manager) removePlugin(document hookDocument, dryRun, force bool) (
 	}
 	status := statusSuperseded
 	switch {
-	case bytes.Equal(data, manager.pluginBody()):
+	case bytes.Equal(data, manager.pluginBodyFor(document.target)):
 		status = "managed"
 	case !isKivgraphPlugin(data):
 		if !force {
@@ -106,7 +116,7 @@ func (manager Manager) removePlugin(document hookDocument, dryRun, force bool) (
 	return plan, nil
 }
 
-// statusPlugin inspects the OpenCode shim.
+// statusPlugin inspects a client-native code module.
 func (manager Manager) statusPlugin(document hookDocument) (Plan, error) {
 	data, exists, err := readDestination(document.path)
 	if err != nil {
@@ -115,7 +125,7 @@ func (manager Manager) statusPlugin(document hookDocument) (Plan, error) {
 	status := "absent"
 	if exists {
 		switch {
-		case bytes.Equal(data, manager.pluginBody()):
+		case bytes.Equal(data, manager.pluginBodyFor(document.target)):
 			status = "managed"
 		case isKivgraphPlugin(data):
 			status = statusSuperseded
@@ -133,8 +143,8 @@ func (manager Manager) statusPlugin(document hookDocument) (Plan, error) {
 // instead would report every release's own plugin as a stranger's.
 var pluginMarker = []byte(`["hook", "run"]`)
 
-// isKivgraphPlugin reports whether a file is a Kivgraph shim, whatever release
-// wrote it and whatever path it names.
+// isKivgraphPlugin reports whether a file is a Kivgraph module, whatever
+// release wrote it and whatever path it names.
 func isKivgraphPlugin(data []byte) bool {
 	return bytes.Contains(data, pluginMarker)
 }

@@ -92,6 +92,10 @@ type ProgressEvent struct {
 // writes inside a registered repository: Go's synthetic workspace and the
 // temporary TypeScript facts payloads live outside the sources.
 type FullOptions struct {
+	// Profile distinguishes facts produced for registries that may contain the
+	// same repository beside different providers. Empty keeps the historical
+	// single-graph behaviour and is treated as the default profile.
+	Profile           string
 	Repositories      []workspace.Repository
 	SyntheticWorkFile string
 	IncludeTests      bool

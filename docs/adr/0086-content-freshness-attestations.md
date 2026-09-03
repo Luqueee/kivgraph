@@ -31,6 +31,10 @@ Consumers must compare the attestation generation with the response generation
 and verify again after composite queries. They must not interpret source
 reanchoring as a repair of graph relationships.
 
+With profile discovery, the service attestation describes only its default
+profile. Other selected profiles and aggregate discovery omit that attestation;
+profile-local generation numbers cannot establish freshness across profiles.
+
 Verification uses filesystem fixtures for edits, additions, deletions,
 exclusions, unreadable roots and cancellation, plus the full native index
 tests and a locally installed bundle.

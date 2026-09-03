@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "watcher",
+    srcs = [
+        "debounce.go",
+        "githead.go",
+        "hash.go",
+        "ignore.go",
+        "reconcile.go",
+        "watcher.go",
+    ],
+    importpath = "github.com/Luqueee/kivgraph/internal/watcher",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/config",
+        "//internal/workspace",
+        "@com_github_fsnotify_fsnotify//:fsnotify",
+    ],
+)
+
+go_test(
+    name = "watcher_test",
+    srcs = [
+        "debounce_test.go",
+        "githead_test.go",
+        "hash_test.go",
+        "reconcile_test.go",
+        "watcher_test.go",
+    ],
+    embed = [":watcher"],
+    deps = [
+        "//internal/config",
+        "//internal/testsupport",
+        "//internal/workspace",
+        "@com_github_fsnotify_fsnotify//:fsnotify",
+    ],
+)

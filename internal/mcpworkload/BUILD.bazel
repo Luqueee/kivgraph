@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "mcpworkload",
+    srcs = ["workload.go"],
+    importpath = "github.com/Luqueee/kivgraph/internal/mcpworkload",
+    visibility = ["//:__subpackages__"],
+)
+
+go_test(
+    name = "mcpworkload_test",
+    srcs = [
+        "integration_test.go",
+        "workload_test.go",
+    ],
+    embed = [":mcpworkload"],
+    deps = [
+        "//internal/facts",
+        "//internal/hotsnapshot",
+        "//internal/mcp",
+        "@com_github_modelcontextprotocol_go_sdk//mcp",
+    ],
+)

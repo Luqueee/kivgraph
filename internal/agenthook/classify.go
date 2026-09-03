@@ -28,6 +28,11 @@ const (
 	KindFiles
 	// KindResearchAgent is a subagent asked to go read the codebase.
 	KindResearchAgent
+	// KindGraphTool is a call to one of Kivgraph's own MCP tools. It is the
+	// one kind that is not a question the gate might answer better: it is
+	// already the answer, and the gate recognises it only to brief the
+	// session that is about to start using it.
+	KindGraphTool
 )
 
 // Question is what a call was really asking, once the tool and its flags are
@@ -61,12 +66,18 @@ func Classify(payload Payload) Question {
 		return classifyGlob(payload.ToolInput)
 	case toolAgent:
 		return classifyAgent(payload.ToolInput)
+	case toolGraph:
+		// The arguments are not read. Every Kivgraph tool takes a
+		// different shape and none of them changes whether this session
+		// has been briefed, so parsing them would be work whose result
+		// is discarded.
+		return Question{Kind: KindGraphTool, Tool: strings.TrimSpace(payload.ToolName)}
 	default:
 		return Question{}
 	}
 }
 
-// grepInput is the shape all three agents give a native text search.
+// grepInput is the shape all supported agents give a native text search.
 type grepInput struct {
 	Pattern string `json:"pattern"`
 	Path    string `json:"path"`

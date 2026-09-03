@@ -1,0 +1,37 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "upgrade",
+    srcs = [
+        "backup.go",
+        "upgrade.go",
+    ],
+    importpath = "github.com/Luqueee/kivgraph/internal/upgrade",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/durable",
+        "//internal/facts",
+        "//internal/indexer",
+        "//internal/rebuild",
+        "//internal/storage/generation",
+        "//internal/storage/ladybug",
+    ],
+)
+
+go_test(
+    name = "upgrade_test",
+    srcs = [
+        "backup_test.go",
+        "rollback_test.go",
+        "upgrade_test.go",
+    ],
+    embed = [":upgrade"],
+    deps = [
+        "//internal/facts",
+        "//internal/indexer",
+        "//internal/rebuild",
+        "//internal/storage/generation",
+        "//internal/storage/ladybug",
+        "//internal/testsupport",
+    ],
+)

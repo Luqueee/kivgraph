@@ -171,6 +171,7 @@ type factCache struct {
 	directory string
 	mode      CacheMode
 	analyzer  string
+	profile   string
 
 	trees *fingerprintMemo
 	// goRegistry and rustRegistry are this pass's answer to "who provides
@@ -200,6 +201,10 @@ func newFactCache(options FullOptions) (*factCache, error) {
 	if mode == CacheOff {
 		return &factCache{mode: CacheOff, trees: newFingerprintMemo()}, nil
 	}
+	profile := strings.TrimSpace(options.Profile)
+	if profile == "" {
+		profile = "default"
+	}
 	directory := strings.TrimSpace(options.CacheDirectory)
 	if directory == "" {
 		return nil, fmt.Errorf("fact cache: mode %q needs a directory", mode)
@@ -211,6 +216,7 @@ func newFactCache(options FullOptions) (*factCache, error) {
 		directory: directory,
 		mode:      mode,
 		analyzer:  analyzerFingerprint(options),
+		profile:   profile,
 		trees:     newFingerprintMemo(),
 	}, nil
 }
@@ -246,7 +252,7 @@ func (cache *factCache) analyse(
 		return analyseUnit(ctx, options, unit, inputs)
 	}
 
-	identity := unitIdentity(unit)
+	identity := unitIdentity(cache.profile, unit)
 	entry, found := cache.load(identity)
 	if found && cache.mode == CacheOn {
 		cache.hits.Add(1)
@@ -400,20 +406,22 @@ var semanticManifestNames = []string{
 // name, because a Rust unit carries no TypeScript package. One workspace per
 // repository hid it -- the identity was wrong but unique. Two workspaces in
 // one repository shared an entry, and the second was served the first's facts.
-func unitIdentity(unit analysisUnit) string {
+
+func unitIdentity(profile string, unit analysisUnit) string {
+	prefix := profile + "\x00"
 	switch unit.kind {
 	case unitGo:
-		return "go\x00" + unit.repository.Name + "\x00" + unit.module.ModulePath
+		return prefix + "go\x00" + unit.repository.Name + "\x00" + unit.module.ModulePath
 	case unitRust:
-		return "rust\x00" + unit.repository.Name + "\x00" + unit.rust.workspace.RootPath
+		return prefix + "rust\x00" + unit.repository.Name + "\x00" + unit.rust.workspace.RootPath
 	case unitSemantic:
-		return string(unit.language) + "\x00" + unit.repository.Name + "\x00" + unit.repository.RealPath
+		return prefix + string(unit.language) + "\x00" + unit.repository.Name + "\x00" + unit.repository.RealPath
 	case unitTypeScript:
-		return "typescript\x00" + unit.repository.Name + "\x00" + unit.pkg.packageValue.Name
+		return prefix + "typescript\x00" + unit.repository.Name + "\x00" + unit.pkg.packageValue.Name
 	default:
 		// An entry keyed on a unit nobody can name would be served to
 		// whatever collided with it next.
-		return "unspecified\x00" + unit.repository.Name
+		return prefix + "unspecified\x00" + unit.repository.Name
 	}
 }
 

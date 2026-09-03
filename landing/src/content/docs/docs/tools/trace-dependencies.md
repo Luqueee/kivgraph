@@ -3,12 +3,13 @@ title: trace_dependencies
 description: Bounded outgoing traversal from one symbol, with the edge each reached symbol was first arrived by.
 ---
 
-> What this symbol reaches outward, bounded by depth. Grep does not follow a chain.
+> What this symbol reaches outward, bounded by depth. Pass to for the route by which it reaches one named symbol. Grep does not follow a chain; get_blast_radius walks it inward.
 
 ## Arguments
 
 | Argument | Type | Default | Meaning |
 | --- | --- | --- | --- |
+| `profile` | array of strings | configured default | Profiles to query. `["*"]` alone selects all. A stable key requires exactly one named profile when several profiles exist. |
 | `confidence` | string | none | Gates which edges the traversal may follow, so it changes what is reachable. Accepted: `EXACT_TYPECHECKED`, `EXACT_DECLARATION_MAPPED`, `EXACT_PACKAGE_MAPPED`, `STRUCTURAL_CERTAIN`, `CANDIDATE`, `UNRESOLVED`. One value, not a list. Anything else is rejected with `INVALID_ARGUMENT`. |
 | `cursor` | string | none | Opaque token taken from `next_cursor`. Resumes the same query at the next offset. |
 | `depth` | integer | `3` | How many hops the walk may take. Must be between 1 and 5. |

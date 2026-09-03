@@ -197,7 +197,8 @@ enumera lo que haría y no toca nada hasta `--yes`.
 
 `clean` retira el grafo y deja el registro de repositorios intacto: lo que se
 indexa es una decisión del operador, no un producto de la pasada. Reconstruir
-lo registrado es `kivgraph index --full`.
+lo registrado explícitamente es `kivgraph index --full`; desde la raíz de un
+proyecto, `kivgraph index` autodetecta sus lenguajes y mantiene el mismo full.
 
 Por eso `index_project` es idempotente:
 

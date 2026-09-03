@@ -48,6 +48,7 @@ func classifyBash(raw json.RawMessage) Question {
 			// very command being gated.
 			return Question{}
 		}
+		tokens = unwrapCommandWrapper(tokens)
 		if len(tokens) == 0 {
 			continue
 		}
@@ -71,8 +72,26 @@ func classifyBash(raw json.RawMessage) Question {
 	return Question{}
 }
 
+// unwrapCommandWrapper exposes the command whose output-only wrapper does not
+// change what is being asked. RTK compresses command output for agents, so
+// `rtk rg ...` is still an rg search; `proxy` only asks RTK to leave that output
+// raw. RTK's own commands remain ordinary unknown programs and are allowed.
+func unwrapCommandWrapper(tokens []string) []string {
+	if len(tokens) < 2 || baseName(tokens[0]) != "rtk" {
+		return tokens
+	}
+	tokens = tokens[1:]
+	if len(tokens) > 0 && tokens[0] == "proxy" {
+		tokens = tokens[1:]
+	}
+	return tokens
+}
+
 // classifySearchProgram reads a grep-shaped argument list.
 func classifySearchProgram(program string, arguments []string) Question {
+	if program == "rg" && hasArgument(arguments, "--files") {
+		return classifyRGFiles(arguments)
+	}
 	pattern, paths := "", []string{}
 	for index := 0; index < len(arguments); index++ {
 		argument := arguments[index]
@@ -102,6 +121,58 @@ func classifySearchProgram(program string, arguments []string) Question {
 	}
 	question.Paths, question.Tool = paths, program
 	return question
+}
+
+// classifyRGFiles reads ripgrep's file-listing mode. Its positional arguments
+// are directory scopes, not search patterns; treating the first as a symbol
+// turns `rg --files internal` into a false question about a symbol named
+// "internal". A source glob is the only part the graph can usefully gate.
+func classifyRGFiles(arguments []string) Question {
+	pattern, paths := "", []string{}
+	for index := 0; index < len(arguments); index++ {
+		argument := arguments[index]
+		switch {
+		case argument == "--":
+			paths = append(paths, arguments[index+1:]...)
+			index = len(arguments)
+		case argument == "--files":
+		case argument == "-g" || argument == "--glob":
+			if index+1 < len(arguments) {
+				index++
+				if pattern == "" && !strings.HasPrefix(arguments[index], "!") {
+					pattern = arguments[index]
+				}
+			}
+		case strings.HasPrefix(argument, "--glob="):
+			glob := strings.TrimPrefix(argument, "--glob=")
+			if pattern == "" && !strings.HasPrefix(glob, "!") {
+				pattern = glob
+			}
+		case valueFlags[argument]:
+			if index+1 < len(arguments) {
+				index++
+			}
+		case strings.HasPrefix(argument, "-"):
+		default:
+			paths = append(paths, argument)
+		}
+	}
+	if pattern == "" {
+		return Question{}
+	}
+	return Question{Kind: KindFiles, Pattern: pattern, Paths: append(paths, pattern), Tool: "rg"}
+}
+
+func hasArgument(arguments []string, wanted string) bool {
+	for _, argument := range arguments {
+		if argument == "--" {
+			return false
+		}
+		if argument == wanted {
+			return true
+		}
+	}
+	return false
 }
 
 // nameFlags are the `find` predicates that ask about a filename.

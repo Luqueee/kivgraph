@@ -200,6 +200,77 @@ reviews:
         Flag anything that would make a reader parse a human message to get a
         number, and any new per-language counter missing from the result.
 
+    - path: "landing/src/content/blog/**"
+      instructions: |
+        Review these files as public English editorial content and as SEO/AEO
+        landing pages. Apply the rules below as review criteria, not as a
+        request to add generic keywords or unsupported marketing claims.
+
+        Search intent and accuracy:
+        - The article should answer one primary search question or task. Flag
+          competing intents, filler, clickbait and keyword stuffing.
+        - Do not invent search volume, difficulty, rankings or traffic claims.
+          Treat SERP observations as evidence of intent, not as measurements.
+        - Verify commands, client behaviour and Kivgraph claims against the
+          linked landing documentation, README or an authoritative source.
+          Flag a command that is not documented or appears technically stale.
+
+        Metadata and answer quality:
+        - `title` should be clear and search-facing, normally about 45-60
+          characters, without a repeated brand suffix or keyword list.
+        - `description` must be a direct answer or promise between 120 and 160
+          characters and must match the visible article promise.
+        - The first one or two body sentences must answer the primary question
+          in plain text. Do not count bold text, a link, a code block or an
+          image as the answer.
+        - The article must not add an H1: the blog route renders the title.
+          Prefer question-style H2s for real follow-up searches, short
+          paragraphs and ordered steps for procedures.
+
+        Evidence and navigation:
+        - Require deliberate internal links to the closest Kivgraph docs,
+          guides or related articles, plus one or two relevant authoritative
+          external sources when the article makes protocol, platform, language
+          or tool claims. Flag dead, irrelevant or unverifiable links.
+        - The article must not hand-write canonical, Open Graph, sitemap, RSS
+          or `llms.txt` markup; the blog route generates those surfaces.
+        - Public content remains English. Flag accidental Spanish additions or
+          a file that becomes bilingual.
+
+        FAQ and structured data:
+        - If `faq` frontmatter is present, every question and plain-text answer
+          must have the exact same visible Markdown FAQ. Flag schema content
+          that is not visible, and visible FAQ content missing from frontmatter.
+        - Keep FAQ answers useful and specific; do not add questions solely to
+          manufacture keywords or repeat the article verbatim.
+
+        When raising a finding, name the failed contract and suggest the
+        smallest concrete correction. Do not flag a correct title or source
+        link only because a third-party SEO score disagrees with the rendered
+        HTML.
+
+    - path: "landing/src/pages/blog/**"
+      instructions: |
+        This is the generated blog presentation, metadata and structured-data
+        layer. Preserve the contracts that articles rely on:
+
+        - `getStaticPaths` and `loadBlogEntries` must publish only non-draft
+          entries and keep the index, RSS, llms-blog and raw Markdown surfaces
+          in sync through the collection, not a second hand-written list.
+        - The canonical URL must derive from `Astro.site`; never hardcode a
+          host. The rendered article must have exactly one real H1, visible
+          title/description/date values matching `BlogPosting`, a Markdown
+          alternate and valid breadcrumbs.
+        - Emit `FAQPage` only when the article declares and visibly renders a
+          matching FAQ. Keep its questions and answers aligned with the page.
+        - Preserve internal related-article links and accessible navigation.
+          Flag changes that can make a published blog URL unreachable, return a
+          duplicate canonical, or lose its generated SEO surfaces.
+
+        Prefer a focused test or build verification for a route-level change.
+        Do not suggest hand-authoring per-article SEO markup when the shared
+        route already owns it.
+
     - path: "docs/**/*.md"
       instructions: |
         Documentation describes observed behaviour, not intentions. Flag a

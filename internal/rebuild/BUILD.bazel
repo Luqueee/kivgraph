@@ -1,0 +1,46 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "rebuild",
+    srcs = [
+        "mapfile_other.go",
+        "mapfile_unix.go",
+        "memory.go",
+        "rebuild.go",
+        "rollback.go",
+        "snapshot.go",
+        "snapshot_file.go",
+    ],
+    importpath = "github.com/Luqueee/kivgraph/internal/rebuild",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/facts",
+        "//internal/hotsnapshot",
+        "//internal/metrics",
+        "//internal/nativeheap",
+        "//internal/storage/generation",
+        "//internal/storage/ladybug",
+    ],
+)
+
+go_test(
+    name = "rebuild_test",
+    srcs = [
+        "failure_test.go",
+        "rebuild_test.go",
+        "rollback_test.go",
+        "snapshot_corruption_test.go",
+        "snapshot_file_test.go",
+        "snapshot_load_benchmark_test.go",
+        "snapshot_test.go",
+    ],
+    embed = [":rebuild"],
+    deps = [
+        "//internal/facts",
+        "//internal/hotsnapshot",
+        "//internal/metrics",
+        "//internal/storage/generation",
+        "//internal/storage/ladybug",
+        "//internal/testsupport",
+    ],
+)

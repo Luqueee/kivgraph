@@ -7,8 +7,13 @@ description: What the server is serving from, how large it is, how it resolved, 
 
 ## Arguments
 
-None. The input schema declares no properties and sets
-`"additionalProperties": false`, so the only valid argument object is `{}`.
+| Argument | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `profile` | array of strings | all profiles | Profiles to report. `["*"]` alone also selects all profiles. |
+
+With several profiles, each entry identifies its default status, generation
+and repository count. The outer response carries the selected profile
+generations and declares cross-profile edges as unresolved.
 
 ## Answers
 

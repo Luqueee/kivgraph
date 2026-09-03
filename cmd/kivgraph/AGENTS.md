@@ -181,6 +181,12 @@ superficie observable.
 
 ## Protocolo de `index --full --json`
 
+- `kivgraph index` es la forma local de la misma pasada: resuelve el directorio
+  actual, detecta los lenguajes soportados, prepara `.kivgraph/` y registra el
+  repositorio `project` antes de delegar en `runIndexFull`. Si no se pasa
+  `--config` ni `--repositories`, nunca escribe el registro compartido del
+  usuario. `kivgraph index --full` conserva la forma explícita sobre el
+  registro configurado; ninguna de las dos rutas es incremental.
 - El flujo de `index --full --json` es un protocolo, no una bitácora: `stdout`
   lleva sólo eventos JSON por línea -`progress`, y un único `result` al final- y
   el informe que leería una persona no se escribe en ese modo. Los contadores de
@@ -351,12 +357,33 @@ superficie observable.
   La diferencia más grande no es la pendiente: es el **pico**, `179`–`186` contra
   `26`–`29 MB` a ocho clientes, sin una sola consulta. Lo que no es el ahorro en
   ninguna puerta es el snapshot: ya se comparte y esas páginas están limpias.
-- `kivgraph mcp install --daemon` es lo que hace usable todo lo anterior: lee
-  `daemon.json` del directorio de estado y escribe una entrada `url` con el
-  token. Sin ese flag se escribe `serve`, y es deliberado -- detectar un demonio
-  y cambiar la entrada en silencio haría que el mismo comando escribiera dos
-  ficheros distintos según si había un proceso arrancado. En ámbito `project` se
-  niega: ese fichero se commitea.
+- **La unit anota el `PATH` de la terminal que la instaló**, y sin eso el demonio
+  corre con el del supervisor: ni systemd ni launchd leen un perfil de shell, así
+  que el node de nvm y el de Homebrew no están, `kivgraph-ts-worker` muere en
+  `exec node` con un `127`, y el Go de `~/.local/go/bin` pierde en silencio
+  contra el de `/usr/bin` -- que es peor, porque no falla: publica otro grafo.
+  Nada de esto se ve desde la terminal, donde el mismo `index --full` funciona.
+  `status` compara la unit **sin** el `PATH` anotado, porque pertenece a la
+  terminal que instaló y no al demonio: compararlo diría `stale` desde cualquier
+  otra shell. Lo que sí compara es si hay alguno anotado, y por eso toda
+  instalación anterior a esto dice `stale` una vez. Ver ADR 0085.
+- El resincronizador **se rinde** tras `ResyncAttempts` fallos seguidos del mismo
+  lote sin cambios -- cinco, como el `StartLimitBurst` de la unit-- y lo dice una
+  vez por `OnGaveUp`. El lote se identifica por su contenido, así que un
+  movimiento nuevo recupera la cuenta entera y la cota nunca puede suprimir
+  trabajo que nadie ha intentado. Rendirse no rebobina: el tracker se queda en el
+  commit donde el árbol está, que es lo que impide que el lote se vuelva a
+  proponer.
+- `kivgraph mcp install` es lo que hace usable todo lo anterior: lee `daemon.json`
+  del directorio de estado y escribe una entrada `url` con el token. Si no hay
+  supervisor, pregunta antes de instalarlo; una respuesta negativa o una salida
+  no interactiva conserva `stdio`. `--daemon` expresa consentimiento sin prompt.
+  En ámbito `project` se niega: ese fichero se commitea.
+- La salida humana reutiliza el color ANSI de `styleFor`: sólo se activa en un
+  terminal, respeta `NO_COLOR` y `TERM=dumb`, y no añade escapes a una tubería.
+  `daemon status`, `graph status`, `rollback` y `snapshot` presentan una tabla
+  en terminal; el texto redirigido conserva la forma lineal que consumen los
+  scripts.
 - **El demonio publica HTTP antes de enlazar el socket, y el orden es contrato.**
   Un socket unix acepta en cuanto está enlazado, antes de que nadie llame a
   `Accept`, así que alcanzar el socket tiene que implicar que `daemon.json` ya

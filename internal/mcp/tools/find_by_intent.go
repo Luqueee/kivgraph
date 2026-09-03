@@ -39,15 +39,16 @@ const (
 // surface, a retrieval has no reachability to preserve and a narrower corpus is
 // simply a narrower question.
 type FindByIntentInput struct {
-	Intent         string   `json:"intent"`
-	Keywords       []string `json:"keywords,omitempty"`
-	Repo           string   `json:"repo,omitempty"`
-	PathPrefix     string   `json:"path_prefix,omitempty"`
-	Kind           string   `json:"kind,omitempty"`
-	Limit          int      `json:"limit,omitempty"`
-	Cursor         string   `json:"cursor,omitempty"`
-	ResponseFormat string   `json:"response_format,omitempty"`
-	View           string   `json:"view,omitempty"`
+	Profile        []string `json:"profile,omitempty" jsonschema:"Profiles to query; omit for the default, or use * alone for all."`
+	Intent         string   `json:"intent" jsonschema:"What the code you are looking for does, in plain language."`
+	Keywords       []string `json:"keywords,omitempty" jsonschema:"Extra terms the code itself uses, when they differ from the words of the question."`
+	Repo           string   `json:"repo,omitempty" jsonschema:"Consider only candidates in this repository. It narrows the question, not just the page."`
+	PathPrefix     string   `json:"path_prefix,omitempty" jsonschema:"Consider only candidates under this repository-relative path prefix."`
+	Kind           string   `json:"kind,omitempty" jsonschema:"Consider only symbols of this kind, such as function, struct or interface."`
+	Limit          int      `json:"limit,omitempty" jsonschema:"Candidates in one page. Defaults to 10, maximum 50."`
+	Cursor         string   `json:"cursor,omitempty" jsonschema:"The next_cursor of the previous page. Every other argument must stay the same."`
+	ResponseFormat string   `json:"response_format,omitempty" jsonschema:"concise (the default) omits the derived identifiers; detailed returns them."`
+	View           string   `json:"view,omitempty" jsonschema:"Granularity, never a different answer: compact (the default) states once what every row shares, full repeats it on each."`
 }
 
 // IntentMatches is a page of ranked candidates and an account of the terms that
@@ -94,17 +95,20 @@ type IntentTerm struct {
 // looked alike, and they must not be read with the same authority or counted in
 // the same coverage.
 type IntentSymbol struct {
-	Name          string `json:"name,omitempty"`
-	QualifiedName string `json:"qualified_name"`
-	Kind          string `json:"kind"`
-	Repository    string `json:"repository"`
-	FilePath      string `json:"file_path"`
-	StartLine     uint32 `json:"start_line"`
-	EndLine       uint32 `json:"end_line"`
-	Terms         int    `json:"terms"`
-	Match         string `json:"match"`
+	Profiles      ProfileNames `json:"profile,omitempty"`
+	Name          string       `json:"name,omitempty"`
+	QualifiedName string       `json:"qualified_name"`
+	Kind          string       `json:"kind"`
+	Repository    string       `json:"repository"`
+	FilePath      string       `json:"file_path"`
+	StartLine     uint32       `json:"start_line"`
+	EndLine       uint32       `json:"end_line"`
+	Terms         int          `json:"terms"`
+	Match         string       `json:"match"`
 
 	StableKey string `json:"stable_key,omitempty"`
+	score     float64
+	rankKey   string
 }
 
 // intentFileCount is the whole of the `files` view: which files to open, and how
@@ -114,9 +118,10 @@ type IntentSymbol struct {
 // answered by a handful of paths, and the per-symbol rows underneath it are a
 // second question the caller may never need to ask.
 type intentFileCount struct {
-	File    string `json:"file"`
-	Repo    string `json:"repo,omitempty"`
-	Symbols int    `json:"symbols"`
+	Profiles ProfileNames `json:"profile,omitempty"`
+	File     string       `json:"file"`
+	Repo     string       `json:"repo,omitempty"`
+	Symbols  int          `json:"symbols"`
 }
 
 // MarshalJSON writes the page at the granularity the caller asked for.
@@ -127,13 +132,13 @@ func (matches IntentMatches) MarshalJSON() ([]byte, error) {
 		files := make([]intentFileCount, 0, len(matches.Symbols))
 		seen := map[string]int{}
 		for _, symbol := range matches.Symbols {
-			key := symbol.Repository + "\x00" + symbol.FilePath
+			key := string(symbol.Profiles) + "\x00" + symbol.Repository + "\x00" + symbol.FilePath
 			if position, found := seen[key]; found {
 				files[position].Symbols++
 				continue
 			}
 			seen[key] = len(files)
-			files = append(files, intentFileCount{File: symbol.FilePath, Repo: symbol.Repository, Symbols: 1})
+			files = append(files, intentFileCount{Profiles: symbol.Profiles, File: symbol.FilePath, Repo: symbol.Repository, Symbols: 1})
 		}
 		return json.Marshal(struct {
 			Terms     []IntentTerm      `json:"terms,omitempty"`
@@ -224,7 +229,17 @@ func RegisterFindByIntentWithObserverAndSnapshotStore(
 		request *sdkmcp.CallToolRequest,
 		arguments FindByIntentInput,
 	) (*sdkmcp.CallToolResult, Response[IntentMatches], error) {
-		return findByIntent(ctx, request, arguments, snapshotStore)
+		selected, count, err := resolveProfileSelection(snapshotStore, arguments.Profile, "")
+		if err != nil {
+			return nil, Response[IntentMatches]{}, err
+		}
+		if len(selected) > 1 {
+			return findByIntentAcrossProfiles(ctx, request, arguments, selected)
+		}
+		store, profile := selected[0].Store, selected[0].Name
+		result, response, err := findByIntent(ctx, request, arguments, store)
+		scopeResponse(&response, profile, count)
+		return result, response, err
 	}
 	if observer != nil || callObserver != nil {
 		underlying := handler
@@ -247,10 +262,158 @@ func RegisterFindByIntentWithObserverAndSnapshotStore(
 		// resident budget leaves it a hundred and ten bytes for name and text
 		// together -- the whole surface now sits within a few bytes of its
 		// ceiling, so the next tool is a decision about that ceiling.
-		Description: "Which symbols a plain-language description likely names, and the files to open.",
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
+		Description: "Which symbols a plain-language description likely names, and the files to open. Start here when you have no name.",
+		Annotations: readOnlyClosedWorld(),
 		Meta:        alwaysLoadMeta(),
 	}, handler)
+}
+
+func findByIntentAcrossProfiles(
+	_ context.Context,
+	_ *sdkmcp.CallToolRequest,
+	arguments FindByIntentInput,
+	selected []hotsnapshot.ProfileStore,
+) (*sdkmcp.CallToolResult, Response[IntentMatches], error) {
+	options, err := normalizeFindByIntentInput(arguments)
+	if err != nil {
+		return nil, Response[IntentMatches]{}, err
+	}
+	names := make([]string, 0, len(selected))
+	profileSnapshots := make([]ProfileSnapshot, 0, len(selected))
+	for _, profile := range selected {
+		names = append(names, profile.Name)
+	}
+	queryHash, err := HashQuery(struct {
+		Tool       string   `json:"tool"`
+		Profiles   []string `json:"profiles"`
+		Intent     string   `json:"intent"`
+		Keywords   []string `json:"keywords,omitempty"`
+		Repo       string   `json:"repo,omitempty"`
+		PathPrefix string   `json:"path_prefix,omitempty"`
+		Kind       string   `json:"kind,omitempty"`
+	}{findByIntentToolName, names, options.Intent, options.Keywords, options.Repo, options.PathPrefix, options.Kind})
+	if err != nil {
+		return nil, Response[IntentMatches]{}, err
+	}
+
+	words := retrieval.QueryWords(options.Intent, options.Keywords)
+	frequencies := make(map[string]int, len(words))
+	totalCorpus := 0
+	rows := make([]IntentSymbol, 0)
+	variants := make(map[string]int)
+	for _, profile := range selected {
+		snapshot := profile.Store.Load()
+		if snapshot == nil {
+			return nil, Response[IntentMatches]{}, ErrIndexNotReady()
+		}
+		metadata := snapshot.Metadata()
+		profileSnapshots = append(profileSnapshots, ProfileSnapshot{Name: profile.Name, SnapshotID: metadata.ID})
+		totalCorpus += int(metadata.Counts.Symbols)
+		for _, word := range words {
+			_, frequency := snapshot.SymbolsByTerm(retrieval.Fold(word))
+			frequencies[word] += frequency
+		}
+		profileOptions := options
+		profileOptions.Format = ResponseFormatDetailed
+		ranked, _, _, _, rankErr := rankIntentCandidates(snapshot, profileOptions)
+		if rankErr != nil {
+			return nil, Response[IntentMatches]{}, rankErr
+		}
+		for _, row := range ranked {
+			score := row.score
+			stableKey := row.StableKey
+			row.rankKey = stableKey
+			row.Profiles = ""
+			if options.Format != ResponseFormatDetailed {
+				row.StableKey = ""
+			}
+			payload, marshalErr := json.Marshal(row)
+			if marshalErr != nil {
+				return nil, Response[IntentMatches]{}, WrapToolError(CodeSnapshotUnavailable, "encode intent payload for profile merge", marshalErr)
+			}
+			key := stableKey + "\x00" + string(payload)
+			if position, found := variants[key]; found {
+				rows[position].Profiles = rows[position].Profiles.append(profile.Name)
+				if score > rows[position].score {
+					rows[position].score = score
+				}
+				continue
+			}
+			row.Profiles = profileNames(profile.Name)
+			variants[key] = len(rows)
+			rows = append(rows, row)
+		}
+	}
+	sort.SliceStable(rows, func(i, j int) bool {
+		if rows[i].score != rows[j].score {
+			return rows[i].score > rows[j].score
+		}
+		leftProfiles, rightProfiles := string(rows[i].Profiles), string(rows[j].Profiles)
+		if leftProfiles != rightProfiles {
+			return leftProfiles < rightProfiles
+		}
+		return rows[i].rankKey < rows[j].rankKey
+	})
+	terms := make([]IntentTerm, 0, len(words))
+	unmatched := make([]string, 0, len(words))
+	used := 0
+	for _, word := range words {
+		frequency := frequencies[word]
+		if frequency == 0 {
+			unmatched = append(unmatched, word)
+			continue
+		}
+		used++
+		if label := intentFrequencyLabel(frequency, totalCorpus); label != "" {
+			terms = append(terms, IntentTerm{Term: word, Symbols: frequency, Frequency: label})
+		}
+	}
+	setID := ProfileSetSnapshotID(profileSnapshots)
+	offset := 0
+	if arguments.Cursor != "" {
+		cursor, decodeErr := DecodeCursor(arguments.Cursor)
+		if decodeErr != nil {
+			return nil, Response[IntentMatches]{}, decodeErr
+		}
+		if validateErr := cursor.ValidateAgainst(setID, queryHash, SortingVersionIntentV1); validateErr != nil {
+			return nil, Response[IntentMatches]{}, validateErr
+		}
+		offset = cursor.Offset
+	}
+	if offset > len(rows) {
+		return nil, Response[IntentMatches]{}, NewToolError(CodeCursorInvalid, "cursor offset is beyond the merged result")
+	}
+	end, total := offset+options.Limit, len(rows)
+	if options.View == ViewFiles {
+		end, total = filePage(rows, offset, options.Limit)
+	}
+	if end > len(rows) {
+		end = len(rows)
+	}
+	page := rows[offset:end]
+	returned := len(page)
+	if options.View == ViewFiles {
+		returned = distinctFiles(page)
+	}
+	var nextCursor *string
+	if end < len(rows) {
+		cursor, cursorErr := NewCursor(setID, queryHash, end, SortingVersionIntentV1)
+		if cursorErr != nil {
+			return nil, Response[IntentMatches]{}, cursorErr
+		}
+		encoded, encodeErr := cursor.Encode()
+		if encodeErr != nil {
+			return nil, Response[IntentMatches]{}, encodeErr
+		}
+		nextCursor = &encoded
+	}
+	return nil, Response[IntentMatches]{
+		Profiles: profileSnapshots, CrossProfileEdges: "not_resolved",
+		Total: total, Returned: returned, Truncated: end < len(rows), NextCursor: nextCursor,
+		Guidance: intentGuidance(total, returned, end < len(rows), used, len(unmatched), len(options.Keywords)),
+		Results:  IntentMatches{Terms: terms, Unmatched: unmatched, Symbols: page, View: options.View},
+		View:     options.View,
+	}, nil
 }
 
 func findByIntent(
@@ -350,7 +513,7 @@ func filePage(ranked []IntentSymbol, offset, limit int) (int, int) {
 	seen := make(map[string]struct{}, limit)
 	end := offset
 	for end < len(ranked) {
-		key := ranked[end].Repository + "\x00" + ranked[end].FilePath
+		key := string(ranked[end].Profiles) + "\x00" + ranked[end].Repository + "\x00" + ranked[end].FilePath
 		if _, found := seen[key]; !found && len(seen) == limit {
 			break
 		}
@@ -363,7 +526,7 @@ func filePage(ranked []IntentSymbol, offset, limit int) (int, int) {
 func distinctFiles(rows []IntentSymbol) int {
 	seen := make(map[string]struct{}, len(rows))
 	for _, row := range rows {
-		seen[row.Repository+"\x00"+row.FilePath] = struct{}{}
+		seen[string(row.Profiles)+"\x00"+row.Repository+"\x00"+row.FilePath] = struct{}{}
 	}
 	return len(seen)
 }
@@ -528,6 +691,7 @@ func rankIntentCandidates(
 	})
 	ordered := make([]IntentSymbol, 0, len(rows))
 	for _, row := range rows {
+		row.row.score = row.score
 		ordered = append(ordered, row.row)
 	}
 	return ordered, terms, unmatched, used, nil

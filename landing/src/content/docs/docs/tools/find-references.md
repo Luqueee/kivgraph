@@ -3,12 +3,13 @@ title: find_references
 description: Type-checked incoming or outgoing references for one symbol, with the edge kind, confidence and provenance on every answer.
 ---
 
-> Who calls or references a symbol. Type-checked, not name-matched: grep cannot separate homonyms, and an empty answer means nobody calls it. A bare name suffices: an ambiguous one returns its candidates, so no lookup call first. `view: "files"` answers which files without a line each.
+> Who calls or references a symbol, or what it uses with direction outgoing. Type-checked, not name-matched: grep cannot separate homonyms, and an empty answer means nobody calls it. A bare name suffices.
 
 ## Arguments
 
 | Argument | Type | Default | Meaning |
 | --- | --- | --- | --- |
+| `profile` | array of strings | configured default | Profiles to query. `["*"]` alone selects all. A stable key requires exactly one named profile when several profiles exist. |
 | `confidence` | string | none | Keeps only edges carrying exactly this confidence. Accepted: `EXACT_TYPECHECKED`, `EXACT_DECLARATION_MAPPED`, `EXACT_PACKAGE_MAPPED`, `STRUCTURAL_CERTAIN`, `CANDIDATE`, `UNRESOLVED`. One value, not a list. Anything else is rejected with `INVALID_ARGUMENT`. |
 | `cursor` | string | none | Opaque token taken from `next_cursor`. Resumes the same query at the next offset. |
 | `direction` | string | `incoming` | `incoming` returns the symbols that reference this one. `outgoing` returns the ones it reaches. Any other value is rejected with `INVALID_ARGUMENT`. |

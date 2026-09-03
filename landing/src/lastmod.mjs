@@ -127,6 +127,39 @@ function docsEntrySources(slug) {
   );
 }
 
+/** `/blog/semantic-code-search-vs-grep/` -> `content/blog/<slug>.md`. */
+function blogEntrySources(slug) {
+  const base = `content/blog/${slug}`;
+  return [`${base}.md`].filter((relative) =>
+    existsSync(path.join(SRC_DIR, relative)),
+  );
+}
+
+/** The blog index changes when its route or one of its published entries does. */
+function blogIndexSources() {
+  const entries = [];
+  if (COMMIT_DATES !== null) {
+    for (const tracked of COMMIT_DATES.keys()) {
+      if (tracked.startsWith(`${SRC_PREFIX}/content/blog/`)) {
+        const relative = tracked.slice(SRC_PREFIX.length + 1);
+        if (!isBlogDraft(relative)) entries.push(relative);
+      }
+    }
+  }
+  return ["pages/blog/index.astro", ...entries];
+}
+
+/** A draft does not change the public blog index until its flag is removed. */
+function isBlogDraft(relative) {
+  try {
+    return /^draft:\s*true\s*$/m.test(
+      readFileSync(path.join(SRC_DIR, relative), "utf8"),
+    );
+  } catch {
+    return false;
+  }
+}
+
 /**
  * The date to publish for one sitemap URL, or `undefined` to publish none.
  *
@@ -151,6 +184,12 @@ export function lastmodFor(url) {
       }
     }
     return newest(["pages/releases.astro", ...notes]);
+  }
+
+  if (slug === "blog") return newest(blogIndexSources());
+
+  if (slug.startsWith("blog/")) {
+    return newest(blogEntrySources(slug.slice("blog/".length)));
   }
 
   const entry = docsEntrySources(slug);

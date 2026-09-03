@@ -47,24 +47,24 @@ func runDoctorRepositories(args []string, stdout, stderr io.Writer) int {
 		return code
 	}
 	if flags.NArg() != 0 {
-		fmt.Fprintf(stderr, "doctor repositories: unexpected arguments: %v\n", flags.Args())
+		writeCommandError(stderr, "doctor repositories: unexpected arguments: %v", flags.Args())
 		return 2
 	}
 
 	loaded, err := config.Load(options.ConfigPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "doctor repositories: %v\n", err)
+		writeCommandError(stderr, "doctor repositories: %v", err)
 		return 1
 	}
 	ctx := context.Background()
 	registry, err := workspace.NewRegistry(ctx, loaded.Repositories)
 	if err != nil {
-		fmt.Fprintf(stderr, "doctor repositories: register repositories: %v\n", err)
+		writeCommandError(stderr, "doctor repositories: register repositories: %v", err)
 		return 1
 	}
 	repositories := registry.List()
 	if options.Repository != "" && !namesRepository(repositories, options.Repository) {
-		fmt.Fprintf(stderr, "doctor repositories: no repository named %q is registered\n", options.Repository)
+		writeCommandError(stderr, "doctor repositories: no repository named %q is registered", options.Repository)
 		return 2
 	}
 
@@ -72,7 +72,7 @@ func runDoctorRepositories(args []string, stdout, stderr io.Writer) int {
 	auditOptions.Repository = options.Repository
 	report, err := audit.Run(ctx, repositories, auditOptions)
 	if err != nil {
-		fmt.Fprintf(stderr, "doctor repositories: %v\n", err)
+		writeCommandError(stderr, "doctor repositories: %v", err)
 		return 1
 	}
 
@@ -80,7 +80,7 @@ func runDoctorRepositories(args []string, stdout, stderr io.Writer) int {
 		encoder := json.NewEncoder(stdout)
 		encoder.SetIndent("", "  ")
 		if err := encoder.Encode(report); err != nil {
-			fmt.Fprintf(stderr, "doctor repositories: write report: %v\n", err)
+			writeCommandError(stderr, "doctor repositories: write report: %v", err)
 			return 1
 		}
 	} else {

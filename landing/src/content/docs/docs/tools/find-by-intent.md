@@ -3,12 +3,28 @@ title: find_by_intent
 description: Which symbols a plain-language description likely names, and the files to open, when you do not know what anything is called.
 ---
 
-> Which symbols a plain-language description likely names, and the files to open. It is the one tool here that matches text rather than edges, and every row says so in `match`. Use it to find the entry point, then ask the resolved tools about it. `view: "files"` answers which files to open without a symbol row each.
+> Which symbols a plain-language description likely names, and the files to open. Start here when you have no name.
+
+## Start with the behavior
+
+You do not need to know the identifier before asking. In the measured
+`intent-token-cost` set, the question “which code refuses to publish a
+generation when the disk is nearly full” ranked its answer files `1 of 10`
+through `find_by_intent`; the best `git grep` result ranked them `25 of 34`.
+The set contains 24 questions over three repositories. Those numbers are ranks
+in each ordered candidate list: `find_by_intent` found the answer first, while
+the best `git grep` match appeared 25th. They are not success percentages or
+proof of an edge. Once the files are known, continue with the exact tools and
+inspect their `match`, confidence and completeness fields.
+
+See the [full measurement method](/comparison/) and the
+[plain-language discovery contract](#arguments) before choosing a view.
 
 ## Arguments
 
 | Argument | Type | Default | Meaning |
 | --- | --- | --- | --- |
+| `profile` | array of strings | configured default | Profiles to query. `["*"]` alone selects all. |
 | `cursor` | string | none | Opaque token taken from `next_cursor`. Resumes the same query at the next offset. |
 | `intent` | string | none | The question, in plain language. Required: an empty or whitespace-only value is rejected with `INVALID_ARGUMENT`. It is a question and not a document, so more than 400 characters is rejected with the instruction to shorten it and pass the vocabulary as `keywords`. |
 | `keywords` | array of string | none | Extra terms that extend the question rather than replacing it, and where you supply the vocabulary the code uses when it differs from the vocabulary the question used. At most 16; more is rejected with `INVALID_ARGUMENT`, and so is an empty or whitespace-only entry. There is no thesaurus and no embedding here: the model asking already knows more synonyms than a table would hold. |

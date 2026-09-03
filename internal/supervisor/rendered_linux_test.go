@@ -8,5 +8,5 @@ import "testing"
 // real file rather than a fixture that drifts from it.
 func renderedUnit(t *testing.T, spec Spec) []byte {
 	t.Helper()
-	return []byte(unit(spec))
+	return []byte(unit(spec, daemonPath()))
 }

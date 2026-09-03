@@ -9,6 +9,7 @@ description: Read one symbol's package, module, signature, visibility and line r
 
 | Argument | Type | Default | Meaning |
 | --- | --- | --- | --- |
+| `profile` | array of strings | configured default | Profiles to query. `["*"]` alone selects all. A stable key requires exactly one named profile when several profiles exist. |
 | `stable_key` | string | unset | The durable key of one symbol. Exactly one of `stable_key` or `qualified_name` is required; passing both is rejected. Passing it together with `repository` or `path` is also rejected, because a key already names one symbol. |
 | `qualified_name` | string | unset | The qualified name of the symbol, as every row of this surface returns it. Exactly one of `stable_key` or `qualified_name` is required. |
 | `repository` | string | unset | Narrows a `qualified_name` to one repository, matched by name. A repository the published graph does not hold is rejected with `REPOSITORY_NOT_FOUND`. |

@@ -31,6 +31,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -72,6 +73,40 @@ type Spec struct {
 	AllowRemote bool
 }
 
+// daemonPath is the PATH an installed unit records for the daemon.
+//
+// Neither supervisor gives a process the environment its owner works in. A
+// systemd user unit that declares none inherits systemd's own -- /usr/local/bin,
+// /usr/bin, /bin and a pair of games directories -- and a launchd agent gets
+// /usr/bin:/bin:/usr/sbin:/sbin. What both lists have in common is that nothing
+// the user installed for themselves is on them, and neither reads a shell
+// profile to find out.
+//
+// That breaks the daemon in two different ways, one loud and one silent.
+// `kivgraph-ts-worker` ends in `exec node`, and a node installed through nvm
+// lives under ~/.nvm and reaches PATH through .bashrc -- so the worker exits 127
+// and every TypeScript repository fails to index. Homebrew's /opt/homebrew/bin
+// is missing for the same reason. Go fails quietly instead: a current toolchain
+// in ~/.local/go/bin loses to the distribution's in /usr/bin, and the daemon
+// builds a different graph with nothing to report.
+//
+// What makes this hard to see from the outside is that it is invisible from the
+// shell. `kivgraph index --full` typed by hand works, because the shell has the
+// PATH the unit lacks, and the logs point at the indexer rather than at the
+// environment. Recording that shell's PATH is the fix, and it is recorded rather
+// than resolved because the shell that ran `daemon install` is the one place
+// where the user's toolchains demonstrably resolve: they typed the command
+// there. It also makes the unit self-describing -- `systemctl cat` or the plist
+// answers what the daemon can reach, where ambient state answers nothing.
+//
+// The cost is that it is a snapshot. An nvm upgrade moves node to a new
+// versioned directory and the recorded PATH goes on naming the old one, so the
+// remedy is `kivgraph daemon install` again -- which is the remedy an operator
+// would reach for anyway, and the one `daemon status` already names.
+func daemonPath() string {
+	return os.Getenv("PATH")
+}
+
 // State is what a supervisor knows about a spec.
 type State string
 
@@ -97,6 +132,14 @@ type Report struct {
 	Label  string
 	Path   string
 	Detail string
+	// Managed means the installed definition matches a Kivgraph-rendered
+	// definition, apart from a supported migration such as the recorded PATH.
+	// It is ownership evidence for an update; a path or label alone is not.
+	Managed bool
+	// Repairable means the definition is a known Kivgraph version that can be
+	// rewritten safely by an update. Hand-edited and foreign definitions are
+	// never repairable.
+	Repairable bool
 }
 
 // Label returns the supervisor identifier for a spec.
@@ -177,20 +220,34 @@ func Remove(spec Spec) (Report, error) {
 // properly, exits zero, and stays down. Only the supervisor puts it back, and
 // only this asks it to.
 //
-// A spec whose unit is absent, stale or unsupported is not restarted and is
-// not an error: the Report says which, and a caller that has something else to
-// do about an unsupervised process needs to be told rather than failed. That
-// is the same contract Status has, for the same reason -- unlike Install and
-// Remove, there is nothing here to refuse to do.
+// A spec whose unit is absent or unsupported is not restarted and is not an
+// error. A stale unit is repaired only when Status provides explicit evidence
+// that it is a Kivgraph-rendered legacy definition; hand-edited and foreign
+// definitions remain untouched. The Report says which case was observed.
 func Restart(spec Spec) (Report, error) {
+	return restartWith(spec, status, install, restart)
+}
+
+type operation func(Spec) (Report, error)
+
+func restartWith(spec Spec, inspect, repair, bringBack operation) (Report, error) {
 	if err := spec.validate(); err != nil {
 		return Report{}, err
 	}
-	report, err := status(spec)
-	if err != nil || report.State != StateInstalled {
+	report, err := inspect(spec)
+	if err != nil {
 		return report, err
 	}
-	return restart(spec)
+	if report.State == StateStale && report.Managed && report.Repairable {
+		report, err = repair(spec)
+		if err != nil {
+			return report, err
+		}
+	}
+	if report.State != StateInstalled {
+		return report, nil
+	}
+	return bringBack(spec)
 }
 
 // Status reports what is installed without changing anything.

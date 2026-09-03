@@ -4,6 +4,8 @@ package config
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -66,6 +68,7 @@ func (duration Duration) String() string {
 // Config is the complete Kivgraph configuration document.
 type Config struct {
 	Version    int              `yaml:"version"`
+	Profiles   ProfilesConfig   `yaml:"profiles"`
 	Workspace  WorkspaceConfig  `yaml:"workspace"`
 	Storage    StorageConfig    `yaml:"storage"`
 	Web        WebConfig        `yaml:"web"`
@@ -81,6 +84,42 @@ type Config struct {
 	CSharp     CSharpConfig     `yaml:"csharp"`
 	Telemetry  TelemetryConfig  `yaml:"telemetry"`
 	Logging    LoggingConfig    `yaml:"logging"`
+}
+
+// ProfilesConfig selects the profile used when an operation does not name
+// one. The profile itself is ordinary; only this pointer supplies a default.
+type ProfilesConfig struct {
+	Default string `yaml:"default"`
+	MaxOpen int    `yaml:"max_open"`
+}
+
+const maximumProfileNameBytes = 64
+
+// ValidateProfileName refuses names that are unsafe or ambiguous as one path
+// element. The all-profiles selector is reserved and is never a profile name.
+func ValidateProfileName(name string) error {
+	if name == "" {
+		return errors.New("must not be empty")
+	}
+	if len(name) > maximumProfileNameBytes {
+		return fmt.Errorf("must be at most %d bytes, got %d", maximumProfileNameBytes, len(name))
+	}
+	if name == "*" {
+		return errors.New("must not be *: it is the all-profiles selector")
+	}
+	for _, character := range name {
+		if character >= 'a' && character <= 'z' ||
+			character >= 'A' && character <= 'Z' ||
+			character >= '0' && character <= '9' ||
+			character == '-' || character == '_' || character == '.' {
+			continue
+		}
+		return fmt.Errorf("must contain only ASCII letters, digits, '.', '-' or '_', got %q", name)
+	}
+	if name == "." || name == ".." {
+		return fmt.Errorf("must not be %q", name)
+	}
+	return nil
 }
 
 // WorkspaceConfig points to the repository registry.
@@ -452,6 +491,8 @@ type Loaded struct {
 	Repositories     RepositoriesFile
 	ConfigPath       string
 	RepositoriesPath string
+	// Profile is empty only for callers using the legacy unscoped Load seam.
+	Profile string
 	// RetiredKeys are the dotted names of keys the file carries that this
 	// build no longer implements. They are reported rather than rejected, so
 	// something has to be able to say they were there. See ADR 0062.
@@ -477,7 +518,8 @@ type InitResult struct {
 // Paths use the documented home-directory notation until Load expands them.
 func DefaultConfig() Config {
 	return Config{
-		Version: CurrentSchemaVersion,
+		Version:  CurrentSchemaVersion,
+		Profiles: ProfilesConfig{Default: "default", MaxOpen: 3},
 		Workspace: WorkspaceConfig{
 			RepositoriesFile: defaultRepositoriesFile,
 		},
@@ -602,11 +644,15 @@ func stateBesideConfig(configPath string, ownRegistry bool) (*Config, error) {
 	}
 	directory := filepath.Dir(configPath)
 	state := filepath.Join(directory, "state")
+	syntheticWorkFile, err := projectSyntheticWorkFile(configPath)
+	if err != nil {
+		return nil, err
+	}
 	configuration := DefaultConfig()
 	configuration.Storage.DatabasePath = filepath.Join(state, "graph.lbdb")
 	configuration.Storage.BackupsPath = filepath.Join(state, "backups")
 	configuration.Indexing.FactCachePath = filepath.Join(state, "factcache")
-	configuration.Go.SyntheticWorkFile = filepath.Join(state, "go.work")
+	configuration.Go.SyntheticWorkFile = syntheticWorkFile
 	configuration.Rust.TargetDirectory = filepath.Join(state, "rust-target")
 	configuration.Java.TargetDirectory = filepath.Join(state, "java-target")
 	configuration.CSharp.TargetDirectory = filepath.Join(state, "csharp-target")
@@ -615,6 +661,73 @@ func stateBesideConfig(configPath string, ownRegistry bool) (*Config, error) {
 		configuration.Workspace.RepositoriesFile = filepath.Join(directory, "repositories.yaml")
 	}
 	return &configuration, nil
+}
+
+// projectSyntheticWorkFile returns a stable workspace path for one isolated
+// configuration. Synthetic Go workspaces cannot live beside project-local
+// configuration because that directory is itself inside the repository being
+// indexed.
+func projectSyntheticWorkFile(configPath string) (string, error) {
+	defaultWorkFile, err := expandPath(defaultSyntheticWork, "")
+	if err != nil {
+		return "", fmt.Errorf("resolve user Kivgraph state: %w", err)
+	}
+	digest := sha256.Sum256([]byte(filepath.Clean(configPath)))
+	identity := hex.EncodeToString(digest[:])
+	return filepath.Join(filepath.Dir(defaultWorkFile), "workspaces", identity, "go.work"), nil
+}
+
+// MigrateProjectSyntheticWorkFile moves the invalid workspace path written by
+// older project-local configurations. A different value is user-owned and is
+// never changed.
+func MigrateProjectSyntheticWorkFile(configPath string) (bool, error) {
+	resolvedPath, err := resolveConfigPath(configPath)
+	if err != nil {
+		return false, fmt.Errorf("resolve config path: %w", err)
+	}
+	configuration, _, err := loadConfigFile(resolvedPath)
+	if err != nil {
+		return false, fmt.Errorf("load config %q: %w", resolvedPath, err)
+	}
+	legacy := filepath.Join(filepath.Dir(resolvedPath), "state", "go.work")
+	if filepath.Clean(configuration.Go.SyntheticWorkFile) != filepath.Clean(legacy) {
+		return false, nil
+	}
+	target, err := projectSyntheticWorkFile(resolvedPath)
+	if err != nil {
+		return false, err
+	}
+
+	data, err := os.ReadFile(resolvedPath)
+	if err != nil {
+		return false, fmt.Errorf("read config %q for migration: %w", resolvedPath, err)
+	}
+	var root yaml.Node
+	if err := yaml.Unmarshal(data, &root); err != nil {
+		return false, fmt.Errorf("decode config %q for migration: %w", resolvedPath, err)
+	}
+	document := &root
+	if document.Kind == yaml.DocumentNode && len(document.Content) == 1 {
+		document = document.Content[0]
+	}
+	goSection := mappingValue(document, "go")
+	workFile := mappingValue(goSection, "synthetic_work_file")
+	if workFile == nil || workFile.Kind != yaml.ScalarNode {
+		return false, errors.New("config.go.synthetic_work_file: field is required for project migration")
+	}
+	workFile.Value = target
+	workFile.Tag = "!!str"
+	migratedData, err := yaml.Marshal(&root)
+	if err != nil {
+		return false, fmt.Errorf("encode migrated config %q: %w", resolvedPath, err)
+	}
+	if err := ensureDirectory(filepath.Dir(target)); err != nil {
+		return false, err
+	}
+	if _, err := writeInitialFile(resolvedPath, migratedData, true); err != nil {
+		return false, fmt.Errorf("write migrated config %q: %w", resolvedPath, err)
+	}
+	return true, nil
 }
 
 // DefaultConfigPath returns the expanded default config path.
@@ -712,6 +825,9 @@ func Initialize(options InitOptions) (InitResult, error) {
 	repositoriesCreated, err := writeInitialFile(repositoriesPath, repositoriesData, options.Force)
 	if err != nil {
 		return InitResult{}, fmt.Errorf("write repositories %q: %w", repositoriesPath, err)
+	}
+	if err := ensureDefaultProfile(expandedConfiguration, repositoriesPath); err != nil {
+		return InitResult{}, err
 	}
 	return InitResult{
 		ConfigPath:          configPath,
@@ -1034,6 +1150,12 @@ func expandConfigPath(value, base, field string) (string, error) {
 func validateConfig(configuration Config) error {
 	if configuration.Version != CurrentSchemaVersion {
 		return fmt.Errorf("config.version: unsupported schema version %d, want %d", configuration.Version, CurrentSchemaVersion)
+	}
+	if err := ValidateProfileName(configuration.Profiles.Default); err != nil {
+		return fmt.Errorf("config.profiles.default: %w", err)
+	}
+	if configuration.Profiles.MaxOpen < 1 {
+		return errors.New("config.profiles.max_open: must be at least 1")
 	}
 	for field, value := range map[string]string{
 		"workspace.repositories_file": configuration.Workspace.RepositoriesFile,

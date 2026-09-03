@@ -31,6 +31,8 @@ Its edges are resolved by language analyzers or explicitly marked as CANDIDATE/U
 
 Rows are addressable: every one carries a repository, a repository-relative path, a qualified name and a line range, and every tool accepts that triple instead of a stable key.
 
+Queries accept one or more profiles and use the configured default when omitted; ["*"] selects all. graph_status and list_repositories discover all profiles when omitted. A stable key must name exactly one profile when the installation has several.
+
 Where it loses: a rare name in a single small repository is cheaper to grep, and one small file is cheaper to read than to outline. It wins on common names, on transitive impact, on cross-repository consumers and on proving an absence.`
 
 // staleServerInstructions replaces the routing card when there is no published

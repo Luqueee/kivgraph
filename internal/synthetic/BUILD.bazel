@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "synthetic",
+    srcs = ["generator.go"],
+    importpath = "github.com/Luqueee/kivgraph/internal/synthetic",
+    visibility = ["//:__subpackages__"],
+)
+
+go_test(
+    name = "synthetic_test",
+    srcs = ["generator_test.go"],
+    embed = [":synthetic"],
+)

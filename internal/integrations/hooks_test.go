@@ -5,6 +5,7 @@ import (
 	"github.com/Luqueee/kivgraph/internal/executable"
 	"github.com/Luqueee/kivgraph/internal/testsupport"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -237,7 +238,7 @@ func TestRemoveLeavesNoEmptyScaffolding(t *testing.T) {
 // TestDryRunWritesNothing is the promise the flag makes.
 func TestDryRunWritesNothing(t *testing.T) {
 	manager, home, _ := testManager(t)
-	for _, target := range []Target{TargetClaudeCode, TargetCodex, TargetOpenCode} {
+	for _, target := range []Target{TargetClaudeCode, TargetCodex, TargetOpenCode, TargetOhMyPi} {
 		plan, err := manager.InstallHook(target, ScopeUser, true, false)
 		if err != nil {
 			t.Fatalf("InstallHook(%s) error = %v", target, err)
@@ -261,7 +262,8 @@ func TestDryRunWritesNothing(t *testing.T) {
 // TestEveryTargetWritesWhereItsOwnClientLooks is the fixture check: a path
 // nobody reads is a gate that silently never fires. Claude Code's hooks live in
 // settings.json and not in the .claude.json its MCP servers use; Codex reads
-// hooks.json; OpenCode scans a plugins directory and loads what it finds.
+// hooks.json; OpenCode and Oh My Pi auto-discover extension modules in their
+// respective extension directories.
 func TestEveryTargetWritesWhereItsOwnClientLooks(t *testing.T) {
 	manager, home, project := testManager(t)
 	for _, testCase := range []struct {
@@ -276,6 +278,8 @@ func TestEveryTargetWritesWhereItsOwnClientLooks(t *testing.T) {
 		{TargetCodex, ScopeProject, filepath.Join(project, ".codex", "hooks.json")},
 		{TargetOpenCode, ScopeUser, filepath.Join(home, ".config", "opencode", "plugins", "kivgraph.js")},
 		{TargetOpenCode, ScopeProject, filepath.Join(project, ".opencode", "plugins", "kivgraph.js")},
+		{TargetOhMyPi, ScopeUser, filepath.Join(home, ".omp", "agent", "extensions", "kivgraph.js")},
+		{TargetOhMyPi, ScopeProject, filepath.Join(project, ".omp", "extensions", "kivgraph.js")},
 	} {
 		plan, err := manager.StatusHook(testCase.target, testCase.scope)
 		if err != nil {
@@ -302,11 +306,12 @@ func TestCodexKeepsItsOwnWrapper(t *testing.T) {
 		t.Fatalf("PreToolUse = %#v, want one entry", entries)
 	}
 	entry, _ := entries[0].(map[string]any)
-	// Codex names the shell Bash and has no glob tool at all, so gating
-	// Claude Code's four names here would register matchers Codex never
-	// fires.
+	// The desktop labels command executions "Shell" in its transcript, but
+	// the PreToolUse payload names the tool Bash. Codex matchers are literal,
+	// so matching the presentation label leaves the hook disconnected.
 	if entry["matcher"] != "Bash" {
-		t.Fatalf("codex matcher = %v, want Bash", entry["matcher"])
+		t.Fatalf("InstallHook(%q, %q) matcher = %v, want Bash",
+			TargetCodex, ScopeUser, entry["matcher"])
 	}
 }
 
@@ -333,12 +338,164 @@ func TestTheOpenCodePluginNamesThisInstallationsBinary(t *testing.T) {
 	}
 }
 
+// TestOhMyPiIncompatibleExtensionRequiresForce is the negative for the new
+// target. Installing over a module that Kivgraph did not write must not replace
+// another extension unless the caller explicitly opts in.
+func TestOhMyPiIncompatibleExtensionRequiresForce(t *testing.T) {
+	manager, home, _ := testManager(t)
+	path := filepath.Join(home, ".omp", "agent", "extensions", "kivgraph.js")
+	original := []byte("export default function otherExtension() {}\n")
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, original, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.InstallHook(TargetOhMyPi, ScopeUser, false, false); err == nil {
+		t.Fatal("incompatible Oh My Pi extension was replaced without --force")
+	}
+	if data, err := os.ReadFile(path); err != nil || string(data) != string(original) {
+		t.Fatalf("failed install changed the extension: data=%q err=%v", data, err)
+	}
+	plan, err := manager.InstallHook(TargetOhMyPi, ScopeUser, false, true)
+	if err != nil {
+		t.Fatalf("forced InstallHook() error = %v", err)
+	}
+	if plan.Status != "installed" || !plan.Changed {
+		t.Fatalf("forced install plan = %#v", plan)
+	}
+	if _, err := os.Stat(path + ".kivgraph.bak"); err != nil {
+		t.Fatalf("forced install did not preserve the incompatible extension: %v", err)
+	}
+}
+
+// TestTheOhMyPiExtensionRunsTheGateAndBlocksItsDenial invokes the generated
+// extension through Node, the same module boundary Oh My Pi uses. A source
+// literal check would pass even if the handler sent the wrong payload or
+// ignored a denial.
+func TestTheOhMyPiExtensionRunsTheGateAndBlocksItsDenial(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the shell executable fixture is Unix-specific")
+	}
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skipf("node is not installed: %v", err)
+	}
+	if output, err := exec.Command(node, "--input-type=module", "--eval", "").CombinedOutput(); err != nil {
+		t.Skipf("node cannot run the ESM harness: %v\n%s", err, output)
+	}
+	home := t.TempDir()
+	project := t.TempDir()
+	capture := filepath.Join(t.TempDir(), "payload.json")
+	count := filepath.Join(t.TempDir(), "invocations")
+	executable := filepath.Join(t.TempDir(), "kivgraph")
+	script := "#!/bin/sh\nif [ -e \"$KIVGRAPH_TEST_COUNT\" ]; then\ncat >/dev/null\nprintf '%s\\n' 'malformed gate response'\nelse\ntouch \"$KIVGRAPH_TEST_COUNT\"\ncat > \"$KIVGRAPH_TEST_CAPTURE\"\nprintf '%s\\n' '{\"hookSpecificOutput\":{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"use find_symbol\"}}'\nfi\n"
+	if err := os.WriteFile(executable, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	manager, err := New(Options{HomeDir: home, ProjectDir: project,
+		Executable: executable, GOOS: runtime.GOOS})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.InstallHook(TargetOhMyPi, ScopeUser, false, false); err != nil {
+		t.Fatalf("InstallHook() error = %v", err)
+	}
+	path := filepath.Join(home, ".omp", "agent", "extensions", "kivgraph.js")
+	if err := os.WriteFile(filepath.Join(home, ".omp", "agent", "package.json"),
+		[]byte(`{"type":"module"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	harness := `import { pathToFileURL } from "node:url"
+const extension = await import(pathToFileURL(process.env.OMP_EXTENSION).href)
+const handlers = []
+extension.default({ on(name, handler) {
+  if (name !== "tool_call") throw new Error("unexpected event: " + name)
+  handlers.push(handler)
+} })
+if (handlers.length !== 1) throw new Error("extension registered the wrong handlers")
+const result = await handlers[0]({
+  toolName: "Grep",
+  input: { pattern: "NewServer", path: "internal" },
+}, { cwd: "/repo" })
+if (result?.block !== true || result.reason !== "use find_symbol") {
+  throw new Error("unexpected hook result: " + JSON.stringify(result))
+}
+const failOpen = await handlers[0]({
+  toolName: "Grep",
+  input: { pattern: "Indexer", path: "internal" },
+}, { cwd: "/repo" })
+if (failOpen !== undefined) {
+  throw new Error("malformed gate response blocked the call: " + JSON.stringify(failOpen))
+}
+`
+	command := exec.Command(node, "--input-type=module", "--eval", harness)
+	command.Env = append(os.Environ(), "KIVGRAPH_TEST_CAPTURE="+capture,
+		"KIVGRAPH_TEST_COUNT="+count, "OMP_EXTENSION="+path)
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("Oh My Pi handler failed for target=%s scope=%s path=%s: %v\n%s",
+			TargetOhMyPi, ScopeUser, path, err, output)
+	}
+	body, err := os.ReadFile(capture)
+	if err != nil {
+		t.Fatalf("Oh My Pi handler did not invoke target=%s scope=%s path=%s: %v",
+			TargetOhMyPi, ScopeUser, path, err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("Oh My Pi handler sent invalid payload for target=%s scope=%s path=%s: %v",
+			TargetOhMyPi, ScopeUser, path, err)
+	}
+	if payload["hook_event_name"] != "PreToolUse" || payload["cwd"] != "/repo" || payload["tool_name"] != "Grep" {
+		t.Fatalf("Oh My Pi handler sent payload=%#v for target=%s scope=%s path=%s",
+			payload, TargetOhMyPi, ScopeUser, path)
+	}
+	input, ok := payload["tool_input"].(map[string]any)
+	if !ok || input["pattern"] != "NewServer" || input["path"] != "internal" {
+		t.Fatalf("Oh My Pi handler sent tool_input=%#v for target=%s scope=%s path=%s",
+			payload["tool_input"], TargetOhMyPi, ScopeUser, path)
+	}
+}
+
+// TestOhMyPiExtensionInstallIsIdempotentAndRemovable keeps the native module
+// on the same lifecycle as the other generated hook integrations.
+func TestOhMyPiExtensionInstallIsIdempotentAndRemovable(t *testing.T) {
+	manager, home, _ := testManager(t)
+	first, err := manager.InstallHook(TargetOhMyPi, ScopeUser, false, false)
+	if err != nil {
+		t.Fatalf("first InstallHook() error = %v", err)
+	}
+	if first.Status != "installed" || !first.Changed {
+		t.Fatalf("first install = %#v", first)
+	}
+	second, err := manager.InstallHook(TargetOhMyPi, ScopeUser, false, false)
+	if err != nil {
+		t.Fatalf("second InstallHook() error = %v", err)
+	}
+	if second.Status != "managed" || second.Changed {
+		t.Fatalf("second install = %#v, want a no-op", second)
+	}
+	removed, err := manager.RemoveHook(TargetOhMyPi, ScopeUser, false, false)
+	if err != nil {
+		t.Fatalf("RemoveHook() error = %v", err)
+	}
+	if removed.Status != "removed" || !removed.Changed {
+		t.Fatalf("remove = %#v", removed)
+	}
+	path := filepath.Join(home, ".omp", "agent", "extensions", "kivgraph.js")
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("extension still exists after removal: %v", err)
+	}
+	if _, err := os.Stat(path + ".kivgraph.bak"); err != nil {
+		t.Fatalf("removal did not preserve a backup: %v", err)
+	}
+}
+
 // TestATargetWithNoGateIsRefusedByName keeps a client that cannot host the gate
-// from being told it can. Oh My Pi's own documentation calls its hook subsystem
-// legacy and says the runtime uses an extension runner instead.
+// from being told it can.
 func TestATargetWithNoGateIsRefusedByName(t *testing.T) {
 	manager, _, _ := testManager(t)
-	for _, target := range []Target{TargetOhMyPi, Target("cursor")} {
+	for _, target := range []Target{Target("cursor")} {
 		_, err := manager.InstallHook(target, ScopeUser, false, false)
 		if err == nil {
 			t.Fatalf("%s was offered a gate it cannot host", target)
@@ -491,4 +648,27 @@ func TestClaudeDesktopIsDetectedByItsOwnEntry(t *testing.T) {
 	if !detected() {
 		t.Fatal("the desktop app is installed and was not detected")
 	}
+}
+
+// TestOhMyPiProjectIsDetectedByItsAgentRoot keeps project selection from
+// treating the extension file as the installation marker. The project root is
+// what Oh My Pi owns even before a Kivgraph extension is written.
+func TestOhMyPiProjectIsDetectedByItsAgentRoot(t *testing.T) {
+	manager, _, project := testManager(t)
+	if err := os.MkdirAll(filepath.Join(project, ".omp"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	detections, err := manager.DetectHookTargets(ScopeProject)
+	if err != nil {
+		t.Fatalf("DetectHookTargets() error = %v", err)
+	}
+	for _, detection := range detections {
+		if detection.Target == TargetOhMyPi {
+			if !detection.Detected {
+				t.Fatal("a project .omp root was not detected")
+			}
+			return
+		}
+	}
+	t.Fatal("oh-my-pi is not offered as a project hook target")
 }

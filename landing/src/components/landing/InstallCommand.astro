@@ -1,0 +1,138 @@
+---
+import CopyButton from "./CopyButton.astro";
+import { PLATFORMS } from "./platforms";
+
+interface Props {
+  /**
+   * Where on the page this box sits. It names the radio group, so two boxes on
+   * one page do not share a selection, and it is the `where` of every
+   * `install_copy` this box reports.
+   */
+  where: string;
+  class?: string;
+}
+
+const { where, class: className = "" } = Astro.props;
+---
+
+{/* A radio group and no JavaScript, exactly like the tabs of `ProductProof`:
+  it is keyboard-navigable and announced without a line of script, all three
+  commands stay in the served HTML -- so a crawler and a reader with no CSS get
+  every platform rather than none -- and there is nothing to fetch on a tab
+  change. The inputs come before the tabs and the panels because the whole
+  control is one sibling combinator away from them, and they are `sr-only` and
+  never `display: none`, because a hidden radio cannot take focus.
+
+  The rules below key off `data-platform` rather than an id, which is what lets
+  this component appear twice on one page: an id is unique per box, the data
+  attribute is the same in both, and `~` cannot reach out of its own
+  fieldset. */}
+<fieldset class:list={["installer border-0", className]}>
+  <legend class="sr-only">Choose your platform</legend>
+
+  {
+    PLATFORMS.map((platform, index) => (
+      <input
+        class="sr-only"
+        type="radio"
+        name={`install-${where}`}
+        id={`install-${where}-${platform.id}`}
+        data-platform={platform.id}
+        checked={index === 0}
+      />
+    ))
+  }
+
+  <div class="border border-rule bg-panel text-left">
+    <div
+      class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-rule px-4 py-2 font-mono text-xs"
+    >
+      <div class="tabs flex flex-wrap gap-x-4 gap-y-1">
+        {
+          PLATFORMS.map((platform) => (
+            <label
+              class="cursor-pointer border-b-2 border-transparent pb-1 text-gray-400 hover:text-gray-100"
+              for={`install-${where}-${platform.id}`}
+              data-tab={platform.id}
+            >
+              {platform.label}
+            </label>
+          ))
+        }
+      </div>
+
+      {/* One button per panel rather than one for the box: the value a copy
+        button carries is server-rendered, so a single button could not follow
+        the selection without the script this control exists to avoid. Only
+        the checked panel is displayed, so only its button is clickable. */}
+      <div class="panels flex">
+        {
+          PLATFORMS.map((platform) => (
+            <div class="panel" data-panel={platform.id}>
+              <CopyButton
+                value={platform.command}
+                event="install_copy"
+                eventData={{ where, platform: platform.id }}
+              />
+            </div>
+          ))
+        }
+      </div>
+    </div>
+
+    <div class="panels">
+      {
+        PLATFORMS.map((platform) => (
+          <pre
+            class="panel px-4 py-3 font-mono text-xs leading-5 whitespace-pre-wrap break-all"
+            data-panel={platform.id}
+          ><code><span class="text-graph-exact select-none">{platform.prompt} </span>{platform.command}</code></pre>
+        ))
+      }
+    </div>
+  </div>
+</fieldset>
+
+<style>
+  /* A `<fieldset>` for the semantics only, and the same three UA defaults to
+     clear as `ProductProof`: padding and border go on the element as
+     utilities, `min-width: min-content` has no utility and would break every
+     grid this box sits in. `margin: 0` is deliberately NOT here -- global.css
+     imports no preflight, so a component rule outside a layer beats any
+     utility, and it would swallow the caller's own `mt-*`. */
+  .installer {
+    min-width: 0;
+    padding: 0;
+  }
+
+  /* The unchecked panels stay in the served HTML instead of being fetched
+     later: with no CSS a reader sees all three commands, each under its own
+     platform, which is the honest degradation for a box whose whole job is to
+     name a command. */
+  .panel {
+    display: none;
+  }
+
+  input[data-platform="macos"]:checked ~ * .panels [data-panel="macos"],
+  input[data-platform="linux"]:checked ~ * .panels [data-panel="linux"],
+  input[data-platform="windows"]:checked ~ * .panels [data-panel="windows"] {
+    display: block;
+  }
+
+  input[data-platform="macos"]:checked ~ * .tabs [data-tab="macos"],
+  input[data-platform="linux"]:checked ~ * .tabs [data-tab="linux"],
+  input[data-platform="windows"]:checked ~ * .tabs [data-tab="windows"] {
+    border-bottom-color: var(--color-graph-exact);
+    color: var(--color-gray-100);
+  }
+
+  /* The focus ring belongs on the label, because the input that owns the focus
+     is the one thing on this control nobody can see. Same rule, same offset as
+     the tabs of `ProductProof.astro` and the disclosure of `TopBar.astro`. */
+  input[data-platform="macos"]:focus-visible ~ * .tabs [data-tab="macos"],
+  input[data-platform="linux"]:focus-visible ~ * .tabs [data-tab="linux"],
+  input[data-platform="windows"]:focus-visible ~ * .tabs [data-tab="windows"] {
+    outline: 1px solid var(--color-accent-200);
+    outline-offset: 3px;
+  }
+</style>

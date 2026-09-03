@@ -10,10 +10,11 @@ import (
 // fakeGraph states facts outright, so a decision can be tested against the
 // shape of the graph rather than against a daemon that happens to be running.
 type fakeGraph struct {
-	symbol Facts
-	intent Facts
-	err    error
-	asked  int
+	symbol           Facts
+	intent           Facts
+	err              error
+	asked            int
+	intentRepository string
 }
 
 func (fake *fakeGraph) Symbol(_ context.Context, _ string) (Facts, error) {
@@ -21,8 +22,9 @@ func (fake *fakeGraph) Symbol(_ context.Context, _ string) (Facts, error) {
 	return fake.symbol, fake.err
 }
 
-func (fake *fakeGraph) Intent(_ context.Context, _ string) (Facts, error) {
+func (fake *fakeGraph) Intent(_ context.Context, _, repository string) (Facts, error) {
 	fake.asked++
+	fake.intentRepository = repository
 	return fake.intent, fake.err
 }
 
@@ -40,13 +42,23 @@ func TestGateStandsAsideWhenItHasNoGrounds(t *testing.T) {
 		{"no daemon is running",
 			Gate{}, Question{Kind: KindSymbol, Pattern: "NewServer"},
 			"a hook never starts a daemon, so an absent one is the common case"},
+		{"no daemon can answer an intent",
+			Gate{}, Question{Kind: KindIntent, Pattern: "New.*Server"},
+			"an intent refusal also needs a graph answer"},
 		{"the daemon failed",
 			Gate{Graph: &fakeGraph{err: errors.New("connection refused")}},
 			Question{Kind: KindSymbol, Pattern: "NewServer"},
 			"a gate that learned nothing has no standing to refuse"},
+		{"the daemon failed to answer an intent",
+			Gate{Graph: &fakeGraph{err: errors.New("connection refused")}},
+			Question{Kind: KindIntent, Pattern: "New.*Server"},
+			"a failed intent lookup established no candidate"},
 		{"the graph has never heard of it",
 			Gate{Graph: &fakeGraph{}}, Question{Kind: KindSymbol, Pattern: "NewServer"},
 			"grep reaches comments, strings and config the graph does not index"},
+		{"the graph found no intent candidate",
+			Gate{Graph: &fakeGraph{}}, Question{Kind: KindIntent, Pattern: "New.*Server"},
+			"find_by_intent cannot redirect a search it did not answer"},
 		{"a rare name in one repository",
 			Gate{Graph: &fakeGraph{symbol: unique}},
 			Question{Kind: KindSymbol, Pattern: "MergeAll"},
@@ -99,7 +111,10 @@ func TestGateRefusesWhatTheGraphAnswersBetter(t *testing.T) {
 			Question{Kind: KindSymbol, Pattern: "Publish"},
 			"get_blast_radius"},
 		{"a regex groping for a name",
-			Gate{Graph: &fakeGraph{intent: Facts{Declarations: 3, Repositories: 1}}},
+			Gate{Graph: &fakeGraph{intent: Facts{
+				Declarations: 3, Repositories: 1,
+				Sample: []string{"kivgraph internal/webapi/handler.go webapi.NewHandler"},
+			}}},
 			Question{Kind: KindIntent, Pattern: "New.*Server"},
 			"find_by_intent"},
 		{"a glob over indexed sources",
@@ -125,6 +140,26 @@ func TestGateRefusesWhatTheGraphAnswersBetter(t *testing.T) {
 	}
 }
 
+// TestIntentStaysInsideTheCurrentRepository keeps a workspace-wide intent
+// search from redirecting an agent to a similarly named symbol in another
+// project. The hook already established the repository from cwd, so dropping
+// it here loses information and makes the suggested call worse.
+func TestIntentStaysInsideTheCurrentRepository(t *testing.T) {
+	const intent = "HTTP.*route"
+	graph := &fakeGraph{intent: Facts{Declarations: 1, Repositories: 1}}
+	decision := Gate{Graph: graph, Repository: "kivgraph"}.Decide(
+		context.Background(), Question{Kind: KindIntent, Pattern: intent})
+	if !decision.Deny {
+		t.Fatalf("allowed intent %q in repository %q that the graph answers", intent, graph.intentRepository)
+	}
+	if graph.intentRepository != "kivgraph" {
+		t.Fatalf("queried repository %q, want kivgraph", graph.intentRepository)
+	}
+	if !strings.Contains(decision.Reason, `repo="kivgraph"`) {
+		t.Fatalf("suggested call lost its repository:\n%s", decision.Reason)
+	}
+}
+
 // TestASubagentIsRefusedWithoutAskingTheGraph holds the one branch that needs
 // no facts. Asking would be a round trip whose answer could not change the
 // decision, and a hook pays that cost on the user's keystroke.
@@ -137,5 +172,93 @@ func TestASubagentIsRefusedWithoutAskingTheGraph(t *testing.T) {
 	}
 	if graph.asked != 0 {
 		t.Fatalf("asked the graph %d times for a decision it cannot change", graph.asked)
+	}
+}
+
+// TestGateNeverRefusesItsOwnTools is the negative that keeps this branch
+// honest.
+//
+// The stricter reading of "read the skill first" is to refuse Kivgraph's tools
+// until the skill has been read. It is the wrong trade and this test is what
+// stops it arriving by accident: a call to the graph is already the outcome
+// every other branch argues for, so refusing it puts friction on the one
+// behaviour the gate exists to encourage -- and a session whose briefing failed
+// would be left unable to use the tools at all.
+func TestGateNeverRefusesItsOwnTools(t *testing.T) {
+	question := Question{Kind: KindGraphTool, Tool: "mcp__kivgraph__find_references"}
+	for _, testCase := range []struct {
+		name string
+		gate Gate
+	}{
+		{"nowhere to remember the session", Gate{SessionID: "session"}},
+		{"the host sent no session id", Gate{Briefing: Briefing{Directory: t.TempDir()}}},
+		{"neither one nor the other", Gate{}},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			got := testCase.gate.Decide(context.Background(), question)
+			// Not merely "did not refuse": these are the cases with
+			// nothing to remember, so they must be silent. A regression
+			// that briefed them would brief every call of the session,
+			// and an assertion on Deny alone would pass through it.
+			if got != Allow {
+				t.Fatalf("%s: got %#v, want silence", testCase.name, got)
+			}
+		})
+	}
+}
+
+// TestGateBriefsTheFirstCallAndThenStopsTalking is the contract the briefing
+// exists for.
+func TestGateBriefsTheFirstCallAndThenStopsTalking(t *testing.T) {
+	gate := Gate{
+		Briefing:  Briefing{Directory: t.TempDir()},
+		SessionID: "session-a",
+	}
+	question := Question{Kind: KindGraphTool, Tool: "mcp__kivgraph__find_references"}
+
+	first := gate.Decide(context.Background(), question)
+	if first != (Decision{Context: briefText}) {
+		t.Fatalf("the first call got %#v, want the briefing", first)
+	}
+	for attempt := 2; attempt <= 3; attempt++ {
+		later := gate.Decide(context.Background(), question)
+		if later != Allow {
+			t.Fatalf("call %d got %#v, want silence", attempt, later)
+		}
+	}
+}
+
+// TestGateAsksNoGraphToBrief checks that the briefing costs no daemon call.
+//
+// This runs in front of every Kivgraph tool call. A gate that dialled the graph
+// to decide whether to attach a paragraph would put the daemon's latency in
+// front of the daemon's own tools, which is the one place it can least afford
+// to be.
+func TestGateAsksNoGraphToBrief(t *testing.T) {
+	graph := &fakeGraph{}
+	gate := Gate{
+		Graph:     graph,
+		Briefing:  Briefing{Directory: t.TempDir()},
+		SessionID: "session-a",
+	}
+	gate.Decide(context.Background(), Question{Kind: KindGraphTool, Tool: "mcp__kivgraph__get_source"})
+	if graph.asked != 0 {
+		t.Fatalf("the briefing asked the graph %d times; it must ask none", graph.asked)
+	}
+}
+
+// TestBriefTextCarriesWhatTheRoutingCardCannot guards against the briefing
+// decaying into a copy of the server's `instructions` field.
+//
+// That paragraph already reaches every client at handshake. What justifies a
+// second injection is the part it deliberately leaves out -- the call budget,
+// which cannot live in a system prompt that is rewritten on every re-index.
+// A briefing that stopped carrying the numbers would be spending an injection
+// on words the model has already read.
+func TestBriefTextCarriesWhatTheRoutingCardCannot(t *testing.T) {
+	for _, wanted := range []string{"graph_status 5541", "list_repositories 4787", "10328", `view="files"`} {
+		if !strings.Contains(briefText, wanted) {
+			t.Fatalf("the briefing no longer carries %q, which is why it is worth sending", wanted)
+		}
 	}
 }

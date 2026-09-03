@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/Luqueee/kivgraph/internal/agenthook"
 	"github.com/Luqueee/kivgraph/internal/config"
-	"github.com/Luqueee/kivgraph/internal/integrations"
 	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
@@ -38,11 +38,13 @@ func TestTheGateStandsAsideOnEveryFailure(t *testing.T) {
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			var out strings.Builder
-			if code := runHookRun(strings.NewReader(testCase.stdin), &out); code != 0 {
-				t.Fatalf("exit %d; a non-zero exit is itself a refusal", code)
+			var stderr strings.Builder
+			if code := runHookRun(strings.NewReader(testCase.stdin), &out, &stderr); code != 0 {
+				t.Fatalf("input=%q exit %d; a non-zero exit is itself a refusal", testCase.stdin, code)
 			}
-			if out.Len() != 0 {
-				t.Fatalf("wrote %q (%s)", out.String(), testCase.because)
+			if out.Len() != 0 || stderr.Len() != 0 {
+				t.Fatalf("input=%q wrote stdout=%q stderr=%q (%s)",
+					testCase.stdin, out.String(), stderr.String(), testCase.because)
 			}
 		})
 	}
@@ -88,6 +90,68 @@ func TestRepositoryHoldingRefusesWhatIsMerelyNextDoor(t *testing.T) {
 	}
 }
 
+// TestRepositoryHoldingRecognisesALinkedWorktree covers the directory shape
+// coding agents actually use. The worktree is outside the registered checkout,
+// but both .git layouts resolve to the same common directory and therefore name
+// the same indexed repository.
+func TestRepositoryHoldingRecognisesALinkedWorktree(t *testing.T) {
+	root := t.TempDir()
+	registered := filepath.Join(root, "registered")
+	common := filepath.Join(registered, ".git")
+	worktree := filepath.Join(root, "agent-worktree")
+	gitDirectory := filepath.Join(common, "worktrees", "agent")
+	for _, directory := range []string{common, worktree, gitDirectory, filepath.Join(worktree, "internal")} {
+		if err := os.MkdirAll(directory, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(worktree, ".git"),
+		[]byte("gitdir: "+gitDirectory+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(gitDirectory, "commondir"),
+		[]byte("../..\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	loaded := config.Loaded{Repositories: config.RepositoriesFile{Repositories: []config.Repository{{
+		Name: "widget", Path: registered, Languages: []string{"go"},
+	}}}}
+	cwd := filepath.Join(worktree, "internal")
+	repository, found := repositoryHolding(loaded, cwd)
+	if !found || repository.Name != "widget" {
+		t.Fatalf("cwd %q in linked worktree resolved to %q (found=%v), want widget",
+			cwd, repository.Name, found)
+	}
+
+	second := filepath.Join(root, "second-registered-worktree")
+	secondGitDirectory := filepath.Join(common, "worktrees", "second")
+	for _, directory := range []string{second, secondGitDirectory, filepath.Join(second, "internal")} {
+		if err := os.MkdirAll(directory, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(second, ".git"),
+		[]byte("gitdir: "+secondGitDirectory+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(secondGitDirectory, "commondir"),
+		[]byte("../..\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	loaded.Repositories.Repositories = append(loaded.Repositories.Repositories, config.Repository{
+		Name: "other-view", Path: second, Languages: []string{"go"},
+	})
+	secondCWD := filepath.Join(second, "internal")
+	if repository, found := repositoryHolding(loaded, secondCWD); !found || repository.Name != "other-view" {
+		t.Fatalf("cwd %q inside an exact registration resolved to %q (found=%v), want other-view",
+			secondCWD, repository.Name, found)
+	}
+	if repository, found := repositoryHolding(loaded, cwd); found {
+		t.Fatalf("cwd %q in ambiguous linked worktree chose %q", cwd, repository.Name)
+	}
+}
+
 // TestTheEscapeHatchIsReadTheWayAShellWouldWriteIt keeps the off switch usable:
 // a user who exports it expects it to hold, and one who sets it to 0 or false
 // expects it not to.
@@ -104,30 +168,45 @@ func TestTheEscapeHatchIsReadTheWayAShellWouldWriteIt(t *testing.T) {
 	}
 }
 
-// TestHookCompletesOnlyTargetsItAccepts is a regression. The help footer was
-// fixed to name the four clients that host a gate and the completion was not,
-// so pressing tab offered `oh-my-pi` and the command that followed refused it.
-// A completion is a promise about what the next word may be.
+// TestHookCompletesOnlyTargetsItAccepts is a regression: completion and the
+// help footer must expose exactly the targets the command accepts. A
+// completion is a promise about what the next word may be.
 func TestHookCompletesOnlyTargetsItAccepts(t *testing.T) {
+	testsupport.SetHome(t, t.TempDir())
 	candidates := completionCandidates([]string{"hook", "install", "--target", ""})
+	var help, helpErr strings.Builder
+	if code := runHookCommand([]string{"--help"}, &help, &helpErr); code != 0 {
+		t.Fatalf("hook --help exited %d: stdout=%q stderr=%q", code, help.String(), helpErr.String())
+	}
+	if !strings.Contains(help.String(), "Targets:") {
+		t.Fatalf("hook --help omitted its target footer: %q", help.String())
+	}
+	hasOhMyPi := false
 	for _, candidate := range candidates {
-		if _, err := integrations.New(integrations.Options{}); err != nil {
-			t.Fatal(err)
-		}
-		found := false
-		for _, target := range integrations.HookTargets() {
-			if string(target) == candidate {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Fatalf("completion offers %q, which hook install refuses", candidate)
+		if candidate == "oh-my-pi" {
+			hasOhMyPi = true
+			break
 		}
 	}
-	if len(candidates) != len(integrations.HookTargets()) {
-		t.Fatalf("completion offers %d targets, want the %d that host a gate",
-			len(candidates), len(integrations.HookTargets()))
+	if !hasOhMyPi {
+		t.Fatalf("hook completion omitted oh-my-pi (candidates=%v)", candidates)
+	}
+	for _, candidate := range candidates {
+		if !strings.Contains(help.String(), candidate) {
+			t.Fatalf("hook --help omitted completed target %q (candidates=%v)", candidate, candidates)
+		}
+		var stdout, stderr strings.Builder
+		args := []string{"install", "--target", candidate, "--scope", "user", "--dry-run"}
+		if code := runHookCommand(args, &stdout, &stderr); code != 0 {
+			t.Fatalf("hook install args=%v exited %d (candidates=%v): stdout=%q stderr=%q",
+				args, code, candidates, stdout.String(), stderr.String())
+		}
+	}
+	var stdout, stderr strings.Builder
+	args := []string{"install", "--target", "cursor", "--scope", "user", "--dry-run"}
+	if code := runHookCommand(args, &stdout, &stderr); code == 0 {
+		t.Fatalf("hook install accepted rejected args=%v (candidates=%v): stdout=%q",
+			args, candidates, stdout.String())
 	}
 }
 
@@ -139,7 +218,7 @@ func TestTheEnvironmentTurnsTheGateOffBeforeAnythingElse(t *testing.T) {
 	var out strings.Builder
 	payload := `{"cwd":"/anywhere","tool_name":"Task",` +
 		`"tool_input":{"subagent_type":"explore","prompt":"map the indexer"}}`
-	if code := runHookRun(strings.NewReader(payload), &out); code != 0 {
+	if code := runHookRun(strings.NewReader(payload), &out, io.Discard); code != 0 {
 		t.Fatalf("exit %d", code)
 	}
 	if out.Len() != 0 {
@@ -158,7 +237,7 @@ func TestAResearchSubagentIsRefusedWithoutAConfigurationOrADaemon(t *testing.T) 
 	var out strings.Builder
 	payload := `{"cwd":"/anywhere","tool_name":"Task",` +
 		`"tool_input":{"subagent_type":"explore","prompt":"map the indexer"}}`
-	if code := runHookRun(strings.NewReader(payload), &out); code != 0 {
+	if code := runHookRun(strings.NewReader(payload), &out, io.Discard); code != 0 {
 		t.Fatalf("exit %d", code)
 	}
 	// With no configuration there is no repository to place the call in, so
@@ -176,7 +255,7 @@ func TestAPayloadLargerThanTheCeilingIsStillAnswered(t *testing.T) {
 	var out strings.Builder
 	oversized := `{"cwd":"/x","tool_name":"Task","tool_input":{"prompt":"` +
 		strings.Repeat("a", hookInputCeiling) + `"}}`
-	if code := runHookRun(strings.NewReader(oversized), &out); code != 0 {
+	if code := runHookRun(strings.NewReader(oversized), &out, io.Discard); code != 0 {
 		t.Fatalf("exit %d", code)
 	}
 	if out.Len() != 0 {
@@ -243,7 +322,7 @@ func TestTheCommandWritesARefusalItCanReach(t *testing.T) {
 	payload := `{"hook_event_name":"PreToolUse","cwd":` + strconv.Quote(repository) +
 		`,"tool_name":"Task","tool_input":{"subagent_type":"Explore",` +
 		`"description":"find where indexing happens"}}`
-	if code := runHookRun(strings.NewReader(payload), &out); code != 0 {
+	if code := runHookRun(strings.NewReader(payload), &out, io.Discard); code != 0 {
 		t.Fatalf("exit %d; a non-zero exit is itself a refusal", code)
 	}
 
@@ -270,6 +349,30 @@ func TestTheCommandWritesARefusalItCanReach(t *testing.T) {
 	if !strings.Contains(decision.AgentMessage, "find_by_intent") {
 		t.Fatalf("the refusal names no call:\n%s", decision.AgentMessage)
 	}
+
+	// Codex consumes the same input fields but not Claude's JSON verdict. Its
+	// blocking contract is exit 2 with the reason on stderr, and turn_id is the
+	// host-owned field that distinguishes that payload from Claude Code and the
+	// generated adapters.
+	out.Reset()
+	var stderr strings.Builder
+	codexPayload := `{"session_id":"session","turn_id":"turn",` +
+		`"hook_event_name":"PreToolUse","cwd":` + strconv.Quote(repository) +
+		`,"tool_name":"Task","tool_input":{"subagent_type":"Explore",` +
+		`"description":"find where indexing happens"}}`
+	if code := runHookRun(strings.NewReader(codexPayload), &out, &stderr); code != 2 {
+		t.Fatalf("Codex payload %q refusal exit = %d, want 2", codexPayload, code)
+	}
+	if out.Len() != 0 {
+		t.Fatalf("Codex payload %q refusal wrote stdout %q", codexPayload, out.String())
+	}
+	if !strings.Contains(stderr.String(), "find_by_intent") {
+		t.Fatalf("Codex payload %q stderr names no replacement call: %q", codexPayload, stderr.String())
+	}
+	if code := runHookRun(strings.NewReader(codexPayload), &out, refusingWriter{}); code != 0 {
+		t.Fatalf("Codex payload %q refusal with an unwritable reason exited %d; it must fail open",
+			codexPayload, code)
+	}
 }
 
 // TestACallOutsideEveryRegisteredRepositoryIsAllowed is the negative beside it,
@@ -294,7 +397,7 @@ func TestACallOutsideEveryRegisteredRepositoryIsAllowed(t *testing.T) {
 	var out strings.Builder
 	payload := `{"cwd":` + strconv.Quote(t.TempDir()) +
 		`,"tool_name":"Task","tool_input":{"subagent_type":"Explore","description":"read it"}}`
-	if code := runHookRun(strings.NewReader(payload), &out); code != 0 {
+	if code := runHookRun(strings.NewReader(payload), &out, io.Discard); code != 0 {
 		t.Fatalf("exit %d", code)
 	}
 	if out.Len() != 0 {

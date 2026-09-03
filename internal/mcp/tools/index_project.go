@@ -15,6 +15,10 @@ import (
 
 const indexProjectToolName = "index_project"
 
+type profileProjectIndexer interface {
+	IndexProjectsInProfile(context.Context, string, []indexing.Project, func(indexing.ProjectProgress)) (indexing.ProjectResult, error)
+}
+
 // IndexProjectInput is the explicit request accepted by index_project.
 //
 // Projects is the form to prefer: every project in one call is registered
@@ -29,18 +33,19 @@ const indexProjectToolName = "index_project"
 // The confirmed flag is used by clients that do not implement MCP
 // elicitation; those clients must obtain user approval before sending true.
 type IndexProjectInput struct {
-	Projects  []IndexProjectEntry `json:"projects,omitempty"`
-	Name      string              `json:"name,omitempty"`
-	Path      string              `json:"path,omitempty"`
-	Languages []string            `json:"languages,omitempty"`
-	Confirmed *bool               `json:"confirmed,omitempty"`
+	Profile   string              `json:"profile,omitempty" jsonschema:"Profile to index; omit for the default. A missing name creates it."`
+	Projects  []IndexProjectEntry `json:"projects,omitempty" jsonschema:"Every project to register, in one call. Prefer this form: a rebuild costs the whole corpus however many are added."`
+	Name      string              `json:"name,omitempty" jsonschema:"Name for a single project. Use it with path and languages, never together with projects."`
+	Path      string              `json:"path,omitempty" jsonschema:"Absolute directory of a single project. Nothing is written inside it."`
+	Languages []string            `json:"languages,omitempty" jsonschema:"Languages to index in the single project, such as go, typescript, rust, python or dart."`
+	Confirmed *bool               `json:"confirmed,omitempty" jsonschema:"Set true only after the user approved this call, and only from a client that cannot answer an elicitation."`
 }
 
 // IndexProjectEntry is one repository of a batch.
 type IndexProjectEntry struct {
-	Name      string   `json:"name"`
-	Path      string   `json:"path"`
-	Languages []string `json:"languages"`
+	Name      string   `json:"name" jsonschema:"Name to register the repository under. It is an identifier, compared exactly."`
+	Path      string   `json:"path" jsonschema:"Absolute directory of the repository. Nothing is written inside it."`
+	Languages []string `json:"languages" jsonschema:"Languages to index here, such as go, typescript, rust, python or dart."`
 }
 
 // projects resolves the request into the batch to index, rejecting a request
@@ -114,7 +119,20 @@ func RegisterIndexProject(
 			observeCall(nil, callObserver, indexProjectToolName, start, err)
 			return nil, indexing.ProjectResult{}, err
 		}
-		result, err := indexer.IndexProjects(ctx, batch, progressReporter(ctx, request))
+		progress := progressReporter(ctx, request)
+		var result indexing.ProjectResult
+		if profile := strings.TrimSpace(arguments.Profile); profile != "" {
+			profileIndexer, ok := indexer.(profileProjectIndexer)
+			if !ok {
+				err = NewToolError(CodeInvalidArgument, fmt.Sprintf("project indexer does not support profile %q", profile))
+				observeCall(nil, callObserver, indexProjectToolName, start, err)
+				return nil, indexing.ProjectResult{}, err
+			} else {
+				result, err = profileIndexer.IndexProjectsInProfile(ctx, profile, batch, progress)
+			}
+		} else {
+			result, err = indexer.IndexProjects(ctx, batch, progress)
+		}
 		if err != nil {
 			// This tool fails on the caller's own configuration: a
 			// module that needs a newer toolchain, a path that is not

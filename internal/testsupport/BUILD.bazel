@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "testsupport",
+    srcs = [
+        "alive_unix.go",
+        "alive_windows.go",
+        "clock.go",
+        "executable.go",
+        "home.go",
+        "modebits.go",
+        "rustanalyzer.go",
+        "space.go",
+        "tempdir.go",
+    ],
+    importpath = "github.com/Luqueee/kivgraph/internal/testsupport",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/storage/generation",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)

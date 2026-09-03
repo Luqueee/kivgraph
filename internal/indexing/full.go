@@ -2,6 +2,7 @@ package indexing
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strconv"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/filelock"
 	"github.com/Luqueee/kivgraph/internal/freshness"
 	"github.com/Luqueee/kivgraph/internal/indexer"
 	"github.com/Luqueee/kivgraph/internal/metrics"
@@ -21,6 +23,7 @@ import (
 // The operation reads every configured repository and publishes a new
 // generation only after the rebuild gates pass.
 type FullOptions struct {
+	Profile           string
 	Repositories      []workspace.Repository
 	SyntheticWorkFile string
 	IncludeTests      bool
@@ -92,12 +95,15 @@ type FullOptions struct {
 	// CacheMode and CacheDirectory configure the fact cache: whether a
 	// unit may be served from the facts a previous pass stored, and where
 	// those entries live.
-	CacheMode       indexer.CacheMode
-	CacheDirectory  string
-	Root            string
-	ResolverVersion string
-	Store           generation.Config
-	Metrics         *metrics.Registry
+	CacheMode      indexer.CacheMode
+	CacheDirectory string
+	// SharedTargetsLockPath serializes profiles and processes that write the
+	// installation-level Rust, Java and C# analyzer target directories.
+	SharedTargetsLockPath string
+	Root                  string
+	ResolverVersion       string
+	Store                 generation.Config
+	Metrics               *metrics.Registry
 
 	Progress        func(indexer.ProgressEvent)
 	RebuildProgress func(rebuild.StageName)
@@ -114,6 +120,7 @@ type FullOptions struct {
 // which are the only things the configuration does not decide.
 func OptionsFromConfig(configuration config.Config) FullOptions {
 	return FullOptions{
+		Profile:                           configuration.Profiles.Default,
 		SyntheticWorkFile:                 configuration.Go.SyntheticWorkFile,
 		IncludeTests:                      configuration.Go.IncludeTests,
 		GoOS:                              configuration.Go.GOOS,
@@ -200,7 +207,7 @@ type FullResult struct {
 // RunFull indexes all repositories, validates the facts, and publishes one
 // canonical generation. It does not modify the repository registry; callers
 // that manage a candidate registry commit it separately.
-func RunFull(ctx context.Context, options FullOptions) (FullResult, error) {
+func RunFull(ctx context.Context, options FullOptions) (result FullResult, resultErr error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -210,12 +217,28 @@ func RunFull(ctx context.Context, options FullOptions) (FullResult, error) {
 	if options.ResolverVersion == "" {
 		return FullResult{}, fmt.Errorf("full index: resolver version is required")
 	}
+	if options.SharedTargetsLockPath != "" {
+		lock, acquired, err := filelock.Acquire(options.SharedTargetsLockPath)
+		if err != nil {
+			return FullResult{}, fmt.Errorf("full index: acquire shared analyzer targets lock: %w", err)
+		}
+		if !acquired {
+			return FullResult{}, fmt.Errorf("full index: shared analyzer targets are busy; another profile is indexing")
+		}
+		defer func() {
+			if err := lock.Release(); err != nil {
+				resultErr = errors.Join(resultErr,
+					fmt.Errorf("full index: release shared analyzer targets lock: %w", err))
+			}
+		}()
+	}
 
 	before, err := freshness.Capture(ctx, options.Repositories)
 	if err != nil {
 		return FullResult{}, fmt.Errorf("capture source inventory: %w", err)
 	}
 	factSet, indexReport, err := indexer.Full(ctx, indexer.FullOptions{
+		Profile:                           options.Profile,
 		Repositories:                      options.Repositories,
 		SyntheticWorkFile:                 options.SyntheticWorkFile,
 		IncludeTests:                      options.IncludeTests,
@@ -279,7 +302,7 @@ func RunFull(ctx context.Context, options FullOptions) (FullResult, error) {
 		CacheDirectory:                    options.CacheDirectory,
 		Progress:                          options.Progress,
 	})
-	result := FullResult{IndexReport: indexReport}
+	result = FullResult{IndexReport: indexReport}
 	if err != nil {
 		return result, fmt.Errorf("index repositories: %w", err)
 	}

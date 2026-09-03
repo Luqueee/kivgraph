@@ -18,7 +18,31 @@ const releases = defineCollection({
   }),
 });
 
+const blog = defineCollection({
+  loader: glob({ pattern: "**/*.md", base: "./src/content/blog" }),
+  schema: z.object({
+    title: z.string().min(1),
+    description: z.string().min(1),
+    pubDate: z.date(),
+    updatedDate: z.date().optional(),
+    author: z.string().default("Kivgraph"),
+    category: z.string().min(1),
+    tags: z.array(z.string()).default([]),
+    faq: z
+      .array(
+        z.object({
+          question: z.string().min(1),
+          answer: z.string().min(1),
+        }),
+      )
+      .default([]),
+    draft: z.boolean().default(false),
+    featured: z.boolean().default(false),
+  }),
+});
+
 export const collections = {
   docs: defineCollection({ loader: docsLoader(), schema: docsSchema() }),
   releases,
+  blog,
 };

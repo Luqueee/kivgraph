@@ -1,6 +1,6 @@
 # ADR 0083: a download is not a person
 
-- **Status:** accepted and implemented; nothing has shipped in a release
+- **Status:** accepted and implemented; collector and storage superseded by ADR 0092
 - **Date:** 2026-08-28
 - **Implementation:** `LUQUE-2232`
 
@@ -91,12 +91,14 @@ machine fetching an asset seven times from seven machines fetching it once.
 Two layers. They answer different questions and neither is a step towards
 the other.
 
-**Both layers are built.** Layer 0 is `scripts/downloads.jq`,
+**Both layers were built in this form.** Layer 0 is `scripts/downloads.jq`,
 `scripts/downloads.sh` and `.github/workflows/download-metrics.yml`, and it
-has been photographing the counters daily since it merged. Layer 1 is the
-endpoint in `landing/src/install-report.mjs` and the two emitters --
-`internal/telemetry` and the tail of both installers. The latest published
-release is `v0.9.2` and it predates them, so the property has no rows.
+has been photographing the counters daily since it merged. Layer 1 originally
+used the endpoint in `landing/src/install-report.mjs` and three emitters --
+`internal/telemetry` for binary and supervisor rows, and the tail of both
+installers. That collector and its Umami storage are historical evidence now;
+ADR 0092 moves the unchanged public route to the edge Worker and D1. The module
+remains tested but is no longer wired by `landing/server.mjs`.
 
 Where the implementation taught this ADR something, the ADR says so: the
 address below is the case, and so is the binary declining to report from a
@@ -141,10 +143,11 @@ Layer 0 also fixes the classification the table above uses -- `bundle`,
 `bundle` class, per platform, per day. `scripts/downloads.sh` becomes the
 live view over that same classification instead of a second opinion.
 
-### Layer 1 -- one ping, two emitters, one endpoint
+### Layer 1 -- one ping, three emitters, one endpoint
 
-`POST https://kivgraph.dev/api/telemetry/first-run`, carrying `emitter`,
-`version`, `platform`, `channel` and `transport`, from:
+`POST https://kivgraph.dev/api/telemetry/first-run`, carrying up to five
+fields -- `emitter`, `version`, `platform`, `channel` and, on binary rows,
+`transport` -- from:
 
 - `install.sh` and `install.ps1`, after the archive is verified and the
   install has succeeded, so a ping means a working installation and not an
@@ -153,13 +156,23 @@ live view over that same classification instead of a second opinion.
   only when it is running from a release layout, because nothing tells a
   developer's `go build` from a CI job's and this repository's own CI runs
   the binary on five platforms on every push.
+- `kivgraph daemon install`, after supervisor registration succeeds. The
+  platform may start the daemon as a consequence, but this row records the
+  registration; the resulting serving run is a separate binary row.
 
-The endpoint lives in `landing/server.mjs` and forwards to Umami, because
-the reporter, the header finding it depends on and the fail-closed
-configuration pair are already there; an Astro route would need a second
-copy of all three.
+The original endpoint lived in `landing/server.mjs` and forwarded to Umami.
+ADR 0092 supersedes that collector and storage choice: the exact public route
+now terminates at the Cloudflare edge and writes the same validated facts to
+D1, which is the dataset the internal dashboard reads. The emitter payload and
+the separation between installer, binary and supervisor facts do not change.
 
-**Identity is Umami's, and this repository mints none.** Umami derives a
+#### Historical collector evidence
+
+The following Umami behavior is the evidence that led to the first collector.
+ADR 0092 retires it for the public route; it is not the current identity or
+storage contract.
+
+**Identity was Umami's, and this repository minted none.** Umami derives a
 visitor from a daily-rotating hash of website id, hostname, address and
 user agent. *Unique visitors per day* is therefore distinct machines that
 reported that day, and the address itself is never stored. An identifier of
@@ -182,23 +195,35 @@ address is the *only* discriminator left: a corporate NAT counts as one
 person. That is the bias every web analytics carries, and it is written
 here rather than discovered in a report.
 
-**A third property, `kivgraph FIRST RUNS`,** for the reason the AI crawlers
+**A third property, `kivgraph FIRST RUNS`,** existed for the reason the AI crawlers
 property exists: an install is not a visit, and mixing them moves
 visitors, bounce rate and the conversion rate that describes people.
 
-**`emitter` is why the two sources do not become one number.** An installer
+#### Current fact separation
+
+**`emitter` is why the sources do not become one number.** An installer
 that finished and a binary that started are different facts, and the second
 does not follow from the first: a bundle can be installed and never
 launched. Without the field the property would report an installer's
 success as a first run, which is the claim this ADR spends its length
-refusing to make. It is `installer` or `binary`, the two are aggregated
-separately, and only the `binary` rows answer *how many machines ran it*.
+refusing to make. It is `installer`, `binary` or `supervisor`, the three
+are aggregated separately, and only the `binary` rows answer *how many
+machines ran it*.
 
-**The endpoint is public, so the number is worth exactly its bounds.**
-Strict validation against the closed sets of platform, channel and
-transport and the published version pattern, an in-process dedupe window
-per address, version **and `emitter`**, and `204` on every path so probing
-it teaches nothing.
+**`supervisor` is a third fact, added to separate a remaining ambiguity.** A
+`binary` row cannot distinguish a machine that ran `kivgraph daemon` once from
+one whose owner asked the platform to keep it around with
+`kivgraph daemon install`: from the endpoint's point of view, both ran the
+released binary. The following distinction is an analysis of the signal's
+scope, not an actor-identification claim: registering a systemd, launchd or
+Task Scheduler entry is a narrower fact than running the binary, and the
+platform may start that daemon as part of registration. The row is therefore
+kept separate and is not a replacement for the other two.
+
+**The endpoint is public, so the number is worth exactly its bounds.** Strict
+validation against the closed sets of platform, channel and transport and the
+published version pattern, a salted daily hash per address, version **and
+`emitter`**, and `204` on every path so probing it teaches nothing.
 
 The `emitter` in that key is load-bearing and easy to leave out. An
 installer that has just finished and the first run that follows it carry
@@ -207,12 +232,11 @@ those two alone would discard the second, which is precisely the `binary`
 row the property exists to collect. The field that separates the two
 aggregates has to separate their deduplication too.
 
-What the dedupe window does **not** buy is the headline number, and saying
-otherwise would misread the identity above: under a daily-rotating hash one
-address reinstalling in a loop is already **one** unique visitor, so
-repetition inflates the event count and never the visitor count. The window
-bounds events and write volume; validation is what stops a forged `version`
-or `platform` from inventing a row no release ever produced.
+The D1 unique index covers the mapped event name, version and daily hash. Its
+insert trigger updates the aggregate only for a new raw row. For one emitter
+and version on one UTC day, an address reinstalling in a loop is therefore one
+visitor. Validation is what stops a forged `version` or `platform` from
+inventing a row no release ever produced.
 
 ### Why the binary reports and not only the installer
 
@@ -253,8 +277,9 @@ decides that.** `kivgraph serve` runs the MCP surface over
 `sdkmcp.StdioTransport`, where a stray byte on stdout corrupts the
 session; the daemon serves the same surface over Streamable HTTP, where
 it would not. The ping is shared code, so it obeys the stdio rule
-everywhere: a goroutine with a short timeout, every failure dropped, and
-the first-run notice on stderr. `KIVGRAPH_TELEMETRY=0` disables both
+everywhere: long-running paths use a goroutine with a short timeout, while
+the one-shot install waits for that same bounded request; every failure is
+dropped and the notice goes to stderr. `KIVGRAPH_TELEMETRY=0` disables all
 emitters.
 
 ## Consequences
@@ -314,6 +339,13 @@ with every directory that is not modelled.
   failed -- `200`, `{"beep":"boop"}`, nothing written. It is verified
   against the instance on a throwaway property before the endpoint ships,
   and not assumed.
+- The endpoint is public and cannot be authenticated: the emitter is open
+  source, so any secret it carried would ship inside it. Validation proves
+  a ping is well formed, never that a release sent it. Within a day of
+  publishing `/telemetry/`, 25 forged pings arrived from 25 datacentre
+  addresses, all claiming a release cut before the emitter existed; the
+  endpoint now refuses any version at or below that tag, which removes
+  every replay of a claim the project can disprove and nothing more.
 - The historical counts predate the classification, so the series starts
   the day the workflow does. Everything before it is one cumulative number
   per asset, and stays that way.

@@ -65,7 +65,11 @@ func planPath(spec Spec) (string, string, error) {
 //
 // Type=simple, not notify: the daemon does not speak sd_notify, and claiming it
 // does would make systemd wait for a readiness signal that never arrives.
-func unit(spec Spec) string {
+//
+// Environment=PATH is the one directive here that is not about the daemon's
+// lifecycle, and daemonPath says why it has to be written down rather than
+// inherited.
+func unit(spec Spec, path string) string {
 	arguments := spec.arguments()
 	var quoted []string
 	for _, argument := range arguments {
@@ -79,6 +83,12 @@ func unit(spec Spec) string {
 	body.WriteString("StartLimitBurst=5\n\n")
 	body.WriteString("[Service]\n")
 	body.WriteString("Type=simple\n")
+	// A machine with no PATH at all records none: an empty one would give the
+	// daemon a worse environment than systemd's default, which is the thing
+	// this exists to replace.
+	if path != "" {
+		body.WriteString(pathDirective + quoteUnitEnvironment(path) + "\n")
+	}
 	body.WriteString("ExecStart=" + strings.Join(quoted, " ") + "\n")
 	body.WriteString("WorkingDirectory=" + spec.StateDirectory + "\n")
 	body.WriteString("Restart=on-failure\n")
@@ -86,6 +96,65 @@ func unit(spec Spec) string {
 	body.WriteString("[Install]\n")
 	body.WriteString("WantedBy=default.target\n")
 	return body.String()
+}
+
+// pathDirective is how a recorded PATH opens. The quote is part of it because
+// quoteUnitEnvironment always writes one, and matching on the whole opening is
+// what keeps `status` from mistaking some other operator-added Environment=
+// line for the one this package writes.
+const pathDirective = `Environment="PATH=`
+
+// quoteUnitEnvironment renders the value of a recorded PATH.
+//
+// Three characters would not survive being written plainly. systemd splits
+// Environment= on whitespace, so an entry holding a space -- which any path
+// under an "Application Support" or a "my apps" produces -- would become a
+// second assignment. It resolves % specifiers in this setting, so a literal
+// percent has to be doubled or a directory named %h expands to the home
+// directory. And a newline would end the line, leaving whatever followed it to
+// be read as a directive of its own: the only one of the three that could put
+// something in the unit that nobody wrote.
+//
+// The value is always quoted rather than only when it needs to be. A PATH is
+// one long line either way, so there is no legibility in `systemctl cat` to
+// protect, and a rule with no exception is one fewer case for `status` to
+// compare wrongly.
+func quoteUnitEnvironment(value string) string {
+	escaped := strings.NewReplacer(
+		`\`, `\\`,
+		`"`, `\"`,
+		"\n", `\n`,
+		"\r", `\r`,
+		"%", "%%",
+	).Replace(value)
+	return escaped + `"`
+}
+
+// withoutRecordedPath returns a rendered unit with its PATH directive removed,
+// and whether it had one.
+//
+// It is what lets `status` compare the daemon rather than the shell it is
+// asked from. The recorded PATH belongs to the terminal that ran `daemon
+// install`, so comparing it would report every unit stale as soon as the
+// operator opened a shell with a different one -- and send them to reinstall a
+// daemon that is working.
+//
+// Whether a PATH is recorded at all is compared, and that is deliberate: a unit
+// written before this existed carries none, and the daemon under it is exactly
+// the one that cannot resolve node. Reporting it stale is what puts the remedy
+// in front of the person who needs it.
+func withoutRecordedPath(rendered string) (string, bool) {
+	var kept strings.Builder
+	recorded := false
+	for line := range strings.SplitSeq(rendered, "\n") {
+		if strings.HasPrefix(line, pathDirective) {
+			recorded = true
+			continue
+		}
+		kept.WriteString(line)
+		kept.WriteString("\n")
+	}
+	return strings.TrimSuffix(kept.String(), "\n"), recorded
 }
 
 // quoteUnitArgument quotes an ExecStart word.
@@ -111,7 +180,7 @@ func install(spec Spec) (Report, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return Report{}, fmt.Errorf("supervisor: create %s: %w", filepath.Dir(path), err)
 	}
-	if err := writeFileAtomic(path, []byte(unit(spec)), 0o644); err != nil {
+	if err := writeFileAtomic(path, []byte(unit(spec, daemonPath())), 0o644); err != nil {
 		return Report{}, err
 	}
 	// daemon-reload before enable so systemd reads the file just written; a
@@ -188,10 +257,35 @@ func status(spec Spec) (Report, error) {
 	if readErr != nil {
 		return Report{}, fmt.Errorf("supervisor: read %s: %w", path, readErr)
 	}
-	if string(existing) != unit(spec) {
+	if hasDropIns, err := hasDropIns(path + ".d"); err != nil {
+		return Report{}, err
+	} else if hasDropIns {
+		return Report{State: StateStale, Label: label, Path: path,
+			Detail: "the installed unit has user drop-ins; update leaves operator-managed supervisor configuration untouched"}, nil
+	}
+	installed, recordsPath := withoutRecordedPath(string(existing))
+	wanted, wantsPath := withoutRecordedPath(unit(spec, daemonPath()))
+	if installed != wanted {
 		return Report{State: StateStale, Label: label, Path: path,
 			Detail: "the installed unit describes a different daemon: reinstall to replace it"}, nil
 	}
+	if recordsPath != wantsPath {
+		return Report{State: StateStale, Label: label, Path: path,
+			Detail: "the installed unit records no PATH, so the daemon cannot reach the toolchains " +
+				"this shell can: update can repair this legacy Kivgraph unit", Managed: true,
+			Repairable: true}, nil
+	}
 	return Report{State: StateInstalled, Label: label, Path: path,
-		Detail: "systemd starts it with the session and restarts it if it dies"}, nil
+		Detail: "systemd starts it with the session and restarts it if it dies", Managed: true}, nil
+}
+
+func hasDropIns(directory string) (bool, error) {
+	entries, err := os.ReadDir(directory)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("supervisor: read drop-ins %s: %w", directory, err)
+	}
+	return len(entries) > 0, nil
 }

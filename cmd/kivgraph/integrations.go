@@ -86,10 +86,31 @@ func runMCPChangeWithInput(action integrations.Action, args []string, input io.R
 		return 2
 	}
 	target, scope, dryRun, force := options.Target, options.Scope, options.DryRun, options.Force
+	selectedTargets := []integrations.Target{}
+	if target != "" {
+		selectedTargets = append(selectedTargets, integrations.Target(target))
+	} else if action == integrations.ActionInstall {
+		// Detection has no transport side effect. Select the clients first so a
+		// later consent prompt is about a real install, not a background daemon
+		// started before the operator has chosen any target.
+		detector, err := integrations.New(integrations.Options{})
+		if err != nil {
+			writeCommandError(stderr, "mcp %s: %v", action, err)
+			return 1
+		}
+		selectedTargets, err = selectIntegrationTargets(input, stdout, detector, "mcp", integrations.Scope(scope))
+		if err != nil {
+			writeCommandError(stderr, "mcp %s: %v", action, err)
+			return 2
+		}
+	} else {
+		writeCommandError(stderr, "mcp %s: --target is required", action)
+		return 2
+	}
 	// Only an install may bring a daemon up. A remove deletes our entry and
 	// needs no endpoint to do it: starting a daemon in order to unregister from
 	// it would be the opposite of what was asked.
-	managerOptions, err := integrationManagerOptions(options, action == integrations.ActionInstall, stdout)
+	managerOptions, err := integrationManagerOptionsWithInput(options, action == integrations.ActionInstall, input, stdout)
 	if err != nil {
 		writeCommandError(stderr, "mcp %s: %v", action, err)
 		return 1
@@ -98,20 +119,6 @@ func runMCPChangeWithInput(action integrations.Action, args []string, input io.R
 	if err != nil {
 		writeCommandError(stderr, "mcp %s: %v", action, err)
 		return 1
-	}
-
-	selectedTargets := []integrations.Target{}
-	if target != "" {
-		selectedTargets = append(selectedTargets, integrations.Target(target))
-	} else if action == integrations.ActionInstall {
-		selectedTargets, err = selectIntegrationTargets(input, stdout, manager, "mcp", integrations.Scope(scope))
-		if err != nil {
-			writeCommandError(stderr, "mcp %s: %v", action, err)
-			return 2
-		}
-	} else {
-		writeCommandError(stderr, "mcp %s: --target is required", action)
-		return 2
 	}
 
 	failed := false
@@ -335,7 +342,7 @@ func integrationFlagSet(name string, options *integrationOptions, output io.Writ
 	}
 	if endpoint {
 		flags.BoolVar(&options.Daemon, "daemon", false,
-			"require the url entry, and fail rather than fall back (now the default)")
+			"require the supervised daemon, installing it without asking")
 		flags.BoolVar(&options.Stdio, "stdio", false,
 			"write a `serve` command entry instead: one process per client")
 	}
@@ -424,8 +431,8 @@ func writeIntegrationPlan(stdout io.Writer, kind string, plan integrations.Plan)
 // writeIntegrationHelp prints one integration family's operations.
 //
 // The targets are a parameter and not a constant because they are not the same
-// for every family: only three clients host a pre-tool-use gate, and naming the
-// other two here would send a reader to a --target that answers with an error.
+// for every family: Claude Desktop has no project scope, while MCP and skill
+// integrations support different client sets.
 func writeIntegrationHelp(stdout io.Writer, command, summary string, commands []string, targets []integrations.Target) {
 	paint := styleFor(stdout)
 	fmt.Fprintf(stdout, "%sUsage%s: kivgraph %s <operation> [flags]\n\n", paint.bold, paint.reset, command)
@@ -438,5 +445,5 @@ func writeIntegrationHelp(stdout io.Writer, command, summary string, commands []
 		names = append(names, string(target))
 	}
 	fmt.Fprintf(stdout, "\n%sTargets%s: %s\n", paint.bold, paint.reset, strings.Join(names, ", "))
-	fmt.Fprintln(stdout, "For install operations, omit --target to open the selector. Use arrows or j/k to move, space to toggle, a/n for all or none, Enter to confirm, and q or Esc to cancel. Pass --target for scripted, non-interactive use.")
+	fmt.Fprintln(stdout, "For install operations, omit --target to open the selector. Use arrows or j/k to move, space to toggle, a/n for all or none, Enter to confirm, and q or Esc to cancel. If no supervised daemon exists, install asks before creating one; answer no or pass --stdio to use serve. Pass --daemon to require the daemon without asking, and --target for scripted use.")
 }

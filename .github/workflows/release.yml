@@ -32,7 +32,6 @@ jobs:
 
   build:
     name: Build ${{ matrix.os }}/${{ matrix.arch }} release
-    needs: verify
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     permissions:
@@ -133,7 +132,7 @@ jobs:
         shell: bash
         run: |
           version="${GITHUB_REF_NAME#v}"
-          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          scripts/validate-release-version.sh "$version"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       # The bundle carries the viewer. `ui` is advertised in the help of every
@@ -153,58 +152,14 @@ jobs:
       - name: Verify bundle provenance and checksums
         shell: bash
         env:
-          EXPECTED_VERSION: ${{ steps.release.outputs.version }}
+          KIVGRAPH_VERSION: ${{ steps.release.outputs.version }}
         run: |
-          # macOS runners ship shasum instead of the coreutils sha256sum.
-          sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }
-          bundle="$RUNNER_TEMP/$BUNDLE_NAME"
-          test -f "$bundle/manifest.json"
-          test -f "$bundle/SHA256SUMS"
-          test -f "$bundle/$NATIVE_LIBRARY"
-          (
-            cd "$bundle"
-            sha256 -c SHA256SUMS
-          )
-          test "$(jq -r .release "$bundle/manifest.json")" = "$EXPECTED_VERSION"
-          test "$(jq -r .source.commit "$bundle/manifest.json")" = "$GITHUB_SHA"
-          test "$(jq -r .source.dirty "$bundle/manifest.json")" = "false"
-          test "$(jq -r .target.os "$bundle/manifest.json")" = "$TARGET_OS"
-          test "$(jq -r .target.arch "$bundle/manifest.json")" = "$TARGET_ARCH"
-          test "$("$bundle/bin/kivgraph$PROGRAM_SUFFIX" version)" = "$EXPECTED_VERSION"
-          version_json=$("$bundle/bin/kivgraph$PROGRAM_SUFFIX" version --json)
-          test "$(jq -r .kivgraph <<<"$version_json")" = "$EXPECTED_VERSION"
-          test "$(jq -r .schema <<<"$version_json")" = "$(jq -r .schema.canonical "$bundle/manifest.json")"
-          test "$(jq -r .snapshot_row_format <<<"$version_json")" = "$(jq -r .schema.snapshot_row_format "$bundle/manifest.json")"
-          # The Rust engine has to be in the payload, has to run on this
-          # platform, and has to be the pinned one: an installation that falls
-          # back to whatever the PATH holds indexes a different graph.
-          test -x "$bundle/bin/rust-analyzer$PROGRAM_SUFFIX"
-          test -f "$bundle/tools/manifest.json"
-          test -f "$bundle/licenses/third-party/rust-analyzer/LICENSE-MIT"
-          test -f "$bundle/licenses/third-party/rust-analyzer/LICENSE-APACHE"
-          pinned_release=$(jq -r '.tools[] | select(.name=="rust-analyzer") | .release' tools/manifest.json)
-          test "$(jq -r .tools.rust_analyzer.release "$bundle/manifest.json")" = "$pinned_release"
-          test "$(jq -r .rust_analyzer <<<"$version_json")" = "$pinned_release"
-          grep -q "$("$bundle/bin/rust-analyzer$PROGRAM_SUFFIX" --version | awk '{print $2}')" <<<"$pinned_release"
-          # The viewer has to be in the payload and the binary has to know
-          # it: a bundle that carries web/ but was linked without the
-          # webassets tag serves the "no web bundle" page on every route,
-          # and the help is where that shows.
-          test -f "$bundle/web/index.html"
-          help_output=$("$bundle/bin/kivgraph$PROGRAM_SUFFIX" --help)
-          grep -q '^  ui \[' <<<"$help_output"
-          if grep -q 'unavailable: this build carries no web bundle' <<<"$help_output"; then
-            echo "bundle carries web assets the binary cannot serve: built without the webassets tag" >&2
-            exit 1
-          fi
-          # The landing and documentation site is not a product artifact. The
-          # payload is a whitelist in scripts/build-bundle.sh; this is the
-          # assertion that notices when someone widens it.
-          test ! -e "$bundle/landing"
-          if awk '{print $2}' "$bundle/SHA256SUMS" | grep -q '^landing/'; then
-            echo "release payload carries the landing site" >&2
-            exit 1
-          fi
+          scripts/verify-bundle.sh \
+            --bundle "$RUNNER_TEMP/$BUNDLE_NAME" \
+            --target "$TARGET_OS/$TARGET_ARCH" \
+            --version "$KIVGRAPH_VERSION" \
+            --commit "$GITHUB_SHA" \
+            --source-tools-manifest tools/manifest.json
 
       - name: Create reproducible release archive
         if: matrix.os != 'windows'
@@ -328,9 +283,13 @@ jobs:
 
   publish:
     name: Publish GitHub release
-    needs: build
+    needs:
+      - verify
+      - build
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    outputs:
+      prerelease: ${{ steps.release_channel.outputs.prerelease }}
     permissions:
       contents: write
       id-token: write
@@ -341,6 +300,20 @@ jobs:
         with:
           ref: ${{ github.ref }}
           fetch-depth: 0
+
+      - name: Resolve release channel
+        id: release_channel
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="${TAG#v}"
+          version="${version%%+*}"
+          prerelease=false
+          if [[ "$version" == *-* ]]; then
+            prerelease=true
+          fi
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
 
       - name: Download platform release archives
         uses: actions/download-artifact@v4
@@ -363,6 +336,8 @@ jobs:
           # marking it executable would only claim something about it that is
           # not true on the platform that reads it.
           install -m 0644 scripts/install.ps1 "$assets/install.ps1"
+          install -m 0755 scripts/uninstall.sh "$assets/uninstall.sh"
+          install -m 0644 scripts/uninstall.ps1 "$assets/uninstall.ps1"
           cat "$platform_assets"/*.tar.gz.sha256 "$platform_assets"/*.zip.sha256 \
             "$platform_assets"/*.mcpb.sha256 \
             > "$RUNNER_TEMP/platform-checksums"
@@ -371,7 +346,8 @@ jobs:
             # Each archive must still hash to what its own build job recorded.
             sha256sum -c "$RUNNER_TEMP/platform-checksums"
             # SHA256SUMS covers every published file, lexicographic, no paths.
-            sha256sum -- install.sh install.ps1 *.tar.gz *.zip *.mcpb \
+            sha256sum -- install.sh install.ps1 uninstall.sh uninstall.ps1 \
+              *.tar.gz *.zip *.mcpb \
               | LC_ALL=C sort -k 2 > SHA256SUMS
             published=$(find . -maxdepth 1 -type f ! -name SHA256SUMS | wc -l)
             test "$(wc -l < SHA256SUMS)" -eq "$published"
@@ -379,6 +355,8 @@ jobs:
           test -s "$assets/SHA256SUMS"
           test -s "$assets/install.sh"
           test -s "$assets/install.ps1"
+          test -s "$assets/uninstall.sh"
+          test -s "$assets/uninstall.ps1"
 
       - name: Attest release archives
         uses: actions/attest-build-provenance@v2
@@ -392,6 +370,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
+          PRERELEASE: ${{ steps.release_channel.outputs.prerelease }}
         run: |
           notes_file="landing/src/content/releases/${TAG}.md"
           if [ ! -f "$notes_file" ]; then
@@ -409,15 +388,123 @@ jobs:
             "release-assets/SHA256SUMS"
             "release-assets/install.sh"
             "release-assets/install.ps1"
+            "release-assets/uninstall.sh"
+            "release-assets/uninstall.ps1"
           )
           if ! gh release view "$TAG" >/dev/null 2>&1; then
-            gh release create "$TAG" \
-              --verify-tag \
-              --title "Kivgraph $TAG" \
-              --notes-file "$RUNNER_TEMP/release-notes.md" \
-              --latest
+            release_args=(
+              --verify-tag
+              --title "Kivgraph $TAG"
+              --notes-file "$RUNNER_TEMP/release-notes.md"
+            )
+            if [[ "$PRERELEASE" == true ]]; then
+              release_args+=(--prerelease)
+            else
+              release_args+=(--latest)
+            fi
+            gh release create "$TAG" "${release_args[@]}"
           fi
           gh release upload "$TAG" "${assets[@]}" --clobber
+
+  post-publish-smoke:
+    name: Smoke published ${{ matrix.os }}/${{ matrix.arch }}
+    needs: publish
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: linux
+            arch: amd64
+            runner: ubuntu-24.04
+            archive_name: kivgraph-linux-amd64.tar.gz
+          - os: darwin
+            arch: arm64
+            runner: macos-15
+            archive_name: kivgraph-darwin-arm64.tar.gz
+          - os: windows
+            arch: amd64
+            runner: windows-2022
+            archive_name: kivgraph-windows-amd64.zip
+    env:
+      TARGET_OS: ${{ matrix.os }}
+      TARGET_ARCH: ${{ matrix.arch }}
+      BUNDLE_NAME: kivgraph-${{ matrix.os }}-${{ matrix.arch }}
+      ARCHIVE_NAME: ${{ matrix.archive_name }}
+    steps:
+      - name: Checkout exact tag
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+
+      - name: Download published archive
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/published"
+          gh release download "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern "$ARCHIVE_NAME" \
+            --pattern SHA256SUMS \
+            --dir "$RUNNER_TEMP/published" \
+            --clobber
+
+      - name: Verify published archive digest
+        shell: bash
+        # Hashed by bare name from inside the download directory, never by a
+        # path built from $RUNNER_TEMP: on windows-2022 that variable is
+        # backslash-separated, and GNU sha256sum's response to a backslash in
+        # the name it is given is to prefix the whole line with one and
+        # double the ones in the name -- `\<hash> *D:\\a\\_temp/...`. A plain
+        # `awk '{print $1}'` then reads that leading backslash into the
+        # digest and no real mismatch is required to fail the comparison.
+        run: |
+          cd "$RUNNER_TEMP/published"
+          test -s "$ARCHIVE_NAME"
+          test -s SHA256SUMS
+          if command -v sha256sum >/dev/null 2>&1; then
+            actual=$(sha256sum "$ARCHIVE_NAME" | awk '{print $1}')
+          else
+            actual=$(shasum -a 256 "$ARCHIVE_NAME" | awk '{print $1}')
+          fi
+          expected=$(awk -v name="$ARCHIVE_NAME" '$2 == name {print $1}' SHA256SUMS)
+          test -n "$expected"
+          test "$actual" = "$expected"
+
+      - name: Extract published archive
+        shell: bash
+        run: |
+          archive="$RUNNER_TEMP/published/$ARCHIVE_NAME"
+          extract_root="$(mktemp -d "$RUNNER_TEMP/kivgraph-smoke.XXXXXX")"
+          case "$TARGET_OS" in
+            # The published ZIP contains duplicate entries for some paths,
+            # including SHA256SUMS. `-o` makes that duplicate extraction
+            # non-interactive; the unique root also prevents leftovers from a
+            # previous job on a reused Windows runner from prompting.
+            windows) unzip -oq "$archive" -d "$extract_root" ;;
+            *) tar -xzf "$archive" -C "$extract_root" ;;
+          esac
+          test -d "$extract_root/$BUNDLE_NAME"
+          echo "KIVGRAPH_SMOKE_BUNDLE=$extract_root/$BUNDLE_NAME" >> "$GITHUB_ENV"
+
+      # This is deliberately run against the archive fetched from the release,
+      # not the build workspace or an intermediate Actions artifact. It proves
+      # the upload, the archive container and the installer payload agree.
+      - name: Verify and smoke the published bundle
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          scripts/verify-bundle.sh \
+            --bundle "$KIVGRAPH_SMOKE_BUNDLE" \
+            --target "$TARGET_OS/$TARGET_ARCH" \
+            --version "$version" \
+            --commit "$GITHUB_SHA" \
+            --source-tools-manifest tools/manifest.json
 
   # Publishing to the MCP Registry is its own job, after the release exists,
   # because the registry fetches the package URL to check the `fileSha256` it
@@ -431,7 +518,13 @@ jobs:
   # published to -- `io.github.Luqueee/kivgraph`.
   registry:
     name: Publish to the MCP Registry
-    needs: publish
+    needs:
+      - publish
+      - post-publish-smoke
+    # Development releases are GitHub prereleases for opt-in testing. The
+    # public MCP Registry is the stable distribution channel and must not make
+    # a prerelease discoverable to clients that did not opt into it.
+    if: ${{ needs.publish.outputs.prerelease != 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

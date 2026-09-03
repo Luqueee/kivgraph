@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "scip",
+    srcs = [
+        "enclosing.go",
+        "hierarchy.go",
+        "offsets.go",
+        "payload.go",
+        "symbol.go",
+    ],
+    importpath = "github.com/Luqueee/kivgraph/internal/scip",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/facts",
+        "//internal/scip/scipwire",
+    ],
+)
+
+go_test(
+    name = "scip_test",
+    srcs = [
+        "containment_test.go",
+        "coverage_helper_test.go",
+        "enclosing_test.go",
+        "hierarchy_test.go",
+        "payload_test.go",
+    ],
+    data = ["//:testdata"],
+    embed = [":scip"],
+    deps = [
+        "//internal/facts",
+        "//internal/scip/scipwire",
+        "//internal/workspace",
+    ],
+)

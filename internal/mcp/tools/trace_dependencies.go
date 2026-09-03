@@ -42,23 +42,24 @@ const (
 // applied, because a route missing a link is not a route. "compact" is refused
 // for the same reason: it groups rows by file, and the order is the answer.
 type TraceDependenciesInput struct {
-	StableKey      string   `json:"stable_key,omitempty"`
-	QualifiedName  string   `json:"qualified_name,omitempty"`
-	Repository     string   `json:"repository,omitempty"`
-	Path           string   `json:"path,omitempty"`
-	To             string   `json:"to,omitempty"`
-	ToPath         string   `json:"to_path,omitempty"`
-	Depth          int      `json:"depth,omitempty"`
-	MaxNodes       int      `json:"max_nodes,omitempty"`
-	Repo           string   `json:"repo,omitempty"`
-	Language       string   `json:"language,omitempty"`
-	EdgeKinds      []string `json:"edge_kinds,omitempty"`
-	Confidence     string   `json:"confidence,omitempty"`
-	IncludeDerived bool     `json:"include_derived,omitempty"`
-	Limit          int      `json:"limit,omitempty"`
-	Cursor         string   `json:"cursor,omitempty"`
-	ResponseFormat string   `json:"response_format,omitempty"`
-	View           string   `json:"view,omitempty"`
+	Profile        []string `json:"profile,omitempty" jsonschema:"Profiles to query; omit for the default, or use * alone for all."`
+	StableKey      string   `json:"stable_key,omitempty" jsonschema:"The root symbol durable key, as a detailed result returns it. The triple works instead."`
+	QualifiedName  string   `json:"qualified_name,omitempty" jsonschema:"The root symbol fully qualified name, as every row of this surface carries it."`
+	Repository     string   `json:"repository,omitempty" jsonschema:"The repository that declares the root symbol."`
+	Path           string   `json:"path,omitempty" jsonschema:"The repository-relative file that declares the root symbol."`
+	To             string   `json:"to,omitempty" jsonschema:"Qualified name to reach. It changes the question: the answer becomes the route itself, one row per hop in order."`
+	ToPath         string   `json:"to_path,omitempty" jsonschema:"The repository-relative file of the to symbol, to separate an ambiguous name."`
+	Depth          int      `json:"depth,omitempty" jsonschema:"Hops the walk may follow outward. Defaults to 3."`
+	MaxNodes       int      `json:"max_nodes,omitempty" jsonschema:"Nodes the walk may visit before it stops and declares that it did. Defaults to 5000."`
+	Repo           string   `json:"repo,omitempty" jsonschema:"Keep only reached symbols in this repository. Refused with to, since a route missing a link is not a route."`
+	Language       string   `json:"language,omitempty" jsonschema:"Keep only reached symbols written in this language. Refused with to."`
+	EdgeKinds      []string `json:"edge_kinds,omitempty" jsonschema:"Relation kinds the walk may follow, such as CALLS. It gates what is reachable, not just what is shown."`
+	Confidence     string   `json:"confidence,omitempty" jsonschema:"Follow only edges resolved at this confidence, such as EXACT_TYPECHECKED. It gates what is reachable."`
+	IncludeDerived bool     `json:"include_derived,omitempty" jsonschema:"Include reached symbols of the derived provider, which is withheld by default. Refused with to."`
+	Limit          int      `json:"limit,omitempty" jsonschema:"Reached symbols in one page. Defaults to 50."`
+	Cursor         string   `json:"cursor,omitempty" jsonschema:"The next_cursor of the previous page. Every other argument must stay the same."`
+	ResponseFormat string   `json:"response_format,omitempty" jsonschema:"concise (the default) omits the derived identifiers; detailed returns them."`
+	View           string   `json:"view,omitempty" jsonschema:"Granularity, never a different answer: compact (the default) or full. files is rejected, and compact is refused with to, since the order is the answer."`
 }
 
 // DependencyTrace is the traversal itself: the root, what the bounds did to
@@ -96,15 +97,16 @@ type DependencyTrace struct {
 // and asking for each range separately turned a page into a page of round
 // trips.
 type ReachedSymbol struct {
-	Name          string `json:"name"`
-	QualifiedName string `json:"qualified_name"`
-	Kind          string `json:"kind"`
-	Depth         int    `json:"depth"`
-	Repository    string `json:"repository"`
-	Language      string `json:"language"`
-	FilePath      string `json:"file_path"`
-	StartLine     uint32 `json:"start_line"`
-	EndLine       uint32 `json:"end_line"`
+	Profiles      ProfileNames `json:"profile,omitempty"`
+	Name          string       `json:"name"`
+	QualifiedName string       `json:"qualified_name"`
+	Kind          string       `json:"kind"`
+	Depth         int          `json:"depth"`
+	Repository    string       `json:"repository"`
+	Language      string       `json:"language"`
+	FilePath      string       `json:"file_path"`
+	StartLine     uint32       `json:"start_line"`
+	EndLine       uint32       `json:"end_line"`
 
 	// ReachedFrom names the already-reached symbol this one was discovered
 	// from, which is the edge's target when the traversal runs incoming. The
@@ -147,9 +149,10 @@ type compactReachedHeader struct {
 // is present only when the group is not in the hoisted repository, which on a
 // single-repository answer is never.
 type compactSymbolGroup struct {
-	File string `json:"file"`
-	Repo string `json:"repo,omitempty"`
-	At   []any  `json:"at"`
+	Profiles ProfileNames `json:"profile,omitempty"`
+	File     string       `json:"file"`
+	Repo     string       `json:"repo,omitempty"`
+	At       []any        `json:"at"`
 }
 
 // declarationLabel names a declaration and the lines it occupies:
@@ -309,11 +312,12 @@ func reachedFileGroups(nodes []ReachedSymbol, hoistedRepository, kind string, de
 	groups := make([]compactSymbolGroup, 0, len(nodes))
 	index := make(map[string]int, len(nodes))
 	for _, node := range nodes {
-		position, exists := index[node.FilePath]
+		key := string(node.Profiles) + "\x00" + node.Repository + "\x00" + node.FilePath
+		position, exists := index[key]
 		if !exists {
 			position = len(groups)
-			index[node.FilePath] = position
-			group := compactSymbolGroup{File: node.FilePath}
+			index[key] = position
+			group := compactSymbolGroup{Profiles: node.Profiles, File: node.FilePath}
 			if node.Repository != hoistedRepository {
 				group.Repo = node.Repository
 			}
@@ -473,7 +477,17 @@ func RegisterTraceDependenciesWithObserverAndSnapshotStore(
 		request *sdkmcp.CallToolRequest,
 		arguments TraceDependenciesInput,
 	) (*sdkmcp.CallToolResult, Response[DependencyTrace], error) {
-		return traceDependencies(ctx, request, arguments, snapshotStore)
+		selected, count, err := resolveProfileSelection(snapshotStore, arguments.Profile, arguments.StableKey)
+		if err != nil {
+			return nil, Response[DependencyTrace]{}, err
+		}
+		if len(selected) > 1 {
+			return traceDependenciesAcrossProfiles(ctx, request, arguments, selected)
+		}
+		store, profile := selected[0].Store, selected[0].Name
+		result, response, err := traceDependencies(ctx, request, arguments, store)
+		scopeResponse(&response, profile, count)
+		return result, response, err
 	}
 	if observer != nil || callObserver != nil {
 		underlying := handler
@@ -490,10 +504,129 @@ func RegisterTraceDependenciesWithObserverAndSnapshotStore(
 	}
 	addQueryTool(server, &sdkmcp.Tool{
 		Name:        traceDependenciesToolName,
-		Description: "What this symbol reaches outward, bounded by depth. Pass to for the route by which it reaches one named symbol. Grep does not follow a chain.",
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnlyHint: true},
+		Description: "What this symbol reaches outward, bounded by depth. Pass to for the route by which it reaches one named symbol. Grep does not follow a chain; get_blast_radius walks it inward.",
+		Annotations: readOnlyClosedWorld(),
 		Meta:        boundedResultMeta(MaximumTraversalResultChars),
 	}, handler)
+}
+
+func traceDependenciesAcrossProfiles(
+	ctx context.Context,
+	request *sdkmcp.CallToolRequest,
+	arguments TraceDependenciesInput,
+	selected []hotsnapshot.ProfileStore,
+) (*sdkmcp.CallToolResult, Response[DependencyTrace], error) {
+	options, err := normalizeTraceDependenciesInput(arguments)
+	if err != nil {
+		return nil, Response[DependencyTrace]{}, err
+	}
+	if options.Target != "" {
+		return nil, Response[DependencyTrace]{}, NewToolError(CodeInvalidArgument,
+			"to requires exactly one named profile, because routes are not resolved across profiles")
+	}
+	names := make([]string, 0, len(selected))
+	for _, profile := range selected {
+		names = append(names, profile.Name)
+	}
+	queryArguments := arguments
+	queryArguments.Profile, queryArguments.Cursor = nil, ""
+	queryArguments.Limit, queryArguments.ResponseFormat = 0, ""
+	queryArguments.View = ""
+	queryHash, err := HashQuery(struct {
+		Tool     string                 `json:"tool"`
+		Profiles []string               `json:"profiles"`
+		Query    TraceDependenciesInput `json:"query"`
+	}{traceDependenciesToolName, names, queryArguments})
+	if err != nil {
+		return nil, Response[DependencyTrace]{}, err
+	}
+	profiles := make([]ProfileSnapshot, 0, len(selected))
+	rows := make([]ReachedSymbol, 0)
+	variants := make(map[string]int)
+	coverage := Coverage{}
+	mergedCompleteness := Completeness{Verdict: VerdictComplete}
+	trace := DependencyTrace{Depth: options.Depth, MaxNodes: options.MaxNodes, View: options.View}
+	foundRoot := false
+	for _, profile := range selected {
+		snapshot := profile.Store.Load()
+		if snapshot == nil {
+			return nil, Response[DependencyTrace]{}, ErrIndexNotReady()
+		}
+		profileCompleteness := Completeness{Verdict: VerdictComplete}
+		pageArguments := arguments
+		pageArguments.Profile, pageArguments.Cursor = nil, ""
+		pageArguments.Limit = MaximumDependencyLimit
+		pageArguments.ResponseFormat, pageArguments.View = ResponseFormatDetailed, ViewFull
+		firstPage := true
+		for {
+			_, response, queryErr := traceDependencies(ctx, request, pageArguments, profile.Store)
+			if queryErr != nil {
+				if firstPage && (ErrorCode(queryErr) == CodeSymbolNotFound || ErrorCode(queryErr) == CodeRepositoryNotFound) {
+					break
+				}
+				return nil, Response[DependencyTrace]{}, queryErr
+			}
+			if firstPage {
+				foundRoot = true
+				if trace.RootKey == "" {
+					trace.RootKey, trace.RootRepository = response.Results.RootKey, response.Results.RootRepository
+					trace.WitnessTo, trace.WitnessHops = response.Results.WitnessTo, response.Results.WitnessHops
+				}
+				trace.Reached += response.Results.Reached
+				if response.Results.DeepestDepth > trace.DeepestDepth {
+					trace.DeepestDepth = response.Results.DeepestDepth
+				}
+				trace.TraversalTruncated = trace.TraversalTruncated || response.Results.TraversalTruncated
+				addCoverage(&coverage, response.Coverage)
+				if response.Completeness != nil {
+					profileCompleteness = *response.Completeness
+					mergeCompleteness(&mergedCompleteness, response.Completeness)
+				}
+			}
+			for _, row := range response.Results.Nodes {
+				stableKey := row.StableKey
+				row.Profiles = ""
+				if options.Format != ResponseFormatDetailed {
+					row.StableKey, row.FileKey, row.ReachedFromKey = "", "", ""
+				}
+				payload, marshalErr := json.Marshal(row)
+				if marshalErr != nil {
+					return nil, Response[DependencyTrace]{}, WrapToolError(CodeSnapshotUnavailable, "encode dependency payload for profile merge", marshalErr)
+				}
+				key := stableKey + "\x00" + string(payload)
+				if position, duplicate := variants[key]; duplicate {
+					rows[position].Profiles = rows[position].Profiles.append(profile.Name)
+					continue
+				}
+				row.Profiles = profileNames(profile.Name)
+				variants[key] = len(rows)
+				rows = append(rows, row)
+			}
+			firstPage = false
+			if response.NextCursor == nil {
+				break
+			}
+			pageArguments.Cursor = *response.NextCursor
+		}
+		completeness := profileCompleteness
+		profiles = append(profiles, ProfileSnapshot{Name: profile.Name, SnapshotID: snapshot.Metadata().ID, Completeness: &completeness})
+	}
+	if !foundRoot {
+		return nil, Response[DependencyTrace]{}, NewToolError(CodeSymbolNotFound, "root symbol was not found in the selected profiles")
+	}
+	offset, end, next, err := profilePageBounds(profiles, queryHash, SortingVersionDependenciesV1, arguments.Cursor, options.Limit, len(rows))
+	if err != nil {
+		return nil, Response[DependencyTrace]{}, err
+	}
+	trace.Reached = len(rows)
+	trace.Nodes = rows[offset:end]
+	return nil, Response[DependencyTrace]{
+		Profiles: profiles, CrossProfileEdges: "not_resolved",
+		Total: len(rows), Returned: end - offset, Truncated: end < len(rows), NextCursor: next,
+		Coverage: coverage, Completeness: &mergedCompleteness,
+		Guidance: traversalGuidance(traceDependenciesToolName, len(rows), end-offset, end < len(rows), mergedCompleteness.Verdict),
+		Results:  trace, View: options.View,
+	}, nil
 }
 
 func traceDependencies(

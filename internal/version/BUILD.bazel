@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "version",
+    srcs = [
+        "provenance.go",
+        "version.go",
+    ],
+    importpath = "github.com/Luqueee/kivgraph/internal/version",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/rebuild",
+        "//internal/storage/ladybug",
+        "//internal/syntax",
+    ],
+)
+
+go_test(
+    name = "version_test",
+    srcs = [
+        "documented_test.go",
+        "provenance_test.go",
+        "registry_test.go",
+        "tools_manifest_test.go",
+    ],
+    data = ["//:project_files"],
+    embed = [":version"],
+    deps = [
+        "//internal/rebuild",
+        "//internal/storage/ladybug",
+    ],
+)

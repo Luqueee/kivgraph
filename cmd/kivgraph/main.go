@@ -18,6 +18,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -25,7 +26,6 @@ import (
 
 	"github.com/Luqueee/kivgraph/internal/app"
 	"github.com/Luqueee/kivgraph/internal/config"
-	"github.com/Luqueee/kivgraph/internal/daemon"
 	"github.com/Luqueee/kivgraph/internal/eventlog"
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/goworkspace"
@@ -75,8 +75,8 @@ func main() {
 		// why this asks the registry instead of comparing the first word.
 		switch {
 		case interceptsLongRunning("ui", os.Args[1:]):
-			configPath, address := "", ""
-			writeCommandHelp(os.Stdout, "ui", uiFlagSet(&configPath, &address))
+			configPath, address, profile := "", "", ""
+			writeCommandHelp(os.Stdout, "ui", uiFlagSet(&configPath, &address, &profile))
 			return
 		case interceptsLongRunning("serve", os.Args[1:]):
 			configPath := ""
@@ -166,6 +166,14 @@ func main() {
 		writeUpdateNotice(os.Stderr)
 	}
 
+	// A Codex PreToolUse refusal is a small wire protocol of its own: exit 2
+	// and a plain reason on stderr. The regular non-interactive CLI wraps stderr
+	// as structured logs and appends a generic failure record, which would turn
+	// that reason into two unrelated JSON messages before Codex reads it.
+	if len(os.Args) >= 3 && os.Args[1] == "hook" && os.Args[2] == "run" {
+		os.Exit(run(os.Args, os.Stdout, os.Stderr))
+	}
+
 	// A one-shot command reports to whoever is listening: plain text for the
 	// operator at a terminal, the structured record other tooling parses when
 	// stderr is a pipe or a file. serve and ui above always log structurally,
@@ -185,11 +193,13 @@ func writeUpdateNotice(stderr io.Writer) {
 		APIBaseURL:     os.Getenv("KIVGRAPH_UPDATE_API_URL"),
 		CurrentVersion: version.Value,
 		Token:          os.Getenv("KIVGRAPH_GITHUB_TOKEN"),
+		Channel:        os.Getenv("KIVGRAPH_UPDATE_CHANNEL"),
 	})
 	if err != nil || !result.UpdateAvailable {
 		return
 	}
-	writeWarning(stderr, "kivgraph update available: %s -> %s; run \"kivgraph update\" to install it",
+	writeWarning(stderr, "kivgraph update available%s: %s -> %s; run \"kivgraph update\" to install it",
+		channelLabel(result.Channel),
 		result.CurrentVersion, result.LatestVersion)
 }
 
@@ -263,18 +273,6 @@ func ensureConfiguration(configPath string) error {
 	return nil
 }
 
-func loadConfiguredSnapshot(ctx context.Context, configPath string) (config.Loaded, *hotsnapshot.SnapshotStore, error) {
-	loaded, err := ensureLoadedConfiguration(configPath)
-	if err != nil {
-		return config.Loaded{}, nil, err
-	}
-	store, err := openConfiguredSnapshot(ctx, loaded)
-	if err != nil {
-		return config.Loaded{}, nil, err
-	}
-	return loaded, store, nil
-}
-
 // ensureLoadedConfiguration is the half a relay needs and the whole a
 // configuration command needs: the file exists afterwards, and it is read.
 //
@@ -286,7 +284,7 @@ func ensureLoadedConfiguration(configPath string) (config.Loaded, error) {
 	if err := ensureConfiguration(configPath); err != nil {
 		return config.Loaded{}, err
 	}
-	loaded, err := config.Load(configPath)
+	loaded, err := config.LoadProfile(configPath, "")
 	if err != nil {
 		return config.Loaded{}, fmt.Errorf("load configuration: %w", err)
 	}
@@ -320,9 +318,20 @@ func openConfiguredSnapshot(ctx context.Context, loaded config.Loaded) (*hotsnap
 	// derivation from the canonical graph rather than an answer. Only the moment
 	// moved.
 	return hotsnapshot.NewDeferredSnapshotStore(generationNumber, func() (*hotsnapshot.GraphSnapshot, error) {
+		currentLayout, err := rebuild.Roles(ctx, rebuild.LayoutOptions{
+			Root:  filepath.Dir(loaded.Config.Storage.DatabasePath),
+			Store: generation.DefaultConfig(),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("resolve active generation while opening snapshot: %w", err)
+		}
+		currentGeneration, err := strconv.ParseUint(currentLayout.Active.ID, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("parse active generation %q: %w", currentLayout.Active.ID, err)
+		}
 		snapshot, report, err := rebuild.LoadOrBuildSnapshot(ctx, rebuild.BuildSnapshotOptions{
-			DatabasePath: layout.Active.DatabasePath,
-			SnapshotID:   generationNumber,
+			DatabasePath: currentLayout.Active.DatabasePath,
+			SnapshotID:   currentGeneration,
 		})
 		// A server holds this snapshot for its whole life; what building it
 		// borrowed is dead the moment it is published, and returning it here
@@ -331,10 +340,10 @@ func openConfiguredSnapshot(ctx context.Context, loaded config.Loaded) (*hotsnap
 		// scavenge still runs: a fallback derived it the expensive way.
 		defer rebuild.ReturnBuildMemory()
 		if err != nil {
-			return nil, fmt.Errorf("build active snapshot %q: %w", layout.Active.ID, err)
+			return nil, fmt.Errorf("build active snapshot %q: %w", currentLayout.Active.ID, err)
 		}
 		if !report.Passed {
-			return nil, fmt.Errorf("build active snapshot %q did not pass", layout.Active.ID)
+			return nil, fmt.Errorf("build active snapshot %q did not pass", currentLayout.Active.ID)
 		}
 		// Which of the two routes was taken is worth a line, because nothing else
 		// distinguishes them: a server that derives answers exactly like one that
@@ -342,14 +351,48 @@ func openConfiguredSnapshot(ctx context.Context, loaded config.Loaded) (*hotsnap
 		switch {
 		case report.Loaded:
 			logging.New(os.Stderr).Info("read the published snapshot",
-				"generation", layout.Active.ID, "symbols", report.Stats.Symbols)
+				"generation", currentLayout.Active.ID, "symbols", report.Stats.Symbols)
 		default:
 			logging.New(os.Stderr).Info("derived the snapshot from the canonical graph",
-				"generation", layout.Active.ID, "symbols", report.Stats.Symbols,
+				"generation", currentLayout.Active.ID, "symbols", report.Stats.Symbols,
 				"reason", report.LoadRefused)
 		}
 		return snapshot, nil
 	}), nil
+}
+
+// openConfiguredProfileSnapshots keeps the historical single store when only
+// one profile exists and otherwise groups one deferred store per profile. No
+// graph is mapped here; each loader runs only when a query selects it.
+func openConfiguredProfileSnapshots(ctx context.Context, loaded config.Loaded) (*hotsnapshot.SnapshotStore, error) {
+	profiles, err := config.ListProfiles(loaded.ConfigPath)
+	if err != nil {
+		return nil, fmt.Errorf("list configured profiles: %w", err)
+	}
+	stores := make(map[string]*hotsnapshot.SnapshotStore, len(profiles))
+	for _, profile := range profiles {
+		profileLoaded, err := config.LoadProfile(loaded.ConfigPath, profile.Name)
+		if err != nil {
+			return nil, fmt.Errorf("load profile %q: %w", profile.Name, err)
+		}
+		store, err := openConfiguredSnapshot(ctx, profileLoaded)
+		if err != nil {
+			return nil, fmt.Errorf("open profile %q: %w", profile.Name, err)
+		}
+		stores[profile.Name] = store
+	}
+	aggregate, err := hotsnapshot.NewProfileSnapshotStore(loaded.Config.Profiles.Default, stores)
+	if err != nil {
+		for _, store := range stores {
+			store.Close()
+		}
+		return nil, err
+	}
+	if err := aggregate.SetMaxOpenProfiles(loaded.Config.Profiles.MaxOpen); err != nil {
+		aggregate.Close()
+		return nil, err
+	}
+	return aggregate, nil
 }
 
 func runConfiguredUI(
@@ -366,7 +409,8 @@ func runConfiguredUI(
 	}
 	configPath := ""
 	address := ""
-	flags := uiFlagSet(&configPath, &address)
+	profile := ""
+	flags := uiFlagSet(&configPath, &address, &profile)
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -381,7 +425,14 @@ func runConfiguredUI(
 			"ui: this binary carries no web bundle; build one with scripts/build-bundle.sh " +
 				"(without --mcp-only), or run the viewer from a source checkout with the webassets build tag")
 	}
-	loaded, store, err := loadConfiguredSnapshot(ctx, configPath)
+	if err := ensureConfiguration(configPath); err != nil {
+		return err
+	}
+	loaded, err := config.LoadProfile(configPath, profile)
+	if err != nil {
+		return fmt.Errorf("ui: load profile: %w", err)
+	}
+	store, err := openConfiguredSnapshot(ctx, loaded)
 	if err != nil {
 		return err
 	}
@@ -397,11 +448,12 @@ func runConfiguredUI(
 // uiFlagSet and serveFlagSet exist so the two long-running commands describe
 // their flags in one place: the parser that runs them and the help that
 // answers --help read the same definitions.
-func uiFlagSet(configPath, address *string) *flag.FlagSet {
+func uiFlagSet(configPath, address, profile *string) *flag.FlagSet {
 	flags := flag.NewFlagSet("ui", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	flags.StringVar(configPath, "config", "", "configuration file")
 	flags.StringVar(address, "addr", "", "HTTP listen address")
+	flags.StringVar(profile, "profile", "", "graph profile (defaults to profiles.default)")
 	return flags
 }
 
@@ -436,7 +488,7 @@ func daemonFlagSet(configPath *string, options *daemonOptions) *flag.FlagSet {
 	flags := flag.NewFlagSet("daemon", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	flags.StringVar(configPath, "config", "", "configuration file")
-	flags.StringVar(&options.Address, "addr", daemon.DefaultAddress, "HTTP address for MCP clients that take a url")
+	flags.StringVar(&options.Address, "addr", "", "HTTP address for MCP clients that take a url (defaults to the persisted port or 127.0.0.1:7788)")
 	flags.BoolVar(&options.AllowRemote, "allow-remote", false, "permit a bind outside loopback, which sends names, paths and source metadata off this host")
 	return flags
 }
@@ -508,12 +560,12 @@ func runConfiguredServe(
 	// is about to serve and not the one that was preferred. The relaying path
 	// returned above and reported for itself.
 	announceFirstRun(loaded, command)
-	store, err := openConfiguredSnapshot(ctx, loaded)
+	store, err := openConfiguredProfileSnapshots(ctx, loaded)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
-	projectIndexer := indexing.NewService(loaded, store, version.Value, "")
+	profileIndexer := newProfileProjectIndexer(loaded.ConfigPath, store)
 	events := openEventLog(loaded.Config, os.Stderr)
 	// The started/stopped pair is what makes the tool lines between them
 	// readable: without it a reader cannot tell one server's calls from the
@@ -542,13 +594,74 @@ func runConfiguredServe(
 			writeWarning(os.Stderr, "events: close: %v", err)
 		}
 	}()
-	stopFollower := followPublishedGeneration(ctx, loaded, store, command, indexing.FollowOptions{})
-	defer stopFollower()
-	stopResync := resyncOnBranchChange(ctx, loaded, store, projectIndexer, command)
-	defer stopResync()
+	stopProfiles, err := watchConfiguredProfiles(ctx, loaded, store, profileIndexer, command)
+	if err != nil {
+		return err
+	}
+	defer stopProfiles()
 	return runServe(ctx, func(ctx context.Context) error {
-		return runMCP(ctx, loaded, store, projectIndexer, events)
+		return runMCP(ctx, loaded, store, profileIndexer, events)
 	})
+}
+
+func watchConfiguredProfiles(
+	ctx context.Context,
+	loaded config.Loaded,
+	store *hotsnapshot.SnapshotStore,
+	indexer *profileProjectIndexer,
+	command string,
+) (func(), error) {
+	profiles, err := config.ListProfiles(loaded.ConfigPath)
+	if err != nil {
+		return nil, fmt.Errorf("watch configured profiles: %w", err)
+	}
+	var watchersMu sync.Mutex
+	stops := make([]func(), 0, len(profiles)*2)
+	watched := make(map[string]struct{}, len(profiles))
+	closed := false
+	register := func(name string, profileLoaded config.Loaded, profileStore *hotsnapshot.SnapshotStore) {
+		watchersMu.Lock()
+		defer watchersMu.Unlock()
+		if closed {
+			return
+		}
+		if _, found := watched[name]; found {
+			return
+		}
+		watched[name] = struct{}{}
+		stops = append(stops,
+			followPublishedGeneration(ctx, profileLoaded, profileStore, command, indexing.FollowOptions{}),
+			resyncOnBranchChange(ctx, profileLoaded, profileStore, namedProfileReindexer{indexer, name}, command),
+		)
+	}
+	cleanup := func() {
+		watchersMu.Lock()
+		closed = true
+		current := stops
+		stops = nil
+		watchersMu.Unlock()
+		for index := len(current) - 1; index >= 0; index-- {
+			current[index]()
+		}
+	}
+	for _, profile := range profiles {
+		profileLoaded, err := config.LoadProfile(loaded.ConfigPath, profile.Name)
+		if err != nil {
+			cleanup()
+			return nil, fmt.Errorf("watch profile %q: %w", profile.Name, err)
+		}
+		selected, err := store.ResolveProfiles([]string{profile.Name})
+		if err != nil {
+			cleanup()
+			return nil, fmt.Errorf("watch profile %q: %w", profile.Name, err)
+		}
+		register(profile.Name, profileLoaded, selected[0].Store)
+	}
+	indexer.setProfileWatcher(register)
+	return func() {
+		indexer.setProfileWatcher(nil)
+		cleanup()
+	}, nil
 }
 
 // followPublishedGeneration keeps a long-running command on the generation the
@@ -613,7 +726,7 @@ func resyncOnBranchChange(
 	ctx context.Context,
 	loaded config.Loaded,
 	store *hotsnapshot.SnapshotStore,
-	indexer *indexing.Service,
+	indexer interface{ Reindex(context.Context) error },
 	command string,
 ) func() {
 	logger := logging.New(os.Stderr)
@@ -678,6 +791,16 @@ func resyncOnBranchChange(
 			},
 			OnError: func(err error) {
 				logger.Error("could not resynchronise the graph", "command", command, "error", err)
+			},
+			OnGaveUp: func(batch []indexing.RepositoryMovement, err error) {
+				// One line, at the end, naming the number of attempts: the
+				// failures themselves are already above it, and what a reader
+				// cannot infer from them is that no more are coming.
+				logger.Error("gave up resynchronising a movement that keeps failing",
+					"command", command, "repositories", len(batch),
+					"attempts", indexing.ResyncAttempts,
+					"remedy", "fix the failure and run `kivgraph index --full`, or move the tree again",
+					"error", err)
 			},
 		}
 		if err := indexing.Resync(resyncCtx, options); err != nil {
@@ -775,13 +898,6 @@ func runWithSnapshotBuilder(args []string, stdout, stderr io.Writer, diagnose st
 	if spec, consumed, found := findCommand(args[1:]); found && spec.run != nil {
 		return spec.run(deps, args[1+consumed:], stdout, stderr)
 	}
-	// `index` on its own is the one near-miss worth naming: the pass has
-	// always required --full, and reporting an unknown command would send the
-	// reader to the help to find a command that is there.
-	if args[1] == "index" {
-		writeCommandError(stderr, "index: only --full is supported")
-		return 2
-	}
 	writeUsageError(stderr, program, fmt.Sprintf("unknown command %q", args[1]))
 	return 2
 }
@@ -789,8 +905,17 @@ func runWithSnapshotBuilder(args []string, stdout, stderr io.Writer, diagnose st
 type updateRunner func(context.Context, update.Options) (update.Result, error)
 
 func runUpdate(args []string, stdout, stderr io.Writer) int {
-	return runUpdateWithRunner(args, os.Stdin, stdout, stderr, update.Run,
-		procstat.List, signalProcess, restartSupervisedDaemon, gracefulStopSupported)
+	executable, err := os.Executable()
+	if err != nil {
+		writeCommandError(stderr, "update: resolve this executable: %v", err)
+		return 1
+	}
+	restart := func(targets []procstat.Process) (daemonRestart, error) {
+		return restartSupervisedDaemonAt(executable, targets)
+	}
+	return runUpdateWithRunnerAtExecutable(args, os.Stdin, stdout, stderr, update.Run,
+		procstat.List, signalProcess, restart, gracefulStopSupported, executable,
+		refreshInstalledRuntimeWithResult)
 }
 
 // daemonOwnership is what `update` managed to establish about who owns the
@@ -846,6 +971,7 @@ type supervisedDaemonRestart func(targets []procstat.Process) (daemonRestart, er
 type updateOptions struct {
 	CheckOnly bool
 	StopStale bool
+	Channel   string
 }
 
 // updateFlagSet declares them in one place, so the parser that runs the
@@ -856,6 +982,7 @@ func updateFlagSet(options *updateOptions) *flag.FlagSet {
 	flags.SetOutput(io.Discard)
 	flags.BoolVar(&options.CheckOnly, "check", false, "check for a newer release without installing it")
 	flags.BoolVar(&options.StopStale, "stop", false, "stop the processes still running the previous release without asking")
+	flags.StringVar(&options.Channel, "channel", "", "release channel: stable or dev (default follows the installed version)")
 	return flags
 }
 
@@ -869,6 +996,57 @@ func runUpdateWithRunner(
 	restart supervisedDaemonRestart,
 	graceful bool,
 ) int {
+	return runUpdateWithRunnerAndPostInstall(args, stdin, stdout, stderr, runner, list,
+		signal, restart, graceful, nil)
+}
+
+func runUpdateWithRunnerAndPostInstall(
+	args []string,
+	stdin io.Reader,
+	stdout, stderr io.Writer,
+	runner updateRunner,
+	list processLister,
+	signal processSignaller,
+	restart supervisedDaemonRestart,
+	graceful bool,
+	postInstall updatePostInstall,
+) int {
+	var postInstallWithResult updatePostInstallWithResult
+	if postInstall != nil {
+		postInstallWithResult = func(executable string, stdout, stderr io.Writer) updatePostInstallResult {
+			return updatePostInstallResult{Err: postInstall(executable, stdout, stderr)}
+		}
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		writeCommandError(stderr, "update: resolve this executable: %v", err)
+		return 1
+	}
+	return runUpdateWithRunnerAtExecutable(args, stdin, stdout, stderr, runner, list,
+		signal, restart, graceful, executable, postInstallWithResult)
+}
+
+type updatePostInstall func(executable string, stdout, stderr io.Writer) error
+type updatePostInstallWithResult func(executable string, stdout, stderr io.Writer) updatePostInstallResult
+
+type updatePostInstallResult struct {
+	RefreshedDaemonPID  int
+	SupervisedDaemonPID int
+	Err                 error
+}
+
+func runUpdateWithRunnerAtExecutable(
+	args []string,
+	stdin io.Reader,
+	stdout, stderr io.Writer,
+	runner updateRunner,
+	list processLister,
+	signal processSignaller,
+	restart supervisedDaemonRestart,
+	graceful bool,
+	executable string,
+	postInstall updatePostInstallWithResult,
+) int {
 	var options updateOptions
 	flags := updateFlagSet(&options)
 	if parsed, code := parseCommandFlags("update", flags, args, stdout, stderr); !parsed {
@@ -878,11 +1056,17 @@ func runUpdateWithRunner(
 		writeCommandError(stderr, "update: unexpected arguments")
 		return 2
 	}
+	channel := options.Channel
+	if channel == "" {
+		channel = os.Getenv("KIVGRAPH_UPDATE_CHANNEL")
+	}
 	result, err := runner(context.Background(), update.Options{
 		APIBaseURL:     os.Getenv("KIVGRAPH_UPDATE_API_URL"),
 		CurrentVersion: version.Value,
 		Token:          os.Getenv("KIVGRAPH_GITHUB_TOKEN"),
+		ExecutablePath: executable,
 		CheckOnly:      options.CheckOnly,
+		Channel:        channel,
 	})
 	if err != nil {
 		writeCommandError(stderr, "update: %v", err)
@@ -893,15 +1077,38 @@ func runUpdateWithRunner(
 		return 0
 	}
 	if options.CheckOnly {
-		writeInfo(stdout, "kivgraph update available: %s -> %s", result.CurrentVersion, result.LatestVersion)
+		writeInfo(stdout, "kivgraph update available%s: %s -> %s", channelLabel(result.Channel), result.CurrentVersion, result.LatestVersion)
 		return 0
 	}
 	if !result.Updated {
 		writeCommandError(stderr, "update: release %s was not installed", result.LatestVersion)
 		return 1
 	}
-	writeSuccess(stdout, "kivgraph updated: %s -> %s", result.CurrentVersion, result.LatestVersion)
-	return stopStaleProcesses(stdin, stdout, stderr, list, signal, restart, options.StopStale, result.LatestVersion, graceful)
+	writeSuccess(stdout, "kivgraph updated%s: %s -> %s", channelLabel(result.Channel), result.CurrentVersion, result.LatestVersion)
+	postInstallResult := updatePostInstallResult{}
+	if postInstall != nil {
+		postInstallResult = postInstall(executable, stdout, stderr)
+		if postInstallResult.Err != nil {
+			writeCommandError(stderr, "update: refresh installed runtime integrations: %v", postInstallResult.Err)
+		}
+	}
+	stopCode := stopStaleProcesses(stdin, stdout, stderr, list, signal, restart, options.StopStale,
+		result.LatestVersion, graceful, postInstallResult.RefreshedDaemonPID,
+		postInstallResult.SupervisedDaemonPID)
+	if stopCode != 0 {
+		return stopCode
+	}
+	if postInstallResult.Err != nil {
+		return 1
+	}
+	return 0
+}
+
+func channelLabel(channel string) string {
+	if channel == "" || channel == update.ChannelStable {
+		return ""
+	}
+	return " (" + channel + " channel)"
 }
 
 // stopStaleProcesses offers to end the servers that outlived the bundle they
@@ -928,6 +1135,8 @@ func stopStaleProcesses(
 	stopStale bool,
 	release string,
 	graceful bool,
+	refreshedDaemonPID int,
+	supervisedDaemonPID int,
 ) int {
 	processes, err := list()
 	if err != nil {
@@ -937,6 +1146,14 @@ func stopStaleProcesses(
 		return 0
 	}
 	targets := stoppableProcesses(processes, os.Getpid())
+	for _, protectedPID := range []int{refreshedDaemonPID, supervisedDaemonPID} {
+		if protectedPID == 0 {
+			continue
+		}
+		targets = slices.DeleteFunc(targets, func(target procstat.Process) bool {
+			return target.PID == protectedPID
+		})
+	}
 	if len(targets) == 0 {
 		return 0
 	}
@@ -1195,6 +1412,7 @@ type indexFullOptions struct {
 	ConfigPath       string
 	RepositoriesPath string
 	ResolverVersion  string
+	Profile          string
 	JSONOutput       bool
 }
 
@@ -1207,6 +1425,7 @@ func indexFullFlagSet(options *indexFullOptions) *flag.FlagSet {
 	flags.StringVar(&options.ConfigPath, "config", "", "configuration file")
 	flags.StringVar(&options.RepositoriesPath, "repositories", "", "repository registry file override")
 	flags.StringVar(&options.ResolverVersion, "resolver-version", version.Value, "resolver version recorded in the graph")
+	flags.StringVar(&options.Profile, "profile", "", "graph profile (defaults to profiles.default)")
 	flags.BoolVar(&options.JSONOutput, "json", false, "write the pass as a JSON event stream on stdout")
 	return flags
 }
@@ -1286,7 +1505,7 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 	}
 
 	ctx := context.Background()
-	loaded, err := config.Load(options.ConfigPath)
+	loaded, err := config.LoadProfile(options.ConfigPath, options.Profile)
 	if err != nil {
 		writeCommandError(stderr, "index --full: load configuration: %v", err)
 		return 1
@@ -1312,6 +1531,8 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 	events := openEventLog(loaded.Config, stderr)
 	defer events.Close()
 	indexOptions := indexing.OptionsFromConfig(loaded.Config)
+	indexOptions.Profile = loaded.Profile
+	indexOptions.SharedTargetsLockPath = filepath.Join(stateDirectory(loaded), "analyzer-targets.lock")
 	indexOptions.Repositories = registry.List()
 	indexOptions.WorkingDirectory = workingDirectory
 	indexOptions.ResolverVersion = options.ResolverVersion
@@ -2083,34 +2304,35 @@ func runDoctorStorage(args []string, stdout, stderr io.Writer, diagnose storageD
 		return code
 	}
 	if flags.NArg() != 0 {
-		fmt.Fprintf(stderr, "doctor storage: unexpected arguments: %v\n", flags.Args())
+		writeCommandError(stderr, "doctor storage: unexpected arguments: %v", flags.Args())
 		return 2
 	}
 	if options.Database == "" {
-		fmt.Fprintln(stderr, "doctor storage: --database is required")
+		writeCommandError(stderr, "doctor storage: --database is required")
 		return 2
 	}
 
 	diagnosis, err := diagnose(context.Background(), options.Database)
 	if err != nil {
-		fmt.Fprintf(stderr, "doctor storage: %v\n", err)
+		writeCommandError(stderr, "doctor storage: %v", err)
 		return 1
 	}
 	state := "FAIL"
 	if diagnosis.Healthy {
 		state = "PASS"
 	}
-	fmt.Fprintf(stdout, "storage doctor: %s\n", state)
-	fmt.Fprintf(stdout, "database: %s\n", diagnosis.Path)
+	writeResult(stdout, diagnosis.Healthy, "storage doctor: %s", state)
+	writeInfo(stdout, "database: %s", diagnosis.Path)
 	// A diagnosis that does not say which layout it validated cannot be
 	// interpreted: the same path can hold either schema.
 	if diagnosis.Schema == ladybug.SchemaCanonical {
-		fmt.Fprintf(stdout, "schema: %s (version %d)\n", diagnosis.Schema, diagnosis.SchemaVersion)
+		writeInfo(stdout, "schema: %s (version %d)", diagnosis.Schema, diagnosis.SchemaVersion)
 	} else {
-		fmt.Fprintf(stdout, "schema: %s\n", diagnosis.Schema)
+		writeInfo(stdout, "schema: %s", diagnosis.Schema)
 	}
 	for _, check := range diagnosis.Checks {
-		fmt.Fprintf(stdout, "[%s] %s: %s\n", check.Status, check.Name, check.Detail)
+		writeResult(stdout, check.Status == ladybug.DiagnosticPass,
+			"[%s] %s: %s", check.Status, check.Name, check.Detail)
 	}
 	if diagnosis.Healthy {
 		return 0
@@ -2140,17 +2362,17 @@ func runDoctorGraph(args []string, stdout, stderr io.Writer, verify graphVerifie
 		return code
 	}
 	if flags.NArg() != 0 {
-		fmt.Fprintf(stderr, "doctor graph: unexpected arguments: %v\n", flags.Args())
+		writeCommandError(stderr, "doctor graph: unexpected arguments: %v", flags.Args())
 		return 2
 	}
 	if options.Database == "" {
-		fmt.Fprintln(stderr, "doctor graph: --database is required")
+		writeCommandError(stderr, "doctor graph: --database is required")
 		return 2
 	}
 
 	report, err := verify(context.Background(), options.Database)
 	if err != nil {
-		fmt.Fprintf(stderr, "doctor graph: %v\n", err)
+		writeCommandError(stderr, "doctor graph: %v", err)
 		return 1
 	}
 	writeIntegrityReport(stdout, options.Database, report)
@@ -2169,8 +2391,8 @@ func writeIntegrityReport(stdout io.Writer, databasePath string, report ladybug.
 	if report.Passed {
 		state = "PASS"
 	}
-	fmt.Fprintf(stdout, "graph doctor: %s\n", state)
-	fmt.Fprintf(stdout, "database: %s\n", databasePath)
+	writeResult(stdout, report.Passed, "graph doctor: %s", state)
+	writeInfo(stdout, "database: %s", databasePath)
 	writeIntegrityFindings(stdout, report.Findings)
 }
 
@@ -2184,7 +2406,7 @@ func writeIntegrityFindings(stdout io.Writer, findings []ladybug.IntegrityFindin
 		if finding.Passed {
 			findingState = "PASS"
 		}
-		fmt.Fprintf(stdout, "[%s] %s: %d violation(s)\n", findingState, finding.Rule, finding.Violations)
+		writeResult(stdout, finding.Passed, "[%s] %s: %d violation(s)", findingState, finding.Rule, finding.Violations)
 		if finding.Passed {
 			continue
 		}
@@ -2222,16 +2444,16 @@ func runGenerateGraph(args []string, stdout, stderr io.Writer) int {
 		return code
 	}
 	if flags.NArg() != 0 {
-		fmt.Fprintf(stderr, "generate-graph: unexpected arguments: %v\n", flags.Args())
+		writeCommandError(stderr, "generate-graph: unexpected arguments: %v", flags.Args())
 		return 2
 	}
 
 	manifest, err := synthetic.Generate(context.Background(), options.Config)
 	if err != nil {
-		fmt.Fprintf(stderr, "generate-graph: %v\n", err)
+		writeCommandError(stderr, "generate-graph: %v", err)
 		return 1
 	}
-	fmt.Fprintf(stdout, "generated %d repositories, %d files, %d symbols, %d edges at %s (seed %d)\n",
+	writeSuccess(stdout, "generated %d repositories, %d files, %d symbols, %d edges at %s (seed %d)",
 		manifest.Repositories,
 		manifest.Files,
 		manifest.Symbols,
@@ -2272,32 +2494,32 @@ func runRebuild(args []string, stdout, stderr io.Writer, rebuilder graphRebuilde
 		return code
 	}
 	if flags.NArg() != 0 {
-		fmt.Fprintf(stderr, "rebuild: unexpected arguments: %v\n", flags.Args())
+		writeCommandError(stderr, "rebuild: unexpected arguments: %v", flags.Args())
 		return 2
 	}
 	switch {
 	case options.Facts == "":
-		fmt.Fprintln(stderr, "rebuild: --facts is required")
+		writeCommandError(stderr, "rebuild: --facts is required")
 		return 2
 	case options.Root == "":
-		fmt.Fprintln(stderr, "rebuild: --root is required")
+		writeCommandError(stderr, "rebuild: --root is required")
 		return 2
 	case options.Generation == "":
-		fmt.Fprintln(stderr, "rebuild: --generation is required")
+		writeCommandError(stderr, "rebuild: --generation is required")
 		return 2
 	case options.ResolverVersion == "":
-		fmt.Fprintln(stderr, "rebuild: --resolver-version is required")
+		writeCommandError(stderr, "rebuild: --resolver-version is required")
 		return 2
 	}
 
 	factsData, err := os.ReadFile(options.Facts)
 	if err != nil {
-		fmt.Fprintf(stderr, "rebuild: read facts: %v\n", err)
+		writeCommandError(stderr, "rebuild: read facts: %v", err)
 		return 1
 	}
 	var set facts.Set
 	if err := json.Unmarshal(factsData, &set); err != nil {
-		fmt.Fprintf(stderr, "rebuild: decode facts: %v\n", err)
+		writeCommandError(stderr, "rebuild: decode facts: %v", err)
 		return 1
 	}
 
@@ -2311,11 +2533,11 @@ func runRebuild(args []string, stdout, stderr io.Writer, rebuilder graphRebuilde
 	})
 	writeRebuildReport(stdout, report)
 	if err != nil {
-		fmt.Fprintf(stderr, "rebuild: %v\n", err)
+		writeCommandError(stderr, "rebuild: %v", err)
 		return 1
 	}
 	if !report.Passed {
-		fmt.Fprintf(stderr, "rebuild: %s\n", rebuildFailureReason(report))
+		writeCommandError(stderr, "rebuild: %s", rebuildFailureReason(report))
 		return 1
 	}
 	return 0
@@ -2325,23 +2547,23 @@ func runRebuild(args []string, stdout, stderr io.Writer, rebuilder graphRebuilde
 // it never re-derives pass/fail so stdout and the exit code cannot disagree.
 func writeRebuildReport(stdout io.Writer, report rebuild.Report) {
 	for _, stage := range report.Stages {
-		fmt.Fprintf(stdout, "[%s] %s: %.2fms", rebuildState(stage.Passed), stage.Name, stage.DurationMS)
+		message := fmt.Sprintf("[%s] %s: %.2fms", rebuildState(stage.Passed), stage.Name, stage.DurationMS)
 		if stage.Detail != "" {
-			fmt.Fprintf(stdout, " - %s", stage.Detail)
+			message += fmt.Sprintf(" - %s", stage.Detail)
 		}
-		fmt.Fprintln(stdout)
+		writeResult(stdout, stage.Passed, "%s", message)
 	}
 	for _, check := range report.Integrity {
 		if check.Passed {
 			continue
 		}
-		fmt.Fprintf(stdout, "[FAIL] integrity %s: expected %d, observed %d\n", check.Table, check.Expected, check.Observed)
+		writeCommandError(stdout, "[FAIL] integrity %s: expected %d, observed %d", check.Table, check.Expected, check.Observed)
 	}
 	for _, finding := range report.Invariants.Findings {
 		if finding.Passed {
 			continue
 		}
-		fmt.Fprintf(stdout, "[FAIL] invariant %s: %d violation(s)\n", finding.Rule, finding.Violations)
+		writeCommandError(stdout, "[FAIL] invariant %s: %d violation(s)", finding.Rule, finding.Violations)
 		for _, sample := range finding.Samples {
 			fmt.Fprintf(stdout, "    %s %s: %s\n", sample.Table, sample.Key, sample.Detail)
 		}
@@ -2350,22 +2572,22 @@ func writeRebuildReport(stdout io.Writer, report rebuild.Report) {
 		if probe.Passed {
 			continue
 		}
-		fmt.Fprintf(stdout, "[FAIL] probe %s: %s\n", probe.Probe, probe.Detail)
+		writeCommandError(stdout, "[FAIL] probe %s: %s", probe.Probe, probe.Detail)
 	}
 	if report.SnapshotDigest != "" {
-		fmt.Fprintf(stdout, "snapshot digest: %s\n", report.SnapshotDigest)
+		writeInfo(stdout, "snapshot digest: %s", report.SnapshotDigest)
 	} else {
-		fmt.Fprintln(stdout, "snapshot digest: none")
+		writeInfo(stdout, "snapshot digest: none")
 	}
 	if report.Publication.Generation.ID != "" {
-		fmt.Fprintf(stdout, "generation published: %s (%s)\n", report.Publication.Generation.ID, report.Publication.Generation.Path)
+		writeSuccess(stdout, "generation published: %s (%s)", report.Publication.Generation.ID, report.Publication.Generation.Path)
 	} else {
-		fmt.Fprintln(stdout, "generation published: none")
+		writeInfo(stdout, "generation published: none")
 	}
 	if len(report.Pruned) != 0 {
-		fmt.Fprintf(stdout, "generations pruned: %s\n", strings.Join(report.Pruned, ", "))
+		writeInfo(stdout, "generations pruned: %s", strings.Join(report.Pruned, ", "))
 	} else {
-		fmt.Fprintln(stdout, "generations pruned: none")
+		writeInfo(stdout, "generations pruned: none")
 	}
 }
 
@@ -2425,17 +2647,17 @@ func runGraphStatus(args []string, stdout, stderr io.Writer, roles graphRoleReso
 		return code
 	}
 	if flags.NArg() != 0 {
-		fmt.Fprintf(stderr, "graph status: unexpected arguments: %v\n", flags.Args())
+		writeCommandError(stderr, "graph status: unexpected arguments: %v", flags.Args())
 		return 2
 	}
 	if options.Root == "" {
-		fmt.Fprintln(stderr, "graph status: --root is required")
+		writeCommandError(stderr, "graph status: --root is required")
 		return 2
 	}
 
 	layout, err := roles(context.Background(), rebuild.LayoutOptions{Root: options.Root, Store: generation.DefaultConfig()})
 	if err != nil {
-		fmt.Fprintf(stderr, "graph status: %v\n", err)
+		writeCommandError(stderr, "graph status: %v", err)
 		return 1
 	}
 	writeGraphStatus(stdout, options.Root, layout)
@@ -2449,6 +2671,32 @@ func runGraphStatus(args []string, stdout, stderr io.Writer, roles graphRoleReso
 // generation: that is a legitimate layout, not a rendering error, matching
 // the exit code runGraphStatus already returns for it (0).
 func writeGraphStatus(stdout io.Writer, root string, layout rebuild.Layout) {
+	if integrationTUIIsInteractive(stdout) {
+		generationsDir := generation.GenerationsDir(root)
+		if absRoot, err := filepath.Abs(root); err == nil {
+			generationsDir = generation.GenerationsDir(absRoot)
+		}
+		active := "none"
+		if layout.Active.ID != "" {
+			active = fmt.Sprintf("%s (%s)", layout.Active.ID, layout.Active.Path)
+		}
+		backup := "none"
+		if layout.HasBackup {
+			backup = fmt.Sprintf("%s (%s)", layout.Backup.ID, layout.Backup.Path)
+		}
+		retained := "none"
+		if len(layout.Retained) != 0 {
+			retained = strings.Join(layout.Retained, ", ")
+		}
+		writeKeyValueTable(stdout, "Graph roles", []keyValueRow{
+			{Key: "Root", Value: root},
+			{Key: "Active", Value: active},
+			{Key: "Next", Value: filepath.Join(generationsDir, layout.NextID+".tmp")},
+			{Key: "Backup", Value: backup},
+			{Key: "Retained", Value: retained},
+		})
+		return
+	}
 	fmt.Fprintf(stdout, "%s: ", rebuild.RoleActive)
 	if layout.Active.ID == "" {
 		fmt.Fprintln(stdout, "none")
@@ -2503,11 +2751,11 @@ func runRollback(args []string, stdout, stderr io.Writer, rollback graphRollback
 		return code
 	}
 	if flags.NArg() != 0 {
-		fmt.Fprintf(stderr, "rollback: unexpected arguments: %v\n", flags.Args())
+		writeCommandError(stderr, "rollback: unexpected arguments: %v", flags.Args())
 		return 2
 	}
 	if options.Root == "" {
-		fmt.Fprintln(stderr, "rollback: --root is required")
+		writeCommandError(stderr, "rollback: --root is required")
 		return 2
 	}
 
@@ -2518,11 +2766,11 @@ func runRollback(args []string, stdout, stderr io.Writer, rollback graphRollback
 	})
 	writeRollbackReport(stdout, report)
 	if err != nil {
-		fmt.Fprintf(stderr, "rollback: %v\n", err)
+		writeCommandError(stderr, "rollback: %v", err)
 		return 1
 	}
 	if !report.Passed {
-		fmt.Fprintln(stderr, "rollback: report did not pass despite no error")
+		writeCommandError(stderr, "rollback: report did not pass despite no error")
 		return 1
 	}
 	return 0
@@ -2534,6 +2782,24 @@ func runRollback(args []string, stdout, stderr io.Writer, rollback graphRollback
 // a failed rollback is diagnosable from stdout alone even though it never
 // reaches the passed state runRollback checks for the exit code.
 func writeRollbackReport(stdout io.Writer, report rebuild.RollbackReport) {
+	if integrationTUIIsInteractive(stdout) {
+		invariants := "not evaluated"
+		if len(report.Invariants.Findings) != 0 {
+			invariants = rebuildState(report.Invariants.Passed)
+		}
+		paint := styleFor(stdout)
+		writeKeyValueTable(stdout, "Rollback", []keyValueRow{
+			{Key: "Generation", Value: fmt.Sprintf("%s -> %s", orNone(report.From.ID), orNone(report.To.ID))},
+			{Key: "Digest expected", Value: orNone(report.Expected)},
+			{Key: "Digest observed", Value: orNone(report.Digest)},
+			{Key: "Invariants", Value: invariants, ValueStyle: passFailStyle(report.Invariants.Passed, paint)},
+			{Key: "Result", Value: rebuildState(report.Passed), ValueStyle: passFailStyle(report.Passed, paint)},
+		})
+		if len(report.Invariants.Findings) != 0 {
+			writeIntegrityFindings(stdout, report.Invariants.Findings)
+		}
+		return
+	}
 	fmt.Fprintf(stdout, "rollback: %s -> %s\n", orNone(report.From.ID), orNone(report.To.ID))
 	fmt.Fprintf(stdout, "digest expected: %s\n", orNone(report.Expected))
 	fmt.Fprintf(stdout, "digest observed: %s\n", orNone(report.Digest))
@@ -2583,11 +2849,11 @@ func runSnapshot(args []string, stdout, stderr io.Writer, build snapshotBuilder)
 		return code
 	}
 	if flags.NArg() != 0 {
-		fmt.Fprintf(stderr, "snapshot: unexpected arguments: %v\n", flags.Args())
+		writeCommandError(stderr, "snapshot: unexpected arguments: %v", flags.Args())
 		return 2
 	}
 	if options.Root == "" {
-		fmt.Fprintln(stderr, "snapshot: --root is required")
+		writeCommandError(stderr, "snapshot: --root is required")
 		return 2
 	}
 
@@ -2599,11 +2865,11 @@ func runSnapshot(args []string, stdout, stderr io.Writer, build snapshotBuilder)
 	})
 	writeSnapshotReport(stdout, report)
 	if err != nil {
-		fmt.Fprintf(stderr, "snapshot: %v\n", err)
+		writeCommandError(stderr, "snapshot: %v", err)
 		return 1
 	}
 	if !report.Passed {
-		fmt.Fprintln(stderr, "snapshot: report did not pass despite no error")
+		writeCommandError(stderr, "snapshot: report did not pass despite no error")
 		return 1
 	}
 	return 0
@@ -2615,6 +2881,23 @@ func runSnapshot(args []string, stdout, stderr io.Writer, build snapshotBuilder)
 // and Package to Package relations — see README.md), so an operator can
 // tell a healthy generation from a broken one without a debugger.
 func writeSnapshotReport(stdout io.Writer, report rebuild.SnapshotReport) {
+	if integrationTUIIsInteractive(stdout) {
+		paint := styleFor(stdout)
+		writeKeyValueTable(stdout, "Snapshot", []keyValueRow{
+			{Key: "State", Value: rebuildState(report.Passed), ValueStyle: passFailStyle(report.Passed, paint)},
+			{Key: "Snapshot ID", Value: fmt.Sprintf("%d", report.SnapshotID)},
+			{Key: "Version", Value: fmt.Sprintf("%d", report.Version)},
+			{Key: "Digest", Value: orNone(report.Digest)},
+			{Key: "Repositories", Value: fmt.Sprintf("%d", report.Stats.Repositories)},
+			{Key: "Packages", Value: fmt.Sprintf("%d", report.Stats.Packages)},
+			{Key: "Files", Value: fmt.Sprintf("%d", report.Stats.Files)},
+			{Key: "Symbols", Value: fmt.Sprintf("%d", report.Stats.Symbols)},
+			{Key: "Evidence", Value: fmt.Sprintf("%d", report.Stats.Evidence)},
+			{Key: "Edges", Value: fmt.Sprintf("%d", report.Stats.Edges)},
+			{Key: "Edges outside CSR", Value: fmt.Sprintf("%d", report.Stats.SkippedEdges)},
+		})
+		return
+	}
 	fmt.Fprintf(stdout, "snapshot: %s\n", rebuildState(report.Passed))
 	fmt.Fprintf(stdout, "snapshot id: %d\n", report.SnapshotID)
 	fmt.Fprintf(stdout, "version: %d\n", report.Version)

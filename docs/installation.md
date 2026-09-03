@@ -102,13 +102,13 @@ reciente para ella, verifica el checksum del archivo y después los checksums
 internos del bundle:
 
 ```bash
-curl -fsSL https://github.com/Luqueee/kivgraph/releases/latest/download/install.sh | bash
+curl -fsSL https://kivgraph.dev/install.sh | bash
 ```
 
 El instalador no requiere Go, pnpm ni un compilador C. Para fijar una versión:
 
 ```bash
-KIVGRAPH_VERSION=v0.9.2 ./scripts/install.sh
+KIVGRAPH_VERSION=v0.9.8 ./scripts/install.sh
 ```
 
 Si el repositorio de releases es privado, proporciona
@@ -125,7 +125,25 @@ kivgraph update
 verifica el checksum externo, el `manifest.json`, todos los checksums internos y
 la versión del ejecutable. Solo después reemplaza atómicamente el bundle
 instalado; la configuración y el estado del grafo permanecen fuera del bundle.
-Reinicia el cliente MCP después de actualizar.
+También reinicia solo un daemon supervisado con una unidad instalada y actualiza
+los hooks, la skill y los registros MCP de usuario gestionados por Kivgraph. Si
+la unidad está obsoleta, devuelve un error y no la reinicia. No crea
+integraciones ausentes, no sobrescribe integraciones ajenas ni modifica
+ficheros de proyecto.
+Los procesos `serve` y `ui` propiedad del cliente todavía necesitan reiniciarse,
+o usar `--stop`, para ejecutar el binario nuevo.
+
+Para desinstalar el bundle y los launchers sin borrar la configuración, los
+registros de repositorios ni el estado del grafo:
+
+```bash
+uninstall_url=https://github.com/Luqueee/kivgraph/releases/latest/download/uninstall.sh
+curl -fsSL "$uninstall_url" -o /tmp/kivgraph-uninstall.sh
+bash /tmp/kivgraph-uninstall.sh
+```
+
+Usa `bash /tmp/kivgraph-uninstall.sh --yes` en una ejecución no interactiva.
+En Windows, ejecuta el archivo publicado `uninstall.ps1` con PowerShell.
 
 ## Instalar un bundle
 
@@ -196,6 +214,21 @@ En un checkout limpio, el `buildid` Go se deriva del commit y del estado
 `dirty`, no de la ruta temporal del checkout. Dos builds sobre el mismo commit,
 toolchain y plataforma producen el mismo payload; un árbol modificado se marca
 `source.dirty: true` en el manifest.
+
+Para probar ese checkout sobre una instalación existente sin publicar una
+release:
+
+```bash
+scripts/install-dev.sh
+```
+
+El script construye un bundle completo, verifica sus checksums y comprueba que
+usa la misma biblioteca LadybugDB que la instalación. Después sustituye sólo
+`bin/kivgraph` mediante un rename atómico; el worker y los demás archivos del
+bundle no cambian. Si el perfil por defecto tiene un daemon supervisado,
+reinicia su unidad después del cambio; si el reinicio falla, recupera el
+binario anterior. `--bundle DIR` permite reutilizar un bundle ya construido y
+`--no-restart` omite de forma explícita la inspección y el reinicio del daemon.
 
 El comando `kivgraph ui` sirve `web/index.html` y los demás archivos generados
 del bundle. Un build sin el tag `webassets` o sin `web/` no sirve archivos del
@@ -323,6 +356,20 @@ kivgraph init \
   --repository tools=/ruta/absoluta/al/tools \
   --languages go,typescript
 ```
+
+### Indexar el proyecto actual
+
+Desde cualquier carpeta dentro del proyecto, `kivgraph index` detecta la raíz
+del repositorio y los lenguajes soportados por sus extensiones y manifiestos,
+crea o reutiliza `.kivgraph/`, registra el proyecto como `project` y ejecuta una
+reconstrucción completa. Cuando no pasas `--config` ni `--repositories`, no
+modifica el registro compartido del usuario; esas opciones seleccionan el
+registro y la configuración que deben inicializarse o actualizarse.
+`kivgraph index --full` mantiene la forma explícita que indexa todos los
+repositorios del registro configurado; las dos formas pasan por la misma
+publicación completa y validada.
+El comando no instala toolchains del sistema; `kivgraph doctor` informa de los
+prerrequisitos que falten en el host.
 
 La sección `go` permite seleccionar el contexto de compilación que resolverá
 `go/packages`. `goos`, `goarch` y `cgo_enabled` vacíos conservan los valores del
@@ -617,7 +664,7 @@ socket unix dentro del directorio de estado y el transporte Streamable HTTP en
 loopback.
 
 ```bash
-kivgraph daemon                      # 127.0.0.1:7788 y el socket
+kivgraph daemon                      # 127.0.0.1:7788, u otro puerto libre
 kivgraph daemon --addr 127.0.0.1:9000
 ```
 
@@ -632,7 +679,7 @@ publica su endpoint y hay un comando que lo escribe:
 
 ```bash
 kivgraph daemon install                 # launchd o systemd lo arranca y lo repone
-kivgraph mcp install --daemon --target claude-code
+kivgraph mcp install --target claude-code
 ```
 
 `daemon install` es lo que le da **dueño** al proceso: un LaunchAgent en macOS,
@@ -649,15 +696,25 @@ sustituya al otro. Un `kivgraph daemon &` a mano no tiene dueño: muere con la
 terminal que lo lanzó. Y en una plataforma sin supervisor soportado el comando lo
 dice y falla, en vez de dejar creer que instaló algo.
 
+La unit **anota el `PATH` de la terminal donde se instaló**, y no es un adorno:
+ni systemd ni launchd leen un perfil de shell, así que un demonio sin `PATH`
+propio corre con el del supervisor -- donde no está el node de nvm ni el de
+Homebrew, y donde el Go de `~/.local/go/bin` pierde contra el de `/usr/bin`. Por
+eso lo anotado es una foto: si una actualización de nvm mueve node a otro
+directorio con versión, hay que volver a ejecutar `kivgraph daemon install`.
+`kivgraph daemon status` informa como `stale` de una unit que no anota ninguno,
+que es lo que dirá una vez todo demonio instalado antes de que esto existiera.
+
 Eso lee `~/.local/state/kivgraph/daemon.json` -- modo `0600`, con la `url` y el
 token-- y escribe la entrada que ese cliente entiende: `type: http` con una
 cabecera `Authorization` para Claude Code, Claude Desktop y Oh My Pi, `type:
 remote` para OpenCode, y `url` con `http_headers` para Codex.
 
-**Ésa es la entrada por defecto**: `mcp install` apunta al demonio sin que se lo
-pidan, y `--daemon` sólo cambia el fallo -- pedirlo a mano se niega donde el
-defecto caería a `serve`. La salida explícita es `--stdio`, que escribe
-exactamente lo que escribía el defecto anterior: un proceso por cliente.
+**Ésa es la entrada por defecto**: `mcp install` apunta al demonio. Si todavía
+no hay un supervisor instalado, pregunta antes de instalarlo; responder que no
+deja la entrada `stdio`. `--daemon` expresa consentimiento de forma no
+interactiva y falla si esta máquina no puede sostenerlo. La salida explícita es
+`--stdio`, que escribe un proceso `serve` por cliente.
 
 Hay tres condiciones que escriben `stdio` por su cuenta, y las tres lo dicen:
 ámbito `project`, porque la `url` lleva un token y ese fichero se commitea; una
@@ -675,6 +732,12 @@ registros, y el cliente elige transporte por la forma. Una entrada que nombra
 El token se guarda aparte, en `daemon.token`, y **sobrevive al reinicio**: una
 entrada escrita una vez sigue valiendo cuando el demonio vuelve. El endpoint no
 sobrevive, porque es liveness: se borra al parar.
+
+El daemon prefiere `127.0.0.1:7788`. Si otro proceso ya usa ese puerto y no se
+pasó `--addr`, elige un puerto loopback libre y lo guarda en `daemon.port`. Así
+el supervisor puede reiniciarlo sin elegir otro puerto en cada arranque. Un
+`--addr` explícito conserva el comportamiento de fallar si la dirección está
+ocupada.
 
 En ámbito `project` la instalación con `--daemon` **se niega**. Un `.mcp.json` se
 commitea, y un token en git no se retira borrándolo.
@@ -849,7 +912,7 @@ no cero; corrige el repositorio o su registro y repite la operación.
   comprobaciones adicionales de políticas de repositorio pertenecen a la
   indexación.
 - **Todo índice es una operación completa.** No hay actualización incremental:
-  `kivgraph index` acepta sólo `--full` y cada pasada publica una generación
+  tanto `kivgraph index` como `kivgraph index --full` publican una generación
   nueva, validada, en vez de mutar la vigente. El camino del delta se retiró en
   el [ADR 0057](adr/0057-el-camino-incremental-se-retira.md). Lo que abarata una
   reindexación es la caché de hechos, que sólo reanaliza lo que cambió.

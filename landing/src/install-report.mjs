@@ -1,19 +1,10 @@
-// The endpoint that receives a first-run ping, and the rules that decide
-// whether one becomes a row.
-//
-// It lives beside `ai-report.mjs` and not in a route of its own for the reason
-// that module gives: the reporter, the `User-Agent` finding it depends on and
-// the fail-closed configuration pair are already in `landing/server.mjs`, and
-// an Astro route would need a second copy of all three. What is here is
-// everything that can be tested without a listening socket; `server.mjs` wires
-// it to one.
-//
-// ADR 0083 designed this. `docs/development/analytics.md` documents the event
-// and its fields, and `/telemetry/` publishes them.
+// Historical first-run collector retained as tested evidence for ADR 0083.
+// The production server does not import this module: the edge Worker owns the
+// public route and writes accepted events to D1, as recorded by ADR 0092.
 
 import { REPORTER_HEADERS } from "./ai-report.mjs";
 
-/** The path the installers and the binary post to. */
+/** The path the installers, the binary and `daemon install` post to. */
 export const FIRST_RUN_PATH = "/api/telemetry/first-run";
 
 /** The event name on the first-runs property. */
@@ -23,7 +14,7 @@ export const FIRST_RUN_EVENT = "first_run";
 // worth: the endpoint is public, so without it a forged `platform` invents a
 // row no release ever produced, and every report built on the field inherits
 // the invention.
-export const EMITTERS = Object.freeze(["installer", "binary"]);
+export const EMITTERS = Object.freeze(["installer", "binary", "supervisor"]);
 export const PLATFORMS = Object.freeze([
   "linux-amd64",
   "darwin-arm64",
@@ -39,6 +30,50 @@ export const TRANSPORTS = Object.freeze(["stdio", "daemon"]);
 
 /** The published version pattern, which is what a release tag carries. */
 export const VERSION_PATTERN = /^\d+\.\d+\.\d+$/;
+
+/**
+ * The last release that shipped without a first-run emitter.
+ *
+ * Validating the shape of a ping does not validate its origin, and the gap is
+ * not theoretical: within a day of publishing `/telemetry/`, 25 well-formed
+ * pings arrived from 25 datacentre addresses, every one claiming `0.9.2` -- a
+ * tag whose tree contains no `internal/telemetry/firstrun.go`, so no binary of
+ * it has code to emit with. Those rows were impossible rather than unlikely,
+ * and the only reason they became rows is that nothing here read the version
+ * as a fact the project already knows.
+ *
+ * A version at or below this one cannot have sent a ping, and that is a truth
+ * about a tag already cut: it never needs revising. A bound kept at the
+ * *current* release would refuse a stale replay for longer, and would also
+ * discard every real ping of a new release the first time someone forgot to
+ * raise it -- silently, on exactly the data this property exists to collect.
+ * Losing the real number is the worse failure, so the bound stays where it can
+ * only ever be right.
+ *
+ * It is not authentication and nothing here can be: the emitter is open
+ * source, so any secret it carried would ship inside it. This refuses a claim
+ * the project knows to be false, which is what a public endpoint can honestly
+ * do.
+ */
+export const LAST_VERSION_WITHOUT_EMITTER = "0.9.2";
+
+/**
+ * Whether a version is one that could have sent the ping claiming it.
+ *
+ * The triple is compared numerically, because `0.10.0` is above `0.9.2` and a
+ * string comparison puts it below.
+ */
+export function canEmit(version) {
+  const parse = (value) => value.split(".").map(Number);
+  const claimed = parse(version);
+  const floor = parse(LAST_VERSION_WITHOUT_EMITTER);
+  for (let part = 0; part < 3; part += 1) {
+    if (claimed[part] !== floor[part]) {
+      return claimed[part] > floor[part];
+    }
+  }
+  return false;
+}
 
 /**
  * The most a ping may weigh.
@@ -74,6 +109,11 @@ export const DEDUPE_MAX_ENTRIES = 5000;
  * rather than ignored, because a client sending a sixth field is a client this
  * endpoint has not agreed to, and silently dropping it would let a field
  * appear in production that nothing here or in the documentation describes.
+ *
+ * `transport` belongs to `binary` alone, checked by exclusion rather than by
+ * naming `installer` and `supervisor`: a fourth emitter that also has nothing
+ * serving yet inherits the right refusal instead of needing this function
+ * edited to know about it too.
  */
 export function parseFirstRun(text) {
   let body;
@@ -103,13 +143,14 @@ export function parseFirstRun(text) {
   if (!EMITTERS.includes(emitter)) return null;
   if (typeof version !== "string" || !VERSION_PATTERN.test(version))
     return null;
+  if (!canEmit(version)) return null;
   if (!PLATFORMS.includes(platform)) return null;
   if (!CHANNELS.includes(channel)) return null;
 
-  // `transport` belongs to the binary alone. An installer has not started a
-  // server, so a transport on that row would be a default nobody chose, and
-  // the field exists precisely to measure which arrangement actually served.
-  if (emitter === "installer") {
+  // Neither an installer nor a supervisor registration has started a server,
+  // so a transport on either row would be a default nobody chose, and the
+  // field exists precisely to measure which arrangement actually served.
+  if (emitter !== "binary") {
     if (transport !== undefined) return null;
     return { emitter, version, platform, channel };
   }
