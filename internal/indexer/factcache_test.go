@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -30,13 +31,21 @@ type cachedFixture struct {
 
 func newCachedFixture(t *testing.T) *cachedFixture {
 	t.Helper()
-	root := testsupport.TempDir(t)
-	writeFullFixture(t, filepath.Join(root, "go.mod"), "module example.com/cached\n\ngo 1.24\n")
-	writeFullFixture(t, filepath.Join(root, "fixture.go"), `package fixture
+	template := testsupport.TempDir(t)
+	writeFullFixture(t, filepath.Join(template, "go.mod"), "module example.com/cached\n\ngo 1.24\n")
+	writeFullFixture(t, filepath.Join(template, "fixture.go"), `package fixture
 
 // Greeting is the definition every assertion below counts.
 func Greeting() string { return "hello" }
 `)
+	root := testsupport.TempDir(t)
+	for _, name := range []string{"go.mod", "fixture.go"} {
+		content, err := os.ReadFile(filepath.Join(template, name))
+		if err != nil {
+			t.Fatalf("ReadFile(%q) error = %v", name, err)
+		}
+		writeFullFixture(t, filepath.Join(root, name), string(content))
+	}
 	return &cachedFixture{
 		t:        t,
 		root:     root,
@@ -68,17 +77,43 @@ func (fixture *cachedFixture) indexProfile(profile string) (facts.Set, FullRepor
 	return set, report
 }
 
+func (fixture *cachedFixture) indexResolver(resolver string) (facts.Set, FullReport) {
+	fixture.t.Helper()
+	set, report, err := Full(context.Background(), FullOptions{
+		ResolverVersion:   resolver,
+		Repositories:      []workspace.Repository{fixture.repository},
+		SyntheticWorkFile: fixture.workFile,
+		CacheMode:         fixture.mode,
+		CacheDirectory:    fixture.cache,
+	})
+	if err != nil {
+		fixture.t.Fatalf("Full() error = %v", err)
+	}
+	return set, report
+}
+
 func TestFactCacheKeepsAlternatingProfilesWarm(t *testing.T) {
 	fixture := newCachedFixture(t)
-	for _, profile := range []string{"backend", "frontend"} {
-		if _, report := fixture.indexProfile(profile); report.Cache.Hits != 0 || report.Cache.Misses != 1 {
-			t.Fatalf("cold %s cache = %+v, want one miss", profile, report.Cache)
+	for index, profile := range []string{"backend", "frontend", "backend", "frontend"} {
+		_, report := fixture.indexProfile(profile)
+		if index == 0 && (report.Cache.Hits != 0 || report.Cache.Misses != 1) {
+			t.Fatalf("first %s cache = %+v, want one miss", profile, report.Cache)
 		}
-	}
-	for _, profile := range []string{"backend", "frontend"} {
-		if _, report := fixture.indexProfile(profile); report.Cache.Hits != 1 || report.Cache.Misses != 0 {
+		if index > 0 && (report.Cache.Hits != 1 || report.Cache.Misses != 0) {
 			t.Fatalf("warm %s cache = %+v, want one hit", profile, report.Cache)
 		}
+	}
+}
+
+func TestFactCacheMissesWhenResolverChanges(t *testing.T) {
+	fixture := newCachedFixture(t)
+	fixture.indexResolver("resolver-a")
+
+	if _, report := fixture.indexResolver("resolver-b"); report.Cache.Hits != 0 || report.Cache.Misses != 1 || report.Cache.Refusals[CacheRefusalAnalyzer] != 1 {
+		t.Fatalf("changed resolver cache = %+v, want one analyzer refusal and one miss", report.Cache)
+	}
+	if _, report := fixture.indexResolver("resolver-b"); report.Cache.Hits != 1 || report.Cache.Misses != 0 {
+		t.Fatalf("same resolver cache = %+v, want the new resolver entry", report.Cache)
 	}
 }
 
@@ -116,6 +151,10 @@ func TestFactCacheMissesWhenASourceFileChanges(t *testing.T) {
 	fixture := newCachedFixture(t)
 	cold, _ := fixture.index()
 
+	// newCachedFixture gives this test a private worktree. Rewriting that
+	// worktree in place is intentional: sourceIdentity includes RealPath, so
+	// separate copies would have different cache identities and could not prove
+	// that restoring the content reuses the original address.
 	writeFullFixture(t, filepath.Join(fixture.root, "fixture.go"), `package fixture
 
 func Greeting() string { return "hello" }
@@ -128,9 +167,25 @@ func Farewell() string { return "bye" }
 	if report.Cache.Hits != 0 {
 		t.Fatalf("cache = %+v, want no hit after the source changed", report.Cache)
 	}
+	if report.Cache.Refusals[CacheRefusalNoEntry] != 1 {
+		t.Fatalf("cache refusals after editing %q = %+v, want one content-address miss", filepath.Join(fixture.root, "fixture.go"), report.Cache.Refusals)
+	}
 	if len(warm.Symbols) <= len(cold.Symbols) {
 		t.Fatalf("symbols = %d, want more than the %d of the first pass",
 			len(warm.Symbols), len(cold.Symbols))
+	}
+
+	writeFullFixture(t, filepath.Join(fixture.root, "fixture.go"), `package fixture
+
+// Greeting is the definition every assertion below counts.
+func Greeting() string { return "hello" }
+`)
+	restored, report := fixture.index()
+	if report.Cache.Hits != 1 || report.Cache.Misses != 0 {
+		t.Fatalf("restored source cache = %+v, want the previous content address to be warm", report.Cache)
+	}
+	if !reflect.DeepEqual(restored, cold) {
+		t.Fatalf("restored source facts for %q differ from the original facts", filepath.Join(fixture.root, "fixture.go"))
 	}
 }
 
@@ -288,6 +343,11 @@ func TestFactCacheMissesWhenTheProviderRepositoryChanges(t *testing.T) {
 	if countTargets(after, "vendored-provider") == 0 {
 		t.Fatalf("the second pass does not name the renamed repository: the cache served stale keys")
 	}
+	if restored, report := index("provider"); report.Cache.Hits != 2 || report.Cache.Misses != 0 {
+		t.Fatalf("restored cache = %+v, want the original registry context to remain warm", report.Cache)
+	} else if countTargets(restored, "vendored-provider") != 0 {
+		t.Fatalf("restored context retained the renamed provider edge")
+	}
 }
 
 func countTargets(set facts.Set, repository string) int {
@@ -374,6 +434,130 @@ func poisonCacheEntry(t *testing.T, directory string) {
 	}
 	if poisoned == 0 {
 		t.Fatalf("no entry to poison in %q", directory)
+	}
+}
+
+func TestFactCacheReportsRefusalReasons(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*testing.T, string)
+		want   CacheRefusalReason
+		valid  bool
+	}{
+		{name: "missing", mutate: func(t *testing.T, path string) {
+			if err := os.Remove(path); err != nil {
+				t.Fatalf("Remove() error = %v", err)
+			}
+		}, want: CacheRefusalNoEntry},
+		{name: "unreadable", mutate: func(t *testing.T, path string) {
+			if err := os.Remove(path); err != nil {
+				t.Fatalf("Remove() error = %v", err)
+			}
+			if err := os.Mkdir(path, 0o755); err != nil {
+				t.Fatalf("Mkdir() error = %v", err)
+			}
+		}, want: CacheRefusalUnreadable},
+		{name: "malformed", mutate: func(t *testing.T, path string) {
+			if err := os.WriteFile(path, []byte("{"), 0o600); err != nil {
+				t.Fatalf("WriteFile() error = %v", err)
+			}
+		}, want: CacheRefusalMalformed},
+		{name: "incompatible", mutate: mutateCacheEntry(func(entry *cacheEntry) {
+			entry.Version = cacheEntryVersion - 1
+		}), want: CacheRefusalIncompatible},
+		{name: "analyzer", mutate: mutateCacheEntry(func(entry *cacheEntry) {
+			entry.Analyzer = "other-analyzer"
+		}), want: CacheRefusalAnalyzer},
+		{name: "local address", mutate: mutateCacheEntry(func(entry *cacheEntry) {
+			entry.LocalAddress = "other-local"
+		}), want: CacheRefusalLocalContent},
+		{name: "dependency", mutate: mutateCacheEntry(func(entry *cacheEntry) {
+			entry.Inputs = append(entry.Inputs, cacheInput{Kind: inputProvider, Name: "provider", Fingerprint: "present"})
+		}), want: CacheRefusalDependency},
+		{name: "registry", mutate: mutateCacheEntry(func(entry *cacheEntry) {
+			for index := range entry.Inputs {
+				if entry.Inputs[index].Kind == inputRegistry {
+					entry.Inputs[index].Fingerprint = "stale"
+					return
+				}
+			}
+		}), want: CacheRefusalRegistry},
+		{name: "local input", mutate: mutateCacheEntry(func(entry *cacheEntry) {
+			entry.Inputs = append(entry.Inputs, cacheInput{Kind: inputFile, Name: "missing", Fingerprint: "present"})
+		}), want: CacheRefusalLocalContent},
+		{name: "valid", valid: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newCachedFixture(t)
+			if _, report := fixture.index(); report.Cache.Misses != 1 {
+				t.Fatalf("setup cache %q = %+v, want one miss", test.name, report.Cache)
+			}
+			path := cacheEntryForFixture(t, fixture)
+			if test.mutate != nil {
+				test.mutate(t, path)
+			}
+			_, report := fixture.index()
+			if test.valid {
+				if report.Cache.Hits != 1 || len(report.Cache.Refusals) != 0 {
+					t.Fatalf("valid cache %q = %+v, want one hit and no refusals", test.name, report.Cache)
+				}
+				return
+			}
+			if report.Cache.Hits != 0 || report.Cache.Misses != 1 || len(report.Cache.Refusals) != 1 || report.Cache.Refusals[test.want] != 1 {
+				t.Fatalf("refused cache %q = %+v, want one miss, no hit, and only one %q refusal", test.name, report.Cache, test.want)
+			}
+		})
+	}
+}
+
+func cacheEntryForFixture(t *testing.T, fixture *cachedFixture) string {
+	t.Helper()
+	entries, err := os.ReadDir(fixture.cache)
+	if err != nil {
+		t.Fatalf("ReadDir(%q) for %q error = %v", fixture.cache, t.Name(), err)
+	}
+	unitPrefix := "go\x00" + fixture.repository.Name + "\x00" + sourceIdentity(fixture.repository) + "\x00"
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
+			continue
+		}
+		path := filepath.Join(fixture.cache, entry.Name())
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		var cached cacheEntry
+		if err := json.Unmarshal(data, &cached); err != nil {
+			continue
+		}
+		if cached.Version == cacheEntryVersion && strings.HasPrefix(cached.Unit, unitPrefix) {
+			return path
+		}
+	}
+	t.Fatalf("cache entry for unit prefix %q not found in %q for %q", unitPrefix, fixture.cache, t.Name())
+	return ""
+}
+
+func mutateCacheEntry(mutate func(*cacheEntry)) func(*testing.T, string) {
+	return func(t *testing.T, path string) {
+		t.Helper()
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("ReadFile(%q) for %q error = %v", path, t.Name(), err)
+		}
+		var entry cacheEntry
+		if err := json.Unmarshal(data, &entry); err != nil {
+			t.Fatalf("Unmarshal(%q) for %q error = %v", path, t.Name(), err)
+		}
+		mutate(&entry)
+		data, err = json.Marshal(entry)
+		if err != nil {
+			t.Fatalf("Marshal(%q) for %q error = %v", path, t.Name(), err)
+		}
+		if err := os.WriteFile(path, data, 0o600); err != nil {
+			t.Fatalf("WriteFile(%q) for %q error = %v", path, t.Name(), err)
+		}
 	}
 }
 

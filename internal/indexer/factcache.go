@@ -65,7 +65,12 @@ func ValidCacheMode(mode CacheMode) bool {
 // provider published them, and it can only describe the ones it can name: a
 // served entry without them left the pass unable to close an edge it had
 // composed, which aborted a warm pass that a cold one had published.
-const cacheEntryVersion = 4
+//
+// Version 5 removes the profile name from the unit identity, adds the
+// effective provider context to it and records a content address for the
+// local inputs. Entries are disposable derived state, so an older entry is
+// discarded rather than interpreted as one of the new layers.
+const cacheEntryVersion = 5
 
 // ErrCacheDiverged reports that a cached entry did not match the facts the
 // analysis produced for the same unit. It aborts the pass on purpose: a cache
@@ -108,14 +113,36 @@ type cacheInput struct {
 	Fingerprint string    `json:"fingerprint"`
 }
 
+// CacheRefusalReason explains why a configured cache did not serve an entry.
+// It is intentionally a small vocabulary: callers can aggregate it without
+// parsing diagnostics, while the detail of a loader failure remains in the
+// normal index report.
+type CacheRefusalReason string
+
+const (
+	CacheRefusalNoEntry      CacheRefusalReason = "no_entry"
+	CacheRefusalUnreadable   CacheRefusalReason = "unreadable_entry"
+	CacheRefusalMalformed    CacheRefusalReason = "malformed_entry"
+	CacheRefusalIncompatible CacheRefusalReason = "incompatible_entry"
+	CacheRefusalAnalyzer     CacheRefusalReason = "analyzer_changed"
+	CacheRefusalLocalContent CacheRefusalReason = "local_content_changed"
+	CacheRefusalDependency   CacheRefusalReason = "dependency_changed"
+	CacheRefusalRegistry     CacheRefusalReason = "registry_changed"
+)
+
 // cacheEntry is the facts of one unit together with every input that produced
 // them. Nothing here is a timestamp: an entry is valid exactly while the
 // fingerprints it recorded still describe the world.
 type cacheEntry struct {
-	Version  int          `json:"version"`
-	Unit     string       `json:"unit"`
-	Analyzer string       `json:"analyzer"`
-	Inputs   []cacheInput `json:"inputs"`
+	Version  int    `json:"version"`
+	Unit     string `json:"unit"`
+	Analyzer string `json:"analyzer"`
+	// LocalAddress is the content address of source and configuration inputs.
+	// Provider and registry inputs are deliberately excluded: they belong to
+	// the resolution context in Unit and must not turn a local fact into a
+	// profile-owned value.
+	LocalAddress string       `json:"local_address"`
+	Inputs       []cacheInput `json:"inputs"`
 
 	Set             facts.Set `json:"set"`
 	NotLoaded       bool      `json:"not_loaded"`
@@ -158,6 +185,11 @@ type CacheReport struct {
 	Hits     int
 	Misses   int
 	Verified int
+	// Refusals counts rejected entries after the addressed lookup. A normal
+	// source or registry change selects a new address and is reported as
+	// no_entry; the other values describe an entry found at that address but
+	// rejected during validation.
+	Refusals map[CacheRefusalReason]int
 }
 
 // factCache reads and writes one entry per analysis unit.
@@ -168,18 +200,20 @@ type factCache struct {
 	directory string
 	mode      CacheMode
 	analyzer  string
-	profile   string
 
 	trees *fingerprintMemo
 	// goRegistry and rustRegistry are this pass's answer to "who provides
 	// which module" and "who provides which crate".
-	goRegistry       string
-	rustRegistry     string
-	semanticRegistry string
+	goRegistry         string
+	rustRegistry       string
+	semanticRegistry   string
+	typeScriptRegistry string
 
-	hits     atomic.Int64
-	misses   atomic.Int64
-	verified atomic.Int64
+	hits         atomic.Int64
+	misses       atomic.Int64
+	verified     atomic.Int64
+	refusalMutex sync.Mutex
+	refusals     map[CacheRefusalReason]int
 }
 
 // newFactCache prepares the cache for a pass.
@@ -198,10 +232,6 @@ func newFactCache(options FullOptions) (*factCache, error) {
 	if mode == CacheOff {
 		return &factCache{mode: CacheOff, trees: newFingerprintMemo()}, nil
 	}
-	profile := strings.TrimSpace(options.Profile)
-	if profile == "" {
-		profile = "default"
-	}
 	directory := strings.TrimSpace(options.CacheDirectory)
 	if directory == "" {
 		return nil, fmt.Errorf("fact cache: mode %q needs a directory", mode)
@@ -217,8 +247,8 @@ func newFactCache(options FullOptions) (*factCache, error) {
 		directory: directory,
 		mode:      mode,
 		analyzer:  analyzer,
-		profile:   profile,
 		trees:     newFingerprintMemo(),
+		refusals:  make(map[CacheRefusalReason]int),
 	}, nil
 }
 
@@ -230,12 +260,28 @@ func (cache *factCache) report() CacheReport {
 	if cache == nil {
 		return CacheReport{Mode: CacheOff}
 	}
+	cache.refusalMutex.Lock()
+	refusals := make(map[CacheRefusalReason]int, len(cache.refusals))
+	for reason, count := range cache.refusals {
+		refusals[reason] = count
+	}
+	cache.refusalMutex.Unlock()
 	return CacheReport{
 		Mode:     cache.mode,
 		Hits:     int(cache.hits.Load()),
 		Misses:   int(cache.misses.Load()),
 		Verified: int(cache.verified.Load()),
+		Refusals: refusals,
 	}
+}
+
+func (cache *factCache) refuse(reason CacheRefusalReason) {
+	if cache == nil || reason == "" {
+		return
+	}
+	cache.refusalMutex.Lock()
+	cache.refusals[reason]++
+	cache.refusalMutex.Unlock()
 }
 
 // analyse answers one unit, from the cache when every input it recorded still
@@ -253,8 +299,12 @@ func (cache *factCache) analyse(
 		return analyseUnit(ctx, options, unit, inputs)
 	}
 
-	identity := unitIdentity(cache.profile, unit)
-	entry, found := cache.load(identity)
+	identity := cache.identity(unit)
+	localAddress := cache.localAddress(unit, options, inputs)
+	entry, found, refusal := cache.load(identity, localAddress)
+	if !found {
+		cache.refuse(refusal)
+	}
 	if found && cache.mode == CacheOn {
 		cache.hits.Add(1)
 		return entry.result(), nil
@@ -280,40 +330,57 @@ func (cache *factCache) analyse(
 	if result.notLoaded {
 		return result, nil
 	}
-	cache.store(identity, unit, options, inputs, result)
+	cache.store(identity, localAddress, unit, options, inputs, result)
 	return result, nil
 }
 
 // load reads the entry for a unit and validates every input it recorded. A
 // single mismatch is a miss; so is anything unreadable.
-func (cache *factCache) load(identity string) (cacheEntry, bool) {
-	data, err := os.ReadFile(cache.path(identity))
+func (cache *factCache) load(identity, localAddress string) (cacheEntry, bool, CacheRefusalReason) {
+	data, err := os.ReadFile(cache.path(identity, localAddress))
 	if err != nil {
-		return cacheEntry{}, false
+		if errors.Is(err, os.ErrNotExist) {
+			return cacheEntry{}, false, CacheRefusalNoEntry
+		}
+		return cacheEntry{}, false, CacheRefusalUnreadable
 	}
 	var entry cacheEntry
 	if err := json.Unmarshal(data, &entry); err != nil {
-		return cacheEntry{}, false
+		return cacheEntry{}, false, CacheRefusalMalformed
 	}
-	if entry.Version != cacheEntryVersion || entry.Unit != identity || entry.Analyzer != cache.analyzer {
-		return cacheEntry{}, false
+	if entry.Version != cacheEntryVersion || entry.Unit != identity {
+		return cacheEntry{}, false, CacheRefusalIncompatible
+	}
+	if entry.Analyzer != cache.analyzer {
+		return cacheEntry{}, false, CacheRefusalAnalyzer
+	}
+	if entry.LocalAddress != localAddress {
+		return cacheEntry{}, false, CacheRefusalLocalContent
 	}
 	for _, input := range entry.Inputs {
 		if cache.fingerprint(input.Kind, input.Name) != input.Fingerprint {
-			return cacheEntry{}, false
+			switch input.Kind {
+			case inputProvider:
+				return cacheEntry{}, false, CacheRefusalDependency
+			case inputRegistry:
+				return cacheEntry{}, false, CacheRefusalRegistry
+			default:
+				return cacheEntry{}, false, CacheRefusalLocalContent
+			}
 		}
 	}
 	// The facts are not validated here, and that is the same bar a fresh
 	// analysis meets: one unit's set is a fragment whose cross-repository
 	// edges point at symbols another unit defines. What gets validated is
 	// the merged graph, before anything is published.
-	return entry, true
+	return entry, true, ""
 }
 
 // store writes the entry for a unit. A failure to write is not a failure of
 // the pass: the graph is already correct, the next pass just pays again.
 func (cache *factCache) store(
 	identity string,
+	localAddress string,
 	unit analysisUnit,
 	options FullOptions,
 	inputs analysisInputs,
@@ -323,6 +390,7 @@ func (cache *factCache) store(
 		Version:         cacheEntryVersion,
 		Unit:            identity,
 		Analyzer:        cache.analyzer,
+		LocalAddress:    localAddress,
 		Inputs:          cache.describeInputs(unit, options, inputs, result),
 		Set:             result.set,
 		NotLoaded:       result.notLoaded,
@@ -340,7 +408,7 @@ func (cache *factCache) store(
 	if err != nil {
 		return
 	}
-	path := cache.path(identity)
+	path := cache.path(identity, localAddress)
 	temporary, err := os.CreateTemp(cache.directory, "entry-*.tmp")
 	if err != nil {
 		return
@@ -359,8 +427,8 @@ func (cache *factCache) store(
 	}
 }
 
-func (cache *factCache) path(identity string) string {
-	sum := sha256.Sum256([]byte(identity))
+func (cache *factCache) path(identity, localAddress string) string {
+	sum := sha256.Sum256([]byte(identity + "\x00local\x00" + localAddress))
 	return filepath.Join(cache.directory, hex.EncodeToString(sum[:])+".json")
 }
 
@@ -408,22 +476,70 @@ var semanticManifestNames = []string{
 // repository hid it -- the identity was wrong but unique. Two workspaces in
 // one repository shared an entry, and the second was served the first's facts.
 
-func unitIdentity(profile string, unit analysisUnit) string {
-	prefix := profile + "\x00"
+func unitIdentity(unit analysisUnit) string {
+	source := sourceIdentity(unit.repository)
 	switch unit.kind {
 	case unitGo:
-		return prefix + "go\x00" + unit.repository.Name + "\x00" + unit.module.ModulePath
+		return "go\x00" + unit.repository.Name + "\x00" + source + "\x00" + unit.module.ModulePath + "\x00" + unit.module.RootPath
 	case unitRust:
-		return prefix + "rust\x00" + unit.repository.Name + "\x00" + unit.rust.workspace.RootPath
+		return "rust\x00" + unit.repository.Name + "\x00" + source + "\x00" + unit.rust.workspace.RootPath
 	case unitSemantic:
-		return prefix + string(unit.language) + "\x00" + unit.repository.Name + "\x00" + unit.repository.RealPath
+		return string(unit.language) + "\x00" + unit.repository.Name + "\x00" + source
 	case unitTypeScript:
-		return prefix + "typescript\x00" + unit.repository.Name + "\x00" + unit.pkg.packageValue.Name
+		packageValue := unit.pkg.packageValue
+		return "typescript\x00" + unit.repository.Name + "\x00" + source + "\x00" + packageValue.Name + "\x00" + packageValue.ManifestPath
 	default:
 		// An entry keyed on a unit nobody can name would be served to
 		// whatever collided with it next.
-		return prefix + "unspecified\x00" + unit.repository.Name
+		return "unspecified\x00" + unit.repository.Name + "\x00" + source
 	}
+}
+
+func sourceIdentity(repository workspace.Repository) string {
+	root := repository.RealPath
+	if root == "" {
+		root = repository.Path
+	}
+	return string(repository.Worktree) + "\x00" + filepath.Clean(root)
+}
+
+func (cache *factCache) identity(unit analysisUnit) string {
+	return unitIdentity(unit) + "\x00resolution\x00" + cache.registryContext(unit)
+}
+
+func (cache *factCache) registryContext(unit analysisUnit) string {
+	switch unit.kind {
+	case unitGo:
+		return cache.goRegistry
+	case unitRust:
+		return cache.rustRegistry
+	case unitSemantic:
+		return cache.semanticRegistry
+	case unitTypeScript:
+		return cache.typeScriptRegistry
+	default:
+		return "none"
+	}
+}
+
+// localAddress fingerprints the source and configuration inputs before a
+// loader runs. Provider and registry inputs are intentionally left to the
+// resolution context and to the full recorded-input validation in load.
+func (cache *factCache) localAddress(
+	unit analysisUnit,
+	options FullOptions,
+	inputs analysisInputs,
+) string {
+	values := make([]string, 0)
+	for _, input := range cache.describeInputs(unit, options, inputs, analysisResult{}) {
+		if input.Kind == inputProvider || input.Kind == inputRegistry {
+			continue
+		}
+		values = append(values, string(input.Kind)+"\x00"+input.Name+"\x00"+input.Fingerprint)
+	}
+	sort.Strings(values)
+	sum := sha256.Sum256([]byte(strings.Join(values, "\x00")))
+	return hex.EncodeToString(sum[:])
 }
 
 // describeInputs lists everything the unit's facts depend on.
@@ -577,6 +693,26 @@ func (cache *factCache) withRegistry(inputs analysisInputs, repositories []works
 	cache.rustRegistry = hex.EncodeToString(crateSum[:])
 	semanticSum := sha256.Sum256([]byte(semanticRegistryName(cache.trees, repositories)))
 	cache.semanticRegistry = hex.EncodeToString(semanticSum[:])
+	typeScriptSum := sha256.Sum256([]byte(typeScriptRegistryName(inputs.typeScriptPackages)))
+	cache.typeScriptRegistry = hex.EncodeToString(typeScriptSum[:])
+}
+
+func typeScriptRegistryName(packages []typeScriptPackageUnit) string {
+	entries := make([]string, 0, len(packages))
+	for _, packageUnit := range packages {
+		packageValue := packageUnit.packageValue
+		entries = append(entries, strings.Join([]string{
+			packageUnit.repository.Name,
+			string(packageUnit.repository.Worktree),
+			packageValue.Name,
+			packageValue.Version,
+			packageValue.RootPath,
+			packageValue.ManifestPath,
+			packageValue.ProjectPath,
+		}, "="))
+	}
+	sort.Strings(entries)
+	return strings.Join(entries, "\x00")
 }
 
 // pythonProducerFingerprint identifies the Python producer this pass would
@@ -795,6 +931,7 @@ func lockfilePaths(root string) []string {
 func AnalyzerFingerprint(options FullOptions) (string, error) {
 	hash := sha256.New()
 	fmt.Fprintf(hash, "entry=%d\x00", cacheEntryVersion)
+	fmt.Fprintf(hash, "resolver=%s\x00", strings.TrimSpace(options.ResolverVersion))
 	cgo := "default"
 	if options.GoCGOEnabled != nil {
 		cgo = fmt.Sprintf("%t", *options.GoCGOEnabled)

@@ -69,6 +69,7 @@ func TestRunOlderCanonicalSchemaBacksUpAndRebuilds(t *testing.T) {
 	}
 	detectCalls := 0
 	indexCalled := false
+	var indexedOptions indexer.FullOptions
 	report, err := Run(context.Background(), Options{
 		Root:            root,
 		BackupRoot:      filepath.Join(root, "backups"),
@@ -81,8 +82,9 @@ func TestRunOlderCanonicalSchemaBacksUpAndRebuilds(t *testing.T) {
 			}
 			return healthyDiagnosis(ladybug.CanonicalSchemaVersion), nil
 		},
-		Index: func(context.Context, indexer.FullOptions) (facts.Set, indexer.FullReport, error) {
+		Index: func(_ context.Context, options indexer.FullOptions) (facts.Set, indexer.FullReport, error) {
 			indexCalled = true
+			indexedOptions = options
 			return facts.Set{}, indexer.FullReport{GoRepositories: 1}, nil
 		},
 		Rebuild: func(_ context.Context, options rebuild.Options) (rebuild.Report, error) {
@@ -102,6 +104,9 @@ func TestRunOlderCanonicalSchemaBacksUpAndRebuilds(t *testing.T) {
 	}
 	if !report.Passed || !indexCalled || report.FromSchemaVersion != 1 || report.To.ID != newGeneration.ID {
 		t.Fatalf("report = %#v, want successful migration", report)
+	}
+	if indexedOptions.ResolverVersion != "resolver-test" {
+		t.Fatalf("upgrade index resolver version = %q, want resolver-test", indexedOptions.ResolverVersion)
 	}
 	if report.BackupPath == "" {
 		t.Fatal("backup path is empty")

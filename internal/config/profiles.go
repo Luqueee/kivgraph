@@ -95,7 +95,7 @@ func ensureDefaultProfile(configuration Config, repositoriesPath string) error {
 	}
 	for _, name := range []string{
 		"generations", "CURRENT", "BACKUP", "backups", "publish.lock",
-		"resync.lock", "factcache", "go.work", "graph.lbdb",
+		"resync.lock", "go.work", "graph.lbdb",
 	} {
 		source := filepath.Join(temporaryState, name)
 		if _, err := os.Lstat(source); errors.Is(err, os.ErrNotExist) {
@@ -246,8 +246,8 @@ func ListProfiles(configPath string) ([]Profile, error) {
 }
 
 // LoadProfile loads one profile and rewrites only the state that belongs to
-// its independently published graph. Analyzer targets and the event log remain
-// shared at installation scope.
+// its independently published graph. Analyzer targets, the event log and the
+// content-addressed fact cache remain shared at installation scope.
 func LoadProfile(configPath, name string) (Loaded, error) {
 	loaded, err := Load(configPath)
 	if err != nil {
@@ -280,10 +280,11 @@ func LoadProfile(configPath, name string) (Loaded, error) {
 	loaded.Repositories = repositories
 	loaded.RepositoriesPath = repositoriesPath
 	loaded.TopologyPath = profile.TopologyPath
+	sharedFactCache := filepath.Join(filepath.Dir(filepath.Dir(profile.StateDirectory)), "factcache")
 	loaded.Config.Workspace.RepositoriesFile = repositoriesPath
 	loaded.Config.Storage.DatabasePath = filepath.Join(profile.StateDirectory, "graph.lbdb")
 	loaded.Config.Storage.BackupsPath = filepath.Join(profile.StateDirectory, "backups")
-	loaded.Config.Indexing.FactCachePath = filepath.Join(profile.StateDirectory, "factcache")
+	loaded.Config.Indexing.FactCachePath = sharedFactCache
 	loaded.Config.Go.SyntheticWorkFile = filepath.Join(profile.StateDirectory, "go.work")
 	return loaded, nil
 }

@@ -92,10 +92,12 @@ type ProgressEvent struct {
 // writes inside a registered repository: Go's synthetic workspace and the
 // temporary TypeScript facts payloads live outside the sources.
 type FullOptions struct {
-	// Profile distinguishes facts produced for registries that may contain the
-	// same repository beside different providers. Empty keeps the historical
-	// single-graph behaviour and is treated as the default profile.
-	Profile           string
+	// Profile identifies the selected graph for reporting. It is not part of a
+	// fact-cache identity: compatible profiles may share local facts.
+	Profile string
+	// ResolverVersion identifies the resolver contract that consumes the
+	// normalized facts. It is part of analyzer compatibility for cached facts.
+	ResolverVersion   string
 	Repositories      []workspace.Repository
 	SyntheticWorkFile string
 	IncludeTests      bool
@@ -189,8 +191,8 @@ type FullOptions struct {
 	// CacheMode selects whether a unit may be served from its stored
 	// facts. Empty is CacheOff.
 	CacheMode CacheMode
-	// CacheDirectory holds one entry per analysis unit. It lives outside
-	// every indexed repository, like the rest of the state.
+	// CacheDirectory holds content-addressed entries for analysis units. It
+	// lives outside every indexed repository and may be shared by profiles.
 	CacheDirectory string
 
 	// Progress, when set, is called synchronously as each unit of work

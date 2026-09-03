@@ -194,6 +194,7 @@ func OptionsFromConfig(configuration config.Config) FullOptions {
 func (options FullOptions) indexerOptions() indexer.FullOptions {
 	return indexer.FullOptions{
 		Profile:                           options.Profile,
+		ResolverVersion:                   options.ResolverVersion,
 		Repositories:                      options.Repositories,
 		SyntheticWorkFile:                 options.SyntheticWorkFile,
 		IncludeTests:                      options.IncludeTests,
