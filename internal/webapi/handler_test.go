@@ -194,8 +194,10 @@ func TestHandlerTopologyRejectsUnknownProfileSelection(t *testing.T) {
 
 func TestHandlerTopologyReturnsPinnedProfilesAndRelationships(t *testing.T) {
 	configPath, stateRoot := topologyTestConfiguration(t, "default", "other")
-	defaultStore := hotsnapshot.NewSnapshotStore(testSnapshotWithTopologyID(t, 7))
-	otherStore := hotsnapshot.NewSnapshotStore(testSnapshotWithTopologyID(t, 8))
+	const defaultRepositoryLanguages = " go, typescript,go,, "
+	const otherRepositoryLanguages = "rust, typescript"
+	defaultStore := hotsnapshot.NewSnapshotStore(testSnapshotWithTopologyIDAndLanguages(t, 7, defaultRepositoryLanguages))
+	otherStore := hotsnapshot.NewSnapshotStore(testSnapshotWithTopologyIDAndLanguages(t, 8, otherRepositoryLanguages))
 	store, err := hotsnapshot.NewProfileSnapshotStore("default", map[string]*hotsnapshot.SnapshotStore{
 		"default": defaultStore,
 		"other":   otherStore,
@@ -227,8 +229,8 @@ func TestHandlerTopologyReturnsPinnedProfilesAndRelationships(t *testing.T) {
 	if len(value.Profiles) != 2 {
 		t.Fatalf("%s: profiles = %#v, want 2 profiles", multiProfileRequest, value.Profiles)
 	}
-	if len(value.Repositories) != 1 || !reflect.DeepEqual(value.Repositories[0].Languages, []string{"go"}) {
-		t.Fatalf("%s: repository language facets = %#v, want [go]", multiProfileRequest, value.Repositories)
+	if len(value.Repositories) != 1 || !reflect.DeepEqual(value.Repositories[0].Languages, []string{"go", "rust", "typescript"}) {
+		t.Fatalf("%s: repository language facets for inputs %q and %q = %#v, want [go rust typescript]", multiProfileRequest, defaultRepositoryLanguages, otherRepositoryLanguages, value.Repositories)
 	}
 	profiles := append([]topologyProfileView(nil), value.Profiles...)
 	sort.Slice(profiles, func(left, right int) bool { return profiles[left].ID < profiles[right].ID })
@@ -318,15 +320,6 @@ func TestHandlerTopologyReturnsPinnedProfilesAndRelationships(t *testing.T) {
 		if !hasTopologyRelationship(pinned.Relationships, expected.typ, expected.status) {
 			t.Fatalf("pinned topology is missing relationship type=%q status=%q; relationships = %#v", expected.typ, expected.status, pinned.Relationships)
 		}
-	}
-}
-
-func TestSplitRepositoryLanguagesNormalizesEmptyAndDuplicateValues(t *testing.T) {
-	if got := splitRepositoryLanguages(" go, typescript,go,, "); !reflect.DeepEqual(got, []string{"go", "typescript"}) {
-		t.Fatalf("splitRepositoryLanguages() = %#v, want [go typescript]", got)
-	}
-	if got := splitRepositoryLanguages(""); len(got) != 0 {
-		t.Fatalf("splitRepositoryLanguages(empty) = %#v, want empty", got)
 	}
 }
 
@@ -672,7 +665,17 @@ func testSnapshotWithTopologyID(t *testing.T, snapshotID uint64) *hotsnapshot.Gr
 	return testSnapshotData(t, snapshotID, true)
 }
 
+func testSnapshotWithTopologyIDAndLanguages(t *testing.T, snapshotID uint64, languages string) *hotsnapshot.GraphSnapshot {
+	t.Helper()
+	return testSnapshotDataWithLanguages(t, snapshotID, true, languages)
+}
+
 func testSnapshotData(t *testing.T, snapshotID uint64, includeTopologyRecords bool) *hotsnapshot.GraphSnapshot {
+	t.Helper()
+	return testSnapshotDataWithLanguages(t, snapshotID, includeTopologyRecords, "go")
+}
+
+func testSnapshotDataWithLanguages(t *testing.T, snapshotID uint64, includeTopologyRecords bool, repositoryLanguages string) *hotsnapshot.GraphSnapshot {
 	t.Helper()
 	interner := hotsnapshot.NewStringInterner()
 	intern := func(value string) hotsnapshot.InternedString {
@@ -690,6 +693,7 @@ func testSnapshotData(t *testing.T, snapshotID uint64, includeTopologyRecords bo
 	packageKey := intern("package:go:repo:example")
 	fileKey := intern("file:repo:src/index.go")
 	language := intern("go")
+	repositoryLanguageKey := intern(repositoryLanguages)
 	nameLoad := intern("Load")
 	nameOther := intern("Other")
 	qnameA := intern("example.Load")
@@ -741,7 +745,7 @@ func testSnapshotData(t *testing.T, snapshotID uint64, includeTopologyRecords bo
 		ResolverVersion: "resolver-test",
 		Strings:         stringTable,
 		Repositories: []hotsnapshot.RepositoryRecord{{
-			Key: repoKey, Name: interned(stringTable, "repo"), Path: interned(stringTable, "/workspace/repo"), Languages: interned(stringTable, "go"),
+			Key: repoKey, Name: interned(stringTable, "repo"), Path: interned(stringTable, "/workspace/repo"), Languages: repositoryLanguageKey,
 		}},
 		Packages: []hotsnapshot.PackageRecord{{
 			Key: packageKey, Repository: 0, Language: language, Name: interned(stringTable, "example"), ModulePath: interned(stringTable, "example"),

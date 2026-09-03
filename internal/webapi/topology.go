@@ -195,7 +195,10 @@ func (assembler *topologyAssembler) addSnapshotRepositories(ctx context.Context,
 			return errors.New("snapshot repository has no language metadata")
 		}
 		id := topology.LogicalRepositoryID(name)
-		assembler.repositoryLanguages[id] = splitRepositoryLanguages(languages)
+		assembler.repositoryLanguages[id] = mergeRepositoryLanguages(
+			assembler.repositoryLanguages[id],
+			splitRepositoryLanguages(languages),
+		)
 		if _, declared := assembler.declaredRepositories[id]; declared {
 			return nil
 		}
@@ -634,6 +637,13 @@ func splitRepositoryLanguages(value string) []string {
 	}
 	sort.Strings(values)
 	return values
+}
+
+func mergeRepositoryLanguages(existing, incoming []string) []string {
+	values := make([]string, 0, len(existing)+len(incoming))
+	values = append(values, existing...)
+	values = append(values, incoming...)
+	return splitRepositoryLanguages(strings.Join(values, ","))
 }
 
 func parseTopologyQuery(values url.Values) (topologyQuery, error) {
