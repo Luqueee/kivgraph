@@ -6,13 +6,20 @@ go_library(
         "binary.go",
         "handler.go",
         "server.go",
+        "topology.go",
+        "topology_types.go",
     ],
     importpath = "github.com/Luqueee/kivgraph/internal/webapi",
     visibility = ["//:__subpackages__"],
     deps = [
+        "//internal/config",
         "//internal/facts",
         "//internal/hotsnapshot",
+        "//internal/invalidation",
         "//internal/layout",
+        "//internal/sourceobservation",
+        "//internal/storage/generation",
+        "//internal/topology",
         "//internal/webassets",
     ],
 )
@@ -26,7 +33,12 @@ go_test(
     ],
     embed = [":webapi"],
     deps = [
+        "//internal/config",
         "//internal/facts",
         "//internal/hotsnapshot",
+        "//internal/invalidation",
+        "//internal/sourceobservation",
+        "//internal/testsupport",
+        "//internal/topology",
     ],
 )

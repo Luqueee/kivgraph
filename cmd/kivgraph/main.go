@@ -433,17 +433,65 @@ func runConfiguredUI(
 	if err != nil {
 		return fmt.Errorf("ui: load profile: %w", err)
 	}
-	store, err := openConfiguredSnapshot(ctx, loaded)
-	if err != nil {
-		return err
+	var store *hotsnapshot.SnapshotStore
+	var stopFollower func()
+	if profile == "" {
+		store, err = openConfiguredProfileSnapshots(ctx, loaded)
+		if err != nil {
+			return err
+		}
+		stopFollower, err = followConfiguredProfiles(ctx, loaded, store, "ui")
+		if err != nil {
+			store.Close()
+			return err
+		}
+	} else {
+		store, err = openConfiguredSnapshot(ctx, loaded)
+		if err != nil {
+			return err
+		}
+		stopFollower = followPublishedGeneration(ctx, loaded, store, "ui", indexing.FollowOptions{})
 	}
 	defer store.Close()
-	stopFollower := followPublishedGeneration(ctx, loaded, store, "ui", indexing.FollowOptions{})
 	defer stopFollower()
 	if address == "" {
 		address = loaded.Config.Web.Address
 	}
-	return runWeb(ctx, address, webapi.NewHandler(store))
+	return runWeb(ctx, address, webapi.NewHandlerWithTopology(store, webapi.TopologyOptions{
+		ConfigPath:       loaded.ConfigPath,
+		Profile:          loaded.Profile,
+		InvalidationRoot: stateDirectory(loaded),
+	}))
+}
+
+// followConfiguredProfiles keeps an aggregate viewer current for every
+// profile it can select. Each child store follows its own generation root;
+// following the aggregate would only observe its default profile.
+func followConfiguredProfiles(
+	ctx context.Context,
+	loaded config.Loaded,
+	store *hotsnapshot.SnapshotStore,
+	command string,
+) (func(), error) {
+	profiles, err := store.ResolveProfiles([]string{"*"})
+	if err != nil {
+		return nil, fmt.Errorf("follow configured profiles: %w", err)
+	}
+	stops := make([]func(), 0, len(profiles))
+	stopAll := func() {
+		for index := len(stops) - 1; index >= 0; index-- {
+			stops[index]()
+		}
+	}
+	for _, profile := range profiles {
+		profileLoaded, err := config.LoadProfile(loaded.ConfigPath, profile.Name)
+		if err != nil {
+			stopAll()
+			return nil, fmt.Errorf("follow profile %q: %w", profile.Name, err)
+		}
+		stops = append(stops, followPublishedGeneration(ctx, profileLoaded, profile.Store, command, indexing.FollowOptions{}))
+	}
+	return stopAll, nil
 }
 
 // uiFlagSet and serveFlagSet exist so the two long-running commands describe
@@ -700,12 +748,12 @@ func followPublishedGeneration(
 	options.Store = generation.DefaultConfig()
 	if options.OnPublish == nil {
 		options.OnPublish = func(id uint64) {
-			logger.Info("serving published generation", "command", command, "generation", id)
+			logger.Info("serving published generation", "command", command, "profile", loaded.Profile, "generation", id)
 		}
 	}
 	if options.OnError == nil {
 		options.OnError = func(err error) {
-			logger.Error("could not follow the published generation", "command", command, "error", err)
+			logger.Error("could not follow the published generation", "command", command, "profile", loaded.Profile, "error", err)
 		}
 	}
 	followCtx, cancel := context.WithCancel(ctx)
@@ -713,7 +761,7 @@ func followPublishedGeneration(
 	go func() {
 		defer close(done)
 		if err := indexing.Follow(followCtx, store, options); err != nil {
-			logger.Error("generation follower stopped", "command", command, "error", err)
+			logger.Error("generation follower stopped", "command", command, "profile", loaded.Profile, "error", err)
 		}
 	}()
 	return func() {

@@ -250,6 +250,20 @@ func (store *SnapshotStore) ProfileCount() int {
 	return len(store.profileNames)
 }
 
+// MaxOpenProfiles reports the aggregate's materialised-profile limit. A
+// direct store has one materialised profile by definition.
+func (store *SnapshotStore) MaxOpenProfiles() int {
+	if store == nil {
+		return 0
+	}
+	store.profilesMu.RLock()
+	defer store.profilesMu.RUnlock()
+	if store.profiles == nil {
+		return 1
+	}
+	return store.maxOpenProfiles
+}
+
 // DefaultProfileName returns the ordinary profile used by unscoped calls.
 func (store *SnapshotStore) DefaultProfileName() string {
 	if store == nil {
@@ -438,6 +452,9 @@ func (store *SnapshotStore) Publish(candidate *GraphSnapshot) error {
 			// asking for, so a rebuild recovers a server without a restart.
 			store.failure.Store(nil)
 			store.generation.Store(candidateID)
+			if store.onLoad != nil {
+				store.onLoad()
+			}
 			return nil
 		}
 	}
