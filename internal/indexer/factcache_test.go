@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -183,8 +184,8 @@ func Greeting() string { return "hello" }
 	if report.Cache.Hits != 1 || report.Cache.Misses != 0 {
 		t.Fatalf("restored source cache = %+v, want the previous content address to be warm", report.Cache)
 	}
-	if encodedFacts(t, restored) != encodedFacts(t, cold) {
-		t.Fatalf("restored source facts differ from the original facts")
+	if !reflect.DeepEqual(restored, cold) {
+		t.Fatalf("restored source facts for %q differ from the original facts", filepath.Join(fixture.root, "fixture.go"))
 	}
 }
 
