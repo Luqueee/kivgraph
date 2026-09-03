@@ -148,7 +148,7 @@ From a checkout, either installer can be run directly:
 To install a specific release instead of the latest one:
 
 ```bash
-KIVGRAPH_VERSION=v0.9.8-dev.1 ./scripts/install.sh
+KIVGRAPH_VERSION=v0.9.8 ./scripts/install.sh
 ```
 
 The script installs the bundle in `~/.local/opt/kivgraph` and puts launchers
