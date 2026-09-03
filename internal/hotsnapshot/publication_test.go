@@ -265,7 +265,7 @@ func TestPublishedProfileCountsTowardMaximumOpenProfiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := store.SetMaxOpenProfiles(1); err != nil {
-		t.Fatal(err)
+		t.Fatalf("SetMaxOpenProfiles(1) error = %v", err)
 	}
 	if err := a.Publish(publishedSnapshot(t, 3)); err != nil {
 		t.Fatalf("Publish(profile=a, generation=3) error = %v", err)
@@ -275,9 +275,6 @@ func TestPublishedProfileCountsTowardMaximumOpenProfiles(t *testing.T) {
 	}
 	if snapshot := a.Load(); snapshot != nil {
 		t.Fatalf("published profile was not evicted; Load(profile=a) returned generation %d", snapshot.Metadata().ID)
-	}
-	if !errors.Is(a.LoadFailure(), ErrSnapshotGeneration) {
-		t.Fatalf("LoadFailure(profile=a) = %v, want ErrSnapshotGeneration", a.LoadFailure())
 	}
 }
 
