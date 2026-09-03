@@ -161,10 +161,11 @@ function aggregateStatus(
   statuses: readonly string[],
   fallback: string,
 ): string {
-  return statuses.reduce(
-    (selected, status) =>
-      statusRank(status) > statusRank(selected) ? status : selected,
-    fallback,
+  if (statuses.length === 0) {
+    return fallback;
+  }
+  return statuses.reduce((selected, status) =>
+    statusRank(status) > statusRank(selected) ? status : selected,
   );
 }
 
@@ -323,6 +324,7 @@ function createNodes(response: TopologyResponse): TopologyNode[] {
 }
 
 function layoutNodes(nodes: readonly TopologyNode[]): TopologyLayout {
+  const layerCount = Math.max(...Object.values(NODE_LAYER)) + 1;
   const layerCounts = new Map<number, number>();
   const layoutNodes = nodes.map((node) => {
     const layer = NODE_LAYER[node.type];
@@ -339,9 +341,7 @@ function layoutNodes(nodes: readonly TopologyNode[]): TopologyLayout {
   const maxRows = Math.max(1, ...layerCounts.values());
   return {
     width:
-      PADDING * 2 +
-      NODE_TYPE_ORDER.length * NODE_WIDTH +
-      (NODE_TYPE_ORDER.length - 1) * COLUMN_GAP,
+      PADDING * 2 + layerCount * NODE_WIDTH + (layerCount - 1) * COLUMN_GAP,
     height: PADDING * 2 + maxRows * NODE_HEIGHT + (maxRows - 1) * ROW_GAP,
     nodes: layoutNodes,
   };

@@ -122,7 +122,22 @@ describe("topology model", () => {
       ["repository:repo-z", 552, 166],
       ["shared_input:worktree:wt-shared", 288, 308],
     ]);
+    expect(model.layout.width).toBe(804);
   });
+
+  it.each(["current", "ready"] as const)(
+    "preserves a %s source status on its worktree",
+    (status) => {
+      const model = createTopologyModel({
+        ...topology,
+        sources: [{ ...topology.sources[0], status }],
+      });
+
+      expect(
+        model.nodes.find((node) => node.key === "worktree:wt-shared")?.status,
+      ).toBe(status);
+    },
+  );
 
   it("keeps unresolved relationships without fabricating a target", () => {
     const model = createTopologyModel({
