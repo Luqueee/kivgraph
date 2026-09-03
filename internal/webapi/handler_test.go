@@ -435,7 +435,9 @@ func TestHandlerTopologyReportsAmbiguousRepositoryDeclarations(t *testing.T) {
 		if !present || len(value.Repositories) != 1 {
 			t.Fatalf("profile %q topology = %#v, want one repository", declaration.profile, value)
 		}
-		value.Repositories[0].Name = declaration.name
+		repository := value.Repositories[0]
+		repository.Name = declaration.name
+		value.Repositories = []topology.LogicalRepository{repository}
 		if err := config.SaveProfileTopology(configPath, declaration.profile, value); err != nil {
 			t.Fatalf("SaveProfileTopology(%q) error = %v", declaration.profile, err)
 		}
