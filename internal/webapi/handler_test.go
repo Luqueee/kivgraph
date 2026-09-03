@@ -227,6 +227,9 @@ func TestHandlerTopologyReturnsPinnedProfilesAndRelationships(t *testing.T) {
 	if len(value.Profiles) != 2 {
 		t.Fatalf("%s: profiles = %#v, want 2 profiles", multiProfileRequest, value.Profiles)
 	}
+	if len(value.Repositories) != 1 || !reflect.DeepEqual(value.Repositories[0].Languages, []string{"go"}) {
+		t.Fatalf("%s: repository language facets = %#v, want [go]", multiProfileRequest, value.Repositories)
+	}
 	profiles := append([]topologyProfileView(nil), value.Profiles...)
 	sort.Slice(profiles, func(left, right int) bool { return profiles[left].ID < profiles[right].ID })
 	if profiles[0].ID != "default" || profiles[0].GenerationID != "000007" ||
@@ -315,6 +318,25 @@ func TestHandlerTopologyReturnsPinnedProfilesAndRelationships(t *testing.T) {
 		if !hasTopologyRelationship(pinned.Relationships, expected.typ, expected.status) {
 			t.Fatalf("pinned topology is missing relationship type=%q status=%q; relationships = %#v", expected.typ, expected.status, pinned.Relationships)
 		}
+	}
+}
+
+func TestSplitRepositoryLanguagesNormalizesEmptyAndDuplicateValues(t *testing.T) {
+	if got := splitRepositoryLanguages(" go, typescript,go,, "); !reflect.DeepEqual(got, []string{"go", "typescript"}) {
+		t.Fatalf("splitRepositoryLanguages() = %#v, want [go typescript]", got)
+	}
+	if got := splitRepositoryLanguages(""); len(got) != 0 {
+		t.Fatalf("splitRepositoryLanguages(empty) = %#v, want empty", got)
+	}
+}
+
+func TestTopologyResponseUsesEmptyLanguageArrayWhenMetadataIsUnavailable(t *testing.T) {
+	assembler := newTopologyAssembler()
+	assembler.repositories[topology.LogicalRepositoryID("repo")] = topology.LogicalRepository{ID: "repo", Name: "Repository"}
+
+	repositories := assembler.response().Repositories
+	if len(repositories) != 1 || repositories[0].Languages == nil || len(repositories[0].Languages) != 0 {
+		t.Fatalf("repository languages = %#v, want a non-nil empty array", repositories)
 	}
 }
 

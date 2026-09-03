@@ -57,8 +57,9 @@ type topologyProfileView struct {
 }
 
 type topologyRepositoryView struct {
-	ID   string `json:"id"`
-	Name string `json:"name,omitempty"`
+	ID        string   `json:"id"`
+	Name      string   `json:"name,omitempty"`
+	Languages []string `json:"languages"`
 }
 
 type topologyWorktreeView struct {
@@ -148,6 +149,7 @@ type topologyRelationshipCacheEntry struct {
 
 type topologyAssembler struct {
 	repositories         map[topology.LogicalRepositoryID]topology.LogicalRepository
+	repositoryLanguages  map[topology.LogicalRepositoryID][]string
 	declaredRepositories map[topology.LogicalRepositoryID]struct{}
 	worktrees            map[topology.WorktreeID]topology.Worktree
 	profiles             []topologyProfileView

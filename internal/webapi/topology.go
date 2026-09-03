@@ -45,6 +45,7 @@ func (assembler *topologyAssembler) markTruncated(reason string) {
 func newTopologyAssembler() *topologyAssembler {
 	return &topologyAssembler{
 		repositories:         make(map[topology.LogicalRepositoryID]topology.LogicalRepository),
+		repositoryLanguages:  make(map[topology.LogicalRepositoryID][]string),
 		declaredRepositories: make(map[topology.LogicalRepositoryID]struct{}),
 		worktrees:            make(map[topology.WorktreeID]topology.Worktree),
 		profiles:             make([]topologyProfileView, 0),
@@ -189,7 +190,12 @@ func (assembler *topologyAssembler) addSnapshotRepositories(ctx context.Context,
 		if !ok || name == "" {
 			return errors.New("snapshot repository has no name")
 		}
+		languages, ok := snapshot.Strings().String(record.Languages)
+		if !ok {
+			return errors.New("snapshot repository has no language metadata")
+		}
 		id := topology.LogicalRepositoryID(name)
+		assembler.repositoryLanguages[id] = splitRepositoryLanguages(languages)
 		if _, declared := assembler.declaredRepositories[id]; declared {
 			return nil
 		}
@@ -410,7 +416,14 @@ func (assembler *topologyAssembler) addSnapshotRelationships(ctx context.Context
 func (assembler *topologyAssembler) response() topologyResponse {
 	repositories := make([]topologyRepositoryView, 0, len(assembler.repositories))
 	for _, repository := range assembler.repositories {
-		repositories = append(repositories, topologyRepositoryView{ID: string(repository.ID), Name: repository.Name})
+		languages := assembler.repositoryLanguages[repository.ID]
+		if languages == nil {
+			languages = []string{}
+		}
+		repositories = append(repositories, topologyRepositoryView{
+			ID: string(repository.ID), Name: repository.Name,
+			Languages: languages,
+		})
 	}
 	sort.Slice(repositories, func(left, right int) bool { return repositories[left].ID < repositories[right].ID })
 	worktrees := make([]topologyWorktreeView, 0, len(assembler.worktrees))
@@ -603,6 +616,24 @@ func topologyConflictReason(reason string) bool {
 	default:
 		return false
 	}
+}
+
+func splitRepositoryLanguages(value string) []string {
+	values := make([]string, 0)
+	seen := make(map[string]struct{})
+	for _, item := range strings.Split(value, ",") {
+		language := strings.TrimSpace(item)
+		if language == "" {
+			continue
+		}
+		if _, exists := seen[language]; exists {
+			continue
+		}
+		seen[language] = struct{}{}
+		values = append(values, language)
+	}
+	sort.Strings(values)
+	return values
 }
 
 func parseTopologyQuery(values url.Values) (topologyQuery, error) {
