@@ -482,25 +482,34 @@ func TestFactCacheReportsRefusalReasons(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			fixture := newCachedFixture(t)
 			if _, report := fixture.index(); report.Cache.Misses != 1 {
-				t.Fatalf("setup cache = %+v, want one miss", report.Cache)
+				t.Fatalf("setup cache %q = %+v, want one miss", test.name, report.Cache)
 			}
 			entries, err := os.ReadDir(fixture.cache)
-			if err != nil || len(entries) != 1 {
-				t.Fatalf("ReadDir(%q) = %v, want one cache entry: %v", fixture.cache, entries, err)
+			if err != nil {
+				t.Fatalf("ReadDir(%q) for %q error = %v", fixture.cache, test.name, err)
 			}
-			path := filepath.Join(fixture.cache, entries[0].Name())
+			var path string
+			for _, entry := range entries {
+				if !entry.IsDir() && filepath.Ext(entry.Name()) == ".json" {
+					path = filepath.Join(fixture.cache, entry.Name())
+					break
+				}
+			}
+			if path == "" {
+				t.Fatalf("ReadDir(%q) for %q found no cache entry: %v", fixture.cache, test.name, entries)
+			}
 			if test.mutate != nil {
 				test.mutate(t, path)
 			}
 			_, report := fixture.index()
 			if test.valid {
 				if report.Cache.Hits != 1 || len(report.Cache.Refusals) != 0 {
-					t.Fatalf("valid cache = %+v, want one hit and no refusals", report.Cache)
+					t.Fatalf("valid cache %q = %+v, want one hit and no refusals", test.name, report.Cache)
 				}
 				return
 			}
 			if report.Cache.Hits != 0 || report.Cache.Misses != 1 || len(report.Cache.Refusals) != 1 || report.Cache.Refusals[test.want] != 1 {
-				t.Fatalf("refused cache = %+v, want one miss, no hit, and only one %q refusal", report.Cache, test.want)
+				t.Fatalf("refused cache %q = %+v, want one miss, no hit, and only one %q refusal", test.name, report.Cache, test.want)
 			}
 		})
 	}
