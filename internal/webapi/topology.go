@@ -638,9 +638,8 @@ func parseTopologyQuery(values url.Values) (topologyQuery, error) {
 		}
 		if _, exists := query.GenerationPins[profile]; exists {
 			return topologyQuery{}, fmt.Errorf("generation pin for profile %q was supplied more than once", profile)
-		} else {
-			query.GenerationPins[profile] = generationID
 		}
+		query.GenerationPins[profile] = generationID
 	}
 	return query, nil
 }
@@ -839,7 +838,7 @@ func (handler *Handler) loadTopologyProfile(ctx context.Context, selection topol
 	}
 	return topologyProfileData{
 		Name: selection.Name, GenerationID: generationID, Generation: numeric, Snapshot: snapshot,
-		Loaded: loaded, Composition: composition, Manifest: manifest, ManifestOK: manifestOK, State: profileState,
+		Composition: composition, Manifest: manifest, ManifestOK: manifestOK, State: profileState,
 	}, nil
 }
 

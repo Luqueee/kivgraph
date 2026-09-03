@@ -348,25 +348,37 @@ func TestTopologyRelationshipCacheRespectsMaximumOpenProfiles(t *testing.T) {
 	}
 	otherRelationships := append([]topologyRelationshipView(nil), otherAssembler.relationships...)
 
+	otherWithoutTopology := otherData
+	otherWithoutTopology.Snapshot = testSnapshotData(t, 8, false)
 	residentOther := newTopologyAssembler()
-	if err := handler.addSnapshotRelationships(context.Background(), residentOther, otherData); err != nil {
-		t.Fatalf("reusing addSnapshotRelationships(%q) error = %v", otherData.Name, err)
+	if err := handler.addSnapshotRelationships(context.Background(), residentOther, otherWithoutTopology); err != nil {
+		t.Fatalf("reusing addSnapshotRelationships(%q) error = %v", otherWithoutTopology.Name, err)
 	}
 	if !reflect.DeepEqual(residentOther.relationships, otherRelationships) {
 		t.Fatalf("reused relationships = %#v, want %#v", residentOther.relationships, otherRelationships)
 	}
+
+	defaultWithoutTopology := defaultData
+	defaultWithoutTopology.Snapshot = testSnapshotData(t, 7, false)
 	evictedDefault := newTopologyAssembler()
-	if err := handler.addSnapshotRelationships(context.Background(), evictedDefault, defaultData); err != nil {
-		t.Fatalf("reloading addSnapshotRelationships(%q) error = %v", defaultData.Name, err)
+	if err := handler.addSnapshotRelationships(context.Background(), evictedDefault, defaultWithoutTopology); err != nil {
+		t.Fatalf("reloading addSnapshotRelationships(%q) error = %v", defaultWithoutTopology.Name, err)
 	}
-	if !reflect.DeepEqual(evictedDefault.relationships, defaultRelationships) {
-		t.Fatalf("reloaded relationships = %#v, want %#v", evictedDefault.relationships, defaultRelationships)
+	uncachedDefault := newTopologyAssembler()
+	if err := uncachedDefault.addSnapshotRelationships(context.Background(), defaultWithoutTopology); err != nil {
+		t.Fatalf("uncached addSnapshotRelationships(%q) error = %v", defaultWithoutTopology.Name, err)
 	}
-	if len(handler.topologyRelationships) != 1 {
-		t.Fatalf("relationship cache size = %d, want 1", len(handler.topologyRelationships))
+	if !reflect.DeepEqual(evictedDefault.relationships, uncachedDefault.relationships) ||
+		reflect.DeepEqual(evictedDefault.relationships, defaultRelationships) {
+		t.Fatalf("evicted relationships = %#v, want uncached result %#v", evictedDefault.relationships, uncachedDefault.relationships)
 	}
-	if _, found := handler.topologyRelationships["default"]; !found {
-		t.Fatalf("relationship cache = %#v, want most recently used profile", handler.topologyRelationships)
+
+	reloadedOther := newTopologyAssembler()
+	if err := handler.addSnapshotRelationships(context.Background(), reloadedOther, otherData); err != nil {
+		t.Fatalf("reloading addSnapshotRelationships(%q) error = %v", otherData.Name, err)
+	}
+	if !reflect.DeepEqual(reloadedOther.relationships, otherRelationships) {
+		t.Fatalf("reloaded relationships = %#v, want %#v", reloadedOther.relationships, otherRelationships)
 	}
 }
 

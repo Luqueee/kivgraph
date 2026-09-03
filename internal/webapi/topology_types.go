@@ -3,7 +3,6 @@ package webapi
 import (
 	"errors"
 
-	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 	"github.com/Luqueee/kivgraph/internal/invalidation"
 	"github.com/Luqueee/kivgraph/internal/sourceobservation"
@@ -134,7 +133,6 @@ type topologyProfileData struct {
 	GenerationID string
 	Generation   uint64
 	Snapshot     *hotsnapshot.GraphSnapshot
-	Loaded       config.Loaded
 	Composition  topology.ProfileComposition
 	Manifest     sourceobservation.Manifest
 	ManifestOK   bool
