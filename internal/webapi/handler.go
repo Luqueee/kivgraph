@@ -37,19 +37,42 @@ var errSnapshotUnavailable = errors.New("snapshot is not published")
 // Handler serves read-only viewer requests from one published snapshot store.
 // It never accesses LadybugDB directly and never mutates the store.
 type Handler struct {
-	store  *hotsnapshot.SnapshotStore
-	logger *slog.Logger
-	assets http.Handler
+	store           *hotsnapshot.SnapshotStore
+	logger          *slog.Logger
+	assets          http.Handler
+	topologyOptions TopologyOptions
+	topologyEnabled bool
 
 	layoutMu               sync.Mutex
 	cachedLayout           *layout.Layout
 	cachedLayoutSnapshotID uint64
+
+	topologyRelationshipsMu sync.Mutex
+	topologyRelationships   map[string]topologyRelationshipCacheEntry
 }
 
 // NewHandler creates an HTTP handler backed by store. A nil store is valid and
 // makes graph-dependent endpoints return INDEX_NOT_READY.
 func NewHandler(store *hotsnapshot.SnapshotStore) http.Handler {
-	return &Handler{store: store, logger: slog.Default(), assets: webassets.New()}
+	return newHandler(store, TopologyOptions{}, false)
+}
+
+// NewHandlerWithTopology creates a viewer handler with the optional
+// generation-pinned topology API enabled. Existing callers can continue using
+// NewHandler and retain the symbol and LGVB-only surface.
+func NewHandlerWithTopology(store *hotsnapshot.SnapshotStore, options TopologyOptions) http.Handler {
+	return newHandler(store, options, true)
+}
+
+func newHandler(store *hotsnapshot.SnapshotStore, options TopologyOptions, topologyEnabled bool) http.Handler {
+	return &Handler{
+		store:                 store,
+		logger:                slog.Default(),
+		assets:                webassets.New(),
+		topologyOptions:       options,
+		topologyEnabled:       topologyEnabled,
+		topologyRelationships: make(map[string]topologyRelationshipCacheEntry),
+	}
 }
 
 func (handler *Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
@@ -71,6 +94,12 @@ func (handler *Handler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		handler.writeJSON(writer, request, http.StatusOK, map[string]string{"status": "ok"})
 	case "/api/v1/meta":
 		handler.meta(writer, request)
+	case "/api/v1/topology":
+		if !handler.topologyEnabled {
+			handler.writeError(writer, request, http.StatusNotFound, "NOT_FOUND", "endpoint not found")
+			return
+		}
+		handler.topology(writer, request)
 	case "/api/v1/search":
 		handler.search(writer, request)
 	case "/api/v1/symbol":

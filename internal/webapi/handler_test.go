@@ -1,15 +1,25 @@
 package webapi
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/invalidation"
+	"github.com/Luqueee/kivgraph/internal/sourceobservation"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
+	"github.com/Luqueee/kivgraph/internal/topology"
 )
 
 func TestHandlerMetaAndReadOnlyMethod(t *testing.T) {
@@ -131,6 +141,317 @@ func TestHandlerRejectsMissingSnapshotAndUnknownSymbol(t *testing.T) {
 	assertAPIError(t, response, http.StatusNotFound, "SYMBOL_NOT_FOUND")
 }
 
+func TestHandlerTopologyRequiresPublishedGeneration(t *testing.T) {
+	handler := NewHandlerWithTopology(hotsnapshot.NewSnapshotStore(nil), TopologyOptions{Profile: "default"})
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/topology", nil)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	assertAPIError(t, response, http.StatusServiceUnavailable, "TOPOLOGY_UNAVAILABLE")
+	if !strings.Contains(response.Body.String(), "no published generation") {
+		t.Fatalf("topology error = %q, want the missing-generation reason", response.Body.String())
+	}
+}
+
+func TestHandlerTopologyIsOptIn(t *testing.T) {
+	handler := NewHandler(hotsnapshot.NewSnapshotStore(testSnapshot(t)))
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/topology", nil)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	assertAPIError(t, response, http.StatusNotFound, "NOT_FOUND")
+}
+
+func TestHandlerTopologyRejectsMalformedGenerationPin(t *testing.T) {
+	configPath, _ := topologyTestConfiguration(t, "default")
+	handler := NewHandlerWithTopology(hotsnapshot.NewSnapshotStore(testSnapshot(t)), TopologyOptions{
+		ConfigPath: configPath,
+		Profile:    "default",
+	})
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/topology?generation_id=not-a-generation", nil)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	assertAPIError(t, response, http.StatusBadRequest, "INVALID_ARGUMENT")
+	if !strings.Contains(response.Body.String(), "generation_id") {
+		t.Fatalf("topology error = %q, want the invalid pin field", response.Body.String())
+	}
+}
+
+func TestHandlerTopologyRejectsUnknownProfileSelection(t *testing.T) {
+	configPath, _ := topologyTestConfiguration(t, "default")
+	handler := NewHandlerWithTopology(hotsnapshot.NewSnapshotStore(testSnapshot(t)), TopologyOptions{
+		ConfigPath: configPath,
+		Profile:    "default",
+	})
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/topology?profile=missing", nil)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	assertAPIError(t, response, http.StatusBadRequest, "INVALID_ARGUMENT")
+}
+
+func TestHandlerTopologyReturnsPinnedProfilesAndRelationships(t *testing.T) {
+	configPath, stateRoot := topologyTestConfiguration(t, "default", "other")
+	defaultStore := hotsnapshot.NewSnapshotStore(testSnapshotWithTopologyID(t, 7))
+	otherStore := hotsnapshot.NewSnapshotStore(testSnapshotWithTopologyID(t, 8))
+	store, err := hotsnapshot.NewProfileSnapshotStore("default", map[string]*hotsnapshot.SnapshotStore{
+		"default": defaultStore,
+		"other":   otherStore,
+	})
+	if err != nil {
+		t.Fatalf("NewProfileSnapshotStore() error = %v", err)
+	}
+	handler := NewHandlerWithTopology(store, TopologyOptions{
+		ConfigPath:       configPath,
+		InvalidationRoot: stateRoot,
+	})
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/topology?profile=default&profile=other", nil)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("topology status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+	}
+	var value topologyResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &value); err != nil {
+		t.Fatalf("decode topology: %v", err)
+	}
+	const multiProfileRequest = "/api/v1/topology?profile=default&profile=other"
+	if value.TopologyVersion != topology.CurrentSchemaVersion {
+		t.Fatalf("%s: topology_version = %d, want %d", multiProfileRequest, value.TopologyVersion, topology.CurrentSchemaVersion)
+	}
+	if value.GenerationID != "" {
+		t.Fatalf("%s: generation_id = %q, want it omitted for a multi-profile response", multiProfileRequest, value.GenerationID)
+	}
+	if len(value.Profiles) != 2 {
+		t.Fatalf("%s: profiles = %#v, want 2 profiles", multiProfileRequest, value.Profiles)
+	}
+	profiles := append([]topologyProfileView(nil), value.Profiles...)
+	sort.Slice(profiles, func(left, right int) bool { return profiles[left].ID < profiles[right].ID })
+	if profiles[0].ID != "default" || profiles[0].GenerationID != "000007" ||
+		profiles[1].ID != "other" || profiles[1].GenerationID != "000008" {
+		t.Fatalf("%s: topology profiles = %#v", multiProfileRequest, profiles)
+	}
+	if value.Completeness.Truncated || len(value.SharedInputs) != 1 ||
+		len(value.SharedInputs[0].Owners) != 2 {
+		t.Fatalf("%s: topology completeness/shared inputs = %#v / %#v", multiProfileRequest, value.Completeness, value.SharedInputs)
+	}
+	for _, expected := range []struct{ typ, status string }{
+		{typ: "membership", status: "structural"},
+		{typ: "code_dependency", status: "exact"},
+		{typ: "code_dependency", status: "candidate"},
+		{typ: "unresolved_reference", status: "conflict"},
+		{typ: "unresolved_reference", status: "unresolved"},
+	} {
+		if !hasTopologyRelationship(value.Relationships, expected.typ, expected.status) {
+			t.Fatalf("missing topology relationship type=%q status=%q; relationships = %#v", expected.typ, expected.status, value.Relationships)
+		}
+	}
+	for _, relationship := range value.Relationships {
+		if relationship.Type == "code_dependency" && relationship.Status == "candidate" && relationship.Evidence != "" {
+			t.Fatalf("%s: candidate dependency evidence = %q, want unset zero evidence", multiProfileRequest, relationship.Evidence)
+		}
+	}
+
+	request = httptest.NewRequest(http.MethodGet, "/api/v1/topology?generation_id=000007", nil)
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("single-profile topology status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+	}
+	if got := response.Header().Get("Content-Type"); !strings.HasPrefix(got, "application/json") {
+		t.Fatalf("topology content type = %q, want JSON", got)
+	}
+	var single topologyResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &single); err != nil {
+		t.Fatalf("decode single topology: %v", err)
+	}
+	if single.GenerationID != "000007" || len(single.Profiles) != 1 || single.Profiles[0].ID != "default" {
+		t.Fatalf("single topology = %#v", single)
+	}
+
+	request = httptest.NewRequest(http.MethodGet, "/api/v1/topology?profile=*&generation_id=000007", nil)
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	assertAPIError(t, response, http.StatusBadRequest, "INVALID_ARGUMENT")
+
+	request = httptest.NewRequest(http.MethodGet, "/api/v1/topology?profile=default&profile=other&generation=default:000007&generation=other:000008", nil)
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("pinned multi-profile topology status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+	}
+	var pinned topologyResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &pinned); err != nil {
+		t.Fatalf("decode pinned topology: %v", err)
+	}
+	sort.Slice(pinned.Profiles, func(left, right int) bool { return pinned.Profiles[left].ID < pinned.Profiles[right].ID })
+	if len(pinned.Profiles) != 2 ||
+		pinned.Profiles[0].ID != "default" || pinned.Profiles[0].GenerationID != "000007" ||
+		pinned.Profiles[1].ID != "other" || pinned.Profiles[1].GenerationID != "000008" {
+		t.Fatalf("pinned profiles for generation pins = %#v", pinned.Profiles)
+	}
+	for _, expected := range []struct{ typ, status string }{
+		{typ: "membership", status: "structural"},
+		{typ: "code_dependency", status: "exact"},
+		{typ: "code_dependency", status: "candidate"},
+		{typ: "unresolved_reference", status: "conflict"},
+		{typ: "unresolved_reference", status: "unresolved"},
+	} {
+		if !hasTopologyRelationship(pinned.Relationships, expected.typ, expected.status) {
+			t.Fatalf("pinned topology is missing relationship type=%q status=%q; relationships = %#v", expected.typ, expected.status, pinned.Relationships)
+		}
+	}
+}
+
+func TestHandlerTopologyReportsUnavailableCurrentSource(t *testing.T) {
+	configPath, stateRoot := topologyTestConfiguration(t, "default")
+	manager, err := invalidation.Open(stateRoot)
+	if err != nil {
+		t.Fatalf("invalidation.Open() error = %v", err)
+	}
+	observation, err := topology.NewSourceObservation("shared-worktree", "commit-a", "main", false, strings.Repeat("a", 64))
+	if err != nil {
+		t.Fatalf("NewSourceObservation() error = %v", err)
+	}
+	manifest := sourceobservation.Manifest{
+		Version:             sourceobservation.CurrentVersion,
+		Profile:             "default",
+		ResolverVersion:     "resolver-test",
+		AnalyzerFingerprint: "analyzer-test",
+		Sources: []sourceobservation.Source{{
+			Repository:  "repo",
+			Observation: observation,
+		}},
+	}
+	if err := manager.RecordPublished(context.Background(), invalidation.ProfileRecord{
+		Profile: "default", Generation: "000007", Manifest: manifest,
+	}); err != nil {
+		t.Fatalf("RecordPublished() error = %v", err)
+	}
+	if err := manager.MarkStale(context.Background(), observation.Worktree, "repo", invalidation.ReasonSourceUnavailable, "worktree disappeared"); err != nil {
+		t.Fatalf("MarkStale() error = %v", err)
+	}
+
+	handler := NewHandlerWithTopology(hotsnapshot.NewSnapshotStore(testSnapshotWithTopologyID(t, 7)), TopologyOptions{
+		ConfigPath:       configPath,
+		Profile:          "default",
+		InvalidationRoot: stateRoot,
+	})
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/topology", nil)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("topology status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+	}
+	var value topologyResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &value); err != nil {
+		t.Fatalf("decode topology: %v", err)
+	}
+	if len(value.Profiles) != 1 || len(value.Sources) != 1 || value.Sources[0].Status != "unavailable" ||
+		value.Sources[0].Current != nil || value.Sources[0].Indexed == nil ||
+		!strings.Contains(value.Sources[0].Reason, "worktree disappeared") || value.Profiles[0].Status != "stale" {
+		t.Fatalf("topology source/profile status = %#v / %#v", value.Sources, value.Profiles)
+	}
+}
+
+func TestHandlerTopologyRejectsAStaleContinuation(t *testing.T) {
+	configPath, _ := topologyTestConfiguration(t, "default")
+	store := hotsnapshot.NewSnapshotStore(testSnapshotWithTopologyID(t, 7))
+	handler := NewHandlerWithTopology(store, TopologyOptions{ConfigPath: configPath, Profile: "default"})
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/topology", nil)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("initial topology status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+	}
+	if err := store.Publish(testSnapshotWithTopologyID(t, 8)); err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+	request = httptest.NewRequest(http.MethodGet, "/api/v1/topology?generation_id=000007", nil)
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	assertAPIError(t, response, http.StatusConflict, "GENERATION_CHANGED")
+	if !strings.Contains(response.Body.String(), "refresh") {
+		t.Fatalf("stale continuation error = %q, want refresh guidance", response.Body.String())
+	}
+}
+
+func TestTopologyDeclaredRepositoryWinsSynthesizedRecord(t *testing.T) {
+	assembler := newTopologyAssembler()
+	if err := assembler.addSnapshotRepositories(context.Background(), testSnapshot(t)); err != nil {
+		t.Fatalf("addSnapshotRepositories() error = %v", err)
+	}
+	data := topologyProfileData{
+		Name:     "default",
+		Snapshot: testSnapshot(t),
+		Composition: topology.ProfileComposition{
+			Profile:      topology.Profile{ID: "default"},
+			Repositories: []topology.LogicalRepository{{ID: "repo", Name: "Repository"}},
+		},
+		ManifestOK: true,
+	}
+	if err := assembler.addComposition(context.Background(), data); err != nil {
+		t.Fatalf("declared repository after synthesized record: %v", err)
+	}
+	repositories := assembler.response().Repositories
+	if len(repositories) != 1 || repositories[0].ID != "repo" || repositories[0].Name != "Repository" {
+		t.Fatalf("repositories for declared id %q = %#v, want the declared name", "repo", repositories)
+	}
+
+	conflicting := data
+	conflicting.Composition.Repositories = []topology.LogicalRepository{{ID: "repo", Name: "Conflicting repository"}}
+	if err := assembler.addComposition(context.Background(), conflicting); !errors.Is(err, errTopologyAmbiguous) {
+		t.Fatalf("conflicting declared repository error = %v, want %v", err, errTopologyAmbiguous)
+	}
+}
+
+func hasTopologyRelationship(relationships []topologyRelationshipView, typ, status string) bool {
+	for _, relationship := range relationships {
+		if relationship.Type == typ && relationship.Status == status {
+			return true
+		}
+	}
+	return false
+}
+
+func topologyTestConfiguration(t *testing.T, profiles ...string) (string, string) {
+	t.Helper()
+	root := t.TempDir()
+	testsupport.SetHome(t, filepath.Join(root, "home"))
+	configPath := filepath.Join(root, "config.yaml")
+	repositoriesPath := filepath.Join(root, "repositories.yaml")
+	if _, err := config.Initialize(config.InitOptions{ConfigPath: configPath, RepositoriesPath: repositoriesPath}); err != nil {
+		t.Fatalf("config.Initialize() error = %v", err)
+	}
+	for _, profile := range profiles[1:] {
+		if err := config.CreateProfile(configPath, profile); err != nil {
+			t.Fatalf("config.CreateProfile(%q) error = %v", profile, err)
+		}
+	}
+	sourcePath := filepath.Join(root, "source")
+	if err := os.MkdirAll(sourcePath, 0o700); err != nil {
+		t.Fatalf("create source path: %v", err)
+	}
+	for _, profile := range profiles {
+		value := topology.Topology{
+			Version:      topology.CurrentSchemaVersion,
+			Repositories: []topology.LogicalRepository{{ID: "repo", Name: "Repository"}},
+			Worktrees:    []topology.Worktree{{ID: "shared-worktree", Repository: "repo", Path: sourcePath}},
+			Profiles:     []topology.Profile{{ID: topology.ProfileID(profile), Worktrees: []topology.WorktreeSelection{{Repository: "repo", Worktree: "shared-worktree"}}}},
+		}
+		if err := config.SaveProfileTopology(configPath, profile, value); err != nil {
+			t.Fatalf("config.SaveProfileTopology(%q) error = %v", profile, err)
+		}
+	}
+	loaded, err := config.LoadProfile(configPath, profiles[0])
+	if err != nil {
+		t.Fatalf("config.LoadProfile() error = %v", err)
+	}
+	stateRoot := filepath.Dir(filepath.Dir(filepath.Dir(loaded.Config.Storage.DatabasePath)))
+	return configPath, stateRoot
+}
+
 func assertAPIError(t *testing.T, response *httptest.ResponseRecorder, status int, code string) {
 	t.Helper()
 	if response.Code != status {
@@ -146,6 +467,16 @@ func assertAPIError(t *testing.T, response *httptest.ResponseRecorder, status in
 }
 
 func testSnapshot(t *testing.T) *hotsnapshot.GraphSnapshot {
+	t.Helper()
+	return testSnapshotData(t, 7, false)
+}
+
+func testSnapshotWithTopologyID(t *testing.T, snapshotID uint64) *hotsnapshot.GraphSnapshot {
+	t.Helper()
+	return testSnapshotData(t, snapshotID, true)
+}
+
+func testSnapshotData(t *testing.T, snapshotID uint64, includeTopologyRecords bool) *hotsnapshot.GraphSnapshot {
 	t.Helper()
 	interner := hotsnapshot.NewStringInterner()
 	intern := func(value string) hotsnapshot.InternedString {
@@ -182,10 +513,32 @@ func testSnapshot(t *testing.T) *hotsnapshot.GraphSnapshot {
 	intern("func Other()")
 	intern("call")
 	intern("GoTypesUse")
+	intern("AMBIGUOUS_SYMBOL")
+	intern("candidate dependency")
+	intern("unresolved symbol")
+	intern("not found")
+	intern("Missing")
 	strings := interner.Freeze()
+	var packageDependencies []hotsnapshot.PackageDependencyRecord
+	var unresolved []hotsnapshot.UnresolvedReferenceRecord
+	if includeTopologyRecords {
+		packageDependencies = []hotsnapshot.PackageDependencyRecord{{
+			Source: 0, Target: 0, Kind: facts.CodePackageDependsOn, Confidence: facts.CodeCandidate,
+			Provenance: facts.CodePackageManifest,
+		}}
+		unresolved = []hotsnapshot.UnresolvedReferenceRecord{{
+			Key: evidenceKey, Repository: 0, File: 0, Source: 0, Language: language,
+			RequestedPackage: interned(strings, "example"), RequestedSymbol: interned(strings, "Missing"),
+			Reason: interned(strings, "AMBIGUOUS_SYMBOL"), Detail: interned(strings, "candidate dependency"),
+		}, {
+			Key: evidenceKey, Repository: 0, File: 0, Source: 0, Language: language,
+			RequestedPackage: interned(strings, "example"), RequestedSymbol: interned(strings, "Missing"),
+			Reason: interned(strings, "unresolved symbol"), Detail: interned(strings, "not found"),
+		}}
+	}
 
 	snapshot, err := hotsnapshot.NewGraphSnapshot(hotsnapshot.GraphSnapshotInput{
-		ID:              7,
+		ID:              snapshotID,
 		CreatedAt:       time.Unix(1_700_000_000, 0).UTC(),
 		Version:         1,
 		SchemaVersion:   2,
@@ -200,12 +553,14 @@ func testSnapshot(t *testing.T) *hotsnapshot.GraphSnapshot {
 		Files: []hotsnapshot.FileRecord{{
 			Key: fileKey, Repository: 0, Package: 0, Path: interned(strings, "src/index.go"), Language: language,
 		}},
+		PackageDependencies: packageDependencies,
 		Symbols: []hotsnapshot.SymbolRecord{
 			{StableKey: 0, CanonicalIdentity: interned(strings, "identity-a"), File: 0, Language: language, Name: nameLoad, QualifiedName: qnameA, Kind: kindFunction, Signature: interned(strings, "func Load()"), StartLine: 1, EndLine: 2},
 			{StableKey: 1, CanonicalIdentity: interned(strings, "identity-b"), File: 0, Language: language, Name: nameLoad, QualifiedName: qnameB, Kind: kindFunction, Signature: interned(strings, "func Loader()"), StartLine: 4, EndLine: 5},
 			{StableKey: 2, CanonicalIdentity: interned(strings, "identity-c"), File: 0, Language: language, Name: nameOther, QualifiedName: qnameC, Kind: kindFunction, Signature: interned(strings, "func Other()"), StartLine: 7, EndLine: 8},
 		},
 		Evidence:       []hotsnapshot.EvidenceRecord{{Key: evidenceKey, SourceFile: 0, TargetFile: 0, Kind: interned(strings, "call"), Provenance: interned(strings, "GoTypesUse")}},
+		Unresolved:     unresolved,
 		ForwardOffsets: []uint32{0, 1, 2, 2},
 		ForwardEdges: []hotsnapshot.PackedEdge{
 			{Target: 1, Evidence: 0, Kind: facts.CodeCallsDirect, Confidence: facts.CodeExactTypechecked, Provenance: facts.CodeGoTypesUse},
