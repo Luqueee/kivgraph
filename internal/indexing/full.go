@@ -9,6 +9,7 @@ import (
 
 	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/freshness"
 	"github.com/Luqueee/kivgraph/internal/indexer"
 	"github.com/Luqueee/kivgraph/internal/metrics"
 	"github.com/Luqueee/kivgraph/internal/rebuild"
@@ -210,6 +211,10 @@ func RunFull(ctx context.Context, options FullOptions) (FullResult, error) {
 		return FullResult{}, fmt.Errorf("full index: resolver version is required")
 	}
 
+	before, err := freshness.Capture(ctx, options.Repositories)
+	if err != nil {
+		return FullResult{}, fmt.Errorf("capture source inventory: %w", err)
+	}
 	factSet, indexReport, err := indexer.Full(ctx, indexer.FullOptions{
 		Repositories:                      options.Repositories,
 		SyntheticWorkFile:                 options.SyntheticWorkFile,
@@ -279,6 +284,13 @@ func RunFull(ctx context.Context, options FullOptions) (FullResult, error) {
 		return result, fmt.Errorf("index repositories: %w", err)
 	}
 	result.Counts = countsFromFacts(factSet)
+	after, err := freshness.Capture(ctx, options.Repositories)
+	if err != nil {
+		return result, fmt.Errorf("verify source inventory: %w", err)
+	}
+	if before != after {
+		return result, fmt.Errorf("source inventory changed during indexing; no fresh generation published")
+	}
 
 	layout, err := rebuild.Roles(ctx, rebuild.LayoutOptions{
 		Root:  filepath.Clean(options.Root),
@@ -308,6 +320,9 @@ func RunFull(ctx context.Context, options FullOptions) (FullResult, error) {
 	}
 	if !rebuildReport.Passed {
 		return result, fmt.Errorf("rebuild graph did not pass its gates")
+	}
+	if err := freshness.Save(options.Root, uint64(snapshotID), after); err != nil {
+		return result, fmt.Errorf("record published generation freshness: %w", err)
 	}
 	return result, nil
 }

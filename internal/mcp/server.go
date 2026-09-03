@@ -7,6 +7,7 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/Luqueee/kivgraph/internal/freshness"
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 	"github.com/Luqueee/kivgraph/internal/indexing"
 	"github.com/Luqueee/kivgraph/internal/mcp/tools"
@@ -187,7 +188,16 @@ func newServerWithIndexer(
 		tools.RegisterIndexProject(server, indexer, callObserver)
 		return server
 	}
-	registerQueryTools(server, observer, snapshotStore, registry, callObserver)
+	var statusProbe tools.HostStatusProbe
+	if verifier, ok := indexer.(interface {
+		ContentFreshness(context.Context) freshness.Status
+	}); ok {
+		statusProbe = func(ctx context.Context) (tools.HostStatus, error) {
+			status := verifier.ContentFreshness(ctx)
+			return tools.HostStatus{ContentFreshness: &status}, nil
+		}
+	}
+	registerQueryTools(server, observer, snapshotStore, registry, callObserver, statusProbe)
 	tools.RegisterIndexProject(server, indexer, callObserver)
 	return server
 }
@@ -202,8 +212,13 @@ func registerQueryTools(
 	snapshotStore *hotsnapshot.SnapshotStore,
 	registry *metrics.Registry,
 	callObserver tools.CallObserver,
+	probes ...tools.HostStatusProbe,
 ) {
-	tools.RegisterGraphStatusWithObserverAndSnapshotStoreAndMetrics(server, observer, snapshotStore, nil, registry, callObserver)
+	var probe tools.HostStatusProbe
+	if len(probes) > 0 {
+		probe = probes[0]
+	}
+	tools.RegisterGraphStatusWithObserverAndSnapshotStoreAndMetrics(server, observer, snapshotStore, probe, registry, callObserver)
 	tools.RegisterListRepositoriesWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
 	tools.RegisterFindSymbolWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
 	tools.RegisterFindByIntentWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
