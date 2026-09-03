@@ -150,6 +150,10 @@ func TestFactCacheMissesWhenASourceFileChanges(t *testing.T) {
 	fixture := newCachedFixture(t)
 	cold, _ := fixture.index()
 
+	// newCachedFixture gives this test a private worktree. Rewriting that
+	// worktree in place is intentional: sourceIdentity includes RealPath, so
+	// separate copies would have different cache identities and could not prove
+	// that restoring the content reuses the original address.
 	writeFullFixture(t, filepath.Join(fixture.root, "fixture.go"), `package fixture
 
 func Greeting() string { return "hello" }
@@ -484,20 +488,7 @@ func TestFactCacheReportsRefusalReasons(t *testing.T) {
 			if _, report := fixture.index(); report.Cache.Misses != 1 {
 				t.Fatalf("setup cache %q = %+v, want one miss", test.name, report.Cache)
 			}
-			entries, err := os.ReadDir(fixture.cache)
-			if err != nil {
-				t.Fatalf("ReadDir(%q) for %q error = %v", fixture.cache, test.name, err)
-			}
-			var path string
-			for _, entry := range entries {
-				if !entry.IsDir() && filepath.Ext(entry.Name()) == ".json" {
-					path = filepath.Join(fixture.cache, entry.Name())
-					break
-				}
-			}
-			if path == "" {
-				t.Fatalf("ReadDir(%q) for %q found no cache entry: %v", fixture.cache, test.name, entries)
-			}
+			path := cacheEntryForFixture(t, fixture)
 			if test.mutate != nil {
 				test.mutate(t, path)
 			}
@@ -515,24 +506,52 @@ func TestFactCacheReportsRefusalReasons(t *testing.T) {
 	}
 }
 
+func cacheEntryForFixture(t *testing.T, fixture *cachedFixture) string {
+	t.Helper()
+	entries, err := os.ReadDir(fixture.cache)
+	if err != nil {
+		t.Fatalf("ReadDir(%q) for %q error = %v", fixture.cache, t.Name(), err)
+	}
+	unitPrefix := "go\x00" + fixture.repository.Name + "\x00" + sourceIdentity(fixture.repository) + "\x00"
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
+			continue
+		}
+		path := filepath.Join(fixture.cache, entry.Name())
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		var cached cacheEntry
+		if err := json.Unmarshal(data, &cached); err != nil {
+			continue
+		}
+		if cached.Version == cacheEntryVersion && strings.HasPrefix(cached.Unit, unitPrefix) {
+			return path
+		}
+	}
+	t.Fatalf("cache entry for unit prefix %q not found in %q for %q", unitPrefix, fixture.cache, t.Name())
+	return ""
+}
+
 func mutateCacheEntry(mutate func(*cacheEntry)) func(*testing.T, string) {
 	return func(t *testing.T, path string) {
 		t.Helper()
 		data, err := os.ReadFile(path)
 		if err != nil {
-			t.Fatalf("ReadFile(%q) error = %v", path, err)
+			t.Fatalf("ReadFile(%q) for %q error = %v", path, t.Name(), err)
 		}
 		var entry cacheEntry
 		if err := json.Unmarshal(data, &entry); err != nil {
-			t.Fatalf("Unmarshal(%q) error = %v", path, err)
+			t.Fatalf("Unmarshal(%q) for %q error = %v", path, t.Name(), err)
 		}
 		mutate(&entry)
 		data, err = json.Marshal(entry)
 		if err != nil {
-			t.Fatalf("Marshal(%q) error = %v", path, err)
+			t.Fatalf("Marshal(%q) for %q error = %v", path, t.Name(), err)
 		}
 		if err := os.WriteFile(path, data, 0o600); err != nil {
-			t.Fatalf("WriteFile(%q) error = %v", path, err)
+			t.Fatalf("WriteFile(%q) for %q error = %v", path, t.Name(), err)
 		}
 	}
 }
