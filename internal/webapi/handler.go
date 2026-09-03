@@ -49,6 +49,7 @@ type Handler struct {
 
 	topologyRelationshipsMu sync.Mutex
 	topologyRelationships   map[string]topologyRelationshipCacheEntry
+	topologyRelationshipLRU []string
 }
 
 // NewHandler creates an HTTP handler backed by store. A nil store is valid and

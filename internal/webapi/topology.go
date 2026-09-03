@@ -211,6 +211,9 @@ func (handler *Handler) addSnapshotRelationships(
 ) error {
 	handler.topologyRelationshipsMu.Lock()
 	entry, found := handler.topologyRelationships[data.Name]
+	if found {
+		handler.touchTopologyRelationshipLocked(data.Name)
+	}
 	handler.topologyRelationshipsMu.Unlock()
 	if !found || entry.GenerationID != data.GenerationID {
 		collector := newTopologyAssembler()
@@ -224,8 +227,11 @@ func (handler *Handler) addSnapshotRelationships(
 		handler.topologyRelationshipsMu.Lock()
 		if current, exists := handler.topologyRelationships[data.Name]; exists && current.GenerationID == data.GenerationID {
 			entry = current
+			handler.touchTopologyRelationshipLocked(data.Name)
 		} else {
 			handler.topologyRelationships[data.Name] = entry
+			handler.touchTopologyRelationshipLocked(data.Name)
+			handler.evictTopologyRelationshipsLocked()
 		}
 		handler.topologyRelationshipsMu.Unlock()
 	}
@@ -238,6 +244,28 @@ func (handler *Handler) addSnapshotRelationships(
 		assembler.markTruncated(entry.TruncatedReason)
 	}
 	return nil
+}
+
+func (handler *Handler) touchTopologyRelationshipLocked(name string) {
+	for index, current := range handler.topologyRelationshipLRU {
+		if current == name {
+			handler.topologyRelationshipLRU = append(handler.topologyRelationshipLRU[:index], handler.topologyRelationshipLRU[index+1:]...)
+			break
+		}
+	}
+	handler.topologyRelationshipLRU = append(handler.topologyRelationshipLRU, name)
+}
+
+func (handler *Handler) evictTopologyRelationshipsLocked() {
+	limit := handler.store.MaxOpenProfiles()
+	if limit < 1 {
+		limit = 1
+	}
+	for len(handler.topologyRelationshipLRU) > limit {
+		name := handler.topologyRelationshipLRU[0]
+		handler.topologyRelationshipLRU = handler.topologyRelationshipLRU[1:]
+		delete(handler.topologyRelationships, name)
+	}
 }
 
 func (assembler *topologyAssembler) addSnapshotRelationships(ctx context.Context, data topologyProfileData) error {

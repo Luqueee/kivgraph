@@ -132,8 +132,8 @@ func TestProfileSnapshotStoreDefaultsAndCanonicalisesSelection(t *testing.T) {
 	if err != nil || len(selected) != 1 || selected[0].Name != "z-default" {
 		t.Fatalf("ResolveProfiles(default) = %#v, %v", selected, err)
 	}
-	if store.ProfileCount() != 2 || store.DefaultProfileName() != "z-default" {
-		t.Fatalf("profile metadata = %d, %q", store.ProfileCount(), store.DefaultProfileName())
+	if store.ProfileCount() != 2 || store.DefaultProfileName() != "z-default" || store.MaxOpenProfiles() != 2 {
+		t.Fatalf("profile metadata = %d, %q, max open = %d", store.ProfileCount(), store.DefaultProfileName(), store.MaxOpenProfiles())
 	}
 	if err := store.AddProfile("", NewSnapshotStore(nil)); err == nil {
 		t.Fatal("AddProfile(empty) error = nil")
@@ -156,8 +156,8 @@ func TestProfileSnapshotStoreDefaultsAndCanonicalisesSelection(t *testing.T) {
 
 func TestProfileSnapshotStoreRejectsInvalidConstruction(t *testing.T) {
 	var absent *SnapshotStore
-	if absent.ProfileCount() != 0 || absent.DefaultProfileName() != "" {
-		t.Fatalf("nil profile metadata = %d, %q", absent.ProfileCount(), absent.DefaultProfileName())
+	if absent.ProfileCount() != 0 || absent.DefaultProfileName() != "" || absent.MaxOpenProfiles() != 0 {
+		t.Fatalf("nil profile metadata = %d, %q, max open = %d", absent.ProfileCount(), absent.DefaultProfileName(), absent.MaxOpenProfiles())
 	}
 	if _, err := absent.ResolveProfiles(nil); err == nil {
 		t.Fatal("nil ResolveProfiles() error = nil")
@@ -175,8 +175,8 @@ func TestProfileSnapshotStoreRejectsInvalidConstruction(t *testing.T) {
 		t.Fatal("NewProfileSnapshotStore(missing default) error = nil")
 	}
 	direct := NewSnapshotStore(nil)
-	if direct.ProfileCount() != 1 || direct.DefaultProfileName() != "" {
-		t.Fatalf("direct profile metadata = %d, %q", direct.ProfileCount(), direct.DefaultProfileName())
+	if direct.ProfileCount() != 1 || direct.DefaultProfileName() != "" || direct.MaxOpenProfiles() != 1 {
+		t.Fatalf("direct profile metadata = %d, %q, max open = %d", direct.ProfileCount(), direct.DefaultProfileName(), direct.MaxOpenProfiles())
 	}
 	if err := direct.AddProfile("other", NewSnapshotStore(nil)); err == nil {
 		t.Fatal("AddProfile() on direct store error = nil")
@@ -269,6 +269,9 @@ func TestPublishedProfileCountsTowardMaximumOpenProfiles(t *testing.T) {
 	}
 	if err := a.Publish(publishedSnapshot(t, 3)); err != nil {
 		t.Fatalf("Publish(profile=a, generation=3) error = %v", err)
+	}
+	if a.Load() == nil {
+		t.Fatal("Load(profile=a) = nil after Publish(generation=3); want published snapshot resident before profile b is loaded")
 	}
 	if b.Load() == nil {
 		t.Fatal("Load(profile=b) = nil")

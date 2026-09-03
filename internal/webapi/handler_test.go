@@ -317,6 +317,39 @@ func TestHandlerTopologyReturnsPinnedProfilesAndRelationships(t *testing.T) {
 	}
 }
 
+func TestTopologyRelationshipCacheRespectsMaximumOpenProfiles(t *testing.T) {
+	defaultStore := hotsnapshot.NewSnapshotStore(testSnapshotWithTopologyID(t, 7))
+	otherStore := hotsnapshot.NewSnapshotStore(testSnapshotWithTopologyID(t, 8))
+	store, err := hotsnapshot.NewProfileSnapshotStore("default", map[string]*hotsnapshot.SnapshotStore{
+		"default": defaultStore,
+		"other":   otherStore,
+	})
+	if err != nil {
+		t.Fatalf("NewProfileSnapshotStore() error = %v", err)
+	}
+	if err := store.SetMaxOpenProfiles(1); err != nil {
+		t.Fatalf("SetMaxOpenProfiles(1) error = %v", err)
+	}
+	handler := &Handler{
+		store:                 store,
+		topologyRelationships: make(map[string]topologyRelationshipCacheEntry),
+	}
+	for _, data := range []topologyProfileData{
+		{Name: "default", GenerationID: "000007", Snapshot: testSnapshotWithTopologyID(t, 7)},
+		{Name: "other", GenerationID: "000008", Snapshot: testSnapshotWithTopologyID(t, 8)},
+	} {
+		if err := handler.addSnapshotRelationships(context.Background(), newTopologyAssembler(), data); err != nil {
+			t.Fatalf("addSnapshotRelationships(%q) error = %v", data.Name, err)
+		}
+	}
+	if len(handler.topologyRelationships) != 1 {
+		t.Fatalf("relationship cache size = %d, want 1", len(handler.topologyRelationships))
+	}
+	if _, found := handler.topologyRelationships["other"]; !found {
+		t.Fatalf("relationship cache = %#v, want most recently used profile", handler.topologyRelationships)
+	}
+}
+
 func TestHandlerTopologyReportsUnavailableCurrentSource(t *testing.T) {
 	configPath, stateRoot := topologyTestConfiguration(t, "default")
 	manager, err := invalidation.Open(stateRoot)
@@ -548,7 +581,12 @@ func topologyTestConfiguration(t *testing.T, profiles ...string) (string, string
 	if err != nil {
 		t.Fatalf("config.LoadProfile() error = %v", err)
 	}
-	stateRoot := filepath.Dir(filepath.Dir(filepath.Dir(loaded.Config.Storage.DatabasePath)))
+	databaseDirectory := filepath.Dir(loaded.Config.Storage.DatabasePath)
+	profilesDirectory := filepath.Dir(databaseDirectory)
+	if filepath.Base(profilesDirectory) != "profiles" {
+		t.Fatalf("storage layout for profile %q = %q, want a profiles/<name> parent", profiles[0], loaded.Config.Storage.DatabasePath)
+	}
+	stateRoot := filepath.Dir(profilesDirectory)
 	return configPath, stateRoot
 }
 
@@ -622,7 +660,7 @@ func testSnapshotData(t *testing.T, snapshotID uint64, includeTopologyRecords bo
 	intern("unresolved symbol")
 	intern("not found")
 	intern("Missing")
-	strings := interner.Freeze()
+	stringTable := interner.Freeze()
 	var packageDependencies []hotsnapshot.PackageDependencyRecord
 	var unresolved []hotsnapshot.UnresolvedReferenceRecord
 	if includeTopologyRecords {
@@ -632,12 +670,12 @@ func testSnapshotData(t *testing.T, snapshotID uint64, includeTopologyRecords bo
 		}}
 		unresolved = []hotsnapshot.UnresolvedReferenceRecord{{
 			Key: evidenceKey, Repository: 0, File: 0, Source: 0, Language: language,
-			RequestedPackage: interned(strings, "example"), RequestedSymbol: interned(strings, "Missing"),
-			Reason: interned(strings, "AMBIGUOUS_SYMBOL"), Detail: interned(strings, "candidate dependency"),
+			RequestedPackage: interned(stringTable, "example"), RequestedSymbol: interned(stringTable, "Missing"),
+			Reason: interned(stringTable, "AMBIGUOUS_SYMBOL"), Detail: interned(stringTable, "candidate dependency"),
 		}, {
 			Key: evidenceKey, Repository: 0, File: 0, Source: 0, Language: language,
-			RequestedPackage: interned(strings, "example"), RequestedSymbol: interned(strings, "Missing"),
-			Reason: interned(strings, "unresolved symbol"), Detail: interned(strings, "not found"),
+			RequestedPackage: interned(stringTable, "example"), RequestedSymbol: interned(stringTable, "Missing"),
+			Reason: interned(stringTable, "unresolved symbol"), Detail: interned(stringTable, "not found"),
 		}}
 	}
 
@@ -647,23 +685,23 @@ func testSnapshotData(t *testing.T, snapshotID uint64, includeTopologyRecords bo
 		Version:         1,
 		SchemaVersion:   2,
 		ResolverVersion: "resolver-test",
-		Strings:         strings,
+		Strings:         stringTable,
 		Repositories: []hotsnapshot.RepositoryRecord{{
-			Key: repoKey, Name: interned(strings, "repo"), Path: interned(strings, "/workspace/repo"), Languages: interned(strings, "go"),
+			Key: repoKey, Name: interned(stringTable, "repo"), Path: interned(stringTable, "/workspace/repo"), Languages: interned(stringTable, "go"),
 		}},
 		Packages: []hotsnapshot.PackageRecord{{
-			Key: packageKey, Repository: 0, Language: language, Name: interned(strings, "example"), ModulePath: interned(strings, "example"),
+			Key: packageKey, Repository: 0, Language: language, Name: interned(stringTable, "example"), ModulePath: interned(stringTable, "example"),
 		}},
 		Files: []hotsnapshot.FileRecord{{
-			Key: fileKey, Repository: 0, Package: 0, Path: interned(strings, "src/index.go"), Language: language,
+			Key: fileKey, Repository: 0, Package: 0, Path: interned(stringTable, "src/index.go"), Language: language,
 		}},
 		PackageDependencies: packageDependencies,
 		Symbols: []hotsnapshot.SymbolRecord{
-			{StableKey: 0, CanonicalIdentity: interned(strings, "identity-a"), File: 0, Language: language, Name: nameLoad, QualifiedName: qnameA, Kind: kindFunction, Signature: interned(strings, "func Load()"), StartLine: 1, EndLine: 2},
-			{StableKey: 1, CanonicalIdentity: interned(strings, "identity-b"), File: 0, Language: language, Name: nameLoad, QualifiedName: qnameB, Kind: kindFunction, Signature: interned(strings, "func Loader()"), StartLine: 4, EndLine: 5},
-			{StableKey: 2, CanonicalIdentity: interned(strings, "identity-c"), File: 0, Language: language, Name: nameOther, QualifiedName: qnameC, Kind: kindFunction, Signature: interned(strings, "func Other()"), StartLine: 7, EndLine: 8},
+			{StableKey: 0, CanonicalIdentity: interned(stringTable, "identity-a"), File: 0, Language: language, Name: nameLoad, QualifiedName: qnameA, Kind: kindFunction, Signature: interned(stringTable, "func Load()"), StartLine: 1, EndLine: 2},
+			{StableKey: 1, CanonicalIdentity: interned(stringTable, "identity-b"), File: 0, Language: language, Name: nameLoad, QualifiedName: qnameB, Kind: kindFunction, Signature: interned(stringTable, "func Loader()"), StartLine: 4, EndLine: 5},
+			{StableKey: 2, CanonicalIdentity: interned(stringTable, "identity-c"), File: 0, Language: language, Name: nameOther, QualifiedName: qnameC, Kind: kindFunction, Signature: interned(stringTable, "func Other()"), StartLine: 7, EndLine: 8},
 		},
-		Evidence:       []hotsnapshot.EvidenceRecord{{Key: evidenceKey, SourceFile: 0, TargetFile: 0, Kind: interned(strings, "call"), Provenance: interned(strings, "GoTypesUse")}},
+		Evidence:       []hotsnapshot.EvidenceRecord{{Key: evidenceKey, SourceFile: 0, TargetFile: 0, Kind: interned(stringTable, "call"), Provenance: interned(stringTable, "GoTypesUse")}},
 		Unresolved:     unresolved,
 		ForwardOffsets: []uint32{0, 1, 2, 2},
 		ForwardEdges: []hotsnapshot.PackedEdge{
