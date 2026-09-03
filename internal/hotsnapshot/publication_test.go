@@ -257,6 +257,30 @@ func TestEvictedProfileNeverRepublishesAnOlderDeferredGeneration(t *testing.T) {
 	}
 }
 
+func TestPublishedProfileCountsTowardMaximumOpenProfiles(t *testing.T) {
+	a := NewDeferredSnapshotStore(1, func() (*GraphSnapshot, error) { return publishedSnapshot(t, 1), nil })
+	b := NewDeferredSnapshotStore(2, func() (*GraphSnapshot, error) { return publishedSnapshot(t, 2), nil })
+	store, err := NewProfileSnapshotStore("a", map[string]*SnapshotStore{"a": a, "b": b})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetMaxOpenProfiles(1); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Publish(publishedSnapshot(t, 3)); err != nil {
+		t.Fatalf("Publish(profile=a, generation=3) error = %v", err)
+	}
+	if b.Load() == nil {
+		t.Fatal("Load(profile=b) = nil")
+	}
+	if snapshot := a.Load(); snapshot != nil {
+		t.Fatalf("published profile was not evicted; Load(profile=a) returned generation %d", snapshot.Metadata().ID)
+	}
+	if !errors.Is(a.LoadFailure(), ErrSnapshotGeneration) {
+		t.Fatalf("LoadFailure(profile=a) = %v, want ErrSnapshotGeneration", a.LoadFailure())
+	}
+}
+
 func TestConcurrentDeferredLoadsRespectMaximumOpenProfiles(t *testing.T) {
 	entered := make(chan struct{}, 2)
 	release := make(chan struct{})

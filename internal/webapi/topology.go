@@ -625,7 +625,7 @@ func (handler *Handler) topology(writer http.ResponseWriter, request *http.Reque
 	}
 	response, err := handler.buildTopology(request.Context(), query)
 	if err != nil {
-		status, code := http.StatusInternalServerError, "TOPOLOGY_UNAVAILABLE"
+		status, code := http.StatusInternalServerError, "INTERNAL"
 		switch {
 		case errors.Is(err, errTopologyInvalidArgument):
 			status, code = http.StatusBadRequest, "INVALID_ARGUMENT"

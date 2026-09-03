@@ -41,6 +41,11 @@ reached, the server keeps the deterministic prefix and sets
 complete. When source metadata is also incomplete, `completeness.reason` names
 both the incompleteness and truncation reasons.
 
+Malformed requests return `400 INVALID_ARGUMENT`; stale continuations return
+`409 GENERATION_CHANGED`; ambiguous declarations return
+`409 TOPOLOGY_AMBIGUOUS`. Unavailable generations return
+`503 TOPOLOGY_UNAVAILABLE`; unexpected assembly failures return `500 INTERNAL`.
+
 Structural membership is emitted separately from source-backed code
 dependencies. Exact and candidate relationships retain their confidence,
 provenance and evidence key. Unresolved references have no fabricated target;

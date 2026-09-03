@@ -438,6 +438,9 @@ func (store *SnapshotStore) Publish(candidate *GraphSnapshot) error {
 			// asking for, so a rebuild recovers a server without a restart.
 			store.failure.Store(nil)
 			store.generation.Store(candidateID)
+			if store.onLoad != nil {
+				store.onLoad()
+			}
 			return nil
 		}
 	}

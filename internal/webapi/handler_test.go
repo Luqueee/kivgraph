@@ -253,27 +253,40 @@ func TestHandlerTopologyReturnsPinnedProfilesAndRelationships(t *testing.T) {
 		}
 	}
 
-	request = httptest.NewRequest(http.MethodGet, "/api/v1/topology?generation_id=000007", nil)
+	const singleProfileRequest = "/api/v1/topology?generation_id=000007"
+	request = httptest.NewRequest(http.MethodGet, singleProfileRequest, nil)
 	response = httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 	if response.Code != http.StatusOK {
-		t.Fatalf("single-profile topology status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+		t.Fatalf("%s: status = %d, want %d; body=%s", singleProfileRequest, response.Code, http.StatusOK, response.Body.String())
 	}
 	if got := response.Header().Get("Content-Type"); !strings.HasPrefix(got, "application/json") {
-		t.Fatalf("topology content type = %q, want JSON", got)
+		t.Fatalf("%s: topology content type = %q, want JSON", singleProfileRequest, got)
 	}
 	var single topologyResponse
 	if err := json.Unmarshal(response.Body.Bytes(), &single); err != nil {
-		t.Fatalf("decode single topology: %v", err)
+		t.Fatalf("%s: decode single topology: %v", singleProfileRequest, err)
 	}
 	if single.GenerationID != "000007" || len(single.Profiles) != 1 || single.Profiles[0].ID != "default" {
-		t.Fatalf("single topology = %#v", single)
+		t.Fatalf("%s: single topology = %#v", singleProfileRequest, single)
 	}
 
 	request = httptest.NewRequest(http.MethodGet, "/api/v1/topology?profile=*&generation_id=000007", nil)
 	response = httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
-	assertAPIError(t, response, http.StatusBadRequest, "INVALID_ARGUMENT")
+	assertAPIError(t, response, http.StatusBadRequest, "INVALID_ARGUMENT", request.URL.String())
+
+	for _, rejected := range []string{
+		"/api/v1/topology?profile=default&profile=other&generation=default:000007",
+		"/api/v1/topology?profile=default&generation=other:000008",
+		"/api/v1/topology?profile=default&generation=default:not-a-generation",
+		"/api/v1/topology?profile=default&generation=default:000007&generation=default:000008",
+	} {
+		request = httptest.NewRequest(http.MethodGet, rejected, nil)
+		response = httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		assertAPIError(t, response, http.StatusBadRequest, "INVALID_ARGUMENT", request.URL.String())
+	}
 
 	request = httptest.NewRequest(http.MethodGet, "/api/v1/topology?profile=default&profile=other&generation=default:000007&generation=other:000008", nil)
 	response = httptest.NewRecorder()
@@ -463,8 +476,9 @@ func TestTopologyAssemblerHidesUnobservedStaleCurrent(t *testing.T) {
 		}}},
 	})
 
-	if len(assembler.sources) != 1 || assembler.sources[0].Status != "stale" || assembler.sources[0].Current != nil {
-		t.Fatalf("stale source view = %#v, want stale without an observed current", assembler.sources)
+	sources := assembler.response().Sources
+	if len(sources) != 1 || sources[0].Status != "stale" || sources[0].Current != nil {
+		t.Fatalf("stale source view for worktree %q = %#v, want stale without an observed current", observation.Worktree, sources)
 	}
 }
 
@@ -481,6 +495,12 @@ func TestTopologyResponseReportsIncompleteAndTruncatedReasons(t *testing.T) {
 	want := "one or more source observations or indexed manifests are missing or unavailable; relationship limit reached"
 	if response.Completeness.Reason != want {
 		t.Fatalf("completeness reason = %q, want %q", response.Completeness.Reason, want)
+	}
+}
+
+func TestTopologyClientErrorUsesInternalMessageForUnknownCode(t *testing.T) {
+	if got := topologyClientError("INTERNAL", errors.New("snapshot indexes are inconsistent")); got != "topology request failed" {
+		t.Fatalf("topologyClientError(INTERNAL) = %q, want the generic internal message", got)
 	}
 }
 
