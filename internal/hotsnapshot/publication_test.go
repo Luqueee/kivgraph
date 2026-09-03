@@ -262,7 +262,7 @@ func TestPublishedProfileCountsTowardMaximumOpenProfiles(t *testing.T) {
 	b := NewDeferredSnapshotStore(2, func() (*GraphSnapshot, error) { return publishedSnapshot(t, 2), nil })
 	store, err := NewProfileSnapshotStore("a", map[string]*SnapshotStore{"a": a, "b": b})
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("NewProfileSnapshotStore(default=%q, profiles=%q) error = %v", "a", []string{"a", "b"}, err)
 	}
 	if err := store.SetMaxOpenProfiles(1); err != nil {
 		t.Fatalf("SetMaxOpenProfiles(1) error = %v", err)
