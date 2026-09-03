@@ -694,9 +694,10 @@ func (handler *Handler) buildTopology(ctx context.Context, query topologyQuery) 
 		}
 		return topologyResponse{}, fmt.Errorf("%w: configuration path is required", errTopologyUnavailable)
 	}
+	invalidationStates := make(map[string]invalidation.State)
 	data := make([]topologyProfileData, 0, len(selections))
 	for _, selection := range selections {
-		profileData, err := handler.loadTopologyProfile(ctx, selection, query)
+		profileData, err := handler.loadTopologyProfile(ctx, selection, query, invalidationStates)
 		if err != nil {
 			return topologyResponse{}, err
 		}
@@ -769,7 +770,12 @@ func validateTopologyPins(selections []topologyStoreSelection, query topologyQue
 	return nil
 }
 
-func (handler *Handler) loadTopologyProfile(ctx context.Context, selection topologyStoreSelection, query topologyQuery) (topologyProfileData, error) {
+func (handler *Handler) loadTopologyProfile(
+	ctx context.Context,
+	selection topologyStoreSelection,
+	query topologyQuery,
+	invalidationStates map[string]invalidation.State,
+) (topologyProfileData, error) {
 	numeric, known := selection.Store.ActiveID()
 	if !known {
 		reason := "no published generation"
@@ -809,12 +815,12 @@ func (handler *Handler) loadTopologyProfile(ctx context.Context, selection topol
 	if err != nil {
 		return topologyProfileData{}, fmt.Errorf("%w: load profile %q topology: %v", errTopologyUnavailable, selection.Name, err)
 	}
-	manifest, manifestOK, state, stateLoaded, err := handler.profileManifest(ctx, loaded, generationID)
+	manifest, manifestOK, state, stateLoaded, err := handler.profileManifest(ctx, loaded, generationID, invalidationStates)
 	if err != nil {
 		return topologyProfileData{}, err
 	}
 	if !stateLoaded {
-		state, err = handler.profileInvalidationState(ctx, loaded, selection.Name)
+		state, err = handler.profileInvalidationState(ctx, loaded, selection.Name, invalidationStates)
 		if err != nil {
 			return topologyProfileData{}, err
 		}
@@ -846,6 +852,7 @@ func (handler *Handler) profileManifest(
 	ctx context.Context,
 	loaded config.Loaded,
 	generationID string,
+	invalidationStates map[string]invalidation.State,
 ) (sourceobservation.Manifest, bool, invalidation.State, bool, error) {
 	root := filepath.Dir(loaded.Config.Storage.DatabasePath)
 	path := filepath.Join(generation.GenerationsDir(root), generationID)
@@ -857,7 +864,7 @@ func (handler *Handler) profileManifest(
 		return sourceobservation.Manifest{}, false, invalidation.State{}, false,
 			fmt.Errorf("%w: read source observations for generation %s: %v", errTopologyUnavailable, generationID, err)
 	}
-	state, stateErr := handler.profileInvalidationState(ctx, loaded, loaded.Profile)
+	state, stateErr := handler.profileInvalidationState(ctx, loaded, loaded.Profile, invalidationStates)
 	if stateErr != nil {
 		return sourceobservation.Manifest{}, false, invalidation.State{}, false, stateErr
 	}
@@ -887,15 +894,19 @@ func topologyClientError(code string, err error) string {
 	}
 }
 
-func (handler *Handler) profileInvalidationState(ctx context.Context, loaded config.Loaded, profile string) (invalidation.State, error) {
-	root := handler.topologyOptions.InvalidationRoot
+func (handler *Handler) profileInvalidationState(
+	ctx context.Context,
+	loaded config.Loaded,
+	profile string,
+	invalidationStates map[string]invalidation.State,
+) (invalidation.State, error) {
+	root := handler.invalidationRoot(loaded)
+	cacheKey := filepath.Clean(root)
+	if state, found := invalidationStates[cacheKey]; found {
+		return state, nil
+	}
 	if root == "" {
-		databaseDirectory := filepath.Dir(loaded.Config.Storage.DatabasePath)
-		if filepath.Base(filepath.Dir(databaseDirectory)) == "profiles" {
-			root = filepath.Dir(filepath.Dir(databaseDirectory))
-		} else {
-			root = databaseDirectory
-		}
+		return invalidation.State{}, fmt.Errorf("%w: invalidation root is empty for profile %q", errTopologyUnavailable, profile)
 	}
 	manager, err := invalidation.Open(root)
 	if err != nil {
@@ -904,7 +915,21 @@ func (handler *Handler) profileInvalidationState(ctx context.Context, loaded con
 	if err := manager.Refresh(ctx); err != nil {
 		return invalidation.State{}, fmt.Errorf("%w: refresh invalidation state for profile %q: %v", errTopologyUnavailable, profile, err)
 	}
-	return manager.Snapshot(), nil
+	state := manager.Snapshot()
+	invalidationStates[cacheKey] = state
+	return state, nil
+}
+
+func (handler *Handler) invalidationRoot(loaded config.Loaded) string {
+	root := handler.topologyOptions.InvalidationRoot
+	if root != "" {
+		return root
+	}
+	databaseDirectory := filepath.Dir(loaded.Config.Storage.DatabasePath)
+	if filepath.Base(filepath.Dir(databaseDirectory)) == "profiles" {
+		return filepath.Dir(filepath.Dir(databaseDirectory))
+	}
+	return databaseDirectory
 }
 
 func legacyComposition(loaded config.Loaded, manifest sourceobservation.Manifest) (topology.ProfileComposition, error) {
