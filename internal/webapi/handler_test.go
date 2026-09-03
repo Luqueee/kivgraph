@@ -324,12 +324,24 @@ func TestHandlerTopologyReturnsPinnedProfilesAndRelationships(t *testing.T) {
 }
 
 func TestTopologyResponseUsesEmptyLanguageArrayWhenMetadataIsUnavailable(t *testing.T) {
-	assembler := newTopologyAssembler()
-	assembler.repositories[topology.LogicalRepositoryID("repo")] = topology.LogicalRepository{ID: "repo", Name: "Repository"}
-
-	repositories := assembler.response().Repositories
-	if len(repositories) != 1 || repositories[0].Languages == nil || len(repositories[0].Languages) != 0 {
-		t.Fatalf("repository languages = %#v, want a non-nil empty array", repositories)
+	configPath, _ := topologyTestConfiguration(t, "default")
+	const repositoryLanguages = ""
+	handler := NewHandlerWithTopology(
+		hotsnapshot.NewSnapshotStore(testSnapshotWithTopologyIDAndLanguages(t, 7, repositoryLanguages)),
+		TopologyOptions{ConfigPath: configPath, Profile: "default"},
+	)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/topology", nil)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("topology status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+	}
+	var value topologyResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &value); err != nil {
+		t.Fatalf("decode topology: %v", err)
+	}
+	if len(value.Repositories) != 1 || value.Repositories[0].Languages == nil || len(value.Repositories[0].Languages) != 0 {
+		t.Fatalf("topology repository languages for metadata %q = %#v, want a non-nil empty array", repositoryLanguages, value.Repositories)
 	}
 }
 
