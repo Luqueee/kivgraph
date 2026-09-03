@@ -108,7 +108,7 @@ curl -fsSL https://kivgraph.dev/install.sh | bash
 El instalador no requiere Go, pnpm ni un compilador C. Para fijar una versión:
 
 ```bash
-KIVGRAPH_VERSION=v0.9.7 ./scripts/install.sh
+KIVGRAPH_VERSION=v0.9.8-dev.1 ./scripts/install.sh
 ```
 
 Si el repositorio de releases es privado, proporciona

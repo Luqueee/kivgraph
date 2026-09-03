@@ -2,4 +2,4 @@
 // provenance a published bundle can prove about itself.
 package version
 
-var Value = "0.9.7"
+var Value = "0.9.8-dev.1"
