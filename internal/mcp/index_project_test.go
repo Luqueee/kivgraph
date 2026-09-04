@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -346,13 +347,14 @@ func TestIndexProjectRunsAfterClientConfirmedFallback(t *testing.T) {
 
 func TestIndexProjectUsesConfirmedFallbackForURLOnlyElicitation(t *testing.T) {
 	fake := &fakeProjectIndexer{}
+	var unexpectedElicitation atomic.Bool
 	session := connectWithNamedElicitation(t, NewServerWithIndexer(fake), "url-only-client", &sdkmcp.ClientCapabilities{
 		Elicitation: &sdkmcp.ElicitationCapabilities{
 			URL: &sdkmcp.URLElicitationCapabilities{},
 		},
 	}, func(context.Context, *sdkmcp.ElicitRequest) (*sdkmcp.ElicitResult, error) {
-		t.Fatal("form elicitation requested for client=url-only-client with elicitation.url capability")
-		return nil, nil
+		unexpectedElicitation.Store(true)
+		return nil, fmt.Errorf("form elicitation requested for client=url-only-client with elicitation.url capability")
 	})
 	result, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{
 		Name: "index_project",
@@ -363,6 +365,9 @@ func TestIndexProjectUsesConfirmedFallbackForURLOnlyElicitation(t *testing.T) {
 			"confirmed": true,
 		},
 	})
+	if unexpectedElicitation.Load() {
+		t.Fatal("form elicitation requested for client=url-only-client with elicitation.url capability")
+	}
 	if err != nil || result == nil || result.IsError {
 		t.Fatalf("CallTool() = %#v, error %v; want success", result, err)
 	}
