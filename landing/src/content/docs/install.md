@@ -79,7 +79,7 @@ From a checkout, either installer runs directly:
 To install a specific release instead of the latest one:
 
 ```bash
-KIVGRAPH_VERSION=v0.9.6 ./scripts/install.sh
+KIVGRAPH_VERSION=v0.9.8-dev.1 ./scripts/install.sh
 ```
 
 `KIVGRAPH_VERSION` is read by both installers, and so are
@@ -132,9 +132,15 @@ kivgraph update --check
 kivgraph update
 ```
 
-The update is atomic, preserves the configuration and graph state, verifies the
-release and bundle checksums, and replaces only the installed bundle. Restart
-the MCP client afterwards so it launches the new binary.
+Bundle replacement is atomic, preserves the configuration and graph state,
+verifies the release and bundle checksums, and replaces the installed bundle.
+The post-install runtime refresh may partially complete, fail, and make the
+command exit non-zero. It also restarts an installed supervised daemon and
+refreshes Kivgraph-managed user hooks, skills and MCP registrations. A stale
+supervisor returns an error and is not restarted. Missing, foreign and
+project-scoped
+integrations are left alone. Client-owned `serve` and `ui` processes still
+need a restart, or `--stop`, to use the new binary.
 
 Development builds use a separate prerelease channel. Install one explicitly,
 then select that channel for later checks:

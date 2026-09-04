@@ -106,15 +106,21 @@ type Options struct {
 	// Endpoint, when set, makes plans point at a running daemon over HTTP
 	// rather than at this executable over stdio.
 	Endpoint Endpoint
+	// PreviousEndpoint is the endpoint persisted by the daemon before an
+	// update restarted it. It is ownership evidence for replacing a stale
+	// endpoint entry; a URL and bearer header alone are not enough to prove
+	// that Kivgraph wrote a user-scoped client configuration.
+	PreviousEndpoint Endpoint
 }
 
 // Manager applies integration plans for one local user and one project.
 type Manager struct {
-	homeDir    string
-	projectDir string
-	executable string
-	goos       string
-	endpoint   Endpoint
+	homeDir          string
+	projectDir       string
+	executable       string
+	goos             string
+	endpoint         Endpoint
+	previousEndpoint Endpoint
 }
 
 // roamingDir and localDir answer where Windows keeps a program's per-user
@@ -282,12 +288,16 @@ func New(options Options) (Manager, error) {
 	if err := options.Endpoint.validate(); err != nil {
 		return Manager{}, err
 	}
+	if err := options.PreviousEndpoint.validate(); err != nil {
+		return Manager{}, fmt.Errorf("previous endpoint: %w", err)
+	}
 	return Manager{
-		homeDir:    homeDir,
-		projectDir: projectDir,
-		executable: executable,
-		goos:       goos,
-		endpoint:   options.Endpoint,
+		homeDir:          homeDir,
+		projectDir:       projectDir,
+		executable:       executable,
+		goos:             goos,
+		endpoint:         options.Endpoint,
+		previousEndpoint: options.PreviousEndpoint,
 	}, nil
 }
 
@@ -622,18 +632,22 @@ func (manager Manager) expectedJSONEntry(target Target) map[string]any {
 
 // endpointJSONEntry is the url shape, for a client pointed at a daemon.
 func (manager Manager) endpointJSONEntry(target Target) map[string]any {
-	headers := map[string]any{"Authorization": bearer(manager.endpoint.Token)}
+	return endpointJSONEntry(target, manager.endpoint)
+}
+
+func endpointJSONEntry(target Target, endpoint Endpoint) map[string]any {
+	headers := map[string]any{"Authorization": bearer(endpoint.Token)}
 	if target == TargetOpenCode {
 		return map[string]any{
 			"type":    "remote",
-			"url":     manager.endpoint.URL,
+			"url":     endpoint.URL,
 			"enabled": true,
 			"headers": headers,
 		}
 	}
 	return map[string]any{
 		"type":    "http",
-		"url":     manager.endpoint.URL,
+		"url":     endpoint.URL,
 		"headers": headers,
 	}
 }
@@ -658,39 +672,34 @@ func (manager Manager) stdioJSONEntry(target Target) map[string]any {
 // user would have to export -- which is not something an integration can install.
 func (manager Manager) expectedTOMLEntry() map[string]any {
 	if manager.endpoint.set() {
-		return map[string]any{
-			"url":          manager.endpoint.URL,
-			"http_headers": map[string]any{"Authorization": bearer(manager.endpoint.Token)},
-		}
+		return endpointTOMLEntry(manager.endpoint)
 	}
 	return map[string]any{"command": manager.executable, "args": []any{"serve"}}
 }
 
-// ownsOtherTOMLTransport is the Codex half of ownsOtherTransport, and it reads
-// the same way: the command form is matched including the executable, and the
-// url form structurally, because a previous daemon's port and token are not
-// knowable from here.
+func endpointTOMLEntry(endpoint Endpoint) map[string]any {
+	return map[string]any{
+		"url":          endpoint.URL,
+		"http_headers": map[string]any{"Authorization": bearer(endpoint.Token)},
+	}
+}
+
+// ownsOtherTOMLTransport is the Codex half of ownsOtherTransport. The command
+// form is matched including the executable. An endpoint is replaced only when
+// it exactly matches the endpoint persisted by Kivgraph before a refresh.
 func (manager Manager) ownsOtherTOMLTransport(table map[string]any) bool {
-	if manager.endpoint.set() {
-		return valuesEqual(table, map[string]any{"command": manager.executable, "args": []any{"serve"}})
+	if manager.endpoint.set() && valuesEqual(table, map[string]any{"command": manager.executable, "args": []any{"serve"}}) {
+		return true
 	}
-	address, ok := table["url"].(string)
-	if !ok || address == "" {
-		return false
-	}
-	headers, ok := tomlMap(table["http_headers"])
-	if !ok {
-		return false
-	}
-	authorization, ok := headers["Authorization"].(string)
-	return ok && strings.HasPrefix(authorization, "Bearer ")
+	return manager.previousEndpoint.set() && valuesEqual(table, endpointTOMLEntry(manager.previousEndpoint))
 }
 
 // bearer formats the header value every one of these clients sends verbatim.
 func bearer(token string) string { return "Bearer " + token }
 
-// statusSuperseded names an entry a previous `kivgraph mcp install` wrote with
-// the other transport.
+// statusSuperseded names an entry a previous `kivgraph mcp install` wrote that
+// the current integration should replace, whether its transport or endpoint
+// identity changed.
 //
 // It is not "incompatible", and the difference is the whole reason it exists.
 // `--force` protects an entry this tool did not write -- a hand-edited one, or a
@@ -706,30 +715,14 @@ const statusSuperseded = "superseded"
 // The stdio side is compared including the executable, deliberately: an entry
 // naming a different kivgraph binary belongs to another installation, and
 // replacing it without being asked would take that installation's clients over.
-// The url side is compared structurally, because the token and the port of a
-// previous daemon are not knowable from here -- what identifies it is the shape
-// only this tool writes under its own key.
+// The endpoint side is compared to a persisted previous daemon endpoint, when
+// one is available. A URL and bearer header alone are not ownership evidence.
 func (manager Manager) ownsOtherTransport(raw json.RawMessage, target Target) bool {
-	if manager.endpoint.set() {
-		return rawJSONMatches(raw, manager.stdioJSONEntry(target))
+	if manager.endpoint.set() && rawJSONMatches(raw, manager.stdioJSONEntry(target)) {
+		return true
 	}
-	var entry map[string]any
-	if err := json.Unmarshal(raw, &entry); err != nil {
-		return false
-	}
-	kind, _ := entry["type"].(string)
-	if kind != "http" && kind != "remote" {
-		return false
-	}
-	if address, ok := entry["url"].(string); !ok || address == "" {
-		return false
-	}
-	headers, ok := entry["headers"].(map[string]any)
-	if !ok {
-		return false
-	}
-	authorization, ok := headers["Authorization"].(string)
-	return ok && strings.HasPrefix(authorization, "Bearer ")
+	return manager.previousEndpoint.set() && rawJSONMatches(raw,
+		endpointJSONEntry(target, manager.previousEndpoint))
 }
 
 type jsonState struct {
@@ -1153,9 +1146,12 @@ func removeTOMLSection(data []byte, name string) ([]byte, error) {
 			}
 			continue
 		}
-		if strings.HasPrefix(trimmed, "[") && !strings.HasPrefix(trimmed, "[[") {
-			end = index
-			break
+		if strings.HasPrefix(trimmed, "[") {
+			header := tomlSectionName(trimmed)
+			if header == "" || !strings.HasPrefix(header, name+".") {
+				end = index
+				break
+			}
 		}
 	}
 	if start > 0 && strings.TrimSpace(strings.TrimSuffix(lines[start-1], "\n")) == "" {
@@ -1174,12 +1170,33 @@ func removeTOMLSection(data []byte, name string) ([]byte, error) {
 }
 
 func tomlHeaderMatches(line, name string) bool {
-	header := "[" + name + "]"
-	if line == header {
-		return true
+	return tomlSectionName(line) == name
+}
+
+func tomlSectionName(line string) string {
+	if !strings.HasPrefix(line, "[") {
+		return ""
 	}
-	rest := strings.TrimSpace(strings.TrimPrefix(line, header))
-	return rest != line && strings.HasPrefix(rest, "#")
+	opening := 1
+	if strings.HasPrefix(line, "[[") {
+		opening = 2
+	}
+	close := strings.IndexByte(line[opening:], ']')
+	if close < 0 {
+		return ""
+	}
+	close += opening
+	rest := strings.TrimSpace(line[close+1:])
+	if opening == 2 {
+		if !strings.HasPrefix(rest, "]") {
+			return ""
+		}
+		rest = strings.TrimSpace(rest[1:])
+	}
+	if rest != "" && !strings.HasPrefix(rest, "#") {
+		return ""
+	}
+	return line[opening:close]
 }
 
 func (manager Manager) installSkillFile(target Target, scope Scope, path string, dryRun, force bool) (Plan, error) {

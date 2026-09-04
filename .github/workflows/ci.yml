@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, development]
   pull_request:
-    branches: [main]
+    branches: [main, development]
   workflow_dispatch:
   workflow_call:
 
@@ -34,12 +34,12 @@ env:
 
 # A push that supersedes another leaves four jobs running for a commit nobody
 # will merge, and the free plan allows twenty concurrent jobs across the
-# account, so those are slots taken from the run that matters. main is excluded:
-# its history is what release tags are cut from, so every commit on it keeps its
-# own verdict.
+# account, so those are slots taken from the run that matters. The protected
+# branches keep their own verdicts: release tags are cut from `main`, while
+# `development` is the opt-in prerelease stream.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/development' }}
 
 jobs:
   classify:
@@ -63,9 +63,11 @@ jobs:
           set -euo pipefail
           base_sha=""
           head_sha="$GITHUB_SHA"
+          release_only_event=false
           case "$GITHUB_EVENT_NAME" in
             push)
               base_sha="$(jq -r '.before // empty' "$GITHUB_EVENT_PATH")"
+              [[ "$GITHUB_REF_NAME" == main ]] && release_only_event=true
               ;;
             pull_request)
               base_sha="$(jq -r '.pull_request.base.sha // empty' "$GITHUB_EVENT_PATH")"
@@ -73,6 +75,7 @@ jobs:
               # classify the contributor's head so its release subject is
               # visible. The complete checkout still contains both commits.
               head_sha="$(jq -r '.pull_request.head.sha // empty' "$GITHUB_EVENT_PATH")"
+              [[ "$GITHUB_BASE_REF" == main ]] && release_only_event=true
               ;;
             *)
               # The release workflow calls this file with workflow_call. That
@@ -84,6 +87,12 @@ jobs:
           if [[ -z "$base_sha" || "$base_sha" =~ ^0+$ ]]; then
             echo "release_only=false" >> "$GITHUB_OUTPUT"
             echo "base_sha=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$release_only_event" != true ]]; then
+            echo "release_only=false" >> "$GITHUB_OUTPUT"
+            echo "release preparation shortcut is reserved for main"
             exit 0
           fi
 

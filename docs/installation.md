@@ -108,7 +108,7 @@ curl -fsSL https://kivgraph.dev/install.sh | bash
 El instalador no requiere Go, pnpm ni un compilador C. Para fijar una versión:
 
 ```bash
-KIVGRAPH_VERSION=v0.9.6 ./scripts/install.sh
+KIVGRAPH_VERSION=v0.9.8-dev.1 ./scripts/install.sh
 ```
 
 Si el repositorio de releases es privado, proporciona
@@ -125,7 +125,13 @@ kivgraph update
 verifica el checksum externo, el `manifest.json`, todos los checksums internos y
 la versión del ejecutable. Solo después reemplaza atómicamente el bundle
 instalado; la configuración y el estado del grafo permanecen fuera del bundle.
-Reinicia el cliente MCP después de actualizar.
+También reinicia solo un daemon supervisado con una unidad instalada y actualiza
+los hooks, la skill y los registros MCP de usuario gestionados por Kivgraph. Si
+la unidad está obsoleta, devuelve un error y no la reinicia. No crea
+integraciones ausentes, no sobrescribe integraciones ajenas ni modifica
+ficheros de proyecto.
+Los procesos `serve` y `ui` propiedad del cliente todavía necesitan reiniciarse,
+o usar `--stop`, para ejecutar el binario nuevo.
 
 Para desinstalar el bundle y los launchers sin borrar la configuración, los
 registros de repositorios ni el estado del grafo:

@@ -965,8 +965,17 @@ func runWithSnapshotBuilder(args []string, stdout, stderr io.Writer, diagnose st
 type updateRunner func(context.Context, update.Options) (update.Result, error)
 
 func runUpdate(args []string, stdout, stderr io.Writer) int {
-	return runUpdateWithRunner(args, os.Stdin, stdout, stderr, update.Run,
-		procstat.List, signalProcess, restartSupervisedDaemon, gracefulStopSupported)
+	executable, err := os.Executable()
+	if err != nil {
+		writeCommandError(stderr, "update: resolve this executable: %v", err)
+		return 1
+	}
+	restart := func(targets []procstat.Process) (daemonRestart, error) {
+		return restartSupervisedDaemonAt(executable, targets)
+	}
+	return runUpdateWithRunnerAtExecutable(args, os.Stdin, stdout, stderr, update.Run,
+		procstat.List, signalProcess, restart, gracefulStopSupported, executable,
+		refreshInstalledRuntimeWithResult)
 }
 
 // daemonOwnership is what `update` managed to establish about who owns the
@@ -1047,6 +1056,57 @@ func runUpdateWithRunner(
 	restart supervisedDaemonRestart,
 	graceful bool,
 ) int {
+	return runUpdateWithRunnerAndPostInstall(args, stdin, stdout, stderr, runner, list,
+		signal, restart, graceful, nil)
+}
+
+func runUpdateWithRunnerAndPostInstall(
+	args []string,
+	stdin io.Reader,
+	stdout, stderr io.Writer,
+	runner updateRunner,
+	list processLister,
+	signal processSignaller,
+	restart supervisedDaemonRestart,
+	graceful bool,
+	postInstall updatePostInstall,
+) int {
+	var postInstallWithResult updatePostInstallWithResult
+	if postInstall != nil {
+		postInstallWithResult = func(executable string, stdout, stderr io.Writer) updatePostInstallResult {
+			return updatePostInstallResult{Err: postInstall(executable, stdout, stderr)}
+		}
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		writeCommandError(stderr, "update: resolve this executable: %v", err)
+		return 1
+	}
+	return runUpdateWithRunnerAtExecutable(args, stdin, stdout, stderr, runner, list,
+		signal, restart, graceful, executable, postInstallWithResult)
+}
+
+type updatePostInstall func(executable string, stdout, stderr io.Writer) error
+type updatePostInstallWithResult func(executable string, stdout, stderr io.Writer) updatePostInstallResult
+
+type updatePostInstallResult struct {
+	RefreshedDaemonPID  int
+	SupervisedDaemonPID int
+	Err                 error
+}
+
+func runUpdateWithRunnerAtExecutable(
+	args []string,
+	stdin io.Reader,
+	stdout, stderr io.Writer,
+	runner updateRunner,
+	list processLister,
+	signal processSignaller,
+	restart supervisedDaemonRestart,
+	graceful bool,
+	executable string,
+	postInstall updatePostInstallWithResult,
+) int {
 	var options updateOptions
 	flags := updateFlagSet(&options)
 	if parsed, code := parseCommandFlags("update", flags, args, stdout, stderr); !parsed {
@@ -1064,6 +1124,7 @@ func runUpdateWithRunner(
 		APIBaseURL:     os.Getenv("KIVGRAPH_UPDATE_API_URL"),
 		CurrentVersion: version.Value,
 		Token:          os.Getenv("KIVGRAPH_GITHUB_TOKEN"),
+		ExecutablePath: executable,
 		CheckOnly:      options.CheckOnly,
 		Channel:        channel,
 	})
@@ -1084,7 +1145,23 @@ func runUpdateWithRunner(
 		return 1
 	}
 	writeSuccess(stdout, "kivgraph updated%s: %s -> %s", channelLabel(result.Channel), result.CurrentVersion, result.LatestVersion)
-	return stopStaleProcesses(stdin, stdout, stderr, list, signal, restart, options.StopStale, result.LatestVersion, graceful)
+	postInstallResult := updatePostInstallResult{}
+	if postInstall != nil {
+		postInstallResult = postInstall(executable, stdout, stderr)
+		if postInstallResult.Err != nil {
+			writeCommandError(stderr, "update: refresh installed runtime integrations: %v", postInstallResult.Err)
+		}
+	}
+	stopCode := stopStaleProcesses(stdin, stdout, stderr, list, signal, restart, options.StopStale,
+		result.LatestVersion, graceful, postInstallResult.RefreshedDaemonPID,
+		postInstallResult.SupervisedDaemonPID)
+	if stopCode != 0 {
+		return stopCode
+	}
+	if postInstallResult.Err != nil {
+		return 1
+	}
+	return 0
 }
 
 func channelLabel(channel string) string {
@@ -1118,6 +1195,8 @@ func stopStaleProcesses(
 	stopStale bool,
 	release string,
 	graceful bool,
+	refreshedDaemonPID int,
+	supervisedDaemonPID int,
 ) int {
 	processes, err := list()
 	if err != nil {
@@ -1127,6 +1206,14 @@ func stopStaleProcesses(
 		return 0
 	}
 	targets := stoppableProcesses(processes, os.Getpid())
+	for _, protectedPID := range []int{refreshedDaemonPID, supervisedDaemonPID} {
+		if protectedPID == 0 {
+			continue
+		}
+		targets = slices.DeleteFunc(targets, func(target procstat.Process) bool {
+			return target.PID == protectedPID
+		})
+	}
 	if len(targets) == 0 {
 		return 0
 	}

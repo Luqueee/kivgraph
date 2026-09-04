@@ -58,7 +58,7 @@ its repository registry, fact cache, canonical database and generations.
 | `clean [--keep-active] [--yes]` | Remove published graph generations |
 | `rollback --root PATH [--generation ID]` | Return to the previous generation |
 | `snapshot --root PATH [--generation ID]` | Rebuild the hot snapshot of a generation |
-| `update [--check] [--stop]` | Install the latest published release |
+| `update [--check] [--stop]` | Install the latest release and refresh managed runtime integrations |
 
 ## Integrations
 

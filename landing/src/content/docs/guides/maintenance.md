@@ -125,5 +125,8 @@ kivgraph update
 ```
 
 The update validates the manifest, the version and the checksums before
-replacing the bundle, and preserves the configuration and graph state. Restart
-the MCP client afterwards.
+replacing the bundle, and preserves the configuration and graph state. It also
+restarts only an installed supervised daemon and refreshes Kivgraph-managed user
+hooks, skills and MCP registrations. A stale supervisor returns an error and is
+not restarted. Client-owned `serve` and `ui` processes still need a restart, or
+`--stop`, to use the new binary.
