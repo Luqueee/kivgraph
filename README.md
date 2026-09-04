@@ -220,31 +220,35 @@ The optional check never blocks the command when the network is unavailable.
 Interactive command output uses semantic ANSI colors when the destination is a
 terminal. Set `NO_COLOR` or redirect output to keep it plain.
 
-### Configure an MCP client, install the skill, and enable the gate
+### Configure Kivgraph and its coding agents
 
-The release installer does not edit client configuration automatically. After
-installing Kivgraph, run the integration commands without `--target` to detect
-the coding agents present on this machine and select one or more of them:
+After an interactive release installation, the installer asks whether it should
+run this same guided setup. Run it later, or run it directly from a checkout:
 
 ```bash
-kivgraph mcp install --scope user
-kivgraph skill install --scope user
-kivgraph hook install --scope user
+kivgraph configure
 ```
 
-Kivgraph checks each client's known local configuration or installation roots
-and marks detected agents. Use `↑`/`↓` (or `j`/`k`) to move, `space` to toggle
-an agent, `a` to select all, `n` to select none, `Enter` to confirm, and `q` or
-`Esc` to cancel. If none is detected, the selector starts with no agents
-selected. Use `--target` only for scripted, non-interactive installation.
+`configure` opens one selector for the coding agents detected on this machine
+and installs the user-scoped MCP entry, skill and hook for every selected agent.
+It also adds project instructions at the nearest Git root. It initializes the
+empty Kivgraph configuration when needed, but it does not register a repository
+or run an index. Repeat `--target TARGET` for scripted setup; omit it to open
+the selector.
+
+Use `↑`/`↓` (or `j`/`k`) to move, `space` to toggle an agent, `a` to select all,
+`n` to select none, `Enter` to confirm, and `q` or `Esc` to cancel. The daemon
+is offered once after the selection; `--daemon` requires it without asking and
+`--stdio` keeps one `serve` process per client. `--dry-run` previews every
+surface without writing.
 
 Supported MCP targets are `claude-code`, `claude-desktop`, `codex`, `opencode`,
 and `oh-my-pi`. Supported skill targets are `claude-code`, `codex`, `opencode`,
-and `oh-my-pi`; Claude Desktop has no local skill target. The default scope is
-`user`; use `--scope project` for project-local configuration. Use `--dry-run`
-to inspect a plan without writing. Existing incompatible entries stop with an
-error; `--force` is required to replace or remove one. Existing files are
-written atomically with mode `0600` and receive a
+and `oh-my-pi`; Claude Desktop has no local skill target. The standalone
+commands use `user` by default; use `--scope project` for project-local
+configuration. Use `--dry-run` to inspect a plan without writing. Existing
+incompatible entries stop with an error; `--force` is required to replace or
+remove one. Existing files are written atomically with mode `0600` and receive
 `*.kivgraph.bak` backup before replacement or removal.
 
 The pre-tool-use gate supports `claude-code`, `claude-desktop`, `codex`,
@@ -253,6 +257,34 @@ The pre-tool-use gate supports `claude-code`, `claude-desktop`, `codex`,
 scope. The gate is fail-open when its graph query cannot be answered.
 Searches wrapped as `rtk rg ...` or `rtk proxy rg ...` are classified by their
 inner command, while RTK's own commands are left alone.
+
+### Add Kivgraph to project agent instructions
+
+Add the Kivgraph navigation rules to the project context loaded by a coding
+agent:
+
+```bash
+kivgraph instructions install
+# The selector can install one or more coding-agent destinations.
+kivgraph instructions install --agent codex
+kivgraph instructions install --agent claude
+kivgraph instructions install --agent omp
+```
+
+With no `--agent` or `--file`, the interactive selector lets you choose one or
+more coding agents. `--agent codex` and `--agent opencode` create or update the
+root `AGENTS.md`; `--agent claude` and `--agent claude-code` use the root
+`CLAUDE.md`; `--agent omp` and `--agent oh-my-pi` use the native
+`.omp/AGENTS.md`. The selector deduplicates agents that share a destination.
+The file is placed at the nearest ancestor containing a `.git` marker, or in
+the current directory outside a Git repository. Existing instructions are
+preserved, the managed block is idempotent, and `--dry-run` previews the
+change. An edited Kivgraph block requires `--force` to replace. Use `--file`
+only when an explicit filename is needed instead of an agent; supported files
+are `AGENTS.md`, `CLAUDE.md` and `.omp/AGENTS.md`. The command changes only the
+selected project file and its atomic-write backup. Use `configure` when you
+want this project file and the compatible client integrations in one flow; the
+individual commands remain available for explicit changes.
 
 Inspect or remove a registration explicitly:
 

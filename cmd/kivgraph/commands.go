@@ -586,18 +586,71 @@ func commandTable() []commandSpec {
 	}
 }
 
-// integrationCommands are the mcp, skill and hook operations. They are a
-// family rather than nine hand-written entries: the three kinds accept the same
-// operations with the same flags, and only the writers take --dry-run and
-// --force.
+// integrationCommands are the configure, mcp, skill, hook and instructions operations.
+// MCP, skill and hook are a family rather than nine hand-written entries: they
+// accept the same operations with the same flags, and only the writers take
+// --dry-run and --force. Instructions has its own command because it writes a
+// managed block into a project context file rather than a client registration.
 func integrationCommands() []commandSpec {
-	specs := make([]commandSpec, 0, 9)
+	specs := make([]commandSpec, 0, 12)
+	specs = append(specs, configureCommand())
 	for _, kind := range []string{"mcp", "skill", "hook"} {
 		for _, operation := range []string{"install", "status", "remove"} {
 			specs = append(specs, integrationCommand(kind, operation))
 		}
 	}
+	specs = append(specs, instructionsParentCommand(), instructionsInstallCommand())
 	return specs
+}
+
+func configureCommand() commandSpec {
+	return commandSpec{
+		words:   []string{"configure"},
+		group:   "Integrations",
+		usage:   "configure [--target TARGET]... [--daemon] [--stdio] [--dry-run] [--force]",
+		summary: "Configure MCP, skills, hooks, daemon and project instructions",
+		flags: func() *flag.FlagSet {
+			var options configureOptions
+			return configureFlagSet(&options)
+		},
+		hints: map[string]flagHint{
+			"target": {values: configureTargetNames},
+		},
+		run: func(_ dependencies, args []string, stdout, stderr io.Writer) int {
+			return runConfigure(args, stdout, stderr)
+		},
+	}
+}
+
+func instructionsParentCommand() commandSpec {
+	return commandSpec{
+		words:   []string{"instructions"},
+		hidden:  true,
+		summary: "Manage project instructions loaded by coding agents",
+		run: func(_ dependencies, args []string, stdout, stderr io.Writer) int {
+			return runInstructionsCommand(args, stdout, stderr)
+		},
+	}
+}
+
+func instructionsInstallCommand() commandSpec {
+	return commandSpec{
+		words:   []string{"instructions", "install"},
+		group:   "Integrations",
+		usage:   "instructions install [--agent AGENT] [--file AGENTS.md|CLAUDE.md|.omp/AGENTS.md] [--dry-run] [--force]",
+		summary: "Add Kivgraph instructions to a project agent context file",
+		flags: func() *flag.FlagSet {
+			var options instructionsOptions
+			return instructionsFlagSet(&options)
+		},
+		hints: map[string]flagHint{
+			"agent": {values: instructionsAgentNames},
+			"file":  {values: instructionsFileNames},
+		},
+		run: func(_ dependencies, args []string, stdout, stderr io.Writer) int {
+			return runInstructionsInstall(args, stdout, stderr)
+		},
+	}
 }
 
 func integrationCommand(kind, operation string) commandSpec {

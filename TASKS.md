@@ -18801,3 +18801,52 @@ el campo `compatibility`, preexistente y conservado.
 **Estado:** implementado y verificado por protocolo; cualificación visual de
 los chats pendiente. No se han sustituido skills instaladas, reiniciado
 servicios ni publicado una release. Las limitaciones quedan en el ADR 0085.
+
+## LUQUE-2237 - Instalar instrucciones de Kivgraph en el contexto del proyecto
+
+**Dependencias:** ninguna.
+
+Se añade `kivgraph instructions install`. Sin `--agent` ni `--file` abre el
+selector interactivo para elegir uno o varios agentes: Codex, Claude Code,
+OpenCode u Oh My Pi. Con `--agent` se puede elegir uno sin interacción. Codex y
+OpenCode usan el `AGENTS.md` de la raíz; Claude Code usa el `CLAUDE.md` de la
+raíz; Oh My Pi usa su `.omp/AGENTS.md` nativo, y los destinos compartidos se
+escriben una sola vez. También se aceptan los alias `claude` y `omp`. El
+comando usa la raíz Git más cercana, conserva las instrucciones existentes,
+acepta el enlace convencional `CLAUDE.md -> AGENTS.md`, es idempotente y exige
+`--force` para reemplazar un bloque editado. `--file` queda como override
+explícito y no se puede combinar con `--agent`; `--dry-run` no escribe. No
+inicializa, indexa, registra el MCP, instala skills ni habilita hooks.
+
+**Verificación:** tests de integraciones y CLI, cobertura de la unidad nueva,
+`go vet ./...`, `go test ./...`, `make build` y `scripts/check-docs.sh`.
+
+**Estado:** implementado; los gates quedan registrados en la entrega.
+
+## LUQUE-2238 - Configuración guiada de primera ejecución
+
+**Dependencias:** LUQUE-2237.
+
+Se añade `kivgraph configure` como flujo único para seleccionar coding agents y
+configurar sus registros MCP, skills, hooks e instrucciones de proyecto. MCP,
+skill y hooks se escriben en alcance de usuario; las instrucciones se escriben
+en la raíz Git más cercana. Claude Desktop se mantiene en MCP y hooks, y se
+declara como omitido para las superficies que no soporta. `--target` es
+repetible para uso no interactivo; sin ese parámetro se reutiliza el selector
+multiagente. `--daemon` y `--stdio` expresan el transporte, y el daemon sólo
+se provisiona una vez después del consentimiento.
+
+El comando inicializa la configuración vacía sólo después de seleccionar
+agentes y no indexa ni registra repositorios. `--dry-run` no escribe. Los
+instaladores Unix y Windows ofrecen ejecutar `kivgraph configure` tras una
+instalación exitosa; una ejecución sin terminal deja la orden para después y no
+modifica clientes, servicios ni el proyecto. `KIVGRAPH_CONFIGURE=0` omite la
+oferta y `KIVGRAPH_CONFIGURE=1` la acepta cuando hay terminal.
+
+**Verificación:** tests de CLI con selección interactiva, superficies
+compatibles, omisiones de Claude Desktop, conflictos y duplicados; `go test
+./cmd/kivgraph/...`, `go test -race ./cmd/kivgraph/...`, `go vet ./...`,
+`go test ./...`, `make build`, `bash -n scripts/install.sh`,
+`scripts/check-docs.sh` y `git diff --check`.
+
+**Estado:** implementado; los gates quedan registrados en la entrega.

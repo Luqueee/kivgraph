@@ -17,6 +17,7 @@ Environment:
   KIVGRAPH_RELEASE_BASE_URL  Releases URL (default: GitHub Luqueee/kivgraph)
   KIVGRAPH_VERSION        Pin a release tag such as vX.Y.Z-dev.1 instead of latest
   KIVGRAPH_GITHUB_TOKEN   Optional token for a private GitHub repository
+  KIVGRAPH_CONFIGURE      Configure after install: ask (default), 1, or 0
 EOF
 }
 
@@ -55,6 +56,7 @@ install_root=${KIVGRAPH_INSTALL_ROOT:-"$HOME/.local/opt/kivgraph"}
 bin_dir=${KIVGRAPH_BIN_DIR:-"$HOME/.local/bin"}
 release_base=${KIVGRAPH_RELEASE_BASE_URL:-"https://github.com/Luqueee/kivgraph/releases"}
 requested_version=${KIVGRAPH_VERSION:-}
+configure_mode=${KIVGRAPH_CONFIGURE:-ask}
 release_base=${release_base%/}
 
 [[ "$install_root" == /* ]] || fail "KIVGRAPH_INSTALL_ROOT must be absolute"
@@ -63,6 +65,10 @@ release_base=${release_base%/}
 if [[ -n "$requested_version" && ! "$requested_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
   fail "invalid KIVGRAPH_VERSION: $requested_version"
 fi
+case "$configure_mode" in
+  ask|1|0) ;;
+  *) fail 'KIVGRAPH_CONFIGURE must be ask, 1, or 0' ;;
+esac
 
 archive_name="$bundle_name.tar.gz"
 if [[ -n "$requested_version" ]]; then
@@ -272,7 +278,44 @@ printf 'kivgraph install: launchers in %s\n' "$bin_dir"
 if [[ ":${PATH}:" != *":${bin_dir}:"* ]]; then
   printf 'kivgraph install: add %s to PATH before using kivgraph\n' "$bin_dir"
 fi
-printf 'kivgraph install: run "kivgraph init" before starting the MCP server\n'
+printf 'kivgraph install: run "kivgraph configure" to set up MCP, skill, hooks, daemon and instructions\n'
+
+# Configuration is offered only after the bundle and its launchers are safely
+# installed. `/dev/tty` is used instead of stdin because the documented curl
+# pipeline owns stdin; when there is no terminal the install remains usable and
+# the operator gets the exact command to run later. Configuration failures do
+# not roll back an already successful bundle installation.
+configure_after_install() {
+  local answer
+  if [[ "$configure_mode" == "0" ]]; then
+    printf 'kivgraph install: configuration skipped; run "kivgraph configure" when ready\n'
+    return 0
+  fi
+  if ! exec 3<>/dev/tty; then
+    printf 'kivgraph install: no interactive terminal; run "kivgraph configure" to finish setup\n'
+    return 0
+  fi
+  if [[ "$configure_mode" == "ask" ]]; then
+    printf 'kivgraph install: configure MCP clients, skill, hooks, daemon and project instructions now? [Y/n] ' >&3
+    if ! IFS= read -r answer <&3; then
+      answer=n
+    fi
+    case "$answer" in
+      ''|y|Y|yes|YES) ;;
+      *)
+        printf 'kivgraph install: configuration skipped; run "kivgraph configure" when ready\n' >&3
+        exec 3>&-
+        return 0
+        ;;
+    esac
+  fi
+  if ! "$install_root/bin/kivgraph" configure <&3 >&3 2>&3; then
+    printf 'kivgraph install: configuration did not finish; run "kivgraph configure" to retry\n' >&2
+  fi
+  exec 3>&-
+}
+
+configure_after_install
 
 # The install is finished above and stays finished whatever happens here.
 #
