@@ -374,6 +374,8 @@ func selectIntegrationTargets(input io.Reader, stdout io.Writer, manager integra
 		detections, err = manager.DetectSkillTargets(scope)
 	case "hook":
 		detections, err = manager.DetectHookTargets(scope)
+	case "instructions":
+		detections, err = manager.DetectInstructionsTargets()
 	default:
 		return nil, fmt.Errorf("unsupported interactive integration %q", kind)
 	}

@@ -114,6 +114,28 @@ KIVGRAPH_VERSION=v0.9.9-dev.2 ./scripts/install.sh
 Si el repositorio de releases es privado, proporciona
 `KIVGRAPH_GITHUB_TOKEN` al instalador.
 
+Después de una instalación interactiva, el instalador pregunta si quieres
+configurar Kivgraph. También puedes ejecutar el flujo guiado en cualquier
+momento:
+
+```bash
+kivgraph configure
+```
+
+El selector permite elegir uno o varios coding agents. El comando configura en
+alcance de usuario sus registros MCP, la skill y los hooks compatibles; añade
+las instrucciones al proyecto actual; e instala el daemon supervisado si se
+acepta la pregunta correspondiente. Inicializa la configuración vacía de
+Kivgraph cuando hace falta, pero no registra repositorios ni indexa. Usa
+`--target AGENT` repetidas veces para evitar el selector, `--stdio` para no
+usar daemon, `--daemon` para exigirlo, `--dry-run` para previsualizar y
+`--force` para reemplazar entradas gestionadas incompatibles.
+
+En una ejecución sin terminal, el instalador no puede abrir el selector y deja
+la orden `kivgraph configure` para ejecutarla después. Puedes controlar ese
+comportamiento con `KIVGRAPH_CONFIGURE=0` para omitir la pregunta o
+`KIVGRAPH_CONFIGURE=1` para solicitar la configuración cuando haya terminal.
+
 Comprueba y aplica actualizaciones desde el bundle instalado:
 
 ```bash
@@ -620,6 +642,33 @@ Un resultado `PASS` debe incluir una generación activa, un digest de snapshot y
 el conteo de referencias no resueltas retenidas. `UNRESOLVED` no es un error de
 instalación: son hechos que el resolver no pudo demostrar exactamente y que el
 contrato conserva como resultado distinto de `EXACT`.
+
+### Añadir las instrucciones del agente al proyecto
+
+Para que los agentes sepan cuándo usar el grafo semántico, añade el bloque de
+instrucciones al contexto del proyecto:
+
+```bash
+kivgraph instructions install
+# El selector permite elegir uno o varios agentes.
+kivgraph instructions install --agent codex
+kivgraph instructions install --agent claude
+kivgraph instructions install --agent omp
+```
+
+Sin `--agent` ni `--file`, el selector interactivo permite elegir uno o varios
+agentes. `--agent codex` y `--agent opencode` escriben en el `AGENTS.md` de la
+raíz; `--agent claude` y `--agent claude-code` escriben en el `CLAUDE.md` de la
+raíz; `--agent omp` y `--agent oh-my-pi` escriben en `.omp/AGENTS.md`. El
+selector deduplica agentes que comparten destino. El archivo se coloca en el
+antecesor más cercano que contenga un marcador `.git`, o en el directorio
+actual si no está dentro de un repositorio Git. Usa `--file` sólo cuando
+necesites elegir el archivo directamente: acepta `AGENTS.md`, `CLAUDE.md` o
+`.omp/AGENTS.md`. El comando conserva el contenido existente, añade un único
+bloque gestionado y no inicializa ni indexa Kivgraph. `--dry-run` muestra el
+plan sin escribir y `--force` permite reemplazar un bloque Kivgraph editado.
+Para configurar también MCP, skills, hooks y daemon en una sola selección,
+usa `kivgraph configure`.
 
 ## Ejecutar como servidor MCP
 
