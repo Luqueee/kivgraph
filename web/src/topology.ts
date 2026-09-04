@@ -95,6 +95,10 @@ function nodeKey(type: string, id: string): string {
   return `${type}:${id}`;
 }
 
+export function displayWorktreeLabel(id: string): string {
+  return id.startsWith("legacy:") ? id.slice("legacy:".length) : id;
+}
+
 function sharedInputNodeKey(type: string, id: string): string {
   return nodeKey("shared_input", `${type}:${id}`);
 }
@@ -285,7 +289,7 @@ function createNodes(response: TopologyResponse): TopologyNode[] {
       key: nodeKey("worktree", worktree.id),
       id: worktree.id,
       type: "worktree",
-      label: worktree.id,
+      label: displayWorktreeLabel(worktree.id),
       subtitle: worktree.path,
       status: aggregateStatus(statuses, "unknown"),
       profileIds: profilesForWorktree.get(worktree.id) ?? [],

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { TopologyResponse } from "@/api/client";
 import {
   createTopologyModel,
+  displayWorktreeLabel,
   filterTopology,
   type TopologyFilters,
 } from "@/topology";
@@ -99,6 +100,11 @@ const allFilters: TopologyFilters = {
 };
 
 describe("topology model", () => {
+  it("keeps historical worktree prefixes out of display labels", () => {
+    expect(displayWorktreeLabel("legacy:frontend")).toBe("frontend");
+    expect(displayWorktreeLabel("frontend")).toBe("frontend");
+  });
+
   it("uses typed identities and deterministic layer positions", () => {
     const model = createTopologyModel(topology);
 
