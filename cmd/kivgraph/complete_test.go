@@ -34,9 +34,9 @@ func TestCompleteNamesCommands(t *testing.T) {
 }
 
 func TestCompleteNarrowsToWhatWasTyped(t *testing.T) {
-	got := candidates(t, "too")
+	got := candidates(t, "tool-s")
 	if len(got) != 1 || got[0] != "tool-stats" {
-		t.Fatalf("\"too\" completed to %v, want just tool-stats", got)
+		t.Fatalf("\"tool-s\" completed to %v, want just tool-stats", got)
 	}
 }
 

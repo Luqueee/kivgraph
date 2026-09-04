@@ -1,6 +1,6 @@
 ---
 title: CLI
-description: Every Kivgraph command, in the five groups the help prints them.
+description: Kivgraph help lists every command in six groups.
 ---
 
 `kivgraph --help`, `-h` and `help` write to `stdout` and exit `0`. So does a
@@ -34,6 +34,20 @@ someone who mistyped one word.
 Profiles share one installation, daemon and analyzer toolchain, but each owns
 its repository registry, fact cache, canonical database and generations.
 `index --full` and `ui` use `profiles.default` when `--profile` is omitted.
+
+## Toolchains
+
+- `toolchain status [--config PATH] [--json]`: Report optional analyzers
+  managed by this installation.
+- `toolchain install pyright [--config PATH] [--version VERSION] [--json]`:
+  Install and activate the pinned Pyright analyzer.
+- `toolchain remove pyright [--config PATH] --yes [--json]`: Remove the managed
+  Pyright analyzer and restore fallback mode when the selected configuration
+  uses the managed analyzer.
+
+The family is explicit: indexing never installs a host dependency. The first
+managed analyzer is Pyright, installed under Kivgraph state and enabled by
+updating only the Python analyzer settings in the selected configuration.
 
 ## Diagnostics
 

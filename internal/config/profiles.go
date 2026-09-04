@@ -373,6 +373,11 @@ func writeDefaultProfile(configPath, name string) error {
 	if err != nil {
 		return err
 	}
+	lock, err := acquireConfigLock(resolved)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = lock.Release() }()
 	data, err := os.ReadFile(resolved)
 	if err != nil {
 		return fmt.Errorf("read config %q: %w", resolved, err)

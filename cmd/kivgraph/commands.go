@@ -11,6 +11,7 @@ import (
 	"github.com/Luqueee/kivgraph/internal/eventlog"
 	"github.com/Luqueee/kivgraph/internal/integrations"
 	"github.com/Luqueee/kivgraph/internal/procstat"
+	"github.com/Luqueee/kivgraph/internal/toolchain"
 	"github.com/Luqueee/kivgraph/internal/update"
 	"github.com/Luqueee/kivgraph/internal/version"
 )
@@ -94,6 +95,7 @@ func (spec commandSpec) name() string { return strings.Join(spec.words, " ") }
 // rebuild pipeline needs.
 var commandGroupOrder = []string{
 	"Getting started",
+	"Toolchains",
 	"Diagnostics",
 	"Maintenance",
 	"Integrations",
@@ -190,6 +192,66 @@ func commandTable() []commandSpec {
 			},
 			run: func(_ dependencies, args []string, stdout, stderr io.Writer) int {
 				return runIndexFull(args, stdout, stderr)
+			},
+		},
+		{
+			words:   []string{"toolchain", "status"},
+			group:   "Toolchains",
+			usage:   "toolchain status [--config PATH] [--json]",
+			summary: "Report optional analyzers managed by this installation",
+			flags:   func() *flag.FlagSet { var o toolchainStatusOptions; return toolchainStatusFlagSet(&o) },
+			hints:   map[string]flagHint{"config": {paths: true}},
+			run: func(_ dependencies, args []string, stdout, stderr io.Writer) int {
+				return runToolchainStatus(args, stdout, stderr)
+			},
+		},
+		{
+			words:   []string{"toolchain", "install", "pyright"},
+			group:   "Toolchains",
+			usage:   "toolchain install pyright [--config PATH] [--version VERSION] [--json]",
+			summary: "Install and activate the pinned Pyright analyzer",
+			flags:   func() *flag.FlagSet { var o toolchainInstallOptions; return toolchainInstallFlagSet(&o) },
+			hints: map[string]flagHint{
+				"config":  {paths: true},
+				"version": {values: func() []string { return []string{toolchain.DefaultPyrightVersion} }},
+			},
+			run: func(_ dependencies, args []string, stdout, stderr io.Writer) int {
+				return runToolchainInstall(toolchain.Pyright, args, stdout, stderr)
+			},
+		},
+		{
+			words:   []string{"toolchain", "install"},
+			hidden:  true,
+			summary: "Dispatch installation for a managed analyzer",
+			flags: func() *flag.FlagSet {
+				var o toolchainInstallOptions
+				return toolchainInstallFlagSet(&o)
+			},
+			run: func(_ dependencies, args []string, stdout, stderr io.Writer) int {
+				return runToolchainInstallParent(args, stdout, stderr)
+			},
+		},
+		{
+			words:   []string{"toolchain", "remove", "pyright"},
+			group:   "Toolchains",
+			usage:   "toolchain remove pyright [--config PATH] [--yes] [--json]",
+			summary: "Remove the managed Pyright analyzer and restore fallback mode",
+			flags:   func() *flag.FlagSet { var o toolchainRemoveOptions; return toolchainRemoveFlagSet(&o) },
+			hints:   map[string]flagHint{"config": {paths: true}},
+			run: func(_ dependencies, args []string, stdout, stderr io.Writer) int {
+				return runToolchainRemove(toolchain.Pyright, args, stdout, stderr)
+			},
+		},
+		{
+			words:   []string{"toolchain", "remove"},
+			hidden:  true,
+			summary: "Dispatch removal for a managed analyzer",
+			flags: func() *flag.FlagSet {
+				var o toolchainRemoveOptions
+				return toolchainRemoveFlagSet(&o)
+			},
+			run: func(_ dependencies, args []string, stdout, stderr io.Writer) int {
+				return runToolchainRemoveParent(args, stdout, stderr)
 			},
 		},
 		{
