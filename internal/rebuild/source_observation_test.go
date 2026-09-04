@@ -75,10 +75,11 @@ func TestRunReportsTheBuiltSnapshotWhenWritingSourceObservationsFails(t *testing
 	report, err := Run(context.Background(), options)
 	testsupport.RequireSpaceOrSkip(t, err)
 	if err == nil || !strings.Contains(err.Error(), "write source observations") {
-		t.Fatalf("Run() error = %v, want source observation write failure", err)
+		t.Fatalf("Run(root=%q, manifest=%#v) error = %v, want source observation write failure", root, manifest, err)
 	}
 	stage, found := stageByName(report.Stages, StageSnapshot)
-	if !found || !strings.Contains(stage.Detail, "hot snapshot 7 built") ||
+	if !found || !strings.Contains(stage.Detail, "digest") ||
+		!strings.Contains(stage.Detail, "hot snapshot 7 built") ||
 		!strings.Contains(stage.Detail, "source manifest filesystem failure") {
 		t.Fatalf("snapshot stage = %#v, want snapshot detail and source observation failure", stage)
 	}

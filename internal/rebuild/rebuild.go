@@ -340,8 +340,8 @@ func Run(ctx context.Context, options Options) (Report, error) {
 			if writeErr := writeSourceManifest(candidatePath, *options.SourceManifest); writeErr != nil {
 				snapshotStage = Stage{
 					Name: StageSnapshot,
-					Detail: fmt.Sprintf("hot snapshot %d built (%d repositories, %d packages, %d files, %d symbols); write source observations: %v",
-						hotSnapshotReport.SnapshotID, hotSnapshotReport.Stats.Repositories,
+					Detail: fmt.Sprintf("wrote %s with digest %s and %s; hot snapshot %d built (%d repositories, %d packages, %d files, %d symbols); write source observations: %v",
+						snapshotFileName, digest, published, hotSnapshotReport.SnapshotID, hotSnapshotReport.Stats.Repositories,
 						hotSnapshotReport.Stats.Packages, hotSnapshotReport.Stats.Files,
 						hotSnapshotReport.Stats.Symbols, writeErr),
 					DurationMS: elapsedMS(snapshotStart),

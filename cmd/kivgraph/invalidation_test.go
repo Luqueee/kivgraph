@@ -78,7 +78,7 @@ func TestInvalidationSchedulerRetriesWhenReindexLeavesAProfileStale(t *testing.T
 		t.Fatalf("ReindexProfile() profile = %q, want default", profile)
 	}
 	if !profileIsStale(manager.Snapshot(), "default") {
-		t.Fatal("profile stopped being stale without a published replacement")
+		t.Fatalf("profile %q stopped being stale without a published replacement", "default")
 	}
 	scheduler.mu.Lock()
 	attempts := scheduler.attempts["default"]
