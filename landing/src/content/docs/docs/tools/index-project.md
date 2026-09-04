@@ -40,11 +40,11 @@ is the only mutating tool on the surface.
 
 ## Consent
 
-It refuses without explicit approval. A client that declares the MCP elicitation
-capability is asked directly, and the request proceeds only when the user
-accepts. A client that does not implement elicitation must obtain approval itself
-and then send `confirmed: true`; sending it without having asked is a lie the
-server cannot detect.
+It refuses without explicit approval. A client capable of MCP form elicitation
+is asked directly, and the request proceeds only when the user accepts. A
+client that cannot answer form elicitation must obtain approval itself and then
+send `confirmed: true`; sending it without having asked is a lie the server
+cannot detect.
 
 Codex uses its native tool-approval prompt and then sends `confirmed: true`,
 because Codex currently cannot complete Kivgraph's server-side form elicitation.

@@ -351,7 +351,7 @@ func TestIndexProjectUsesConfirmedFallbackForURLOnlyElicitation(t *testing.T) {
 			URL: &sdkmcp.URLElicitationCapabilities{},
 		},
 	}, func(context.Context, *sdkmcp.ElicitRequest) (*sdkmcp.ElicitResult, error) {
-		t.Fatal("server requested unsupported form elicitation")
+		t.Fatal("form elicitation requested for client=url-only-client with elicitation.url capability")
 		return nil, nil
 	})
 	result, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{
