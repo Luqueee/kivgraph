@@ -128,6 +128,10 @@ export function pinnedTopologyURL(
   return `/api/v1/topology?${query.toString()}`;
 }
 
+export function topologyFilterLabelID(label: string): string {
+  return `topology-filter-${label.trim().replace(/\s+/g, "-")}`;
+}
+
 function relationshipColor(relationship: TopologyRelationship): string {
   return (
     EDGE_COLORS[relationship.type] ??
@@ -149,13 +153,14 @@ function FilterSelect({
   readonly onChange: (value: string) => void;
   readonly disabled?: boolean;
 }): React.ReactElement {
+  const labelID = topologyFilterLabelID(label);
   return (
     <div className="grid gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-      <span id={`topology-filter-${label}`}>{label}</span>
+      <span id={labelID}>{label}</span>
       <Select value={value} onValueChange={onChange} disabled={disabled}>
         <SelectTrigger
           className="h-8 w-full text-xs normal-case tracking-normal"
-          aria-labelledby={`topology-filter-${label}`}
+          aria-labelledby={labelID}
         >
           <SelectValue />
         </SelectTrigger>

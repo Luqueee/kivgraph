@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { TopologyProfile } from "@/api/client";
 import {
   pinnedTopologyURL,
+  topologyFilterLabelID,
   TopologyExplorer,
 } from "@/components/TopologyExplorer";
 
@@ -27,5 +28,11 @@ describe("TopologyExplorer", () => {
       "/api/v1/topology?profile=default&profile=other&generation=default%3A000007&generation=other%3A000008",
     );
     expect(pinnedTopologyURL([], profiles)).toBe("/api/v1/topology");
+  });
+
+  it("creates a single accessible label ID for multi-word filters", () => {
+    expect(topologyFilterLabelID("edge kind")).toBe(
+      "topology-filter-edge-kind",
+    );
   });
 });
