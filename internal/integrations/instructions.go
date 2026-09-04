@@ -45,7 +45,7 @@ var (
 	errUnsupportedInstructionsFile  = errors.New("unsupported instructions file")
 	errUnsupportedInstructionsAgent = errors.New("unsupported coding agent")
 	errMalformedInstructionsBlock   = errors.New("malformed Kivgraph instructions block")
-	errEditedInstructionsBlock      = errors.New("Kivgraph instructions block was edited")
+	errEditedInstructionsBlock      = errors.New("kivgraph instructions block was edited")
 )
 
 // InstructionsTargets are the coding agents whose project context can carry
@@ -265,8 +265,8 @@ func instructionsBlockBounds(data []byte) (start, end int, found bool, err error
 	if beginAt < 0 || endAt < 0 || endAt < beginAt {
 		return 0, 0, false, errMalformedInstructionsBlock
 	}
-	if bytes.Index(data[beginAt+len(begin):], begin) >= 0 ||
-		bytes.Index(data[endAt+len(finish):], finish) >= 0 {
+	if bytes.Contains(data[beginAt+len(begin):], begin) ||
+		bytes.Contains(data[endAt+len(finish):], finish) {
 		return 0, 0, false, errMalformedInstructionsBlock
 	}
 	return beginAt, endAt + len(finish), true, nil
