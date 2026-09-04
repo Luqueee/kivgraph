@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/Luqueee/kivgraph/internal/config"
+	"github.com/Luqueee/kivgraph/internal/freshness"
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 	"github.com/Luqueee/kivgraph/internal/indexing"
 	"github.com/Luqueee/kivgraph/internal/version"
@@ -16,11 +17,14 @@ import (
 // named profile before its first pass. Analyzer processes are shared by the
 // installation, so two profile rebuilds must not compete for them.
 type profileProjectIndexer struct {
-	gate       chan struct{}
-	configPath string
-	store      *hotsnapshot.SnapshotStore
-	watchMu    sync.RWMutex
-	watch      func(string, config.Loaded, *hotsnapshot.SnapshotStore)
+	gate           chan struct{}
+	configPath     string
+	store          *hotsnapshot.SnapshotStore
+	watchMu        sync.RWMutex
+	watch          func(string, config.Loaded, *hotsnapshot.SnapshotStore)
+	freshnessMu    sync.RWMutex
+	freshness      map[string]*freshness.Cache
+	defaultProfile string
 }
 
 func (indexer *profileProjectIndexer) setProfileWatcher(watch func(string, config.Loaded, *hotsnapshot.SnapshotStore)) {
@@ -48,7 +52,13 @@ func (indexer namedProfileReindexer) Reindex(ctx context.Context) error {
 }
 
 func newProfileProjectIndexer(configPath string, store *hotsnapshot.SnapshotStore) *profileProjectIndexer {
-	return &profileProjectIndexer{gate: make(chan struct{}, 1), configPath: configPath, store: store}
+	return &profileProjectIndexer{
+		gate:           make(chan struct{}, 1),
+		configPath:     configPath,
+		store:          store,
+		freshness:      make(map[string]*freshness.Cache),
+		defaultProfile: "default",
+	}
 }
 
 func (indexer *profileProjectIndexer) IndexProjects(
@@ -90,7 +100,18 @@ func (indexer *profileProjectIndexer) IndexProjectsInProfile(
 		return indexing.ProjectResult{}, err
 	}
 	service := indexing.NewService(loaded, profileStore, version.Value, "")
-	return service.IndexProjects(ctx, projects, progress)
+	result, err := service.IndexProjects(ctx, projects, progress)
+	if err == nil {
+		indexer.markFresh(profile, result.SnapshotID)
+		watchLoaded, watchErr := config.LoadProfile(indexer.configPath, profile)
+		if watchErr != nil {
+			indexer.freshnessCache(profile, profileStore).MarkUnavailable(
+				fmt.Sprintf("refresh content-freshness registry: %v", watchErr))
+		} else {
+			indexer.watchProfile(profile, watchLoaded, profileStore)
+		}
+	}
+	return result, err
 }
 
 func (indexer *profileProjectIndexer) ReindexProfile(ctx context.Context, profile string) error {
@@ -107,7 +128,75 @@ func (indexer *profileProjectIndexer) ReindexProfile(ctx context.Context, profil
 	if err != nil {
 		return err
 	}
-	return indexing.NewService(loaded, profileStore, version.Value, "").Reindex(ctx)
+	if err := indexing.NewService(loaded, profileStore, version.Value, "").Reindex(ctx); err != nil {
+		return err
+	}
+	if generation, known := profileStore.ActiveID(); known {
+		indexer.markFresh(profile, generation)
+	}
+	return nil
+}
+
+func (indexer *profileProjectIndexer) setDefaultProfile(profile string) {
+	indexer.freshnessMu.Lock()
+	if profile != "" {
+		indexer.defaultProfile = profile
+	}
+	indexer.freshnessMu.Unlock()
+}
+
+func (indexer *profileProjectIndexer) freshnessCache(profile string, store *hotsnapshot.SnapshotStore) *freshness.Cache {
+	indexer.freshnessMu.Lock()
+	defer indexer.freshnessMu.Unlock()
+	if indexer.freshness == nil {
+		indexer.freshness = make(map[string]*freshness.Cache)
+	}
+	if cache := indexer.freshness[profile]; cache != nil {
+		return cache
+	}
+	status := freshness.Status{State: "unverified", Detail: "no published generation"}
+	if store != nil {
+		if generation, known := store.ActiveID(); known {
+			status.Generation = generation
+			status.Detail = "content freshness is not cached for this server"
+		}
+	}
+	cache := freshness.NewCache(status)
+	indexer.freshness[profile] = cache
+	return cache
+}
+
+func (indexer *profileProjectIndexer) markFresh(profile string, generation uint64) {
+	indexer.freshnessCache(profile, nil).Store(freshness.Status{
+		Generation: generation,
+		State:      "fresh",
+	})
+}
+
+// ContentFreshness is the MCP host-status fast path. It compares two
+// in-memory generation numbers and returns the last cached observation; it
+// never opens the registry or scans a repository during graph_status.
+func (indexer *profileProjectIndexer) ContentFreshness(_ context.Context) freshness.Status {
+	if indexer == nil || indexer.store == nil {
+		return freshness.Status{State: "unverified", Detail: "no snapshot store"}
+	}
+	indexer.freshnessMu.RLock()
+	profile := indexer.defaultProfile
+	indexer.freshnessMu.RUnlock()
+	cache := indexer.freshnessCache(profile, indexer.store)
+	generation, known := indexer.store.ActiveID()
+	if !known {
+		return freshness.Status{State: "unverified", Detail: "no published generation"}
+	}
+	status := cache.Load()
+	if status.Generation != generation {
+		return freshness.Status{
+			Generation: generation,
+			State:      "unverified",
+			Detail:     "cached content freshness belongs to another generation",
+		}
+	}
+	return status
 }
 
 func (indexer *profileProjectIndexer) loadProfileStore(

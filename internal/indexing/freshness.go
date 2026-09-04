@@ -2,31 +2,46 @@ package indexing
 
 import (
 	"context"
-	"path/filepath"
 
-	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/freshness"
-	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
-// ContentFreshness reads the current registry rather than the startup copy.
-// Filesystem stability and semantic coverage remain separate observations.
-func (service *Service) ContentFreshness(ctx context.Context) freshness.Status {
+// ContentFreshness reads the cached observation for the currently published
+// generation. It deliberately performs no registry read, directory walk or
+// content hash: graph_status is a fast status query, and a monitor or a full
+// rebuild updates this cache outside the tool call.
+func (service *Service) ContentFreshness(_ context.Context) freshness.Status {
+	if service == nil {
+		return freshness.Status{State: "unverified", Detail: "content freshness is not cached"}
+	}
 	if service.snapshotStore == nil {
 		return freshness.Status{State: "unverified", Detail: "no snapshot store"}
 	}
-	snapshot := service.snapshotStore.Load()
-	if snapshot == nil {
+	generation, known := service.snapshotStore.ActiveID()
+	if !known {
 		return freshness.Status{State: "unverified", Detail: "no published generation"}
 	}
-	generation := snapshot.Metadata().ID
-	repositories, err := config.LoadRepositories(service.loaded.RepositoriesPath)
-	if err != nil {
-		return freshness.Status{Generation: generation, State: "unavailable", Detail: err.Error()}
+	if service.freshnessCache == nil {
+		return freshness.Status{
+			Generation: generation,
+			State:      "unverified",
+			Detail:     "content freshness is not cached",
+		}
 	}
-	registry, err := workspace.NewRegistry(ctx, repositories)
-	if err != nil {
-		return freshness.Status{Generation: generation, State: "unavailable", Detail: err.Error()}
+	status := service.freshnessCache.Load()
+	if status.Generation != generation {
+		return freshness.Status{
+			Generation: generation,
+			State:      "unverified",
+			Detail:     "cached content freshness belongs to another generation",
+		}
 	}
-	return freshness.Check(ctx, filepath.Dir(service.loaded.Config.Storage.DatabasePath), generation, registry.List())
+	return status
+}
+
+func (service *Service) markFreshGeneration(generation uint64) {
+	if service == nil || service.freshnessCache == nil {
+		return
+	}
+	service.freshnessCache.Store(freshness.Status{Generation: generation, State: "fresh"})
 }

@@ -1,6 +1,6 @@
 ---
 title: graph_status
-description: What the server is serving from, how large it is, how it resolved, and whether any repository has left the commit the graph was built from.
+description: What the server is serving from, how large it is, how it resolved, and whether repository identity or registered content has changed.
 ---
 
 > The published generation: counts, provenance, and whether a repository moved since it was indexed. Call it when an answer looks stale.
@@ -101,6 +101,10 @@ missing snapshot: reporting that the index is empty is its job.
         "moved": false
       }
     ],
+    "content_freshness": {
+      "generation": 30,
+      "state": "fresh"
+    },
     "repositories_moved": 0,
     "worker": {
       "state": "not_applicable",
@@ -217,6 +221,33 @@ fresh either; its own row says why. Reading each HEAD is what makes the answer
 worth anything: a status that only repeated what the snapshot remembers could
 not tell a caller that the snapshot is no longer true.
 
+## Content freshness
+
+`content_freshness` answers a different question from
+`repository_freshness`: whether the registered source inventory still matches
+the published generation. The inventory includes source and build-configuration
+files, registered roots and explicit manifests, including uncommitted and
+untracked files. It uses the same repository exclusions as workspace discovery.
+
+| State | Meaning |
+| --- | --- |
+| `fresh` | The cached inventory attestation matches `generation`. |
+| `stale` | A watched registered input changed after that generation was built.<br>The graph remains available, but it must be rebuilt before its facts are trusted. |
+| `unverified` | The attestation is missing, legacy, malformed, or belongs to another generation.<br>It can also mean this server has not verified an existing generation yet. |
+| `unavailable` | The inventory or its watcher could not be read, so freshness cannot be established. |
+
+`content_freshness.generation` must equal the response `snapshot_id` before a
+client treats `fresh` or `stale` as evidence about the graph it received. A
+generation mismatch is reported as `unverified`; it is not silently attached to
+the newer snapshot. In multi-profile responses, content freshness is included
+only for the default profile selected by the host probe. Other profiles must
+be checked through their own status response.
+
+Repository freshness compares Git identity and can miss a changed file under
+an unchanged commit. Content freshness covers that working-tree gap, but it is
+still an inventory attestation: it does not claim that an analyzer loaded every
+possible dependency or that a graph is semantically complete.
+
 ## It reports only what was used and measured
 
 `worker` and `storage` are both `not_applicable` in the captured response, each
@@ -277,6 +308,6 @@ standard library's own edge would hide exactly what indexing it was for.
 - Counts come from the snapshot metadata. They describe what the passes indexed,
   not what exists on disk: a reference the passes could not attribute appears in
   `unresolved` and `unresolved_by_reason`, never as an edge.
-- Freshness is per repository and per commit. It cannot tell you that a single
-  file changed under an unchanged commit; `indexed_dirty` is the only signal
-  that uncommitted work was involved.
+- Repository freshness is per repository and per commit. Use
+  `content_freshness` for uncommitted, untracked and build-configuration edits
+  that leave Git identity unchanged.

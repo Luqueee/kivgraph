@@ -116,7 +116,11 @@ func walkUnclaimedTypeScriptFiles(
 		}
 		entryPath := filepath.Join(current, entry.Name())
 		isDirectory := entry.IsDir()
-		if isDiscoveryExcluded(base, entryPath, entry.Name(), isDirectory, exclusions) {
+		excluded, err := isDiscoveryExcluded(base, entryPath, entry.Name(), isDirectory, exclusions)
+		if err != nil {
+			return fmt.Errorf("check exclusion for %q: %w", entryPath, err)
+		}
+		if excluded {
 			continue
 		}
 		if isDirectory {

@@ -384,21 +384,6 @@ func (cache *factCache) prune(maximumAge time.Duration) {
 	}
 }
 
-// semanticManifestNames are the files whose content changes what a semantic
-// analyzer answers about a repository. A manifest a language reads and this
-// list does not name is a file that can be edited without invalidating
-// anything, so the pass would serve the previous manifest's facts.
-var semanticManifestNames = []string{
-	"pyproject.toml", "setup.py", "setup.cfg", "requirements.txt",
-	"Pipfile", "Pipfile.lock", "poetry.lock", "uv.lock",
-	"pubspec.yaml", "pubspec.lock", "analysis_options.yaml",
-	filepath.Join(".dart_tool", "package_config.json"),
-	"pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle",
-	"settings.gradle.kts", "gradle.properties", "build.sbt",
-	"Directory.Build.props", "Directory.Packages.props", "NuGet.config",
-	"global.json", "packages.lock.json",
-}
-
 // unitIdentity names what the entry is about, never what it read.
 //
 // It had no branch for Rust, and the fallthrough was TypeScript: every Rust
@@ -442,6 +427,20 @@ func (cache *factCache) describeInputs(
 			Kind: kind, Name: name, Fingerprint: cache.fingerprint(kind, name),
 		})
 	}
+	manifestRoot := unit.repository.RealPath
+	if manifestRoot == "" {
+		manifestRoot = unit.repository.Path
+	}
+	for _, manifest := range unit.repository.Manifests {
+		manifest = strings.TrimSpace(manifest)
+		if manifest == "" {
+			continue
+		}
+		if !filepath.IsAbs(manifest) && manifestRoot != "" {
+			manifest = filepath.Join(manifestRoot, manifest)
+		}
+		add(inputFile, filepath.Clean(manifest))
+	}
 
 	if unit.kind == unitGo {
 		// Every module of the workspace group, not only this one: modules
@@ -479,8 +478,8 @@ func (cache *factCache) describeInputs(
 			root = unit.repository.Path
 		}
 		add(inputTree, root)
-		for _, name := range semanticManifestNames {
-			add(inputFile, filepath.Join(root, name))
+		for _, manifest := range config.BuildConfigurationPaths(root) {
+			add(inputFile, manifest)
 		}
 		if unit.language == facts.LanguageDart && strings.TrimSpace(options.DartPackageConfig) != "" && options.DartPackageConfig != "auto" {
 			packageConfig := options.DartPackageConfig
@@ -995,7 +994,7 @@ func treeFingerprint(root string) string {
 			}
 			return nil
 		}
-		if !isFingerprintedSource(entry.Name()) {
+		if !isFingerprintedSource(path) {
 			return nil
 		}
 		relative, err := filepath.Rel(root, path)
@@ -1049,25 +1048,10 @@ func fileFingerprint(path string) string {
 // invalidated nothing.
 var fingerprintedExtensions = config.SourceExtensionSet(config.SupportedLanguages())
 
-// fingerprintedManifests are the files that decide how those languages are
-// built. A change to one of them can change facts without any source changing.
-var fingerprintedManifests = map[string]struct{}{
-	"go.mod": {}, "go.sum": {}, "go.work": {}, "go.work.sum": {},
-	"package.json": {}, "tsconfig.json": {},
-	"cargo.toml": {}, "cargo.lock": {},
-	"pyproject.toml": {}, "setup.py": {}, "setup.cfg": {}, "requirements.txt": {},
-	"pipfile": {}, "pipfile.lock": {}, "poetry.lock": {}, "uv.lock": {},
-	"pubspec.yaml": {}, "pubspec.lock": {}, "analysis_options.yaml": {},
-}
-
 // isFingerprintedSource is what a unit can read: the languages this indexer
 // analyses, plus the manifests that decide how they are built.
 func isFingerprintedSource(name string) bool {
-	base := strings.ToLower(filepath.Base(name))
-	if _, ok := fingerprintedManifests[base]; ok {
-		return true
-	}
-	if strings.HasPrefix(base, "requirements-") && strings.HasSuffix(base, ".txt") {
+	if config.IsBuildConfigurationFile(name) {
 		return true
 	}
 	return config.HasSourceExtension(fingerprintedExtensions, name)

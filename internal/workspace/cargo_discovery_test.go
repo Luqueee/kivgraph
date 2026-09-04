@@ -244,10 +244,21 @@ func TestCargoExcludesAnswersForAPathDiscoveryNeverWalked(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			candidate := filepath.Join(root, filepath.FromSlash(test.path))
-			if excluded := CargoExcludes(root, candidate, test.exclusions); excluded != test.want {
+			excluded := CargoExcludes(root, candidate, test.exclusions)
+			if excluded != test.want {
 				t.Fatalf("CargoExcludes(%q) = %t, want %t", test.path, excluded, test.want)
 			}
 		})
+	}
+}
+
+func TestCargoExcludesCheckedRejectsInvalidExclusionPattern(t *testing.T) {
+	root := testsupport.TempDir(t)
+	candidate := filepath.Join(root, "src", "lib.rs")
+	exclusions := []string{"["}
+	_, err := CargoExcludesChecked(root, candidate, exclusions)
+	if err == nil || !strings.Contains(err.Error(), "exclusions[0]") {
+		t.Fatalf("CargoExcludesChecked() candidate=%q exclusions=%q error = %v, want invalid exclusion error", candidate, exclusions, err)
 	}
 }
 

@@ -4,7 +4,9 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
@@ -70,6 +72,281 @@ func TestInventoryTracksEditsAdditionsDeletionsAndExclusions(t *testing.T) {
 	}
 }
 
+func TestInventoryIncludesRegisteredScopeAndExplicitManifests(t *testing.T) {
+	root := t.TempDir()
+	explicit := filepath.Join(root, "project.settings")
+	externalRoot := t.TempDir()
+	external := filepath.Join(externalRoot, "shared.settings")
+	if err := os.WriteFile(explicit, []byte("before\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(external, []byte("before\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	repository := workspace.Repository{
+		Name:      "test",
+		Path:      root,
+		Roots:     []string{filepath.Join(root, "src")},
+		Manifests: []string{explicit},
+	}
+	capture := func() string {
+		t.Helper()
+		digest, err := Capture(t.Context(), []workspace.Repository{repository})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return digest
+	}
+
+	initial := capture()
+	repository.Roots[0] = filepath.Join(root, "other")
+	if capture() == initial {
+		t.Fatalf("registered root identity %q did not invalidate the inventory", repository.Roots[0])
+	}
+	initial = capture()
+	repository.Manifests[0] = filepath.Join(root, "other.settings")
+	if capture() == initial {
+		t.Fatal("registered manifest identity did not invalidate the inventory")
+	}
+	repository.Manifests[0] = explicit
+	initial = capture()
+	if err := os.WriteFile(explicit, []byte("after\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if capture() == initial {
+		t.Fatal("explicit manifest outside the extension set was not fingerprinted")
+	}
+	repository.Manifests[0] = external
+	initial = capture()
+	if err := os.WriteFile(external, []byte("after\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if capture() == initial {
+		t.Fatal("explicit manifest outside the repository walk was not fingerprinted")
+	}
+}
+
+func TestInventoryIncludesAnalyzerBuildConfiguration(t *testing.T) {
+	for _, name := range []string{
+		"build.gradle", "settings.gradle", "gradle.properties", "build.sbt",
+		"Pipfile", "requirements-dev.txt",
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			path := filepath.Join(root, name)
+			if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte("before\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			repository := workspace.Repository{Name: "test", Path: root}
+			before, err := Capture(t.Context(), []workspace.Repository{repository})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte("after\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			after, err := Capture(t.Context(), []workspace.Repository{repository})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if after == before {
+				t.Fatalf("editing analyzer configuration %q did not change the inventory", name)
+			}
+		})
+	}
+}
+
+func TestInventoryUsesRecursiveWorkspaceExclusions(t *testing.T) {
+	root := t.TempDir()
+	excluded := filepath.Join(root, "nested", "deeper", "benchmarks", "generated.go")
+	if err := os.MkdirAll(filepath.Dir(excluded), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(excluded, []byte("before\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	repository := workspace.Repository{
+		Name:       "test",
+		Path:       root,
+		Languages:  []string{"go"},
+		Exclusions: []string{"**/benchmarks"},
+	}
+	before, err := Capture(t.Context(), []workspace.Repository{repository})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(excluded, []byte("after\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	after, err := Capture(t.Context(), []workspace.Repository{repository})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after != before {
+		t.Fatal("editing a deeply nested recursively excluded source changed the inventory")
+	}
+}
+
+func TestInventoryMatchesWorkspaceExclusionCorpus(t *testing.T) {
+	for _, testCase := range []struct {
+		name       string
+		path       string
+		exclusions []string
+		absolute   bool
+		wantExcl   bool
+	}{
+		{name: "root exact", path: "benchmarks/main.go", exclusions: []string{"benchmarks"}, wantExcl: true},
+		{name: "nested recursive", path: "services/api/benchmarks/main.go", exclusions: []string{"**/benchmarks"}, wantExcl: true},
+		{name: "nested generated", path: "services/api/generated/main.go", exclusions: []string{"**/generated"}, wantExcl: true},
+		{name: "wildcard segment", path: "services/api/testdata/main.go", exclusions: []string{"**/test*"}, wantExcl: true},
+		{name: "relative path", path: "services/api/benchmarks/main.go", exclusions: []string{"./services/api/benchmarks"}, wantExcl: true},
+		{name: "absolute path", path: "services/api/benchmarks/main.go", absolute: true, wantExcl: true},
+		{name: "not excluded", path: "services/api/main.go", exclusions: []string{"**/benchmarks", "**/generated"}},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			root := t.TempDir()
+			path := filepath.Join(root, filepath.FromSlash(testCase.path))
+			if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte("before\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			repository := workspace.Repository{
+				Name: "test", Path: root, Languages: []string{"go"},
+			}
+			repository.Exclusions = testCase.exclusions
+			if testCase.absolute {
+				repository.Exclusions = []string{filepath.Join(root, "services", "api", "benchmarks")}
+			}
+			excluded, err := workspace.MatchesExclusion(root, path, repository.Exclusions)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if excluded != testCase.wantExcl {
+				t.Fatalf("workspace matcher path=%q exclusions=%q excluded=%t, want %t", testCase.path, repository.Exclusions, excluded, testCase.wantExcl)
+			}
+			before, err := Capture(t.Context(), []workspace.Repository{repository})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte("after\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			after, err := Capture(t.Context(), []workspace.Repository{repository})
+			if err != nil {
+				t.Fatal(err)
+			}
+			changed := after != before
+			if changed == excluded {
+				t.Fatalf("freshness decision path=%q exclusions=%q changed=%t disagrees with workspace matcher excluded=%t", testCase.path, repository.Exclusions, changed, excluded)
+			}
+		})
+	}
+}
+
+func TestFreshnessMonitorInvalidatesOnlyRegisteredInputs(t *testing.T) {
+	root := t.TempDir()
+	source := filepath.Join(root, "main.go")
+	ignored := filepath.Join(root, "benchmarks", "main.go")
+	if err := os.MkdirAll(filepath.Dir(ignored), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{source, ignored} {
+		if err := os.WriteFile(path, []byte("before\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cache := NewCache(Status{Generation: 9, State: "fresh"})
+	monitor, err := NewMonitor(t.Context(), []workspace.Repository{{
+		Name: "test", Path: root, Languages: []string{"go"}, Exclusions: []string{"**/benchmarks"},
+	}}, cache)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer monitor.Close()
+	<-monitor.ready
+	if err := os.WriteFile(source, []byte("changed\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	waitForFreshnessState(t, cache, "stale")
+	cache.Store(Status{Generation: 9, State: "fresh"})
+	if err := os.WriteFile(ignored, []byte("ignored\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	assertFreshFor(t, cache, 200*time.Millisecond, ignored)
+	if err := os.WriteFile(source, []byte("changed again\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	waitForFreshnessState(t, cache, "stale")
+	if got := cache.Load(); !strings.Contains(got.Detail, source) {
+		t.Fatalf("excluded input invalidated cache before the source input: %+v", got)
+	}
+}
+
+func assertFreshFor(t *testing.T, cache *Cache, duration time.Duration, input string) {
+	t.Helper()
+	deadline := time.NewTimer(duration)
+	defer deadline.Stop()
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if got := cache.Load(); got.State != "fresh" {
+			t.Fatalf("input %q invalidated cache: %+v", input, got)
+		}
+		select {
+		case <-deadline.C:
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+func waitForFreshnessState(t *testing.T, cache *Cache, want string) {
+	t.Helper()
+	deadline := time.NewTimer(2 * time.Second)
+	defer deadline.Stop()
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if got := cache.Load(); got.State == want {
+			return
+		}
+		select {
+		case <-deadline.C:
+			t.Fatalf("cache state = %+v, want %q", cache.Load(), want)
+		case <-ticker.C:
+		}
+	}
+}
+
+func TestFreshnessMonitorInvalidatesRepositoryRegistryChanges(t *testing.T) {
+	directory := t.TempDir()
+	registryPath := filepath.Join(directory, "repositories.yaml")
+	if err := os.WriteFile(registryPath, []byte("before\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	registryWatch, resolved, err := newRegistryWatcher(registryPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cache := NewCache(Status{Generation: 9, State: "fresh"})
+	monitor, err := newMonitor(t.Context(), nil, cache, registryWatch, resolved)
+	if err != nil {
+		_ = registryWatch.Close()
+		t.Fatal(err)
+	}
+	defer monitor.Close()
+	<-monitor.ready
+	if err := os.WriteFile(registryPath, []byte("after\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	waitForFreshnessState(t, cache, "stale")
+}
+
 func TestAttestationIsGenerationBoundAndFailsClosed(t *testing.T) {
 	root := t.TempDir()
 	source := t.TempDir()
@@ -81,7 +358,7 @@ func TestAttestationIsGenerationBoundAndFailsClosed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := Save(root, 1, digest); err != nil {
+	if err := Save(t.Context(), root, 1, digest); err != nil {
 		t.Fatal(err)
 	}
 	if got := Check(t.Context(), root, 1, repos); got.State != "fresh" {
@@ -105,6 +382,20 @@ func TestAttestationIsGenerationBoundAndFailsClosed(t *testing.T) {
 	}
 	if got := Check(t.Context(), root, 1, repos); got.State != "unverified" {
 		t.Fatal(got)
+	}
+	if err := os.WriteFile(recordPath(root, 1), []byte(`{"version":1,"generation":1,"digest":"`+strings.Repeat("z", 64)+`"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if got := Check(t.Context(), root, 1, repos); got.State != "unverified" {
+		t.Fatalf("invalid hexadecimal digest = %+v", got)
+	}
+}
+
+func TestSaveHonorsCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if err := Save(ctx, t.TempDir(), 1, strings.Repeat("0", 64)); err == nil {
+		t.Fatal("Save() ignored cancellation")
 	}
 }
 

@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/Luqueee/kivgraph/internal/config"
+	"github.com/Luqueee/kivgraph/internal/freshness"
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 	"github.com/Luqueee/kivgraph/internal/rebuild"
 	"github.com/Luqueee/kivgraph/internal/storage/generation"
@@ -139,6 +140,7 @@ type Service struct {
 	snapshotStore    *hotsnapshot.SnapshotStore
 	resolverVersion  string
 	workingDirectory string
+	freshnessCache   *freshness.Cache
 
 	// index runs the full pass, out of this process. It is a field so a test
 	// can substitute the child it would otherwise spawn, the same way
@@ -161,12 +163,14 @@ func NewService(
 	if workingDirectory == "" {
 		workingDirectory, _ = os.Getwd()
 	}
+	initialFreshness := freshness.Status{State: "unverified", Detail: "content freshness has not been verified"}
 	return &Service{
 		gate:             make(chan struct{}, 1),
 		loaded:           cloneLoaded(loaded),
 		snapshotStore:    snapshotStore,
 		resolverVersion:  resolverVersion,
 		workingDirectory: workingDirectory,
+		freshnessCache:   freshness.NewCache(initialFreshness),
 		index:            RunDetached,
 	}
 }
@@ -265,6 +269,7 @@ func (service *Service) IndexProjects(
 	if err != nil {
 		return ProjectResult{}, fmt.Errorf("publish project snapshot: %w", err)
 	}
+	service.markFreshGeneration(snapshotID)
 
 	return ProjectResult{
 		Project:      normalized,
@@ -315,9 +320,11 @@ func (service *Service) Reindex(ctx context.Context) error {
 	if _, err := service.runIndex(ctx, nil); err != nil {
 		return fmt.Errorf("reindex registered repositories: %w", err)
 	}
-	if _, err := service.publishActiveSnapshot(ctx); err != nil {
+	generation, err := service.publishActiveSnapshot(ctx)
+	if err != nil {
 		return fmt.Errorf("publish reindexed snapshot: %w", err)
 	}
+	service.markFreshGeneration(generation)
 	return nil
 }
 

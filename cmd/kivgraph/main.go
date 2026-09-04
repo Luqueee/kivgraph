@@ -28,6 +28,7 @@ import (
 	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/eventlog"
 	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/freshness"
 	"github.com/Luqueee/kivgraph/internal/goworkspace"
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 	"github.com/Luqueee/kivgraph/internal/indexer"
@@ -618,7 +619,28 @@ func watchConfiguredProfiles(
 	var watchersMu sync.Mutex
 	stops := make([]func(), 0, len(profiles)*2)
 	watched := make(map[string]struct{}, len(profiles))
+	monitorStops := make(map[string]func(), len(profiles))
 	closed := false
+	indexer.setDefaultProfile(loaded.Config.Profiles.Default)
+	startFreshnessMonitor := func(name string, profileLoaded config.Loaded, profileStore *hotsnapshot.SnapshotStore) {
+		cache := indexer.freshnessCache(name, profileStore)
+		monitor, monitorErr := freshness.NewRegistryMonitor(
+			ctx,
+			profileLoaded.Repositories,
+			profileLoaded.RepositoriesPath,
+			filepath.Dir(profileLoaded.Config.Storage.DatabasePath),
+			cache,
+		)
+		if monitorErr != nil {
+			cache.MarkUnavailable(monitorErr.Error())
+			writeWarning(os.Stderr, "content freshness for profile %q: %v", name, monitorErr)
+			delete(monitorStops, name)
+			return
+		}
+		stop := monitor.Close
+		monitorStops[name] = stop
+		stops = append(stops, stop)
+	}
 	register := func(name string, profileLoaded config.Loaded, profileStore *hotsnapshot.SnapshotStore) {
 		watchersMu.Lock()
 		defer watchersMu.Unlock()
@@ -626,9 +648,14 @@ func watchConfiguredProfiles(
 			return
 		}
 		if _, found := watched[name]; found {
+			if stop := monitorStops[name]; stop != nil {
+				stop()
+			}
+			startFreshnessMonitor(name, profileLoaded, profileStore)
 			return
 		}
 		watched[name] = struct{}{}
+		startFreshnessMonitor(name, profileLoaded, profileStore)
 		stops = append(stops,
 			followPublishedGeneration(ctx, profileLoaded, profileStore, command, indexing.FollowOptions{}),
 			resyncOnBranchChange(ctx, profileLoaded, profileStore, namedProfileReindexer{indexer, name}, command),

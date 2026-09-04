@@ -108,7 +108,12 @@ repository/path/qualified-name triple remains portable across profiles.
 7. **`graph_status` when an answer looks stale**, which is what its own
    description says, or when you must establish that a published generation
    exists at all. It reports the snapshot, its age, repository coverage and
-   whether a repository moved since it was indexed.
+   whether a repository moved since it was indexed. Read `content_freshness`
+   separately from `repository_freshness`: its generation must equal the
+   response snapshot before its `fresh`, `stale` or generation-bound
+   `unverified` state is applied to that graph. An `unavailable` result without
+   a generation means the check could not run and applies regardless of the
+   response snapshot.
 
 Python, Dart, Java and C# notes:
 

@@ -56,17 +56,29 @@ func TestATreeFingerprintChangesWithEverySupportedLanguage(t *testing.T) {
 // the walk all skipped produces.
 const emptyTreeFingerprint = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 
-// TestEveryLanguagesManifestsInvalidateAnEntry covers the other half: a build
-// file can change what the facts are without a single source changing.
-func TestEveryLanguagesManifestsInvalidateAnEntry(t *testing.T) {
-	for _, manifest := range []string{
-		"go.mod", "go.sum", "go.work", "package.json", "tsconfig.json",
-		"Cargo.toml", "Cargo.lock", "pyproject.toml", "requirements.txt",
-		"requirements-dev.txt", "pubspec.yaml", "analysis_options.yaml",
-	} {
-		if !isFingerprintedSource(manifest) {
-			t.Fatalf("%s does not invalidate a cache entry", manifest)
-		}
+// TestFactCacheMissesWhenAnExplicitOrAnalyzerManifestChanges covers inputs
+// that can change facts without a source edit. The explicit manifest is
+// relative to the repository on purpose: describeInputs has to resolve it the
+// same way as freshness does, or the cache would fingerprint the process's
+// working directory instead.
+func TestFactCacheMissesWhenAnExplicitOrAnalyzerManifestChanges(t *testing.T) {
+	fixture := newCachedFixture(t)
+	fixture.repository.Manifests = []string{"project.settings"}
+	writeFullFixture(t, filepath.Join(fixture.root, "project.settings"), "before\n")
+	writeFullFixture(t, filepath.Join(fixture.root, "build.gradle"), "plugins { id 'java' }\n")
+	fixture.index()
+	if _, report := fixture.index(); report.Cache.Hits == 0 {
+		t.Fatalf("cache = %+v, want a hit when no input changed", report.Cache)
+	}
+
+	writeFullFixture(t, filepath.Join(fixture.root, "project.settings"), "after\n")
+	if _, report := fixture.index(); report.Cache.Hits != 0 {
+		t.Fatalf("cache = %+v, want no hit after explicit manifest changed", report.Cache)
+	}
+
+	writeFullFixture(t, filepath.Join(fixture.root, "build.gradle"), "plugins { id 'java-library' }\n")
+	if _, report := fixture.index(); report.Cache.Hits != 0 {
+		t.Fatalf("cache = %+v, want no hit after analyzer manifest changed", report.Cache)
 	}
 }
 
