@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -28,6 +29,27 @@ func TestConfigureRejectsConflictingTransportBeforeWriting(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(home, ".config", "kivgraph", "config.yaml")); !os.IsNotExist(err) {
 		t.Fatalf("conflicting configure created a config: %v", err)
+	}
+}
+
+func TestInstallConfigureHooksSkipsUnsupportedTarget(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if failed := installConfigureHooks(
+		integrations.Manager{},
+		[]integrations.Target{integrations.TargetClaudeDesktop},
+		nil,
+		false,
+		false,
+		&stdout,
+		&stderr,
+	); failed {
+		t.Fatalf("installConfigureHooks reported failure: stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "hook skipped for Claude Desktop") {
+		t.Fatalf("installConfigureHooks output = %q, want unsupported-target message", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("installConfigureHooks stderr = %q, want empty", stderr.String())
 	}
 }
 
@@ -223,20 +245,46 @@ func TestConfigureSkipsSurfacesUnsupportedByClaudeDesktop(t *testing.T) {
 		t.Fatalf("inspect Claude Desktop MCP configuration: %v", err)
 	}
 	if mcpPlan.Status != "managed" {
-		t.Fatalf("Claude Desktop MCP status = %#v, want managed", mcpPlan)
+		t.Fatalf("StatusMCP(target=claude-desktop, scope=user) = %#v, want managed", mcpPlan)
 	}
-	if _, err := os.Stat(mcpPlan.Path); err != nil {
-		t.Fatalf("Claude Desktop MCP configuration missing at %s: %v", mcpPlan.Path, err)
+	wantMCPPath := configureClaudeDesktopMCPPath(home)
+	if mcpPlan.Path != wantMCPPath {
+		t.Fatalf("StatusMCP(target=claude-desktop, scope=user) path = %q, want %q", mcpPlan.Path, wantMCPPath)
+	}
+	mcpData, err := os.ReadFile(wantMCPPath)
+	if err != nil {
+		t.Fatalf("Claude Desktop MCP configuration missing at %s: %v", wantMCPPath, err)
+	}
+	if !bytes.Contains(mcpData, []byte(`"kivgraph"`)) {
+		t.Fatalf("Claude Desktop MCP configuration at %s lacks the managed entry: %q", wantMCPPath, mcpData)
 	}
 	hookPlan, err := manager.StatusHook(integrations.TargetClaudeDesktop, integrations.ScopeUser)
 	if err != nil {
-		t.Fatalf("inspect Claude Desktop hook configuration: %v", err)
+		t.Fatalf("StatusHook(target=claude-desktop, scope=user) error: %v", err)
 	}
 	if hookPlan.Status != "managed" {
-		t.Fatalf("Claude Desktop hook status = %#v, want managed", hookPlan)
+		t.Fatalf("StatusHook(target=claude-desktop, scope=user) = %#v, want managed", hookPlan)
 	}
-	if _, err := os.Stat(hookPlan.Path); err != nil {
-		t.Fatalf("Claude Desktop hook configuration missing at %s: %v", hookPlan.Path, err)
+	wantHookPath := filepath.Join(home, ".claude", "settings.json")
+	if hookPlan.Path != wantHookPath {
+		t.Fatalf("StatusHook(target=claude-desktop, scope=user) path = %q, want %q", hookPlan.Path, wantHookPath)
+	}
+	hookData, err := os.ReadFile(wantHookPath)
+	if err != nil {
+		t.Fatalf("Claude Desktop hook configuration missing at %s: %v", wantHookPath, err)
+	}
+	if !bytes.Contains(hookData, []byte("hook run")) {
+		t.Fatalf("Claude Desktop hook configuration at %s lacks the managed command: %q", wantHookPath, hookData)
+	}
+	for _, path := range []string{
+		filepath.Join(home, ".agents", "skills", "kivgraph", "SKILL.md"),
+		filepath.Join(project, "AGENTS.md"),
+		filepath.Join(project, "CLAUDE.md"),
+		filepath.Join(project, ".omp", "AGENTS.md"),
+	} {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("unsupported Claude Desktop surface created %s: %v", path, err)
+		}
 	}
 }
 
@@ -295,7 +343,7 @@ func TestConfigureContinuesWhenMCPTransportSetupFails(t *testing.T) {
 	}
 }
 
-func TestConfigureRejectsMalformedResolvedEndpoint(t *testing.T) {
+func TestConfigureRejectsIncompleteResolvedEndpoint(t *testing.T) {
 	home := t.TempDir()
 	project := t.TempDir()
 	testsupport.SetHome(t, home)
@@ -406,14 +454,32 @@ func TestConfigureReportsAnInstructionsInstallFailure(t *testing.T) {
 }
 
 func TestConfigureAcceptsAgentAliases(t *testing.T) {
-	for _, alias := range []string{"claude", "omp"} {
+	for alias, want := range map[string]integrations.Target{
+		"claude": integrations.TargetClaudeCode,
+		"omp":    integrations.TargetOhMyPi,
+	} {
 		targets, err := configureTargets(nil, io.Discard, integrationsManagerForConfigureTest(t), []string{alias})
 		if err != nil {
 			t.Fatalf("configureTargets(%q) error = %v", alias, err)
 		}
-		if len(targets) != 1 {
-			t.Fatalf("configureTargets(%q) = %v, want one target", alias, targets)
+		if len(targets) != 1 || targets[0] != want {
+			t.Fatalf("configureTargets(%q) = %v, want [%s]", alias, targets, want)
 		}
+	}
+}
+
+func configureClaudeDesktopMCPPath(home string) string {
+	switch runtime.GOOS {
+	case "darwin":
+		return filepath.Join(home, "Library", "Application Support", "Claude", "claude_desktop_config.json")
+	case "windows":
+		roaming := os.Getenv("APPDATA")
+		if strings.TrimSpace(roaming) == "" {
+			roaming = filepath.Join(home, "AppData", "Roaming")
+		}
+		return filepath.Join(roaming, "Claude", "claude_desktop_config.json")
+	default:
+		return filepath.Join(home, ".config", "Claude", "claude_desktop_config.json")
 	}
 }
 

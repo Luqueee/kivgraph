@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -71,7 +72,7 @@ func TestRunInstructionsInstallRejectsUnknownFlag(t *testing.T) {
 		t.Fatalf("unknown flag exit code = %d, want 2", code)
 	}
 	if !strings.Contains(stderr.String(), "flag provided but not defined") {
-		t.Fatalf("unknown flag stderr = %q", stderr.String())
+		t.Fatalf("unknown flag %v stderr = %q", []string{"--unknown"}, stderr.String())
 	}
 }
 
@@ -157,6 +158,7 @@ func TestRunInstructionsInstallWithoutAgentCanCancel(t *testing.T) {
 }
 
 func TestRunInstructionsInstallDeduplicatesTheAcceptedClaudeSymlink(t *testing.T) {
+	skipWindowsSymlinkTest(t)
 	project := testsupport.TempDir(t)
 	t.Chdir(project)
 	testsupport.SetHome(t, testsupport.TempDir(t))
@@ -209,7 +211,37 @@ func TestRunInstructionsInstallReportsSelectedFileErrors(t *testing.T) {
 	}
 }
 
+func TestRunInstructionsInstallReportsExplicitDestinationSelectors(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		args     []string
+		selector string
+	}{
+		{name: "agent", args: []string{"--agent", "codex"}, selector: "--agent codex"},
+		{name: "file", args: []string{"--file", "AGENTS.md"}, selector: "--file AGENTS.md"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			project := testsupport.TempDir(t)
+			t.Chdir(project)
+			testsupport.SetHome(t, testsupport.TempDir(t))
+			if err := os.WriteFile(filepath.Join(project, "AGENTS.md"), []byte("<!-- BEGIN KIVGRAPH INSTRUCTIONS -->\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			var stdout, stderr bytes.Buffer
+			args := append([]string{"kivgraph", "instructions", "install"}, test.args...)
+			if code := run(args, &stdout, &stderr); code != 1 {
+				t.Fatalf("%v exit code = %d, stdout=%q stderr=%q", test.args, code, stdout.String(), stderr.String())
+			}
+			if !strings.Contains(stderr.String(), test.selector) || !strings.Contains(stderr.String(), "malformed") {
+				t.Fatalf("%v stderr = %q, want selector %q and malformed error", test.args, stderr.String(), test.selector)
+			}
+		})
+	}
+}
+
 func TestInstructionsDestinationHelpers(t *testing.T) {
+	skipWindowsSymlinkTest(t)
 	project := t.TempDir()
 	manager, err := integrations.New(integrations.Options{
 		HomeDir:    t.TempDir(),
@@ -230,19 +262,19 @@ func TestInstructionsDestinationHelpers(t *testing.T) {
 	if _, err := instructionsDestinations(manager, instructionsOptions{}, []integrations.Target{integrations.TargetCodex}); err == nil || !strings.Contains(err.Error(), "symlink") {
 		t.Fatalf("instructionsDestinations() target error = %v, want symlink rejection", err)
 	}
-	if got := (instructionsDestination{agent: "codex"}).selector(); got != "--agent codex" {
-		t.Fatalf("agent selector = %q", got)
-	}
-	if got := (instructionsDestination{file: "AGENTS.md"}).selector(); got != "--file AGENTS.md" {
-		t.Fatalf("file selector = %q", got)
-	}
-
 	var output bytes.Buffer
 	writeInstructionsPlan(&output, integrations.InstructionsPlan{
 		File: "AGENTS.md", Path: "AGENTS.md", Status: "managed", Detail: "already present",
 	}, "")
 	if !strings.Contains(output.String(), "--file AGENTS.md") {
 		t.Fatalf("managed plan output = %q", output.String())
+	}
+}
+
+func skipWindowsSymlinkTest(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("symbolic-link tests require Windows link privileges")
 	}
 }
 

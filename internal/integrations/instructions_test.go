@@ -98,6 +98,7 @@ func TestInstallInstructionsRejectsUnsupportedFile(t *testing.T) {
 }
 
 func TestInstallInstructionsRejectsSymlinkDestination(t *testing.T) {
+	skipWindowsSymlinkTest(t)
 	manager, _, project := testManager(t)
 	outside := filepath.Join(project, "outside.md")
 	path := filepath.Join(project, InstructionsFileAgents)
@@ -122,6 +123,7 @@ func TestInstallInstructionsRejectsSymlinkDestination(t *testing.T) {
 }
 
 func TestInstallInstructionsRejectsSymlinkParent(t *testing.T) {
+	skipWindowsSymlinkTest(t)
 	manager, _, project := testManager(t)
 	outside := testsupport.TempDir(t)
 	if err := os.Symlink(outside, filepath.Join(project, ".omp")); err != nil {
@@ -152,6 +154,7 @@ func TestInstructionsDestinationReportsInspectionErrors(t *testing.T) {
 }
 
 func TestInstallInstructionsFollowsOnlyTheClaudeToAgentsLink(t *testing.T) {
+	skipWindowsSymlinkTest(t)
 	// The os.Readlink error branch is a filesystem race between Lstat and
 	// Readlink. Reproducing it deterministically would require a production
 	// filesystem seam that exists only for this test; the conventional link
@@ -183,6 +186,13 @@ func TestInstallInstructionsFollowsOnlyTheClaudeToAgentsLink(t *testing.T) {
 	}
 	if linkTarget != InstructionsFileAgents {
 		t.Fatalf("CLAUDE.md link changed to %q", linkTarget)
+	}
+}
+
+func skipWindowsSymlinkTest(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("symbolic-link tests require Windows link privileges")
 	}
 }
 

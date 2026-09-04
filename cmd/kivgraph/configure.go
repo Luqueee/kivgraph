@@ -152,14 +152,9 @@ func runConfigureWithResolver(
 		writeIntegrationPlan(stdout, "skill", plan)
 	}
 
-	for _, target := range selectedTargets {
-		plan, installErr := manager.InstallHook(target, integrations.ScopeUser, options.DryRun, options.Force)
-		if installErr != nil {
-			writeCommandError(stderr, "configure hook --target %s: %v", target, installErr)
-			failed = true
-			continue
-		}
-		writeIntegrationPlan(stdout, "hook", plan)
+	if installConfigureHooks(
+		manager, selectedTargets, integrations.HookTargets(), options.DryRun, options.Force, stdout, stderr) {
+		failed = true
 	}
 
 	instructionTargets := supportedConfigureTargets(selectedTargets, integrations.InstructionsTargets())
@@ -187,6 +182,28 @@ func runConfigureWithResolver(
 		return 1
 	}
 	return 0
+}
+
+func installConfigureHooks(
+	manager integrations.Manager,
+	selectedTargets, supportedTargets []integrations.Target,
+	dryRun, force bool,
+	stdout, stderr io.Writer,
+) (failed bool) {
+	for _, target := range selectedTargets {
+		if !containsIntegrationTarget(supportedTargets, target) {
+			writeInfo(stdout, "configure: hook skipped for %s: this client has no hook integration", integrationTargetLabel(target))
+			continue
+		}
+		plan, installErr := manager.InstallHook(target, integrations.ScopeUser, dryRun, force)
+		if installErr != nil {
+			writeCommandError(stderr, "configure hook --target %s: %v", target, installErr)
+			failed = true
+			continue
+		}
+		writeIntegrationPlan(stdout, "hook", plan)
+	}
+	return failed
 }
 
 func configureTargets(

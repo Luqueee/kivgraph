@@ -291,26 +291,28 @@ configure_after_install() {
     printf 'kivgraph install: configuration skipped; run "kivgraph configure" when ready\n'
     return 0
   fi
-  if [[ ! -r /dev/tty || ! -w /dev/tty ]]; then
+  if ! exec 3<>/dev/tty; then
     printf 'kivgraph install: no interactive terminal; run "kivgraph configure" to finish setup\n'
     return 0
   fi
   if [[ "$configure_mode" == "ask" ]]; then
-    printf 'kivgraph install: configure MCP clients, skill, hooks, daemon and project instructions now? [Y/n] ' >/dev/tty
-    if ! IFS= read -r answer </dev/tty; then
+    printf 'kivgraph install: configure MCP clients, skill, hooks, daemon and project instructions now? [Y/n] ' >&3
+    if ! IFS= read -r answer <&3; then
       answer=n
     fi
     case "$answer" in
       ''|y|Y|yes|YES) ;;
       *)
-        printf 'kivgraph install: configuration skipped; run "kivgraph configure" when ready\n' >/dev/tty
+        printf 'kivgraph install: configuration skipped; run "kivgraph configure" when ready\n' >&3
+        exec 3>&-
         return 0
         ;;
     esac
   fi
-  if ! "$install_root/bin/kivgraph" configure </dev/tty >/dev/tty 2>/dev/tty; then
+  if ! "$install_root/bin/kivgraph" configure <&3 >&3 2>&3; then
     printf 'kivgraph install: configuration did not finish; run "kivgraph configure" to retry\n' >&2
   fi
+  exec 3>&-
 }
 
 configure_after_install
