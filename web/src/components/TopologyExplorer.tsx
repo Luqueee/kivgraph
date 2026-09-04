@@ -61,10 +61,20 @@ interface TopologyState {
   readonly loading: boolean;
 }
 
+interface TopologyRequestState {
+  readonly token: number;
+  readonly generationPins: Readonly<Record<string, string>>;
+}
+
 const INITIAL_STATE: TopologyState = {
   data: null,
   error: null,
   loading: true,
+};
+
+const INITIAL_TOPOLOGY_REQUEST: TopologyRequestState = {
+  token: 0,
+  generationPins: {},
 };
 
 function describe(error: unknown): string {
@@ -120,6 +130,16 @@ export function pinnedTopologyURL(
     query.append("generation", `${profile.id}:${profile.generationId}`);
   }
   return `/api/v1/topology?${query.toString()}`;
+}
+
+export function topologyGenerationPins(
+  profiles: readonly Pick<TopologyProfile, "id" | "generationId">[],
+): Readonly<Record<string, string>> {
+  return Object.fromEntries(
+    [...profiles]
+      .sort((left, right) => left.id.localeCompare(right.id))
+      .map((profile) => [profile.id, profile.generationId]),
+  );
 }
 
 export function topologyFilterLabelID(label: string): string {
@@ -524,7 +544,9 @@ function RelationshipTable({
 
 export function TopologyExplorer(): React.ReactElement {
   const [state, setState] = useState<TopologyState>(INITIAL_STATE);
-  const [reloadToken, setReloadToken] = useState(0);
+  const [request, setRequest] = useState<TopologyRequestState>(
+    INITIAL_TOPOLOGY_REQUEST,
+  );
   const [filters, setFilters] = useState<TopologyFilters>(INITIAL_FILTERS);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [showWorktrees, setShowWorktrees] = useState(true);
@@ -535,22 +557,46 @@ export function TopologyExplorer(): React.ReactElement {
   );
 
   useEffect(() => {
-    // The token is the explicit input for this request effect: changing it
-    // cancels the old generation read and starts a fresh one.
-    void reloadToken;
     const controller = new AbortController();
     setState((previous) => ({ ...previous, loading: true, error: null }));
-    void fetchTopology({}, controller.signal)
+    void fetchTopology(
+      {
+        generationPins:
+          Object.keys(request.generationPins).length > 0
+            ? request.generationPins
+            : undefined,
+      },
+      controller.signal,
+    )
       .then((data) => {
         if (!controller.signal.aborted)
           setState({ data, error: null, loading: false });
       })
       .catch((error: unknown) => {
         if (!controller.signal.aborted)
-          setState({ data: null, error: describe(error), loading: false });
+          setState((previous) => ({
+            ...previous,
+            error: describe(error),
+            loading: false,
+          }));
       });
     return () => controller.abort();
-  }, [reloadToken]);
+  }, [request]);
+
+  const refreshPinnedTopology = useCallback(() => {
+    setRequest((previous) => ({
+      token: previous.token + 1,
+      generationPins: state.data
+        ? topologyGenerationPins(state.data.profiles)
+        : previous.generationPins,
+    }));
+  }, [state.data]);
+  const loadLatestTopology = useCallback(() => {
+    setRequest((previous) => ({
+      token: previous.token + 1,
+      generationPins: {},
+    }));
+  }, []);
 
   const model = useMemo(
     () => (state.data ? createTopologyModel(state.data) : null),
@@ -631,9 +677,9 @@ export function TopologyExplorer(): React.ReactElement {
               type="button"
               size="sm"
               variant="outline"
-              onClick={() => setReloadToken((value) => value + 1)}
+              onClick={refreshPinnedTopology}
             >
-              refresh
+              check for update
             </Button>
           </div>
         </header>
@@ -646,16 +692,28 @@ export function TopologyExplorer(): React.ReactElement {
         {state.error ? (
           <div
             className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-none border border-graph-symbol/40 bg-graph-symbol/10 px-3 py-2 text-xs text-gray-200"
-            role="alert"
+            role={
+              state.error.startsWith("GENERATION_CHANGED:") ? "status" : "alert"
+            }
           >
-            <span>{state.error}</span>
+            <span>
+              {state.error.startsWith("GENERATION_CHANGED:")
+                ? "A newer generation was published. This map remains pinned to the generation already shown."
+                : state.error}
+            </span>
             <Button
               type="button"
               size="xs"
               variant="outline"
-              onClick={() => setReloadToken((value) => value + 1)}
+              onClick={
+                state.error.startsWith("GENERATION_CHANGED:")
+                  ? loadLatestTopology
+                  : refreshPinnedTopology
+              }
             >
-              retry
+              {state.error.startsWith("GENERATION_CHANGED:")
+                ? "load latest"
+                : "retry"}
             </Button>
           </div>
         ) : null}
@@ -690,7 +748,7 @@ export function TopologyExplorer(): React.ReactElement {
               </div>
               <div className="min-w-0 rounded-none border border-rule bg-panel px-3 py-2.5">
                 <span className="block font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400">
-                  generation
+                  pinned generation
                 </span>
                 <span
                   className="mt-1 block truncate text-xs font-medium text-gray-200"

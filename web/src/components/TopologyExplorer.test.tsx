@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { TopologyProfile } from "@/api/client";
 import {
   pinnedTopologyURL,
+  topologyGenerationPins,
   topologyFilterLabelID,
   TopologyExplorer,
 } from "@/components/TopologyExplorer";
@@ -28,6 +29,15 @@ describe("TopologyExplorer", () => {
       "/api/v1/topology?profile=default&profile=other&generation=default%3A000007&generation=other%3A000008",
     );
     expect(pinnedTopologyURL([], profiles)).toBe("/api/v1/topology");
+  });
+
+  it("builds a stable pin set for the generation being viewed", () => {
+    expect(
+      topologyGenerationPins([
+        { id: "other", generationId: "000008" },
+        { id: "default", generationId: "000007" },
+      ]),
+    ).toEqual({ default: "000007", other: "000008" });
   });
 
   it("creates a single accessible label ID for multi-word filters", () => {
