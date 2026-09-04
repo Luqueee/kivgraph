@@ -73,6 +73,7 @@ func TestRunReportsTheBuiltSnapshotWhenWritingSourceObservationsFails(t *testing
 	}
 
 	report, err := Run(context.Background(), options)
+	testsupport.RequireSpaceOrSkip(t, err)
 	if err == nil || !strings.Contains(err.Error(), "write source observations") {
 		t.Fatalf("Run() error = %v, want source observation write failure", err)
 	}
