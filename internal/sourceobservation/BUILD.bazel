@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "sourceobservation",
+    srcs = ["observation.go"],
+    importpath = "github.com/Luqueee/kivgraph/internal/sourceobservation",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/config",
+        "//internal/topology",
+        "//internal/workspace",
+    ],
+)
+
+go_test(
+    name = "sourceobservation_test",
+    srcs = ["observation_test.go"],
+    embed = [":sourceobservation"],
+    deps = [
+        "//internal/config",
+        "//internal/testsupport",
+        "//internal/topology",
+        "//internal/workspace",
+    ],
+)

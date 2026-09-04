@@ -491,6 +491,7 @@ type Loaded struct {
 	Repositories     RepositoriesFile
 	ConfigPath       string
 	RepositoriesPath string
+	TopologyPath     string
 	// Profile is empty only for callers using the legacy unscoped Load seam.
 	Profile string
 	// RetiredKeys are the dotted names of keys the file carries that this

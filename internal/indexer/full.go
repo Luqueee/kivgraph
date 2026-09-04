@@ -92,10 +92,12 @@ type ProgressEvent struct {
 // writes inside a registered repository: Go's synthetic workspace and the
 // temporary TypeScript facts payloads live outside the sources.
 type FullOptions struct {
-	// Profile distinguishes facts produced for registries that may contain the
-	// same repository beside different providers. Empty keeps the historical
-	// single-graph behaviour and is treated as the default profile.
-	Profile           string
+	// Profile identifies the selected graph for reporting. It is not part of a
+	// fact-cache identity: compatible profiles may share local facts.
+	Profile string
+	// ResolverVersion identifies the resolver contract that consumes the
+	// normalized facts. It is part of analyzer compatibility for cached facts.
+	ResolverVersion   string
 	Repositories      []workspace.Repository
 	SyntheticWorkFile string
 	IncludeTests      bool
@@ -189,8 +191,8 @@ type FullOptions struct {
 	// CacheMode selects whether a unit may be served from its stored
 	// facts. Empty is CacheOff.
 	CacheMode CacheMode
-	// CacheDirectory holds one entry per analysis unit. It lives outside
-	// every indexed repository, like the rest of the state.
+	// CacheDirectory holds content-addressed entries for analysis units. It
+	// lives outside every indexed repository and may be shared by profiles.
 	CacheDirectory string
 
 	// Progress, when set, is called synchronously as each unit of work
@@ -318,31 +320,18 @@ type FullReport struct {
 	SyntheticWorkFile string
 }
 
-// Full loads every configured repository and normalises the authoritative Go
-// and TypeScript facts into one validated set. A loader diagnostic aborts the
-// pass instead of publishing a graph that is known to be incomplete.
-func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if err := ctx.Err(); err != nil {
-		return facts.Set{}, FullReport{}, err
-	}
-
+// ResolveRepositories expands the configured registry into every provider a
+// full pass will read. Derived Dart packages and the optional SDK are explicit
+// inputs rather than an implementation detail hidden inside Full.
+func ResolveRepositories(options FullOptions) ([]workspace.Repository, error) {
 	repositories := append([]workspace.Repository(nil), options.Repositories...)
 	sort.SliceStable(repositories, func(left, right int) bool {
 		return repositories[left].Name < repositories[right].Name
 	})
-	if options.WorkingDirectory == "" {
-		workingDirectory, err := os.Getwd()
-		if err != nil {
-			return facts.Set{}, FullReport{}, fmt.Errorf("resolve indexing working directory: %w", err)
-		}
-		options.WorkingDirectory = workingDirectory
-	}
 	if err := validateLanguages(repositories); err != nil {
-		return facts.Set{}, FullReport{}, err
+		return nil, err
 	}
+
 	configuredDartRepositories := repositoriesForLanguage(repositories, "dart")
 	if options.DartIncludeExternal {
 		for _, repository := range configuredDartRepositories {
@@ -350,15 +339,62 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 			if root == "" {
 				root = repository.Path
 			}
-			providers := dartloader.ExternalPackageRepositories(root, options.DartPackageConfig)
-			for _, provider := range providers {
-				if _, exists := repositoryByName(repositories, provider.Name); exists {
-					continue
+			for _, provider := range dartloader.ExternalPackageRepositories(root, options.DartPackageConfig) {
+				if _, exists := repositoryByName(repositories, provider.Name); !exists {
+					repositories = append(repositories, provider)
 				}
-				repositories = append(repositories, provider)
-				options.Repositories = append(options.Repositories, provider)
 			}
 		}
+	}
+	if options.DartIncludeSDK {
+		sdkRoot, err := dartloader.SDKRoot(options.DartSDKPath)
+		if err != nil {
+			return nil, fmt.Errorf("discover Dart SDK provider: %w", err)
+		}
+		const sdkRepositoryName = "dart-sdk"
+		if _, exists := repositoryByName(repositories, sdkRepositoryName); !exists {
+			repositories = append(repositories, workspace.Repository{
+				Name: sdkRepositoryName, Derived: true, Path: sdkRoot, RealPath: sdkRoot,
+				Languages: []string{"dart"}, Roots: []string{"lib"},
+			})
+		}
+	}
+	return repositories, nil
+}
+
+// Full loads every configured repository and normalises the authoritative Go
+// and TypeScript facts into one validated set. A loader diagnostic aborts the
+// pass instead of publishing a graph that is known to be incomplete.
+func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, error) {
+	repositories, err := ResolveRepositories(options)
+	if err != nil {
+		return facts.Set{}, FullReport{}, err
+	}
+	return FullWithRepositories(ctx, options, repositories)
+}
+
+// FullWithRepositories runs a full pass over a provider set previously
+// resolved by ResolveRepositories. It lets a caller capture the exact inputs
+// before analysis and verify that same effective set before publication.
+func FullWithRepositories(ctx context.Context, options FullOptions, repositories []workspace.Repository) (facts.Set, FullReport, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return facts.Set{}, FullReport{}, err
+	}
+
+	repositories = append([]workspace.Repository(nil), repositories...)
+	if err := validateLanguages(repositories); err != nil {
+		return facts.Set{}, FullReport{}, err
+	}
+	options.Repositories = repositories
+	if options.WorkingDirectory == "" {
+		workingDirectory, err := os.Getwd()
+		if err != nil {
+			return facts.Set{}, FullReport{}, fmt.Errorf("resolve indexing working directory: %w", err)
+		}
+		options.WorkingDirectory = workingDirectory
 	}
 
 	goRepositories := repositoriesForLanguage(repositories, "go")
@@ -370,19 +406,6 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 	cSharpRepositories := repositoriesForLanguage(repositories, "csharp")
 	cSharpRepositories = append(cSharpRepositories, repositoriesForLanguage(repositories, "cs")...)
 	cSharpRepositories = dedupeRepositories(cSharpRepositories)
-	if options.DartIncludeSDK {
-		sdkRoot, sdkErr := dartloader.SDKRoot(options.DartSDKPath)
-		if sdkErr != nil {
-			return facts.Set{}, FullReport{}, fmt.Errorf("discover Dart SDK provider: %w", sdkErr)
-		}
-		const sdkRepositoryName = "dart-sdk"
-		if _, exists := repositoryByName(repositories, sdkRepositoryName); !exists {
-			sdkRepository := workspace.Repository{Name: sdkRepositoryName, Path: sdkRoot, RealPath: sdkRoot, Languages: []string{"dart"}, Roots: []string{"lib"}}
-			repositories = append(repositories, sdkRepository)
-			options.Repositories = append(options.Repositories, sdkRepository)
-			dartRepositories = append(dartRepositories, sdkRepository)
-		}
-	}
 	report := FullReport{
 		GoRepositories:         len(goRepositories),
 		TypeScriptRepositories: len(typeScriptRepositories),
@@ -448,6 +471,14 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 		moduleRegistry, err = goloader.NewModuleRegistry(ctx, goRepositories)
 		if err != nil {
 			return facts.Set{}, report, fmt.Errorf("build Go module registry: %w", err)
+		}
+		for _, conflict := range plan.Conflicts {
+			if conflict.Kind != goworkspace.AmbiguousModule {
+				continue
+			}
+			conflictFacts := ambiguousModuleFacts(conflict, goRepositories)
+			sets = append(sets, conflictFacts)
+			report.GoUnresolved += len(conflictFacts.Unresolved)
 		}
 		modulesByRepository := modulesByRepository(plan.Modules)
 		conflictingModules = conflictSubjects(plan.Conflicts)
@@ -842,6 +873,51 @@ func ambiguousPackageFacts(entry typeScriptConflict) facts.Set {
 			Detail:           "declared by " + strings.Join(entry.conflict.Manifests, " and "),
 		}},
 	}
+}
+
+// ambiguousModuleFacts records every repository that declared one Go module
+// path the synthetic workspace excluded. No selected worktree can be chosen
+// without evidence, and a dependent module may be untypecheckable precisely
+// because the workspace cannot select a provider. The conflict therefore
+// remains a repository-scoped unresolved fact rather than disappearing before
+// a source-level reference can be observed.
+//
+// BuildPlan derives every candidate from the same registry Full received, so
+// the repository names and module path have already been validated here.
+func ambiguousModuleFacts(
+	conflict goworkspace.Conflict,
+	repositories []workspace.Repository,
+) facts.Set {
+	byName := make(map[string]workspace.Repository, len(repositories))
+	for _, repository := range repositories {
+		byName[repository.Name] = repository
+	}
+	detail := "declared by repositories " + strings.Join(conflict.Repositories, " and ")
+	if len(conflict.Details) != 0 {
+		detail += "; manifests " + strings.Join(conflict.Details, " and ")
+	}
+	set := facts.Set{
+		Repositories: make([]facts.Repository, 0, len(conflict.Repositories)),
+		Unresolved:   make([]facts.UnresolvedReference, 0, len(conflict.Repositories)),
+	}
+	for _, name := range conflict.Repositories {
+		repository := byName[name]
+		repositoryKey := facts.RepositoryKey(repository.Name)
+		set.Repositories = append(set.Repositories, facts.Repository{
+			Key:       repositoryKey,
+			Name:      repository.Name,
+			RootPath:  repository.RealPath,
+			Languages: []facts.Language{facts.LanguageGo},
+		})
+		set.Unresolved = append(set.Unresolved, facts.UnresolvedReference{
+			RepositoryKey:    repositoryKey,
+			Language:         facts.LanguageGo,
+			RequestedPackage: conflict.Subject,
+			Reason:           string(goworkspace.AmbiguousModule),
+			Detail:           detail,
+		})
+	}
+	return set
 }
 
 func modulesByRepository(modules []goworkspace.Module) map[string][]goworkspace.Module {

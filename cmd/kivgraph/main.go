@@ -32,6 +32,7 @@ import (
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 	"github.com/Luqueee/kivgraph/internal/indexer"
 	"github.com/Luqueee/kivgraph/internal/indexing"
+	"github.com/Luqueee/kivgraph/internal/invalidation"
 	"github.com/Luqueee/kivgraph/internal/logging"
 	mcpserver "github.com/Luqueee/kivgraph/internal/mcp"
 	"github.com/Luqueee/kivgraph/internal/procstat"
@@ -432,17 +433,65 @@ func runConfiguredUI(
 	if err != nil {
 		return fmt.Errorf("ui: load profile: %w", err)
 	}
-	store, err := openConfiguredSnapshot(ctx, loaded)
-	if err != nil {
-		return err
+	var store *hotsnapshot.SnapshotStore
+	var stopFollower func()
+	if profile == "" {
+		store, err = openConfiguredProfileSnapshots(ctx, loaded)
+		if err != nil {
+			return err
+		}
+		stopFollower, err = followConfiguredProfiles(ctx, loaded, store, "ui")
+		if err != nil {
+			store.Close()
+			return err
+		}
+	} else {
+		store, err = openConfiguredSnapshot(ctx, loaded)
+		if err != nil {
+			return err
+		}
+		stopFollower = followPublishedGeneration(ctx, loaded, store, "ui", indexing.FollowOptions{})
 	}
 	defer store.Close()
-	stopFollower := followPublishedGeneration(ctx, loaded, store, "ui", indexing.FollowOptions{})
 	defer stopFollower()
 	if address == "" {
 		address = loaded.Config.Web.Address
 	}
-	return runWeb(ctx, address, webapi.NewHandler(store))
+	return runWeb(ctx, address, webapi.NewHandlerWithTopology(store, webapi.TopologyOptions{
+		ConfigPath:       loaded.ConfigPath,
+		Profile:          loaded.Profile,
+		InvalidationRoot: stateDirectory(loaded),
+	}))
+}
+
+// followConfiguredProfiles keeps an aggregate viewer current for every
+// profile it can select. Each child store follows its own generation root;
+// following the aggregate would only observe its default profile.
+func followConfiguredProfiles(
+	ctx context.Context,
+	loaded config.Loaded,
+	store *hotsnapshot.SnapshotStore,
+	command string,
+) (func(), error) {
+	profiles, err := store.ResolveProfiles([]string{"*"})
+	if err != nil {
+		return nil, fmt.Errorf("follow configured profiles: %w", err)
+	}
+	stops := make([]func(), 0, len(profiles))
+	stopAll := func() {
+		for index := len(stops) - 1; index >= 0; index-- {
+			stops[index]()
+		}
+	}
+	for _, profile := range profiles {
+		profileLoaded, err := config.LoadProfile(loaded.ConfigPath, profile.Name)
+		if err != nil {
+			stopAll()
+			return nil, fmt.Errorf("follow profile %q: %w", profile.Name, err)
+		}
+		stops = append(stops, followPublishedGeneration(ctx, profileLoaded, profile.Store, command, indexing.FollowOptions{}))
+	}
+	return stopAll, nil
 }
 
 // uiFlagSet and serveFlagSet exist so the two long-running commands describe
@@ -615,8 +664,16 @@ func watchConfiguredProfiles(
 	if err != nil {
 		return nil, fmt.Errorf("watch configured profiles: %w", err)
 	}
+	manager, err := invalidation.Open(stateDirectory(loaded))
+	if err != nil {
+		return nil, fmt.Errorf("watch configured profiles: open invalidation state: %w", err)
+	}
+	scheduler := newInvalidationScheduler(ctx, manager, indexer, logging.New(os.Stderr))
 	var watchersMu sync.Mutex
-	stops := make([]func(), 0, len(profiles)*2)
+	stops := make([]func(), 0, len(profiles)*3+1)
+	// Profile watchers stop before the queue so no callback can enqueue work
+	// while the scheduler is shutting down.
+	stops = append(stops, scheduler.Close)
 	watched := make(map[string]struct{}, len(profiles))
 	closed := false
 	register := func(name string, profileLoaded config.Loaded, profileStore *hotsnapshot.SnapshotStore) {
@@ -633,6 +690,9 @@ func watchConfiguredProfiles(
 			followPublishedGeneration(ctx, profileLoaded, profileStore, command, indexing.FollowOptions{}),
 			resyncOnBranchChange(ctx, profileLoaded, profileStore, namedProfileReindexer{indexer, name}, command),
 		)
+		if profileLoaded.Config.Watcher.Enabled {
+			stops = append(stops, watchProfileSources(ctx, profileLoaded, manager, scheduler, command))
+		}
 	}
 	cleanup := func() {
 		watchersMu.Lock()
@@ -688,12 +748,12 @@ func followPublishedGeneration(
 	options.Store = generation.DefaultConfig()
 	if options.OnPublish == nil {
 		options.OnPublish = func(id uint64) {
-			logger.Info("serving published generation", "command", command, "generation", id)
+			logger.Info("serving published generation", "command", command, "profile", loaded.Profile, "generation", id)
 		}
 	}
 	if options.OnError == nil {
 		options.OnError = func(err error) {
-			logger.Error("could not follow the published generation", "command", command, "error", err)
+			logger.Error("could not follow the published generation", "command", command, "profile", loaded.Profile, "error", err)
 		}
 	}
 	followCtx, cancel := context.WithCancel(ctx)
@@ -701,7 +761,7 @@ func followPublishedGeneration(
 	go func() {
 		defer close(done)
 		if err := indexing.Follow(followCtx, store, options); err != nil {
-			logger.Error("generation follower stopped", "command", command, "error", err)
+			logger.Error("generation follower stopped", "command", command, "profile", loaded.Profile, "error", err)
 		}
 	}()
 	return func() {
@@ -1517,10 +1577,13 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 			return 1
 		}
 	}
-	registry, err := workspace.NewRegistry(ctx, loaded.Repositories)
+	registry, err := registryForProfile(ctx, loaded)
 	if err != nil {
-		writeCommandError(stderr, "index --full: register repositories: %v", err)
+		writeCommandError(stderr, "index --full: register profile repositories: %v", err)
 		return 1
+	}
+	if !options.JSONOutput {
+		writeProfileDiagnostics(stdout, loaded.Profile, registry)
 	}
 	workingDirectory, err := os.Getwd()
 	if err != nil {
@@ -1536,6 +1599,12 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 	indexOptions.Repositories = registry.List()
 	indexOptions.WorkingDirectory = workingDirectory
 	indexOptions.ResolverVersion = options.ResolverVersion
+	invalidationManager, err := invalidation.Open(stateDirectory(loaded))
+	if err != nil {
+		writeCommandError(stderr, "index --full: open invalidation state: %v", err)
+		return 1
+	}
+	indexOptions.Invalidation = invalidationManager
 	if options.JSONOutput {
 		return runIndexFullEvents(ctx, indexOptions, events, progressStart, stdout, stderr)
 	}
@@ -1551,6 +1620,9 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 	}
 	fullResult, err := indexing.RunFull(ctx, indexOptions)
 	recordIndexRun(events, fullResult.RebuildReport, int64(fullResult.Counts.Symbols), time.Since(progressStart), err)
+	if fullResult.RecordingError != nil {
+		writeWarning(stdout, "index.invalidation: %v", fullResult.RecordingError)
+	}
 	indexReport := fullResult.IndexReport
 	writeResult(stdout, err == nil, "index.full: %s", passFail(err == nil))
 	writeIndexSummary(stdout, indexReport)

@@ -205,6 +205,9 @@ func Run(ctx context.Context, options Options) (Report, error) {
 	if err != nil {
 		return failWithPreservedCurrent(report, fmt.Errorf("%w: parse next generation %q: %v", ErrUpgradeFailed, layout.NextID, err))
 	}
+	// The default indexer path receives Full directly, unlike the regular full
+	// indexing path which maps its options before calling it.
+	options.Full.ResolverVersion = options.ResolverVersion
 	set, fullReport, err := index(ctx, options.Full)
 	if err != nil {
 		report.Stages = append(report.Stages, Stage{Name: StageMigration, Detail: err.Error()})

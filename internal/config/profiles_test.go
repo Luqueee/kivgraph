@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -93,8 +94,58 @@ func TestLoadProfileScopesDerivedStateAndRegistry(t *testing.T) {
 		t.Fatalf("LoadProfile() error = %v", err)
 	}
 	wantRoot := filepath.Join(root, "state", "profiles", "frontend")
-	if loaded.Profile != "frontend" || filepath.Dir(loaded.Config.Storage.DatabasePath) != wantRoot || loaded.RepositoriesPath != filepath.Join(wantRoot, "repositories.yaml") || loaded.Config.Indexing.FactCachePath != filepath.Join(wantRoot, "factcache") {
-		t.Fatalf("loaded profile = %#v", loaded)
+	if loaded.Profile != "frontend" {
+		t.Errorf("loaded profile = %q, want frontend", loaded.Profile)
+	}
+	if got := filepath.Dir(loaded.Config.Storage.DatabasePath); got != wantRoot {
+		t.Errorf("loaded graph root = %q, want %q", got, wantRoot)
+	}
+	wantRepositories := filepath.Join(wantRoot, "repositories.yaml")
+	if loaded.RepositoriesPath != wantRepositories {
+		t.Errorf("loaded repositories path = %q, want %q", loaded.RepositoriesPath, wantRepositories)
+	}
+	cachePath := filepath.Clean(loaded.Config.Indexing.FactCachePath)
+	if cachePath == "." || cachePath == wantRoot || strings.HasPrefix(cachePath, wantRoot+string(filepath.Separator)) {
+		t.Errorf("loaded fact cache path = %q, want a non-profile-specific path", loaded.Config.Indexing.FactCachePath)
+	}
+	defaultLoaded, err := LoadProfile(configPath, "default")
+	if err != nil {
+		t.Fatalf("LoadProfile(default) error = %v", err)
+	}
+	if defaultLoaded.Config.Indexing.FactCachePath != loaded.Config.Indexing.FactCachePath {
+		t.Fatalf("profile caches differ: default=%q frontend=%q", defaultLoaded.Config.Indexing.FactCachePath, loaded.Config.Indexing.FactCachePath)
+	}
+}
+
+func TestInitializeMigratesLegacyFactCacheAtInstallationScope(t *testing.T) {
+	root := t.TempDir()
+	configPath := filepath.Join(root, "config.yaml")
+	repositoriesPath := filepath.Join(root, "repositories.yaml")
+	state := filepath.Join(root, "state")
+	legacyEntry := filepath.Join(state, "factcache", "entry.json")
+	if err := os.MkdirAll(filepath.Dir(legacyEntry), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	writeConfigFixture(t, configPath, "version: 1\nworkspace:\n  repositories_file: "+repositoriesPath+"\nstorage:\n  database_path: "+filepath.Join(state, "graph.lbdb")+"\n")
+	writeConfigFixture(t, repositoriesPath, "version: 1\nrepositories: []\n")
+	if err := os.WriteFile(legacyEntry, []byte("cached"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := Initialize(InitOptions{ConfigPath: configPath}); err != nil {
+		t.Fatalf("Initialize(%q) migration error = %v", configPath, err)
+	}
+	retainedEntry := filepath.Join(state, "factcache", "entry.json")
+	content, err := os.ReadFile(retainedEntry)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) retained installation fact cache: %v", retainedEntry, err)
+	}
+	if string(content) != "cached" {
+		t.Fatalf("retained installation fact cache %q = %q, want cached", retainedEntry, content)
+	}
+	profileFactCache := filepath.Join(state, "profiles", "default", "factcache")
+	if _, err := os.Stat(profileFactCache); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("profile-local fact cache %q exists after migration: %v", profileFactCache, err)
 	}
 }
 

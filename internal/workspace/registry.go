@@ -6,17 +6,27 @@ package workspace
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/Luqueee/kivgraph/internal/config"
+	"github.com/Luqueee/kivgraph/internal/topology"
 )
 
 // Repository is the runtime metadata registered for one source repository.
 type Repository struct {
-	Name       string
+	Name string
+	// Worktree identifies the mutable checkout selected by a topology-backed
+	// profile. It is empty for legacy registries, which have no declared
+	// worktree identity yet.
+	Worktree topology.WorktreeID
+	// Derived identifies a provider discovered by an analyzer instead of a Git
+	// worktree registered by the user. Its source observation is content-based:
+	// a derived provider has no commit or branch to refresh.
+	Derived    bool
 	Path       string
 	RealPath   string
 	Commit     string
@@ -32,6 +42,7 @@ type Repository struct {
 type Registry struct {
 	repositories []Repository
 	byName       map[string]int
+	composition  *topology.ProfileComposition
 }
 
 type gitRunner func(context.Context, string, ...string) (string, error)
@@ -59,6 +70,7 @@ func NewSyntheticRepository(name, path string, languages []string) (Repository, 
 	}
 	return Repository{
 		Name:      trimmed,
+		Derived:   true,
 		Path:      resolved,
 		RealPath:  realPath,
 		Languages: append([]string(nil), languages...),
@@ -188,12 +200,68 @@ func (registry *Registry) Get(name string) (Repository, bool) {
 	return cloneRepository(registry.repositories[index]), true
 }
 
+// Composition returns the profile membership and selected worktrees that
+// produced this registry. The result is a copy suitable for diagnostics; a
+// plain registry has no composition provenance.
+func (registry *Registry) Composition() (topology.ProfileComposition, bool) {
+	if registry == nil || registry.composition == nil {
+		return topology.ProfileComposition{}, false
+	}
+	return cloneProfileComposition(*registry.composition), true
+}
+
 func cloneRepository(repository Repository) Repository {
 	repository.Languages = append([]string(nil), repository.Languages...)
 	repository.Manifests = append([]string(nil), repository.Manifests...)
 	repository.Roots = append([]string(nil), repository.Roots...)
 	repository.Exclusions = append([]string(nil), repository.Exclusions...)
 	return repository
+}
+
+// RefreshRepositoryState re-reads the Git state of one registered source
+// without changing its provider configuration. A long full pass captures this
+// immediately before indexing and again immediately before publication, so the
+// fields cannot be inherited from an earlier registry discovery.
+func RefreshRepositoryState(ctx context.Context, repository Repository) (Repository, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return Repository{}, err
+	}
+	result := cloneRepository(repository)
+	root := strings.TrimSpace(result.RealPath)
+	if root == "" {
+		root = strings.TrimSpace(result.Path)
+	}
+	if root == "" {
+		return Repository{}, errors.New("repository path must not be empty")
+	}
+	commit, err := runGit(ctx, root, "rev-parse", "HEAD")
+	if err != nil {
+		return Repository{}, fmt.Errorf("read commit: %w", err)
+	}
+	if commit == "" {
+		return Repository{}, errors.New("read commit: git returned an empty value")
+	}
+	branch, err := runGit(ctx, root, "symbolic-ref", "--quiet", "--short", "HEAD")
+	if err != nil {
+		branch, err = runGit(ctx, root, "rev-parse", "--abbrev-ref", "HEAD")
+		if err != nil {
+			return Repository{}, fmt.Errorf("read branch: %w", err)
+		}
+	}
+	if branch == "" {
+		return Repository{}, errors.New("read branch: git returned an empty value")
+	}
+	status, err := runGit(ctx, root, "status", "--porcelain=v1", "--untracked-files=all")
+	if err != nil {
+		return Repository{}, fmt.Errorf("read dirty state: %w", err)
+	}
+	result.Commit = commit
+	result.Branch = branch
+	result.Dirty = strings.TrimSpace(status) != ""
+	return result, nil
 }
 
 func resolveRepositoryPaths(base string, values []string, field string) ([]string, error) {

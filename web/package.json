@@ -16,13 +16,16 @@
     "format:check": "biome format .",
     "lint": "biome lint .",
     "test": "vitest run",
+    "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json"
   },
   "dependencies": {
     "@fontsource-variable/geist": "5.3.0",
     "@react-three/fiber": "9.7.0",
+    "@xyflow/react": "^12.11.6",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "elkjs": "^0.12.0",
     "lucide-react": "^1.30.0",
     "radix-ui": "^1.6.7",
     "react": "19.2.8",
@@ -35,6 +38,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.7",
+    "@playwright/test": "1.58.2",
     "@rolldown/plugin-babel": "0.2.3",
     "@tailwindcss/vite": "4.3.3",
     "@types/node": "26.1.2",

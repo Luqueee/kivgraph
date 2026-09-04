@@ -5,6 +5,7 @@ on:
     branches: [main, development]
   pull_request:
     branches: [main, development]
+  workflow_dispatch:
   workflow_call:
 
 permissions:
@@ -453,6 +454,14 @@ jobs:
       - name: Build web package
         working-directory: web
         run: pnpm build
+
+      - name: Install Chromium for web end-to-end tests
+        working-directory: web
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Test large topology in Chromium
+        working-directory: web
+        run: pnpm test:e2e
 
       - name: Install landing package
         working-directory: landing

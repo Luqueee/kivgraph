@@ -41,16 +41,23 @@ type FullDocument struct {
 	// Error is why the pass did not pass. It is the child's own message,
 	// preserved so the caller reports the reason rather than an exit code.
 	Error string `json:"error,omitempty"`
+	// RecordingError means the generation passed and was published, but the
+	// derived invalidation record was not persisted.
+	RecordingError string `json:"recording_error,omitempty"`
 }
 
 // DocumentFromResult projects one in-process result onto the wire form.
 func DocumentFromResult(result FullResult) FullDocument {
-	return FullDocument{
+	document := FullDocument{
 		Passed:       result.RebuildReport.Passed,
 		GenerationID: result.RebuildReport.GenerationID,
 		Counts:       result.Counts,
 		Index:        SummaryFromReport(result.IndexReport),
 	}
+	if result.RecordingError != nil {
+		document.RecordingError = result.RecordingError.Error()
+	}
+	return document
 }
 
 // SummaryFromReport keeps the phase counts a caller reports and drops the

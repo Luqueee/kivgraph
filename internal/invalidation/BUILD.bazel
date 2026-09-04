@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "invalidation",
+    srcs = ["state.go"],
+    importpath = "github.com/Luqueee/kivgraph/internal/invalidation",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/durable",
+        "//internal/filelock",
+        "//internal/sourceobservation",
+        "//internal/topology",
+    ],
+)
+
+go_test(
+    name = "invalidation_test",
+    srcs = ["state_test.go"],
+    embed = [":invalidation"],
+    deps = [
+        "//internal/sourceobservation",
+        "//internal/testsupport",
+        "//internal/topology",
+    ],
+)
