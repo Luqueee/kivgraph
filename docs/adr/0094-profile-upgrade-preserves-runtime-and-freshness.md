@@ -62,9 +62,16 @@ configured indexer. Source edits, additions, removals and missing repositories
 must produce stale or unavailable states, independently of semantic coverage.
 
 Deterministic publication-during-probe tests cover both old fresh and old stale
-attestations, plus a probe that observes a newer generation. An isolated read of
-the retained real generation 77 confirmed its inventory digest still matched;
-this does not establish that no transient filesystem change occurred earlier.
+attestations, plus a probe that observes a newer generation. Reproduce them with:
+
+```bash
+go test ./internal/mcp/tools -run 'TestGraphStatus(Pins|DoesNotClaim)' -count=1
+```
+
+The corpus is the in-memory `graphStatusStore` fixture in `status_test.go`:
+generations 76 and 77, with controlled freshness probes publishing during the
+read. These tests check generation and freshness-state consistency, not source
+inventory digests or the absence of transient changes in real repositories.
 
 The migration checks filesystem layout, not native graph integrity; opening the
 published snapshot remains a separate startup gate. Installation must stop old

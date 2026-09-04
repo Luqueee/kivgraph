@@ -191,8 +191,10 @@ func TestGraphStatusPinsSnapshotBeforeFreshnessProbe(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if response.Results.SnapshotID == nil || *response.Results.SnapshotID != 76 || response.Results.ContentFreshness.Generation != 76 {
-				t.Fatalf("mixed publication and attestation: %+v", response.Results)
+			if got := response.Results.ContentFreshness; response.Results.SnapshotID == nil ||
+				*response.Results.SnapshotID != 76 || got == nil || got.Generation != 76 ||
+				got.State != state {
+				t.Fatalf("state=%q: mixed publication and attestation: %+v", state, response.Results)
 			}
 		})
 	}
