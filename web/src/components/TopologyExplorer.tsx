@@ -5,13 +5,13 @@ import {
   fetchTopology,
   type TopologyNodeReference,
   type TopologyProfile,
-  type TopologyRelationship,
   type TopologyResponse,
   type TopologySource,
 } from "@/api/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { TopologyFlow } from "@/components/TopologyFlow";
 import {
   Select,
   SelectContent,
@@ -28,7 +28,6 @@ import {
   type TopologyModel,
   type TopologyNode,
 } from "@/topology";
-import { cn } from "@/lib/utils";
 
 const INITIAL_FILTERS: TopologyFilters = {
   query: "",
@@ -132,14 +131,6 @@ export function topologyFilterLabelID(label: string): string {
   return `topology-filter-${label.trim().replace(/\s+/g, "-")}`;
 }
 
-function relationshipColor(relationship: TopologyRelationship): string {
-  return (
-    EDGE_COLORS[relationship.type] ??
-    EDGE_COLORS[relationship.status] ??
-    "#94a3b8"
-  );
-}
-
 function FilterSelect({
   label,
   value,
@@ -155,11 +146,11 @@ function FilterSelect({
 }): React.ReactElement {
   const labelID = topologyFilterLabelID(label);
   return (
-    <div className="grid gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+    <div className="grid gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
       <span id={labelID}>{label}</span>
       <Select value={value} onValueChange={onChange} disabled={disabled}>
         <SelectTrigger
-          className="h-8 w-full text-xs normal-case tracking-normal"
+          className="h-9 w-full border-white/10 bg-white/[0.04] text-xs font-normal normal-case tracking-normal text-slate-200"
           aria-labelledby={labelID}
         >
           <SelectValue />
@@ -246,8 +237,11 @@ function DetailsPanel({
 }): React.ReactElement {
   if (!node) {
     return (
-      <aside className="rounded-2xl border border-border/80 bg-background/80 p-4 text-sm text-muted-foreground">
-        Select a node to inspect its source evidence.
+      <aside className="flex min-h-0 flex-col justify-center rounded-2xl border border-white/10 bg-slate-950/55 p-5 text-sm text-slate-400 shadow-xl">
+        <span className="mb-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+          inspector
+        </span>
+        <span>Select a node to inspect its source evidence.</span>
       </aside>
     );
   }
@@ -277,25 +271,25 @@ function DetailsPanel({
 
   return (
     <aside
-      className="flex min-h-0 flex-col gap-3 overflow-y-auto rounded-2xl border border-border/80 bg-background/80 p-4"
+      className="flex min-h-0 flex-col gap-4 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950/55 p-4 shadow-xl"
       aria-label="Topology details"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
             {NODE_TYPE_LABELS[node.type]}
           </p>
-          <h2 className="truncate text-sm font-semibold">{node.label}</h2>
-          <p className="truncate text-[10px] text-muted-foreground">
-            {node.subtitle}
-          </p>
+          <h2 className="mt-1 truncate text-base font-semibold text-slate-100">
+            {node.label}
+          </h2>
+          <p className="truncate text-[10px] text-slate-400">{node.subtitle}</p>
         </div>
         <Badge className={statusClass(node.status)} variant="outline">
           {node.status}
         </Badge>
       </div>
 
-      <dl className="rounded-lg border border-border/60 bg-muted/10 px-2">
+      <dl className="rounded-xl border border-white/10 bg-white/[0.03] px-3">
         {profile ? (
           <>
             <DetailsRow label="generation">{profile.generationId}</DetailsRow>
@@ -343,7 +337,7 @@ function DetailsPanel({
 
       {sources.length > 0 ? (
         <div className="grid gap-2">
-          <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground">
+          <h3 className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
             source observations
           </h3>
           {sources.map((source) => (
@@ -356,7 +350,7 @@ function DetailsPanel({
       ) : null}
 
       <div className="grid gap-2">
-        <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground">
+        <h3 className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
           evidence · {relationships.length}
         </h3>
         {relationships.length === 0 ? (
@@ -368,7 +362,7 @@ function DetailsPanel({
             {relationships.slice(0, 12).map((edge) => (
               <div
                 key={edge.key}
-                className="rounded-lg border border-border/50 bg-muted/10 p-2 text-[10px]"
+                className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5 text-[10px]"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span>{topologyEdgeKind(edge.relationship)}</span>
@@ -397,7 +391,7 @@ function DetailsPanel({
         )}
       </div>
 
-      <div className="flex flex-wrap gap-2 border-t border-border/60 pt-3 text-[10px]">
+      <div className="flex flex-wrap gap-2 border-t border-white/10 pt-3 text-[10px]">
         <a
           className="text-sky-300 underline-offset-2 hover:underline"
           href={topologyURL}
@@ -415,47 +409,12 @@ function DetailsPanel({
   );
 }
 
-function TopologyMinimap({
-  model,
-  selectedKey,
-}: {
-  readonly model: TopologyModel;
-  readonly selectedKey: string | null;
-}): React.ReactElement {
-  const nodesByKey = new Map(model.nodes.map((node) => [node.key, node]));
-  return (
-    <svg
-      className="h-auto w-full rounded-lg border border-border/60 bg-muted/10"
-      viewBox={`0 0 ${model.layout.width} ${model.layout.height}`}
-      role="img"
-      aria-label="Topology minimap"
-    >
-      {model.layout.nodes.map((layoutNode) => {
-        const node = nodesByKey.get(layoutNode.key);
-        if (!node) return null;
-        return (
-          <rect
-            key={layoutNode.key}
-            x={layoutNode.x}
-            y={layoutNode.y}
-            width={layoutNode.width}
-            height={layoutNode.height}
-            rx={10}
-            fill={NODE_COLORS[node.type]}
-            fillOpacity={
-              selectedKey === null || selectedKey === node.key ? 0.75 : 0.18
-            }
-          />
-        );
-      })}
-    </svg>
-  );
-}
-
 function TopologyLegend(): React.ReactElement {
   return (
-    <div className="grid gap-2 text-[10px] text-muted-foreground">
-      <p className="uppercase tracking-wide">legend</p>
+    <div className="grid gap-2 text-[10px] text-slate-400">
+      <p className="font-semibold uppercase tracking-[0.14em] text-slate-500">
+        legend
+      </p>
       <div className="grid grid-cols-2 gap-1.5">
         {(
           Object.entries(NODE_TYPE_LABELS) as [TopologyNode["type"], string][]
@@ -490,12 +449,12 @@ function RelationshipTable({
   readonly model: TopologyModel;
 }): React.ReactElement {
   return (
-    <div className="overflow-x-auto rounded-xl border border-border/70">
+    <div className="overflow-x-auto rounded-xl border border-white/10">
       <table className="w-full min-w-[44rem] text-left text-[11px]">
         <caption className="sr-only">
           Visible topology relationships and evidence
         </caption>
-        <thead className="bg-muted/20 text-[10px] uppercase tracking-wide text-muted-foreground">
+        <thead className="bg-white/[0.04] text-[10px] uppercase tracking-[0.14em] text-slate-500">
           <tr>
             <th className="px-3 py-2 font-medium">profile</th>
             <th className="px-3 py-2 font-medium">relationship</th>
@@ -503,29 +462,29 @@ function RelationshipTable({
             <th className="px-3 py-2 font-medium">evidence</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-border/50">
+        <tbody className="divide-y divide-white/10">
           {model.relationships.map((relationship) => (
             <tr
               key={`${relationship.profile ?? ""}:${relationship.type}:${referenceKey(relationship.source)}:${referenceKey(relationship.target ?? { type: "", id: "" })}:${relationship.kind ?? ""}:${relationship.evidence ?? relationship.reason ?? relationship.provenance}`}
             >
-              <td className="px-3 py-2 text-muted-foreground">
+              <td className="px-3 py-2 text-slate-400">
                 {relationship.profile ?? "all"}
               </td>
               <td className="px-3 py-2">
                 <span className="font-medium">
                   {topologyEdgeKind(relationship)}
                 </span>
-                <span className="ml-2 text-muted-foreground">
+                <span className="ml-2 text-slate-500">
                   {relationship.status}
                 </span>
               </td>
-              <td className="px-3 py-2 text-muted-foreground">
+              <td className="px-3 py-2 text-slate-400">
                 {referenceKey(relationship.source)}
                 {relationship.target
                   ? ` → ${referenceKey(relationship.target)}`
                   : " → not resolved"}
               </td>
-              <td className="max-w-[20rem] break-words px-3 py-2 text-muted-foreground">
+              <td className="max-w-[20rem] break-words px-3 py-2 text-slate-400">
                 {relationship.evidence ??
                   relationship.reason ??
                   relationship.provenance}
@@ -543,7 +502,6 @@ export function TopologyExplorer(): React.ReactElement {
   const [reloadToken, setReloadToken] = useState(0);
   const [filters, setFilters] = useState<TopologyFilters>(INITIAL_FILTERS);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
-  const [zoom, setZoom] = useState(1);
 
   useEffect(() => {
     // The token is the explicit input for this request effect: changing it
@@ -572,16 +530,6 @@ export function TopologyExplorer(): React.ReactElement {
     [filters, model],
   );
   const selectedNode = model?.nodes.find((node) => node.key === selectedKey);
-  const neighbours = useMemo(() => {
-    if (!selectedKey || !filteredModel) return new Set<string>();
-    const keys = new Set([selectedKey]);
-    for (const edge of filteredModel.edges) {
-      if (edge.sourceKey === selectedKey && edge.targetKey)
-        keys.add(edge.targetKey);
-      if (edge.targetKey === selectedKey) keys.add(edge.sourceKey);
-    }
-    return keys;
-  }, [filteredModel, selectedKey]);
   const updateFilter = (key: keyof TopologyFilters, value: string): void => {
     setFilters((previous) => ({ ...previous, [key]: value }));
   };
@@ -602,356 +550,298 @@ export function TopologyExplorer(): React.ReactElement {
         ),
       ].sort()
     : [];
-  const layoutByKey = new Map(
-    (filteredModel?.layout.nodes ?? []).map((layoutNode) => [
-      layoutNode.key,
-      layoutNode,
-    ]),
-  );
-  const filteredNodesByKey = new Map(
-    (filteredModel?.nodes ?? []).map((node) => [node.key, node]),
-  );
-  const mapWidth = (filteredModel?.layout.width ?? 0) * zoom;
-  const mapHeight = (filteredModel?.layout.height ?? 0) * zoom;
 
   return (
     <div
-      className="flex h-full min-h-0 flex-col gap-3 overflow-hidden bg-background p-4 text-foreground md:p-5"
+      className="h-full min-h-0 overflow-hidden bg-[#08090b] text-foreground"
       data-testid="topology-explorer"
     >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-base font-semibold">Topology explorer</h1>
-          <p className="text-xs text-muted-foreground">
-            read-only profile and worktree composition
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {state.data ? (
-            <Badge className={statusClass(state.data.status)} variant="outline">
-              {state.data.status}
-            </Badge>
-          ) : null}
-          <Button
-            type="button"
-            size="xs"
-            variant="outline"
-            onClick={() => setReloadToken((value) => value + 1)}
-          >
-            refresh topology
-          </Button>
-        </div>
-      </div>
-
-      {state.loading ? (
-        <div className="rounded-xl border border-border/70 bg-muted/10 px-3 py-2 text-xs text-muted-foreground">
-          loading topology…
-        </div>
-      ) : null}
-      {state.error ? (
-        <div
-          className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive-foreground"
-          role="alert"
-        >
-          <span>{state.error}</span>
-          <Button
-            type="button"
-            size="xs"
-            variant="outline"
-            onClick={() => setReloadToken((value) => value + 1)}
-          >
-            retry
-          </Button>
-        </div>
-      ) : null}
-
-      {state.data && model && filteredModel ? (
-        <>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-border/70 bg-muted/10 px-3 py-2 text-[11px] text-muted-foreground">
-            <span>
-              {filteredModel.nodes.length}/{model.nodes.length} nodes
-            </span>
-            <span>
-              {filteredModel.relationships.length}/{model.relationships.length}{" "}
-              relationships
-            </span>
-            <span>
-              generations:{" "}
-              {state.data.profiles
-                .map((profile) => `${profile.id} ${profile.generationId}`)
-                .join(" · ")}
-            </span>
-            {!state.data.completeness.complete ? (
-              <span className="text-amber-200">
-                incomplete ·{" "}
-                {state.data.completeness.reason ?? "reason not supplied"}
+      <div className="mx-auto flex h-full min-h-0 w-full max-w-[1920px] flex-col gap-4 overflow-hidden px-4 py-4 md:px-6 md:py-5 lg:px-8">
+        <header className="flex shrink-0 flex-wrap items-end justify-between gap-4 pr-28 sm:pr-36">
+          <div>
+            <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-300">
+              <span className="h-2 w-2 rounded-full bg-violet-300 shadow-[0_0_14px_rgba(196,181,253,0.9)]" />
+              <span>Kivgraph / topology</span>
+              <span className="rounded-full border border-white/10 px-2 py-0.5 text-[9px] tracking-[0.14em] text-slate-500">
+                read only
               </span>
-            ) : null}
-            {state.data.completeness.truncated ? (
-              <span className="text-amber-200">
-                relationship list truncated
-              </span>
-            ) : null}
-          </div>
-
-          {filteredModel.boundaries.length > 0 ? (
-            <div className="rounded-xl border border-sky-400/30 bg-sky-400/5 px-3 py-2 text-[11px] text-sky-100">
-              <span className="font-medium">profile isolation:</span>{" "}
-              {filteredModel.boundaries
-                .map(
-                  (boundary) =>
-                    `${boundary.leftProfile} ↔ ${boundary.rightProfile}`,
-                )
-                .join(" · ")}
-              {" · code relationships are not evaluated across profiles"}
             </div>
-          ) : null}
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-100 md:text-3xl">
+              Profile topology
+            </h1>
+            <p className="mt-1 text-xs text-slate-400">
+              Explore how profiles, worktrees and repositories compose a
+              resolution universe.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {state.data ? (
+              <Badge
+                className={statusClass(state.data.status)}
+                variant="outline"
+              >
+                {state.data.status}
+              </Badge>
+            ) : null}
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setReloadToken((value) => value + 1)}
+            >
+              refresh
+            </Button>
+          </div>
+        </header>
 
-          <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[15rem_minmax(0,1fr)_18rem]">
-            <aside className="min-h-0 space-y-4 overflow-y-auto rounded-2xl border border-border/80 bg-background/80 p-3">
-              <div className="grid gap-2">
-                <div className="grid gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-                  <span>search topology</span>
-                  <Input
-                    value={filters.query}
-                    onChange={(event) =>
-                      updateFilter("query", event.currentTarget.value)
-                    }
-                    placeholder="profile, path, repository…"
-                    aria-label="Search topology"
-                  />
-                </div>
-                <FilterSelect
-                  label="profile"
-                  value={filters.profile}
-                  options={profiles}
-                  onChange={(value) => updateFilter("profile", value)}
-                />
-                <FilterSelect
-                  label="worktree"
-                  value={filters.worktree}
-                  options={worktrees}
-                  onChange={(value) => updateFilter("worktree", value)}
-                />
-                <FilterSelect
-                  label="repository"
-                  value={filters.repository}
-                  options={repositories}
-                  onChange={(value) => updateFilter("repository", value)}
-                />
-                <FilterSelect
-                  label="language"
-                  value={filters.language}
-                  options={languages}
-                  disabled={languages.length === 0}
-                  onChange={(value) => updateFilter("language", value)}
-                />
-                <FilterSelect
-                  label="edge kind"
-                  value={filters.edgeKind}
-                  options={edgeKinds}
-                  onChange={(value) => updateFilter("edgeKind", value)}
-                />
-                <Button
-                  type="button"
-                  size="xs"
-                  variant="ghost"
-                  onClick={() => setFilters(INITIAL_FILTERS)}
-                >
-                  clear filters
-                </Button>
+        {state.loading ? (
+          <div className="shrink-0 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-slate-400">
+            loading topology…
+          </div>
+        ) : null}
+        {state.error ? (
+          <div
+            className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-xl border border-rose-400/30 bg-rose-400/10 px-3 py-2 text-xs text-rose-100"
+            role="alert"
+          >
+            <span>{state.error}</span>
+            <Button
+              type="button"
+              size="xs"
+              variant="outline"
+              onClick={() => setReloadToken((value) => value + 1)}
+            >
+              retry
+            </Button>
+          </div>
+        ) : null}
+
+        {state.data && model && filteredModel ? (
+          <>
+            <div className="grid shrink-0 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.035] px-4 py-3">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  visible nodes
+                </span>
+                <span className="text-sm font-semibold tabular-nums text-slate-100">
+                  {filteredModel.nodes.length}/{model.nodes.length}
+                </span>
               </div>
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.035] px-4 py-3">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  relationships
+                </span>
+                <span className="text-sm font-semibold tabular-nums text-slate-100">
+                  {filteredModel.relationships.length.toLocaleString()}/
+                  {model.relationships.length.toLocaleString()}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.035] px-4 py-3">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  profiles
+                </span>
+                <span className="text-sm font-semibold tabular-nums text-slate-100">
+                  {state.data.profiles.length}
+                </span>
+              </div>
+              <div className="min-w-0 rounded-xl border border-white/10 bg-white/[0.035] px-4 py-3">
+                <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  generation
+                </span>
+                <span
+                  className="mt-1 block truncate text-xs font-medium text-slate-200"
+                  title={state.data.profiles
+                    .map((profile) => `${profile.id} ${profile.generationId}`)
+                    .join(" · ")}
+                >
+                  {state.data.profiles
+                    .map((profile) => `${profile.id} ${profile.generationId}`)
+                    .join(" · ")}
+                </span>
+              </div>
+            </div>
 
-              <TopologyLegend />
-              <div className="grid gap-2">
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                  minimap
-                </p>
-                <TopologyMinimap
-                  model={filteredModel}
-                  selectedKey={selectedKey}
-                />
-                <div className="flex items-center justify-between gap-1">
-                  <Button
-                    type="button"
-                    size="xs"
-                    variant="outline"
-                    aria-label="Zoom out"
-                    onClick={() =>
-                      setZoom((value) => Math.max(0.6, value - 0.2))
-                    }
-                  >
-                    −
-                  </Button>
-                  <span className="text-[10px] tabular-nums text-muted-foreground">
-                    {Math.round(zoom * 100)}%
+            {!state.data.completeness.complete ||
+            state.data.completeness.truncated ? (
+              <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-amber-300/20 bg-amber-300/[0.06] px-4 py-3 text-[11px] text-amber-100">
+                <span className="font-semibold uppercase tracking-[0.14em] text-amber-200">
+                  data quality
+                </span>
+                {!state.data.completeness.complete ? (
+                  <span>
+                    incomplete ·{" "}
+                    {state.data.completeness.reason ?? "reason not supplied"}
                   </span>
-                  <Button
-                    type="button"
-                    size="xs"
-                    variant="outline"
-                    aria-label="Zoom in"
-                    onClick={() =>
-                      setZoom((value) => Math.min(1.8, value + 0.2))
-                    }
-                  >
-                    +
-                  </Button>
+                ) : null}
+                {state.data.completeness.truncated ? (
+                  <span>relationship list truncated</span>
+                ) : null}
+              </div>
+            ) : null}
+
+            {filteredModel.boundaries.length > 0 ? (
+              <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-sky-300/20 bg-sky-300/[0.06] px-4 py-3 text-[11px] text-sky-100">
+                <span className="font-semibold uppercase tracking-[0.14em] text-sky-200">
+                  profile isolation
+                </span>
+                <span>
+                  {filteredModel.boundaries
+                    .map(
+                      (boundary) =>
+                        `${boundary.leftProfile} ↔ ${boundary.rightProfile}`,
+                    )
+                    .join(" · ")}
+                </span>
+                <span className="text-sky-200/70">
+                  cross-profile code relationships are not evaluated
+                </span>
+              </div>
+            ) : null}
+
+            <div className="grid min-h-0 min-w-0 flex-1 gap-4 overflow-y-auto lg:overflow-hidden lg:grid-cols-[17rem_minmax(0,1fr)_20rem]">
+              <aside className="min-h-0 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950/55 p-4 shadow-xl">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      explore
+                    </p>
+                    <h2 className="mt-1 text-sm font-semibold text-slate-100">
+                      Filters
+                    </h2>
+                  </div>
                   <Button
                     type="button"
                     size="xs"
                     variant="ghost"
-                    onClick={() => setZoom(1)}
+                    onClick={() => setFilters(INITIAL_FILTERS)}
                   >
                     reset
                   </Button>
                 </div>
-              </div>
-            </aside>
 
-            <section
-              className="min-h-0 overflow-auto rounded-2xl border border-border/80 bg-[#0b1020]"
-              aria-label="Topology map. Use the scrollbars to pan."
-            >
-              <div
-                className="relative"
-                style={{ width: mapWidth, height: mapHeight }}
+                <div className="mt-4 grid gap-3">
+                  <div className="grid gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    <span>search topology</span>
+                    <Input
+                      className="h-9 border-white/10 bg-white/[0.04] text-xs text-slate-200 placeholder:text-slate-600"
+                      value={filters.query}
+                      onChange={(event) =>
+                        updateFilter("query", event.currentTarget.value)
+                      }
+                      placeholder="profile, path, repository…"
+                      aria-label="Search topology"
+                    />
+                  </div>
+                  <FilterSelect
+                    label="profile"
+                    value={filters.profile}
+                    options={profiles}
+                    onChange={(value) => updateFilter("profile", value)}
+                  />
+                  <FilterSelect
+                    label="worktree"
+                    value={filters.worktree}
+                    options={worktrees}
+                    onChange={(value) => updateFilter("worktree", value)}
+                  />
+                  <FilterSelect
+                    label="repository"
+                    value={filters.repository}
+                    options={repositories}
+                    onChange={(value) => updateFilter("repository", value)}
+                  />
+                  <FilterSelect
+                    label="language"
+                    value={filters.language}
+                    options={languages}
+                    disabled={languages.length === 0}
+                    onChange={(value) => updateFilter("language", value)}
+                  />
+                  <FilterSelect
+                    label="edge kind"
+                    value={filters.edgeKind}
+                    options={edgeKinds}
+                    onChange={(value) => updateFilter("edgeKind", value)}
+                  />
+                </div>
+
+                <div className="mt-5 border-t border-white/10 pt-4">
+                  <TopologyLegend />
+                </div>
+              </aside>
+
+              <section
+                className="flex min-h-[30rem] min-w-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0b1220] shadow-2xl lg:min-h-0"
+                aria-label="Topology map"
               >
-                <svg
-                  className="pointer-events-none absolute left-0 top-0"
-                  width={filteredModel.layout.width}
-                  height={filteredModel.layout.height}
-                  viewBox={`0 0 ${filteredModel.layout.width} ${filteredModel.layout.height}`}
-                  preserveAspectRatio="none"
-                  style={{
-                    transform: `scale(${zoom})`,
-                    transformOrigin: "top left",
-                  }}
-                  aria-hidden="true"
-                >
-                  <defs>
-                    <marker
-                      id="topology-arrow"
-                      markerWidth="8"
-                      markerHeight="8"
-                      refX="7"
-                      refY="4"
-                      orient="auto"
-                    >
-                      <path d="M0,0 L8,4 L0,8 Z" fill="#94a3b8" />
-                    </marker>
-                  </defs>
-                  {filteredModel.edges.map((edge) => {
-                    if (!edge.targetKey) return null;
-                    const source = layoutByKey.get(edge.sourceKey);
-                    const target = layoutByKey.get(edge.targetKey);
-                    if (!source || !target) return null;
-                    const color = relationshipColor(edge.relationship);
-                    const active =
-                      selectedKey === null ||
-                      neighbours.has(edge.sourceKey) ||
-                      neighbours.has(edge.targetKey);
-                    return (
-                      <line
-                        key={edge.key}
-                        x1={source.x + source.width}
-                        y1={source.y + source.height / 2}
-                        x2={target.x}
-                        y2={target.y + target.height / 2}
-                        stroke={color}
-                        strokeWidth={
-                          edge.relationship.status === "structural" ? 1.5 : 2.5
-                        }
-                        strokeOpacity={active ? 0.8 : 0.12}
-                        markerEnd="url(#topology-arrow)"
-                      />
-                    );
-                  })}
-                </svg>
-                {filteredModel.layout.nodes.map((layoutNode) => {
-                  const node = filteredNodesByKey.get(layoutNode.key);
-                  if (!node) return null;
-                  const active =
-                    selectedKey === null || neighbours.has(node.key);
-                  return (
-                    <button
-                      key={node.key}
-                      type="button"
-                      className={cn(
-                        "absolute grid content-start gap-1 rounded-xl border p-3 text-left shadow-lg transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                        active ? "opacity-100" : "opacity-25",
-                        selectedKey === node.key
-                          ? "border-foreground/90"
-                          : "border-border/70",
-                      )}
-                      style={{
-                        left: layoutNode.x * zoom,
-                        top: layoutNode.y * zoom,
-                        width: layoutNode.width * zoom,
-                        minHeight: layoutNode.height * zoom,
-                        backgroundColor: `${NODE_COLORS[node.type]}12`,
-                      }}
-                      onClick={() => setSelectedKey(node.key)}
-                      aria-pressed={selectedKey === node.key}
-                      aria-label={`${NODE_TYPE_LABELS[node.type]} ${node.label}`}
-                      data-testid={`topology-node-${node.key}`}
-                    >
-                      <span className="flex items-center justify-between gap-2">
-                        <span className="truncate text-xs font-semibold">
-                          {node.label}
-                        </span>
-                        <span
-                          className="h-2 w-2 shrink-0 rounded-full"
-                          style={{ backgroundColor: NODE_COLORS[node.type] }}
-                        />
-                      </span>
-                      <span className="line-clamp-2 text-[10px] text-muted-foreground">
-                        {node.subtitle}
-                      </span>
-                      <span className="mt-1 flex flex-wrap gap-1">
-                        <Badge
-                          className={statusClass(node.status)}
-                          variant="outline"
-                        >
-                          {node.status}
-                        </Badge>
-                        {node.languages.slice(0, 2).map((language) => (
-                          <Badge key={language} variant="secondary">
-                            {language}
-                          </Badge>
-                        ))}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
+                <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 bg-slate-950/40 px-4 py-3">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      canvas
+                    </p>
+                    <p className="mt-1 text-xs text-slate-300">
+                      Click a node to inspect its evidence
+                    </p>
+                  </div>
+                  <div className="text-right text-[10px] tabular-nums text-slate-500">
+                    <span className="block text-slate-200">
+                      {filteredModel.nodes.length} nodes
+                    </span>
+                    <span>{filteredModel.edges.length} linked edges</span>
+                  </div>
+                </div>
+                <div className="min-h-0 flex-1 p-1">
+                  <TopologyFlow
+                    model={filteredModel}
+                    selectedKey={selectedKey}
+                    onSelect={setSelectedKey}
+                  />
+                </div>
+              </section>
 
-            <DetailsPanel node={selectedNode} data={state.data} model={model} />
-          </div>
-
-          <div className="grid gap-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-xs font-semibold">
-                Accessible relationship list
-              </h2>
-              {filteredModel.unrenderedRelationships.length > 0 ? (
-                <span className="text-[10px] text-amber-200">
-                  {filteredModel.unrenderedRelationships.length} relationship(s)
-                  omitted because an endpoint is not present
-                </span>
-              ) : null}
+              <DetailsPanel
+                node={selectedNode}
+                data={state.data}
+                model={model}
+              />
             </div>
-            {filteredModel.relationships.length > 0 ? (
-              <RelationshipTable model={filteredModel} />
-            ) : (
-              <p className="rounded-xl border border-border/70 px-3 py-4 text-xs text-muted-foreground">
-                No relationships match the current filters.
-              </p>
-            )}
-          </div>
-        </>
-      ) : null}
+
+            <details className="shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/55 shadow-xl">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+                <div>
+                  <span className="block text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    accessibility
+                  </span>
+                  <span className="mt-1 block text-sm font-semibold text-slate-100">
+                    Relationship list
+                  </span>
+                </div>
+                <div className="text-right text-[10px] text-slate-400">
+                  <span className="block tabular-nums text-slate-200">
+                    {filteredModel.relationships.length.toLocaleString()} rows
+                  </span>
+                  <span>keyboard-friendly detail view</span>
+                </div>
+              </summary>
+              <div className="max-h-72 overflow-auto border-t border-white/10 p-3">
+                {filteredModel.unrenderedRelationships.length > 0 ? (
+                  <p className="mb-3 text-[10px] text-amber-200">
+                    {filteredModel.unrenderedRelationships.length}{" "}
+                    relationship(s) omitted because an endpoint is not present.
+                  </p>
+                ) : null}
+                {filteredModel.relationships.length > 0 ? (
+                  <RelationshipTable model={filteredModel} />
+                ) : (
+                  <p className="rounded-xl border border-white/10 px-3 py-4 text-xs text-slate-400">
+                    No relationships match the current filters.
+                  </p>
+                )}
+              </div>
+            </details>
+          </>
+        ) : null}
+      </div>
     </div>
   );
 }

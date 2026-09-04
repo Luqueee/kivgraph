@@ -12,9 +12,9 @@ describe("TopologyExplorer", () => {
   it("exposes a read-only loading surface before the topology request resolves", () => {
     const markup = renderToStaticMarkup(<TopologyExplorer />);
 
-    expect(markup).toContain("Topology explorer");
+    expect(markup).toContain("Profile topology");
     expect(markup).toContain("loading topology");
-    expect(markup).toContain("read-only");
+    expect(markup).toContain("read only");
     expect(markup).not.toContain("<canvas");
   });
 
