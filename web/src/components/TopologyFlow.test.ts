@@ -33,6 +33,45 @@ const targetNode = {
   languages: ["typescript"],
 };
 
+const unrelatedNode = {
+  key: "repository:unrelated",
+  id: "unrelated",
+  type: "repository" as const,
+  label: "unrelated",
+  subtitle: "Go",
+  status: "ready",
+  profileIds: ["default"],
+  worktreeIds: [],
+  repositoryIds: ["unrelated"],
+  languages: ["go"],
+};
+
+const profileNode = {
+  key: "profile:default",
+  id: "default",
+  type: "profile" as const,
+  label: "default",
+  subtitle: "2 repositories",
+  status: "ready",
+  profileIds: ["default"],
+  worktreeIds: ["legacy:source"],
+  repositoryIds: ["source", "target"],
+  languages: ["go", "typescript"],
+};
+
+const worktreeNode = {
+  key: "worktree:legacy:source",
+  id: "legacy:source",
+  type: "worktree" as const,
+  label: "source",
+  subtitle: "/workspace/source",
+  status: "current",
+  profileIds: ["default"],
+  worktreeIds: ["legacy:source"],
+  repositoryIds: ["source"],
+  languages: ["go"],
+};
+
 const relationship: TopologyRelationship = {
   profile: "default",
   type: "code_dependency",
@@ -46,7 +85,7 @@ const relationship: TopologyRelationship = {
 };
 
 const model: TopologyModel = {
-  nodes: [sourceNode, targetNode],
+  nodes: [sourceNode, targetNode, unrelatedNode],
   edges: [
     {
       key: "edge:0",
@@ -90,25 +129,174 @@ describe("TopologyFlow", () => {
   });
 
   it("groups repeated relationships into one readable edge", () => {
-    const edges = createTopologyFlowEdges(model, null);
+    const edges = createTopologyFlowEdges(model, sourceNode.key);
 
     expect(edges).toHaveLength(1);
     expect(edges[0].data?.count).toBe(2);
     expect(edges[0].label).toBe("×2");
+    expect(edges[0].ariaLabel).toContain("2 grouped relationships");
     expect(edges[0].source).toBe(sourceNode.key);
     expect(edges[0].target).toBe(targetNode.key);
+    expect(edges[0].sourceHandle).toBe("source");
+    expect(edges[0].targetHandle).toBe("target");
   });
 
-  it("keeps unrelated nodes and edges visually quiet around a selection", () => {
+  it("highlights direct relationships without removing the surrounding map", () => {
     const edges = createTopologyFlowEdges(model, sourceNode.key);
     const nodes = createTopologyFlowNodes(model, sourceNode.key, () => {});
 
-    expect(edges[0].style?.opacity).toBe(0.78);
-    expect(nodes).toHaveLength(2);
+    expect(edges[0].style?.opacity).toBe(0.98);
+    expect(edges[0].type).toBe("routed");
+    expect(nodes).toHaveLength(3);
+    expect(
+      nodes.find((node) => node.id === unrelatedNode.key)?.data.active,
+    ).toBe(false);
     expect(nodes.find((node) => node.id === sourceNode.key)?.selected).toBe(
       true,
     );
-    expect(nodes.every((node) => node.data.active)).toBe(true);
+    expect(nodes.find((node) => node.id === sourceNode.key)?.data.active).toBe(
+      true,
+    );
     expect(nodes.every((node) => node.draggable === false)).toBe(true);
+  });
+
+  it("keeps the overview quiet and traces direct links on hover", () => {
+    const overviewEdges = createTopologyFlowEdges(model, null);
+    const hoveredEdges = createTopologyFlowEdges(model, null, {
+      hoveredKey: sourceNode.key,
+    });
+    const hoveredNodes = createTopologyFlowNodes(model, null, () => {}, {
+      hoveredKey: sourceNode.key,
+    });
+
+    expect(overviewEdges[0].style?.stroke).toBe("#94a3b8");
+    expect(overviewEdges[0].style?.opacity).toBe(0.6);
+    expect(hoveredEdges[0].style?.stroke).toBe("#22c55e");
+    expect(hoveredEdges[0].style?.opacity).toBe(0.9);
+    expect(
+      hoveredNodes.find((node) => node.id === unrelatedNode.key)?.data.active,
+    ).toBe(true);
+  });
+
+  it("keeps the selected relationship distinct from its upstream and downstream trace", () => {
+    const chainRelationship: TopologyRelationship = {
+      ...relationship,
+      source: { type: "repository", id: "target" },
+      target: { type: "repository", id: "unrelated" },
+      evidence: "target.go:30",
+    };
+    const chainModel: TopologyModel = {
+      ...model,
+      edges: [
+        ...model.edges,
+        {
+          key: "edge:chain",
+          relationshipIndex: 2,
+          sourceKey: targetNode.key,
+          targetKey: unrelatedNode.key,
+          relationship: chainRelationship,
+        },
+      ],
+    };
+
+    const edges = createTopologyFlowEdges(chainModel, sourceNode.key);
+
+    expect(
+      edges.find((edge) => edge.source === sourceNode.key)?.style?.opacity,
+    ).toBe(0.98);
+    expect(
+      edges.find((edge) => edge.source === targetNode.key)?.style?.opacity,
+    ).toBe(0.58);
+  });
+
+  it("opens with a profile and a repository group instead of a wall of cards", () => {
+    const overviewModel: TopologyModel = {
+      ...model,
+      nodes: [profileNode, worktreeNode, sourceNode, targetNode],
+      edges: [
+        ...model.edges,
+        {
+          key: "edge:self",
+          relationshipIndex: 2,
+          sourceKey: sourceNode.key,
+          targetKey: sourceNode.key,
+          relationship: { ...relationship, target: relationship.source },
+        },
+      ],
+    };
+
+    const nodes = createTopologyFlowNodes(overviewModel, null, () => {}, {
+      showWorktrees: false,
+    });
+    const edges = createTopologyFlowEdges(overviewModel, null, {
+      showWorktrees: false,
+    });
+
+    expect(nodes.map((node) => node.id)).not.toContain(worktreeNode.key);
+    expect(nodes.map((node) => node.id)).not.toContain(sourceNode.key);
+    expect(
+      edges.some(
+        (edge) =>
+          edge.source === profileNode.key &&
+          edge.target === "topology:repository-group:default",
+      ),
+    ).toBe(true);
+  });
+
+  it("lays out grouped direct relationships and omits internal self-edges", () => {
+    const overviewModel: TopologyModel = {
+      ...model,
+      nodes: [profileNode, worktreeNode, sourceNode, targetNode],
+      edges: [
+        ...model.edges,
+        {
+          key: "edge:self",
+          relationshipIndex: 2,
+          sourceKey: sourceNode.key,
+          targetKey: sourceNode.key,
+          relationship: { ...relationship, target: relationship.source },
+        },
+      ],
+    };
+    const options = { expandedProfiles: ["default"], showWorktrees: false };
+    const beforeSelection = createTopologyFlowEdges(
+      overviewModel,
+      null,
+      options,
+    );
+    expect(() =>
+      createTopologyFlowNodes(overviewModel, sourceNode.key, () => {}, options),
+    ).not.toThrow();
+    const nodes = createTopologyFlowNodes(
+      overviewModel,
+      sourceNode.key,
+      () => {},
+      options,
+    );
+    const edges = createTopologyFlowEdges(
+      overviewModel,
+      sourceNode.key,
+      options,
+    );
+
+    expect(nodes.map((node) => node.id)).toContain(sourceNode.key);
+    expect(nodes.map((node) => node.id)).toContain(targetNode.key);
+    expect(
+      beforeSelection.some(
+        (edge) => edge.data?.relationship.type === "code_dependency",
+      ),
+    ).toBe(true);
+    expect(
+      edges.some(
+        (edge) =>
+          edge.source === sourceNode.key && edge.target === targetNode.key,
+      ),
+    ).toBe(true);
+    expect(
+      edges.some(
+        (edge) =>
+          edge.source === sourceNode.key && edge.target === sourceNode.key,
+      ),
+    ).toBe(false);
   });
 });

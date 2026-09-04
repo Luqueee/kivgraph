@@ -1,6 +1,7 @@
 import {
   Background,
   BackgroundVariant,
+  BaseEdge,
   Controls,
   Handle,
   MarkerType,
@@ -8,19 +9,32 @@ import {
   Position,
   ReactFlow,
   type Edge,
+  type EdgeProps,
   type Node,
   type NodeProps,
 } from "@xyflow/react";
+import type {
+  ELK,
+  ElkExtendedEdge,
+  ElkNode,
+  ElkPoint,
+} from "elkjs/lib/elk-api.js";
+import { useEffect, useMemo, useState } from "react";
 import "@xyflow/react/dist/style.css";
 
 import type { TopologyRelationship } from "@/api/client";
-import { Badge } from "@/components/ui/badge";
 import {
   topologyEdgeKind,
   type TopologyEdge,
   type TopologyModel,
   type TopologyNode,
 } from "@/topology";
+import {
+  calculateTopologyLayout,
+  type TopologyLayoutInputEdge,
+  type TopologyLayoutInputNode,
+  type TopologyLayoutResult,
+} from "@/topology-layout";
 import { cn } from "@/lib/utils";
 
 const NODE_TYPE_LABELS: Record<TopologyNode["type"], string> = {
@@ -31,18 +45,105 @@ const NODE_TYPE_LABELS: Record<TopologyNode["type"], string> = {
 };
 
 const NODE_COLORS: Record<TopologyNode["type"], string> = {
-  profile: "#a78bfa",
-  worktree: "#38bdf8",
-  repository: "#34d399",
-  shared_input: "#fbbf24",
+  profile: "#7c3aed",
+  worktree: "#94a3b8",
+  repository: "#2563eb",
+  shared_input: "#059669",
 };
 
+const REPOSITORY_GROUP_COLOR = "#2563eb";
+export const TOPOLOGY_EDGE_COLORS = {
+  overview: "#94a3b8",
+  direct: "#22c55e",
+  trace: "#64748b",
+  dimmed: "#334155",
+} as const;
+const FLOW_NODE_WIDTH = 220;
+const FLOW_NODE_HEIGHT = 90;
+const FLOW_COLUMN_GAP = 52;
+const FLOW_ROW_GAP = 24;
+const FLOW_PADDING = 28;
 const MAX_RENDERED_FLOW_EDGES = 600;
+const MAX_TRACE_DEPTH = 3;
+const MAX_TRACE_NODES = 48;
+
+export interface TopologyFlowOptions {
+  readonly showWorktrees: boolean;
+  readonly showInternalRelationships: boolean;
+  readonly expandedProfiles: readonly string[];
+  readonly hoveredKey: string | null;
+}
+
+const DEFAULT_FLOW_OPTIONS: TopologyFlowOptions = {
+  showWorktrees: true,
+  showInternalRelationships: false,
+  expandedProfiles: [],
+  hoveredKey: null,
+};
+
+interface FlowTopologyNode {
+  readonly kind: "topology";
+  readonly topologyNode: TopologyNode;
+}
+
+interface FlowRepositoryGroupNode {
+  readonly kind: "repository_group";
+  readonly key: string;
+  readonly profileID: string;
+  readonly label: string;
+  readonly subtitle: string;
+  readonly repositoryCount: number;
+}
+
+type FlowDisplayNode = FlowTopologyNode | FlowRepositoryGroupNode;
+
+interface FlowLayoutNode {
+  readonly key: string;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly ports?: readonly FlowLayoutPort[];
+}
+
+interface FlowLayoutPort {
+  readonly key: string;
+  readonly side: "left" | "right";
+  readonly y: number;
+}
+
+interface FlowLayoutRoute {
+  readonly id: string;
+  readonly path: string;
+}
+
+interface FlowGraph {
+  readonly nodes: readonly FlowDisplayNode[];
+  readonly edges: readonly TopologyEdge[];
+  readonly nodesByKey: ReadonlyMap<string, FlowDisplayNode>;
+  readonly edgeGroups: readonly FlowEdgeGroup[];
+  readonly dependencyEdgesByNode: ReadonlyMap<string, readonly TopologyEdge[]>;
+  readonly layout: {
+    readonly width: number;
+    readonly height: number;
+    readonly nodes: readonly FlowLayoutNode[];
+    readonly routes?: readonly FlowLayoutRoute[];
+  };
+}
+
+interface FlowEdgeGroup {
+  readonly key: string;
+  readonly edge: TopologyEdge;
+  readonly count: number;
+}
 
 export type TopologyFlowNodeData = Record<string, unknown> & {
-  readonly topologyNode: TopologyNode;
+  readonly displayNode: FlowDisplayNode;
+  readonly ports: readonly FlowLayoutPort[];
   readonly active: boolean;
+  readonly emphasized: boolean;
   readonly onSelect: (key: string) => void;
+  readonly onToggleProfile: (profileID: string) => void;
 };
 
 export type TopologyFlowNode = Node<TopologyFlowNodeData, "topology">;
@@ -50,50 +151,54 @@ export type TopologyFlowNode = Node<TopologyFlowNodeData, "topology">;
 export type TopologyFlowEdgeData = Record<string, unknown> & {
   readonly relationship: TopologyRelationship;
   readonly count: number;
+  readonly routePath?: string;
 };
 
-export type TopologyFlowEdge = Edge<TopologyFlowEdgeData, "smoothstep">;
+export type TopologyFlowEdge = Edge<TopologyFlowEdgeData, "routed">;
 
-function relationshipColor(relationship: TopologyRelationship): string {
-  return (
-    {
-      structural: "#94a3b8",
-      exact: "#34d399",
-      candidate: "#fbbf24",
-      unresolved: "#fb923c",
-      conflict: "#fb7185",
-      shared_input_usage: "#fbbf24",
-    }[relationship.type] ??
-    {
-      structural: "#94a3b8",
-      exact: "#34d399",
-      candidate: "#fbbf24",
-      unresolved: "#fb923c",
-      conflict: "#fb7185",
-    }[relationship.status] ??
-    "#94a3b8"
-  );
+function displayNodeKey(node: FlowDisplayNode): string {
+  return node.kind === "topology" ? node.topologyNode.key : node.key;
 }
 
-function statusClass(status: string): string {
-  switch (status) {
-    case "ready":
-    case "current":
-    case "structural":
-      return "border-emerald-400/40 bg-emerald-400/10 text-emerald-200";
-    case "stale":
-    case "partial":
-    case "candidate":
-    case "shared":
-      return "border-amber-400/40 bg-amber-400/10 text-amber-200";
-    case "missing":
-    case "unavailable":
-    case "unresolved":
-    case "conflict":
-      return "border-rose-400/40 bg-rose-400/10 text-rose-200";
-    default:
-      return "border-border/80 bg-muted/20 text-muted-foreground";
+function displayNodeType(node: FlowDisplayNode): string {
+  return node.kind === "topology"
+    ? NODE_TYPE_LABELS[node.topologyNode.type]
+    : "repository group";
+}
+
+function displayNodeLabel(node: FlowDisplayNode): string {
+  return node.kind === "topology" ? node.topologyNode.label : node.label;
+}
+
+function displayNodeSubtitle(node: FlowDisplayNode): string {
+  return node.kind === "topology" ? node.topologyNode.subtitle : node.subtitle;
+}
+
+function displayNodeColor(node: FlowDisplayNode): string {
+  return node.kind === "topology"
+    ? NODE_COLORS[node.topologyNode.type]
+    : REPOSITORY_GROUP_COLOR;
+}
+
+function topologyDisplayNode(node: TopologyNode): FlowTopologyNode {
+  return { kind: "topology", topologyNode: node };
+}
+
+function relationshipLabel(relationship: TopologyRelationship): string {
+  if (relationship.kind === "contains" || relationship.type === "membership") {
+    return "contains";
   }
+  if (
+    relationship.kind === "uses" ||
+    relationship.type === "shared_input_usage"
+  ) {
+    return "uses";
+  }
+  if (relationship.status === "conflict") return "conflicts with";
+  if (relationship.status === "unresolved") return "not resolved";
+  if (relationship.status === "candidate") return "candidate dependency";
+  if (relationship.type === "code_dependency") return "depends on";
+  return topologyEdgeKind(relationship).toLocaleLowerCase();
 }
 
 function flowEdgeGroupKey(edge: TopologyEdge): string {
@@ -102,131 +207,945 @@ function flowEdgeGroupKey(edge: TopologyEdge): string {
     edge.sourceKey,
     edge.targetKey,
     relationship.profile ?? "",
-    relationship.type,
-    relationship.kind ?? "",
+    relationshipLabel(relationship),
     relationship.status,
   ]);
 }
 
-function flowEdgeLabel(count: number): string | undefined {
-  return count > 1 ? `×${count}` : undefined;
+function flowEdgeLabel(
+  relationship: TopologyRelationship,
+  count: number,
+): string | undefined {
+  const label = relationshipLabel(relationship);
+  if (label === "contains") return undefined;
+  return `${label}${count > 1 ? ` ×${count}` : ""}`;
 }
 
-export function createTopologyFlowNodes(
+function groupFlowEdges(
+  edges: readonly TopologyEdge[],
+): readonly FlowEdgeGroup[] {
+  const groups = new Map<
+    string,
+    { key: string; edge: TopologyEdge; count: number }
+  >();
+  for (const edge of edges) {
+    const key = flowEdgeGroupKey(edge);
+    const group = groups.get(key);
+    if (group) {
+      group.count += 1;
+    } else {
+      groups.set(key, { key, edge, count: 1 });
+    }
+  }
+  return [...groups.values()];
+}
+
+function dependencyEdgesByNode(
+  edges: readonly TopologyEdge[],
+): ReadonlyMap<string, readonly TopologyEdge[]> {
+  const byNode = new Map<string, TopologyEdge[]>();
+  for (const edge of edges) {
+    if (!edge.targetKey || !dependencyEdge(edge)) continue;
+    const sourceEdges = byNode.get(edge.sourceKey) ?? [];
+    sourceEdges.push(edge);
+    byNode.set(edge.sourceKey, sourceEdges);
+    const targetEdges = byNode.get(edge.targetKey) ?? [];
+    targetEdges.push(edge);
+    byNode.set(edge.targetKey, targetEdges);
+  }
+  return byNode;
+}
+
+function structuralEdge(
+  key: string,
+  source: FlowDisplayNode,
+  target: FlowDisplayNode,
+  profile?: string,
+): TopologyEdge {
+  return {
+    key,
+    relationshipIndex: -1,
+    sourceKey: displayNodeKey(source),
+    targetKey: displayNodeKey(target),
+    relationship: {
+      profile,
+      type: "membership",
+      source: { type: displayNodeType(source), id: displayNodeLabel(source) },
+      target: { type: displayNodeType(target), id: displayNodeLabel(target) },
+      kind: "contains",
+      status: "structural",
+      confidence: "STRUCTURAL_CERTAIN",
+      provenance: "TOPOLOGY_DECLARATION",
+      reason: `${displayNodeLabel(source)} contains ${displayNodeLabel(target)}`,
+    },
+  };
+}
+
+function repositoryGroup(profile: TopologyNode): FlowRepositoryGroupNode {
+  const count = profile.repositoryIds.length;
+  return {
+    kind: "repository_group",
+    key: `topology:repository-group:${profile.id}`,
+    profileID: profile.id,
+    label: "Repository network",
+    subtitle: `${count} ${count === 1 ? "repository" : "repositories"} · click to explore`,
+    repositoryCount: count,
+  };
+}
+
+function includesAny(
+  values: readonly string[],
+  candidates: ReadonlySet<string>,
+): boolean {
+  return values.some((value) => candidates.has(value));
+}
+
+function flowLayer(node: FlowDisplayNode, showWorktrees: boolean): number {
+  if (node.kind === "repository_group") return 1;
+  if (node.topologyNode.type === "profile") return 0;
+  if (node.topologyNode.type === "worktree") return 1;
+  return showWorktrees ? 2 : 1;
+}
+
+function columnsForLayer(layer: number, count: number): number {
+  const maximum = layer === 0 ? 2 : 4;
+  return Math.max(1, Math.min(maximum, count));
+}
+
+function createFallbackLayout(
+  nodes: readonly FlowDisplayNode[],
+  showWorktrees: boolean,
+): FlowGraph["layout"] {
+  const layers = new Map<number, FlowDisplayNode[]>();
+  for (const node of nodes) {
+    const layer = flowLayer(node, showWorktrees);
+    const layerNodes = layers.get(layer) ?? [];
+    layerNodes.push(node);
+    layers.set(layer, layerNodes);
+  }
+
+  const layoutNodes: FlowLayoutNode[] = [];
+  let x = FLOW_PADDING;
+  let maxHeight = FLOW_NODE_HEIGHT;
+  let right = FLOW_PADDING;
+  for (const layer of [0, 1, 2]) {
+    const layerNodes = layers.get(layer) ?? [];
+    if (layerNodes.length === 0) continue;
+    const columns = columnsForLayer(layer, layerNodes.length);
+    const rows = Math.ceil(layerNodes.length / columns);
+    const laneWidth =
+      columns * FLOW_NODE_WIDTH + (columns - 1) * FLOW_COLUMN_GAP;
+    for (const [index, node] of layerNodes.entries()) {
+      layoutNodes.push({
+        key: displayNodeKey(node),
+        x: x + (index % columns) * (FLOW_NODE_WIDTH + FLOW_COLUMN_GAP),
+        y:
+          FLOW_PADDING +
+          Math.floor(index / columns) * (FLOW_NODE_HEIGHT + FLOW_ROW_GAP),
+        width: FLOW_NODE_WIDTH,
+        height: FLOW_NODE_HEIGHT,
+      });
+    }
+    maxHeight = Math.max(
+      maxHeight,
+      rows * FLOW_NODE_HEIGHT + (rows - 1) * FLOW_ROW_GAP,
+    );
+    right = x + laneWidth;
+    x += laneWidth + FLOW_COLUMN_GAP;
+  }
+
+  return {
+    width: Math.max(400, right + FLOW_PADDING),
+    height: FLOW_PADDING * 2 + maxHeight,
+    nodes: layoutNodes,
+  };
+}
+
+function createDependencyLayout(
+  nodes: readonly FlowDisplayNode[],
+  edges: readonly TopologyEdge[],
+  showWorktrees: boolean,
+): FlowGraph["layout"] {
+  const repositoryNodes = nodes.filter(
+    (node): node is FlowTopologyNode =>
+      node.kind === "topology" && node.topologyNode.type === "repository",
+  );
+  if (repositoryNodes.length === 0) {
+    return createFallbackLayout(nodes, showWorktrees);
+  }
+
+  const repositoryKeys = new Set(
+    repositoryNodes.map((node) => node.topologyNode.key),
+  );
+  const outgoing = new Map<string, Set<string>>();
+  const incoming = new Map<string, Set<string>>();
+  for (const key of repositoryKeys) {
+    outgoing.set(key, new Set());
+    incoming.set(key, new Set());
+  }
+  for (const edge of edges) {
+    if (
+      !edge.targetKey ||
+      !repositoryKeys.has(edge.sourceKey) ||
+      !repositoryKeys.has(edge.targetKey)
+    ) {
+      continue;
+    }
+    outgoing.get(edge.sourceKey)?.add(edge.targetKey);
+    incoming.get(edge.targetKey)?.add(edge.sourceKey);
+  }
+
+  const ranks = new Map<string, number>();
+  const visiting = new Set<string>();
+  const rankFor = (key: string): number => {
+    const known = ranks.get(key);
+    if (known !== undefined) return known;
+    if (visiting.has(key)) return 0;
+    visiting.add(key);
+    const rank = Math.max(
+      0,
+      ...[...(outgoing.get(key) ?? [])].map((target) => rankFor(target) + 1),
+    );
+    visiting.delete(key);
+    ranks.set(key, rank);
+    return rank;
+  };
+  for (const key of repositoryKeys) rankFor(key);
+
+  const maxRank = Math.max(...ranks.values());
+  const repositoriesByRank = new Map<number, string[]>();
+  for (const node of repositoryNodes) {
+    const rank = ranks.get(node.topologyNode.key) ?? 0;
+    const entries = repositoriesByRank.get(rank) ?? [];
+    entries.push(node.topologyNode.key);
+    repositoriesByRank.set(rank, entries);
+  }
+  const labels = new Map(
+    repositoryNodes.map((node) => [
+      node.topologyNode.key,
+      node.topologyNode.label,
+    ]),
+  );
+  const order = new Map<string, number>();
+  const setOrder = (rank: number): void => {
+    for (const [index, key] of (repositoriesByRank.get(rank) ?? []).entries()) {
+      order.set(key, index);
+    }
+  };
+  for (const rank of repositoriesByRank.keys()) {
+    repositoriesByRank
+      .get(rank)
+      ?.sort((left, right) =>
+        (labels.get(left) ?? "").localeCompare(labels.get(right) ?? ""),
+      );
+    setOrder(rank);
+  }
+  const reorder = (
+    rank: number,
+    neighbours: ReadonlyMap<string, ReadonlySet<string>>,
+  ): void => {
+    const entries = repositoriesByRank.get(rank);
+    if (!entries) return;
+    entries.sort((left, right) => {
+      const average = (key: string): number | null => {
+        const values = [...(neighbours.get(key) ?? [])]
+          .filter((node) => ranks.get(node) !== rank)
+          .map((node) => order.get(node))
+          .filter((value): value is number => value !== undefined);
+        return values.length === 0
+          ? null
+          : values.reduce((total, value) => total + value, 0) / values.length;
+      };
+      const leftAverage = average(left);
+      const rightAverage = average(right);
+      if (leftAverage !== null && rightAverage !== null) {
+        if (leftAverage !== rightAverage) return leftAverage - rightAverage;
+      } else if (leftAverage !== null) {
+        return -1;
+      } else if (rightAverage !== null) {
+        return 1;
+      }
+      return (labels.get(left) ?? "").localeCompare(labels.get(right) ?? "");
+    });
+    setOrder(rank);
+  };
+  for (let pass = 0; pass < 3; pass += 1) {
+    for (let rank = 1; rank <= maxRank; rank += 1) reorder(rank, incoming);
+    for (let rank = maxRank - 1; rank >= 0; rank -= 1) {
+      reorder(rank, outgoing);
+    }
+  }
+
+  const hasProfile = nodes.some(
+    (node) => node.kind === "topology" && node.topologyNode.type === "profile",
+  );
+  const repositoryOffset = hasProfile ? (showWorktrees ? 2 : 1) : 0;
+  const columns = new Map<number, FlowDisplayNode[]>();
+  const addToColumn = (column: number, node: FlowDisplayNode): void => {
+    const entries = columns.get(column) ?? [];
+    entries.push(node);
+    columns.set(column, entries);
+  };
+  for (const node of nodes) {
+    if (node.kind === "repository_group") {
+      addToColumn(1, node);
+    } else if (node.topologyNode.type === "profile") {
+      addToColumn(0, node);
+    } else if (node.topologyNode.type === "worktree") {
+      addToColumn(1, node);
+    } else if (node.topologyNode.type === "repository") {
+      const rank = ranks.get(node.topologyNode.key) ?? 0;
+      addToColumn(repositoryOffset + maxRank - rank, node);
+    } else {
+      addToColumn(repositoryOffset + maxRank + 1, node);
+    }
+  }
+
+  const layoutNodes: FlowLayoutNode[] = [];
+  let x = FLOW_PADDING;
+  let maxHeight = FLOW_NODE_HEIGHT;
+  for (const [, column] of [...columns.entries()].sort(
+    ([left], [right]) => left - right,
+  )) {
+    column.sort((left, right) => {
+      const leftOrder = order.get(displayNodeKey(left));
+      const rightOrder = order.get(displayNodeKey(right));
+      if (leftOrder !== undefined && rightOrder !== undefined) {
+        return leftOrder - rightOrder;
+      }
+      return displayNodeLabel(left).localeCompare(displayNodeLabel(right));
+    });
+    for (const [index, node] of column.entries()) {
+      layoutNodes.push({
+        key: displayNodeKey(node),
+        x,
+        y: FLOW_PADDING + index * (FLOW_NODE_HEIGHT + FLOW_ROW_GAP),
+        width: FLOW_NODE_WIDTH,
+        height: FLOW_NODE_HEIGHT,
+      });
+    }
+    maxHeight = Math.max(
+      maxHeight,
+      column.length * FLOW_NODE_HEIGHT +
+        Math.max(0, column.length - 1) * FLOW_ROW_GAP,
+    );
+    x += FLOW_NODE_WIDTH + FLOW_COLUMN_GAP;
+  }
+
+  return {
+    width: Math.max(400, x - FLOW_COLUMN_GAP + FLOW_PADDING),
+    height: FLOW_PADDING * 2 + maxHeight,
+    nodes: layoutNodes,
+  };
+}
+
+let elkLayoutEngine: Promise<ELK> | undefined;
+
+function getElkLayoutEngine(): Promise<ELK> {
+  elkLayoutEngine ??= import("elkjs/lib/elk-api.js")
+    .then(
+      ({ default: ElkConstructor }) =>
+        new ElkConstructor(
+          typeof Worker === "undefined"
+            ? undefined
+            : {
+                workerUrl: new URL(
+                  "elkjs/lib/elk-worker.min.js",
+                  import.meta.url,
+                ).toString(),
+              },
+        ),
+    )
+    .catch((error: unknown) => {
+      elkLayoutEngine = undefined;
+      throw error;
+    });
+  return elkLayoutEngine;
+}
+
+function layoutConnectionKey(sourceKey: string, targetKey: string): string {
+  return `${sourceKey}\u0000${targetKey}`;
+}
+
+function edgeSectionPoints(edge: ElkExtendedEdge): readonly ElkPoint[] {
+  const points: ElkPoint[] = [];
+  for (const section of edge.sections ?? []) {
+    for (const point of [
+      section.startPoint,
+      ...(section.bendPoints ?? []),
+      section.endPoint,
+    ]) {
+      const previous = points.at(-1);
+      if (previous?.x === point.x && previous.y === point.y) continue;
+      points.push(point);
+    }
+  }
+  return points;
+}
+
+function legacyRoutePath(points: readonly ElkPoint[]): string {
+  return `M ${points.map((point) => `${point.x},${point.y}`).join(" L ")}`;
+}
+
+interface LayoutConnection {
+  readonly sourceKey: string;
+  readonly targetKey: string;
+}
+
+async function createLegacyElkLayout(
+  nodes: readonly FlowDisplayNode[],
+  edgeGroups: readonly FlowEdgeGroup[],
+): Promise<FlowGraph["layout"]> {
+  const connections = new Map<string, LayoutConnection>();
+  const groupKeysByConnection = new Map<string, string[]>();
+  for (const { key: groupKey, edge } of edgeGroups) {
+    if (!edge.targetKey || edge.sourceKey === edge.targetKey) continue;
+    const connectionKey = layoutConnectionKey(edge.sourceKey, edge.targetKey);
+    connections.set(connectionKey, {
+      sourceKey: edge.sourceKey,
+      targetKey: edge.targetKey,
+    });
+    const groupKeys = groupKeysByConnection.get(connectionKey) ?? [];
+    groupKeys.push(groupKey);
+    groupKeysByConnection.set(connectionKey, groupKeys);
+  }
+  const portsByNode = new Map<
+    string,
+    { readonly id: string; readonly side: "EAST" | "WEST" }[]
+  >();
+  const addPort = (
+    nodeKey: string,
+    direction: "in" | "out",
+    connectionKey: string,
+  ): string => {
+    const id = `topology:port:${nodeKey}:${direction}:${connectionKey}`;
+    const ports = portsByNode.get(nodeKey) ?? [];
+    ports.push({ id, side: direction === "out" ? "EAST" : "WEST" });
+    portsByNode.set(nodeKey, ports);
+    return id;
+  };
+  const connectionsByRouteID = new Map<string, LayoutConnection>();
+  const elkEdges = [...connections.entries()].map(([key, connection]) => {
+    const id = `topology:route:${key}`;
+    connectionsByRouteID.set(id, connection);
+    return {
+      id,
+      sources: [addPort(connection.sourceKey, "out", key)],
+      targets: [addPort(connection.targetKey, "in", key)],
+    };
+  });
+  const graph: ElkNode = {
+    id: "topology:root",
+    layoutOptions: {
+      "elk.algorithm": "layered",
+      "elk.direction": "RIGHT",
+      "elk.edgeRouting": "ORTHOGONAL",
+      "elk.layered.crossingMinimization.strategy": "LAYER_SWEEP",
+      "elk.layered.nodePlacement.strategy": "NETWORK_SIMPLEX",
+      "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES",
+      "elk.layered.considerModelOrder.portModelOrder": "true",
+      "elk.layered.spacing.nodeNodeBetweenLayers": "180",
+      "elk.spacing.nodeNode": "42",
+      "elk.spacing.edgeNode": "30",
+      "elk.layered.spacing.edgeEdgeBetweenLayers": "14",
+    },
+    children: nodes.map((node) => {
+      const key = displayNodeKey(node);
+      return {
+        id: key,
+        width: FLOW_NODE_WIDTH,
+        height: FLOW_NODE_HEIGHT,
+        layoutOptions: { "elk.portConstraints": "FIXED_ORDER" },
+        ports: (portsByNode.get(key) ?? []).map((port) => ({
+          id: port.id,
+          width: 2,
+          height: 2,
+          layoutOptions: { "elk.port.side": port.side },
+        })),
+      };
+    }),
+    edges: elkEdges,
+  };
+  const laidOut = await (await getElkLayoutEngine()).layout(graph);
+  const layoutNodes = (laidOut.children ?? []).map((node) => ({
+    key: node.id,
+    x: (node.x ?? 0) + FLOW_PADDING,
+    y: (node.y ?? 0) + FLOW_PADDING,
+    width: node.width ?? FLOW_NODE_WIDTH,
+    height: node.height ?? FLOW_NODE_HEIGHT,
+    ports: (node.ports ?? []).map((port) => {
+      const side: FlowLayoutPort["side"] = port.id.includes(":out:")
+        ? "right"
+        : "left";
+      return {
+        key: port.id,
+        side,
+        y: (port.y ?? FLOW_NODE_HEIGHT / 2) + (port.height ?? 0) / 2,
+      };
+    }),
+  }));
+  const routes = (laidOut.edges ?? []).flatMap((edge) => {
+    const connection = connectionsByRouteID.get(edge.id);
+    if (!connection) return [];
+    const points = edgeSectionPoints(edge).map((point) => ({
+      x: point.x + FLOW_PADDING,
+      y: point.y + FLOW_PADDING,
+    }));
+    if (points.length < 2) return [];
+    const groupKeys =
+      groupKeysByConnection.get(
+        layoutConnectionKey(connection.sourceKey, connection.targetKey),
+      ) ?? [];
+    return groupKeys.map((id) => ({ id, path: legacyRoutePath(points) }));
+  });
+  return {
+    width: Math.max(400, (laidOut.width ?? 0) + FLOW_PADDING * 2),
+    height: Math.max(220, (laidOut.height ?? 0) + FLOW_PADDING * 2),
+    nodes: layoutNodes,
+    routes,
+  };
+}
+
+function layoutNodeKind(
+  node: FlowDisplayNode,
+): TopologyLayoutInputNode["kind"] {
+  return node.kind === "repository_group"
+    ? "repository"
+    : node.topologyNode.type;
+}
+
+function routePath(
+  points: readonly { readonly x: number; readonly y: number }[],
+): string {
+  return `M ${points.map((point) => `${point.x},${point.y}`).join(" L ")}`;
+}
+
+// The renderer only adapts normalized layout output to React Flow. Node
+// placement, crossing minimization, ports, and orthogonal routes live in the
+// dedicated topology-layout module.
+async function createElkLayout(
+  nodes: readonly FlowDisplayNode[],
+  edgeGroups: readonly FlowEdgeGroup[],
+): Promise<FlowGraph["layout"]> {
+  const layoutNodes: TopologyLayoutInputNode[] = nodes.map((node) => ({
+    id: displayNodeKey(node),
+    kind: layoutNodeKind(node),
+    width: FLOW_NODE_WIDTH,
+    height: FLOW_NODE_HEIGHT,
+  }));
+  const layoutEdges: TopologyLayoutInputEdge[] = edgeGroups.flatMap((group) =>
+    group.edge.targetKey && group.edge.targetKey !== group.edge.sourceKey
+      ? [
+          {
+            id: group.key,
+            source: group.edge.sourceKey,
+            target: group.edge.targetKey,
+          },
+        ]
+      : [],
+  );
+  let layout: TopologyLayoutResult;
+  try {
+    layout = await calculateTopologyLayout(layoutNodes, layoutEdges);
+  } catch {
+    // Keep the established viewer usable if a browser cannot start the layout
+    // worker. Normal operation always uses the extracted layout engine.
+    return createLegacyElkLayout(nodes, edgeGroups);
+  }
+  return {
+    width: layout.width,
+    height: layout.height,
+    nodes: layout.nodes.map((node) => ({
+      key: node.id,
+      x: node.x,
+      y: node.y,
+      width: node.width,
+      height: node.height,
+      ports: node.ports.map((port) => ({
+        key: port.id,
+        side: port.side,
+        y: port.y,
+      })),
+    })),
+    routes: layout.routes.map((route) => ({
+      id: route.id,
+      path: routePath(route.points),
+    })),
+  };
+}
+
+function createTopologyFlowGraph(
   model: TopologyModel,
+  options: TopologyFlowOptions,
+): FlowGraph {
+  const topologyNodesByKey = new Map(
+    model.nodes.map((node) => [node.key, node]),
+  );
+  const profiles = model.nodes.filter((node) => node.type === "profile");
+  const expandedProfiles = new Set(options.expandedProfiles);
+  const expandedProfileIDs = new Set(
+    profiles
+      .filter(
+        (profile) => options.showWorktrees || expandedProfiles.has(profile.id),
+      )
+      .map((profile) => profile.id),
+  );
+  const displayNodes = new Map<string, FlowDisplayNode>();
+  const structuralEdges: TopologyEdge[] = [];
+
+  for (const profile of profiles) {
+    const profileNode = topologyDisplayNode(profile);
+    displayNodes.set(profile.key, profileNode);
+    if (!expandedProfileIDs.has(profile.id)) {
+      const group = repositoryGroup(profile);
+      displayNodes.set(group.key, group);
+      structuralEdges.push(
+        structuralEdge(
+          `topology:contains:${profile.key}:${group.key}`,
+          profileNode,
+          group,
+          profile.id,
+        ),
+      );
+      continue;
+    }
+
+    if (options.showWorktrees) {
+      for (const worktreeID of profile.worktreeIds) {
+        const worktree = topologyNodesByKey.get(`worktree:${worktreeID}`);
+        if (!worktree) continue;
+        const worktreeNode = topologyDisplayNode(worktree);
+        displayNodes.set(worktree.key, worktreeNode);
+      }
+      continue;
+    }
+
+    for (const repositoryID of profile.repositoryIds) {
+      const repository = topologyNodesByKey.get(`repository:${repositoryID}`);
+      if (!repository) continue;
+      const repositoryNode = topologyDisplayNode(repository);
+      displayNodes.set(repository.key, repositoryNode);
+    }
+  }
+
+  if (options.showWorktrees) {
+    for (const worktree of model.nodes) {
+      if (
+        worktree.type !== "worktree" ||
+        !includesAny(worktree.profileIds, expandedProfileIDs)
+      ) {
+        continue;
+      }
+      const repositoryID = worktree.repositoryIds[0];
+      const repository = repositoryID
+        ? topologyNodesByKey.get(`repository:${repositoryID}`)
+        : undefined;
+      if (!repository) continue;
+      const worktreeNode = topologyDisplayNode(worktree);
+      const repositoryNode = topologyDisplayNode(repository);
+      displayNodes.set(worktree.key, worktreeNode);
+      displayNodes.set(repository.key, repositoryNode);
+    }
+  }
+
+  for (const node of model.nodes) {
+    if (node.type === "repository" && profiles.length === 0) {
+      displayNodes.set(node.key, topologyDisplayNode(node));
+    }
+    if (
+      node.type === "shared_input" &&
+      includesAny(node.profileIds, expandedProfileIDs)
+    ) {
+      displayNodes.set(node.key, topologyDisplayNode(node));
+    }
+  }
+
+  const visibleKeys = new Set(displayNodes.keys());
+  const availableEvidenceEdges = model.edges.filter((edge) => {
+    if (!edge.targetKey || !visibleKeys.has(edge.sourceKey)) return false;
+    if (!visibleKeys.has(edge.targetKey)) return false;
+    if (
+      !options.showInternalRelationships &&
+      edge.sourceKey === edge.targetKey
+    ) {
+      return false;
+    }
+    return true;
+  });
+  const nodes = [...displayNodes.values()];
+  const edges = [...structuralEdges, ...availableEvidenceEdges];
+
+  return {
+    nodes,
+    edges,
+    nodesByKey: displayNodes,
+    edgeGroups: groupFlowEdges(edges),
+    dependencyEdgesByNode: dependencyEdgesByNode(edges),
+    layout: createDependencyLayout(nodes, edges, options.showWorktrees),
+  };
+}
+
+interface TopologyFlowFocus {
+  readonly key: string | null;
+  readonly mode: "selection" | "hover" | null;
+  readonly directNodeKeys: ReadonlySet<string>;
+  readonly traceNodeKeys: ReadonlySet<string>;
+  readonly directEdgeKeys: ReadonlySet<string>;
+  readonly traceEdgeKeys: ReadonlySet<string>;
+}
+
+function dependencyEdge(edge: TopologyEdge): boolean {
+  return relationshipLabel(edge.relationship) !== "contains";
+}
+
+function createTopologyFlowFocus(
+  graph: FlowGraph,
+  selectedKey: string | null,
+  hoveredKey: string | null,
+): TopologyFlowFocus {
+  const key = selectedKey ?? hoveredKey;
+  const mode = selectedKey ? "selection" : hoveredKey ? "hover" : null;
+  const directNodeKeys = new Set<string>();
+  const traceNodeKeys = new Set<string>();
+  const directEdgeKeys = new Set<string>();
+  const traceEdgeKeys = new Set<string>();
+  if (!key || !mode) {
+    return {
+      key: null,
+      mode: null,
+      directNodeKeys,
+      traceNodeKeys,
+      directEdgeKeys,
+      traceEdgeKeys,
+    };
+  }
+
+  directNodeKeys.add(key);
+  for (const edge of graph.dependencyEdgesByNode.get(key) ?? []) {
+    if (!edge.targetKey) continue;
+    directEdgeKeys.add(edge.key);
+    directNodeKeys.add(edge.sourceKey);
+    directNodeKeys.add(edge.targetKey);
+  }
+  if (mode === "hover") {
+    return {
+      key,
+      mode,
+      directNodeKeys,
+      traceNodeKeys,
+      directEdgeKeys,
+      traceEdgeKeys,
+    };
+  }
+
+  const frontier = [key];
+  traceNodeKeys.add(key);
+  for (let depth = 0; depth < MAX_TRACE_DEPTH; depth += 1) {
+    const current = frontier.splice(0);
+    for (const nodeKey of current) {
+      for (const edge of graph.dependencyEdgesByNode.get(nodeKey) ?? []) {
+        if (!edge.targetKey) continue;
+        const neighbour =
+          edge.sourceKey === nodeKey ? edge.targetKey : edge.sourceKey;
+        traceEdgeKeys.add(edge.key);
+        if (traceNodeKeys.has(neighbour)) continue;
+        if (traceNodeKeys.size >= MAX_TRACE_NODES) continue;
+        traceNodeKeys.add(neighbour);
+        frontier.push(neighbour);
+      }
+    }
+    if (frontier.length === 0 || traceNodeKeys.size >= MAX_TRACE_NODES) break;
+  }
+  return {
+    key,
+    mode,
+    directNodeKeys,
+    traceNodeKeys,
+    directEdgeKeys,
+    traceEdgeKeys,
+  };
+}
+
+function createTopologyFlowNodesForGraph(
+  graph: FlowGraph,
   selectedKey: string | null,
   onSelect: (key: string) => void,
+  hoveredKey: string | null,
+  onToggleProfile: (profileID: string) => void = () => {},
 ): TopologyFlowNode[] {
-  const nodesByKey = new Map(model.nodes.map((node) => [node.key, node]));
-  const neighbours = topologyNeighbourKeys(model, selectedKey);
+  const focus = createTopologyFlowFocus(graph, selectedKey, hoveredKey);
 
-  return model.layout.nodes.flatMap((layoutNode) => {
-    const topologyNode = nodesByKey.get(layoutNode.key);
-    if (!topologyNode) return [];
+  return graph.layout.nodes.flatMap((layoutNode) => {
+    const displayNode = graph.nodesByKey.get(layoutNode.key);
+    if (!displayNode) return [];
+    const nodeKey = displayNodeKey(displayNode);
+    const isTopologyNode = displayNode.kind === "topology";
     return [
       {
-        id: topologyNode.key,
+        id: nodeKey,
         type: "topology" as const,
         position: { x: layoutNode.x, y: layoutNode.y },
         width: layoutNode.width,
         height: layoutNode.height,
-        selected: topologyNode.key === selectedKey,
+        selected: isTopologyNode && nodeKey === selectedKey,
         sourcePosition: Position.Right,
         targetPosition: Position.Left,
         draggable: false,
         selectable: false,
         connectable: false,
-        ariaLabel: `${NODE_TYPE_LABELS[topologyNode.type]} ${topologyNode.label}`,
+        ariaLabel: `${displayNodeType(displayNode)} ${displayNodeLabel(displayNode)}`,
         data: {
-          topologyNode,
-          active: selectedKey === null || neighbours.has(topologyNode.key),
+          displayNode,
+          ports: layoutNode.ports ?? [],
+          active:
+            displayNode.kind === "repository_group" ||
+            focus.mode !== "selection" ||
+            focus.directNodeKeys.has(nodeKey) ||
+            focus.traceNodeKeys.has(nodeKey),
+          emphasized: focus.mode !== null && focus.directNodeKeys.has(nodeKey),
           onSelect,
+          onToggleProfile,
         },
       },
     ];
   });
 }
 
-export function createTopologyFlowEdges(
+export function createTopologyFlowNodes(
   model: TopologyModel,
   selectedKey: string | null,
+  onSelect: (key: string) => void,
+  options: Partial<TopologyFlowOptions> = {},
+  onToggleProfile: (profileID: string) => void = () => {},
+): TopologyFlowNode[] {
+  const flowOptions = { ...DEFAULT_FLOW_OPTIONS, ...options };
+  return createTopologyFlowNodesForGraph(
+    createTopologyFlowGraph(model, flowOptions),
+    selectedKey,
+    onSelect,
+    flowOptions.hoveredKey,
+    onToggleProfile,
+  );
+}
+
+function createTopologyFlowEdgesForGraph(
+  graph: FlowGraph,
+  selectedKey: string | null,
+  hoveredKey: string | null,
 ): TopologyFlowEdge[] {
-  const neighbours = topologyNeighbourKeys(model, selectedKey);
-  const groups = new Map<string, { edge: TopologyEdge; count: number }>();
+  const focus = createTopologyFlowFocus(graph, selectedKey, hoveredKey);
+  const routesByGroupKey = new Map(
+    (graph.layout.routes ?? []).map((route) => [route.id, route.path]),
+  );
 
-  for (const edge of model.edges) {
-    if (!edge.targetKey) continue;
-    const key = flowEdgeGroupKey(edge);
-    const group = groups.get(key);
-    if (group) {
-      group.count += 1;
-    } else {
-      groups.set(key, { edge, count: 1 });
-    }
-  }
-
-  return [...groups.values()]
+  return graph.edgeGroups
     .slice(0, MAX_RENDERED_FLOW_EDGES)
-    .map(({ edge, count }, index) => {
+    .map(({ key, edge, count }) => {
       const relationship = edge.relationship;
-      const color = relationshipColor(relationship);
-      const active =
-        selectedKey === null ||
-        neighbours.has(edge.sourceKey) ||
-        neighbours.has(edge.targetKey ?? "");
-      const label = flowEdgeLabel(count);
+      const semanticLabel = relationshipLabel(relationship);
+      const isStructural = semanticLabel === "contains";
+      const isDirect = focus.directEdgeKeys.has(edge.key);
+      const isTrace = focus.traceEdgeKeys.has(edge.key);
+      const isFocused = isDirect || isTrace;
+      const color =
+        focus.mode === null
+          ? TOPOLOGY_EDGE_COLORS.overview
+          : isDirect
+            ? TOPOLOGY_EDGE_COLORS.direct
+            : isTrace
+              ? TOPOLOGY_EDGE_COLORS.trace
+              : TOPOLOGY_EDGE_COLORS.dimmed;
+      const label =
+        count > 1
+          ? `×${count}`
+          : isStructural || relationship.status === "exact"
+            ? undefined
+            : flowEdgeLabel(relationship, count);
 
       return {
-        id: `topology-flow-edge-${index}`,
+        id: `topology-flow-edge-${key}`,
         source: edge.sourceKey,
         target: edge.targetKey as string,
         sourceHandle: "source",
         targetHandle: "target",
-        type: "smoothstep" as const,
-        data: { relationship, count },
+        type: "routed",
+        data: {
+          relationship,
+          count,
+          routePath: routesByGroupKey.get(key),
+        },
         selectable: false,
         focusable: true,
-        ariaLabel: `${topologyEdgeKind(relationship)} relationship from ${edge.sourceKey} to ${edge.targetKey}${count > 1 ? `, ${count} grouped relationships` : ""}`,
+        ariaLabel: `${semanticLabel} relationship from ${edge.sourceKey} to ${edge.targetKey}${count > 1 ? `, ${count} grouped relationships` : ""}`,
         label,
         labelShowBg: Boolean(label),
         labelStyle: {
-          fill: "#cbd5e1",
+          fill: "#d4d4d4",
+          fontFamily: "ui-monospace, monospace",
           fontSize: 10,
           fontWeight: 600,
         },
-        labelBgStyle: { fill: "#0f172a", fillOpacity: 0.92 },
+        labelBgStyle: { fill: "#101215", fillOpacity: 0.95 },
         labelBgPadding: [5, 3] as [number, number],
-        labelBgBorderRadius: 5,
+        labelBgBorderRadius: 0,
         markerEnd: { type: MarkerType.ArrowClosed, color },
         style: {
           stroke: color,
-          strokeWidth: relationship.status === "structural" ? 1.5 : 2.2,
-          opacity: active ? 0.78 : 0.1,
+          strokeDasharray: isStructural ? "6 4" : undefined,
+          strokeWidth:
+            focus.mode === null
+              ? isStructural
+                ? 1.35
+                : 1.25
+              : isDirect
+                ? 2.4
+                : 1.2,
+          opacity:
+            focus.mode === null
+              ? isStructural
+                ? 0.68
+                : 0.6
+              : focus.mode === "hover"
+                ? isDirect
+                  ? 0.9
+                  : 0.5
+                : isDirect
+                  ? 0.98
+                  : isTrace
+                    ? 0.58
+                    : isFocused
+                      ? 0.25
+                      : 0.1,
         },
       };
     });
 }
 
-function topologyNeighbourKeys(
+export function createTopologyFlowEdges(
   model: TopologyModel,
   selectedKey: string | null,
-): Set<string> {
-  if (!selectedKey) return new Set();
-  const keys = new Set([selectedKey]);
-  for (const edge of model.edges) {
-    if (edge.sourceKey === selectedKey && edge.targetKey)
-      keys.add(edge.targetKey);
-    if (edge.targetKey === selectedKey) keys.add(edge.sourceKey);
-  }
-  return keys;
+  options: Partial<TopologyFlowOptions> = {},
+): TopologyFlowEdge[] {
+  const flowOptions = { ...DEFAULT_FLOW_OPTIONS, ...options };
+  return createTopologyFlowEdgesForGraph(
+    createTopologyFlowGraph(model, flowOptions),
+    selectedKey,
+    flowOptions.hoveredKey,
+  );
 }
 
 function TopologyFlowNodeView({
   data,
   selected,
 }: NodeProps<TopologyFlowNode>): React.ReactElement {
-  const { topologyNode, active, onSelect } = data;
-  const color = NODE_COLORS[topologyNode.type];
+  const { displayNode, ports, active, emphasized, onSelect, onToggleProfile } =
+    data;
+  const isGroup = displayNode.kind === "repository_group";
+  const color = displayNodeColor(displayNode);
+  const label = displayNodeLabel(displayNode);
+  const subtitle = displayNodeSubtitle(displayNode);
+  const topologyNode =
+    displayNode.kind === "topology" ? displayNode.topologyNode : undefined;
 
   return (
     <>
@@ -234,59 +1153,77 @@ function TopologyFlowNodeView({
         id="target"
         type="target"
         position={Position.Left}
-        className="!pointer-events-none !h-2 !w-2 !border-2 !border-slate-950 !bg-slate-500"
+        className="!pointer-events-none !h-px !w-px !border-0 !bg-transparent !opacity-0"
       />
+      {ports.map((port) => (
+        <span
+          key={port.key}
+          className="pointer-events-none absolute z-10 h-1 w-1 -translate-y-1/2 rounded-full bg-rule-strong"
+          style={{ top: port.y, [port.side]: -2 }}
+        />
+      ))}
       <button
         type="button"
         className={cn(
-          "grid h-full w-full content-start gap-2 rounded-xl border px-3 py-2.5 text-left shadow-xl transition-[opacity,box-shadow,border-color] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300",
+          "grid h-full w-full content-start gap-1.5 rounded-none border px-3 py-2 text-left shadow-[0_8px_24px_rgba(0,0,0,0.24)] transition-[opacity,box-shadow,border-color] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-200",
           active ? "opacity-100" : "opacity-25",
           selected
-            ? "border-white/90 shadow-[0_0_0_2px_rgba(255,255,255,0.18),0_16px_32px_rgba(0,0,0,0.28)]"
-            : "border-white/10 hover:border-white/30",
+            ? "border-gray-100 shadow-[0_0_0_2px_rgba(245,245,245,0.18),0_12px_28px_rgba(0,0,0,0.32)]"
+            : emphasized
+              ? "border-graph-exact shadow-[0_0_0_1px_rgba(34,197,94,0.35)]"
+              : "border-rule-strong hover:border-gray-500",
         )}
         style={{
-          background: `linear-gradient(135deg, ${color}20, rgba(15,23,42,0.96) 72%)`,
-          borderColor: selected ? "#f8fafc" : `${color}55`,
+          background: `linear-gradient(135deg, ${color}22, #101215 76%)`,
+          borderColor: selected ? "#f5f5f5" : `${color}99`,
         }}
-        onClick={() => onSelect(topologyNode.key)}
+        onClick={() => {
+          if (displayNode.kind === "repository_group") {
+            onToggleProfile(displayNode.profileID);
+          } else {
+            onSelect(displayNode.topologyNode.key);
+          }
+        }}
         aria-pressed={selected}
-        aria-label={`${NODE_TYPE_LABELS[topologyNode.type]} ${topologyNode.label}`}
+        aria-label={
+          isGroup
+            ? `Open ${displayNode.repositoryCount} repositories in profile ${displayNode.profileID}`
+            : `${displayNodeType(displayNode)} ${label}`
+        }
       >
-        <span className="flex items-center justify-between gap-2">
+        <span className="flex items-center justify-between gap-2 font-mono">
           <span
-            className="truncate text-[9px] font-semibold uppercase tracking-[0.16em]"
+            className="truncate text-[9px] font-semibold uppercase tracking-[0.14em]"
             style={{ color }}
           >
-            {NODE_TYPE_LABELS[topologyNode.type]}
+            {displayNodeType(displayNode)}
           </span>
           <span
-            className="h-2 w-2 shrink-0 rounded-full shadow-[0_0_12px_currentColor]"
-            style={{ backgroundColor: color, color }}
+            className="h-1.5 w-1.5 shrink-0 rounded-full"
+            style={{ backgroundColor: color }}
+            title={
+              topologyNode ? `status: ${topologyNode.status}` : "collapsed"
+            }
           />
         </span>
-        <span className="truncate text-sm font-semibold text-slate-100">
-          {topologyNode.label}
+        <span className="truncate text-[13px] font-semibold text-gray-100">
+          {label}
         </span>
-        <span className="line-clamp-2 text-[10px] leading-4 text-slate-400">
-          {topologyNode.subtitle}
+        <span className="truncate text-[10px] leading-4 text-gray-400">
+          {subtitle}
         </span>
-        <span className="flex flex-wrap gap-1">
-          <Badge className={statusClass(topologyNode.status)} variant="outline">
-            {topologyNode.status}
-          </Badge>
-          {topologyNode.languages.slice(0, 2).map((language) => (
-            <Badge key={language} variant="secondary">
-              {language}
-            </Badge>
-          ))}
-        </span>
+        {topologyNode ? (
+          <span className="sr-only">
+            status: {topologyNode.status}; languages:{" "}
+            {topologyNode.languages.join(", ") || "not observed"}
+          </span>
+        ) : null}
       </button>
       <Handle
         id="source"
         type="source"
         position={Position.Right}
-        className="!pointer-events-none !h-2 !w-2 !border-2 !border-slate-950 !bg-slate-500"
+        className="!pointer-events-none !h-px !w-px !border-0 !bg-transparent !opacity-0"
       />
     </>
   );
@@ -294,34 +1231,110 @@ function TopologyFlowNodeView({
 
 const topologyNodeTypes = { topology: TopologyFlowNodeView };
 
+function RoutedTopologyEdge({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  markerEnd,
+  style,
+  data,
+}: EdgeProps<TopologyFlowEdge>): React.ReactElement {
+  const path =
+    data?.routePath ??
+    `M ${sourceX},${sourceY} H ${(sourceX + targetX) / 2} V ${targetY} H ${targetX}`;
+  return <BaseEdge id={id} path={path} markerEnd={markerEnd} style={style} />;
+}
+
+const topologyEdgeTypes = { routed: RoutedTopologyEdge };
+
 export function TopologyFlow({
   model,
   selectedKey,
   onSelect,
+  onToggleProfile = () => {},
+  showWorktrees = DEFAULT_FLOW_OPTIONS.showWorktrees,
+  showInternalRelationships = DEFAULT_FLOW_OPTIONS.showInternalRelationships,
+  expandedProfiles = DEFAULT_FLOW_OPTIONS.expandedProfiles,
 }: {
   readonly model: TopologyModel;
   readonly selectedKey: string | null;
   readonly onSelect: (key: string | null) => void;
+  readonly onToggleProfile?: (profileID: string) => void;
+  readonly showWorktrees?: boolean;
+  readonly showInternalRelationships?: boolean;
+  readonly expandedProfiles?: readonly string[];
 }): React.ReactElement {
-  const nodes = createTopologyFlowNodes(model, selectedKey, (key) =>
-    onSelect(key),
+  const [hoveredKey, setHoveredKey] = useState<string | null>(null);
+  const [elkLayout, setElkLayout] = useState<FlowGraph["layout"] | null>(null);
+  const graph = useMemo(
+    () =>
+      createTopologyFlowGraph(model, {
+        showWorktrees,
+        showInternalRelationships,
+        expandedProfiles,
+        hoveredKey: null,
+      }),
+    [expandedProfiles, model, showInternalRelationships, showWorktrees],
   );
-  const edges = createTopologyFlowEdges(model, selectedKey);
-  const renderedRelationshipCount = edges.reduce(
+  useEffect(() => {
+    let cancelled = false;
+    setElkLayout(null);
+    void createElkLayout(graph.nodes, graph.edgeGroups)
+      .then((layout) => {
+        if (!cancelled) setElkLayout(layout);
+      })
+      .catch(() => {
+        if (!cancelled) setElkLayout(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [graph]);
+  const renderedGraph = useMemo(
+    () => (elkLayout ? { ...graph, layout: elkLayout } : graph),
+    [elkLayout, graph],
+  );
+  const nodes = useMemo(
+    () =>
+      createTopologyFlowNodesForGraph(
+        renderedGraph,
+        selectedKey,
+        (key) => onSelect(key),
+        hoveredKey,
+        onToggleProfile,
+      ),
+    [hoveredKey, onSelect, onToggleProfile, renderedGraph, selectedKey],
+  );
+  const edges = useMemo(
+    () =>
+      createTopologyFlowEdgesForGraph(renderedGraph, selectedKey, hoveredKey),
+    [hoveredKey, renderedGraph, selectedKey],
+  );
+  const focus = useMemo(
+    () => createTopologyFlowFocus(renderedGraph, selectedKey, hoveredKey),
+    [hoveredKey, renderedGraph, selectedKey],
+  );
+  const representedRelationshipCount = edges.reduce(
     (count, edge) => count + (edge.data?.count ?? 1),
     0,
   );
+  const selectedRepository = model.nodes.find(
+    (node) => node.key === selectedKey && node.type === "repository",
+  );
 
   return (
-    <div className="relative h-full min-h-[32rem] w-full overflow-hidden rounded-xl">
+    <div className="relative h-full min-h-[32rem] w-full overflow-hidden rounded-none">
       <ReactFlow<TopologyFlowNode, TopologyFlowEdge>
         nodes={nodes}
         edges={edges}
         nodeTypes={topologyNodeTypes}
+        edgeTypes={topologyEdgeTypes}
         colorMode="dark"
         fitView
-        fitViewOptions={{ padding: 0.18, minZoom: 0.25, maxZoom: 1.2 }}
-        minZoom={0.2}
+        fitViewOptions={{ padding: 0.24, minZoom: 0.35, maxZoom: 1.25 }}
+        minZoom={0.25}
         maxZoom={2}
         onlyRenderVisibleElements
         nodesDraggable={false}
@@ -330,50 +1343,83 @@ export function TopologyFlow({
         nodesFocusable
         edgesFocusable
         autoPanOnNodeFocus
-        onNodeClick={(_, node) => onSelect(node.id)}
+        onNodeClick={(_, node) => {
+          if (node.data.displayNode.kind === "topology") onSelect(node.id);
+        }}
+        onNodeMouseEnter={(_, node) => {
+          if (node.data.displayNode.kind === "topology") setHoveredKey(node.id);
+        }}
+        onNodeMouseLeave={(_, node) => {
+          setHoveredKey((current) => (current === node.id ? null : current));
+        }}
         onPaneClick={() => onSelect(null)}
         proOptions={{ hideAttribution: false }}
         defaultEdgeOptions={{
-          type: "smoothstep",
+          type: "routed",
           selectable: false,
           focusable: true,
         }}
         className="topology-flow"
-        aria-label="Topology map"
+        aria-label="Profile topology map"
       >
         <Background
-          color="#334155"
-          gap={24}
+          color="#333a42"
+          gap={28}
           size={1}
           variant={BackgroundVariant.Dots}
         />
         <Controls
           showInteractive={false}
-          className="!m-3 overflow-hidden rounded-xl !border !border-slate-700/80 !bg-slate-900/90 shadow-xl"
+          className="!m-3 overflow-hidden !border !border-rule-strong !bg-panel shadow-xl"
           aria-label="Topology map controls"
         />
         <MiniMap<TopologyFlowNode>
           pannable
           zoomable
-          nodeColor={(node) =>
-            NODE_COLORS[(node.data as TopologyFlowNodeData).topologyNode.type]
-          }
-          nodeStrokeColor="#0f172a"
+          nodeColor={(node) => displayNodeColor(node.data.displayNode)}
+          nodeStrokeColor="#0a0b0d"
           nodeStrokeWidth={2}
-          className="!m-3 overflow-hidden rounded-xl !border !border-slate-700/80 !bg-slate-950/90 shadow-xl"
+          className="!m-3 !border !border-rule-strong !bg-panel shadow-xl"
           aria-label="Topology minimap"
         />
-        <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-lg border border-slate-700/80 bg-slate-950/80 px-3 py-2 text-[10px] text-slate-300 shadow-xl backdrop-blur">
-          <span className="font-semibold text-slate-100">topology map</span>
-          <span className="mx-1.5 text-slate-600">·</span>
-          <span>drag to pan · scroll to zoom</span>
+        <div className="pointer-events-none absolute left-3 top-3 z-10 border border-rule-strong bg-panel px-3 py-2 font-mono text-[10px] text-gray-400 shadow-xl">
+          <span className="text-gray-100">
+            {expandedProfiles.length > 0 || showWorktrees
+              ? "repository map"
+              : "profile overview"}
+          </span>
+          <span className="mx-1.5 text-gray-500">·</span>
+          <span>
+            {expandedProfiles.length > 0 || showWorktrees
+              ? "select a repository to highlight its direct links"
+              : "open the repository group to explore"}
+          </span>
         </div>
-        <div className="pointer-events-none absolute bottom-3 left-3 z-10 rounded-lg border border-slate-700/80 bg-slate-950/80 px-3 py-2 text-[10px] text-slate-400 shadow-xl backdrop-blur">
-          {renderedRelationshipCount}/{model.edges.length} relationships
-          rendered
-          {renderedRelationshipCount < model.edges.length
-            ? " · grouped for readability"
-            : ""}
+        {selectedRepository ? (
+          <div className="absolute right-3 top-3 z-10 flex border border-rule-strong bg-panel font-mono text-[10px] shadow-xl">
+            <span className="px-3 py-2 text-gray-300">
+              ← {focus.directEdgeKeys.size} direct links
+            </span>
+            <span className="border-x border-rule-strong px-3 py-2 font-semibold text-gray-100">
+              {selectedRepository.label}
+            </span>
+            <button
+              type="button"
+              className="px-3 py-2 text-gray-300 transition-colors hover:bg-raise hover:text-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-200"
+              onClick={() => onSelect(null)}
+            >
+              clear trace
+            </button>
+          </div>
+        ) : null}
+        <div className="pointer-events-none absolute bottom-3 left-3 z-10 border border-rule-strong bg-panel px-3 py-2 font-mono text-[10px] text-gray-400 shadow-xl">
+          {nodes.length} visible nodes · {edges.length} visual links ·{" "}
+          {representedRelationshipCount} relationships represented
+          {focus.mode === "selection"
+            ? " · trace shows up to three relationship steps"
+            : expandedProfiles.length > 0
+              ? " · select or hover a repository to trace its links"
+              : ""}
         </div>
       </ReactFlow>
     </div>
