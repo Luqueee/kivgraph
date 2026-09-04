@@ -8,6 +8,7 @@ describe("viewer shell", () => {
     const markup = renderToStaticMarkup(<App />);
 
     expect(markup).toContain("Graph explorer");
+    expect(markup).toContain("topology");
     expect(markup).toContain("loading snapshot");
     expect(markup).toContain("Search symbols");
     expect(markup).toContain("repositories");
