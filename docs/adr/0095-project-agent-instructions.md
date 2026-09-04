@@ -56,9 +56,9 @@ The repository convention `CLAUDE.md -> AGENTS.md` is the one accepted
 symlink: the command writes the adjacent `AGENTS.md` destination directly.
 Other symlinks are rejected.
 
-The command only changes the selected project context file and its backup. It does not
-initialize Kivgraph, index repositories, install an MCP registration, install
-a skill or enable a hook. Those remain explicit commands.
+The command only changes the selected project context file and its backup. It
+does not initialize Kivgraph, index repositories, install an MCP registration,
+install a skill or enable a hook. Those remain explicit commands.
 
 ## Alternatives
 
