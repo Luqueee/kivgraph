@@ -13,12 +13,6 @@ import {
   type Node,
   type NodeProps,
 } from "@xyflow/react";
-import type {
-  ELK,
-  ElkExtendedEdge,
-  ElkNode,
-  ElkPoint,
-} from "elkjs/lib/elk-api.js";
 import { useEffect, useMemo, useState } from "react";
 import "@xyflow/react/dist/style.css";
 
@@ -33,7 +27,6 @@ import {
   calculateTopologyLayout,
   type TopologyLayoutInputEdge,
   type TopologyLayoutInputNode,
-  type TopologyLayoutResult,
 } from "@/topology-layout";
 import { cn } from "@/lib/utils";
 
@@ -539,173 +532,6 @@ function createDependencyLayout(
   };
 }
 
-let elkLayoutEngine: Promise<ELK> | undefined;
-
-function getElkLayoutEngine(): Promise<ELK> {
-  elkLayoutEngine ??= import("elkjs/lib/elk-api.js")
-    .then(
-      ({ default: ElkConstructor }) =>
-        new ElkConstructor(
-          typeof Worker === "undefined"
-            ? undefined
-            : {
-                workerUrl: new URL(
-                  "elkjs/lib/elk-worker.min.js",
-                  import.meta.url,
-                ).toString(),
-              },
-        ),
-    )
-    .catch((error: unknown) => {
-      elkLayoutEngine = undefined;
-      throw error;
-    });
-  return elkLayoutEngine;
-}
-
-function layoutConnectionKey(sourceKey: string, targetKey: string): string {
-  return `${sourceKey}\u0000${targetKey}`;
-}
-
-function edgeSectionPoints(edge: ElkExtendedEdge): readonly ElkPoint[] {
-  const points: ElkPoint[] = [];
-  for (const section of edge.sections ?? []) {
-    for (const point of [
-      section.startPoint,
-      ...(section.bendPoints ?? []),
-      section.endPoint,
-    ]) {
-      const previous = points.at(-1);
-      if (previous?.x === point.x && previous.y === point.y) continue;
-      points.push(point);
-    }
-  }
-  return points;
-}
-
-function legacyRoutePath(points: readonly ElkPoint[]): string {
-  return `M ${points.map((point) => `${point.x},${point.y}`).join(" L ")}`;
-}
-
-interface LayoutConnection {
-  readonly sourceKey: string;
-  readonly targetKey: string;
-}
-
-async function createLegacyElkLayout(
-  nodes: readonly FlowDisplayNode[],
-  edgeGroups: readonly FlowEdgeGroup[],
-): Promise<FlowGraph["layout"]> {
-  const connections = new Map<string, LayoutConnection>();
-  const groupKeysByConnection = new Map<string, string[]>();
-  for (const { key: groupKey, edge } of edgeGroups) {
-    if (!edge.targetKey || edge.sourceKey === edge.targetKey) continue;
-    const connectionKey = layoutConnectionKey(edge.sourceKey, edge.targetKey);
-    connections.set(connectionKey, {
-      sourceKey: edge.sourceKey,
-      targetKey: edge.targetKey,
-    });
-    const groupKeys = groupKeysByConnection.get(connectionKey) ?? [];
-    groupKeys.push(groupKey);
-    groupKeysByConnection.set(connectionKey, groupKeys);
-  }
-  const portsByNode = new Map<
-    string,
-    { readonly id: string; readonly side: "EAST" | "WEST" }[]
-  >();
-  const addPort = (
-    nodeKey: string,
-    direction: "in" | "out",
-    connectionKey: string,
-  ): string => {
-    const id = `topology:port:${nodeKey}:${direction}:${connectionKey}`;
-    const ports = portsByNode.get(nodeKey) ?? [];
-    ports.push({ id, side: direction === "out" ? "EAST" : "WEST" });
-    portsByNode.set(nodeKey, ports);
-    return id;
-  };
-  const connectionsByRouteID = new Map<string, LayoutConnection>();
-  const elkEdges = [...connections.entries()].map(([key, connection]) => {
-    const id = `topology:route:${key}`;
-    connectionsByRouteID.set(id, connection);
-    return {
-      id,
-      sources: [addPort(connection.sourceKey, "out", key)],
-      targets: [addPort(connection.targetKey, "in", key)],
-    };
-  });
-  const graph: ElkNode = {
-    id: "topology:root",
-    layoutOptions: {
-      "elk.algorithm": "layered",
-      "elk.direction": "RIGHT",
-      "elk.edgeRouting": "ORTHOGONAL",
-      "elk.layered.crossingMinimization.strategy": "LAYER_SWEEP",
-      "elk.layered.nodePlacement.strategy": "NETWORK_SIMPLEX",
-      "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES",
-      "elk.layered.considerModelOrder.portModelOrder": "true",
-      "elk.layered.spacing.nodeNodeBetweenLayers": "180",
-      "elk.spacing.nodeNode": "42",
-      "elk.spacing.edgeNode": "30",
-      "elk.layered.spacing.edgeEdgeBetweenLayers": "14",
-    },
-    children: nodes.map((node) => {
-      const key = displayNodeKey(node);
-      return {
-        id: key,
-        width: FLOW_NODE_WIDTH,
-        height: FLOW_NODE_HEIGHT,
-        layoutOptions: { "elk.portConstraints": "FIXED_ORDER" },
-        ports: (portsByNode.get(key) ?? []).map((port) => ({
-          id: port.id,
-          width: 2,
-          height: 2,
-          layoutOptions: { "elk.port.side": port.side },
-        })),
-      };
-    }),
-    edges: elkEdges,
-  };
-  const laidOut = await (await getElkLayoutEngine()).layout(graph);
-  const layoutNodes = (laidOut.children ?? []).map((node) => ({
-    key: node.id,
-    x: (node.x ?? 0) + FLOW_PADDING,
-    y: (node.y ?? 0) + FLOW_PADDING,
-    width: node.width ?? FLOW_NODE_WIDTH,
-    height: node.height ?? FLOW_NODE_HEIGHT,
-    ports: (node.ports ?? []).map((port) => {
-      const side: FlowLayoutPort["side"] = port.id.includes(":out:")
-        ? "right"
-        : "left";
-      return {
-        key: port.id,
-        side,
-        y: (port.y ?? FLOW_NODE_HEIGHT / 2) + (port.height ?? 0) / 2,
-      };
-    }),
-  }));
-  const routes = (laidOut.edges ?? []).flatMap((edge) => {
-    const connection = connectionsByRouteID.get(edge.id);
-    if (!connection) return [];
-    const points = edgeSectionPoints(edge).map((point) => ({
-      x: point.x + FLOW_PADDING,
-      y: point.y + FLOW_PADDING,
-    }));
-    if (points.length < 2) return [];
-    const groupKeys =
-      groupKeysByConnection.get(
-        layoutConnectionKey(connection.sourceKey, connection.targetKey),
-      ) ?? [];
-    return groupKeys.map((id) => ({ id, path: legacyRoutePath(points) }));
-  });
-  return {
-    width: Math.max(400, (laidOut.width ?? 0) + FLOW_PADDING * 2),
-    height: Math.max(220, (laidOut.height ?? 0) + FLOW_PADDING * 2),
-    nodes: layoutNodes,
-    routes,
-  };
-}
-
 function layoutNodeKind(
   node: FlowDisplayNode,
 ): TopologyLayoutInputNode["kind"] {
@@ -744,14 +570,7 @@ async function createElkLayout(
         ]
       : [],
   );
-  let layout: TopologyLayoutResult;
-  try {
-    layout = await calculateTopologyLayout(layoutNodes, layoutEdges);
-  } catch {
-    // Keep the established viewer usable if a browser cannot start the layout
-    // worker. Normal operation always uses the extracted layout engine.
-    return createLegacyElkLayout(nodes, edgeGroups);
-  }
+  const layout = await calculateTopologyLayout(layoutNodes, layoutEdges);
   return {
     width: layout.width,
     height: layout.height,
@@ -1240,11 +1059,32 @@ function RoutedTopologyEdge({
   markerEnd,
   style,
   data,
+  label,
+  labelStyle,
+  labelShowBg,
+  labelBgStyle,
+  labelBgPadding,
+  labelBgBorderRadius,
 }: EdgeProps<TopologyFlowEdge>): React.ReactElement {
   const path =
     data?.routePath ??
     `M ${sourceX},${sourceY} H ${(sourceX + targetX) / 2} V ${targetY} H ${targetX}`;
-  return <BaseEdge id={id} path={path} markerEnd={markerEnd} style={style} />;
+  return (
+    <BaseEdge
+      id={id}
+      path={path}
+      markerEnd={markerEnd}
+      style={style}
+      label={label}
+      labelX={(sourceX + targetX) / 2}
+      labelY={(sourceY + targetY) / 2}
+      labelStyle={labelStyle}
+      labelShowBg={labelShowBg}
+      labelBgStyle={labelBgStyle}
+      labelBgPadding={labelBgPadding}
+      labelBgBorderRadius={labelBgBorderRadius}
+    />
+  );
 }
 
 const topologyEdgeTypes = { routed: RoutedTopologyEdge };

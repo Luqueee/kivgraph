@@ -129,5 +129,32 @@ describe("topology layout normalization", () => {
         ),
       ),
     ).toBe(true);
+    expect(
+      positions
+        .get("repository:api")
+        ?.ports.some((port) => port.side === "right"),
+    ).toBe(true);
+  });
+
+  it("keeps inbound ports on the left when a node ID contains out", async () => {
+    const layout = await calculateTopologyLayout(
+      [
+        { id: "repository:source", kind: "repository", width: 220, height: 90 },
+        { id: "repository:out", kind: "repository", width: 220, height: 90 },
+      ],
+      [
+        {
+          id: "dependency:source-out",
+          source: "repository:source",
+          target: "repository:out",
+        },
+      ],
+    );
+
+    expect(
+      layout.nodes.find((node) => node.id === "repository:out")?.ports,
+    ).toEqual(
+      expect.arrayContaining([expect.objectContaining({ side: "left" })]),
+    );
   });
 });

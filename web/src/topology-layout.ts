@@ -1,4 +1,5 @@
 import type { ELK, ElkExtendedEdge, ElkNode } from "elkjs/lib/elk-api.js";
+import elkWorkerUrl from "elkjs/lib/elk-worker.min.js?url";
 
 export type TopologyLayoutNodeKind =
   | "profile"
@@ -191,10 +192,7 @@ function getElkLayoutEngine(): Promise<ELK> {
         : import("elkjs/lib/elk-api.js").then(
             ({ default: ElkConstructor }) =>
               new ElkConstructor({
-                workerUrl: new URL(
-                  "elkjs/lib/elk-worker.min.js",
-                  import.meta.url,
-                ).toString(),
+                workerUrl: elkWorkerUrl,
               }),
           );
     elkLayoutEngine = engine.catch((error: unknown) => {
@@ -242,6 +240,7 @@ export async function calculateTopologyLayout(
     string,
     { readonly id: string; readonly side: "EAST" | "WEST" }[]
   >();
+  const portSides = new Map<string, TopologyLayoutPort["side"]>();
   const addPort = (
     nodeID: string,
     direction: "in" | "out",
@@ -251,6 +250,7 @@ export async function calculateTopologyLayout(
     const ports = portsByNode.get(nodeID) ?? [];
     ports.push({ id, side: direction === "out" ? "EAST" : "WEST" });
     portsByNode.set(nodeID, ports);
+    portSides.set(id, direction === "out" ? "right" : "left");
     return id;
   };
   const elkEdges = normalized.edges.map((edge) => ({
@@ -301,16 +301,11 @@ export async function calculateTopologyLayout(
     y: (node.y ?? 0) + LAYOUT_PADDING,
     width: node.width ?? DEFAULT_NODE_WIDTH,
     height: node.height ?? DEFAULT_NODE_HEIGHT,
-    ports: (node.ports ?? []).map((port) => {
-      const side: TopologyLayoutPort["side"] = port.id.includes(":out:")
-        ? "right"
-        : "left";
-      return {
-        id: port.id,
-        side,
-        y: (port.y ?? DEFAULT_NODE_HEIGHT / 2) + (port.height ?? 0) / 2,
-      };
-    }),
+    ports: (node.ports ?? []).map((port) => ({
+      id: port.id,
+      side: portSides.get(port.id) ?? "left",
+      y: (port.y ?? DEFAULT_NODE_HEIGHT / 2) + (port.height ?? 0) / 2,
+    })),
   }));
   const routes = (laidOut.edges ?? []).flatMap((edge) => {
     const points = edgeSectionPoints(edge).map((point) => ({
