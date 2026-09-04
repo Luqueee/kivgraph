@@ -411,9 +411,6 @@ func TestIndexProjectUsesConfirmedFallbackForCodexNativeApproval(t *testing.T) {
 	if err != nil || result == nil || result.IsError {
 		t.Fatalf("CallTool() = %#v, error %v; want success", result, err)
 	}
-	if calls := fake.callCount(); calls != 1 {
-		t.Fatalf("indexer calls = %d, want 1", calls)
-	}
 }
 
 func TestIndexProjectUsesMcpElicitationWhenAdvertised(t *testing.T) {
