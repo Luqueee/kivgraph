@@ -214,11 +214,29 @@ func TestConfigureSkipsSurfacesUnsupportedByClaudeDesktop(t *testing.T) {
 			t.Fatalf("configure output = %q, want %q", stdout.String(), want)
 		}
 	}
-	if _, err := os.Stat(filepath.Join(home, ".config", "Claude", "claude_desktop_config.json")); err != nil {
-		t.Fatalf("Claude Desktop MCP configuration missing: %v", err)
+	manager, err := integrations.New(integrations.Options{HomeDir: home, ProjectDir: project})
+	if err != nil {
+		t.Fatalf("create manager for configured paths: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(home, ".claude", "settings.json")); err != nil {
-		t.Fatalf("Claude Desktop hook configuration missing: %v", err)
+	mcpPlan, err := manager.StatusMCP(integrations.TargetClaudeDesktop, integrations.ScopeUser)
+	if err != nil {
+		t.Fatalf("inspect Claude Desktop MCP configuration: %v", err)
+	}
+	if mcpPlan.Status != "managed" {
+		t.Fatalf("Claude Desktop MCP status = %#v, want managed", mcpPlan)
+	}
+	if _, err := os.Stat(mcpPlan.Path); err != nil {
+		t.Fatalf("Claude Desktop MCP configuration missing at %s: %v", mcpPlan.Path, err)
+	}
+	hookPlan, err := manager.StatusHook(integrations.TargetClaudeDesktop, integrations.ScopeUser)
+	if err != nil {
+		t.Fatalf("inspect Claude Desktop hook configuration: %v", err)
+	}
+	if hookPlan.Status != "managed" {
+		t.Fatalf("Claude Desktop hook status = %#v, want managed", hookPlan)
+	}
+	if _, err := os.Stat(hookPlan.Path); err != nil {
+		t.Fatalf("Claude Desktop hook configuration missing at %s: %v", hookPlan.Path, err)
 	}
 }
 
