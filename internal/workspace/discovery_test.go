@@ -177,6 +177,19 @@ func TestDiscoverTypeScriptRejectsInvalidManifests(t *testing.T) {
 	}
 }
 
+func TestDiscoverTypeScriptRejectsInvalidExclusionPattern(t *testing.T) {
+	root := testsupport.TempDir(t)
+	writeDiscoveryFile(t, filepath.Join(root, "package.json"), `{"name":"invalid-exclusion"}`)
+
+	_, err := DiscoverTypeScript(context.Background(), Repository{
+		RealPath:   root,
+		Exclusions: []string{"["},
+	})
+	if err == nil || !strings.Contains(err.Error(), "exclusions[0]") {
+		t.Fatalf("DiscoverTypeScript() exclusions=%q error = %v, want invalid exclusion error", []string{"["}, err)
+	}
+}
+
 func TestDiscoverTypeScriptHonorsCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

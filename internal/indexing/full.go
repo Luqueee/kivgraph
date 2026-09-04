@@ -344,7 +344,7 @@ func RunFull(ctx context.Context, options FullOptions) (result FullResult, resul
 	if !rebuildReport.Passed {
 		return result, fmt.Errorf("rebuild graph did not pass its gates")
 	}
-	if err := freshness.Save(options.Root, uint64(snapshotID), after); err != nil {
+	if err := freshness.Save(ctx, options.Root, uint64(snapshotID), after); err != nil {
 		return result, fmt.Errorf("record published generation freshness: %w", err)
 	}
 	return result, nil

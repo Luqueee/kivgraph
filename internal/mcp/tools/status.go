@@ -374,13 +374,30 @@ func graphStatus(
 			Detail: "this server answers from the published snapshot and never opens the database",
 		},
 	}
-	if err := applyHostStatus(ctx, &status, probe); err != nil {
-		return nil, Response[GraphStatus]{}, err
-	}
-
+	// Pin the response before probing: a host may observe a publication while
+	// it reads its cached freshness evidence. Loading afterwards could attach
+	// the old evidence to the new graph.
 	var snapshot *hotsnapshot.GraphSnapshot
 	if snapshotStore != nil {
 		snapshot = snapshotStore.Load()
+	}
+	if err := applyHostStatus(ctx, &status, probe); err != nil {
+		return nil, Response[GraphStatus]{}, err
+	}
+	if evidence := status.ContentFreshness; evidence != nil {
+		generationless := evidence.Generation == 0 && (evidence.State == "fresh" || evidence.State == "stale")
+		generationChanged := evidence.Generation > 0 &&
+			(snapshot == nil || evidence.Generation != snapshot.Metadata().ID)
+		if generationless || generationChanged {
+			pinned := *evidence
+			pinned.State = "unverified"
+			if generationless {
+				pinned.Detail = "freshness state has no published generation"
+			} else {
+				pinned.Detail = "generation changed during freshness check; retry graph_status"
+			}
+			status.ContentFreshness = &pinned
+		}
 	}
 	if snapshot == nil {
 		// A generation that could not be mapped is not the same state as no
