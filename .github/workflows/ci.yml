@@ -204,7 +204,7 @@ jobs:
       # skipping. Maven ships with the runner image; the JDK and the indexer do
       # not.
       - name: Set up the JDK
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
@@ -225,7 +225,7 @@ jobs:
       # the SDK -- which also runs the `dotnet restore` every C# index begins
       # with.
       - name: Set up the .NET SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '8.0.x'
 
@@ -286,7 +286,7 @@ jobs:
       # in the coverage manifest. Maven ships with the runner image; the JDK and
       # the indexer do not.
       - name: Set up the JDK
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
@@ -306,7 +306,7 @@ jobs:
       # the `dotnet restore` every C# index begins with. Without it the C#
       # suite skips, and a skipped suite hides a gated language.
       - name: Set up the .NET SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '8.0.x'
 
@@ -552,7 +552,7 @@ jobs:
         run: scripts/check-reproducible-bundle.sh
 
       - name: Upload Linux distribution bundle for smoke
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: linux-bundle
           path: dist/kivgraph-linux-amd64
@@ -626,7 +626,7 @@ jobs:
           check-latest: true
 
       - name: Download Linux distribution bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: linux-bundle
           path: dist/kivgraph-linux-amd64
