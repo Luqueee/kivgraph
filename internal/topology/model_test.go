@@ -245,8 +245,12 @@ func TestSourceObservationIdentityUsesObservedStateNotPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewSourceObservation(%q, %q, %q, %t, %q) normalized equivalent observation: %v", "frontend", " abc123 ", "main", false, strings.ToUpper(digest), err)
 	}
-	if first != second {
-		t.Fatalf("equivalent observations differ: %#v != %#v", first, second)
+	if first.ID != second.ID {
+		t.Fatalf("equivalent observation IDs differ: %q != %q", first.ID, second.ID)
+	}
+	if second.Worktree != "frontend" || second.Commit != "abc123" ||
+		second.Branch != "main" || second.Dirty || second.ContentDigest != digest {
+		t.Fatalf("normalized observation = %#v, want canonical observed state", second)
 	}
 	if err := first.Validate(); err != nil {
 		t.Fatalf("first source observation %#v Validate(): %v", first, err)
