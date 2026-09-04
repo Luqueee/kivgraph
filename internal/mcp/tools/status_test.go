@@ -179,6 +179,53 @@ func TestGraphStatusReportsHostProbeResults(t *testing.T) {
 	}
 }
 
+func TestGraphStatusPinsSnapshotBeforeFreshnessProbe(t *testing.T) {
+	for _, state := range []string{"fresh", "stale"} {
+		t.Run(state, func(t *testing.T) {
+			store := graphStatusStore(t, 76)
+			probe := func(context.Context) (HostStatus, error) {
+				store.Publish(graphStatusStore(t, 77).Load())
+				return HostStatus{ContentFreshness: &freshness.Status{Generation: 76, State: state}}, nil
+			}
+			_, response, err := graphStatus(t.Context(), nil, struct{}{}, store, probe)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if response.Results.SnapshotID == nil || *response.Results.SnapshotID != 76 || response.Results.ContentFreshness.Generation != 76 {
+				t.Fatalf("mixed publication and attestation: %+v", response.Results)
+			}
+		})
+	}
+}
+
+func TestGraphStatusDoesNotClaimFreshnessFromAnotherGeneration(t *testing.T) {
+	store := graphStatusStore(t, 76)
+	probe := func(context.Context) (HostStatus, error) {
+		store.Publish(graphStatusStore(t, 77).Load())
+		return HostStatus{ContentFreshness: &freshness.Status{Generation: 77, State: "fresh"}}, nil
+	}
+	_, response, err := graphStatus(t.Context(), nil, struct{}{}, store, probe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := response.Results.ContentFreshness
+	if response.Results.SnapshotID == nil || *response.Results.SnapshotID != 76 || got.State != "unverified" || got.Generation != 77 || !strings.Contains(got.Detail, "generation changed") {
+		t.Fatalf("a concurrent generation lent its attestation: %+v", response.Results)
+	}
+}
+
+func TestGraphStatusPreservesAnUnavailableInventoryWithoutGeneration(t *testing.T) {
+	want := &freshness.Status{State: "unavailable", Detail: "profile storage changed; restart the server before checking freshness"}
+	probe := func(context.Context) (HostStatus, error) { return HostStatus{ContentFreshness: want}, nil }
+	_, response, err := graphStatus(t.Context(), nil, struct{}{}, graphStatusStore(t, 76), probe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(response.Results.ContentFreshness, want) {
+		t.Fatalf("configuration failure was hidden by a publication retry: %+v", response.Results.ContentFreshness)
+	}
+}
+
 // TestGraphStatusAnswersWithoutASnapshot keeps the tool usable for the one
 // question it exists to answer when everything else is refusing to serve.
 func TestGraphStatusAnswersWithoutASnapshot(t *testing.T) {

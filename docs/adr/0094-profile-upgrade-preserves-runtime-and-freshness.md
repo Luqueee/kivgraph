@@ -47,12 +47,24 @@ configuration default cannot redirect evidence from a running server's default.
 Another profile with the same generation number cannot borrow that attestation.
 Aggregate queries continue to omit a global freshness claim.
 
+Pin the status response's snapshot before invoking the inventory probe. The
+probe can overlap publication: probing generation 76 and then loading generation
+77 previously attached a stale attestation to a successful rebuild. If the probe
+itself observes a newer generation than the pinned response, report `unverified`
+and retain the probe's generation so clients can retry the read. Never relabel
+an attestation with another generation or trigger a rebuild from that race.
+
 ## Validation and limits
 
 Regression tests use real Unix sockets and writer locks, interrupted migration
 fixtures, mismatched backups, partial destinations, and MCP calls through the
 configured indexer. Source edits, additions, removals and missing repositories
 must produce stale or unavailable states, independently of semantic coverage.
+
+Deterministic publication-during-probe tests cover both old fresh and old stale
+attestations, plus a probe that observes a newer generation. An isolated read of
+the retained real generation 77 confirmed its inventory digest still matched;
+this does not establish that no transient filesystem change occurred earlier.
 
 The migration checks filesystem layout, not native graph integrity; opening the
 published snapshot remains a separate startup gate. Installation must stop old

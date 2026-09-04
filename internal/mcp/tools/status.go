@@ -374,13 +374,23 @@ func graphStatus(
 			Detail: "this server answers from the published snapshot and never opens the database",
 		},
 	}
-	if err := applyHostStatus(ctx, &status, probe); err != nil {
-		return nil, Response[GraphStatus]{}, err
-	}
-
+	// Pin the response before probing: inventory hashing can overlap a
+	// publication. Loading afterwards would attach the old attestation to
+	// the new graph, making a successful rebuild appear stale.
 	var snapshot *hotsnapshot.GraphSnapshot
 	if snapshotStore != nil {
 		snapshot = snapshotStore.Load()
+	}
+	if err := applyHostStatus(ctx, &status, probe); err != nil {
+		return nil, Response[GraphStatus]{}, err
+	}
+	if evidence := status.ContentFreshness; snapshot != nil && evidence != nil && evidence.Generation > 0 && evidence.Generation != snapshot.Metadata().ID {
+		// The probe can itself observe a newer publication. Preserve its
+		// generation so a client can retry this read, never rebuild blindly.
+		copy := *evidence
+		copy.State = "unverified"
+		copy.Detail = "generation changed during freshness check; retry graph_status"
+		status.ContentFreshness = &copy
 	}
 	if snapshot == nil {
 		// A generation that could not be mapped is not the same state as no
