@@ -168,6 +168,10 @@ and keep the last one. A full rebuild can outlive the client's per-call
 timeout; the work still completes, and `graph_status` showing an advanced
 `snapshot_id` is the check, not a retry.
 
+Clients with form elicitation receive the server prompt. Codex uses its native
+tool-approval prompt and then sends `confirmed: true`; URL-only clients use the
+same fallback.
+
 ### Where it loses
 
 Stated in the skill's own terms, and not softened: a rare name in a single

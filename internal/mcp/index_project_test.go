@@ -344,6 +344,73 @@ func TestIndexProjectRunsAfterClientConfirmedFallback(t *testing.T) {
 	}
 }
 
+func TestIndexProjectUsesConfirmedFallbackForURLOnlyElicitation(t *testing.T) {
+	fake := &fakeProjectIndexer{}
+	session := connectWithNamedElicitation(t, NewServerWithIndexer(fake), "url-only-client", &sdkmcp.ClientCapabilities{
+		Elicitation: &sdkmcp.ElicitationCapabilities{
+			URL: &sdkmcp.URLElicitationCapabilities{},
+		},
+	}, func(context.Context, *sdkmcp.ElicitRequest) (*sdkmcp.ElicitResult, error) {
+		t.Fatal("server requested unsupported form elicitation")
+		return nil, nil
+	})
+	result, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name: "index_project",
+		Arguments: map[string]any{
+			"name":      "demo",
+			"path":      "/tmp/demo",
+			"languages": []any{"go"},
+			"confirmed": true,
+		},
+	})
+	if err != nil || result == nil || result.IsError {
+		t.Fatalf("CallTool() = %#v, error %v; want success", result, err)
+	}
+	if calls := fake.callCount(); calls != 1 {
+		t.Fatalf("indexer calls = %d, want 1", calls)
+	}
+	result, err = session.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name: "index_project",
+		Arguments: map[string]any{
+			"name":      "demo",
+			"path":      "/tmp/demo",
+			"languages": []any{"go"},
+		},
+	})
+	if err != nil || result == nil || !result.IsError {
+		t.Fatalf("CallTool() = %#v, error %v; want permission error without confirmed", result, err)
+	}
+	if calls := fake.callCount(); calls != 1 {
+		t.Fatalf("indexer calls after missing confirmation = %d, want 1", calls)
+	}
+}
+
+func TestIndexProjectUsesConfirmedFallbackForCodexNativeApproval(t *testing.T) {
+	fake := &fakeProjectIndexer{}
+	session := connectWithNamedElicitation(t, NewServerWithIndexer(fake), "codex", &sdkmcp.ClientCapabilities{
+		Elicitation: &sdkmcp.ElicitationCapabilities{
+			Form: &sdkmcp.FormElicitationCapabilities{},
+		},
+	}, func(context.Context, *sdkmcp.ElicitRequest) (*sdkmcp.ElicitResult, error) {
+		return &sdkmcp.ElicitResult{Action: "cancel"}, nil
+	})
+	result, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name: "index_project",
+		Arguments: map[string]any{
+			"name":      "demo",
+			"path":      "/tmp/demo",
+			"languages": []any{"go"},
+			"confirmed": true,
+		},
+	})
+	if err != nil || result == nil || result.IsError {
+		t.Fatalf("CallTool() = %#v, error %v; want success", result, err)
+	}
+	if calls := fake.callCount(); calls != 1 {
+		t.Fatalf("indexer calls = %d, want 1", calls)
+	}
+}
+
 func TestIndexProjectUsesMcpElicitationWhenAdvertised(t *testing.T) {
 	t.Run("accepted", func(t *testing.T) {
 		fake := &fakeProjectIndexer{}
@@ -400,6 +467,16 @@ func connectWithElicitation(
 	server *sdkmcp.Server,
 	handler func(context.Context, *sdkmcp.ElicitRequest) (*sdkmcp.ElicitResult, error),
 ) *sdkmcp.ClientSession {
+	return connectWithNamedElicitation(t, server, "index-project-test", nil, handler)
+}
+
+func connectWithNamedElicitation(
+	t *testing.T,
+	server *sdkmcp.Server,
+	name string,
+	capabilities *sdkmcp.ClientCapabilities,
+	handler func(context.Context, *sdkmcp.ElicitRequest) (*sdkmcp.ElicitResult, error),
+) *sdkmcp.ClientSession {
 	t.Helper()
 	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
@@ -407,7 +484,8 @@ func connectWithElicitation(
 		t.Fatalf("server.Connect() error = %v", err)
 	}
 	t.Cleanup(func() { _ = serverSession.Close() })
-	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "index-project-test", Version: "0.0.1"}, &sdkmcp.ClientOptions{
+	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: name, Version: "0.0.1"}, &sdkmcp.ClientOptions{
+		Capabilities:       capabilities,
 		ElicitationHandler: handler,
 	})
 	clientSession, err := client.Connect(context.Background(), clientTransport, nil)

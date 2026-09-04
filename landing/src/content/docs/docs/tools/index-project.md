@@ -14,7 +14,7 @@ description: Registers projects and rebuilds the graph once, after explicit user
 | `name` | string | none | Single-project form: the repository identifier. |
 | `path` | string | none | Single-project form: the repository directory. Absolute, `~`-prefixed, or relative to the working directory of the server process. |
 | `languages` | array of strings | none | Single-project form: the languages to index. |
-| `confirmed` | boolean or null | `null` | Approval from a client that cannot use MCP elicitation. Only `true` proceeds. |
+| `confirmed` | boolean or null | `null` | Approval from a client that cannot answer MCP form elicitation. Only `true` proceeds. |
 
 Naming both forms in one request is rejected with `INVALID_ARGUMENT`, because two
 selectors can disagree and there is nothing to decide between them. Naming
@@ -45,6 +45,11 @@ capability is asked directly, and the request proceeds only when the user
 accepts. A client that does not implement elicitation must obtain approval itself
 and then send `confirmed: true`; sending it without having asked is a lie the
 server cannot detect.
+
+Codex uses its native tool-approval prompt and then sends `confirmed: true`,
+because Codex currently cannot complete Kivgraph's server-side form elicitation.
+A client that advertises only URL elicitation uses the same fallback. The
+server still requires `confirmed: true` on every fallback path.
 
 Called without either, it fails:
 
