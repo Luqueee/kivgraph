@@ -33,23 +33,25 @@ func TestConfigureRejectsConflictingTransportBeforeWriting(t *testing.T) {
 }
 
 func TestInstallConfigureHooksSkipsUnsupportedTarget(t *testing.T) {
+	var target integrations.Target = integrations.TargetClaudeDesktop
+	var supportedTargets []integrations.Target
 	var stdout, stderr bytes.Buffer
 	if failed := installConfigureHooks(
 		integrations.Manager{},
-		[]integrations.Target{integrations.TargetClaudeDesktop},
-		nil,
+		[]integrations.Target{target},
+		supportedTargets,
 		false,
 		false,
 		&stdout,
 		&stderr,
 	); failed {
-		t.Fatalf("installConfigureHooks reported failure: stdout=%q stderr=%q", stdout.String(), stderr.String())
+		t.Fatalf("installConfigureHooks(target=%s, supportedTargets=%v) reported failure: stdout=%q stderr=%q", target, supportedTargets, stdout.String(), stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "hook skipped for Claude Desktop") {
-		t.Fatalf("installConfigureHooks output = %q, want unsupported-target message", stdout.String())
+		t.Fatalf("installConfigureHooks(target=%s, supportedTargets=%v) output = %q, want unsupported-target message", target, supportedTargets, stdout.String())
 	}
 	if stderr.Len() != 0 {
-		t.Fatalf("installConfigureHooks stderr = %q, want empty", stderr.String())
+		t.Fatalf("installConfigureHooks(target=%s, supportedTargets=%v) stderr = %q, want empty", target, supportedTargets, stderr.String())
 	}
 }
 
