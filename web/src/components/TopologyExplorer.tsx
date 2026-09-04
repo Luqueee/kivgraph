@@ -4,6 +4,7 @@ import {
   ApiError,
   fetchTopology,
   type TopologyNodeReference,
+  type TopologyProfile,
   type TopologyRelationship,
   type TopologyResponse,
   type TopologySource,
@@ -106,6 +107,25 @@ function referenceKey(reference: TopologyNodeReference): string {
 
 function readable(value: string | undefined): string {
   return value && value.length > 0 ? value : "not observed";
+}
+
+export function pinnedTopologyURL(
+  profileIds: readonly string[],
+  profiles: readonly Pick<TopologyProfile, "id" | "generationId">[],
+): string {
+  const applicableProfiles = profiles
+    .filter((profile) => profileIds.includes(profile.id))
+    .sort((left, right) =>
+      left.id < right.id ? -1 : left.id > right.id ? 1 : 0,
+    );
+  if (applicableProfiles.length === 0) return "/api/v1/topology";
+
+  const query = new URLSearchParams();
+  for (const profile of applicableProfiles) query.append("profile", profile.id);
+  for (const profile of applicableProfiles) {
+    query.append("generation", `${profile.id}:${profile.generationId}`);
+  }
+  return `/api/v1/topology?${query.toString()}`;
 }
 
 function relationshipColor(relationship: TopologyRelationship): string {
@@ -247,9 +267,7 @@ function DetailsPanel({
   const relationships = model.edges.filter(
     (edge) => edge.sourceKey === node.key || edge.targetKey === node.key,
   );
-  const topologyURL = node.profileIds[0]
-    ? `/api/v1/topology?profile=${encodeURIComponent(node.profileIds[0])}`
-    : "/api/v1/topology";
+  const topologyURL = pinnedTopologyURL(node.profileIds, data.profiles);
   const graphURL = `/api/v1/search?name=${encodeURIComponent(node.id)}&mode=prefix`;
 
   return (
@@ -796,8 +814,8 @@ export function TopologyExplorer(): React.ReactElement {
               >
                 <svg
                   className="pointer-events-none absolute left-0 top-0"
-                  width={mapWidth}
-                  height={mapHeight}
+                  width={filteredModel.layout.width}
+                  height={filteredModel.layout.height}
                   viewBox={`0 0 ${filteredModel.layout.width} ${filteredModel.layout.height}`}
                   preserveAspectRatio="none"
                   style={{
