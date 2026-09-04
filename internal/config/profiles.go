@@ -2,12 +2,20 @@ package config
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"errors"
 	"fmt"
+	"io"
+	"io/fs"
+	"net"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
+	"syscall"
+	"time"
 
+	"github.com/Luqueee/kivgraph/internal/filelock"
 	"gopkg.in/yaml.v3"
 )
 
@@ -42,14 +50,27 @@ func profileAt(configuration Config, name string) Profile {
 // ensureDefaultProfile builds the initial profile beside the legacy layout and
 // publishes it with one rename. Existing state is copied, never moved, so an
 // interrupted upgrade still has the graph it started with.
-func ensureDefaultProfile(configuration Config, repositoriesPath string) error {
+func ensureDefaultProfile(configuration Config, repositoriesPath string) (resultErr error) {
 	profile := profileAt(configuration, configuration.Profiles.Default)
 	if _, err := os.Stat(profile.StateDirectory); err == nil {
-		return nil
+		return validateMigratedProfile(profile.StateDirectory)
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("inspect default profile %q: %w", profile.StateDirectory, err)
 	}
 	stateRoot := filepath.Dir(configuration.Storage.DatabasePath)
+	// Keep the installation directory and every lock inode in place. Moving
+	// the root would detach running processes from both their sockets and locks.
+	lock, acquired, err := filelock.Acquire(stateRoot + ".profile-migration.lock")
+	if err != nil {
+		return fmt.Errorf("lock profile migration: %w", err)
+	}
+	if !acquired {
+		return errors.New("profile migration is in progress; retry after it completes")
+	}
+	defer func() { resultErr = errors.Join(resultErr, lock.Release()) }()
+	if _, err := os.Stat(profile.StateDirectory); err == nil {
+		return validateMigratedProfile(profile.StateDirectory)
+	}
 	backupRoot := stateRoot + ".pre-profiles"
 	if _, err := os.Stat(stateRoot); errors.Is(err, os.ErrNotExist) {
 		if _, backupErr := os.Stat(backupRoot); backupErr == nil {
@@ -61,6 +82,19 @@ func ensureDefaultProfile(configuration Config, repositoriesPath string) error {
 		}
 	} else if err != nil {
 		return fmt.Errorf("inspect legacy profile state %q: %w", stateRoot, err)
+	}
+	if err := inspectLegacyRuntime(stateRoot); err != nil {
+		return err
+	}
+	for _, name := range []string{"analyzer-targets.lock", "resync.lock", "publish.lock"} {
+		lock, acquired, err := filelock.Acquire(filepath.Join(stateRoot, name))
+		if err != nil {
+			return fmt.Errorf("lock legacy state %s: %w", name, err)
+		}
+		if !acquired {
+			return fmt.Errorf("profile migration blocked by active writer (%s); stop writers and retry", name)
+		}
+		defer func() { resultErr = errors.Join(resultErr, lock.Release()) }()
 	}
 	root := profilesRoot(configuration)
 	if entries, err := os.ReadDir(root); err == nil {
@@ -80,11 +114,7 @@ func ensureDefaultProfile(configuration Config, repositoriesPath string) error {
 		return fmt.Errorf("prepare default profile migration: %w", err)
 	}
 	defer os.RemoveAll(temporaryParent)
-	temporaryState := filepath.Join(temporaryParent, filepath.Base(stateRoot))
-	if err := copyProfileArtifact(stateRoot, temporaryState); err != nil {
-		return fmt.Errorf("copy legacy state for profile migration: %w", err)
-	}
-	temporaryProfile := filepath.Join(temporaryState, "profiles", configuration.Profiles.Default)
+	temporaryProfile := filepath.Join(temporaryParent, "profile")
 	if err := os.MkdirAll(temporaryProfile, 0o700); err != nil {
 		return fmt.Errorf("create temporary default profile: %w", err)
 	}
@@ -92,34 +122,52 @@ func ensureDefaultProfile(configuration Config, repositoriesPath string) error {
 		return err
 	}
 	for _, name := range []string{
-		"generations", "CURRENT", "BACKUP", "backups", "publish.lock",
-		"resync.lock", "factcache", "go.work", "graph.lbdb",
+		"generations", "CURRENT", "BACKUP", "backups", "freshness",
+		"factcache", "go.work", "go.work.sum", "graph.lbdb",
 	} {
-		source := filepath.Join(temporaryState, name)
+		source := filepath.Join(stateRoot, name)
 		if _, err := os.Lstat(source); errors.Is(err, os.ErrNotExist) {
 			continue
 		} else if err != nil {
 			return fmt.Errorf("inspect copied profile artifact %q: %w", source, err)
 		}
-		if err := os.Rename(source, filepath.Join(temporaryProfile, name)); err != nil {
+		if err := copyProfileArtifact(source, filepath.Join(temporaryProfile, name)); err != nil {
 			return fmt.Errorf("place copied profile artifact %q: %w", name, err)
 		}
 	}
 	if err := validateMigratedProfile(temporaryProfile); err != nil {
 		return err
 	}
-	if _, err := os.Stat(backupRoot); err == nil {
-		return fmt.Errorf("profile migration backup already exists: %s", backupRoot)
+	if _, err := os.Lstat(backupRoot); err == nil {
+		// A crash may leave the validated backup published but not the profile.
+		// Resume only when it is still an exact copy of the candidate; never
+		// overwrite an older or unrelated recovery point.
+		candidate, err := profileArtifactDigest(temporaryProfile)
+		if err != nil {
+			return err
+		}
+		backup, err := profileArtifactDigest(backupRoot)
+		if err != nil {
+			return err
+		}
+		if candidate != backup {
+			return fmt.Errorf("profile migration backup differs from legacy state: %s", backupRoot)
+		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("inspect profile migration backup: %w", err)
-	}
-	if err := os.Rename(stateRoot, backupRoot); err != nil {
-		return fmt.Errorf("retain legacy profile state: %w", err)
-	}
-	if err := os.Rename(temporaryState, stateRoot); err != nil {
-		if rollbackErr := os.Rename(backupRoot, stateRoot); rollbackErr != nil {
-			return fmt.Errorf("publish migrated profile: %w; rollback failed: %v", err, rollbackErr)
+	} else {
+		temporaryBackup := filepath.Join(temporaryParent, "backup")
+		if err := copyProfileArtifact(temporaryProfile, temporaryBackup); err != nil {
+			return fmt.Errorf("prepare legacy profile backup: %w", err)
 		}
+		if err := os.Rename(temporaryBackup, backupRoot); err != nil {
+			return fmt.Errorf("retain legacy profile state: %w", err)
+		}
+	}
+	if err := os.MkdirAll(root, 0700); err != nil {
+		return fmt.Errorf("create profiles directory: %w", err)
+	}
+	if err := os.Rename(temporaryProfile, profile.StateDirectory); err != nil {
 		return fmt.Errorf("publish migrated profile: %w", err)
 	}
 	// Load remains the compatibility seam for installation-level diagnostics.
@@ -133,6 +181,13 @@ func ensureDefaultProfile(configuration Config, repositoriesPath string) error {
 }
 
 func validateMigratedProfile(profileRoot string) error {
+	info, err := os.Lstat(profileRoot)
+	if err != nil {
+		return fmt.Errorf("inspect migrated profile: %w", err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("migrated profile %q is not a directory", profileRoot)
+	}
 	registry := filepath.Join(profileRoot, "repositories.yaml")
 	if _, err := LoadRepositories(registry); err != nil {
 		return fmt.Errorf("validate migrated repository registry: %w", err)
@@ -146,16 +201,46 @@ func validateMigratedProfile(profileRoot string) error {
 		return fmt.Errorf("validate migrated CURRENT: %w", err)
 	}
 	generation := string(bytes.TrimSpace(current))
-	if generation == "" || filepath.Base(generation) != generation {
+	if generation == "" || strings.Trim(generation, "0123456789") != "" {
 		return fmt.Errorf("validate migrated CURRENT: invalid generation %q", generation)
 	}
 	generationRoot := filepath.Join(profileRoot, "generations", generation)
-	info, err := os.Stat(generationRoot)
+	info, err = os.Lstat(generationRoot)
 	if err != nil {
 		return fmt.Errorf("validate migrated CURRENT generation %q: %w", generation, err)
 	}
 	if !info.IsDir() {
 		return fmt.Errorf("validate migrated CURRENT generation %q: not a directory", generation)
+	}
+	return nil
+}
+
+func inspectLegacyRuntime(root string) error {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return fmt.Errorf("inspect legacy runtime: %w", err)
+	}
+	for _, entry := range entries {
+		info, err := entry.Info()
+		if err != nil {
+			return fmt.Errorf("inspect legacy runtime %q: %w", entry.Name(), err)
+		}
+		if info.IsDir() || info.Mode().IsRegular() {
+			continue
+		}
+		if entry.Name() != "daemon.sock" || info.Mode()&os.ModeSocket == 0 {
+			return fmt.Errorf("unexpected special legacy artifact %q", filepath.Join(root, entry.Name()))
+		}
+		connection, err := net.DialTimeout("unix", filepath.Join(root, entry.Name()), time.Second)
+		if err == nil {
+			_ = connection.Close()
+			return errors.New("profile migration blocked by a running daemon; stop it and retry")
+		}
+		// Only a refused connection proves this is a stale socket. Permissions
+		// or resource exhaustion must not be interpreted as a stopped daemon.
+		if !errors.Is(err, syscall.ECONNREFUSED) && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("check legacy daemon: %w", err)
+		}
 	}
 	return nil
 }
@@ -194,14 +279,57 @@ func copyProfileArtifact(source, destination string) error {
 		}
 		return nil
 	}
-	data, err := os.ReadFile(source)
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("legacy profile artifact %q is not a regular file", source)
+	}
+	input, err := os.Open(source)
 	if err != nil {
 		return fmt.Errorf("read legacy profile artifact %q: %w", source, err)
 	}
-	if err := os.WriteFile(destination, data, info.Mode().Perm()); err != nil {
+	defer input.Close()
+	output, err := os.OpenFile(destination, os.O_CREATE|os.O_EXCL|os.O_WRONLY, info.Mode().Perm())
+	if err != nil {
+		return fmt.Errorf("create copied artifact %q: %w", destination, err)
+	}
+	_, copyErr := io.Copy(output, input)
+	if err := errors.Join(copyErr, output.Close()); err != nil {
 		return fmt.Errorf("copy legacy profile artifact %q: %w", source, err)
 	}
 	return nil
+}
+
+func profileArtifactDigest(root string) ([32]byte, error) {
+	digest := sha256.New()
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		relative, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() && !info.Mode().IsRegular() {
+			return fmt.Errorf("unexpected recovery artifact %q", path)
+		}
+		fmt.Fprintf(digest, "%q %d\n", relative, info.Mode())
+		if info.IsDir() {
+			return nil
+		}
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(digest, "%d\n", info.Size())
+		_, err = io.Copy(digest, file)
+		return errors.Join(err, file.Close())
+	})
+	var result [32]byte
+	copy(result[:], digest.Sum(nil))
+	return result, err
 }
 
 // ListProfiles returns profiles in canonical name order.
@@ -216,6 +344,10 @@ func ListProfiles(configPath string) ([]Profile, error) {
 	if err := ensureDefaultProfile(configuration, configuration.Workspace.RepositoriesFile); err != nil {
 		return nil, err
 	}
+	return listProfiles(configuration)
+}
+
+func listProfiles(configuration Config) ([]Profile, error) {
 	entries, err := os.ReadDir(profilesRoot(configuration))
 	if err != nil {
 		return nil, fmt.Errorf("list profiles: %w", err)
@@ -247,6 +379,16 @@ func ListProfiles(configPath string) ([]Profile, error) {
 // its independently published graph. Analyzer targets and the event log remain
 // shared at installation scope.
 func LoadProfile(configPath, name string) (Loaded, error) {
+	return loadProfile(configPath, name, true)
+}
+
+// ReadProfile reads an already migrated profile without creating directories,
+// acquiring write locks, or initiating a migration.
+func ReadProfile(configPath, name string) (Loaded, error) {
+	return loadProfile(configPath, name, false)
+}
+
+func loadProfile(configPath, name string, migrate bool) (Loaded, error) {
 	loaded, err := Load(configPath)
 	if err != nil {
 		return Loaded{}, err
@@ -258,7 +400,12 @@ func LoadProfile(configPath, name string) (Loaded, error) {
 		return Loaded{}, fmt.Errorf("profile name: %w", err)
 	}
 	profile := profileAt(loaded.Config, name)
-	profiles, err := ListProfiles(configPath)
+	if migrate {
+		if err := ensureDefaultProfile(loaded.Config, loaded.RepositoriesPath); err != nil {
+			return Loaded{}, err
+		}
+	}
+	profiles, err := listProfiles(loaded.Config)
 	if err != nil {
 		return Loaded{}, err
 	}

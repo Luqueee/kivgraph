@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/Luqueee/kivgraph/internal/config"
+	"github.com/Luqueee/kivgraph/internal/freshness"
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 	"github.com/Luqueee/kivgraph/internal/indexing"
 	"github.com/Luqueee/kivgraph/internal/version"
@@ -16,11 +17,13 @@ import (
 // named profile before its first pass. Analyzer processes are shared by the
 // installation, so two profile rebuilds must not compete for them.
 type profileProjectIndexer struct {
-	gate       chan struct{}
-	configPath string
-	store      *hotsnapshot.SnapshotStore
-	watchMu    sync.RWMutex
-	watch      func(string, config.Loaded, *hotsnapshot.SnapshotStore)
+	gate           chan struct{}
+	configPath     string
+	store          *hotsnapshot.SnapshotStore
+	watchMu        sync.RWMutex
+	watch          func(string, config.Loaded, *hotsnapshot.SnapshotStore)
+	freshnessRoot  string
+	freshnessError error
 }
 
 func (indexer *profileProjectIndexer) setProfileWatcher(watch func(string, config.Loaded, *hotsnapshot.SnapshotStore)) {
@@ -48,7 +51,41 @@ func (indexer namedProfileReindexer) Reindex(ctx context.Context) error {
 }
 
 func newProfileProjectIndexer(configPath string, store *hotsnapshot.SnapshotStore) *profileProjectIndexer {
-	return &profileProjectIndexer{gate: make(chan struct{}, 1), configPath: configPath, store: store}
+	indexer := &profileProjectIndexer{gate: make(chan struct{}, 1), configPath: configPath, store: store}
+	loaded, err := config.ReadProfile(configPath, store.DefaultProfileName())
+	if err != nil {
+		indexer.freshnessError = err
+		return indexer
+	}
+	indexer.freshnessRoot = loaded.Config.Storage.DatabasePath
+	return indexer
+}
+
+// ContentFreshness attests only the default this server actually serves. The
+// on-disk default can change without changing this running store's identity.
+// Unlike loadProfileStore, this read must never create or open another graph.
+func (indexer *profileProjectIndexer) ContentFreshness(ctx context.Context) freshness.Status {
+	if indexer == nil || indexer.store == nil {
+		return freshness.Status{State: "unverified", Detail: "no snapshot store"}
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if indexer.freshnessError != nil {
+		return freshness.Status{State: "unavailable", Detail: indexer.freshnessError.Error()}
+	}
+	loaded, err := config.ReadProfile(indexer.configPath, indexer.store.DefaultProfileName())
+	if err != nil {
+		return freshness.Status{State: "unavailable", Detail: err.Error()}
+	}
+	if loaded.Config.Storage.DatabasePath != indexer.freshnessRoot {
+		return freshness.Status{State: "unavailable", Detail: "profile storage changed; restart the server before checking freshness"}
+	}
+	selected, err := indexer.store.ResolveProfiles(nil)
+	if err != nil {
+		return freshness.Status{State: "unavailable", Detail: err.Error()}
+	}
+	return indexing.NewService(loaded, selected[0].Store, version.Value, "").ContentFreshness(ctx)
 }
 
 func (indexer *profileProjectIndexer) IndexProjects(

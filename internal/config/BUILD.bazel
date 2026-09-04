@@ -10,7 +10,10 @@ go_library(
     ],
     importpath = "github.com/Luqueee/kivgraph/internal/config",
     visibility = ["//:__subpackages__"],
-    deps = ["@in_gopkg_yaml_v3//:yaml_v3"],
+    deps = [
+        "//internal/filelock",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+    ],
 )
 
 go_test(
@@ -18,8 +21,46 @@ go_test(
     srcs = [
         "config_test.go",
         "languages_test.go",
+        "profile_upgrade_test.go",
         "profiles_test.go",
     ],
     embed = [":config"],
-    deps = ["//internal/testsupport"],
+    deps = [
+        "//internal/testsupport",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//internal/filelock",
+        ],
+        "@rules_go//go/platform:android": [
+            "//internal/filelock",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//internal/filelock",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//internal/filelock",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//internal/filelock",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//internal/filelock",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//internal/filelock",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//internal/filelock",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//internal/filelock",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//internal/filelock",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//internal/filelock",
+        ],
+        "//conditions:default": [],
+    }),
 )
