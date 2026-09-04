@@ -265,11 +265,13 @@ func (service *Service) IndexProjects(
 		return ProjectResult{}, err
 	}
 
-	snapshotID, err := service.publishActiveSnapshot(ctx)
+	snapshotID, published, err := service.publishActiveSnapshot(ctx, document.GenerationID)
 	if err != nil {
 		return ProjectResult{}, fmt.Errorf("publish project snapshot: %w", err)
 	}
-	service.markFreshGeneration(snapshotID)
+	if published {
+		service.markFreshGeneration(snapshotID)
+	}
 
 	return ProjectResult{
 		Project:      normalized,
@@ -317,14 +319,17 @@ func (service *Service) Reindex(ctx context.Context) error {
 		return nil
 	}
 
-	if _, err := service.runIndex(ctx, nil); err != nil {
+	document, err := service.runIndex(ctx, nil)
+	if err != nil {
 		return fmt.Errorf("reindex registered repositories: %w", err)
 	}
-	generation, err := service.publishActiveSnapshot(ctx)
+	generation, published, err := service.publishActiveSnapshot(ctx, document.GenerationID)
 	if err != nil {
 		return fmt.Errorf("publish reindexed snapshot: %w", err)
 	}
-	service.markFreshGeneration(generation)
+	if published {
+		service.markFreshGeneration(generation)
+	}
 	return nil
 }
 
@@ -355,20 +360,30 @@ func (service *Service) runIndex(
 	})
 }
 
-func (service *Service) publishActiveSnapshot(ctx context.Context) (uint64, error) {
+func (service *Service) publishActiveSnapshot(ctx context.Context, producedGenerationID string) (uint64, bool, error) {
+	generationID, err := parseSnapshotID(producedGenerationID)
+	if err != nil {
+		return 0, false, fmt.Errorf("parse produced generation: %w", err)
+	}
 	layout, err := rebuild.Roles(ctx, rebuild.LayoutOptions{
 		Root:  filepath.Dir(service.loaded.Config.Storage.DatabasePath),
 		Store: generation.DefaultConfig(),
 	})
 	if err != nil {
-		return 0, fmt.Errorf("resolve published generation: %w", err)
+		return 0, false, fmt.Errorf("resolve published generation: %w", err)
 	}
 	if layout.Active.ID == "" {
-		return 0, errors.New("rebuild published no active generation")
+		return 0, false, errors.New("rebuild published no active generation")
 	}
-	generationID, err := parseSnapshotID(layout.Active.ID)
+	activeGenerationID, err := parseSnapshotID(layout.Active.ID)
 	if err != nil {
-		return 0, err
+		return 0, false, fmt.Errorf("parse active generation: %w", err)
+	}
+	if activeGenerationID != generationID {
+		// The child already published its generation, but another publisher
+		// changed CURRENT before this process could attach the snapshot. Do not
+		// map or attest the generation that this process did not publish.
+		return generationID, false, nil
 	}
 	// The child that ran the pass wrote the snapshot into the generation it
 	// published, so the parent reads it instead of scanning the graph again.
@@ -379,28 +394,55 @@ func (service *Service) publishActiveSnapshot(ctx context.Context) (uint64, erro
 	// The build's inputs die here whether or not the publication below wins.
 	defer rebuild.ReturnBuildMemory()
 	if err != nil {
-		return 0, fmt.Errorf("build published snapshot: %w", err)
+		return 0, false, fmt.Errorf("build published snapshot: %w", err)
 	}
 	if !report.Passed {
-		return 0, errors.New("build published snapshot did not pass")
+		return 0, false, errors.New("build published snapshot did not pass")
 	}
-	// Losing this race is success, not failure. The generation follower runs
-	// in the same process and installs whatever CURRENT points at; when it
-	// gets there first, the store is already serving exactly the snapshot
-	// this rebuild produced. Reporting an error here would make the caller
-	// retry a rebuild that already landed.
+	published, err := service.publishSnapshot(snapshot, generationID)
+	if err != nil {
+		return 0, false, err
+	}
+	if published {
+		latest, err := rebuild.Roles(ctx, rebuild.LayoutOptions{
+			Root:  filepath.Dir(service.loaded.Config.Storage.DatabasePath),
+			Store: generation.DefaultConfig(),
+		})
+		if err != nil {
+			return 0, false, fmt.Errorf("recheck published generation: %w", err)
+		}
+		if latest.Active.ID == "" {
+			return generationID, false, nil
+		}
+		latestID, err := parseSnapshotID(latest.Active.ID)
+		if err != nil {
+			return 0, false, fmt.Errorf("parse rechecked generation: %w", err)
+		}
+		if latestID != generationID {
+			return generationID, false, nil
+		}
+	}
+	return generationID, published, nil
+}
+
+// publishSnapshot reports ownership separately from success. A concurrent
+// publisher may already serve this generation or a newer one; that is a
+// successful handover, but this pass must not attest its local generation as
+// fresh because it did not publish it.
+func (service *Service) publishSnapshot(snapshot *hotsnapshot.GraphSnapshot, generationID uint64) (bool, error) {
 	if err := service.snapshotStore.Publish(snapshot); err != nil {
 		if !errors.Is(err, hotsnapshot.ErrSnapshotGeneration) {
-			return 0, fmt.Errorf("publish HotSnapshot: %w", err)
+			return false, fmt.Errorf("publish HotSnapshot: %w", err)
 		}
 		// By identifier, not by snapshot: this arm runs when a concurrent
 		// publisher won, and mapping the graph to confirm it would do the work
 		// a deferred store exists to postpone.
 		if served, serving := service.snapshotStore.ActiveID(); !serving || served < generationID {
-			return 0, fmt.Errorf("publish HotSnapshot: %w", err)
+			return false, fmt.Errorf("publish HotSnapshot: %w", err)
 		}
+		return false, nil
 	}
-	return generationID, nil
+	return true, nil
 }
 
 func parseSnapshotID(value string) (uint64, error) {

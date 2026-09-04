@@ -309,5 +309,6 @@ standard library's own edge would hide exactly what indexing it was for.
   not what exists on disk: a reference the passes could not attribute appears in
   `unresolved` and `unresolved_by_reason`, never as an edge.
 - Repository freshness is per repository and per commit. Use
-  `content_freshness` for uncommitted, untracked and build-configuration edits
-  that leave Git identity unchanged.
+  `content_freshness` for uncommitted or untracked source files, registered
+  roots and explicit manifests, and build-configuration edits within the
+  registered inventory. It does not attest to paths outside those inputs.

@@ -40,7 +40,10 @@ func (service *Service) ContentFreshness(_ context.Context) freshness.Status {
 }
 
 func (service *Service) markFreshGeneration(generation uint64) {
-	if service == nil || service.freshnessCache == nil {
+	if service == nil || service.freshnessCache == nil || service.snapshotStore == nil {
+		return
+	}
+	if served, known := service.snapshotStore.ActiveID(); !known || served != generation {
 		return
 	}
 	service.freshnessCache.Store(freshness.Status{Generation: generation, State: "fresh"})

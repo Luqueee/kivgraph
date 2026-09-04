@@ -73,12 +73,12 @@ func TestFactCacheMissesWhenAnExplicitOrAnalyzerManifestChanges(t *testing.T) {
 
 	writeFullFixture(t, filepath.Join(fixture.root, "project.settings"), "after\n")
 	if _, report := fixture.index(); report.Cache.Hits != 0 {
-		t.Fatalf("cache = %+v, want no hit after explicit manifest changed", report.Cache)
+		t.Fatalf("cache = %+v, want no hit after project.settings changed", report.Cache)
 	}
 
 	writeFullFixture(t, filepath.Join(fixture.root, "build.gradle"), "plugins { id 'java-library' }\n")
 	if _, report := fixture.index(); report.Cache.Hits != 0 {
-		t.Fatalf("cache = %+v, want no hit after analyzer manifest changed", report.Cache)
+		t.Fatalf("cache = %+v, want no hit after build.gradle changed", report.Cache)
 	}
 }
 

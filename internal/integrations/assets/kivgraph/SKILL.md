@@ -109,11 +109,11 @@ repository/path/qualified-name triple remains portable across profiles.
    description says, or when you must establish that a published generation
    exists at all. It reports the snapshot, its age, repository coverage and
    whether a repository moved since it was indexed. Read `content_freshness`
-   separately from `repository_freshness`: its generation must equal the
-   response snapshot before its `fresh`, `stale` or generation-bound
-   `unverified` state is applied to that graph. An `unavailable` result without
-   a generation means the check could not run and applies regardless of the
-   response snapshot.
+   separately from `repository_freshness`: only `fresh`, `stale` or
+   generation-bound `unverified` evidence whose generation equals the response
+   snapshot applies to that graph. Any mismatch is reported as `unverified` and
+   requires a retry. An `unavailable` result without a generation means the
+   check could not run and applies regardless of the response snapshot.
 
 Python, Dart, Java and C# notes:
 

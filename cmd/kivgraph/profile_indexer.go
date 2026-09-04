@@ -102,10 +102,11 @@ func (indexer *profileProjectIndexer) IndexProjectsInProfile(
 	service := indexing.NewService(loaded, profileStore, version.Value, "")
 	result, err := service.IndexProjects(ctx, projects, progress)
 	if err == nil {
-		indexer.markFresh(profile, result.SnapshotID)
+		cache := indexer.freshnessCache(profile, profileStore)
+		cache.Store(service.ContentFreshness(ctx))
 		watchLoaded, watchErr := config.LoadProfile(indexer.configPath, profile)
 		if watchErr != nil {
-			indexer.freshnessCache(profile, profileStore).MarkUnavailable(
+			cache.MarkUnavailable(
 				fmt.Sprintf("refresh content-freshness registry: %v", watchErr))
 		} else {
 			indexer.watchProfile(profile, watchLoaded, profileStore)
@@ -128,12 +129,11 @@ func (indexer *profileProjectIndexer) ReindexProfile(ctx context.Context, profil
 	if err != nil {
 		return err
 	}
-	if err := indexing.NewService(loaded, profileStore, version.Value, "").Reindex(ctx); err != nil {
+	service := indexing.NewService(loaded, profileStore, version.Value, "")
+	if err := service.Reindex(ctx); err != nil {
 		return err
 	}
-	if generation, known := profileStore.ActiveID(); known {
-		indexer.markFresh(profile, generation)
-	}
+	indexer.freshnessCache(profile, profileStore).Store(service.ContentFreshness(ctx))
 	return nil
 }
 
@@ -164,13 +164,6 @@ func (indexer *profileProjectIndexer) freshnessCache(profile string, store *hots
 	cache := freshness.NewCache(status)
 	indexer.freshness[profile] = cache
 	return cache
-}
-
-func (indexer *profileProjectIndexer) markFresh(profile string, generation uint64) {
-	indexer.freshnessCache(profile, nil).Store(freshness.Status{
-		Generation: generation,
-		State:      "fresh",
-	})
 }
 
 // ContentFreshness is the MCP host-status fast path. It compares two

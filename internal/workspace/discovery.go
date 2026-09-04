@@ -36,6 +36,9 @@ func DiscoverTypeScript(ctx context.Context, repository Repository) (TypeScriptD
 	if err != nil {
 		return TypeScriptDiscovery{}, fmt.Errorf("discover TypeScript root: %w", err)
 	}
+	if err := validateExclusionPatterns(root, repository.Exclusions); err != nil {
+		return TypeScriptDiscovery{}, fmt.Errorf("validate TypeScript exclusions: %w", err)
+	}
 
 	packageManifests := make(map[string]struct{})
 	configPaths := make(map[string]struct{})
@@ -202,6 +205,22 @@ func MatchesExclusion(base, candidate string, exclusions []string) (bool, error)
 		}
 	}
 	return false, nil
+}
+
+func validateExclusionPatterns(base string, exclusions []string) error {
+	for index, rawPattern := range exclusions {
+		pattern, err := normalizeExclusionPattern(base, rawPattern)
+		if err != nil {
+			return fmt.Errorf("exclusions[%d]: %w", index, err)
+		}
+		if pattern == "" || pattern == "." {
+			continue
+		}
+		if _, err := discoveryPatternMatch(pattern, ""); err != nil {
+			return fmt.Errorf("exclusions[%d] %q: %w", index, rawPattern, err)
+		}
+	}
+	return nil
 }
 
 func normalizeExclusionPattern(base, rawPattern string) (string, error) {

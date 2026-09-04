@@ -246,7 +246,7 @@ func TestCargoExcludesAnswersForAPathDiscoveryNeverWalked(t *testing.T) {
 			candidate := filepath.Join(root, filepath.FromSlash(test.path))
 			excluded := CargoExcludes(root, candidate, test.exclusions)
 			if excluded != test.want {
-				t.Fatalf("CargoExcludes(%q) = %t, want %t", test.path, excluded, test.want)
+				t.Fatalf("CargoExcludes(%q, %q) = %t, want %t", test.path, test.exclusions, excluded, test.want)
 			}
 		})
 	}

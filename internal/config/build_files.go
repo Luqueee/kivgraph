@@ -30,6 +30,7 @@ var analyzerBuildConfigurationNames = []string{
 	"NuGet.config",
 	"package-lock.json",
 	"package.json",
+	"packages.config",
 	"packages.lock.json",
 	"Pipfile",
 	"Pipfile.lock",
@@ -79,8 +80,7 @@ func IsBuildConfigurationFile(path string) bool {
 		strings.HasSuffix(base, ".csproj") ||
 		strings.HasSuffix(base, ".sln") ||
 		strings.HasSuffix(base, ".props") ||
-		strings.HasSuffix(base, ".targets") ||
-		strings.HasSuffix(base, ".config")
+		strings.HasSuffix(base, ".targets")
 }
 
 // BuildConfigurationPaths returns the named analyzer configuration paths that

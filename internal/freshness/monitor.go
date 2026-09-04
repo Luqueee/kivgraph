@@ -56,7 +56,7 @@ func NewRegistryMonitor(
 		return nil, err
 	}
 	initial := cache.Load()
-	if initial.Generation > 0 {
+	if initial.Generation > 0 && initial.State == "unverified" {
 		monitor.verify.Add(1)
 		go monitor.verifyInitial(attestationRoot, initial.Generation, registry.List())
 	}
@@ -143,6 +143,11 @@ func (monitor *Monitor) Close() {
 func (monitor *Monitor) verifyInitial(root string, generation uint64, repositories []workspace.Repository) {
 	defer monitor.verify.Done()
 	status := Check(monitor.ctx, root, generation, repositories)
+	if monitor.ctx.Err() != nil {
+		// A cancelled inventory is not an observation. Publishing it during
+		// shutdown could overwrite state that a replacement monitor owns.
+		return
+	}
 	monitor.cache.StoreIfUnverified(status)
 }
 

@@ -38,6 +38,9 @@ func DiscoverCargo(ctx context.Context, repository Repository) (CargoDiscovery, 
 	if err != nil {
 		return CargoDiscovery{}, fmt.Errorf("discover Cargo root: %w", err)
 	}
+	if err := validateExclusionPatterns(root, repository.Exclusions); err != nil {
+		return CargoDiscovery{}, fmt.Errorf("validate Cargo exclusions: %w", err)
+	}
 
 	manifests := make(map[string]cargoManifest)
 	lockFiles := make(map[string]struct{})

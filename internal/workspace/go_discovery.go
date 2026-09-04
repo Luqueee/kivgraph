@@ -37,6 +37,9 @@ func DiscoverGo(ctx context.Context, repository Repository) (GoDiscovery, error)
 	if err != nil {
 		return GoDiscovery{}, fmt.Errorf("discover Go root: %w", err)
 	}
+	if err := validateExclusionPatterns(root, repository.Exclusions); err != nil {
+		return GoDiscovery{}, fmt.Errorf("validate Go exclusions: %w", err)
+	}
 
 	modules := make(map[string]GoModule)
 	workspaces := make(map[string]GoWorkspace)

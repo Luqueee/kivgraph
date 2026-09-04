@@ -106,7 +106,7 @@ func TestInventoryIncludesRegisteredScopeAndExplicitManifests(t *testing.T) {
 	initial = capture()
 	repository.Manifests[0] = filepath.Join(root, "other.settings")
 	if capture() == initial {
-		t.Fatal("registered manifest identity did not invalidate the inventory")
+		t.Fatalf("registered manifest identity %q did not invalidate the inventory", repository.Manifests[0])
 	}
 	repository.Manifests[0] = explicit
 	initial = capture()
@@ -114,7 +114,7 @@ func TestInventoryIncludesRegisteredScopeAndExplicitManifests(t *testing.T) {
 		t.Fatal(err)
 	}
 	if capture() == initial {
-		t.Fatal("explicit manifest outside the extension set was not fingerprinted")
+		t.Fatalf("explicit manifest %q outside the extension set was not fingerprinted", explicit)
 	}
 	repository.Manifests[0] = external
 	initial = capture()
@@ -122,7 +122,7 @@ func TestInventoryIncludesRegisteredScopeAndExplicitManifests(t *testing.T) {
 		t.Fatal(err)
 	}
 	if capture() == initial {
-		t.Fatal("explicit manifest outside the repository walk was not fingerprinted")
+		t.Fatalf("explicit manifest %q outside the repository walk was not fingerprinted", external)
 	}
 }
 
@@ -269,21 +269,16 @@ func TestFreshnessMonitorInvalidatesOnlyRegisteredInputs(t *testing.T) {
 	}
 	defer monitor.Close()
 	<-monitor.ready
-	if err := os.WriteFile(source, []byte("changed\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	waitForFreshnessState(t, cache, "stale")
-	cache.Store(Status{Generation: 9, State: "fresh"})
 	if err := os.WriteFile(ignored, []byte("ignored\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	assertFreshFor(t, cache, 200*time.Millisecond, ignored)
-	if err := os.WriteFile(source, []byte("changed again\n"), 0o600); err != nil {
+	if err := os.WriteFile(source, []byte("changed\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	waitForFreshnessState(t, cache, "stale")
+	waitForFreshnessState(t, cache, "stale", source)
 	if got := cache.Load(); !strings.Contains(got.Detail, source) {
-		t.Fatalf("excluded input invalidated cache before the source input: %+v", got)
+		t.Fatalf("source input %q did not produce the invalidation: %+v", source, got)
 	}
 }
 
@@ -305,7 +300,7 @@ func assertFreshFor(t *testing.T, cache *Cache, duration time.Duration, input st
 	}
 }
 
-func waitForFreshnessState(t *testing.T, cache *Cache, want string) {
+func waitForFreshnessState(t *testing.T, cache *Cache, want, input string) {
 	t.Helper()
 	deadline := time.NewTimer(2 * time.Second)
 	defer deadline.Stop()
@@ -317,7 +312,7 @@ func waitForFreshnessState(t *testing.T, cache *Cache, want string) {
 		}
 		select {
 		case <-deadline.C:
-			t.Fatalf("cache state = %+v, want %q", cache.Load(), want)
+			t.Fatalf("input %q left cache state = %+v, want %q", input, cache.Load(), want)
 		case <-ticker.C:
 		}
 	}
@@ -344,7 +339,7 @@ func TestFreshnessMonitorInvalidatesRepositoryRegistryChanges(t *testing.T) {
 	if err := os.WriteFile(registryPath, []byte("after\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	waitForFreshnessState(t, cache, "stale")
+	waitForFreshnessState(t, cache, "stale", registryPath)
 }
 
 func TestAttestationIsGenerationBoundAndFailsClosed(t *testing.T) {
@@ -381,7 +376,7 @@ func TestAttestationIsGenerationBoundAndFailsClosed(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := Check(t.Context(), root, 1, repos); got.State != "unverified" {
-		t.Fatal(got)
+		t.Fatalf("empty record body {} = %+v, want unverified", got)
 	}
 	if err := os.WriteFile(recordPath(root, 1), []byte(`{"version":1,"generation":1,"digest":"`+strings.Repeat("z", 64)+`"}`), 0600); err != nil {
 		t.Fatal(err)
@@ -396,6 +391,28 @@ func TestSaveHonorsCancellation(t *testing.T) {
 	cancel()
 	if err := Save(ctx, t.TempDir(), 1, strings.Repeat("0", 64)); err == nil {
 		t.Fatal("Save() ignored cancellation")
+	}
+}
+
+func TestCancelledInitialAttestationDoesNotReplaceCache(t *testing.T) {
+	root := t.TempDir()
+	digest, err := Capture(t.Context(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Save(t.Context(), root, 9, digest); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	want := Status{Generation: 9, State: "unverified", Detail: "waiting for initial attestation"}
+	cache := NewCache(want)
+	monitor := &Monitor{ctx: ctx, cache: cache}
+	monitor.verify.Add(1)
+	monitor.verifyInitial(root, want.Generation, nil)
+	monitor.verify.Wait()
+	if got := cache.Load(); got != want {
+		t.Fatalf("cancelled initial attestation = %+v, want %+v", got, want)
 	}
 }
 

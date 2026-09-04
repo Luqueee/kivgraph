@@ -51,6 +51,9 @@ func UnclaimedTypeScriptSources(
 		return nil, err
 	}
 	root := filepath.Clean(repositoryRootPath(repository))
+	if err := validateExclusionPatterns(root, repository.Exclusions); err != nil {
+		return nil, fmt.Errorf("validate TypeScript exclusions: %w", err)
+	}
 
 	claimed := make(map[string]struct{})
 	excludePatternSegments := make([][]string, 0, len(discovery.Projects)*4)

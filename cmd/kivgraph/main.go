@@ -620,56 +620,108 @@ func watchConfiguredProfiles(
 	stops := make([]func(), 0, len(profiles)*2)
 	watched := make(map[string]struct{}, len(profiles))
 	monitorStops := make(map[string]func(), len(profiles))
+	monitorStarts := make(map[string]uint64, len(profiles))
+	var monitorStartsWG sync.WaitGroup
+	monitorStartContext, cancelMonitorStarts := context.WithCancel(ctx)
+	var nextMonitorStart uint64
 	closed := false
 	indexer.setDefaultProfile(loaded.Config.Profiles.Default)
 	startFreshnessMonitor := func(name string, profileLoaded config.Loaded, profileStore *hotsnapshot.SnapshotStore) {
 		cache := indexer.freshnessCache(name, profileStore)
-		monitor, monitorErr := freshness.NewRegistryMonitor(
-			ctx,
-			profileLoaded.Repositories,
-			profileLoaded.RepositoriesPath,
-			filepath.Dir(profileLoaded.Config.Storage.DatabasePath),
-			cache,
-		)
-		if monitorErr != nil {
-			cache.MarkUnavailable(monitorErr.Error())
-			writeWarning(os.Stderr, "content freshness for profile %q: %v", name, monitorErr)
-			delete(monitorStops, name)
+		watchersMu.Lock()
+		if closed {
+			watchersMu.Unlock()
 			return
 		}
-		stop := monitor.Close
-		monitorStops[name] = stop
-		stops = append(stops, stop)
+		nextMonitorStart++
+		startID := nextMonitorStart
+		monitorStarts[name] = startID
+		previous := monitorStops[name]
+		delete(monitorStops, name)
+		monitorStartsWG.Add(1)
+		watchersMu.Unlock()
+		if previous != nil {
+			previous()
+		}
+		go func() {
+			defer monitorStartsWG.Done()
+			monitor, monitorErr := freshness.NewRegistryMonitor(
+				monitorStartContext,
+				profileLoaded.Repositories,
+				profileLoaded.RepositoriesPath,
+				filepath.Dir(profileLoaded.Config.Storage.DatabasePath),
+				cache,
+			)
+			if monitorErr != nil {
+				watchersMu.Lock()
+				current := !closed && monitorStarts[name] == startID
+				if current {
+					delete(monitorStarts, name)
+				}
+				watchersMu.Unlock()
+				if current {
+					cache.MarkUnavailable(monitorErr.Error())
+					writeWarning(os.Stderr, "content freshness for profile %q: %v", name, monitorErr)
+				}
+				return
+			}
+			watchersMu.Lock()
+			current := !closed && monitorStarts[name] == startID
+			if current {
+				monitorStops[name] = monitor.Close
+			}
+			watchersMu.Unlock()
+			if !current {
+				monitor.Close()
+			}
+		}()
 	}
 	register := func(name string, profileLoaded config.Loaded, profileStore *hotsnapshot.SnapshotStore) {
 		watchersMu.Lock()
-		defer watchersMu.Unlock()
 		if closed {
+			watchersMu.Unlock()
 			return
 		}
-		if _, found := watched[name]; found {
-			if stop := monitorStops[name]; stop != nil {
-				stop()
-			}
-			startFreshnessMonitor(name, profileLoaded, profileStore)
-			return
+		_, found := watched[name]
+		if !found {
+			watched[name] = struct{}{}
 		}
-		watched[name] = struct{}{}
+		watchersMu.Unlock()
 		startFreshnessMonitor(name, profileLoaded, profileStore)
-		stops = append(stops,
-			followPublishedGeneration(ctx, profileLoaded, profileStore, command, indexing.FollowOptions{}),
-			resyncOnBranchChange(ctx, profileLoaded, profileStore, namedProfileReindexer{indexer, name}, command),
-		)
+		if found {
+			return
+		}
+		followStop := followPublishedGeneration(ctx, profileLoaded, profileStore, command, indexing.FollowOptions{})
+		resyncStop := resyncOnBranchChange(ctx, profileLoaded, profileStore, namedProfileReindexer{indexer, name}, command)
+		watchersMu.Lock()
+		if closed {
+			watchersMu.Unlock()
+			resyncStop()
+			followStop()
+			return
+		}
+		stops = append(stops, followStop, resyncStop)
+		watchersMu.Unlock()
 	}
 	cleanup := func() {
 		watchersMu.Lock()
+		if closed {
+			watchersMu.Unlock()
+			return
+		}
 		closed = true
+		cancelMonitorStarts()
 		current := stops
 		stops = nil
+		for name, stop := range monitorStops {
+			current = append(current, stop)
+			delete(monitorStops, name)
+		}
 		watchersMu.Unlock()
 		for index := len(current) - 1; index >= 0; index-- {
 			current[index]()
 		}
+		monitorStartsWG.Wait()
 	}
 	for _, profile := range profiles {
 		profileLoaded, err := config.LoadProfile(loaded.ConfigPath, profile.Name)
