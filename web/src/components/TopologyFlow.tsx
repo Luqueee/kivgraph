@@ -1176,7 +1176,6 @@ export function TopologyFlow({
         fitViewOptions={{ padding: 0.24, minZoom: 0.35, maxZoom: 1.25 }}
         minZoom={0.25}
         maxZoom={2}
-        onlyRenderVisibleElements
         nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable={false}
