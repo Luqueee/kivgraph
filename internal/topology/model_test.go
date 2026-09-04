@@ -243,25 +243,25 @@ func TestSourceObservationIdentityUsesObservedStateNotPath(t *testing.T) {
 	}
 	second, err := NewSourceObservation("frontend", " abc123 ", "main", false, strings.ToUpper(digest))
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("NewSourceObservation() normalized equivalent observation: %v", err)
 	}
 	if first != second {
 		t.Fatalf("equivalent observations differ: %#v != %#v", first, second)
 	}
 	if err := first.Validate(); err != nil {
-		t.Fatal(err)
+		t.Fatalf("first source observation Validate(): %v", err)
 	}
 
 	dirty, err := NewSourceObservation("frontend", "abc123", "main", true, digest)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("NewSourceObservation() dirty observation: %v", err)
 	}
 	if dirty.ID == first.ID {
 		t.Fatal("dirty and clean observations must have different identities")
 	}
 	changed, err := NewSourceObservation("frontend", "abc123", "main", false, strings.Repeat("b", 64))
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("NewSourceObservation() changed-content observation: %v", err)
 	}
 	if changed.ID == first.ID {
 		t.Fatal("different content must have different observation identities")

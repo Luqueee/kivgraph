@@ -30,18 +30,14 @@ import {
 } from "@/topology-layout";
 import { cn } from "@/lib/utils";
 
-const NODE_TYPE_LABELS: Record<TopologyNode["type"], string> = {
-  profile: "profile",
-  worktree: "worktree",
-  repository: "repository",
-  shared_input: "shared input",
-};
-
-const NODE_COLORS: Record<TopologyNode["type"], string> = {
-  profile: "#7c3aed",
-  worktree: "#94a3b8",
-  repository: "#2563eb",
-  shared_input: "#059669",
+export const TOPOLOGY_NODE_STYLES: Record<
+  TopologyNode["type"],
+  { readonly label: string; readonly color: string }
+> = {
+  profile: { label: "profile", color: "#7c3aed" },
+  worktree: { label: "worktree", color: "#94a3b8" },
+  repository: { label: "repository", color: "#2563eb" },
+  shared_input: { label: "shared input", color: "#059669" },
 };
 
 const REPOSITORY_GROUP_COLOR = "#2563eb";
@@ -155,7 +151,7 @@ function displayNodeKey(node: FlowDisplayNode): string {
 
 function displayNodeType(node: FlowDisplayNode): string {
   return node.kind === "topology"
-    ? NODE_TYPE_LABELS[node.topologyNode.type]
+    ? TOPOLOGY_NODE_STYLES[node.topologyNode.type].label
     : "repository group";
 }
 
@@ -169,7 +165,7 @@ function displayNodeSubtitle(node: FlowDisplayNode): string {
 
 function displayNodeColor(node: FlowDisplayNode): string {
   return node.kind === "topology"
-    ? NODE_COLORS[node.topologyNode.type]
+    ? TOPOLOGY_NODE_STYLES[node.topologyNode.type].color
     : REPOSITORY_GROUP_COLOR;
 }
 
@@ -1160,6 +1156,11 @@ export function TopologyFlow({
     (count, edge) => count + (edge.data?.count ?? 1),
     0,
   );
+  const totalRelationshipCount = renderedGraph.edgeGroups.reduce(
+    (count, group) => count + group.count,
+    0,
+  );
+  const edgeGroupsTruncated = edges.length < renderedGraph.edgeGroups.length;
   const selectedRepository = model.nodes.find(
     (node) => node.key === selectedKey && node.type === "repository",
   );
@@ -1252,8 +1253,13 @@ export function TopologyFlow({
           </div>
         ) : null}
         <div className="pointer-events-none absolute bottom-3 left-3 z-10 border border-rule-strong bg-panel px-3 py-2 font-mono text-[10px] text-gray-400 shadow-xl">
-          {nodes.length} visible nodes · {edges.length} visual links ·{" "}
-          {representedRelationshipCount} relationships represented
+          {nodes.length} visible nodes · {edges.length}/
+          {renderedGraph.edgeGroups.length} visual links ·{" "}
+          {representedRelationshipCount}/{totalRelationshipCount} relationships
+          represented
+          {edgeGroupsTruncated
+            ? ` · link display limited to ${MAX_RENDERED_FLOW_EDGES} groups`
+            : ""}
           {focus.mode === "selection"
             ? " · trace shows up to three relationship steps"
             : expandedProfiles.length > 0

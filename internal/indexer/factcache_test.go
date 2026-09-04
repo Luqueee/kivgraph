@@ -6,7 +6,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -31,21 +30,13 @@ type cachedFixture struct {
 
 func newCachedFixture(t *testing.T) *cachedFixture {
 	t.Helper()
-	template := testsupport.TempDir(t)
-	writeFullFixture(t, filepath.Join(template, "go.mod"), "module example.com/cached\n\ngo 1.24\n")
-	writeFullFixture(t, filepath.Join(template, "fixture.go"), `package fixture
+	root := testsupport.TempDir(t)
+	writeFullFixture(t, filepath.Join(root, "go.mod"), "module example.com/cached\n\ngo 1.24\n")
+	writeFullFixture(t, filepath.Join(root, "fixture.go"), `package fixture
 
 // Greeting is the definition every assertion below counts.
 func Greeting() string { return "hello" }
 `)
-	root := testsupport.TempDir(t)
-	for _, name := range []string{"go.mod", "fixture.go"} {
-		content, err := os.ReadFile(filepath.Join(template, name))
-		if err != nil {
-			t.Fatalf("ReadFile(%q) error = %v", name, err)
-		}
-		writeFullFixture(t, filepath.Join(root, name), string(content))
-	}
 	return &cachedFixture{
 		t:        t,
 		root:     root,
@@ -184,7 +175,7 @@ func Greeting() string { return "hello" }
 	if report.Cache.Hits != 1 || report.Cache.Misses != 0 {
 		t.Fatalf("restored source cache = %+v, want the previous content address to be warm", report.Cache)
 	}
-	if !reflect.DeepEqual(restored, cold) {
+	if encodedFacts(t, restored) != encodedFacts(t, cold) {
 		t.Fatalf("restored source facts for %q differ from the original facts", filepath.Join(fixture.root, "fixture.go"))
 	}
 }

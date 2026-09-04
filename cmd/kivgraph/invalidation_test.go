@@ -1,7 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -61,13 +65,94 @@ func TestInvalidationSchedulerRebuildsEachStaleProfileOnce(t *testing.T) {
 	}
 }
 
+func TestInvalidationSchedulerRetriesWhenReindexLeavesAProfileStale(t *testing.T) {
+	manager := schedulerTestStaleManager(t)
+	var logs bytes.Buffer
+	fake := &schedulerTestReindexer{calls: make(chan string, 1)}
+	scheduler := newInvalidationScheduler(context.Background(), manager, fake,
+		slog.New(slog.NewTextHandler(&logs, nil)))
+	defer scheduler.Close()
+
+	scheduler.reindex("default")
+	if profile := <-fake.calls; profile != "default" {
+		t.Fatalf("ReindexProfile() profile = %q, want default", profile)
+	}
+	if !profileIsStale(manager.Snapshot(), "default") {
+		t.Fatal("profile stopped being stale without a published replacement")
+	}
+	scheduler.mu.Lock()
+	attempts := scheduler.attempts["default"]
+	scheduler.mu.Unlock()
+	if attempts != 1 {
+		t.Fatalf("stale reindex attempts = %d, want 1", attempts)
+	}
+	if !strings.Contains(logs.String(), "rebuild completed without clearing stale source state") {
+		t.Fatalf("scheduler log = %q, want the stale-state rebuild reason", logs.String())
+	}
+}
+
+func TestInvalidationSchedulerGivesUpAfterTheRetryBudget(t *testing.T) {
+	manager := schedulerTestStaleManager(t)
+	var logs bytes.Buffer
+	fake := &schedulerTestReindexer{calls: make(chan string, 1), err: errors.New("index failed")}
+	scheduler := newInvalidationScheduler(context.Background(), manager, fake,
+		slog.New(slog.NewTextHandler(&logs, nil)))
+	defer scheduler.Close()
+	scheduler.mu.Lock()
+	scheduler.attempts["default"] = profileInvalidationAttempts - 1
+	scheduler.mu.Unlock()
+
+	scheduler.reindex("default")
+	if profile := <-fake.calls; profile != "default" {
+		t.Fatalf("ReindexProfile() profile = %q, want default", profile)
+	}
+	scheduler.mu.Lock()
+	attempts := scheduler.attempts["default"]
+	_, pending := scheduler.pending["default"]
+	scheduler.mu.Unlock()
+	if attempts != profileInvalidationAttempts || pending {
+		t.Fatalf("retry state = attempts:%d pending:%t, want exhausted without a retry", attempts, pending)
+	}
+	if !strings.Contains(logs.String(), "gave up rebuilding a stale profile") ||
+		!strings.Contains(logs.String(), "kivgraph index --full") {
+		t.Fatalf("scheduler log = %q, want the give-up remedy", logs.String())
+	}
+}
+
+func schedulerTestStaleManager(t *testing.T) *invalidation.Manager {
+	t.Helper()
+	manager, err := invalidation.Open(testsupport.TempDir(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest := schedulerTestManifest("default", "commit-a")
+	if err := manager.RecordPublished(context.Background(), invalidation.ProfileRecord{
+		Profile: "default", Generation: "000001", Manifest: manifest,
+	}); err != nil {
+		t.Fatalf("RecordPublished(default) error = %v", err)
+	}
+	if err := manager.MarkStale(context.Background(), "shared", "shared", invalidation.ReasonContentChanged, "source changed"); err != nil {
+		t.Fatalf("MarkStale() error = %v", err)
+	}
+	return manager
+}
+
 type schedulerTestReindexer struct {
 	manager   *invalidation.Manager
 	manifests map[string]sourceobservation.Manifest
 	calls     chan string
+	err       error
 }
 
 func (reindexer *schedulerTestReindexer) ReindexProfile(ctx context.Context, profile string) error {
+	if reindexer.err != nil {
+		reindexer.calls <- profile
+		return reindexer.err
+	}
+	if reindexer.manager == nil {
+		reindexer.calls <- profile
+		return nil
+	}
 	if err := reindexer.manager.RecordPublished(ctx, invalidation.ProfileRecord{
 		Profile: profile, Generation: "000002", Manifest: reindexer.manifests[profile],
 	}); err != nil {

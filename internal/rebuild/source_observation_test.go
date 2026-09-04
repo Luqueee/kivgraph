@@ -63,6 +63,26 @@ func TestRunDoesNotReplaceTheCurrentGenerationWhenSourcesMove(t *testing.T) {
 	}
 }
 
+func TestRunReportsTheBuiltSnapshotWhenWritingSourceObservationsFails(t *testing.T) {
+	root := testsupport.TempDir(t)
+	options := buildOptions(t, root, "000001", sampleFacts())
+	manifest := rebuildSourceManifest(t)
+	options.SourceManifest = &manifest
+	options.WriteSourceManifest = func(string, sourceobservation.Manifest) error {
+		return errors.New("source manifest filesystem failure")
+	}
+
+	report, err := Run(context.Background(), options)
+	if err == nil || !strings.Contains(err.Error(), "write source observations") {
+		t.Fatalf("Run() error = %v, want source observation write failure", err)
+	}
+	stage, found := stageByName(report.Stages, StageSnapshot)
+	if !found || !strings.Contains(stage.Detail, "hot snapshot 7 built") ||
+		!strings.Contains(stage.Detail, "source manifest filesystem failure") {
+		t.Fatalf("snapshot stage = %#v, want snapshot detail and source observation failure", stage)
+	}
+}
+
 func TestRunRejectsASourceVerifierWithoutAPersistedManifest(t *testing.T) {
 	options := buildOptions(t, testsupport.TempDir(t), "000001", sampleFacts())
 	options.VerifySources = func(context.Context) error { return nil }

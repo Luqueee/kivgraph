@@ -307,14 +307,13 @@ export async function calculateTopologyLayout(
       y: (port.y ?? DEFAULT_NODE_HEIGHT / 2) + (port.height ?? 0) / 2,
     })),
   }));
+  const edgesByID = new Map(normalized.edges.map((edge) => [edge.id, edge]));
   const routes = (laidOut.edges ?? []).flatMap((edge) => {
     const points = edgeSectionPoints(edge).map((point) => ({
       x: point.x + LAYOUT_PADDING,
       y: point.y + LAYOUT_PADDING,
     }));
-    const source = normalized.edges.find(
-      (candidate) => candidate.id === edge.id,
-    );
+    const source = edgesByID.get(edge.id);
     return source && points.length >= 2
       ? [{ id: edge.id, source: source.source, target: source.target, points }]
       : [];

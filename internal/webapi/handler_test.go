@@ -323,6 +323,25 @@ func TestHandlerTopologyReturnsPinnedProfilesAndRelationships(t *testing.T) {
 	}
 }
 
+func TestTopologyRelationshipsPreserveCrossRepositoryEndpoints(t *testing.T) {
+	assembler := newTopologyAssembler()
+	err := assembler.addSnapshotRelationships(context.Background(), topologyProfileData{
+		Name:         "default",
+		GenerationID: "000007",
+		Snapshot:     testSnapshotWithCrossRepositoryTopology(t, 7),
+	})
+	if err != nil {
+		t.Fatalf("addSnapshotRelationships() error = %v", err)
+	}
+	for _, relationship := range assembler.relationships {
+		if relationship.Type == "code_dependency" && relationship.Source.ID == "repo" &&
+			relationship.Target != nil && relationship.Target.ID == "provider" {
+			return
+		}
+	}
+	t.Fatalf("cross-repository dependency = missing from %#v", assembler.relationships)
+}
+
 func TestTopologyResponseUsesEmptyLanguageArrayWhenMetadataIsUnavailable(t *testing.T) {
 	configPath, _ := topologyTestConfiguration(t, "default")
 	const repositoryLanguages = ""
@@ -682,12 +701,27 @@ func testSnapshotWithTopologyIDAndLanguages(t *testing.T, snapshotID uint64, lan
 	return testSnapshotDataWithLanguages(t, snapshotID, true, languages)
 }
 
+func testSnapshotWithCrossRepositoryTopology(t *testing.T, snapshotID uint64) *hotsnapshot.GraphSnapshot {
+	t.Helper()
+	return testSnapshotDataWithLanguagesAndCrossRepository(t, snapshotID, true, "go", true)
+}
+
 func testSnapshotData(t *testing.T, snapshotID uint64, includeTopologyRecords bool) *hotsnapshot.GraphSnapshot {
 	t.Helper()
 	return testSnapshotDataWithLanguages(t, snapshotID, includeTopologyRecords, "go")
 }
 
 func testSnapshotDataWithLanguages(t *testing.T, snapshotID uint64, includeTopologyRecords bool, repositoryLanguages string) *hotsnapshot.GraphSnapshot {
+	return testSnapshotDataWithLanguagesAndCrossRepository(t, snapshotID, includeTopologyRecords, repositoryLanguages, false)
+}
+
+func testSnapshotDataWithLanguagesAndCrossRepository(
+	t *testing.T,
+	snapshotID uint64,
+	includeTopologyRecords bool,
+	repositoryLanguages string,
+	includeCrossRepository bool,
+) *hotsnapshot.GraphSnapshot {
 	t.Helper()
 	interner := hotsnapshot.NewStringInterner()
 	intern := func(value string) hotsnapshot.InternedString {
@@ -730,12 +764,37 @@ func testSnapshotDataWithLanguages(t *testing.T, snapshotID uint64, includeTopol
 	intern("unresolved symbol")
 	intern("not found")
 	intern("Missing")
+	if includeCrossRepository {
+		intern("repository:provider")
+		intern("package:go:provider:example")
+		intern("provider")
+		intern("/workspace/provider")
+		intern("provider.example")
+	}
 	stringTable := interner.Freeze()
+	repositories := []hotsnapshot.RepositoryRecord{{
+		Key: repoKey, Name: interned(stringTable, "repo"), Path: interned(stringTable, "/workspace/repo"), Languages: repositoryLanguageKey,
+	}}
+	packages := []hotsnapshot.PackageRecord{{
+		Key: packageKey, Repository: 0, Language: language, Name: interned(stringTable, "example"), ModulePath: interned(stringTable, "example"),
+	}}
+	packageDependencyTarget := hotsnapshot.PackageID(0)
+	if includeCrossRepository {
+		repositories = append(repositories, hotsnapshot.RepositoryRecord{
+			Key: interned(stringTable, "repository:provider"), Name: interned(stringTable, "provider"),
+			Path: interned(stringTable, "/workspace/provider"), Languages: repositoryLanguageKey,
+		})
+		packages = append(packages, hotsnapshot.PackageRecord{
+			Key: interned(stringTable, "package:go:provider:example"), Repository: 1, Language: language,
+			Name: interned(stringTable, "provider.example"), ModulePath: interned(stringTable, "provider.example"),
+		})
+		packageDependencyTarget = 1
+	}
 	var packageDependencies []hotsnapshot.PackageDependencyRecord
 	var unresolved []hotsnapshot.UnresolvedReferenceRecord
 	if includeTopologyRecords {
 		packageDependencies = []hotsnapshot.PackageDependencyRecord{{
-			Source: 0, Target: 0, Kind: facts.CodePackageDependsOn, Confidence: facts.CodeCandidate,
+			Source: 0, Target: packageDependencyTarget, Kind: facts.CodePackageDependsOn, Confidence: facts.CodeCandidate,
 			Provenance: facts.CodePackageManifest,
 		}}
 		unresolved = []hotsnapshot.UnresolvedReferenceRecord{{
@@ -756,12 +815,8 @@ func testSnapshotDataWithLanguages(t *testing.T, snapshotID uint64, includeTopol
 		SchemaVersion:   2,
 		ResolverVersion: "resolver-test",
 		Strings:         stringTable,
-		Repositories: []hotsnapshot.RepositoryRecord{{
-			Key: repoKey, Name: interned(stringTable, "repo"), Path: interned(stringTable, "/workspace/repo"), Languages: repositoryLanguageKey,
-		}},
-		Packages: []hotsnapshot.PackageRecord{{
-			Key: packageKey, Repository: 0, Language: language, Name: interned(stringTable, "example"), ModulePath: interned(stringTable, "example"),
-		}},
+		Repositories:    repositories,
+		Packages:        packages,
 		Files: []hotsnapshot.FileRecord{{
 			Key: fileKey, Repository: 0, Package: 0, Path: interned(stringTable, "src/index.go"), Language: language,
 		}},

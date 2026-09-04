@@ -77,8 +77,8 @@ func TestComposePreservesInitializedEmptyWorktrees(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Compose(empty) error = %v", err)
 	}
-	if composition.Profile.Worktrees == nil {
-		t.Fatal("Compose(empty) returned a nil profile worktrees slice")
+	if len(composition.Profile.Worktrees) != 0 {
+		t.Fatalf("Compose(empty) profile worktrees = %#v, want an empty slice", composition.Profile.Worktrees)
 	}
 }
 

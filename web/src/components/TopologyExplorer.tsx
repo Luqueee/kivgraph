@@ -11,7 +11,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { TOPOLOGY_EDGE_COLORS, TopologyFlow } from "@/components/TopologyFlow";
+import {
+  TOPOLOGY_EDGE_COLORS,
+  TOPOLOGY_NODE_STYLES,
+  TopologyFlow,
+} from "@/components/TopologyFlow";
 import {
   Select,
   SelectContent,
@@ -37,20 +41,6 @@ const INITIAL_FILTERS: TopologyFilters = {
   repository: ALL_TOPOLOGY_FILTER,
   language: ALL_TOPOLOGY_FILTER,
   edgeKind: ALL_TOPOLOGY_FILTER,
-};
-
-const NODE_TYPE_LABELS: Record<TopologyNode["type"], string> = {
-  profile: "profile",
-  worktree: "worktree",
-  repository: "repository",
-  shared_input: "shared input",
-};
-
-const NODE_COLORS: Record<TopologyNode["type"], string> = {
-  profile: "#7c3aed",
-  worktree: "#94a3b8",
-  repository: "#2563eb",
-  shared_input: "#059669",
 };
 
 const MAX_ACCESSIBLE_RELATIONSHIPS = 500;
@@ -294,7 +284,7 @@ function DetailsPanel({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400">
-            {NODE_TYPE_LABELS[node.type]}
+            {TOPOLOGY_NODE_STYLES[node.type].label}
           </p>
           <h2 className="mt-1 truncate font-mono text-base font-semibold text-gray-100">
             {node.label}
@@ -436,14 +426,14 @@ function TopologyLegend(): React.ReactElement {
         <span className="flex items-center gap-1.5">
           <span
             className="h-2.5 w-2.5 rounded-none"
-            style={{ backgroundColor: NODE_COLORS.profile }}
+            style={{ backgroundColor: TOPOLOGY_NODE_STYLES.profile.color }}
           />
           purple card · profile
         </span>
         <span className="flex items-center gap-1.5">
           <span
             className="h-2.5 w-2.5 rounded-none"
-            style={{ backgroundColor: NODE_COLORS.repository }}
+            style={{ backgroundColor: TOPOLOGY_NODE_STYLES.repository.color }}
           />
           blue card · repository or repository group
         </span>

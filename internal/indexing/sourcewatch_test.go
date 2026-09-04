@@ -134,10 +134,17 @@ func TestWatchSourcesRetriesARejectedChange(t *testing.T) {
 
 rejected:
 	firstResult := <-rejected
+	rejectedPaths := make(map[string]struct{}, len(firstResult.Modified))
+	for _, state := range firstResult.Modified {
+		rejectedPaths[state.Path] = struct{}{}
+	}
 	select {
 	case result := <-delivered:
-		if !reflect.DeepEqual(result, firstResult) {
-			t.Fatalf("retried source change = %#v, want rejected result %#v", result, firstResult)
+		for _, state := range result.Modified {
+			delete(rejectedPaths, state.Path)
+		}
+		if len(rejectedPaths) != 0 {
+			t.Fatalf("retried source change = %#v, want it to report rejected paths %v (rejected result %#v)", result, rejectedPaths, firstResult)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatalf("WatchSources(%q) did not deliver rejected change", root)

@@ -115,14 +115,15 @@ type Options struct {
 	// show which one is in flight.
 	Progress func(StageName)
 
-	// Load, Counts, Probes, Integrity and Scan default to the ladybug
-	// implementations; tests substitute them so the orchestration is
-	// exercised without cgo.
-	Load      func(context.Context, string, facts.Set, ladybug.CanonicalLoadOptions) (ladybug.LoadReport, error)
-	Counts    func(context.Context, string) (map[string]int64, error)
-	Probes    func(context.Context, string, []ladybug.CanonicalProbe) ([]ladybug.CanonicalProbeResult, error)
-	Integrity func(context.Context, string) (ladybug.CanonicalIntegrityReport, error)
-	Scan      func(context.Context, string) (ladybug.CanonicalGraph, error)
+	// Load, Counts, Probes, Integrity, Scan and WriteSourceManifest default to
+	// their production implementations; tests substitute them so the
+	// orchestration is exercised without cgo or filesystem-permission seams.
+	Load                func(context.Context, string, facts.Set, ladybug.CanonicalLoadOptions) (ladybug.LoadReport, error)
+	Counts              func(context.Context, string) (map[string]int64, error)
+	Probes              func(context.Context, string, []ladybug.CanonicalProbe) ([]ladybug.CanonicalProbeResult, error)
+	Integrity           func(context.Context, string) (ladybug.CanonicalIntegrityReport, error)
+	Scan                func(context.Context, string) (ladybug.CanonicalGraph, error)
+	WriteSourceManifest func(string, sourceobservation.Manifest) error
 }
 
 // snapshotFileName is the digest file Run writes next to the candidate
@@ -332,8 +333,19 @@ func Run(ctx context.Context, options Options) (Report, error) {
 			published = fmt.Sprintf("no %s (%v)", PublishedSnapshotFileName, writeErr)
 		}
 		if options.SourceManifest != nil {
-			if writeErr := sourceobservation.Write(candidatePath, *options.SourceManifest); writeErr != nil {
-				snapshotStage = Stage{Name: StageSnapshot, Detail: writeErr.Error(), DurationMS: elapsedMS(snapshotStart)}
+			writeSourceManifest := options.WriteSourceManifest
+			if writeSourceManifest == nil {
+				writeSourceManifest = sourceobservation.Write
+			}
+			if writeErr := writeSourceManifest(candidatePath, *options.SourceManifest); writeErr != nil {
+				snapshotStage = Stage{
+					Name: StageSnapshot,
+					Detail: fmt.Sprintf("hot snapshot %d built (%d repositories, %d packages, %d files, %d symbols); write source observations: %v",
+						hotSnapshotReport.SnapshotID, hotSnapshotReport.Stats.Repositories,
+						hotSnapshotReport.Stats.Packages, hotSnapshotReport.Stats.Files,
+						hotSnapshotReport.Stats.Symbols, writeErr),
+					DurationMS: elapsedMS(snapshotStart),
+				}
 				return fmt.Errorf("write source observations: %w", writeErr)
 			}
 		}

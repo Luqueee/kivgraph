@@ -120,13 +120,14 @@ func TestLoadProfileScopesDerivedStateAndRegistry(t *testing.T) {
 func TestInitializeMigratesLegacyFactCacheAtInstallationScope(t *testing.T) {
 	root := t.TempDir()
 	configPath := filepath.Join(root, "config.yaml")
+	repositoriesPath := filepath.Join(root, "repositories.yaml")
 	state := filepath.Join(root, "state")
 	legacyEntry := filepath.Join(state, "factcache", "entry.json")
 	if err := os.MkdirAll(filepath.Dir(legacyEntry), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	writeConfigFixture(t, configPath, "version: 1\nstorage:\n  database_path: "+filepath.Join(state, "graph.lbdb")+"\n")
-	writeConfigFixture(t, filepath.Join(root, "repositories.yaml"), "version: 1\nrepositories: []\n")
+	writeConfigFixture(t, configPath, "version: 1\nworkspace:\n  repositories_file: "+repositoriesPath+"\nstorage:\n  database_path: "+filepath.Join(state, "graph.lbdb")+"\n")
+	writeConfigFixture(t, repositoriesPath, "version: 1\nrepositories: []\n")
 	if err := os.WriteFile(legacyEntry, []byte("cached"), 0o600); err != nil {
 		t.Fatal(err)
 	}
