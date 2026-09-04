@@ -645,7 +645,7 @@ func instructionsInstallCommand() commandSpec {
 		},
 		hints: map[string]flagHint{
 			"agent": {values: instructionsAgentNames},
-			"file": {values: instructionsFileNames},
+			"file":  {values: instructionsFileNames},
 		},
 		run: func(_ dependencies, args []string, stdout, stderr io.Writer) int {
 			return runInstructionsInstall(args, stdout, stderr)
