@@ -121,7 +121,14 @@ appended at the end of the file; the rest of the TOML is untouched.
 [mcp_servers.kivgraph]
 command = "/usr/local/bin/kivgraph"
 args = ["serve"]
+
+[mcp_servers.kivgraph.tools.index_project]
+approval_mode = "prompt"
 ```
+
+The per-tool approval entry makes Codex ask before invoking the mutating
+`index_project` tool. The Kivgraph installer preserves approval settings and
+does not add this policy automatically.
 
 ### OpenCode
 

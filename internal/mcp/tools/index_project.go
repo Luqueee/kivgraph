@@ -30,7 +30,7 @@ type profileProjectIndexer interface {
 // The single-project fields remain for one repository and for clients that
 // already send them.
 //
-// The confirmed flag is used by clients that do not implement MCP
+// The confirmed flag is used by clients that cannot answer MCP form
 // elicitation; those clients must obtain user approval before sending true.
 type IndexProjectInput struct {
 	Profile   string              `json:"profile,omitempty" jsonschema:"Profile to index; omit for the default. A missing name creates it."`
@@ -38,7 +38,7 @@ type IndexProjectInput struct {
 	Name      string              `json:"name,omitempty" jsonschema:"Name for a single project. Use it with path and languages, never together with projects."`
 	Path      string              `json:"path,omitempty" jsonschema:"Absolute directory of a single project. Nothing is written inside it."`
 	Languages []string            `json:"languages,omitempty" jsonschema:"Languages to index in the single project, such as go, typescript, rust, python or dart."`
-	Confirmed *bool               `json:"confirmed,omitempty" jsonschema:"Set true only after the user approved this call, and only from a client that cannot answer an elicitation."`
+	Confirmed *bool               `json:"confirmed,omitempty" jsonschema:"Set true only after the user approved this call, and only from a client that cannot answer MCP form elicitation."`
 }
 
 // IndexProjectEntry is one repository of a batch.
@@ -194,7 +194,7 @@ func requireIndexConsent(
 ) error {
 	if request != nil && request.Session != nil {
 		initialize := request.Session.InitializeParams()
-		if initialize != nil && initialize.Capabilities != nil && initialize.Capabilities.Elicitation != nil {
+		if usesMCPFormElicitation(initialize) {
 			result, err := request.Session.Elicit(ctx, &sdkmcp.ElicitParams{
 				Message: fmt.Sprintf(
 					"Allow Kivgraph to register and index %s? This updates the registry and publishes a new graph generation.",
@@ -227,6 +227,30 @@ func requireIndexConsent(
 		)
 	}
 	return nil
+}
+
+// usesMCPFormElicitation selects the interactive consent path only when the
+// client can actually answer a form elicitation. URL-only clients must use
+// the explicit confirmed fallback because Elicit defaults to form requests.
+// Codex exposes its own approval UI while currently returning a declined
+// response to server-side elicitation, so its native approval is paired with
+// the same confirmed fallback used by clients without elicitation support.
+func usesMCPFormElicitation(initialize *sdkmcp.InitializeParams) bool {
+	if initialize == nil || initialize.Capabilities == nil {
+		return false
+	}
+	elicitation := initialize.Capabilities.Elicitation
+	if elicitation == nil || isCodexClient(initialize.ClientInfo) {
+		return false
+	}
+	return elicitation.Form != nil || elicitation.URL == nil
+}
+
+func isCodexClient(clientInfo *sdkmcp.Implementation) bool {
+	if clientInfo == nil {
+		return false
+	}
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(clientInfo.Name)), "codex")
 }
 
 // describeBatch names what approval covers. Approving "11 projects" without

@@ -174,7 +174,14 @@ PERMISSION_DENIED: project indexing was not approved
 
 **Fix**
 
-A client that declares the `elicitation` capability is prompted by the server, naming the projects the approval covers, and needs no argument. A client without it must ask the user itself and then send `confirmed: true`. Pass every project in one call: a rebuild costs the whole corpus.
+A client that advertises form elicitation is prompted by the server, naming the
+projects the approval covers, and needs no argument. A client that cannot answer
+form elicitation must ask the user itself and then send `confirmed: true`. Pass
+every project in one call: a rebuild costs the whole corpus.
+
+Codex uses its native tool-approval prompt and then sends `confirmed: true`;
+it does not complete the server-side form elicitation. A client that advertises
+only URL elicitation uses the same fallback.
 
 If the pass itself fails, the code is `INDEXING_FAILED` and the message carries the reason the indexer gave.
 

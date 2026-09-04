@@ -290,6 +290,10 @@ selects that graph and creates the profile when it does not exist. Ask for
 confirmation first,
 and never claim success until the new generation and snapshot are published.
 
+Clients with MCP form elicitation are prompted by the server. Codex uses its
+native tool-approval prompt instead, then sends `confirmed: true`; clients with
+only URL elicitation use the same explicit fallback.
+
 - Pass every project in one call through `projects`. A rebuild resolves
   cross-repository edges over the complete fact set, so it costs the whole
   corpus whatever was added: eleven separate calls build eleven graphs and
