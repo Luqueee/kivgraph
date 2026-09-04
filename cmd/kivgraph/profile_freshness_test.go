@@ -86,11 +86,11 @@ func TestConfiguredProfileIndexerServesGenerationBoundFreshness(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cs.Close()
-	check := func(profile, want string) {
+	check := func(stage, profile, want string) {
 		t.Helper()
 		result, err := cs.CallTool(t.Context(), &sdkmcp.CallToolParams{Name: "graph_status", Arguments: map[string]any{"profile": []string{profile}}})
 		if err != nil || result.IsError {
-			t.Fatalf("graph_status: %v %v", result, err)
+			t.Fatalf("%s: graph_status(%q): %v %v", stage, profile, result, err)
 		}
 		var response struct {
 			Results struct {
@@ -107,15 +107,16 @@ func TestConfiguredProfileIndexerServesGenerationBoundFreshness(t *testing.T) {
 		got := response.Results.ContentFreshness
 		if want == "" {
 			if got != nil {
-				t.Fatalf("borrowed freshness: %+v", got)
+				t.Fatalf("%s: profile %q borrowed freshness: %+v", stage, profile, got)
 			}
 			return
 		}
 		if got == nil || got.State != want || got.Generation != 7 {
-			t.Fatalf("freshness = %+v, want %s generation 7", got, want)
+			t.Fatalf("%s: profile %q freshness = %+v, want %s generation 7", stage, profile, got, want)
 		}
 	}
-	check("default", "fresh")
+	check("baseline", "default", "fresh")
+	//lint:ignore SA1012 the nil context is the compatibility input under test.
 	if got := indexer.ContentFreshness(nil); got.State != "fresh" {
 		t.Fatalf("nil context: %+v", got)
 	}
@@ -128,43 +129,43 @@ func TestConfiguredProfileIndexerServesGenerationBoundFreshness(t *testing.T) {
 	if err := os.Remove(attestation); err != nil {
 		t.Fatal(err)
 	}
-	check("default", "unverified")
+	check("attestation removed", "default", "unverified")
 	if err := freshness.Save(filepath.Dir(loaded.Config.Storage.DatabasePath), 7, digest); err != nil {
 		t.Fatal(err)
 	}
-	check("other", "")
-	check("*", "")
+	check("other profile", "other", "")
+	check("aggregate", "*", "")
 	// Changing the configuration pointer must not attest a different profile
 	// than the running server's actual default, even at the same generation.
 	if err := config.UseProfile(path, "other"); err != nil {
 		t.Fatal(err)
 	}
-	check("default", "fresh")
+	check("default pointer changed", "default", "fresh")
 	if err := os.WriteFile(source, []byte("package changed\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	check("default", "stale")
+	check("source edited", "default", "stale")
 	if err := os.WriteFile(source, []byte("package fixture\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	check("default", "fresh")
+	check("source restored", "default", "fresh")
 	added := filepath.Join(repo, "new.go")
 	if err := os.WriteFile(added, []byte("package fixture\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	check("default", "stale")
+	check("source added", "default", "stale")
 	if err := os.Remove(added); err != nil {
 		t.Fatal(err)
 	}
-	check("default", "fresh")
+	check("addition removed", "default", "fresh")
 	if err := os.Remove(source); err != nil {
 		t.Fatal(err)
 	}
-	check("default", "stale")
+	check("source deleted", "default", "stale")
 	if err := os.RemoveAll(repo); err != nil {
 		t.Fatal(err)
 	}
-	check("default", "unavailable")
+	check("repository removed", "default", "unavailable")
 	if err := os.Rename(path, path+".saved"); err != nil {
 		t.Fatal(err)
 	}

@@ -224,7 +224,7 @@ func TestProfileUpgradeRejectsUnsafeArtifactsWithoutPublication(t *testing.T) {
 				}
 			}
 			if _, err := LoadProfile(path, ""); err == nil {
-				t.Fatal("accepted unsafe graph")
+				t.Fatalf("accepted unsafe graph %q", kind)
 			}
 			if _, err := os.Stat(filepath.Join(state, "profiles", "default")); !errors.Is(err, os.ErrNotExist) {
 				t.Fatalf("published invalid state: %v", err)
