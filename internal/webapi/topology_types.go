@@ -95,22 +95,26 @@ type topologyObservationView struct {
 }
 
 type topologySharedInputView struct {
-	Type   string   `json:"type"`
-	ID     string   `json:"id"`
-	Owners []string `json:"owners"`
+	Type       string   `json:"type"`
+	ID         string   `json:"id"`
+	Repository string   `json:"repository,omitempty"`
+	Owners     []string `json:"owners"`
+	Status     string   `json:"status"`
+	Reason     string   `json:"reason,omitempty"`
 }
 
 type topologyRelationshipView struct {
-	Profile    string            `json:"profile,omitempty"`
-	Type       string            `json:"type"`
-	Source     topologyNodeView  `json:"source"`
-	Target     *topologyNodeView `json:"target,omitempty"`
-	Kind       string            `json:"kind,omitempty"`
-	Status     string            `json:"status"`
-	Confidence string            `json:"confidence"`
-	Provenance string            `json:"provenance"`
-	Evidence   string            `json:"evidence,omitempty"`
-	Reason     string            `json:"reason,omitempty"`
+	Profile      string            `json:"profile,omitempty"`
+	GenerationID string            `json:"generation_id,omitempty"`
+	Type         string            `json:"type"`
+	Source       topologyNodeView  `json:"source"`
+	Target       *topologyNodeView `json:"target,omitempty"`
+	Kind         string            `json:"kind,omitempty"`
+	Status       string            `json:"status"`
+	Confidence   string            `json:"confidence"`
+	Provenance   string            `json:"provenance"`
+	Evidence     string            `json:"evidence,omitempty"`
+	Reason       string            `json:"reason,omitempty"`
 }
 
 type topologyCompletenessView struct {
@@ -157,9 +161,17 @@ type topologyAssembler struct {
 	worktrees            map[topology.WorktreeID]topology.Worktree
 	profiles             []topologyProfileView
 	sources              []topologySourceView
-	shared               map[topology.WorktreeID]map[string]struct{}
+	shared               map[topology.WorktreeID]*topologySharedInput
+	profileGenerations   map[string]string
 	relationships        []topologyRelationshipView
 	relationshipKeys     map[string]struct{}
 	truncated            bool
 	truncatedReason      string
+}
+
+type topologySharedInput struct {
+	Repository topology.LogicalRepositoryID
+	Owners     map[string]struct{}
+	Overlay    bool
+	Changes    map[string]invalidation.SourceChange
 }

@@ -40,8 +40,8 @@ func TestLoadProfileTopologyRejectsMalformedDocuments(t *testing.T) {
 		},
 		{
 			name: "unsupported version",
-			data: "version: 2\n",
-			want: "unsupported schema version 2",
+			data: "version: 3\n",
+			want: "unsupported schema version 3",
 		},
 		{
 			name: "unknown field",
@@ -119,6 +119,58 @@ func TestSaveAndLoadProfileTopologyExpandsRelativeWorktreePaths(t *testing.T) {
 	expected.Worktrees[0].Path = sourcePath
 	if !reflect.DeepEqual(got, expected) {
 		t.Fatalf("loaded topology = %#v, want %#v", got, expected)
+	}
+}
+
+func TestLoadProfileTopologyKeepsLegacySchemaReadableAndUpgradesOnSave(t *testing.T) {
+	configPath, loaded := newTopologyProfile(t, "feature")
+	legacy := `version: 1
+repositories:
+  - id: backend
+worktrees:
+  - id: backend-main
+    repository: backend
+    path: /workspace/backend
+profiles:
+  - id: feature
+    worktrees:
+      - repository: backend
+        worktree: backend-main
+`
+	if err := os.WriteFile(loaded.TopologyPath, []byte(legacy), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	value, present, err := LoadProfileTopology(configPath, "feature")
+	if err != nil || !present || value.Version != topology.LegacySchemaVersion {
+		t.Fatalf("LoadProfileTopology() = %#v, %t, %v; want readable legacy topology", value, present, err)
+	}
+	if err := SaveProfileTopology(configPath, "feature", value); err != nil {
+		t.Fatalf("SaveProfileTopology(legacy) error = %v", err)
+	}
+	upgraded, present, err := LoadProfileTopology(configPath, "feature")
+	if err != nil || !present || upgraded.Version != topology.CurrentSchemaVersion {
+		t.Fatalf("LoadProfileTopology() after explicit save = %#v, %t, %v; want schema version %d", upgraded, present, err, topology.CurrentSchemaVersion)
+	}
+}
+
+func TestSaveProfileTopologyRejectsAnOverlayInLegacySchema(t *testing.T) {
+	configPath, _ := newTopologyProfile(t, "feature")
+	value := topology.Topology{
+		Version:      topology.LegacySchemaVersion,
+		Repositories: []topology.LogicalRepository{{ID: "backend", Name: "Backend"}},
+		Worktrees: []topology.Worktree{
+			{ID: "backend-main", Repository: "backend", Path: "/workspace/backend-main"},
+			{ID: "backend-feature", Repository: "backend", Path: "/workspace/backend-feature"},
+		},
+		Profiles: []topology.Profile{{
+			ID: "feature",
+			Worktrees: []topology.WorktreeSelection{{
+				Repository: "backend", Worktree: "backend-feature", Overlays: "backend-main",
+			}},
+		}},
+	}
+	if err := SaveProfileTopology(configPath, "feature", value); err == nil || !strings.Contains(err.Error(), "version 1 does not support worktree overlays") {
+		t.Fatalf("SaveProfileTopology(legacy overlay) error = %v, want explicit version refusal", err)
 	}
 }
 

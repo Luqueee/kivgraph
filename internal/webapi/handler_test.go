@@ -718,6 +718,119 @@ func TestTopologyAssemblerHidesUnobservedStaleCurrent(t *testing.T) {
 	}
 }
 
+func TestTopologyAssemblerEmitsOverlayAndSharedInputInvalidation(t *testing.T) {
+	sharedObservation, err := topology.NewSourceObservation("shared-main", "0123456789abcdef", "main", false, strings.Repeat("a", 64))
+	if err != nil {
+		t.Fatalf("NewSourceObservation(shared-main) error = %v", err)
+	}
+	featureObservation, err := topology.NewSourceObservation("feature-worktree", "fedcba9876543210", "feature", false, strings.Repeat("b", 64))
+	if err != nil {
+		t.Fatalf("NewSourceObservation(feature-worktree) error = %v", err)
+	}
+	repository := topology.LogicalRepository{ID: "repo", Name: "Repository"}
+	sharedWorktree := topology.Worktree{ID: "shared-main", Repository: "repo", Path: "/workspace/shared"}
+	featureWorktree := topology.Worktree{ID: "feature-worktree", Repository: "repo", Path: "/workspace/feature"}
+	change := invalidation.SourceChange{
+		Worktree: "shared-main", Repository: "repo", Reason: invalidation.ReasonContentChanged,
+		Detail: "shared content changed after indexing",
+	}
+	data := []topologyProfileData{
+		{
+			Name: "default", GenerationID: "000007", Snapshot: testSnapshot(t), CompositionOK: true,
+			Composition: topology.ProfileComposition{
+				Profile:      topology.Profile{ID: "default", Worktrees: []topology.WorktreeSelection{{Repository: "repo", Worktree: "shared-main"}}},
+				Repositories: []topology.LogicalRepository{repository}, Worktrees: []topology.Worktree{sharedWorktree},
+			},
+			ManifestOK: true, Manifest: sourceobservation.Manifest{Sources: []sourceobservation.Source{{Repository: "repo", Observation: sharedObservation}}},
+			State: &invalidation.ProfileState{Profile: "default", Generation: "000007", Stale: true, Reason: change.Detail, Changes: []invalidation.SourceChange{change}},
+		},
+		{
+			Name: "maintenance", GenerationID: "000008", Snapshot: testSnapshot(t), CompositionOK: true,
+			Composition: topology.ProfileComposition{
+				Profile:      topology.Profile{ID: "maintenance", Worktrees: []topology.WorktreeSelection{{Repository: "repo", Worktree: "shared-main"}}},
+				Repositories: []topology.LogicalRepository{repository}, Worktrees: []topology.Worktree{sharedWorktree},
+			},
+			ManifestOK: true, Manifest: sourceobservation.Manifest{Sources: []sourceobservation.Source{{Repository: "repo", Observation: sharedObservation}}},
+			State: &invalidation.ProfileState{Profile: "maintenance", Generation: "000008", Stale: true, Reason: change.Detail, Changes: []invalidation.SourceChange{change}},
+		},
+		{
+			Name: "feature", GenerationID: "000009", Snapshot: testSnapshot(t), CompositionOK: true,
+			Composition: topology.ProfileComposition{
+				Profile:      topology.Profile{ID: "feature", Worktrees: []topology.WorktreeSelection{{Repository: "repo", Worktree: "feature-worktree", Overlays: "shared-main"}}},
+				Repositories: []topology.LogicalRepository{repository}, Worktrees: []topology.Worktree{featureWorktree}, OverlayWorktrees: []topology.Worktree{sharedWorktree},
+			},
+			ManifestOK: true, Manifest: sourceobservation.Manifest{Sources: []sourceobservation.Source{{Repository: "repo", Observation: featureObservation}}},
+			State: &invalidation.ProfileState{Profile: "feature", Generation: "000009"},
+		},
+	}
+	assembler := newTopologyAssembler()
+	for _, profile := range data {
+		if err := assembler.addComposition(context.Background(), profile); err != nil {
+			t.Fatalf("addComposition(%q) error = %v", profile.Name, err)
+		}
+	}
+	response := assembler.response()
+	if len(response.SharedInputs) != 1 || response.SharedInputs[0].ID != "shared-main" ||
+		response.SharedInputs[0].Status != "stale" || response.SharedInputs[0].Reason != change.Detail ||
+		!reflect.DeepEqual(response.SharedInputs[0].Owners, []string{"default", "maintenance"}) {
+		t.Fatalf("shared input = %#v, want the stale shared-main input and its owners", response.SharedInputs)
+	}
+	for _, expected := range []struct {
+		typ, profile, generation, sourceType, sourceID, targetType, targetID, kind, provenance string
+	}{
+		{"shared_input_usage", "default", "000007", "profile", "default", "shared_input", "worktree:shared-main", "uses", "TOPOLOGY_DECLARATION"},
+		{"shared_input_usage", "maintenance", "000008", "profile", "maintenance", "shared_input", "worktree:shared-main", "uses", "TOPOLOGY_DECLARATION"},
+		{"worktree_overlay", "feature", "000009", "worktree", "feature-worktree", "shared_input", "worktree:shared-main", "overlays", "TOPOLOGY_DECLARATION"},
+		{"shared_input_invalidation", "default", "000007", "shared_input", "worktree:shared-main", "profile", "default", "invalidates", "SOURCE_INVALIDATION"},
+		{"shared_input_invalidation", "maintenance", "000008", "shared_input", "worktree:shared-main", "profile", "maintenance", "invalidates", "SOURCE_INVALIDATION"},
+	} {
+		found := false
+		for _, relationship := range response.Relationships {
+			if relationship.Type == expected.typ && relationship.Profile == expected.profile && relationship.GenerationID == expected.generation &&
+				relationship.Source.Type == expected.sourceType && relationship.Source.ID == expected.sourceID &&
+				relationship.Target != nil && relationship.Target.Type == expected.targetType && relationship.Target.ID == expected.targetID &&
+				relationship.Kind == expected.kind && relationship.Status == "structural" && relationship.Confidence == string(facts.StructuralCertain) && relationship.Provenance == expected.provenance {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("missing typed structural relationship %#v in %#v", expected, response.Relationships)
+		}
+	}
+}
+
+func TestTopologyAssemblerRejectsConflictingOverlayRepositoryIdentity(t *testing.T) {
+	profile := func(name, generation string, repository topology.LogicalRepositoryID, overlayPath string) topologyProfileData {
+		worktree := topology.WorktreeID(name + "-worktree")
+		return topologyProfileData{
+			Name: name, GenerationID: generation, Snapshot: testSnapshot(t), CompositionOK: true,
+			Composition: topology.ProfileComposition{
+				Profile: topology.Profile{ID: topology.ProfileID(name), Worktrees: []topology.WorktreeSelection{{
+					Repository: repository, Worktree: worktree, Overlays: "shared-main",
+				}}},
+				Repositories: []topology.LogicalRepository{{ID: repository, Name: "Repository"}},
+				Worktrees:    []topology.Worktree{{ID: worktree, Repository: repository, Path: "/workspace/" + name}},
+				OverlayWorktrees: []topology.Worktree{{
+					ID: "shared-main", Repository: repository, Path: overlayPath,
+				}},
+			},
+		}
+	}
+
+	assembler := newTopologyAssembler()
+	if err := assembler.addComposition(context.Background(), profile("first", "000007", "repo-a", "/workspace/shared-a")); err != nil {
+		t.Fatalf("add first composition: %v", err)
+	}
+	if err := assembler.addComposition(context.Background(), profile("second", "000008", "repo-a", "/workspace/shared-b")); err != nil {
+		t.Fatalf("add same-repository overlay with another path: %v", err)
+	}
+	err := assembler.addComposition(context.Background(), profile("third", "000009", "repo-b", "/workspace/shared-c"))
+	if !errors.Is(err, errTopologyAmbiguous) || !strings.Contains(err.Error(), "maps to logical repositories") {
+		t.Fatalf("conflicting overlay repository error = %v, want an ambiguous repository identity", err)
+	}
+}
+
 func TestTopologyAssemblerKeepsStaleAndIncompleteCompositionSeparate(t *testing.T) {
 	assembler := newTopologyAssembler()
 	if err := assembler.addComposition(context.Background(), topologyProfileData{

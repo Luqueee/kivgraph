@@ -19,8 +19,12 @@ import (
 )
 
 const (
+	// LegacySchemaVersion is the topology document version that predates
+	// explicit worktree overlays. It remains readable so existing profiles do
+	// not become invalid when the topology contract grows.
+	LegacySchemaVersion = 1
 	// CurrentSchemaVersion is the version of a persisted topology document.
-	CurrentSchemaVersion = 1
+	CurrentSchemaVersion = 2
 
 	maximumOpaqueIDBytes    = 256
 	maximumProfileIDBytes   = 64
@@ -106,6 +110,9 @@ type PublishedGeneration struct {
 type WorktreeSelection struct {
 	Repository LogicalRepositoryID `yaml:"repository"`
 	Worktree   WorktreeID          `yaml:"worktree"`
+	// Overlays names the shared base worktree that this selection replaces for
+	// this profile. Both worktrees must represent the same logical repository.
+	Overlays WorktreeID `yaml:"overlays,omitempty"`
 }
 
 // Profile is an effective dependency-resolution universe. It can select
@@ -122,9 +129,10 @@ type Profile struct {
 // It contains membership only; source-backed dependency edges are produced by
 // language providers after this composition is selected.
 type ProfileComposition struct {
-	Profile      Profile
-	Repositories []LogicalRepository
-	Worktrees    []Worktree
+	Profile          Profile
+	Repositories     []LogicalRepository
+	Worktrees        []Worktree
+	OverlayWorktrees []Worktree
 }
 
 // Topology is the declarative model used to validate profile composition. It
@@ -325,6 +333,12 @@ func validateGenerationID(id GenerationID) error {
 	return err
 }
 
+// SupportedSchemaVersion reports whether a topology document version remains
+// readable. The legacy version contains no overlay declarations.
+func SupportedSchemaVersion(version int) bool {
+	return version == LegacySchemaVersion || version == CurrentSchemaVersion
+}
+
 // Compose selects one profile's effective repository and worktree set. It
 // validates the complete topology first, so a malformed or conflicting
 // declaration cannot be narrowed into an apparently valid composition.
@@ -349,14 +363,22 @@ func (topology Topology) Compose(profileID ProfileID) (ProfileComposition, error
 			continue
 		}
 		composition := ProfileComposition{
-			Profile:      cloneProfile(profile),
-			Repositories: make([]LogicalRepository, 0, len(profile.Worktrees)),
-			Worktrees:    make([]Worktree, 0, len(profile.Worktrees)),
+			Profile:          cloneProfile(profile),
+			Repositories:     make([]LogicalRepository, 0, len(profile.Worktrees)),
+			Worktrees:        make([]Worktree, 0, len(profile.Worktrees)),
+			OverlayWorktrees: nil,
 		}
+		overlayWorktrees := make(map[WorktreeID]struct{}, len(profile.Worktrees))
 		for _, selection := range profile.Worktrees {
 			worktree := worktrees[selection.Worktree]
 			composition.Worktrees = append(composition.Worktrees, worktree)
 			composition.Repositories = append(composition.Repositories, repositories[selection.Repository])
+			if selection.Overlays != "" {
+				if _, exists := overlayWorktrees[selection.Overlays]; !exists {
+					overlayWorktrees[selection.Overlays] = struct{}{}
+					composition.OverlayWorktrees = append(composition.OverlayWorktrees, worktrees[selection.Overlays])
+				}
+			}
 		}
 		return composition, nil
 	}
@@ -424,10 +446,19 @@ func (topology Topology) Validate() (err error) {
 			return fmt.Errorf("profiles[%d] %q: %w", index, profile.ID, err)
 		}
 	}
+	if err := validateOverlayOwnership(topology.Profiles); err != nil {
+		return err
+	}
 	return nil
 }
 
 func validateProfile(profile Profile, worktrees map[WorktreeID]Worktree) error {
+	selectedWorktrees := make(map[WorktreeID]int, len(profile.Worktrees))
+	for index, selection := range profile.Worktrees {
+		if _, exists := selectedWorktrees[selection.Worktree]; !exists {
+			selectedWorktrees[selection.Worktree] = index
+		}
+	}
 	ownedRepositories := make(map[LogicalRepositoryID]int, len(profile.Worktrees))
 	for index, selection := range profile.Worktrees {
 		worktree, exists := worktrees[selection.Worktree]
@@ -437,6 +468,21 @@ func validateProfile(profile Profile, worktrees map[WorktreeID]Worktree) error {
 		if worktree.Repository != selection.Repository {
 			return fmt.Errorf("worktrees[%d]: %w: selection says repository %q but worktree %q belongs to %q", index, ErrInvalidTopology, selection.Repository, selection.Worktree, worktree.Repository)
 		}
+		if selection.Overlays != "" {
+			overlay, exists := worktrees[selection.Overlays]
+			if !exists {
+				return fmt.Errorf("worktrees[%d].overlays %q: %w: overlay worktree is not declared", index, selection.Overlays, ErrInvalidTopology)
+			}
+			if selection.Overlays == selection.Worktree {
+				return fmt.Errorf("worktrees[%d].overlays %q: %w: worktree cannot overlay itself", index, selection.Overlays, ErrInvalidTopology)
+			}
+			if overlay.Repository != selection.Repository {
+				return fmt.Errorf("worktrees[%d].overlays %q: %w: overlay and selected worktree must represent the same logical repository", index, selection.Overlays, ErrInvalidTopology)
+			}
+			if _, selected := selectedWorktrees[selection.Overlays]; selected {
+				return fmt.Errorf("worktrees[%d].overlays %q: %w: overlay target is also selected by this profile", index, selection.Overlays, ErrInvalidTopology)
+			}
+		}
 		if previous, exists := ownedRepositories[selection.Repository]; exists {
 			if profile.Worktrees[previous] == selection {
 				return fmt.Errorf("worktrees[%d].repository %q: %w: duplicate ownership of worktree %q", index, selection.Repository, ErrInvalidTopology, selection.Worktree)
@@ -444,6 +490,37 @@ func validateProfile(profile Profile, worktrees map[WorktreeID]Worktree) error {
 			return fmt.Errorf("worktrees[%d].repository %q: %w: conflicting worktrees; use separate profiles", index, selection.Repository, ErrInvalidTopology)
 		}
 		ownedRepositories[selection.Repository] = index
+	}
+	return nil
+}
+
+func validateOverlayOwnership(profiles []Profile) error {
+	overlays := make(map[WorktreeID]WorktreeID)
+	overlayOwners := make(map[WorktreeID]ProfileID)
+	normalOwners := make(map[WorktreeID]ProfileID)
+	for profileIndex, profile := range profiles {
+		for selectionIndex, selection := range profile.Worktrees {
+			if selection.Overlays == "" {
+				if owner, exists := overlayOwners[selection.Worktree]; exists {
+					return fmt.Errorf("profiles[%d] %q worktrees[%d].worktree %q: %w: overlay worktree belongs to profile %q and cannot be selected normally", profileIndex, profile.ID, selectionIndex, selection.Worktree, ErrInvalidTopology, owner)
+				}
+				normalOwners[selection.Worktree] = profile.ID
+				continue
+			}
+			if owner, exists := normalOwners[selection.Worktree]; exists {
+				return fmt.Errorf("profiles[%d] %q worktrees[%d].worktree %q: %w: overlay worktree is already selected normally by profile %q", profileIndex, profile.ID, selectionIndex, selection.Worktree, ErrInvalidTopology, owner)
+			}
+			if owner, exists := overlayOwners[selection.Worktree]; exists {
+				return fmt.Errorf("profiles[%d] %q worktrees[%d].worktree %q: %w: overlay worktree already belongs to profile %q", profileIndex, profile.ID, selectionIndex, selection.Worktree, ErrInvalidTopology, owner)
+			}
+			overlayOwners[selection.Worktree] = profile.ID
+			overlays[selection.Worktree] = selection.Overlays
+		}
+	}
+	for worktree, target := range overlays {
+		if _, isOverlay := overlays[target]; isOverlay {
+			return fmt.Errorf("overlay worktree %q targets %q: %w: an overlay cannot overlay another overlay", worktree, target, ErrInvalidTopology)
+		}
 	}
 	return nil
 }
