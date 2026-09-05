@@ -48,6 +48,7 @@ function largeTopologyPayload(generation = "000107"): object {
         id: "default",
         generation_id: generation,
         status: "ready",
+        composition_complete: true,
         worktrees: worktrees.map((worktree) => worktree.id),
       },
     ],
