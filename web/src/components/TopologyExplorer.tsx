@@ -463,6 +463,20 @@ function TopologyLegend(): React.ReactElement {
         </span>
         <span className="flex items-center gap-1.5">
           <span
+            className="h-0.5 w-4 border-t border-dashed"
+            style={{ borderColor: TOPOLOGY_EDGE_COLORS.overlay }}
+          />
+          violet arrow · worktree overlay
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span
+            className="h-0.5 w-4 border-t border-dashed"
+            style={{ borderColor: TOPOLOGY_EDGE_COLORS.invalidation }}
+          />
+          blue arrow · invalidates stale generation
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span
             className="h-0.5 w-4 rounded-none"
             style={{ backgroundColor: TOPOLOGY_EDGE_COLORS.exact }}
           />
@@ -502,7 +516,7 @@ function RelationshipTable({
   readonly firstRowIndex: number;
 }): React.ReactElement {
   const visibleRelationships = relationships.map((relationship, index) => {
-    const baseKey = `${relationship.profile ?? ""}:${relationship.type}:${referenceKey(relationship.source)}:${referenceKey(relationship.target ?? { type: "", id: "" })}:${relationship.kind ?? ""}:${relationship.evidence ?? relationship.reason ?? relationship.provenance}`;
+    const baseKey = `${relationship.profile ?? ""}:${relationship.generationId ?? ""}:${relationship.type}:${referenceKey(relationship.source)}:${referenceKey(relationship.target ?? { type: "", id: "" })}:${relationship.kind ?? ""}:${relationship.evidence ?? relationship.reason ?? relationship.provenance}`;
     return { key: `${baseKey}:${firstRowIndex + index}`, relationship };
   });
 
@@ -525,6 +539,9 @@ function RelationshipTable({
             <tr key={key}>
               <td className="px-3 py-2 text-slate-400">
                 {relationship.profile ?? "all"}
+                {relationship.generationId
+                  ? ` · ${relationship.generationId}`
+                  : ""}
               </td>
               <td className="px-3 py-2">
                 <span className="font-medium">
@@ -541,9 +558,19 @@ function RelationshipTable({
                   : " → not resolved"}
               </td>
               <td className="max-w-[20rem] break-words px-3 py-2 text-slate-400">
-                {relationship.evidence ??
-                  relationship.reason ??
-                  relationship.provenance}
+                {relationship.evidence ? (
+                  <span>{relationship.evidence}</span>
+                ) : null}
+                {relationship.reason ? (
+                  <span>
+                    {relationship.evidence ? " · " : ""}
+                    {relationship.reason}
+                  </span>
+                ) : null}
+                {relationship.evidence || relationship.reason ? (
+                  <span> · </span>
+                ) : null}
+                <span>{relationship.provenance}</span>
               </td>
             </tr>
           ))}

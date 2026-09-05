@@ -207,35 +207,6 @@ function languagesForRepositories(
   );
 }
 
-function nodeReferences(
-  type: TopologyNodeType,
-  id: string,
-): TopologyNodeReference {
-  return { type, id };
-}
-
-function sharedInputRelationships(
-  response: TopologyResponse,
-): TopologyRelationship[] {
-  const relationships: TopologyRelationship[] = [];
-  for (const input of response.sharedInputs) {
-    for (const owner of input.owners) {
-      relationships.push({
-        profile: owner,
-        type: "shared_input_usage",
-        source: nodeReferences("profile", owner),
-        target: nodeReferences("shared_input", `${input.type}:${input.id}`),
-        kind: "shared_input_usage",
-        status: "structural",
-        confidence: "STRUCTURAL_CERTAIN",
-        provenance: "TOPOLOGY_DECLARATION",
-        reason: `profile ${owner} owns shared ${input.type} ${input.id}`,
-      });
-    }
-  }
-  return relationships;
-}
-
 function createNodes(response: TopologyResponse): TopologyNode[] {
   const repositoryForWorktree = repositoriesByWorktree(response);
   const languages = languagesByRepository(response);
@@ -301,20 +272,31 @@ function createNodes(response: TopologyResponse): TopologyNode[] {
   }
 
   for (const input of response.sharedInputs) {
+    const inputKey = sharedInputNodeKey(input.type, input.id);
     const repositories =
       input.type === "worktree"
-        ? [repositoryForWorktree.get(input.id) ?? ""].filter(
-            (repository) => repository.length > 0,
-          )
+        ? [
+            input.repository ?? repositoryForWorktree.get(input.id) ?? "",
+          ].filter((repository) => repository.length > 0)
         : [];
+    const relatedProfiles = response.relationships.flatMap((relationship) => {
+      if (!relationship.profile) return [];
+      const sourceKey = relationshipNodeKey(relationship.source);
+      const targetKey = relationship.target
+        ? relationshipNodeKey(relationship.target)
+        : undefined;
+      return sourceKey === inputKey || targetKey === inputKey
+        ? [relationship.profile]
+        : [];
+    });
     nodes.push({
-      key: sharedInputNodeKey(input.type, input.id),
+      key: inputKey,
       id: `${input.type}:${input.id}`,
       type: "shared_input",
       label: `shared ${input.type}`,
-      subtitle: input.id,
-      status: "shared",
-      profileIds: sortStrings(input.owners),
+      subtitle: input.reason ? `${input.id} · ${input.reason}` : input.id,
+      status: input.status,
+      profileIds: sortStrings([...input.owners, ...relatedProfiles]),
       worktreeIds: input.type === "worktree" ? [input.id] : [],
       repositoryIds: repositories,
       languages: languagesForRepositories(repositories, languages),
@@ -454,16 +436,29 @@ function scopeTopologyResponse(
   const repositoryIDs = new Set(
     worktrees.map((worktree) => worktree.repository),
   );
+  const relationships = response.relationships.filter(
+    (relationship) =>
+      relationship.profile !== undefined &&
+      profileIDs.has(relationship.profile),
+  );
   const sharedInputs = response.sharedInputs
     .map((input) => ({
       ...input,
       owners: input.owners.filter((owner) => profileIDs.has(owner)),
     }))
-    .filter(
-      (input) =>
-        input.owners.length > 0 &&
-        (input.type !== "worktree" || worktreeIDs.has(input.id)),
-    );
+    .filter((input) => {
+      const inputKey = sharedInputNodeKey(input.type, input.id);
+      return (
+        input.owners.length > 0 ||
+        relationships.some((relationship) => {
+          const sourceKey = relationshipNodeKey(relationship.source);
+          const targetKey = relationship.target
+            ? relationshipNodeKey(relationship.target)
+            : undefined;
+          return sourceKey === inputKey || targetKey === inputKey;
+        })
+      );
+    });
 
   return {
     ...response,
@@ -482,20 +477,13 @@ function scopeTopologyResponse(
         repositoryIDs.has(source.repository),
     ),
     sharedInputs,
-    relationships: response.relationships.filter(
-      (relationship) =>
-        relationship.profile !== undefined &&
-        profileIDs.has(relationship.profile),
-    ),
+    relationships,
   };
 }
 
 export function createTopologyModel(response: TopologyResponse): TopologyModel {
   const nodes = createNodes(response);
-  const relationships = [
-    ...response.relationships,
-    ...sharedInputRelationships(response),
-  ];
+  const relationships = response.relationships;
   const { edges, unrendered } = buildEdges(relationships, nodes);
   return {
     response,
