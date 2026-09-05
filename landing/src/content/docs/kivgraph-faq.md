@@ -45,7 +45,7 @@ A rebuild is always a full pass over every registered repository; there is no in
 
 ## What happens if I query before publishing a generation?
 
-There is no query surface at all. A server with no published generation registers `index_project` alone — not the other ten tools — and puts the rebuild command in its MCP `instructions`, because publishing ten tools that all answer `INDEX_NOT_READY` would teach the agent that the tools do not work. It does not exit either: a client launches the process itself, so exiting reads as a crash. Run `kivgraph index --full`, or let the agent call `index_project`; see the [Quickstart](/quickstart/).
+There is no graph-query surface. A server with no published generation registers the three indexing controls and puts the rebuild path in its MCP `instructions`, because publishing graph tools that all answer `INDEX_NOT_READY` would teach the agent that the tools do not work. It does not exit either: a client launches the process itself, so exiting reads as a crash. Run `kivgraph index --full`, or let the agent call `start_index_project` and poll `get_index_status`; see the [Quickstart](/quickstart/).
 
 ## Which MCP clients does Kivgraph support?
 

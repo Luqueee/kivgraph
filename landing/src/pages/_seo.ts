@@ -84,9 +84,9 @@ export function umamiTracker(): UmamiTracker | null {
 }
 
 /**
- * The twelve tools the server registers over stdio, in the order the reference
- * lists them: retrieval first, then lookups, then traversal, then the two
- * whole-graph tools and the one that mutates. `get_unresolved_references` is not
+ * The fourteen tools the server registers, in the order the reference lists
+ * them: retrieval first, then lookups, traversal, whole-graph tools and index
+ * control. `get_unresolved_references` is not
  * among them.
  *
  * `find_by_intent` leads because it is the one that answers without a name. The
@@ -106,6 +106,8 @@ export const MCP_TOOLS = [
   "get_blast_radius",
   "list_repositories",
   "graph_status",
+  "start_index_project",
+  "get_index_status",
   "index_project",
 ] as const;
 
@@ -162,7 +164,7 @@ export function rawPathname(id: string): string {
   return id === "" ? "/raw/index.md" : `/raw/${id}.md`;
 }
 
-/** Starlight's own test for its 404 route, which is not documentation. */
+/** Whether an entry represents the site's 404 route, which is not documentation. */
 export function isNotFoundPage(id: string): boolean {
   return id === "404" || id.endsWith("/404");
 }

@@ -303,8 +303,8 @@ standard library's own edge would hide exactly what indexing it was for.
 - It reports the published generation, not the one being built. A rebuild in
   another process becomes visible when its generation is published.
 - The tool is registered only once a generation exists. Before that, `serve`
-  registers `index_project` alone; see
-  [`index_project`](/docs/tools/index-project/).
+  registers only the three indexing controls; see
+  [`start_index_project`](/docs/tools/start-index-project/).
 - Counts come from the snapshot metadata. They describe what the passes indexed,
   not what exists on disk: a reference the passes could not attribute appears in
   `unresolved` and `unresolved_by_reason`, never as an edge.
