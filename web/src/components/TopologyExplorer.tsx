@@ -4,7 +4,9 @@ import {
   ApiError,
   fetchTopology,
   type TopologyNodeReference,
+  type TopologyObservation,
   type TopologyProfile,
+  type TopologyRelationship,
   type TopologyResponse,
   type TopologySource,
 } from "@/api/client";
@@ -43,7 +45,7 @@ const INITIAL_FILTERS: TopologyFilters = {
   edgeKind: ALL_TOPOLOGY_FILTER,
 };
 
-const MAX_ACCESSIBLE_RELATIONSHIPS = 500;
+const ACCESSIBLE_RELATIONSHIPS_PER_PAGE = 100;
 
 interface TopologyState {
   readonly data: TopologyResponse | null;
@@ -192,43 +194,58 @@ function DetailsRow({
   );
 }
 
-function Observation({
-  source,
+function ObservedSourceState({
+  label,
+  observation,
 }: {
-  readonly source: TopologySource;
+  readonly label: "indexed" | "current";
+  readonly observation: TopologyObservation | undefined;
 }): React.ReactElement {
-  const observation = source.current ?? source.indexed;
-  const state = source.current
-    ? source.current.dirty
+  const state = observation
+    ? observation.dirty
       ? "dirty"
       : "clean"
-    : source.status === "stale"
-      ? "current state stale"
-      : observation
-        ? `indexed ${observation.dirty ? "dirty" : "clean"}; current not observed`
-        : "current state not observed";
+    : "not observed";
   return (
-    <div className="grid gap-1 rounded-none border border-rule bg-raise p-2">
-      <div className="flex items-center justify-between gap-2">
-        <span className="font-medium">{source.profile}</span>
-        <Badge className={statusClass(source.status)} variant="outline">
-          {source.status}
-        </Badge>
-      </div>
+    <div className="grid gap-1 border border-rule bg-shell p-2">
+      <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-gray-400">
+        {label} observation
+      </span>
       <span className="text-[10px] text-gray-400">
         {observation?.branch ?? "branch not observed"} ·{" "}
         {observation?.commit ?? "commit not observed"}
       </span>
-      <span className="text-[10px] text-gray-400">
-        {state}
-        {source.reason ? ` · ${source.reason}` : ""}
-      </span>
+      <span className="text-[10px] text-gray-400">{state}</span>
       <span
         className="truncate text-[10px] text-gray-400"
         title={observation?.contentDigest}
       >
         digest · {observation?.contentDigest ?? "not observed"}
       </span>
+    </div>
+  );
+}
+
+function Observation({
+  source,
+}: {
+  readonly source: TopologySource;
+}): React.ReactElement {
+  return (
+    <div className="grid gap-2 rounded-none border border-rule bg-raise p-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-medium">{source.profile}</span>
+        <Badge className={statusClass(source.status)} variant="outline">
+          {source.status}
+        </Badge>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <ObservedSourceState label="indexed" observation={source.indexed} />
+        <ObservedSourceState label="current" observation={source.current} />
+      </div>
+      {source.reason ? (
+        <span className="text-[10px] text-gray-400">{source.reason}</span>
+      ) : null}
     </div>
   );
 }
@@ -478,19 +495,16 @@ function TopologyLegend(): React.ReactElement {
 }
 
 function RelationshipTable({
-  model,
+  relationships,
+  firstRowIndex,
 }: {
-  readonly model: TopologyModel;
+  readonly relationships: readonly TopologyRelationship[];
+  readonly firstRowIndex: number;
 }): React.ReactElement {
-  const keyCounts = new Map<string, number>();
-  const visibleRelationships = model.relationships
-    .slice(0, MAX_ACCESSIBLE_RELATIONSHIPS)
-    .map((relationship) => {
-      const baseKey = `${relationship.profile ?? ""}:${relationship.type}:${referenceKey(relationship.source)}:${referenceKey(relationship.target ?? { type: "", id: "" })}:${relationship.kind ?? ""}:${relationship.evidence ?? relationship.reason ?? relationship.provenance}`;
-      const occurrence = keyCounts.get(baseKey) ?? 0;
-      keyCounts.set(baseKey, occurrence + 1);
-      return { key: `${baseKey}:${occurrence}`, relationship };
-    });
+  const visibleRelationships = relationships.map((relationship, index) => {
+    const baseKey = `${relationship.profile ?? ""}:${relationship.type}:${referenceKey(relationship.source)}:${referenceKey(relationship.target ?? { type: "", id: "" })}:${relationship.kind ?? ""}:${relationship.evidence ?? relationship.reason ?? relationship.provenance}`;
+    return { key: `${baseKey}:${firstRowIndex + index}`, relationship };
+  });
 
   return (
     <div className="overflow-x-auto rounded-none border border-rule">
@@ -546,6 +560,7 @@ export function TopologyExplorer(): React.ReactElement {
   );
   const [filters, setFilters] = useState<TopologyFilters>(INITIAL_FILTERS);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [relationshipPage, setRelationshipPage] = useState(0);
   const [showWorktrees, setShowWorktrees] = useState(true);
   const [showInternalRelationships, setShowInternalRelationships] =
     useState(false);
@@ -624,6 +639,7 @@ export function TopologyExplorer(): React.ReactElement {
     : null;
   const updateFilter = (key: keyof TopologyFilters, value: string): void => {
     setFilters((previous) => ({ ...previous, [key]: value }));
+    setRelationshipPage(0);
   };
   const toggleProfile = useCallback((profileID: string): void => {
     setSelectedKey(null);
@@ -658,6 +674,27 @@ export function TopologyExplorer(): React.ReactElement {
       ].sort()
     : [];
   const isRepositoryMap = expandedProfiles.length > 0 || showWorktrees;
+  const relationshipCount = filteredModel?.relationships.length ?? 0;
+  const relationshipPageCount = Math.max(
+    1,
+    Math.ceil(relationshipCount / ACCESSIBLE_RELATIONSHIPS_PER_PAGE),
+  );
+  const visibleRelationshipPage = Math.min(
+    relationshipPage,
+    relationshipPageCount - 1,
+  );
+  const firstRelationshipRow =
+    visibleRelationshipPage * ACCESSIBLE_RELATIONSHIPS_PER_PAGE;
+  const visibleRelationships = filteredModel?.relationships.slice(
+    firstRelationshipRow,
+    firstRelationshipRow + ACCESSIBLE_RELATIONSHIPS_PER_PAGE,
+  );
+  const lastRelationshipRow =
+    firstRelationshipRow + (visibleRelationships?.length ?? 0);
+
+  useEffect(() => {
+    setRelationshipPage((page) => Math.min(page, relationshipPageCount - 1));
+  }, [relationshipPageCount]);
 
   return (
     <div
@@ -796,7 +833,7 @@ export function TopologyExplorer(): React.ReactElement {
                   </span>
                 ) : null}
                 {state.data.completeness.truncated ? (
-                  <span>relationship list truncated</span>
+                  <span>API response relationship list truncated</span>
                 ) : null}
               </div>
             ) : null}
@@ -847,6 +884,7 @@ export function TopologyExplorer(): React.ReactElement {
                       setExpandedProfiles([]);
                       setShowWorktrees(true);
                       setShowInternalRelationships(false);
+                      setRelationshipPage(0);
                     }}
                   >
                     reset
@@ -1011,20 +1049,63 @@ export function TopologyExplorer(): React.ReactElement {
                     relationship(s) omitted because an endpoint is not present.
                   </p>
                 ) : null}
-                {filteredModel.relationships.length >
-                MAX_ACCESSIBLE_RELATIONSHIPS ? (
-                  <p className="mb-3 text-[10px] text-gray-400">
-                    Showing the first {MAX_ACCESSIBLE_RELATIONSHIPS} rows. Use a
-                    filter to narrow the remaining{" "}
-                    {(
-                      filteredModel.relationships.length -
-                      MAX_ACCESSIBLE_RELATIONSHIPS
-                    ).toLocaleString()}{" "}
-                    rows.
-                  </p>
-                ) : null}
                 {filteredModel.relationships.length > 0 ? (
-                  <RelationshipTable model={filteredModel} />
+                  <>
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-[10px] text-gray-400">
+                      <p aria-live="polite">
+                        Showing rows {firstRelationshipRow + 1}–
+                        {lastRelationshipRow} of{" "}
+                        {relationshipCount.toLocaleString()} returned
+                        relationships.
+                      </p>
+                      {relationshipPageCount > 1 ? (
+                        <nav
+                          aria-label="Relationship pagination"
+                          className="flex items-center gap-2"
+                        >
+                          <Button
+                            type="button"
+                            size="xs"
+                            variant="outline"
+                            aria-label="Previous relationship page"
+                            disabled={visibleRelationshipPage === 0}
+                            onClick={() =>
+                              setRelationshipPage((page) =>
+                                Math.max(0, page - 1),
+                              )
+                            }
+                          >
+                            previous
+                          </Button>
+                          <span aria-current="page">
+                            page {visibleRelationshipPage + 1} of{" "}
+                            {relationshipPageCount}
+                          </span>
+                          <Button
+                            type="button"
+                            size="xs"
+                            variant="outline"
+                            aria-label="Next relationship page"
+                            disabled={
+                              visibleRelationshipPage ===
+                              relationshipPageCount - 1
+                            }
+                            onClick={() =>
+                              setRelationshipPage((page) =>
+                                Math.min(relationshipPageCount - 1, page + 1),
+                              )
+                            }
+                          >
+                            next
+                          </Button>
+                        </nav>
+                      ) : null}
+                    </div>
+                    <RelationshipTable
+                      relationships={visibleRelationships ?? []}
+                      firstRowIndex={firstRelationshipRow}
+                    />
+                  </>
                 ) : (
                   <p className="rounded-none border border-rule px-3 py-4 text-xs text-gray-400">
                     No relationships match the current filters.

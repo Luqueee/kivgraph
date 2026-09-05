@@ -5,6 +5,7 @@ const RELATIONSHIP_COUNT = 10_000;
 const NODE_COUNT = REPOSITORY_COUNT * 2 + 1;
 const DISTINCT_PAIR_COUNT = REPOSITORY_COUNT - 1;
 const DEEP_NODE_COUNT = 5_000;
+const ACCESSIBLE_RELATIONSHIP_COUNT = 501;
 
 function repositoryID(index: number): string {
   return `repo-${String(index).padStart(2, "0")}`;
@@ -170,6 +171,88 @@ function groupedSemanticsTopologyPayload(): object {
   };
 }
 
+function accessibleTopologyPayload(): object {
+  const relationships = Array.from(
+    { length: ACCESSIBLE_RELATIONSHIP_COUNT },
+    (_, index) => ({
+      profile: "default",
+      type: "code_dependency",
+      source: { type: "repository", id: "source" },
+      target: { type: "repository", id: "target" },
+      kind: "CALLS_DIRECT",
+      status: "exact",
+      confidence: "EXACT_TYPECHECKED",
+      provenance: "TYPESCRIPT_CHECKER",
+      evidence: `accessible.ts:${index + 1}`,
+    }),
+  );
+
+  return {
+    api_version: "v1",
+    topology_version: 1,
+    status: "ready",
+    generation_id: "000199",
+    selected_profiles: ["default"],
+    profiles: [
+      {
+        id: "default",
+        generation_id: "000199",
+        status: "ready",
+        composition_complete: true,
+        worktrees: ["source-worktree", "target-worktree"],
+      },
+    ],
+    repositories: [
+      { id: "source", name: "source", languages: ["typescript"] },
+      { id: "target", name: "target", languages: ["typescript"] },
+    ],
+    worktrees: [
+      {
+        id: "source-worktree",
+        repository: "source",
+        path: "/workspace/source",
+      },
+      {
+        id: "target-worktree",
+        repository: "target",
+        path: "/workspace/target",
+      },
+    ],
+    sources: [
+      {
+        profile: "default",
+        repository: "source",
+        worktree: "source-worktree",
+        status: "stale",
+        reason: "working tree changed after indexing",
+        indexed: {
+          id: "indexed-source",
+          worktree: "source-worktree",
+          branch: "main",
+          commit: "indexed-commit",
+          dirty: false,
+          content_digest: "indexed-digest",
+        },
+        current: {
+          id: "current-source",
+          worktree: "source-worktree",
+          branch: "feature/accessibility",
+          commit: "current-commit",
+          dirty: true,
+          content_digest: "current-digest",
+        },
+      },
+    ],
+    shared_inputs: [],
+    relationships,
+    completeness: {
+      complete: false,
+      truncated: true,
+      reason: "server result limit",
+    },
+  };
+}
+
 test("keeps a large topology explorable", async ({ page }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
@@ -331,6 +414,81 @@ test("keeps grouped relationship semantics visible and accessible", async ({
       })),
     ),
   ).toEqual(expected.map(({ ariaLabel, color }) => ({ ariaLabel, color })));
+  expect(pageErrors).toEqual([]);
+});
+
+test("paginates accessible relationships and keeps source observations distinct", async ({
+  page,
+}) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await page.route("**/api/v1/meta", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ status: "ready", counts: {} }),
+    });
+  });
+  await page.route("**/api/v1/topology**", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify(accessibleTopologyPayload()),
+    });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "topology" }).click();
+
+  await expect(
+    page.getByText("API response relationship list truncated", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page.getByText("Relationship list", { exact: true }).click();
+  await expect(
+    page.getByText("Showing rows 1–100 of 501 returned relationships.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("accessible.ts:1", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("accessible.ts:101", { exact: true }),
+  ).not.toBeAttached();
+
+  const nextPage = page.getByRole("button", {
+    name: "Next relationship page",
+  });
+  for (let pageNumber = 0; pageNumber < 5; pageNumber += 1) {
+    await nextPage.click();
+  }
+  await expect(
+    page.getByText("Showing rows 501–501 of 501 returned relationships.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("accessible.ts:501", { exact: true }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "repository source" }).click();
+  const details = page.getByLabel("Topology details");
+  await expect(
+    details.getByText("indexed observation", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    details.getByText("main · indexed-commit", { exact: true }),
+  ).toBeVisible();
+  await expect(details.getByText("clean", { exact: true })).toBeVisible();
+  await expect(
+    details.getByText("current observation", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    details.getByText("feature/accessibility · current-commit", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(details.getByText("dirty", { exact: true })).toBeVisible();
   expect(pageErrors).toEqual([]);
 });
 
