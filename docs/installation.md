@@ -643,10 +643,10 @@ el conteo de referencias no resueltas retenidas. `UNRESOLVED` no es un error de
 instalación: son hechos que el resolver no pudo demostrar exactamente y que el
 contrato conserva como resultado distinto de `EXACT`.
 
-### Añadir las instrucciones del agente al proyecto
+### Añadir las instrucciones globales del agente
 
 Para que los agentes sepan cuándo usar el grafo semántico, añade el bloque de
-instrucciones al contexto del proyecto:
+instrucciones a su configuración global:
 
 ```bash
 kivgraph instructions install
@@ -657,18 +657,24 @@ kivgraph instructions install --agent omp
 ```
 
 Sin `--agent` ni `--file`, el selector interactivo permite elegir uno o varios
-agentes. `--agent codex` y `--agent opencode` escriben en el `AGENTS.md` de la
-raíz; `--agent claude` y `--agent claude-code` escriben en el `CLAUDE.md` de la
-raíz; `--agent omp` y `--agent oh-my-pi` escriben en `.omp/AGENTS.md`. El
-selector deduplica agentes que comparten destino. El archivo se coloca en el
-antecesor más cercano que contenga un marcador `.git`, o en el directorio
-actual si no está dentro de un repositorio Git. Usa `--file` sólo cuando
-necesites elegir el archivo directamente: acepta `AGENTS.md`, `CLAUDE.md` o
-`.omp/AGENTS.md`. El comando conserva el contenido existente, añade un único
-bloque gestionado y no inicializa ni indexa Kivgraph. `--dry-run` muestra el
-plan sin escribir y `--force` permite reemplazar un bloque Kivgraph editado.
-Para configurar también MCP, skills, hooks y daemon en una sola selección,
-usa `kivgraph configure`.
+agentes. Cada instalación guarda el prompt canónico en `KIVGRAPH.md`, junto a
+la configuración global del cliente. Codex (`~/.codex/AGENTS.md`), Claude Code
+y Claude Desktop (`~/.claude/CLAUDE.md`) y Oh My Pi
+(`~/.omp/agent/AGENTS.md`) sólo reciben una referencia gestionada con la ruta
+absoluta de `KIVGRAPH.md`. OpenCode conserva su `AGENTS.md`: añade la ruta
+canónica a la lista nativa `instructions` de
+`~/.config/opencode/opencode.json`. El selector
+deduplica destinos compartidos. `--file` se conserva por compatibilidad y
+selecciona todos los clientes globales que usan ese nombre; para automatizaciones
+nuevas usa `--agent`. El comando conserva el contenido existente, no inicializa
+ni indexa Kivgraph, y nunca modifica las instrucciones del repositorio.
+`--dry-run` muestra el plan sin escribir y `--force` permite reemplazar un
+prompt o referencia Kivgraph editados. Para configurar también MCP, skills,
+hooks y daemon en una sola selección, usa `kivgraph configure`.
+
+Si están definidas, `CODEX_HOME` sustituye `~/.codex` y
+`PI_CODING_AGENT_DIR` sustituye `~/.omp/agent`, igual que en los propios
+clientes.
 
 ## Ejecutar como servidor MCP
 

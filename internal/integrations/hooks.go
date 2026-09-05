@@ -105,7 +105,11 @@ func (manager Manager) hookDocumentFor(target Target, scope Scope) (hookDocument
 		document.path = filepath.Join(manager.homeDir, ".claude", "settings.json")
 		document.matcher = claudeMatcher
 	case TargetCodex:
-		document.path = filepath.Join(manager.scopeRoot(scope), ".codex", "hooks.json")
+		if scope == ScopeUser {
+			document.path = filepath.Join(manager.codexInstructionsDir(), "hooks.json")
+		} else {
+			document.path = filepath.Join(manager.projectDir, ".codex", "hooks.json")
+		}
 		// Codex gates the shell, apply_patch and MCP calls. Only the
 		// first is a search, under either host spelling.
 		document.matcher = codexMatcher
@@ -119,7 +123,7 @@ func (manager Manager) hookDocumentFor(target Target, scope Scope) (hookDocument
 	case TargetOhMyPi:
 		document.kind = hookPlugin
 		if scope == ScopeUser {
-			document.path = filepath.Join(manager.homeDir, ".omp", "agent", "extensions", "kivgraph.js")
+			document.path = filepath.Join(manager.ohMyPiInstructionsDir(), "extensions", "kivgraph.js")
 			break
 		}
 		document.path = filepath.Join(manager.projectDir, ".omp", "extensions", "kivgraph.js")
@@ -217,7 +221,7 @@ func (manager Manager) DetectHookTargets(scope Scope) ([]TargetDetection, error)
 func (manager Manager) hookMarkers(target Target, document hookDocument) []string {
 	if target == TargetOhMyPi {
 		if document.scope == ScopeUser {
-			return []string{filepath.Join(manager.homeDir, ".omp", "agent")}
+			return []string{manager.ohMyPiInstructionsDir()}
 		}
 		return []string{filepath.Join(manager.projectDir, ".omp")}
 	}

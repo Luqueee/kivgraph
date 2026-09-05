@@ -14,6 +14,7 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.4.1
 	github.com/pkoukk/tiktoken-go v0.1.8
 	github.com/pkoukk/tiktoken-go-loader v0.0.2
+	github.com/tailscale/hujson v0.0.0-20221223112325-20486734a56a
 	github.com/tree-sitter/go-tree-sitter v0.25.0
 	github.com/tree-sitter/tree-sitter-go v0.25.0
 	github.com/tree-sitter/tree-sitter-javascript v0.25.0

@@ -12,6 +12,8 @@ import (
 
 func testManager(t *testing.T) (Manager, string, string) {
 	t.Helper()
+	t.Setenv("CODEX_HOME", "")
+	t.Setenv("PI_CODING_AGENT_DIR", "")
 	home := t.TempDir()
 	project := t.TempDir()
 	manager, err := New(Options{

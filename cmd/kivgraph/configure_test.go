@@ -74,16 +74,16 @@ func TestConfigureHandlesHelpAndUnexpectedArguments(t *testing.T) {
 	}
 }
 
-func TestConfigureRejectsFilesystemRoot(t *testing.T) {
+func TestConfigureDoesNotRequireAProjectRoot(t *testing.T) {
 	testsupport.SetHome(t, t.TempDir())
 	t.Chdir("/")
 
 	var stdout, stderr bytes.Buffer
-	if code := runConfigure([]string{"--target", "codex", "--stdio"}, &stdout, &stderr); code != 1 {
-		t.Fatalf("configure at filesystem root exit code = %d, want 1", code)
+	if code := runConfigure([]string{"--target", "codex", "--stdio", "--dry-run"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("configure at filesystem root exit code = %d, want 0", code)
 	}
-	if !strings.Contains(stderr.String(), "filesystem root") {
-		t.Fatalf("filesystem-root error = %q", stderr.String())
+	if stderr.Len() != 0 {
+		t.Fatalf("configure at filesystem root stderr = %q", stderr.String())
 	}
 }
 
@@ -170,7 +170,7 @@ func TestConfigureDryRunDoesNotInitializeOrWrite(t *testing.T) {
 		filepath.Join(home, ".codex", "config.toml"),
 		filepath.Join(home, ".agents", "skills", "kivgraph", "SKILL.md"),
 		filepath.Join(home, ".codex", "hooks.json"),
-		filepath.Join(project, "AGENTS.md"),
+		filepath.Join(home, ".codex", "AGENTS.md"),
 	} {
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
 			t.Fatalf("configure dry-run wrote %s: %v", path, err)
@@ -204,7 +204,7 @@ func TestConfigureInteractiveAppliesAllSupportedSurfaces(t *testing.T) {
 		filepath.Join(home, ".codex", "config.toml"),
 		filepath.Join(home, ".agents", "skills", "kivgraph", "SKILL.md"),
 		filepath.Join(home, ".codex", "hooks.json"),
-		filepath.Join(project, "AGENTS.md"),
+		filepath.Join(home, ".codex", "AGENTS.md"),
 	} {
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("configure did not install %s: %v; stdout=%q stderr=%q", path, err, stdout.String(), stderr.String())
@@ -232,7 +232,7 @@ func TestConfigureSkipsSurfacesUnsupportedByClaudeDesktop(t *testing.T) {
 	}
 	for _, want := range []string{
 		"skill skipped for Claude Desktop",
-		"instructions skipped",
+		"instructions install",
 	} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("configure output = %q, want %q", stdout.String(), want)
@@ -287,6 +287,9 @@ func TestConfigureSkipsSurfacesUnsupportedByClaudeDesktop(t *testing.T) {
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
 			t.Fatalf("unsupported Claude Desktop surface created %s: %v", path, err)
 		}
+	}
+	if _, err := os.Stat(filepath.Join(home, ".claude", "CLAUDE.md")); err != nil {
+		t.Fatalf("Claude Desktop user instructions missing: %v", err)
 	}
 }
 
@@ -389,7 +392,7 @@ func TestConfigureContinuesAfterASkillInstallFailure(t *testing.T) {
 	if !strings.Contains(stderr.String(), "configure skill --target codex") {
 		t.Fatalf("skill failure = %q", stderr.String())
 	}
-	if _, err := os.Stat(filepath.Join(project, "AGENTS.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(home, ".codex", "AGENTS.md")); err != nil {
 		t.Fatalf("configure did not continue with instructions installation: %v", err)
 	}
 }
@@ -414,7 +417,7 @@ func TestConfigureContinuesAfterAHookInstallFailure(t *testing.T) {
 	if !strings.Contains(stderr.String(), "configure hook --target codex") {
 		t.Fatalf("hook failure = %q", stderr.String())
 	}
-	if _, err := os.Stat(filepath.Join(project, "AGENTS.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(home, ".codex", "AGENTS.md")); err != nil {
 		t.Fatalf("configure did not continue with instructions installation: %v", err)
 	}
 }
@@ -424,7 +427,7 @@ func TestConfigureReportsAnInstructionsDestinationFailure(t *testing.T) {
 	project := t.TempDir()
 	testsupport.SetHome(t, home)
 	t.Chdir(project)
-	if err := os.WriteFile(filepath.Join(project, ".omp"), []byte("not a directory"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(home, ".omp"), []byte("not a directory"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -442,7 +445,11 @@ func TestConfigureReportsAnInstructionsInstallFailure(t *testing.T) {
 	project := t.TempDir()
 	testsupport.SetHome(t, home)
 	t.Chdir(project)
-	if err := os.WriteFile(filepath.Join(project, "AGENTS.md"), []byte("<!-- BEGIN KIVGRAPH INSTRUCTIONS -->\n"), 0o600); err != nil {
+	path := filepath.Join(home, ".codex", "AGENTS.md")
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("<!-- BEGIN KIVGRAPH INSTRUCTIONS -->\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 

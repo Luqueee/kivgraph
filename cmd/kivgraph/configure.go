@@ -75,12 +75,7 @@ func runConfigureWithResolver(
 		return 2
 	}
 
-	projectRoot, err := currentProjectRoot()
-	if err != nil {
-		writeCommandError(stderr, "configure: %v", err)
-		return 1
-	}
-	detector, err := integrations.New(integrations.Options{ProjectDir: projectRoot})
+	detector, err := integrations.New(integrations.Options{})
 	if err != nil {
 		writeCommandError(stderr, "configure: detect coding agents: %v", err)
 		return 1
@@ -118,7 +113,6 @@ func runConfigureWithResolver(
 		mcpFailed = true
 		managerOptions = integrations.Options{}
 	}
-	managerOptions.ProjectDir = projectRoot
 	manager, err := integrations.New(managerOptions)
 	if err != nil {
 		writeCommandError(stderr, "configure: create integration manager: %v", err)
@@ -159,7 +153,7 @@ func runConfigureWithResolver(
 
 	instructionTargets := supportedConfigureTargets(selectedTargets, integrations.InstructionsTargets())
 	if len(instructionTargets) == 0 {
-		writeInfo(stdout, "configure: instructions skipped: the selected clients have no project instruction file")
+		writeInfo(stdout, "configure: instructions skipped: the selected clients have no user instruction file")
 	} else {
 		destinations, destinationErr := instructionsDestinations(manager, instructionsOptions{}, instructionTargets)
 		if destinationErr != nil {
@@ -167,7 +161,7 @@ func runConfigureWithResolver(
 			failed = true
 		} else {
 			for _, destination := range destinations {
-				plan, installErr := manager.InstallInstructions(destination.file, options.DryRun, options.Force)
+				plan, installErr := manager.InstallInstructionsForTarget(destination.target, options.DryRun, options.Force)
 				if installErr != nil {
 					writeCommandError(stderr, "configure instructions %s: %v", destination.selector(), installErr)
 					failed = true
