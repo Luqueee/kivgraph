@@ -49,11 +49,12 @@ type topologyResponse struct {
 }
 
 type topologyProfileView struct {
-	ID           string   `json:"id"`
-	GenerationID string   `json:"generation_id"`
-	Status       string   `json:"status"`
-	Reason       string   `json:"reason,omitempty"`
-	Worktrees    []string `json:"worktrees"`
+	ID                  string   `json:"id"`
+	GenerationID        string   `json:"generation_id"`
+	Status              string   `json:"status"`
+	CompositionComplete bool     `json:"composition_complete"`
+	Reason              string   `json:"reason,omitempty"`
+	Worktrees           []string `json:"worktrees"`
 }
 
 type topologyRepositoryView struct {
@@ -130,14 +131,16 @@ type topologyStoreSelection struct {
 }
 
 type topologyProfileData struct {
-	Name         string
-	GenerationID string
-	Generation   uint64
-	Snapshot     *hotsnapshot.GraphSnapshot
-	Composition  topology.ProfileComposition
-	Manifest     sourceobservation.Manifest
-	ManifestOK   bool
-	State        *invalidation.ProfileState
+	Name              string
+	GenerationID      string
+	Generation        uint64
+	Snapshot          *hotsnapshot.GraphSnapshot
+	Composition       topology.ProfileComposition
+	CompositionOK     bool
+	CompositionReason string
+	Manifest          sourceobservation.Manifest
+	ManifestOK        bool
+	State             *invalidation.ProfileState
 }
 
 type topologyRelationshipCacheEntry struct {

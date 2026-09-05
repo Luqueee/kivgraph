@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -178,6 +179,110 @@ func TestManifestRoundTripsWithTheCandidateGeneration(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(candidate, FileName)); err != nil {
 		t.Fatalf("published source observation file: %v", err)
+	}
+}
+
+func TestManifestRoundTripsPublishedTopologyComposition(t *testing.T) {
+	manifest := validManifest(t)
+	want := testProfileComposition(t, "default")
+	stored, err := NewTopologyComposition(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest.Composition = &stored
+
+	candidate := testsupport.TempDir(t)
+	if err := Write(candidate, manifest); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := Read(candidate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Composition == nil {
+		t.Fatal("published manifest has no topology composition")
+	}
+	got, err := loaded.Composition.ProfileComposition()
+	if err != nil {
+		t.Fatalf("ProfileComposition() for manifest profile %q: %v", loaded.Profile, err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("published composition = %#v, want %#v", got, want)
+	}
+}
+
+func TestNewTopologyCompositionRejectsAnInconsistentEffectiveSelection(t *testing.T) {
+	composition := testProfileComposition(t, "default")
+	composition.Profile.Worktrees[0].Worktree = "other-worktree"
+	if _, err := NewTopologyComposition(composition); err == nil || !strings.Contains(err.Error(), "selected entry") {
+		t.Fatalf("NewTopologyComposition(%#v) error = %v, want inconsistent selection refusal", composition, err)
+	}
+}
+
+func TestManifestValidateRejectsCompositionThatDoesNotMatchObservedSources(t *testing.T) {
+	cases := []struct {
+		name   string
+		mutate func(*Manifest, *topology.ProfileComposition) error
+		want   string
+	}{
+		{
+			name: "selected source is absent",
+			mutate: func(_ *Manifest, composition *topology.ProfileComposition) error {
+				composition.Repositories[0].ID = "other"
+				composition.Worktrees[0].Repository = "other"
+				composition.Profile.Worktrees[0].Repository = "other"
+				return nil
+			},
+			want: "no observed source",
+		},
+		{
+			name: "selected worktree differs",
+			mutate: func(_ *Manifest, composition *topology.ProfileComposition) error {
+				composition.Worktrees[0].ID = "other-main"
+				composition.Profile.Worktrees[0].Worktree = "other-main"
+				return nil
+			},
+			want: "selects worktree",
+		},
+		{
+			name: "direct source is unselected",
+			mutate: func(manifest *Manifest, _ *topology.ProfileComposition) error {
+				observation, err := topology.NewSourceObservation("other-main", "fedcba9876543210", "main", false, strings.Repeat("b", 64))
+				if err != nil {
+					return err
+				}
+				manifest.Sources = append(manifest.Sources, Source{
+					Repository: "other", Observation: observation, Policy: Policy{Languages: []string{"go"}},
+				})
+				return nil
+			},
+			want: "not selected",
+		},
+		{
+			name: "selected source is derived",
+			mutate: func(manifest *Manifest, _ *topology.ProfileComposition) error {
+				manifest.Sources[0].Derived = true
+				return nil
+			},
+			want: "derived source",
+		},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			manifest := validManifest(t)
+			composition := testProfileComposition(t, manifest.Profile)
+			if err := test.mutate(&manifest, &composition); err != nil {
+				t.Fatal(err)
+			}
+			stored, err := NewTopologyComposition(composition)
+			if err != nil {
+				t.Fatal(err)
+			}
+			manifest.Composition = &stored
+			if err := manifest.Validate(); err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("Manifest.Validate() composition=%#v sources=%#v error = %v, want %q refusal", stored, manifest.Sources, err, test.want)
+			}
+		})
 	}
 }
 
@@ -374,6 +479,27 @@ func TestCompareNamesEveryChangedDimension(t *testing.T) {
 	}
 }
 
+func TestCompareRejectsChangedTopologyComposition(t *testing.T) {
+	before := validManifest(t)
+	composition, err := NewTopologyComposition(testProfileComposition(t, before.Profile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	before.Composition = &composition
+	after := before
+	changed := *before.Composition
+	changed.Repositories = append([]TopologyRepository(nil), before.Composition.Repositories...)
+	changed.Worktrees = append([]TopologyWorktree(nil), before.Composition.Worktrees...)
+	changed.Worktrees[0].Path = "/workspace/changed"
+	after.Composition = &changed
+
+	err = Compare(before, after)
+	if !errors.Is(err, ErrChanged) || !strings.Contains(err.Error(), "topology composition changed") {
+		t.Fatalf("Compare() with worktree path %q changed to %q error = %v, want changed topology composition",
+			before.Composition.Worktrees[0].Path, changed.Worktrees[0].Path, err)
+	}
+}
+
 func TestManifestValidateRejectsIncompleteFields(t *testing.T) {
 	baseline := validManifest(t)
 	cases := []struct {
@@ -433,6 +559,49 @@ func TestManifestValidateRejectsIncompleteFields(t *testing.T) {
 				t.Fatalf("Manifest.Validate() error = %v, want %q refusal", err, test.want)
 			}
 		})
+	}
+}
+
+func TestManifestValidateRejectsCompositionForAnotherProfile(t *testing.T) {
+	manifest := validManifest(t)
+	composition, err := NewTopologyComposition(testProfileComposition(t, "other"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest.Composition = &composition
+	if err := manifest.Validate(); err == nil || !strings.Contains(err.Error(), "composition profile") {
+		t.Fatalf("Manifest.Validate() for manifest profile %q and composition profile %q error = %v, want composition/profile mismatch",
+			manifest.Profile, composition.Profile, err)
+	}
+}
+
+func TestLegacyManifestRemainsReadableWithoutTopologyComposition(t *testing.T) {
+	manifest := validManifest(t)
+	manifest.Version = LegacyVersion
+	candidate := testsupport.TempDir(t)
+	if err := Write(candidate, manifest); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := Read(candidate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Version != LegacyVersion || loaded.Composition != nil {
+		t.Fatalf("legacy manifest = %#v, want version %d without a composition", loaded, LegacyVersion)
+	}
+}
+
+func TestManifestRejectsCompositionInLegacySchema(t *testing.T) {
+	manifest := validManifest(t)
+	composition, err := NewTopologyComposition(testProfileComposition(t, manifest.Profile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest.Version = LegacyVersion
+	manifest.Composition = &composition
+	if err := manifest.Validate(); err == nil || !strings.Contains(err.Error(), "version 1") {
+		t.Fatalf("Manifest.Validate() version=%d composition=%#v error = %v, want legacy composition refusal",
+			manifest.Version, composition, err)
 	}
 }
 
@@ -543,6 +712,27 @@ func validManifest(t *testing.T) Manifest {
 			Policy:      Policy{Languages: []string{"go"}},
 		}},
 	}
+}
+
+func testProfileComposition(t *testing.T, profile string) topology.ProfileComposition {
+	t.Helper()
+	value := topology.Topology{
+		Version:      topology.CurrentSchemaVersion,
+		Repositories: []topology.LogicalRepository{{ID: "source", Name: "Source"}},
+		Worktrees: []topology.Worktree{{
+			ID: "source-main", Repository: "source", Path: "/workspace/source",
+			Git: topology.GitLayout{GitDirectory: "/workspace/source/.git", CommonDirectory: "/workspace/source/.git"},
+		}},
+		Profiles: []topology.Profile{{
+			ID:        topology.ProfileID(profile),
+			Worktrees: []topology.WorktreeSelection{{Repository: "source", Worktree: "source-main"}},
+		}},
+	}
+	composition, err := value.Compose(topology.ProfileID(profile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return composition
 }
 
 func sourceFixtureRepository(t *testing.T) workspace.Repository {

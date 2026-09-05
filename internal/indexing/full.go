@@ -17,6 +17,7 @@ import (
 	"github.com/Luqueee/kivgraph/internal/rebuild"
 	"github.com/Luqueee/kivgraph/internal/sourceobservation"
 	"github.com/Luqueee/kivgraph/internal/storage/generation"
+	"github.com/Luqueee/kivgraph/internal/topology"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
@@ -24,8 +25,12 @@ import (
 // The operation reads every configured repository and publishes a new
 // generation only after the rebuild gates pass.
 type FullOptions struct {
-	Profile           string
-	Repositories      []workspace.Repository
+	Profile      string
+	Repositories []workspace.Repository
+	// Composition is the effective worktree selection that produced
+	// Repositories. When present, it is persisted with the generation instead
+	// of being reconstructed from live topology configuration by readers.
+	Composition       *topology.ProfileComposition
 	SyntheticWorkFile string
 	IncludeTests      bool
 	GoOS              string
@@ -284,7 +289,59 @@ func ObserveSources(ctx context.Context, options FullOptions) (sourceobservation
 	if err != nil {
 		return sourceobservation.Manifest{}, nil, fmt.Errorf("observe index sources: %w", err)
 	}
+	if options.Composition != nil {
+		composition, err := sourceobservation.NewTopologyComposition(*options.Composition)
+		if err != nil {
+			return sourceobservation.Manifest{}, nil, fmt.Errorf("observe effective topology composition: %w", err)
+		}
+		if err := validateObservedComposition(*options.Composition, observedRepositories); err != nil {
+			return sourceobservation.Manifest{}, nil, fmt.Errorf("observe effective topology composition: %w", err)
+		}
+		manifest.Composition = &composition
+		if err := manifest.Validate(); err != nil {
+			return sourceobservation.Manifest{}, nil, fmt.Errorf("validate effective topology composition: %w", err)
+		}
+	}
 	return manifest, observedRepositories, nil
+}
+
+func validateObservedComposition(composition topology.ProfileComposition, observed []workspace.Repository) error {
+	repositories := make(map[string]workspace.Repository, len(observed))
+	for _, repository := range observed {
+		name := repository.Name
+		if _, exists := repositories[name]; exists {
+			return fmt.Errorf("observed source repository %q is duplicated", name)
+		}
+		repositories[name] = repository
+	}
+	worktrees := make(map[topology.LogicalRepositoryID]topology.Worktree, len(composition.Worktrees))
+	for _, worktree := range composition.Worktrees {
+		if _, exists := worktrees[worktree.Repository]; exists {
+			return fmt.Errorf("topology repository %q selects multiple worktrees", worktree.Repository)
+		}
+		worktrees[worktree.Repository] = worktree
+	}
+	for _, selected := range composition.Repositories {
+		name := string(selected.ID)
+		repository, exists := repositories[name]
+		if !exists {
+			return fmt.Errorf("topology repository %q was not observed", name)
+		}
+		if repository.Derived {
+			return fmt.Errorf("topology repository %q selects a derived source", name)
+		}
+		worktree, exists := worktrees[selected.ID]
+		if !exists {
+			return fmt.Errorf("topology repository %q selects no worktree", name)
+		}
+		if repository.Worktree != worktree.ID {
+			return fmt.Errorf("topology repository %q selects worktree %q, observed %q", name, worktree.ID, repository.Worktree)
+		}
+		if filepath.Clean(repository.Path) != filepath.Clean(worktree.Path) {
+			return fmt.Errorf("topology repository %q selects path %q, observed %q", name, worktree.Path, repository.Path)
+		}
+	}
+	return nil
 }
 
 // Counts is the number of authoritative facts produced by one full pass.

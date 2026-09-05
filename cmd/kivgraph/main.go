@@ -1597,6 +1597,9 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 	indexOptions.Profile = loaded.Profile
 	indexOptions.SharedTargetsLockPath = filepath.Join(stateDirectory(loaded), "analyzer-targets.lock")
 	indexOptions.Repositories = registry.List()
+	if composition, present := registry.Composition(); present {
+		indexOptions.Composition = &composition
+	}
 	indexOptions.WorkingDirectory = workingDirectory
 	indexOptions.ResolverVersion = options.ResolverVersion
 	invalidationManager, err := invalidation.Open(stateDirectory(loaded))

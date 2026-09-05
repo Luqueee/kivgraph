@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -19,6 +20,7 @@ import (
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 	"github.com/Luqueee/kivgraph/internal/invalidation"
 	"github.com/Luqueee/kivgraph/internal/sourceobservation"
+	"github.com/Luqueee/kivgraph/internal/storage/generation"
 	"github.com/Luqueee/kivgraph/internal/testsupport"
 	"github.com/Luqueee/kivgraph/internal/topology"
 )
@@ -213,7 +215,7 @@ func TestHandlerTopologyReturnsPinnedProfilesAndRelationships(t *testing.T) {
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 	if response.Code != http.StatusOK {
-		t.Fatalf("topology status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+		t.Fatalf("%s: topology status = %d, want %d; body=%s", request.URL.String(), response.Code, http.StatusOK, response.Body.String())
 	}
 	var value topologyResponse
 	if err := json.Unmarshal(response.Body.Bytes(), &value); err != nil {
@@ -530,28 +532,20 @@ func TestTopologyDeclaredRepositoryWinsSynthesizedRecord(t *testing.T) {
 	}
 }
 
-func TestHandlerTopologyReportsAmbiguousRepositoryDeclarations(t *testing.T) {
+func TestHandlerTopologyKeepsPublishedCompositionAfterConfigurationChanges(t *testing.T) {
 	configPath, _ := topologyTestConfiguration(t, "default", "other")
-	for _, declaration := range []struct {
-		profile string
-		name    string
-	}{
-		{profile: "default", name: "Default repository"},
-		{profile: "other", name: "Other repository"},
-	} {
-		value, present, err := config.LoadProfileTopology(configPath, declaration.profile)
-		if err != nil {
-			t.Fatalf("LoadProfileTopology(%q) error = %v", declaration.profile, err)
-		}
-		if !present || len(value.Repositories) != 1 {
-			t.Fatalf("profile %q topology = %#v, want one repository", declaration.profile, value)
-		}
-		repository := value.Repositories[0]
-		repository.Name = declaration.name
-		value.Repositories = []topology.LogicalRepository{repository}
-		if err := config.SaveProfileTopology(configPath, declaration.profile, value); err != nil {
-			t.Fatalf("SaveProfileTopology(%q) error = %v", declaration.profile, err)
-		}
+	value, present, err := config.LoadProfileTopology(configPath, "other")
+	if err != nil {
+		t.Fatalf("LoadProfileTopology(other) error = %v", err)
+	}
+	if !present || len(value.Repositories) != 1 || len(value.Worktrees) != 1 {
+		t.Fatalf("profile other topology = %#v, want one repository and worktree", value)
+	}
+	value.Repositories[0].Name = "Live configuration only"
+	value.Worktrees[0].ID = "live-worktree"
+	value.Profiles[0].Worktrees[0].Worktree = "live-worktree"
+	if err := config.SaveProfileTopology(configPath, "other", value); err != nil {
+		t.Fatalf("SaveProfileTopology(other) error = %v", err)
 	}
 
 	store, err := hotsnapshot.NewProfileSnapshotStore("default", map[string]*hotsnapshot.SnapshotStore{
@@ -562,11 +556,129 @@ func TestHandlerTopologyReportsAmbiguousRepositoryDeclarations(t *testing.T) {
 		t.Fatalf("NewProfileSnapshotStore() error = %v", err)
 	}
 	handler := NewHandlerWithTopology(store, TopologyOptions{ConfigPath: configPath})
-	request := httptest.NewRequest(http.MethodGet, "/api/v1/topology?profile=default&profile=other", nil)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/topology?profile=default&profile=other&generation=default:000007&generation=other:000008", nil)
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 
-	assertAPIError(t, response, http.StatusConflict, "TOPOLOGY_AMBIGUOUS", request.URL.String())
+	if response.Code != http.StatusOK {
+		t.Fatalf("%s: topology status = %d, want %d; body=%s", request.URL.String(), response.Code, http.StatusOK, response.Body.String())
+	}
+	var got topologyResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode topology for %s: %v; body=%s", request.URL.String(), err, response.Body.String())
+	}
+	if len(got.Worktrees) != 1 || got.Worktrees[0].ID != "shared-worktree" ||
+		len(got.Repositories) != 1 || got.Repositories[0].Name != "Repository" {
+		t.Fatalf("topology after a live configuration edit = %#v / %#v, want the published composition", got.Worktrees, got.Repositories)
+	}
+	profiles := append([]topologyProfileView(nil), got.Profiles...)
+	sort.Slice(profiles, func(left, right int) bool { return profiles[left].ID < profiles[right].ID })
+	if len(profiles) != 2 ||
+		profiles[0].ID != "default" || profiles[0].GenerationID != "000007" ||
+		profiles[1].ID != "other" || profiles[1].GenerationID != "000008" {
+		t.Fatalf("published profiles for %s = %#v, want default:000007 and other:000008", request.URL.String(), profiles)
+	}
+	for _, profile := range profiles {
+		if profile.Status == "partial" {
+			t.Fatalf("profile %q status = %q reason = %q, want the published composition", profile.ID, profile.Status, profile.Reason)
+		}
+	}
+}
+
+func TestHandlerTopologyMarksLegacyGenerationCompositionIncomplete(t *testing.T) {
+	configPath, _ := topologyTestConfiguration(t, "default")
+	legacy := topologyManifest(t, "default", "legacy-worktree", nil)
+	legacy.Version = sourceobservation.LegacyVersion
+	if err := sourceobservation.Write(topologyGenerationPath(t, configPath, "default", 7), legacy); err != nil {
+		t.Fatal(err)
+	}
+
+	handler := NewHandlerWithTopology(hotsnapshot.NewSnapshotStore(testSnapshotWithTopologyID(t, 7)), TopologyOptions{
+		ConfigPath: configPath,
+		Profile:    "default",
+	})
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/topology?generation_id=000007", nil)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("%s: topology status = %d, want %d; body=%s", request.URL.String(), response.Code, http.StatusOK, response.Body.String())
+	}
+	var got topologyResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode topology for %s: %v; body=%s", request.URL.String(), err, response.Body.String())
+	}
+	if got.Status != "partial" || len(got.Profiles) != 1 || got.Profiles[0].Status != "partial" ||
+		!strings.Contains(got.Profiles[0].Reason, "does not record topology composition") ||
+		!strings.Contains(got.Completeness.Reason, "does not record topology composition") || len(got.Worktrees) != 0 {
+		t.Fatalf("legacy topology = %#v, want explicit incomplete composition without live worktrees", got)
+	}
+}
+
+func TestHandlerTopologyMarksInvalidManifestIncomplete(t *testing.T) {
+	configPath, _ := topologyTestConfiguration(t, "default")
+	value, present, err := config.LoadProfileTopology(configPath, "default")
+	if err != nil || !present {
+		t.Fatalf("LoadProfileTopology(default) = %#v, %t, %v", value, present, err)
+	}
+	manifest := topologyManifest(t, "default", "shared-worktree", &value)
+	if manifest.Composition == nil {
+		t.Fatal("topology manifest has no persisted composition")
+	}
+	manifest.Composition.Profile = "other"
+	data, err := json.Marshal(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(topologyGenerationPath(t, configPath, "default", 7), sourceobservation.FileName)
+	if err := os.WriteFile(path, append(data, '\n'), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	handler := NewHandlerWithTopology(hotsnapshot.NewSnapshotStore(testSnapshotWithTopologyID(t, 7)), TopologyOptions{
+		ConfigPath: configPath,
+		Profile:    "default",
+	})
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/topology?generation_id=000007", nil)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("%s: topology status = %d, want %d; body=%s", request.URL.String(), response.Code, http.StatusOK, response.Body.String())
+	}
+	var got topologyResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode topology for %s: %v; body=%s", request.URL.String(), err, response.Body.String())
+	}
+	if got.Status != "partial" || len(got.Profiles) != 1 || got.Profiles[0].Status != "partial" ||
+		got.Profiles[0].CompositionComplete || got.Profiles[0].Reason != "indexed source observations are invalid" ||
+		!strings.Contains(got.Completeness.Reason, "indexed source observations are invalid") || len(got.Worktrees) != 0 {
+		t.Fatalf("invalid-manifest topology = %#v, want an explicit incomplete composition", got)
+	}
+}
+
+func TestHandlerTopologyMarksUnavailableManifestIncomplete(t *testing.T) {
+	configPath, _ := topologyTestConfiguration(t, "default")
+	path := filepath.Join(topologyGenerationPath(t, configPath, "default", 7), sourceobservation.FileName)
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	handler := NewHandlerWithTopology(hotsnapshot.NewSnapshotStore(testSnapshotWithTopologyID(t, 7)), TopologyOptions{
+		ConfigPath: configPath,
+		Profile:    "default",
+	})
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/topology?generation_id=000007", nil)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("%s: topology status = %d, want %d; body=%s", request.URL.String(), response.Code, http.StatusOK, response.Body.String())
+	}
+	var got topologyResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode topology for %s: %v; body=%s", request.URL.String(), err, response.Body.String())
+	}
+	if got.Status != "partial" || len(got.Profiles) != 1 || got.Profiles[0].Status != "partial" ||
+		got.Profiles[0].CompositionComplete || got.Profiles[0].Reason != "indexed source observations are unavailable" {
+		t.Fatalf("topology for unavailable manifest = %#v, want explicit incomplete manifest", got)
+	}
 }
 
 func TestTopologyAssemblerHidesUnobservedStaleCurrent(t *testing.T) {
@@ -592,6 +704,25 @@ func TestTopologyAssemblerHidesUnobservedStaleCurrent(t *testing.T) {
 	sources := assembler.response().Sources
 	if len(sources) != 1 || sources[0].Status != "stale" || sources[0].Current != nil {
 		t.Fatalf("stale source view for worktree %q = %#v, want stale without an observed current", observation.Worktree, sources)
+	}
+}
+
+func TestTopologyAssemblerKeepsStaleAndIncompleteCompositionSeparate(t *testing.T) {
+	assembler := newTopologyAssembler()
+	if err := assembler.addComposition(context.Background(), topologyProfileData{
+		Name: "default", GenerationID: "000007", Snapshot: testSnapshot(t),
+		Composition:       topology.ProfileComposition{Profile: topology.Profile{ID: "default"}},
+		CompositionReason: "generation does not record topology composition",
+		State:             &invalidation.ProfileState{Stale: true, Reason: "commit changed"},
+	}); err != nil {
+		t.Fatalf("addComposition() error = %v", err)
+	}
+	response := assembler.response()
+	if response.Status != "stale" || response.Completeness.Complete || len(response.Profiles) != 1 ||
+		response.Profiles[0].Status != "stale" || response.Profiles[0].CompositionComplete ||
+		!strings.Contains(response.Profiles[0].Reason, "commit changed") ||
+		!strings.Contains(response.Completeness.Reason, "does not record topology composition") {
+		t.Fatalf("stale incomplete topology = %#v, want distinct stale and composition states", response)
 	}
 }
 
@@ -654,6 +785,12 @@ func topologyTestConfiguration(t *testing.T, profiles ...string) (string, string
 		if err := config.SaveProfileTopology(configPath, profile, value); err != nil {
 			t.Fatalf("config.SaveProfileTopology(%q) error = %v", profile, err)
 		}
+		for _, snapshotID := range []uint64{7, 8} {
+			manifest := topologyManifest(t, profile, "shared-worktree", &value)
+			if err := sourceobservation.Write(topologyGenerationPath(t, configPath, profile, snapshotID), manifest); err != nil {
+				t.Fatalf("write published topology composition for profile %q generation %d: %v", profile, snapshotID, err)
+			}
+		}
 	}
 	loaded, err := config.LoadProfile(configPath, profiles[0])
 	if err != nil {
@@ -666,6 +803,55 @@ func topologyTestConfiguration(t *testing.T, profiles ...string) (string, string
 	}
 	stateRoot := filepath.Dir(profilesDirectory)
 	return configPath, stateRoot
+}
+
+func topologyGenerationPath(t *testing.T, configPath, profile string, snapshotID uint64) string {
+	t.Helper()
+	loaded, err := config.LoadProfile(configPath, profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(
+		generation.GenerationsDir(filepath.Dir(loaded.Config.Storage.DatabasePath)),
+		fmt.Sprintf("%06d", snapshotID),
+	)
+	if err := os.MkdirAll(path, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func topologyManifest(
+	t *testing.T,
+	profile string,
+	worktree topology.WorktreeID,
+	value *topology.Topology,
+) sourceobservation.Manifest {
+	t.Helper()
+	observation, err := topology.NewSourceObservation(worktree, "0123456789abcdef", "main", false, strings.Repeat("a", 64))
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest := sourceobservation.Manifest{
+		Version:             sourceobservation.CurrentVersion,
+		Profile:             profile,
+		ResolverVersion:     "resolver-test",
+		AnalyzerFingerprint: "analyzer-test",
+		Sources:             []sourceobservation.Source{{Repository: "repo", Observation: observation}},
+	}
+	if value == nil {
+		return manifest
+	}
+	composition, err := value.Compose(topology.ProfileID(profile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	persisted, err := sourceobservation.NewTopologyComposition(composition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest.Composition = &persisted
+	return manifest
 }
 
 func assertAPIError(t *testing.T, response *httptest.ResponseRecorder, status int, code string, request ...string) {

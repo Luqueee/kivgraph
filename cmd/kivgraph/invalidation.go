@@ -263,6 +263,9 @@ func watchProfileSources(
 			return
 		}
 		options.Repositories = registry.List()
+		if composition, present := registry.Composition(); present {
+			options.Composition = &composition
+		}
 		repositories := options.Repositories
 		manifest, observedRepositories, err := indexing.ObserveSources(watchCtx, options)
 		if err != nil {
@@ -325,6 +328,9 @@ func refreshInvalidationForProfile(
 		return nil
 	}
 	options.Repositories = registry.List()
+	if composition, present := registry.Composition(); present {
+		options.Composition = &composition
+	}
 	manifest, _, err := indexing.ObserveSources(ctx, options)
 	if err != nil {
 		if stateErr := handleUnavailableProfileSources(ctx, manager, loaded.Profile, err, logger, command); stateErr != nil {
