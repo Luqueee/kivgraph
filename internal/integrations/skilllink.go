@@ -184,7 +184,7 @@ func (manager Manager) installLinkedSkill(target Target, scope Scope, path strin
 		}
 		if force && state.placement == skillLinked {
 			plan.Changed = true
-			plan.Detail = "refresh the Kivgraph skill link and canonical skill"
+			plan.Detail = "refresh the canonical Kivgraph skill used by this link"
 		}
 		if dryRun {
 			plan.DryRun = true
@@ -201,9 +201,8 @@ func (manager Manager) installLinkedSkill(target Target, scope Scope, path strin
 			plan.Status = "installed"
 		}
 		if force && state.placement == skillLinked {
-			if err := manager.linkSkill(path, state); err != nil {
-				return Plan{}, err
-			}
+			// The link already targets the canonical skill. Refreshing that file is
+			// sufficient, and retaining the link avoids a window without a skill.
 			plan.Status = "installed"
 		}
 		return plan, nil

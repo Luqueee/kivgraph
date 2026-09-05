@@ -234,8 +234,9 @@ func TestConfigureNamesExistingComponentsAndCanReplaceThem(t *testing.T) {
 	); code != 0 {
 		t.Fatalf("replacement configure exit code = %d, stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
-	if question != "Some selected Kivgraph components are already configured. Replace all selected components?" {
-		t.Fatalf("replacement question = %q", question)
+	const replacementQuestion = "Some selected Kivgraph components are already configured. Replace all selected components?"
+	if question != replacementQuestion {
+		t.Fatalf("replacement question for args %q = %q, want %q", args, question, replacementQuestion)
 	}
 	if !strings.Contains(stdout.String(), "Changes: 4 applied.") {
 		t.Fatalf("replacement configure output = %q, want all Codex components applied", stdout.String())
@@ -310,8 +311,9 @@ func TestConfigureInteractiveAppliesAllSupportedSurfaces(t *testing.T) {
 	); code != 0 {
 		t.Fatalf("replacement configure exit code = %d, stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
-	if question != "Some selected Kivgraph components are already configured. Replace all selected components?" {
-		t.Fatalf("replacement question = %q", question)
+	const replacementQuestion = "Some selected Kivgraph components are already configured. Replace all selected components?"
+	if question != replacementQuestion {
+		t.Fatalf("replacement question for all selected targets = %q, want %q", question, replacementQuestion)
 	}
 	if !strings.Contains(stdout.String(), "Changes: 18 applied, 1 not supported.") {
 		t.Fatalf("replacement configure output = %q, want every supported component applied", stdout.String())

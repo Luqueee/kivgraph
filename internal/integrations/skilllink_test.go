@@ -71,6 +71,14 @@ func TestAnUpgradeKeepsAnEditedCanonical(t *testing.T) {
 	if _, err := manager.InstallSkill(TargetClaudeCode, ScopeUser, false, false); err != nil {
 		t.Fatal(err)
 	}
+	path, err := manager.skillPath(TargetClaudeCode, ScopeUser)
+	if err != nil {
+		t.Fatal(err)
+	}
+	linkBefore, err := os.Lstat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
 	const edited = "# mine\n"
 	if err := os.WriteFile(manager.canonicalSkillPath(), []byte(edited), 0o600); err != nil {
 		t.Fatal(err)
@@ -109,6 +117,13 @@ func TestAnUpgradeKeepsAnEditedCanonical(t *testing.T) {
 	}
 	if string(data) == edited {
 		t.Fatal("--force did not restore the shipped skill")
+	}
+	linkAfter, err := os.Lstat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !os.SameFile(linkBefore, linkAfter) {
+		t.Fatal("--force replaced an already correct skill link")
 	}
 }
 
