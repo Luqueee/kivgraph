@@ -54,6 +54,7 @@ export interface TopologyBoundary {
 }
 
 export interface TopologyModel {
+  readonly response?: TopologyResponse;
   readonly nodes: readonly TopologyNode[];
   readonly edges: readonly TopologyEdge[];
   readonly relationships: readonly TopologyRelationship[];
@@ -436,6 +437,59 @@ function edgeKind(relationship: TopologyRelationship): string {
   return relationship.kind ?? relationship.type;
 }
 
+function scopeTopologyResponse(
+  response: TopologyResponse,
+  profileID: string,
+): TopologyResponse {
+  if (profileID === ALL_TOPOLOGY_FILTER) return response;
+
+  const profiles = response.profiles.filter(
+    (profile) => profile.id === profileID,
+  );
+  const profileIDs = new Set(profiles.map((profile) => profile.id));
+  const worktreeIDs = new Set(profiles.flatMap((profile) => profile.worktrees));
+  const worktrees = response.worktrees.filter((worktree) =>
+    worktreeIDs.has(worktree.id),
+  );
+  const repositoryIDs = new Set(
+    worktrees.map((worktree) => worktree.repository),
+  );
+  const sharedInputs = response.sharedInputs
+    .map((input) => ({
+      ...input,
+      owners: input.owners.filter((owner) => profileIDs.has(owner)),
+    }))
+    .filter(
+      (input) =>
+        input.owners.length > 0 &&
+        (input.type !== "worktree" || worktreeIDs.has(input.id)),
+    );
+
+  return {
+    ...response,
+    selectedProfiles: response.selectedProfiles.filter((profile) =>
+      profileIDs.has(profile),
+    ),
+    profiles,
+    repositories: response.repositories.filter((repository) =>
+      repositoryIDs.has(repository.id),
+    ),
+    worktrees,
+    sources: response.sources.filter(
+      (source) =>
+        profileIDs.has(source.profile) &&
+        worktreeIDs.has(source.worktree) &&
+        repositoryIDs.has(source.repository),
+    ),
+    sharedInputs,
+    relationships: response.relationships.filter(
+      (relationship) =>
+        relationship.profile !== undefined &&
+        profileIDs.has(relationship.profile),
+    ),
+  };
+}
+
 export function createTopologyModel(response: TopologyResponse): TopologyModel {
   const nodes = createNodes(response);
   const relationships = [
@@ -444,6 +498,7 @@ export function createTopologyModel(response: TopologyResponse): TopologyModel {
   ];
   const { edges, unrendered } = buildEdges(relationships, nodes);
   return {
+    response,
     nodes,
     edges,
     relationships,
@@ -457,9 +512,14 @@ export function filterTopology(
   model: TopologyModel,
   filters: TopologyFilters,
 ): TopologyModel {
-  const nodes = model.nodes.filter((node) => matchesNode(node, filters));
+  const scopedModel = model.response
+    ? createTopologyModel(
+        scopeTopologyResponse(model.response, filters.profile),
+      )
+    : model;
+  const nodes = scopedModel.nodes.filter((node) => matchesNode(node, filters));
   const visibleKeys = new Set(nodes.map((node) => node.key));
-  const relationships = model.relationships.filter((relationship) => {
+  const relationships = scopedModel.relationships.filter((relationship) => {
     const sourceVisible = visibleKeys.has(
       relationshipNodeKey(relationship.source),
     );
@@ -469,13 +529,15 @@ export function filterTopology(
     return (
       sourceVisible &&
       targetVisible &&
+      (filters.profile === ALL_TOPOLOGY_FILTER ||
+        relationship.profile === filters.profile) &&
       (filters.edgeKind === ALL_TOPOLOGY_FILTER ||
         edgeKind(relationship) === filters.edgeKind)
     );
   });
   const { edges, unrendered } = buildEdges(relationships, nodes);
   return {
-    ...model,
+    ...scopedModel,
     nodes,
     edges,
     relationships,

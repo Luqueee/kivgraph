@@ -190,4 +190,104 @@ describe("topology model", () => {
     expect(filtered.edges).toHaveLength(0);
     expect(topology.relationships).toHaveLength(3);
   });
+
+  it("keeps relationships and profile boundaries in the selected profile scope", () => {
+    const variants: TopologyResponse = {
+      ...topology,
+      selectedProfiles: ["A", "B"],
+      profiles: [
+        {
+          id: "A",
+          generationId: "000101",
+          status: "ready",
+          compositionComplete: true,
+          worktrees: ["front-a", "back-a"],
+        },
+        {
+          id: "B",
+          generationId: "000102",
+          status: "ready",
+          compositionComplete: true,
+          worktrees: ["front-b", "back-b"],
+        },
+      ],
+      repositories: [
+        { id: "front", name: "Front", languages: ["typescript"] },
+        { id: "back", name: "Back", languages: ["go"] },
+      ],
+      worktrees: [
+        { id: "front-a", repository: "front", path: "/src/a/front" },
+        { id: "back-a", repository: "back", path: "/src/a/back" },
+        { id: "front-b", repository: "front", path: "/src/b/front" },
+        { id: "back-b", repository: "back", path: "/src/b/back" },
+      ],
+      sources: [
+        {
+          profile: "A",
+          repository: "front",
+          worktree: "front-a",
+          status: "current",
+        },
+        {
+          profile: "B",
+          repository: "front",
+          worktree: "front-b",
+          status: "stale",
+        },
+      ],
+      sharedInputs: [],
+      relationships: [
+        {
+          profile: "A",
+          type: "code_dependency",
+          source: { type: "repository", id: "front" },
+          target: { type: "repository", id: "back" },
+          kind: "CALLS_DIRECT",
+          status: "candidate",
+          confidence: "CANDIDATE",
+          provenance: "GO_TYPES_USE",
+          evidence: "a.go:10",
+        },
+        {
+          profile: "B",
+          type: "code_dependency",
+          source: { type: "repository", id: "front" },
+          target: { type: "repository", id: "back" },
+          kind: "CALLS_DIRECT",
+          status: "exact",
+          confidence: "EXACT_TYPECHECKED",
+          provenance: "GO_TYPES_USE",
+          evidence: "b.go:10",
+        },
+      ],
+    };
+
+    const filtered = filterTopology(createTopologyModel(variants), {
+      ...allFilters,
+      profile: "A",
+    });
+
+    expect(filtered.nodes.map((node) => node.key)).toEqual([
+      "profile:A",
+      "worktree:back-a",
+      "worktree:front-a",
+      "repository:back",
+      "repository:front",
+    ]);
+    expect(filtered.relationships).toEqual([
+      expect.objectContaining({
+        profile: "A",
+        status: "candidate",
+        evidence: "a.go:10",
+      }),
+    ]);
+    expect(filtered.response?.sources).toEqual([
+      expect.objectContaining({
+        profile: "A",
+        worktree: "front-a",
+        status: "current",
+      }),
+    ]);
+    expect(filtered.boundaries).toEqual([]);
+  });
 });
