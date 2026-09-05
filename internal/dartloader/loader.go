@@ -120,7 +120,9 @@ func RunWithOptions(ctx context.Context, options Options) (facts.SemanticPayload
 			return facts.SemanticPayload{}, fmt.Errorf("read Dart file %q: %w", path, err)
 		}
 		contents[path] = data
-		client.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": fileURI(path), "languageId": "dart", "version": 1, "text": string(data)}})
+		if err := client.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": fileURI(path), "languageId": "dart", "version": 1, "text": string(data)}}); err != nil {
+			return facts.SemanticPayload{}, fmt.Errorf("opening Dart file %q: %w", path, err)
+		}
 	}
 
 	payload := facts.SemanticPayload{Version: PayloadVersion, Authoritative: true, Repository: repository.Name, Language: facts.LanguageDart, Package: facts.SemanticPackage{Name: dartPackageName(root), RootPath: root, ManifestPath: filepath.Join(root, "pubspec.yaml")}}
@@ -247,11 +249,11 @@ func RunWithOptions(ctx context.Context, options Options) (facts.SemanticPayload
 }
 
 type client struct {
-	cmd  *exec.Cmd
-	in   io.WriteCloser
-	out  <-chan rpcMessage
-	mu   sync.Mutex
-	next int
+	worker *workerProcess
+	in     io.WriteCloser
+	out    <-chan rpcMessage
+	mu     sync.Mutex
+	next   int
 }
 type rpcMessage struct {
 	ID     json.RawMessage
@@ -277,22 +279,14 @@ func start(ctx context.Context, command, sdkPath, root string) (*client, error) 
 	if isDartProgram(executable) {
 		args = append(args, "language-server", "--protocol=lsp", "--client-id=kivgraph", "--client-version=dev")
 	}
-	cmd := exec.CommandContext(ctx, executable, args...)
-	cmd.Dir = root
-	in, err := cmd.StdinPipe()
+
+	worker, stdout, err := launchWorker(ctx, executable, args, root)
 	if err != nil {
-		return nil, err
-	}
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, err
-	}
-	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
 	messages := make(chan rpcMessage, 32)
-	go readMessages(stdout, messages)
-	return &client{cmd: cmd, in: in, out: messages, next: 1}, nil
+	go readMessages(stdout, messages, worker.done)
+	return &client{worker: worker, in: worker.in, out: messages, next: 1}, nil
 }
 
 // SDKRoot resolves the Dart SDK directory from the configured dart command.
@@ -392,7 +386,7 @@ type analyzerMessage struct {
 }
 
 type analyzerClient struct {
-	cmd      *exec.Cmd
+	worker   *workerProcess
 	in       io.WriteCloser
 	out      <-chan analyzerMessage
 	mu       sync.Mutex
@@ -431,22 +425,14 @@ func startAnalyzer(ctx context.Context, command, sdkPath, root string) (*analyze
 	if isDartProgram(executable) {
 		args = append(args, "language-server", "--protocol=analyzer", "--client-id=kivgraph", "--client-version=dev")
 	}
-	cmd := exec.CommandContext(ctx, executable, args...)
-	cmd.Dir = root
-	in, err := cmd.StdinPipe()
+
+	worker, stdout, err := launchWorker(ctx, executable, args, root)
 	if err != nil {
-		return nil, err
-	}
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, err
-	}
-	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
 	messages := make(chan analyzerMessage, 64)
-	go readAnalyzerMessages(stdout, messages)
-	return &analyzerClient{cmd: cmd, in: in, out: messages, next: 1}, nil
+	go readAnalyzerMessages(stdout, messages, worker.done)
+	return &analyzerClient{worker: worker, in: worker.in, out: messages, next: 1}, nil
 }
 
 func (c *analyzerClient) nextID() string {
@@ -458,12 +444,20 @@ func (c *analyzerClient) nextID() string {
 }
 
 func (c *analyzerClient) sendRequest(id, method string, params any) error {
+	if err := c.worker.stopped(method); err != nil {
+		return err
+	}
 	data, err := json.Marshal(map[string]any{"id": id, "method": method, "params": params})
 	if err != nil {
 		return err
 	}
+	c.mu.Lock()
 	_, err = fmt.Fprintf(c.in, "%s\n", data)
-	return err
+	c.mu.Unlock()
+	if err != nil {
+		return c.worker.failure(method, err)
+	}
+	return nil
 }
 
 func (c *analyzerClient) call(ctx context.Context, method string, params any) (json.RawMessage, error) {
@@ -486,7 +480,7 @@ func (c *analyzerClient) collect(ctx context.Context, requests map[string]struct
 			return nil, ctx.Err()
 		case message, ok := <-c.out:
 			if !ok {
-				return nil, fmt.Errorf("closed connection to the Dart analysis server")
+				return nil, c.worker.failure("read", fmt.Errorf("closed connection to the Dart analysis server"))
 			}
 			if message.Event != "" {
 				c.eventsMu.Lock()
@@ -532,7 +526,7 @@ func (c *analyzerClient) drainEvents(ctx context.Context, duration time.Duration
 			return nil
 		case message, ok := <-c.out:
 			if !ok {
-				return nil
+				return c.worker.failure("drain events", fmt.Errorf("worker stream closed"))
 			}
 			if message.Event == "" {
 				continue
@@ -544,20 +538,20 @@ func (c *analyzerClient) drainEvents(ctx context.Context, duration time.Duration
 	}
 }
 
-func (c *analyzerClient) close() {
-	_ = c.in.Close()
-	_ = c.cmd.Process.Kill()
-	_ = c.cmd.Wait()
-}
+func (c *analyzerClient) close() { c.worker.close() }
 
-func readAnalyzerMessages(reader io.Reader, output chan<- analyzerMessage) {
+func readAnalyzerMessages(reader io.Reader, output chan<- analyzerMessage, done <-chan struct{}) {
 	defer close(output)
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, 4096), 16<<20)
 	for scanner.Scan() {
 		var message analyzerMessage
 		if json.Unmarshal(scanner.Bytes(), &message) == nil && (message.ID != "" || message.Event != "") {
-			output <- message
+			select {
+			case output <- message:
+			case <-done:
+				return
+			}
 		}
 	}
 }
@@ -1096,8 +1090,7 @@ func (c *client) initialize(ctx context.Context, root string) error {
 	if err != nil {
 		return err
 	}
-	c.notify("initialized", map[string]any{})
-	return nil
+	return c.notify("initialized", map[string]any{})
 }
 
 func (c *client) call(ctx context.Context, method string, params any) (json.RawMessage, error) {
@@ -1114,7 +1107,7 @@ func (c *client) call(ctx context.Context, method string, params any) (json.RawM
 			return nil, ctx.Err()
 		case message, ok := <-c.out:
 			if !ok {
-				return nil, fmt.Errorf("closed connection to the Dart analysis server")
+				return nil, c.worker.failure("read", fmt.Errorf("closed connection to the Dart analysis server"))
 			}
 			if string(message.ID) != strconv.Itoa(id) {
 				continue
@@ -1127,25 +1120,28 @@ func (c *client) call(ctx context.Context, method string, params any) (json.RawM
 	}
 }
 
-func (c *client) notify(method string, params any) {
-	_ = c.send(map[string]any{"jsonrpc": "2.0", "method": method, "params": params})
+func (c *client) notify(method string, params any) error {
+	return c.send(map[string]any{"jsonrpc": "2.0", "method": method, "params": params})
 }
 func (c *client) send(message any) error {
+	if err := c.worker.stopped("write"); err != nil {
+		return err
+	}
 	data, err := json.Marshal(message)
 	if err != nil {
 		return err
 	}
+	c.mu.Lock()
 	_, err = fmt.Fprintf(c.in, "Content-Length: %d\r\n\r\n%s", len(data), data)
-	return err
+	c.mu.Unlock()
+	if err != nil {
+		return c.worker.failure("write", err)
+	}
+	return nil
 }
-func (c *client) close() {
-	_ = c.send(map[string]any{"jsonrpc": "2.0", "id": c.next, "method": "shutdown", "params": nil})
-	_ = c.in.Close()
-	_ = c.cmd.Process.Kill()
-	_ = c.cmd.Wait()
-}
+func (c *client) close() { c.worker.close() }
 
-func readMessages(reader io.Reader, output chan<- rpcMessage) {
+func readMessages(reader io.Reader, output chan<- rpcMessage, done <-chan struct{}) {
 	defer close(output)
 	buffered := bufio.NewReader(reader)
 	for {
@@ -1166,6 +1162,9 @@ func readMessages(reader io.Reader, output chan<- rpcMessage) {
 		if length <= 0 {
 			continue
 		}
+		if length > 16<<20 {
+			return
+		}
 		body := make([]byte, length)
 		if _, err := io.ReadFull(buffered, body); err != nil {
 			return
@@ -1179,7 +1178,11 @@ func readMessages(reader io.Reader, output chan<- rpcMessage) {
 		}
 		if json.Unmarshal(body, &envelope) == nil {
 			message = rpcMessage{ID: envelope.ID, Method: envelope.Method, Result: envelope.Result, Error: envelope.Error}
-			output <- message
+			select {
+			case output <- message:
+			case <-done:
+				return
+			}
 		}
 	}
 }
