@@ -80,7 +80,7 @@ func RegisterIndexProjectJobs(
 	addTextTool(server, &sdkmcp.Tool{
 		Name:        startIndexProjectToolName,
 		Title:       "Start project index",
-		Description: "Starts a consent-gated graph rebuild and returns an operation_id immediately. Poll get_index_status for progress and the result.",
+		Description: "Starts indexing; returns operation_id. Poll get_index_status.",
 		Annotations: &sdkmcp.ToolAnnotations{
 			ReadOnlyHint:    false,
 			DestructiveHint: &confirmed,
@@ -120,7 +120,7 @@ func RegisterIndexProjectJobs(
 	addTextTool(server, &sdkmcp.Tool{
 		Name:        getIndexStatusToolName,
 		Title:       "Get index status",
-		Description: "Returns progress, failure, or the published result for an operation_id from start_index_project.",
+		Description: "Status or result for a start_index_project operation.",
 		Annotations: readOnlyClosedWorld(),
 	}, func(
 		_ context.Context,
