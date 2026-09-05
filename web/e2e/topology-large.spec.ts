@@ -206,6 +206,7 @@ test("keeps a large topology explorable", async ({ page }) => {
 
 test("keeps a 5,000-node dependency chain stack safe", async ({ page }) => {
   test.setTimeout(60_000);
+  const layoutTimeout = 30_000;
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await page.route("**/api/v1/meta", async (route) => {
@@ -226,8 +227,16 @@ test("keeps a 5,000-node dependency chain stack safe", async ({ page }) => {
 
   await expect(
     page.getByText(`${DEEP_NODE_COUNT}/${DEEP_NODE_COUNT}`, { exact: true }),
-  ).toBeVisible();
-  await expect(page.locator(".react-flow__node")).toHaveCount(DEEP_NODE_COUNT);
+  ).toBeVisible({ timeout: layoutTimeout });
+  await expect(page.locator(".react-flow__node")).toHaveCount(DEEP_NODE_COUNT, {
+    timeout: layoutTimeout,
+  });
+  await expect(page.locator(".react-flow__edge")).toHaveCount(600, {
+    timeout: layoutTimeout,
+  });
+  await expect(page.locator(".react-flow__edge-text")).toHaveCount(0, {
+    timeout: layoutTimeout,
+  });
   expect(pageErrors).toEqual([]);
 });
 
