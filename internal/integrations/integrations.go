@@ -100,6 +100,8 @@ func (endpoint Endpoint) validate() error {
 // real client configuration. Client-specific environment overrides remain
 // effective unless their corresponding explicit option is set.
 type Options struct {
+	// SystemRoot scopes read-only system application detection; empty uses /.
+	SystemRoot string
 	HomeDir    string
 	ProjectDir string
 	Executable string
@@ -120,6 +122,7 @@ type Options struct {
 
 // Manager applies integration plans for one local user and one project.
 type Manager struct {
+	systemRoot       string
 	homeDir          string
 	projectDir       string
 	executable       string
@@ -308,7 +311,12 @@ func New(options Options) (Manager, error) {
 	if err != nil {
 		return Manager{}, err
 	}
+	systemRoot := options.SystemRoot
+	if systemRoot == "" {
+		systemRoot = string(filepath.Separator)
+	}
 	return Manager{
+		systemRoot:       systemRoot,
 		homeDir:          homeDir,
 		projectDir:       projectDir,
 		executable:       executable,

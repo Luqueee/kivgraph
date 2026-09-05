@@ -18,6 +18,7 @@ func testManager(t *testing.T) (Manager, string, string) {
 	project := t.TempDir()
 	manager, err := New(Options{
 		HomeDir:    home,
+		SystemRoot: filepath.Join(home, "system"),
 		ProjectDir: project,
 		Executable: testsupport.InstalledExecutable(),
 		GOOS:       "darwin",
