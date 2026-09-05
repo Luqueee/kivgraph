@@ -118,7 +118,10 @@ export interface TopologySource {
 export interface TopologySharedInput {
   readonly type: string;
   readonly id: string;
+  readonly repository?: string;
   readonly owners: readonly string[];
+  readonly status: string;
+  readonly reason?: string;
 }
 
 export interface TopologyNodeReference {
@@ -128,6 +131,7 @@ export interface TopologyNodeReference {
 
 export interface TopologyRelationship {
   readonly profile?: string;
+  readonly generationId?: string;
   readonly type: string;
   readonly source: TopologyNodeReference;
   readonly target?: TopologyNodeReference;
@@ -493,10 +497,26 @@ function decodeTopologySharedInput(
 ): TopologySharedInput {
   const path = `shared_inputs[${index}]`;
   const record = asRecord(value, path, status);
+  const repository = optionalString(
+    record,
+    "repository",
+    `${path}.repository`,
+    status,
+  );
+  const inputStatus = optionalString(
+    record,
+    "status",
+    `${path}.status`,
+    status,
+  );
+  const reason = optionalString(record, "reason", `${path}.reason`, status);
   return {
     type: requiredString(record, "type", `${path}.type`, status),
     id: requiredString(record, "id", `${path}.id`, status),
+    ...(repository === undefined ? {} : { repository }),
     owners: requiredStringArray(record, "owners", `${path}.owners`, status),
+    status: inputStatus ?? "shared",
+    ...(reason === undefined ? {} : { reason }),
   };
 }
 
@@ -520,6 +540,12 @@ function decodeTopologyRelationship(
   const path = `relationships[${index}]`;
   const record = asRecord(value, path, status);
   const profile = optionalString(record, "profile", `${path}.profile`, status);
+  const generationId = optionalString(
+    record,
+    "generation_id",
+    `${path}.generation_id`,
+    status,
+  );
   const kind = optionalString(record, "kind", `${path}.kind`, status);
   const evidence = optionalString(
     record,
@@ -534,6 +560,7 @@ function decodeTopologyRelationship(
       : decodeTopologyNodeReference(record.target, `${path}.target`, status);
   return {
     ...(profile === undefined ? {} : { profile }),
+    ...(generationId === undefined ? {} : { generationId }),
     type: requiredString(record, "type", `${path}.type`, status),
     source: decodeTopologyNodeReference(
       record.source,

@@ -29,8 +29,30 @@ const topologyPayload = {
     },
   ],
   sources: [],
-  shared_inputs: [],
-  relationships: [],
+  shared_inputs: [
+    {
+      type: "worktree",
+      id: "shared-main",
+      repository: "repo-a",
+      owners: ["default"],
+      status: "stale",
+      reason: "shared content changed after indexing",
+    },
+  ],
+  relationships: [
+    {
+      profile: "default",
+      generation_id: "000007",
+      type: "shared_input_invalidation",
+      source: { type: "shared_input", id: "worktree:shared-main" },
+      target: { type: "profile", id: "default" },
+      kind: "invalidates",
+      status: "structural",
+      confidence: "STRUCTURAL_CERTAIN",
+      provenance: "SOURCE_INVALIDATION",
+      reason: "shared content changed after indexing",
+    },
+  ],
   completeness: { complete: true, truncated: false },
 };
 
@@ -70,6 +92,21 @@ describe("fetchTopology", () => {
       commonDirectory: "/workspace/.git",
     });
     expect(topology.profiles[0].compositionComplete).toBe(true);
+    expect(topology.sharedInputs[0]).toEqual({
+      type: "worktree",
+      id: "shared-main",
+      repository: "repo-a",
+      owners: ["default"],
+      status: "stale",
+      reason: "shared content changed after indexing",
+    });
+    expect(topology.relationships[0]).toEqual(
+      expect.objectContaining({
+        generationId: "000007",
+        type: "shared_input_invalidation",
+        kind: "invalidates",
+      }),
+    );
   });
 
   it("rejects a profile without its composition completeness", async () => {

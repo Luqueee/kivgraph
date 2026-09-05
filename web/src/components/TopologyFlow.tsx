@@ -47,6 +47,8 @@ export const TOPOLOGY_EDGE_COLORS = {
   unresolved: "#eab308",
   conflict: "#ef4444",
   structural: "#64748b",
+  overlay: "#a855f7",
+  invalidation: "#0ea5e9",
 } as const;
 const FLOW_NODE_WIDTH = 220;
 const FLOW_NODE_HEIGHT = 90;
@@ -184,6 +186,18 @@ function relationshipLabel(relationship: TopologyRelationship): string {
   ) {
     return "uses";
   }
+  if (
+    relationship.kind === "overlays" ||
+    relationship.type === "worktree_overlay"
+  ) {
+    return "overlays";
+  }
+  if (
+    relationship.kind === "invalidates" ||
+    relationship.type === "shared_input_invalidation"
+  ) {
+    return "invalidates";
+  }
   if (relationship.status === "conflict") return "conflicts with";
   if (relationship.status === "unresolved") return "not resolved";
   if (relationship.status === "candidate") return "candidate dependency";
@@ -196,6 +210,18 @@ type RelationshipVisualStatus = keyof typeof TOPOLOGY_EDGE_COLORS;
 function relationshipVisualStatus(
   relationship: TopologyRelationship,
 ): RelationshipVisualStatus {
+  if (
+    relationship.kind === "overlays" ||
+    relationship.type === "worktree_overlay"
+  ) {
+    return "overlay";
+  }
+  if (
+    relationship.kind === "invalidates" ||
+    relationship.type === "shared_input_invalidation"
+  ) {
+    return "invalidation";
+  }
   if (
     relationship.status === "structural" ||
     relationshipLabel(relationship) === "contains"
@@ -974,7 +1000,7 @@ function createTopologyFlowEdgesForGraph(
       const relationship = edge.relationship;
       const semanticLabel = relationshipLabel(relationship);
       const visualStatus = relationshipVisualStatus(relationship);
-      const isStructural = visualStatus === "structural";
+      const isStructural = relationship.status === "structural";
       const isDirect = focus.directEdgeKeys.has(edge.key);
       const isTrace = focus.traceEdgeKeys.has(edge.key);
       const isFocused = isDirect || isTrace;

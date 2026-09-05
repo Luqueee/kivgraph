@@ -253,6 +253,137 @@ function accessibleTopologyPayload(): object {
   };
 }
 
+function overlayInvalidationTopologyPayload(): object {
+  return {
+    api_version: "v1",
+    topology_version: 2,
+    status: "stale",
+    selected_profiles: ["default", "feature", "maintenance"],
+    profiles: [
+      {
+        id: "default",
+        generation_id: "000007",
+        status: "stale",
+        composition_complete: true,
+        worktrees: ["shared-main"],
+      },
+      {
+        id: "feature",
+        generation_id: "000009",
+        status: "ready",
+        composition_complete: true,
+        worktrees: ["feature-worktree"],
+      },
+      {
+        id: "maintenance",
+        generation_id: "000008",
+        status: "stale",
+        composition_complete: true,
+        worktrees: ["shared-main"],
+      },
+    ],
+    repositories: [{ id: "repo", name: "Repository", languages: ["go"] }],
+    worktrees: [
+      {
+        id: "shared-main",
+        repository: "repo",
+        path: "/workspace/shared",
+      },
+      {
+        id: "feature-worktree",
+        repository: "repo",
+        path: "/workspace/feature",
+      },
+    ],
+    sources: [
+      {
+        profile: "default",
+        repository: "repo",
+        worktree: "shared-main",
+        status: "stale",
+        reason: "shared content changed after indexing",
+      },
+      {
+        profile: "maintenance",
+        repository: "repo",
+        worktree: "shared-main",
+        status: "stale",
+        reason: "shared content changed after indexing",
+      },
+    ],
+    shared_inputs: [
+      {
+        type: "worktree",
+        id: "shared-main",
+        repository: "repo",
+        owners: ["default", "maintenance"],
+        status: "stale",
+        reason: "shared content changed after indexing",
+      },
+    ],
+    relationships: [
+      {
+        profile: "default",
+        generation_id: "000007",
+        type: "shared_input_usage",
+        source: { type: "profile", id: "default" },
+        target: { type: "shared_input", id: "worktree:shared-main" },
+        kind: "uses",
+        status: "structural",
+        confidence: "STRUCTURAL_CERTAIN",
+        provenance: "TOPOLOGY_DECLARATION",
+      },
+      {
+        profile: "maintenance",
+        generation_id: "000008",
+        type: "shared_input_usage",
+        source: { type: "profile", id: "maintenance" },
+        target: { type: "shared_input", id: "worktree:shared-main" },
+        kind: "uses",
+        status: "structural",
+        confidence: "STRUCTURAL_CERTAIN",
+        provenance: "TOPOLOGY_DECLARATION",
+      },
+      {
+        profile: "feature",
+        generation_id: "000009",
+        type: "worktree_overlay",
+        source: { type: "worktree", id: "feature-worktree" },
+        target: { type: "shared_input", id: "worktree:shared-main" },
+        kind: "overlays",
+        status: "structural",
+        confidence: "STRUCTURAL_CERTAIN",
+        provenance: "TOPOLOGY_DECLARATION",
+      },
+      {
+        profile: "default",
+        generation_id: "000007",
+        type: "shared_input_invalidation",
+        source: { type: "shared_input", id: "worktree:shared-main" },
+        target: { type: "profile", id: "default" },
+        kind: "invalidates",
+        status: "structural",
+        confidence: "STRUCTURAL_CERTAIN",
+        provenance: "SOURCE_INVALIDATION",
+        reason: "shared content changed after indexing",
+      },
+      {
+        profile: "maintenance",
+        generation_id: "000008",
+        type: "shared_input_invalidation",
+        source: { type: "shared_input", id: "worktree:shared-main" },
+        target: { type: "profile", id: "maintenance" },
+        kind: "invalidates",
+        status: "structural",
+        confidence: "STRUCTURAL_CERTAIN",
+        provenance: "SOURCE_INVALIDATION",
+        reason: "shared content changed after indexing",
+      },
+    ],
+    completeness: { complete: true, truncated: false },
+  };
+}
+
 test("keeps a large topology explorable", async ({ page }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
@@ -489,6 +620,56 @@ test("paginates accessible relationships and keeps source observations distinct"
     }),
   ).toBeVisible();
   await expect(details.getByText("dirty", { exact: true })).toBeVisible();
+  expect(pageErrors).toEqual([]);
+});
+
+test("keeps overlay and shared-input invalidation semantics visible", async ({
+  page,
+}) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await page.route("**/api/v1/meta", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ status: "ready", counts: {} }),
+    });
+  });
+  await page.route("**/api/v1/topology**", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify(overlayInvalidationTopologyPayload()),
+    });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "topology" }).click();
+
+  await expect(
+    page.locator(".react-flow__edge-text", { hasText: "overlays" }),
+  ).toHaveCount(1);
+  await expect(
+    page.locator(".react-flow__edge-text", { hasText: "invalidates" }),
+  ).toHaveCount(2);
+  await expect(page.getByText("violet arrow · worktree overlay")).toBeVisible();
+  await expect(
+    page.getByText("blue arrow · invalidates stale generation"),
+  ).toBeVisible();
+  await page.getByText("Relationship list", { exact: true }).click();
+  const relationshipList = page.getByRole("table", {
+    name: "Visible topology relationships and evidence",
+  });
+  await expect(
+    relationshipList.getByText("feature · 000009", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    relationshipList.getByText("overlays", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    relationshipList.getByText("invalidates", { exact: true }),
+  ).toHaveCount(2);
+  await expect(
+    relationshipList.getByText("SOURCE_INVALIDATION", { exact: true }),
+  ).toHaveCount(2);
   expect(pageErrors).toEqual([]);
 });
 

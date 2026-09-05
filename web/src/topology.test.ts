@@ -56,7 +56,14 @@ const topology: TopologyResponse = {
     },
   ],
   sharedInputs: [
-    { type: "worktree", id: "wt-shared", owners: ["default", "other"] },
+    {
+      type: "worktree",
+      id: "wt-shared",
+      repository: "repo-a",
+      owners: ["default", "other"],
+      status: "stale",
+      reason: "working tree is dirty",
+    },
   ],
   relationships: [
     {
@@ -87,6 +94,28 @@ const topology: TopologyResponse = {
       confidence: "UNRESOLVED",
       provenance: "UNRESOLVED_REFERENCE",
       reason: "missing package",
+    },
+    {
+      profile: "default",
+      generationId: "000007",
+      type: "shared_input_usage",
+      source: { type: "profile", id: "default" },
+      target: { type: "shared_input", id: "worktree:wt-shared" },
+      kind: "uses",
+      status: "structural",
+      confidence: "STRUCTURAL_CERTAIN",
+      provenance: "TOPOLOGY_DECLARATION",
+    },
+    {
+      profile: "other",
+      generationId: "000008",
+      type: "shared_input_usage",
+      source: { type: "profile", id: "other" },
+      target: { type: "shared_input", id: "worktree:wt-shared" },
+      kind: "uses",
+      status: "structural",
+      confidence: "STRUCTURAL_CERTAIN",
+      provenance: "TOPOLOGY_DECLARATION",
     },
   ],
   completeness: { complete: true, truncated: false },
@@ -165,7 +194,7 @@ describe("topology model", () => {
       ],
     });
 
-    expect(model.edges).toHaveLength(3);
+    expect(model.edges).toHaveLength(1);
     const unresolvedEdge = model.edges.find(
       (edge) => edge.relationship.type === "unresolved_reference",
     );
@@ -188,7 +217,7 @@ describe("topology model", () => {
       "repository:repo-z",
     ]);
     expect(filtered.edges).toHaveLength(0);
-    expect(topology.relationships).toHaveLength(3);
+    expect(topology.relationships).toHaveLength(5);
   });
 
   it("keeps relationships and profile boundaries in the selected profile scope", () => {
