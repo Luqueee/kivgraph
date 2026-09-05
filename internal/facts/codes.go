@@ -91,6 +91,8 @@ const (
 	CodeJavaScipUse
 	CodeCSharpScipDefinition
 	CodeCSharpScipUse
+	CodeTypeScriptImplementationDeclared
+	CodeTypeScriptImplementationStructural
 )
 
 var edgeKindCodes = map[EdgeKind]uint8{
@@ -126,35 +128,37 @@ var confidenceCodes = map[Confidence]uint8{
 }
 
 var provenanceCodes = map[Provenance]uint8{
-	TypeScriptChecker:          CodeTypeScriptChecker,
-	TypeScriptModuleResolution: CodeTypeScriptModuleResolution,
-	TypeScriptDeclarationMap:   CodeTypeScriptDeclarationMap,
-	TypeScriptProjectReference: CodeTypeScriptProjectReference,
-	GoTypesDefinition:          CodeGoTypesDefinition,
-	GoTypesUse:                 CodeGoTypesUse,
-	GoTypesSelection:           CodeGoTypesSelection,
-	GoASTCall:                  CodeGoASTCall,
-	GoASTCallback:              CodeGoASTCallback,
-	GoObjectPath:               CodeGoObjectPath,
-	TreeSitterSyntax:           CodeTreeSitterSyntax,
-	PackageManifest:            CodePackageManifest,
-	RustAnalyzerDefinition:     CodeRustAnalyzerDefinition,
-	RustAnalyzerUse:            CodeRustAnalyzerUse,
-	RustAnalyzerMoniker:        CodeRustAnalyzerMoniker,
-	RustSyntaxCall:             CodeRustSyntaxCall,
-	RustSyntaxType:             CodeRustSyntaxType,
-	RustSyntaxImplementation:   CodeRustSyntaxImplementation,
-	RustSyntaxCallback:         CodeRustSyntaxCallback,
-	PythonIndexerDefinition:    CodePythonIndexerDefinition,
-	PythonIndexerUse:           CodePythonIndexerUse,
-	PythonSyntaxCall:           CodePythonSyntaxCall,
-	DartAnalyzerDefinition:     CodeDartAnalyzerDefinition,
-	DartAnalyzerUse:            CodeDartAnalyzerUse,
-	DartSyntaxCall:             CodeDartSyntaxCall,
-	JavaScipDefinition:         CodeJavaScipDefinition,
-	JavaScipUse:                CodeJavaScipUse,
-	CSharpScipDefinition:       CodeCSharpScipDefinition,
-	CSharpScipUse:              CodeCSharpScipUse,
+	TypeScriptImplementationDeclared:   CodeTypeScriptImplementationDeclared,
+	TypeScriptImplementationStructural: CodeTypeScriptImplementationStructural,
+	TypeScriptChecker:                  CodeTypeScriptChecker,
+	TypeScriptModuleResolution:         CodeTypeScriptModuleResolution,
+	TypeScriptDeclarationMap:           CodeTypeScriptDeclarationMap,
+	TypeScriptProjectReference:         CodeTypeScriptProjectReference,
+	GoTypesDefinition:                  CodeGoTypesDefinition,
+	GoTypesUse:                         CodeGoTypesUse,
+	GoTypesSelection:                   CodeGoTypesSelection,
+	GoASTCall:                          CodeGoASTCall,
+	GoASTCallback:                      CodeGoASTCallback,
+	GoObjectPath:                       CodeGoObjectPath,
+	TreeSitterSyntax:                   CodeTreeSitterSyntax,
+	PackageManifest:                    CodePackageManifest,
+	RustAnalyzerDefinition:             CodeRustAnalyzerDefinition,
+	RustAnalyzerUse:                    CodeRustAnalyzerUse,
+	RustAnalyzerMoniker:                CodeRustAnalyzerMoniker,
+	RustSyntaxCall:                     CodeRustSyntaxCall,
+	RustSyntaxType:                     CodeRustSyntaxType,
+	RustSyntaxImplementation:           CodeRustSyntaxImplementation,
+	RustSyntaxCallback:                 CodeRustSyntaxCallback,
+	PythonIndexerDefinition:            CodePythonIndexerDefinition,
+	PythonIndexerUse:                   CodePythonIndexerUse,
+	PythonSyntaxCall:                   CodePythonSyntaxCall,
+	DartAnalyzerDefinition:             CodeDartAnalyzerDefinition,
+	DartAnalyzerUse:                    CodeDartAnalyzerUse,
+	DartSyntaxCall:                     CodeDartSyntaxCall,
+	JavaScipDefinition:                 CodeJavaScipDefinition,
+	JavaScipUse:                        CodeJavaScipUse,
+	CSharpScipDefinition:               CodeCSharpScipDefinition,
+	CSharpScipUse:                      CodeCSharpScipUse,
 }
 
 // reverse builds the decoding table of a coding table. The tables are

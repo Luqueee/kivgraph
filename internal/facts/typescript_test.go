@@ -1351,3 +1351,49 @@ func TestEscapesRepositoryReadsThePathAndNotItsSpelling(t *testing.T) {
 		}
 	}
 }
+
+func TestNormalizeTypeScriptImplementationEvidence(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "testdata", "protocol", "ts-facts-v5", "implementations.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, err := DecodeTypeScriptPayload(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	set, _, err := NormalizeTypeScript(t.Context(), payload, workspace.Repository{RealPath: "/fixtures/implementations"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := set.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	names := map[string]string{}
+	for _, symbol := range set.Symbols {
+		names[symbol.Key] = symbol.QualifiedName
+	}
+	edges := map[string]Provenance{}
+	for _, edge := range set.Edges {
+		if edge.Kind == Implements || edge.Kind == Overrides {
+			if !edge.Confidence.Exact() || edge.EvidenceKey == "" {
+				t.Fatalf("unproven relationship: %#v", edge)
+			}
+			edges[names[edge.SourceKey]+"->"+names[edge.TargetKey]] = edge.Provenance
+		}
+	}
+	for pair, provenance := range map[string]Provenance{"Declared->Reader": TypeScriptImplementationDeclared, "Structural->Reader": TypeScriptImplementationStructural, "Declared.read->Reader.read": TypeScriptImplementationDeclared, "Generic->TextBox": TypeScriptImplementationStructural, "Concrete.read->Abstract.read": TypeScriptImplementationDeclared} {
+		if edges[pair] != provenance {
+			t.Errorf("%s provenance=%s want=%s", pair, edges[pair], provenance)
+		}
+	}
+	if _, exists := edges["Wrong->Reader"]; exists {
+		t.Fatal("incompatible types connected")
+	}
+	if len(payload.Implementations) == 0 {
+		t.Fatal("worker emitted no implementations")
+	}
+	payload.Implementations[0].Detection = "guessed"
+	if _, _, err := NormalizeTypeScript(t.Context(), payload, workspace.Repository{RealPath: "/fixtures/implementations"}); err == nil {
+		t.Fatal("unknown implementation evidence accepted")
+	}
+}
