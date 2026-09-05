@@ -36,3 +36,29 @@ func TestSummarizeLogQueryNamesTheIntentAndKeywords(t *testing.T) {
 		t.Fatalf("summarizeLogQuery() = %q, want %q", got, want)
 	}
 }
+
+func TestSummarizeLogQueryRedactsAbsolutePaths(t *testing.T) {
+	got := summarizeLogQuery(fileOutlineToolName, []byte(`{
+		"repository":"kivgraph", "path":"/private/worktree/internal/mcp/server.go"
+	}`))
+	want := `repository="kivgraph" path="[absolute path]"`
+	if got != want || strings.Contains(got, "/private/worktree") {
+		t.Fatalf("summarizeLogQuery(file outline path) = %q, want %q without the absolute path", got, want)
+	}
+
+	got = summarizeLogQuery(getSourceToolName, []byte(`{
+		"symbols":[{"repository":"kivgraph", "path":"/private/worktree/internal/mcp/server.go"}]
+	}`))
+	want = `symbols=["kivgraph:[absolute path]"]`
+	if got != want || strings.Contains(got, "/private/worktree") {
+		t.Fatalf("summarizeLogQuery(source selector) = %q, want %q without the absolute path", got, want)
+	}
+
+	got = summarizeLogQuery(getSourceToolName, []byte(`{
+		"symbols":[{"repository":"kivgraph", "path":"internal/mcp/server.go"}]
+	}`))
+	want = `symbols=["kivgraph:internal/mcp/server.go"]`
+	if got != want {
+		t.Fatalf("summarizeLogQuery(relative source selector) = %q, want %q", got, want)
+	}
+}

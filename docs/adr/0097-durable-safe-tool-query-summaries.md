@@ -26,7 +26,7 @@ tool argument is absent until an implementation deliberately admits it.
 `keywords` and scope. The source tool replaces a stable key with a label rather
 than writing the key. The renderer uses compact JSON values, truncates the
 whole summary to 320 runes, and does not record cursors, confirmations, unknown
-arguments, or absolute paths submitted to `index_project`.
+arguments, or absolute paths.
 
 The human view renders aligned `TIME`, `TYPE`, `EVENT`, `QUERY`, `TOOK`,
 `RESULTS`, `PID`, and `DETAIL` columns. The query is part of both the following

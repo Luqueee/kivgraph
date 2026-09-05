@@ -21,7 +21,8 @@ For parallel calls, one preamble may list each call; announce repeats too.
 State intent, not success; do not dump other arguments or secrets. This notice
 is not approval for index_project. Freshness is a gate: if graph_status does
 not attest the target checkout and generation, use consent-gated index_project,
-then call graph_status again before using graph evidence.
+reconnect if graph_status was absent, then call graph_status again before using
+graph evidence. Only the default profile carries content freshness.
 
 For example: `Kivgraph · find_references — NewServer: check who calls it.`
 For `find_by_intent`: `Kivgraph · find_by_intent — "HTTP endpoints and routes": find the declarations that implement it.`
@@ -118,12 +119,17 @@ repository/path/qualified-name triple remains portable across profiles.
    `unverified` or `unavailable`, send the visible preamble and call
    `index_project` for the target checkout through the client's approval flow.
    When it succeeds, call `graph_status` again and use graph evidence only from
-   the attested generation. If the checkout is not registered, obtain its
-   `index_project` arguments from its local project manifests; do not invent a
-   repository name or language list. If approval is denied, the tool is absent,
-   or indexing fails, name that limitation, then inspect only the directly
-   relevant files. Never present a graph from another checkout as evidence for
-   the target branch.
+   the attested generation. If the session began with no published graph, only
+   `index_project` was exposed: reconnect after it publishes before that
+   `graph_status` call. Content freshness attests the default profile only. A
+   non-default profile or aggregate response deliberately omits it; its
+   `snapshot_id` is not a substitute. Name that limitation and inspect only
+   directly relevant files instead of claiming fresh graph evidence. If the
+   checkout is not registered, obtain its `index_project` arguments from its
+   local project manifests; do not invent a repository name or language list.
+   If approval is denied, the tool is absent, or indexing fails, name that
+   limitation, then inspect only the directly relevant files. Never present a
+   graph from another checkout as evidence for the target branch.
 
 Python, Dart, Java and C# notes:
 

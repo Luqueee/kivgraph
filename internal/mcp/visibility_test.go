@@ -70,10 +70,16 @@ func TestInstalledSkillsAndHandshakeShareToolVisibility(t *testing.T) {
 // before it calls the retrieval, rather than leaving the user with only the
 // generic "Find by intent" label.
 func TestVisibleToolUseNamesTheIntentQuery(t *testing.T) {
-	for _, server := range []*sdkmcp.Server{NewServer(), publishedServer(t)} {
-		instructions := connectToServer(t, server).InitializeResult().Instructions
+	for _, state := range []struct {
+		name   string
+		server *sdkmcp.Server
+	}{
+		{"no graph", NewServer()},
+		{"published graph", publishedServer(t)},
+	} {
+		instructions := connectToServer(t, state.server).InitializeResult().Instructions
 		if !strings.Contains(instructions, "quote its exact \"intent\" value") {
-			t.Fatalf("instructions = %q, want find_by_intent's exact query to be visible", instructions)
+			t.Fatalf("%s instructions = %q, want find_by_intent's exact query to be visible", state.name, instructions)
 		}
 	}
 }
@@ -87,7 +93,11 @@ func TestFreshnessPolicyRepairsTheTargetCheckoutBeforeUsingGraphEvidence(t *test
 	for _, want := range []string{
 		"Freshness is a gate",
 		"index_project",
+		"reconnect if graph_status was absent",
 		"call graph_status again",
+		"Only the default profile carries content freshness",
+		"If index_project is exposed, use it through its approval flow",
+		"reconnect this server before calling graph_status",
 	} {
 		if !strings.Contains(instructions, want) {
 			t.Fatalf("instructions = %q, want %q", instructions, want)
@@ -112,7 +122,9 @@ func TestFreshnessPolicyRepairsTheTargetCheckoutBeforeUsingGraphEvidence(t *test
 	for _, want := range []string{
 		"does not attest the target checkout",
 		"index_project",
+		"reconnect if graph_status was absent",
 		"then call graph_status again",
+		"Only the default profile carries content freshness",
 	} {
 		if !strings.Contains(policy, want) {
 			t.Fatalf("installed skill does not require fresh graph evidence: want %q", want)

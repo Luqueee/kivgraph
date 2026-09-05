@@ -3,6 +3,7 @@ package tools
 import (
 	"bytes"
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -160,7 +161,7 @@ func logQueryValue(field string, raw json.RawMessage) (string, bool) {
 			case symbol.QualifiedName != "":
 				labels = append(labels, symbol.QualifiedName)
 			case symbol.Repository != "" && symbol.Path != "":
-				labels = append(labels, symbol.Repository+":"+symbol.Path)
+				labels = append(labels, symbol.Repository+":"+safeLoggedPath(symbol.Path))
 			default:
 				// A durable key is an opaque implementation identifier, not a
 				// useful query to an operator. Do not copy it into a log.
@@ -173,11 +174,33 @@ func logQueryValue(field string, raw json.RawMessage) (string, bool) {
 		}
 		return string(encoded), true
 	}
+	if isLoggedPathField(field) {
+		var path string
+		if err := json.Unmarshal(raw, &path); err == nil && filepath.IsAbs(path) {
+			return `"[absolute path]"`, true
+		}
+	}
 	var compact bytes.Buffer
 	if err := json.Compact(&compact, raw); err != nil {
 		return "", false
 	}
 	return compact.String(), true
+}
+
+func isLoggedPathField(field string) bool {
+	switch field {
+	case "path", "path_prefix", "to_path":
+		return true
+	default:
+		return false
+	}
+}
+
+func safeLoggedPath(path string) string {
+	if filepath.IsAbs(path) {
+		return "[absolute path]"
+	}
+	return path
 }
 
 func truncateLoggedQuery(query string) string {

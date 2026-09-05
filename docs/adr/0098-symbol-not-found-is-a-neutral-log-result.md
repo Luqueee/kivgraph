@@ -31,9 +31,10 @@ missing repositories, unavailable snapshots, and index failures, remain errors.
 
 ## Consequences
 
-`not_found` is an additive event-status vocabulary value. Readers that do not
-know it continue to ignore unknown JSON fields and retain the old file shape;
-current readers provide a backward-compatible rendering for historical rows.
+`not_found` is an additive value in the existing event-status field. Older
+readers decode its string without validating a closed status vocabulary and
+retain the old file shape; current readers provide a backward-compatible
+rendering for historical rows.
 There is no separate `NOT_FOUND` aggregate column in `tool-stats`: it is a
 completed, non-failing call, so the existing `OK` count remains the compatible
 aggregate.
