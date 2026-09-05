@@ -832,7 +832,7 @@ export async function fetchTopology(
   signal?: AbortSignal,
 ): Promise<TopologyResponse> {
   const query = new URLSearchParams();
-  for (const profile of request.profiles ?? []) {
+  for (const profile of request.profiles ?? ["*"]) {
     query.append("profile", profile);
   }
   if (request.generationId !== undefined) {

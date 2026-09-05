@@ -61,6 +61,23 @@ afterEach(() => {
 });
 
 describe("fetchTopology", () => {
+  it("requests every published profile when no selection is supplied", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(topologyPayload), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchTopology();
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/topology?profile=*", {
+      signal: undefined,
+      headers: { Accept: "application/json" },
+    });
+  });
+
   it("decodes pinned profiles and preserves the typed topology fields", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify(topologyPayload), {
