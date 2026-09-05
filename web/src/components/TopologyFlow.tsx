@@ -980,7 +980,7 @@ function createTopologyFlowEdgesForGraph(
       const isFocused = isDirect || isTrace;
       const color = TOPOLOGY_EDGE_COLORS[visualStatus];
       const label =
-        count > 1 || (!isStructural && relationship.status !== "exact")
+        count > 1 || isStructural || relationship.status !== "exact"
           ? flowEdgeLabel(relationship, count)
           : undefined;
 

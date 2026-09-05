@@ -439,6 +439,13 @@ describe("TopologyFlow", () => {
           edge.target === "topology:repository-group:default",
       ),
     ).toBe(true);
+    expect(
+      edges.find(
+        (edge) =>
+          edge.source === profileNode.key &&
+          edge.target === "topology:repository-group:default",
+      )?.label,
+    ).toBe("contains");
   });
 
   it("lays out grouped direct relationships and omits internal self-edges", () => {
