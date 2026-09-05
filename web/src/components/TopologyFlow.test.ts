@@ -339,6 +339,57 @@ describe("TopologyFlow", () => {
     );
   });
 
+  it("dashes structural relationship semantics independently of status", () => {
+    const relationships: TopologyRelationship[] = [
+      {
+        ...relationship,
+        status: "exact",
+        type: "membership",
+        kind: "contains",
+        provenance: "TOPOLOGY_DECLARATION",
+      },
+      {
+        ...relationship,
+        status: "structural",
+        confidence: "STRUCTURAL_CERTAIN",
+        type: "worktree_overlay",
+        kind: "overlays",
+        provenance: "TOPOLOGY_DECLARATION",
+      },
+      {
+        ...relationship,
+        status: "structural",
+        confidence: "STRUCTURAL_CERTAIN",
+        type: "shared_input_invalidation",
+        kind: "invalidates",
+        provenance: "SOURCE_INVALIDATION",
+      },
+    ];
+    const semanticModel: TopologyModel = {
+      ...model,
+      edges: relationships.map((semanticRelationship, index) => ({
+        key: `edge:structural-${index}`,
+        relationshipIndex: index,
+        sourceKey: sourceNode.key,
+        targetKey: targetNode.key,
+        relationship: semanticRelationship,
+      })),
+      relationships,
+    };
+
+    expect(
+      createTopologyFlowEdges(semanticModel, null).map((edge) => ({
+        label: edge.label,
+        color: edge.style?.stroke,
+        dash: edge.style?.strokeDasharray,
+      })),
+    ).toEqual([
+      { label: "contains", color: "#64748b", dash: "6 4" },
+      { label: "overlays", color: "#a855f7", dash: "6 4" },
+      { label: "invalidates", color: "#0ea5e9", dash: "6 4" },
+    ]);
+  });
+
   it("highlights direct relationships without removing the surrounding map", () => {
     const edges = createTopologyFlowEdges(model, sourceNode.key);
     const nodes = createTopologyFlowNodes(model, sourceNode.key, () => {});

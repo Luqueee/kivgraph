@@ -1000,7 +1000,11 @@ function createTopologyFlowEdgesForGraph(
       const relationship = edge.relationship;
       const semanticLabel = relationshipLabel(relationship);
       const visualStatus = relationshipVisualStatus(relationship);
-      const isStructural = relationship.status === "structural";
+      const isStructural = visualStatus === "structural";
+      const isDashed =
+        isStructural ||
+        visualStatus === "overlay" ||
+        visualStatus === "invalidation";
       const isDirect = focus.directEdgeKeys.has(edge.key);
       const isTrace = focus.traceEdgeKeys.has(edge.key);
       const isFocused = isDirect || isTrace;
@@ -1039,7 +1043,7 @@ function createTopologyFlowEdgesForGraph(
         markerEnd: { type: MarkerType.ArrowClosed, color },
         style: {
           stroke: color,
-          strokeDasharray: isStructural ? "6 4" : undefined,
+          strokeDasharray: isDashed ? "6 4" : undefined,
           strokeWidth:
             focus.mode === null
               ? isStructural
