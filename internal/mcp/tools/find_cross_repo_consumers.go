@@ -37,7 +37,7 @@ const (
 // dependencies of a repository into one entry, and `full` repeats every field
 // on every row. `files` is rejected: this answer is a set of repositories.
 type FindCrossRepoConsumersInput struct {
-	Profile        []string `json:"profile,omitempty" jsonschema:"Profiles to query; omit for the default, or use * alone for all."`
+	Profile        []string `json:"profile,omitempty" jsonschema:"Profiles; omit for default or use * alone for all."`
 	StableKey      string   `json:"stable_key,omitempty" jsonschema:"The target symbol durable key, as a detailed result returns it. The triple works instead."`
 	QualifiedName  string   `json:"qualified_name,omitempty" jsonschema:"The target symbol fully qualified name, as every row of this surface carries it."`
 	Repository     string   `json:"repository,omitempty" jsonschema:"The repository that declares the target symbol, the provider side of the question."`
@@ -45,8 +45,8 @@ type FindCrossRepoConsumersInput struct {
 	Repo           string   `json:"repo,omitempty" jsonschema:"Keep only consumers found in this repository."`
 	Language       string   `json:"language,omitempty" jsonschema:"Keep only consumers written in this language."`
 	Limit          int      `json:"limit,omitempty" jsonschema:"Consumers in one page. Defaults to 50."`
-	Cursor         string   `json:"cursor,omitempty" jsonschema:"The next_cursor of the previous page. Every other argument must stay the same."`
-	ResponseFormat string   `json:"response_format,omitempty" jsonschema:"concise (the default) omits the derived identifiers; detailed returns them."`
+	Cursor         string   `json:"cursor,omitempty" jsonschema:"Previous next_cursor; keep other arguments unchanged."`
+	ResponseFormat string   `json:"response_format,omitempty" jsonschema:"concise (default), or detailed with derived identifiers."`
 	View           string   `json:"view,omitempty" jsonschema:"Granularity, never a different answer: compact (the default) groups the package dependencies of a repository, full repeats every field. files is rejected."`
 }
 

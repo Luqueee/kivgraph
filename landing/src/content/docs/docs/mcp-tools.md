@@ -20,6 +20,7 @@ open the database for those queries and does not run the TypeScript worker.
 | --- | --- |
 | I do not know its name; which files do I open | [`find_by_intent`](/docs/tools/find-by-intent/) |
 | Who calls this, what references this | [`find_references`](/docs/tools/find-references/) |
+| Who implements a type or method | [`find_implementations`](/docs/tools/find-implementations/) |
 | What breaks if I change this | [`get_blast_radius`](/docs/tools/get-blast-radius/) |
 | What does this reach outwards | [`trace_dependencies`](/docs/tools/trace-dependencies/) |
 | Who uses it from another repository | [`find_cross_repo_consumers`](/docs/tools/find-cross-repo-consumers/) |
@@ -65,6 +66,7 @@ Read-only, symbols and source:
 Read-only, graph traversal:
 
 - [`find_references`](/docs/tools/find-references/)
+- [`find_implementations`](/docs/tools/find-implementations/)
 - [`find_cross_repo_consumers`](/docs/tools/find-cross-repo-consumers/)
 - [`trace_dependencies`](/docs/tools/trace-dependencies/)
 - [`get_blast_radius`](/docs/tools/get-blast-radius/)

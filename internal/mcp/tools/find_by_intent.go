@@ -39,15 +39,15 @@ const (
 // surface, a retrieval has no reachability to preserve and a narrower corpus is
 // simply a narrower question.
 type FindByIntentInput struct {
-	Profile        []string `json:"profile,omitempty" jsonschema:"Profiles to query; omit for the default, or use * alone for all."`
+	Profile        []string `json:"profile,omitempty" jsonschema:"Profiles; omit for default or use * alone for all."`
 	Intent         string   `json:"intent" jsonschema:"What the code you are looking for does, in plain language."`
 	Keywords       []string `json:"keywords,omitempty" jsonschema:"Extra terms the code itself uses, when they differ from the words of the question."`
 	Repo           string   `json:"repo,omitempty" jsonschema:"Consider only candidates in this repository. It narrows the question, not just the page."`
 	PathPrefix     string   `json:"path_prefix,omitempty" jsonschema:"Consider only candidates under this repository-relative path prefix."`
 	Kind           string   `json:"kind,omitempty" jsonschema:"Consider only symbols of this kind, such as function, struct or interface."`
 	Limit          int      `json:"limit,omitempty" jsonschema:"Candidates in one page. Defaults to 10, maximum 50."`
-	Cursor         string   `json:"cursor,omitempty" jsonschema:"The next_cursor of the previous page. Every other argument must stay the same."`
-	ResponseFormat string   `json:"response_format,omitempty" jsonschema:"concise (the default) omits the derived identifiers; detailed returns them."`
+	Cursor         string   `json:"cursor,omitempty" jsonschema:"Previous next_cursor; keep other arguments unchanged."`
+	ResponseFormat string   `json:"response_format,omitempty" jsonschema:"concise (default), or detailed with derived identifiers."`
 	View           string   `json:"view,omitempty" jsonschema:"Granularity, never a different answer: compact (the default) states once what every row shares, full repeats it on each."`
 }
 

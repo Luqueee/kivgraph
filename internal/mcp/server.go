@@ -253,6 +253,7 @@ func registerQueryTools(
 	tools.RegisterGetSourceWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
 	tools.RegisterGetFileOutlineWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
 	tools.RegisterFindReferencesWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
+	tools.RegisterFindImplementationsWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
 	tools.RegisterFindCrossRepoConsumersWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
 	tools.RegisterTraceDependenciesWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
 	tools.RegisterGetBlastRadiusWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)

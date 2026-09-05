@@ -253,7 +253,7 @@ func RegisterGraphStatusWithObserverAndSnapshotStoreAndMetrics(
 	}
 	addQueryTool(server, &sdkmcp.Tool{
 		Name:        graphStatusToolName,
-		Description: "The published generation: counts, provenance, and whether a repository moved since it was indexed. Call it when an answer looks stale.",
+		Description: "Published generation, counts, provenance and repository freshness. Use to diagnose stale answers.",
 		Annotations: readOnlyClosedWorld(),
 	}, handler)
 }

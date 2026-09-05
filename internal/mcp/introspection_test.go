@@ -21,6 +21,7 @@ import (
 var introspectionCatalog = []string{
 	"find_by_intent",
 	"find_cross_repo_consumers",
+	"find_implementations",
 	"find_references",
 	"find_symbol",
 	"get_blast_radius",
@@ -147,6 +148,7 @@ var smallestValidCall = map[string]map[string]any{
 	"get_source":                {"symbols": []any{map[string]any{"repository": "repo-a", "path": "a.go", "qualified_name": "pkg.Thing"}}},
 	"get_file_outline":          {"repository": "repo-a", "path": "a.go"},
 	"find_references":           {"name": "Thing"},
+	"find_implementations":      {"name": "Thing"},
 	"find_cross_repo_consumers": {"repository": "repo-a", "path": "a.go", "qualified_name": "pkg.Thing"},
 	"trace_dependencies":        {"repository": "repo-a", "path": "a.go", "qualified_name": "pkg.Thing"},
 	"get_blast_radius":          {"repository": "repo-a", "path": "a.go", "qualified_name": "pkg.Thing"},

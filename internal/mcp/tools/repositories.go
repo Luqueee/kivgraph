@@ -43,7 +43,7 @@ type RepositorySummary struct {
 // list_repositories.
 type ListRepositoriesInput struct {
 	Profile []string `json:"profile,omitempty" jsonschema:"Profiles to list; omit or use * alone for all."`
-	Cursor  string   `json:"cursor,omitempty" jsonschema:"The next_cursor of the previous page. Every other argument must stay the same."`
+	Cursor  string   `json:"cursor,omitempty" jsonschema:"Previous next_cursor; keep other arguments unchanged."`
 	Limit   int      `json:"limit,omitempty" jsonschema:"Repositories in one page. Defaults to 50, maximum 500."`
 }
 

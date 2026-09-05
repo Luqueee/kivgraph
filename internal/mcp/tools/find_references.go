@@ -35,22 +35,25 @@ const (
 // hoists whatever every row shares, `full` keeps the field-per-row shape, and
 // `files` answers only which files hold references and how many each holds.
 type FindReferencesInput struct {
-	Profile        []string `json:"profile,omitempty" jsonschema:"Profiles to query; omit for the default, or use * alone for all."`
-	StableKey      string   `json:"stable_key,omitempty" jsonschema:"The subject durable key, as a detailed result returns it. A name or the triple works instead."`
-	QualifiedName  string   `json:"qualified_name,omitempty" jsonschema:"The subject fully qualified name, as every row of this surface carries it."`
-	Name           string   `json:"name,omitempty" jsonschema:"The subject unqualified name. Enough on its own: an ambiguous one answers with its candidates rather than picking."`
-	Repository     string   `json:"repository,omitempty" jsonschema:"The repository that declares the subject, to separate an ambiguous name."`
-	Path           string   `json:"path,omitempty" jsonschema:"The repository-relative file that declares the subject, to separate an ambiguous name."`
-	Direction      string   `json:"direction,omitempty" jsonschema:"incoming (the default) answers who uses the subject; outgoing answers what it uses."`
-	Repo           string   `json:"repo,omitempty" jsonschema:"Keep only rows from this repository. Naming the derived provider also opts it in."`
-	Language       string   `json:"language,omitempty" jsonschema:"Keep only rows written in this language."`
-	EdgeKinds      []string `json:"edge_kinds,omitempty" jsonschema:"Relation kinds to return, such as CALLS or IMPORTS_SYMBOL. EXPORTS and REEXPORTS are withheld by default; * returns every kind."`
-	Confidence     string   `json:"confidence,omitempty" jsonschema:"Return only edges resolved at this confidence, such as EXACT_TYPECHECKED or CANDIDATE."`
-	IncludeDerived bool     `json:"include_derived,omitempty" jsonschema:"Include rows of the derived provider, which is withheld by default."`
-	ResponseFormat string   `json:"response_format,omitempty" jsonschema:"concise (the default) omits the derived identifiers; detailed returns them."`
-	View           string   `json:"view,omitempty" jsonschema:"Granularity, never a different answer: compact (the default), full, or files for which files hold references and how many each holds."`
-	Limit          int      `json:"limit,omitempty" jsonschema:"Rows in one page. Defaults to 50."`
-	Cursor         string   `json:"cursor,omitempty" jsonschema:"The next_cursor of the previous page. Every other argument must stay the same."`
+	implementationsOnly     bool
+	implementationDetection string
+	implementationPaths     []string
+	Profile                 []string `json:"profile,omitempty" jsonschema:"Profiles; omit for default or use * alone for all."`
+	StableKey               string   `json:"stable_key,omitempty" jsonschema:"Subject stable key; alternatively use name or the repository/path/qualified_name triple."`
+	QualifiedName           string   `json:"qualified_name,omitempty" jsonschema:"Subject fully qualified name."`
+	Name                    string   `json:"name,omitempty" jsonschema:"Bare name; ambiguity returns candidates."`
+	Repository              string   `json:"repository,omitempty" jsonschema:"Repository declaring the subject."`
+	Path                    string   `json:"path,omitempty" jsonschema:"Repository-relative subject file."`
+	Direction               string   `json:"direction,omitempty" jsonschema:"incoming (default): who uses it; outgoing: what it uses."`
+	Repo                    string   `json:"repo,omitempty" jsonschema:"Filter rows by repository; naming the derived provider opts it in."`
+	Language                string   `json:"language,omitempty" jsonschema:"Keep only rows written in this language."`
+	EdgeKinds               []string `json:"edge_kinds,omitempty" jsonschema:"Edge kinds. Default excludes EXPORTS/REEXPORTS; * includes all."`
+	Confidence              string   `json:"confidence,omitempty" jsonschema:"Filter confidence, e.g. EXACT_TYPECHECKED or CANDIDATE."`
+	IncludeDerived          bool     `json:"include_derived,omitempty" jsonschema:"Include the normally withheld derived provider."`
+	ResponseFormat          string   `json:"response_format,omitempty" jsonschema:"concise (default), or detailed with derived identifiers."`
+	View                    string   `json:"view,omitempty" jsonschema:"compact (default), full rows, or files with counts. Same facts."`
+	Limit                   int      `json:"limit,omitempty" jsonschema:"Rows in one page. Defaults to 50."`
+	Cursor                  string   `json:"cursor,omitempty" jsonschema:"Previous next_cursor; keep all other arguments unchanged."`
 }
 
 // ReferenceSubject is the symbol the query asked about. It is stated once per
@@ -352,7 +355,10 @@ type referenceFileCount struct {
 }
 
 type findReferencesOptions struct {
-	Selector symbolSelector
+	implementationsOnly     bool
+	implementationDetection string
+	implementationPaths     []string
+	Selector                symbolSelector
 	// Name is the unqualified name to resolve to its one declaration. It is
 	// resolved against the snapshot, so it never reaches the query hash: the
 	// hash covers the qualified name it resolved to, and a page stays valid
@@ -369,6 +375,8 @@ type findReferencesOptions struct {
 }
 
 type findReferencesQuery struct {
+	Paths         []string `json:"paths,omitempty"`
+	Detection     string   `json:"detection,omitempty"`
 	Tool          string   `json:"tool"`
 	StableKey     string   `json:"stable_key,omitempty"`
 	QualifiedName string   `json:"qualified_name,omitempty"`
@@ -462,7 +470,7 @@ func RegisterFindReferencesWithObserverAndSnapshotStore(
 		// is 2,480 tokens against 912 for the same files, the same precision and
 		// the same recall -- and one page instead of two where 66 references
 		// collapse into 9 files. Both were already supported; nothing said so.
-		Description: "Who calls or references a symbol, or what it uses with direction outgoing. Type-checked, not name-matched: grep cannot separate homonyms, and an empty answer means nobody calls it. A bare name suffices.",
+		Description: "Typed references to a symbol; direction outgoing shows its uses. A bare name suffices. Check completeness before interpreting absence.",
 		Annotations: readOnlyClosedWorld(),
 		Meta:        alwaysLoadMeta(),
 	}, handler)
@@ -496,7 +504,7 @@ func findReferencesAcrossProfiles(
 		Tool     string              `json:"tool"`
 		Profiles []string            `json:"profiles"`
 		Query    FindReferencesInput `json:"query"`
-	}{findReferencesToolName, names, queryArguments})
+	}{arguments.queryToolName(), names, queryArguments})
 	if err != nil {
 		return nil, Response[ReferenceResult]{}, err
 	}
@@ -638,7 +646,7 @@ func findReferences(
 	}
 
 	queryHash, err := HashQuery(findReferencesQuery{
-		Tool: findReferencesToolName, StableKey: options.Selector.StableKey,
+		Tool: arguments.queryToolName(), Detection: arguments.implementationDetection, Paths: arguments.implementationPaths, StableKey: options.Selector.StableKey,
 		QualifiedName: options.Selector.QualifiedName, Repository: options.Selector.Repository,
 		Path: options.Selector.Path, Direction: options.Direction,
 		Repo: options.Repo, Language: options.Language, EdgeKinds: options.EdgeKinds.applied,
@@ -754,7 +762,12 @@ func findReferences(
 			subjectRepository = file.Repository
 		}
 	}
-	completeness, unresolvedRelated, err := completenessFor(snapshot, subject.Name, subjectRepository)
+	completeness, unresolvedRelated, err := completenessFor(snapshot, subject.Name, func() hotsnapshot.RepositoryID {
+		if options.implementationsOnly {
+			return hotsnapshot.InvalidRepositoryID
+		}
+		return subjectRepository
+	}())
 	if err != nil {
 		return nil, Response[ReferenceResult]{}, WrapToolError(
 			CodeSnapshotUnavailable,
@@ -865,6 +878,7 @@ func normalizeFindReferencesInput(arguments FindReferencesInput) (findReferences
 		limit = MaximumReferenceLimit
 	}
 	return findReferencesOptions{
+		implementationsOnly: arguments.implementationsOnly, implementationDetection: arguments.implementationDetection, implementationPaths: arguments.implementationPaths,
 		Selector: selector, Name: name, View: view, Direction: direction, Repo: repo, Language: language,
 		EdgeKinds: edgeKinds, Confidence: confidence, Limit: limit,
 		Derived: newDerivedFilter(arguments.IncludeDerived, repo),
@@ -1069,6 +1083,25 @@ func referenceMatches(
 	decoded decodedReferenceEdge,
 	options findReferencesOptions,
 ) (bool, error) {
+	if options.implementationsOnly && (!decoded.Confidence.Exact() || (options.implementationDetection != "" && implementationDetection(decoded.Provenance) != options.implementationDetection)) {
+		return false, nil
+	}
+	if options.implementationsOnly && len(options.implementationPaths) > 0 {
+		_, file, _, _, err := symbolReferenceLocation(snapshot, sourceID)
+		if err != nil {
+			return false, err
+		}
+		matches := false
+		for _, prefix := range options.implementationPaths {
+			if file.path == prefix || strings.HasPrefix(file.path, strings.TrimSuffix(prefix, "/")+"/") {
+				matches = true
+				break
+			}
+		}
+		if !matches {
+			return false, nil
+		}
+	}
 	if !options.EdgeKinds.keeps(string(decoded.Kind)) {
 		return false, nil
 	}
@@ -1362,7 +1395,7 @@ func referenceCandidates(
 	for _, edge := range direct {
 		candidates = append(candidates, referenceCandidate{edge: edge})
 	}
-	if options.Direction == FindReferencesDirectionOutgoing {
+	if options.Direction == FindReferencesDirectionOutgoing || options.implementationsOnly {
 		return candidates, nil, nil
 	}
 	implemented, implementsCode, err := solelyImplementedMethods(snapshot, startID)
@@ -1420,4 +1453,11 @@ func solelyImplementedMethods(
 		}
 	}
 	return out, implementsCode, nil
+}
+
+func (arguments FindReferencesInput) queryToolName() string {
+	if arguments.implementationsOnly {
+		return findImplementationsToolName + ":" + arguments.implementationDetection + ":" + strings.Join(arguments.implementationPaths, "\x00")
+	}
+	return findReferencesToolName
 }

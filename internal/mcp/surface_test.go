@@ -25,6 +25,7 @@ import (
 var allowedTools = []string{
 	"find_by_intent",
 	"find_cross_repo_consumers",
+	"find_implementations",
 	"find_references",
 	"find_symbol",
 	"get_blast_radius",

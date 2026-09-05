@@ -34,6 +34,7 @@ checkout, which is what a reader on a fork or without a network still has.
 | the question | the tool |
 | --- | --- |
 | who calls this, what references this | `find_references` |
+| who implements a type or method | `find_implementations` |
 | what breaks if I change it | `get_blast_radius` |
 | what does this reach outward | `trace_dependencies` |
 | who uses it from another repository | `find_cross_repo_consumers` |

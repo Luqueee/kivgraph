@@ -11,13 +11,14 @@ contrato observable: lo que un agente recibe y en qué puede confiar.
 Las cifras que aparecen aquí las mide `benchmarks/mcp-token-cost`, con su digest
 y su generación. Ninguna se declara a mano.
 
-## 1. Las once tools
+## 1. Las doce tools
 
 ```text
 list_repositories       find_symbol            find_by_intent
 get_symbol              get_file_outline       find_references
 find_cross_repo_consumers                      trace_dependencies
 get_blast_radius        get_source             graph_status
+find_implementations
 ```
 
 Una `serve` configurada añade tres controles de indexado:
@@ -53,7 +54,7 @@ CLI.
 **Sin generación publicada no hay superficie.** El servidor completa el
 handshake, publica cero tools de consulta y pone el comando de reconstrucción en
 `instructions`. Un cliente lanza este proceso él mismo, así que salir se lee como
-una caída; y publicar once tools que contestan `INDEX_NOT_READY` a todo enseña al
+una caída; y publicar doce tools que contestan `INDEX_NOT_READY` a todo enseña al
 agente que las tools no funcionan.
 
 **Salvo que se pida lo contrario.** `kivgraph serve --introspection` publica el
@@ -64,9 +65,9 @@ registro o la herramienta de desarrollo que sólo puede leer lo que devuelve
 
 Lo que la opción cambia es qué se **lista**, y nada más. No crea un índice, no
 fabrica un grafo vacío, no relaja ninguna comprobación de espacio en disco y no
-toca la puerta de consentimiento de las dos mutaciones. Las once tools de
-consulta del grafo que expone
-siguen contestando `INDEX_NOT_READY` hasta que haya generación -- `graph_status`
+toca la puerta de consentimiento de las dos mutaciones. Las doce tools de
+consulta del grafo que expone siguen contestando `INDEX_NOT_READY` hasta que
+haya generación -- `graph_status`
 es la excepción de siempre, porque la tool que explica por qué las demás se
 niegan no puede negarse ella-- y el handshake sigue llevando las instrucciones
 de reparación: decirle al cliente que hay grafo cuando no lo hay sería la única
@@ -290,3 +291,12 @@ Los de PLAN.md 17.5, sin cambios. `get_file_outline` usa
 `REPOSITORY_NOT_FOUND` para un repositorio que no está en el grafo y
 `SYMBOL_NOT_FOUND` para una ruta que no existe bajo él: una página vacía se
 leería como «aquí no hay nada declarado», que es una respuesta distinta.
+
+## Implementaciones tipadas
+
+`find_implementations` consulta relaciones IMPLEMENTS y OVERRIDES, con evidencia
+declarada o estructural de TypeScript. Devuelve `results.subject` e
+`results.implementations`, identidades canónicas, generación, cursor y
+completitud. Los filtros `repo`, `language`, `paths` y `detection` se aplican
+antes de paginar. Una generación anterior al esquema 5 devuelve LOWER_BOUND.
+Véase ADR 0116 para el ámbito de tipos y la compatibilidad del protocolo.

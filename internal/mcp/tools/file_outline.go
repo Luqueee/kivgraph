@@ -31,18 +31,18 @@ const (
 // row-per-declaration shape; "files" answers only which files hold the page's
 // declarations and how many each holds.
 type GetFileOutlineInput struct {
-	Profile    []string `json:"profile,omitempty" jsonschema:"Profiles to query; omit for the default, or use * alone for all."`
+	Profile    []string `json:"profile,omitempty" jsonschema:"Profiles; omit for default or use * alone for all."`
 	Repository string   `json:"repository" jsonschema:"The repository that holds the path, as list_repositories names it."`
 	Path       string   `json:"path" jsonschema:"A repository-relative file, or a directory whose files are all wanted."`
-	Kind       string   `json:"kind,omitempty" jsonschema:"Keep only declarations of this kind, such as function, struct or interface."`
+	Kind       string   `json:"kind,omitempty" jsonschema:"Filter kind, e.g. function, struct or interface."`
 	// IncludeMembers adds struct fields, properties and enum members. They
 	// are off by default because they are not declarations a reader chooses
 	// between: they are the shape of the type above them, and on a real file
 	// they are half the payload.
-	IncludeMembers bool   `json:"include_members,omitempty" jsonschema:"Also list struct fields, properties and enum members. Off by default: on a real file they are half the payload."`
-	ResponseFormat string `json:"response_format,omitempty" jsonschema:"concise (the default) omits the derived identifiers; detailed returns them."`
+	IncludeMembers bool   `json:"include_members,omitempty" jsonschema:"Include struct fields, properties and enum members; default false."`
+	ResponseFormat string `json:"response_format,omitempty" jsonschema:"concise (default), or detailed with derived identifiers."`
 	Limit          int    `json:"limit,omitempty" jsonschema:"Declarations in one page. Defaults to 200."`
-	Cursor         string `json:"cursor,omitempty" jsonschema:"The next_cursor of the previous page. Every other argument must stay the same."`
+	Cursor         string `json:"cursor,omitempty" jsonschema:"Previous next_cursor; keep other arguments unchanged."`
 	View           string `json:"view,omitempty" jsonschema:"Granularity, never a different answer: compact (the default), full, or files for which files hold the declarations."`
 }
 

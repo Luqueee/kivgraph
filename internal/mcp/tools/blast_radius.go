@@ -42,7 +42,7 @@ const (
 // (the default) spells the columns every row shares once in the header, `full`
 // repeats them on every row.
 type GetBlastRadiusInput struct {
-	Profile        []string `json:"profile,omitempty" jsonschema:"Profiles to query; omit for the default, or use * alone for all."`
+	Profile        []string `json:"profile,omitempty" jsonschema:"Profiles; omit for default or use * alone for all."`
 	StableKey      string   `json:"stable_key,omitempty" jsonschema:"The root symbol durable key, as a detailed result returns it. The triple works instead."`
 	QualifiedName  string   `json:"qualified_name,omitempty" jsonschema:"The root symbol fully qualified name, as every row of this surface carries it."`
 	Repository     string   `json:"repository,omitempty" jsonschema:"The repository that declares the root symbol."`
@@ -54,8 +54,8 @@ type GetBlastRadiusInput struct {
 	Kinds          []string `json:"kinds,omitempty" jsonschema:"Symbol kinds to report. Empty excludes variable and field, the local bindings a walk passes through; * reports every kind."`
 	IncludeDerived bool     `json:"include_derived,omitempty" jsonschema:"Include affected symbols of the derived provider, which is withheld by default."`
 	Limit          int      `json:"limit,omitempty" jsonschema:"Affected symbols in one page. Defaults to 50."`
-	Cursor         string   `json:"cursor,omitempty" jsonschema:"The next_cursor of the previous page. Every other argument must stay the same."`
-	ResponseFormat string   `json:"response_format,omitempty" jsonschema:"concise (the default) omits the derived identifiers; detailed returns them."`
+	Cursor         string   `json:"cursor,omitempty" jsonschema:"Previous next_cursor; keep other arguments unchanged."`
+	ResponseFormat string   `json:"response_format,omitempty" jsonschema:"concise (default), or detailed with derived identifiers."`
 	View           string   `json:"view,omitempty" jsonschema:"Granularity, never a different answer: compact (the default) states once what every row shares, full repeats it on each."`
 }
 

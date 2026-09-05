@@ -21,9 +21,10 @@ import (
 )
 
 type Status struct {
-	Generation uint64 `json:"generation"`
-	State      string `json:"state"`
-	Detail     string `json:"detail,omitempty"`
+	InputDigest string `json:"input_digest,omitempty"`
+	Generation  uint64 `json:"generation"`
+	State       string `json:"state"`
+	Detail      string `json:"detail,omitempty"`
 }
 
 type Record struct {
@@ -323,6 +324,7 @@ func Check(ctx context.Context, root string, generation uint64, repositories []w
 		status.Detail = err.Error()
 		return status
 	}
+	status.InputDigest = digest
 	status.State = "fresh"
 	if digest != record.Digest {
 		status.State = "stale"

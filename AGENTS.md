@@ -43,6 +43,7 @@ El campo `instructions` del servidor dice lo mismo, y Zed no lo lee.
 | la pregunta | la tool |
 | --- | --- |
 | quién llama a esto, qué referencia a esto | `find_references` |
+| quién implementa un tipo o método | `find_implementations` |
 | qué se rompe si lo cambio | `get_blast_radius` |
 | qué alcanza esto hacia fuera | `trace_dependencies` |
 | quién lo usa desde otro repositorio | `find_cross_repo_consumers` |

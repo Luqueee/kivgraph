@@ -37,17 +37,17 @@ const (
 // field-per-row shape of SymbolSummary. `files` is rejected here: find_symbol
 // answers declarations, not files.
 type FindSymbolInput struct {
-	Profile        []string `json:"profile,omitempty" jsonschema:"Profiles to query; omit for the default, or use * alone for all."`
+	Profile        []string `json:"profile,omitempty" jsonschema:"Profiles; omit for default or use * alone for all."`
 	Name           string   `json:"name" jsonschema:"The name to look for, matched the way mode says."`
 	Mode           string   `json:"mode,omitempty" jsonschema:"How name is matched: exact (the default), qualified_exact, prefix or substring."`
-	Kind           string   `json:"kind,omitempty" jsonschema:"Keep only symbols of this kind, such as function, struct or interface."`
+	Kind           string   `json:"kind,omitempty" jsonschema:"Filter kind, e.g. function, struct or interface."`
 	Repo           string   `json:"repo,omitempty" jsonschema:"Keep only symbols from this repository. Naming the derived provider also opts it in."`
 	IncludeDerived bool     `json:"include_derived,omitempty" jsonschema:"Include symbols of the derived provider, which is withheld by default."`
 	PathPrefix     string   `json:"path_prefix,omitempty" jsonschema:"Keep only symbols under this repository-relative path prefix."`
-	ResponseFormat string   `json:"response_format,omitempty" jsonschema:"concise (the default) omits the derived identifiers; detailed returns them."`
-	View           string   `json:"view,omitempty" jsonschema:"Granularity, never a different answer: compact (the default) or full. files is rejected, since this answer is declarations."`
+	ResponseFormat string   `json:"response_format,omitempty" jsonschema:"concise (default), or detailed with derived identifiers."`
+	View           string   `json:"view,omitempty" jsonschema:"compact (default) or full declarations; files is unsupported."`
 	Limit          int      `json:"limit,omitempty" jsonschema:"Declarations in one page. Defaults to 50."`
-	Cursor         string   `json:"cursor,omitempty" jsonschema:"The next_cursor of the previous page. Every other argument must stay the same."`
+	Cursor         string   `json:"cursor,omitempty" jsonschema:"Previous next_cursor; keep other arguments unchanged."`
 }
 
 // SymbolSummary is the stable public result shape for symbol discovery. It

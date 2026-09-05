@@ -16,12 +16,12 @@ const getSymbolToolName = "get_symbol"
 // GetSymbolInput identifies one symbol, either by its durable stable key or by
 // the repository, path and qualified name every row of this surface carries.
 type GetSymbolInput struct {
-	Profile        []string `json:"profile,omitempty" jsonschema:"Profiles to query; omit for the default, or use * alone for all."`
+	Profile        []string `json:"profile,omitempty" jsonschema:"Profiles; omit for default or use * alone for all."`
 	StableKey      string   `json:"stable_key,omitempty" jsonschema:"The symbol durable key, as a detailed result returns it. The triple below works instead."`
 	QualifiedName  string   `json:"qualified_name,omitempty" jsonschema:"The symbol fully qualified name, as every row of this surface carries it."`
 	Repository     string   `json:"repository,omitempty" jsonschema:"The repository that declares the symbol. Pass it with qualified_name and path."`
 	Path           string   `json:"path,omitempty" jsonschema:"The repository-relative file that declares the symbol."`
-	ResponseFormat string   `json:"response_format,omitempty" jsonschema:"concise (the default) omits the derived identifiers; detailed returns them."`
+	ResponseFormat string   `json:"response_format,omitempty" jsonschema:"concise (default), or detailed with derived identifiers."`
 }
 
 // SymbolDetails is the public detail shape returned for one symbol. The

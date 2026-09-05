@@ -41,10 +41,10 @@ const (
 // key, or the repository, path and qualified name of a row the caller already
 // read.
 type GetSourceInput struct {
-	Profile        []string        `json:"profile,omitempty" jsonschema:"Profiles to query; omit for the default, or use * alone for all."`
+	Profile        []string        `json:"profile,omitempty" jsonschema:"Profiles; omit for default or use * alone for all."`
 	Symbols        []SourceRequest `json:"symbols" jsonschema:"The symbols whose code you want, up to 20 in one call, across any files and repositories."`
 	ContextLines   int             `json:"context_lines,omitempty" jsonschema:"Source lines to add around each declaration. Defaults to 0, maximum 100."`
-	ResponseFormat string          `json:"response_format,omitempty" jsonschema:"concise (the default) omits the derived identifiers; detailed returns them."`
+	ResponseFormat string          `json:"response_format,omitempty" jsonschema:"concise (default), or detailed with derived identifiers."`
 }
 
 // SourceRequest names one symbol.
@@ -151,7 +151,7 @@ func RegisterGetSourceWithObserverAndSnapshotStore(
 	}
 	addQueryTool(server, &sdkmcp.Tool{
 		Name:        getSourceToolName,
-		Description: "The code of several symbols in one call. Prefer it to reading each range: no line numbers, one call across files and repositories.",
+		Description: "Source of several symbols across files and repositories in one call; no line numbers needed.",
 		Annotations: readOnlyClosedWorld(),
 		Meta:        alwaysLoadMeta(),
 	}, handler)

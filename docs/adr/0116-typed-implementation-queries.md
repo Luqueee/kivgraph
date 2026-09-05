@@ -1,4 +1,4 @@
-# ADR 0095: Typed implementation queries and coverage
+# ADR 0116: Typed implementation queries and coverage
 
 Status: accepted for local implementation, 2026-09-05.
 
