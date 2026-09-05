@@ -404,7 +404,8 @@ func (manifest Manifest) Validate() error {
 	if manifest.Version == LegacyVersion && manifest.Composition != nil {
 		return errors.New("source observation version 1 must not contain a topology composition")
 	}
-	if _, err := topology.NewProfileID(strings.TrimSpace(manifest.Profile)); err != nil {
+	profile, err := topology.NewProfileID(strings.TrimSpace(manifest.Profile))
+	if err != nil {
 		return fmt.Errorf("source observation profile: %w", err)
 	}
 	if strings.TrimSpace(manifest.ResolverVersion) == "" {
@@ -420,7 +421,7 @@ func (manifest Manifest) Validate() error {
 		if err != nil {
 			return err
 		}
-		if composition.Profile.ID != topology.ProfileID(manifest.Profile) {
+		if composition.Profile.ID != profile {
 			return fmt.Errorf("topology composition profile %q does not match source observation profile %q", composition.Profile.ID, manifest.Profile)
 		}
 	}
@@ -519,17 +520,17 @@ func Read(generationPath string) (Manifest, error) {
 	decoder.DisallowUnknownFields()
 	var manifest Manifest
 	if err := decoder.Decode(&manifest); err != nil {
-		return Manifest{}, fmt.Errorf("%w: decode source observations: %v", ErrInvalid, err)
+		return Manifest{}, fmt.Errorf("%w: decode source observations: %w", ErrInvalid, err)
 	}
 	var extra any
 	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
 		if err == nil {
 			return Manifest{}, fmt.Errorf("%w: decode source observations: multiple documents", ErrInvalid)
 		}
-		return Manifest{}, fmt.Errorf("%w: decode source observations: %v", ErrInvalid, err)
+		return Manifest{}, fmt.Errorf("%w: decode source observations: %w", ErrInvalid, err)
 	}
 	if err := manifest.Validate(); err != nil {
-		return Manifest{}, fmt.Errorf("%w: validate source observations: %v", ErrInvalid, err)
+		return Manifest{}, fmt.Errorf("%w: validate source observations: %w", ErrInvalid, err)
 	}
 	return manifest, nil
 }

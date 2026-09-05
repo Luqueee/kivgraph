@@ -2,6 +2,7 @@ package sourceobservation
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
@@ -575,6 +576,15 @@ func TestManifestValidateRejectsCompositionForAnotherProfile(t *testing.T) {
 	}
 }
 
+func TestManifestValidateNormalizesProfileBeforeComparingComposition(t *testing.T) {
+	manifest := validManifest(t)
+	manifest.Profile = " default "
+
+	if err := manifest.Validate(); err != nil {
+		t.Fatalf("Manifest.Validate() profile=%q error = %v, want the normalized profile to match composition", manifest.Profile, err)
+	}
+}
+
 func TestLegacyManifestRemainsReadableWithoutTopologyComposition(t *testing.T) {
 	manifest := validManifest(t)
 	manifest.Version = LegacyVersion
@@ -633,6 +643,38 @@ func TestReadAndWriteRejectMissingOrCorruptCandidates(t *testing.T) {
 	if err := Write(fileCandidate, validManifest(t)); err == nil || !strings.Contains(err.Error(), "create source observation candidate") {
 		t.Fatalf("Write() error = %v, want non-directory candidate refusal", err)
 	}
+}
+
+func TestReadRetainsInvalidDocumentCauses(t *testing.T) {
+	candidate := testsupport.TempDir(t)
+	path := filepath.Join(candidate, FileName)
+
+	t.Run("decode", func(t *testing.T) {
+		if err := os.WriteFile(path, []byte(`{"version":"wrong"}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		_, err := Read(candidate)
+		var decodeErr *json.UnmarshalTypeError
+		if !errors.Is(err, ErrInvalid) || !errors.As(err, &decodeErr) {
+			t.Fatalf("Read() error = %v, want ErrInvalid and the JSON decode cause", err)
+		}
+	})
+
+	t.Run("validation", func(t *testing.T) {
+		manifest := validManifest(t)
+		manifest.Sources[0].Observation.ID = "tampered"
+		data, err := json.Marshal(manifest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		_, err = Read(candidate)
+		if !errors.Is(err, ErrInvalid) || !errors.Is(err, topology.ErrInvalidSourceObservation) {
+			t.Fatalf("Read() error = %v, want ErrInvalid and the observation validation cause", err)
+		}
+	})
 }
 
 func TestFileAndTreeDigestsRejectUnavailableOrCancelledInputs(t *testing.T) {

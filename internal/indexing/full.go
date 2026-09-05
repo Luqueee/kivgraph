@@ -290,12 +290,14 @@ func ObserveSources(ctx context.Context, options FullOptions) (sourceobservation
 	if err != nil {
 		return sourceobservation.Manifest{}, nil, fmt.Errorf("observe index sources: %w", err)
 	}
-	composition, err := observedTopologyComposition(manifest, observedRepositories)
-	if err != nil {
-		return sourceobservation.Manifest{}, nil, fmt.Errorf("derive effective topology composition: %w", err)
-	}
+	var composition topology.ProfileComposition
 	if options.Composition != nil {
 		composition = *options.Composition
+	} else {
+		composition, err = observedTopologyComposition(manifest, observedRepositories)
+		if err != nil {
+			return sourceobservation.Manifest{}, nil, fmt.Errorf("derive effective topology composition: %w", err)
+		}
 	}
 	persistedComposition, err := sourceobservation.NewTopologyComposition(composition)
 	if err != nil {
@@ -380,7 +382,7 @@ func validateObservedComposition(
 ) error {
 	repositories := make(map[string]workspace.Repository, len(observed))
 	for _, repository := range observed {
-		name := repository.Name
+		name := strings.TrimSpace(repository.Name)
 		if _, exists := repositories[name]; exists {
 			return fmt.Errorf("observed source repository %q is duplicated", name)
 		}
