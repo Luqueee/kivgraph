@@ -374,12 +374,12 @@ func TreeDigest(ctx context.Context, root string) (string, error) {
 			}
 			return nil
 		}
-		if !IsAnalyzedSource(entry.Name()) {
-			return nil
-		}
 		relative, err := filepath.Rel(root, path)
 		if err != nil {
 			return err
+		}
+		if !IsAnalyzedSource(relative) {
+			return nil
 		}
 		info, err := entry.Info()
 		if err != nil {
@@ -454,12 +454,29 @@ func FileDigest(ctx context.Context, path string) (string, error) {
 // IsAnalyzedSource reports whether a path can change the facts produced by a
 // supported language or the manifests that select those facts.
 func IsAnalyzedSource(name string) bool {
-	base := strings.ToLower(filepath.Base(name))
+	clean := filepath.ToSlash(filepath.Clean(name))
+	lower := strings.ToLower(clean)
+	base := filepath.Base(lower)
+	if _, ok := analyzedManifests[lower]; ok {
+		return true
+	}
 	if _, ok := analyzedManifests[base]; ok {
+		return true
+	}
+	if strings.HasSuffix(lower, "/.dart_tool/package_config.json") {
 		return true
 	}
 	if strings.HasPrefix(base, "requirements-") && strings.HasSuffix(base, ".txt") {
 		return true
+	}
+	if (strings.HasPrefix(base, "tsconfig.") || strings.HasPrefix(base, "jsconfig.")) &&
+		strings.HasSuffix(base, ".json") {
+		return true
+	}
+	for _, suffix := range []string{".csproj", ".fsproj", ".vbproj", ".sln", ".slnx"} {
+		if strings.HasSuffix(base, suffix) {
+			return true
+		}
 	}
 	return config.HasSourceExtension(analyzedExtensions, name)
 }
@@ -468,11 +485,18 @@ var analyzedExtensions = config.SourceExtensionSet(config.SupportedLanguages())
 
 var analyzedManifests = map[string]struct{}{
 	"go.mod": {}, "go.sum": {}, "go.work": {}, "go.work.sum": {},
-	"package.json": {}, "tsconfig.json": {},
+	"package.json": {}, "pnpm-lock.yaml": {}, "pnpm-workspace.yaml": {}, "pnpm-workspace.yml": {},
+	"package-lock.json": {}, "npm-shrinkwrap.json": {}, "yarn.lock": {},
 	"cargo.toml": {}, "cargo.lock": {},
 	"pyproject.toml": {}, "setup.py": {}, "setup.cfg": {}, "requirements.txt": {},
 	"pipfile": {}, "pipfile.lock": {}, "poetry.lock": {}, "uv.lock": {},
 	"pubspec.yaml": {}, "pubspec.lock": {}, "analysis_options.yaml": {},
+	".dart_tool/package_config.json": {},
+	"pom.xml":                        {}, "build.gradle": {}, "build.gradle.kts": {}, "settings.gradle": {},
+	"settings.gradle.kts": {}, "gradle.properties": {}, "build.sbt": {},
+	"directory.build.props": {}, "directory.build.targets": {},
+	"directory.packages.props": {}, "nuget.config": {}, "global.json": {},
+	"packages.lock.json": {},
 }
 
 func sourceWorktreeID(repository workspace.Repository) (topology.WorktreeID, error) {

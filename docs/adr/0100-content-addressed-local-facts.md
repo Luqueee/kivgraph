@@ -58,7 +58,11 @@ registry change selects a new address and is reported as `no_entry`; the more
 specific reasons describe an entry found at that address but rejected during
 validation. A miss is therefore observable without parsing loader diagnostics.
 Cache entries remain derived state: a failure to write one never invalidates an
-otherwise valid full pass.
+otherwise valid full pass. A full pass stages newly analysed entries in memory
+until source verification and the publication gates pass. `Full` commits them
+when it returns a valid result; `FullWithRepositories` leaves the commit to the
+caller that owns publication. An unpublishable analysis therefore cannot admit
+facts under the source address captured before it ran.
 
 ## Consequences
 
@@ -67,6 +71,8 @@ otherwise valid full pass.
   content change is caught by the recorded dependency input.
 - A dirty source creates a new local address and leaves the previous entry
   available if that content is restored.
+- A source change during analysis cannot leave a cache entry behind when the
+  publication-time observation rejects the pass.
 - These behaviors are pinned by `TestFactCacheKeepsAlternatingProfilesWarm`,
   `TestFactCacheMissesWhenTheProviderRepositoryChanges` and
   `TestFactCacheMissesWhenASourceFileChanges`; the directed suite reports

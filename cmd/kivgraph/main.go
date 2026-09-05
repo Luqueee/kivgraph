@@ -806,7 +806,7 @@ func resyncOnBranchChange(
 		// So the watcher discovers the workspace on its own time. It already never
 		// fails the command and never outlives it; this only stops it from holding
 		// the door shut on the way in.
-		registry, err := workspace.NewRegistry(resyncCtx, loaded.Repositories)
+		registry, err := registryForProfile(resyncCtx, loaded)
 		if err != nil {
 			// Moving discovery off the startup path put it in reach of shutdown:
 			// a command that exits while git is still being asked about the

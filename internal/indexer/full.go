@@ -207,7 +207,8 @@ type FullOptions struct {
 type FullReport struct {
 	// Cache reports what the fact cache did, so a pass says how much of
 	// itself it skipped and on whose authority.
-	Cache CacheReport
+	Cache       CacheReport
+	cacheCommit func()
 	// TypeScriptWithoutPackages names the repositories registered as
 	// TypeScript that declare no named package with a project. A manifest
 	// alone is not one: a repository of loose .mjs files beside a
@@ -320,6 +321,17 @@ type FullReport struct {
 	SyntheticWorkFile string
 }
 
+// CommitCache admits the derived facts staged by FullWithRepositories. The
+// caller that owns publication must invoke this only after source verification
+// and all publication gates pass. Full invokes it before returning because it
+// has no publication layer above it.
+func (report *FullReport) CommitCache() {
+	if report == nil || report.cacheCommit == nil {
+		return
+	}
+	report.cacheCommit()
+}
+
 // ResolveRepositories expands the configured registry into every provider a
 // full pass will read. Derived Dart packages and the optional SDK are explicit
 // inputs rather than an implementation detail hidden inside Full.
@@ -370,7 +382,12 @@ func Full(ctx context.Context, options FullOptions) (facts.Set, FullReport, erro
 	if err != nil {
 		return facts.Set{}, FullReport{}, err
 	}
-	return FullWithRepositories(ctx, options, repositories)
+	set, report, err := FullWithRepositories(ctx, options, repositories)
+	if err != nil {
+		return set, report, err
+	}
+	report.CommitCache()
+	return set, report, nil
 }
 
 // FullWithRepositories runs a full pass over a provider set previously
@@ -500,7 +517,7 @@ func FullWithRepositories(ctx context.Context, options FullOptions, repositories
 	units = append(units, semanticUnits(dartRepositories, facts.LanguageDart)...)
 	units = append(units, semanticUnits(javaRepositories, facts.LanguageJava)...)
 	units = append(units, semanticUnits(cSharpRepositories, facts.LanguageCSharp)...)
-	results, cacheReport, err := analyse(ctx, options, units, analysisInputs{
+	results, cacheReport, cacheCommit, err := analyse(ctx, options, units, analysisInputs{
 		moduleRegistry:     moduleRegistry,
 		conflictingModules: conflictingModules,
 		planConflicts:      planConflicts,
@@ -514,6 +531,7 @@ func FullWithRepositories(ctx context.Context, options FullOptions, repositories
 		return facts.Set{}, report, err
 	}
 	report.Cache = cacheReport
+	report.cacheCommit = cacheCommit
 
 	// The merge follows the order of the units, never the order they
 	// finished, so the published graph does not depend on how the work was
@@ -1808,14 +1826,14 @@ func analyse(
 	options FullOptions,
 	units []analysisUnit,
 	inputs analysisInputs,
-) ([]analysisResult, CacheReport, error) {
+) ([]analysisResult, CacheReport, func(), error) {
 	results := make([]analysisResult, len(units))
 	if len(units) == 0 {
-		return results, CacheReport{Mode: CacheOff}, nil
+		return results, CacheReport{Mode: CacheOff}, nil, nil
 	}
 	cache, err := newFactCache(options)
 	if err != nil {
-		return nil, CacheReport{Mode: CacheOff}, err
+		return nil, CacheReport{Mode: CacheOff}, nil, err
 	}
 	cache.trees.withProviders(inputs.typeScriptPackages)
 	cache.withRegistry(inputs, options.Repositories)
@@ -1905,12 +1923,12 @@ func analyse(
 	}
 
 	if err := group.Wait(); err != nil {
-		return nil, cache.report(), err
+		return nil, cache.report(), nil, err
 	}
 	// Entries are only useful while something still asks for them, and two
 	// workspaces indexed from the same home share this directory.
 	cache.prune(30 * 24 * time.Hour)
-	return results, cache.report(), nil
+	return results, cache.report(), cache.commit, nil
 }
 
 func analyseUnit(

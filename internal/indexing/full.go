@@ -389,6 +389,7 @@ func RunFull(ctx context.Context, options FullOptions) (result FullResult, resul
 	if !rebuildReport.Passed {
 		return result, fmt.Errorf("rebuild graph did not pass its gates")
 	}
+	indexReport.CommitCache()
 	if options.Invalidation != nil {
 		if err := options.Invalidation.RecordPublished(ctx, invalidation.ProfileRecord{
 			Profile:    options.Profile,

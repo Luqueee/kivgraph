@@ -232,6 +232,38 @@ func TestTreeDigestTracksAnalysedFilesButNotDocumentation(t *testing.T) {
 	}
 }
 
+func TestTreeDigestTracksProviderBuildInputs(t *testing.T) {
+	for _, name := range []string{
+		"pom.xml", "build.gradle", "build.gradle.kts", "app.csproj",
+		"pnpm-lock.yaml", "tsconfig.build.json", filepath.Join(".dart_tool", "package_config.json"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := testsupport.TempDir(t)
+			path := filepath.Join(root, name)
+			if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte("before\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			before, err := TreeDigest(context.Background(), root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte("after\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			after, err := TreeDigest(context.Background(), root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if after == before {
+				t.Fatalf("editing provider input %q did not change digest %q", name, after)
+			}
+		})
+	}
+}
+
 func TestTreeDigestFramesFileContentWithoutAmbiguousBoundaries(t *testing.T) {
 	combined := testsupport.TempDir(t)
 	if err := os.WriteFile(filepath.Join(combined, "a.go"), []byte("X\x00b.go\x00Y"), 0o600); err != nil {

@@ -49,6 +49,38 @@ func Greeting() string { return "hello" }
 	}
 }
 
+func TestFullWithRepositoriesDoesNotAdmitFactsBeforeCommit(t *testing.T) {
+	fixture := newCachedFixture(t)
+	set, report, err := FullWithRepositories(context.Background(), FullOptions{
+		Repositories:      []workspace.Repository{fixture.repository},
+		SyntheticWorkFile: fixture.workFile,
+		CacheMode:         fixture.mode,
+		CacheDirectory:    fixture.cache,
+	}, []workspace.Repository{fixture.repository})
+	if err != nil {
+		t.Fatalf("FullWithRepositories() error = %v", err)
+	}
+	if len(set.Symbols) == 0 {
+		t.Fatal("FullWithRepositories() returned no facts")
+	}
+	entries, err := os.ReadDir(fixture.cache)
+	if err != nil {
+		t.Fatalf("ReadDir() before commit error = %v", err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("cache admitted %d entries before commit, want none", len(entries))
+	}
+
+	report.CommitCache()
+	entries, err = os.ReadDir(fixture.cache)
+	if err != nil {
+		t.Fatalf("ReadDir() after commit error = %v", err)
+	}
+	if len(entries) == 0 {
+		t.Fatal("CommitCache() admitted no entry")
+	}
+}
+
 func (fixture *cachedFixture) index() (facts.Set, FullReport) {
 	return fixture.indexProfile("")
 }
