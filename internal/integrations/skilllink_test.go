@@ -134,7 +134,7 @@ func TestAnUpgradeKeepsAnEditedCanonical(t *testing.T) {
 	}
 	linkedData, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("read refreshed skill through link: %v", err)
+		t.Fatalf("read refreshed skill through link (target=%q, scope=%q, path=%q): %v", TargetClaudeCode, ScopeUser, path, err)
 	}
 	if !bytes.Equal(linkedData, embeddedSkill) {
 		t.Fatalf("--force did not restore the shipped skill through link: target=%q scope=%q path=%q", TargetClaudeCode, ScopeUser, path)
