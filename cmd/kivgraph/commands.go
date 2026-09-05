@@ -590,7 +590,7 @@ func commandTable() []commandSpec {
 // MCP, skill and hook are a family rather than nine hand-written entries: they
 // accept the same operations with the same flags, and only the writers take
 // --dry-run and --force. Instructions has its own command because it writes a
-// managed block into a project context file rather than a client registration.
+// managed block into a user context file rather than a client registration.
 func integrationCommands() []commandSpec {
 	specs := make([]commandSpec, 0, 12)
 	specs = append(specs, configureCommand())
@@ -608,7 +608,7 @@ func configureCommand() commandSpec {
 		words:   []string{"configure"},
 		group:   "Integrations",
 		usage:   "configure [--target TARGET]... [--daemon] [--stdio] [--dry-run] [--force]",
-		summary: "Configure MCP, skills, hooks, daemon and project instructions",
+		summary: "Configure MCP, skills, hooks, daemon and user instructions",
 		flags: func() *flag.FlagSet {
 			var options configureOptions
 			return configureFlagSet(&options)
@@ -626,7 +626,7 @@ func instructionsParentCommand() commandSpec {
 	return commandSpec{
 		words:   []string{"instructions"},
 		hidden:  true,
-		summary: "Manage project instructions loaded by coding agents",
+		summary: "Manage user instructions loaded by coding agents",
 		run: func(_ dependencies, args []string, stdout, stderr io.Writer) int {
 			return runInstructionsCommand(args, stdout, stderr)
 		},
@@ -638,7 +638,7 @@ func instructionsInstallCommand() commandSpec {
 		words:   []string{"instructions", "install"},
 		group:   "Integrations",
 		usage:   "instructions install [--agent AGENT] [--file AGENTS.md|CLAUDE.md|.omp/AGENTS.md] [--dry-run] [--force]",
-		summary: "Add Kivgraph instructions to a project agent context file",
+		summary: "Add Kivgraph instructions to a user agent context file",
 		flags: func() *flag.FlagSet {
 			var options instructionsOptions
 			return instructionsFlagSet(&options)

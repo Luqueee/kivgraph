@@ -231,10 +231,10 @@ kivgraph configure
 
 `configure` opens one selector for the coding agents detected on this machine
 and installs the user-scoped MCP entry, skill and hook for every selected agent.
-It also adds project instructions at the nearest Git root. It initializes the
-empty Kivgraph configuration when needed, but it does not register a repository
-or run an index. Repeat `--target TARGET` for scripted setup; omit it to open
-the selector.
+It also adds user-level Kivgraph instructions for every selected agent. It
+initializes the empty Kivgraph configuration when needed, but it does not
+register a repository or run an index. Repeat `--target TARGET` for scripted
+setup; omit it to open the selector.
 
 Use `↑`/`↓` (or `j`/`k`) to move, `space` to toggle an agent, `a` to select all,
 `n` to select none, `Enter` to confirm, and `q` or `Esc` to cancel. The daemon
@@ -258,9 +258,9 @@ scope. The gate is fail-open when its graph query cannot be answered.
 Searches wrapped as `rtk rg ...` or `rtk proxy rg ...` are classified by their
 inner command, while RTK's own commands are left alone.
 
-### Add Kivgraph to project agent instructions
+### Add Kivgraph to user agent instructions
 
-Add the Kivgraph navigation rules to the project context loaded by a coding
+Add the Kivgraph navigation rules to the user context loaded by a coding
 agent:
 
 ```bash
@@ -272,19 +272,22 @@ kivgraph instructions install --agent omp
 ```
 
 With no `--agent` or `--file`, the interactive selector lets you choose one or
-more coding agents. `--agent codex` and `--agent opencode` create or update the
-root `AGENTS.md`; `--agent claude` and `--agent claude-code` use the root
-`CLAUDE.md`; `--agent omp` and `--agent oh-my-pi` use the native
-`.omp/AGENTS.md`. The selector deduplicates agents that share a destination.
-The file is placed at the nearest ancestor containing a `.git` marker, or in
-the current directory outside a Git repository. Existing instructions are
-preserved, the managed block is idempotent, and `--dry-run` previews the
-change. An edited Kivgraph block requires `--force` to replace. Use `--file`
-only when an explicit filename is needed instead of an agent; supported files
-are `AGENTS.md`, `CLAUDE.md` and `.omp/AGENTS.md`. The command changes only the
-selected project file and its atomic-write backup. Use `configure` when you
-want this project file and the compatible client integrations in one flow; the
+more coding agents. Each installation owns a `KIVGRAPH.md` prompt beside the
+client configuration. Codex (`~/.codex/AGENTS.md`), Claude Code/Desktop
+(`~/.claude/CLAUDE.md`), and Oh My Pi (`~/.omp/agent/AGENTS.md`) receive only a
+small managed absolute-path reference to `KIVGRAPH.md`. OpenCode instead adds
+its canonical path to `~/.config/opencode/opencode.json`'s native `instructions` list; it
+does not modify OpenCode's `AGENTS.md`. The selector deduplicates shared
+destinations. Existing instructions are preserved, the managed reference is
+idempotent, and `--dry-run` previews the change. An edited Kivgraph prompt or
+reference requires `--force` to replace. `--file` is retained for compatibility
+and selects every matching global client; prefer `--agent` for new automation.
+The command never changes repository instructions. Use `configure` when you
+want these instructions and the compatible client integrations in one flow; the
 individual commands remain available for explicit changes.
+
+When set, `CODEX_HOME` replaces `~/.codex` and `PI_CODING_AGENT_DIR` replaces
+`~/.omp/agent`, matching the configuration roots those clients use.
 
 Inspect or remove a registration explicitly:
 

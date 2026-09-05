@@ -76,12 +76,9 @@ func TestRunInstructionsInstallRejectsUnknownFlag(t *testing.T) {
 	}
 }
 
-func TestRunInstructionsInstallUsesProjectRoot(t *testing.T) {
+func TestRunInstructionsInstallUsesGlobalCodexConfiguration(t *testing.T) {
 	home := testsupport.TempDir(t)
 	project := testsupport.TempDir(t)
-	if err := os.Mkdir(filepath.Join(project, ".git"), 0o700); err != nil {
-		t.Fatal(err)
-	}
 	nested := filepath.Join(project, "src")
 	if err := os.Mkdir(nested, 0o700); err != nil {
 		t.Fatal(err)
@@ -91,8 +88,8 @@ func TestRunInstructionsInstallUsesProjectRoot(t *testing.T) {
 
 	var stdout, stderr bytes.Buffer
 	if code := runInstructionsInstallWithInput(
-		nil,
-		strings.NewReader("n \x1b[B \r"),
+		[]string{"--agent", "codex"},
+		strings.NewReader(""),
 		&stdout,
 		&stderr,
 	); code != 0 {
@@ -101,18 +98,25 @@ func TestRunInstructionsInstallUsesProjectRoot(t *testing.T) {
 	if !strings.Contains(stdout.String(), "installed") || stderr.Len() != 0 {
 		t.Fatalf("install output = stdout %q stderr %q", stdout.String(), stderr.String())
 	}
-	if _, err := os.Stat(filepath.Join(project, "AGENTS.md")); err != nil {
-		t.Fatalf("project-root instructions missing: %v", err)
+	if _, err := os.Stat(filepath.Join(home, ".codex", "AGENTS.md")); err != nil {
+		t.Fatalf("global Codex instructions missing: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".codex", "KIVGRAPH.md")); err != nil {
+		t.Fatalf("global Codex prompt missing: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(project, "AGENTS.md")); !os.IsNotExist(err) {
+		t.Fatalf("instructions changed the project root: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(nested, "AGENTS.md")); !os.IsNotExist(err) {
-		t.Fatalf("instructions were written below project root: %v", err)
+		t.Fatalf("instructions changed the nested project directory: %v", err)
 	}
 }
 
 func TestRunInstructionsInstallWithoutAgentSelectsMultipleAgentsOncePerFile(t *testing.T) {
 	project := testsupport.TempDir(t)
 	t.Chdir(project)
-	testsupport.SetHome(t, testsupport.TempDir(t))
+	home := testsupport.TempDir(t)
+	testsupport.SetHome(t, home)
 
 	var stdout, stderr bytes.Buffer
 	if code := runInstructionsInstallWithInput(
@@ -126,24 +130,37 @@ func TestRunInstructionsInstallWithoutAgentSelectsMultipleAgentsOncePerFile(t *t
 	if stderr.Len() != 0 {
 		t.Fatalf("interactive install stderr = %q", stderr.String())
 	}
-	for _, file := range []string{"AGENTS.md", "CLAUDE.md", filepath.Join(".omp", "AGENTS.md")} {
-		data, err := os.ReadFile(filepath.Join(project, file))
+	for _, path := range []string{
+		filepath.Join(home, ".claude", "CLAUDE.md"),
+		filepath.Join(home, ".codex", "AGENTS.md"),
+		filepath.Join(home, ".config", "opencode", "opencode.json"),
+		filepath.Join(home, ".omp", "agent", "AGENTS.md"),
+	} {
+		data, err := os.ReadFile(path)
 		if err != nil {
-			t.Fatalf("interactive install did not write %s: %v", file, err)
+			t.Fatalf("interactive install did not write %s: %v", path, err)
 		}
-		if got := strings.Count(string(data), "BEGIN KIVGRAPH INSTRUCTIONS"); got != 1 {
-			t.Fatalf("%s contains %d managed blocks, want 1", file, got)
+		if strings.HasSuffix(path, "opencode.json") {
+			if !strings.Contains(string(data), "KIVGRAPH.md") {
+				t.Fatalf("%s does not register the canonical prompt: %q", path, data)
+			}
+		} else if got := strings.Count(string(data), "BEGIN KIVGRAPH INSTRUCTIONS"); got != 1 {
+			t.Fatalf("%s contains %d managed blocks, want 1", path, got)
 		}
 	}
-	if got := strings.Count(stdout.String(), "installed"); got != 3 {
-		t.Fatalf("interactive install output has %d installed plans, want 3: %q", got, stdout.String())
+	if got := strings.Count(stdout.String(), "installed"); got != 4 {
+		t.Fatalf("interactive install output has %d installed plans, want 4: %q", got, stdout.String())
+	}
+	if _, err := os.Stat(filepath.Join(project, "AGENTS.md")); !os.IsNotExist(err) {
+		t.Fatalf("interactive install changed project instructions: %v", err)
 	}
 }
 
 func TestRunInstructionsInstallWithoutAgentCanCancel(t *testing.T) {
 	project := testsupport.TempDir(t)
 	t.Chdir(project)
-	testsupport.SetHome(t, testsupport.TempDir(t))
+	home := testsupport.TempDir(t)
+	testsupport.SetHome(t, home)
 
 	var stdout, stderr bytes.Buffer
 	if code := runInstructionsInstallWithInput(nil, strings.NewReader("q"), &stdout, &stderr); code != 2 {
@@ -152,48 +169,38 @@ func TestRunInstructionsInstallWithoutAgentCanCancel(t *testing.T) {
 	if !strings.Contains(stderr.String(), "selection cancelled") {
 		t.Fatalf("cancelled interactive install stderr = %q", stderr.String())
 	}
-	if _, err := os.Stat(filepath.Join(project, "AGENTS.md")); !os.IsNotExist(err) {
-		t.Fatalf("cancelled interactive install wrote AGENTS.md: %v", err)
+	if _, err := os.Stat(filepath.Join(home, ".codex", "AGENTS.md")); !os.IsNotExist(err) {
+		t.Fatalf("cancelled interactive install wrote global AGENTS.md: %v", err)
 	}
 }
 
-func TestRunInstructionsInstallDeduplicatesTheAcceptedClaudeSymlink(t *testing.T) {
-	skipWindowsSymlinkTest(t)
-	project := testsupport.TempDir(t)
-	t.Chdir(project)
-	testsupport.SetHome(t, testsupport.TempDir(t))
-	if err := os.WriteFile(filepath.Join(project, "AGENTS.md"), []byte("# project\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Symlink("AGENTS.md", filepath.Join(project, "CLAUDE.md")); err != nil {
-		t.Fatal(err)
-	}
-
-	var stdout, stderr bytes.Buffer
-	if code := runInstructionsInstallWithInput(nil, strings.NewReader("\r"), &stdout, &stderr); code != 0 {
-		t.Fatalf("interactive symlink install exit code = %d, stdout=%q stderr=%q", code, stdout.String(), stderr.String())
-	}
-	if got := strings.Count(stdout.String(), "installed"); got != 1 {
-		t.Fatalf("interactive symlink install output has %d installed plans, want 1: %q", got, stdout.String())
-	}
-	data, err := os.ReadFile(filepath.Join(project, "AGENTS.md"))
+func TestInstructionsDestinationsDeduplicateSharedClaudeConfiguration(t *testing.T) {
+	manager, err := integrations.New(integrations.Options{HomeDir: testsupport.TempDir(t)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := strings.Count(string(data), "BEGIN KIVGRAPH INSTRUCTIONS"); got != 1 {
-		t.Fatalf("AGENTS.md contains %d managed blocks, want 1", got)
+	destinations, err := instructionsDestinations(manager, instructionsOptions{}, []integrations.Target{
+		integrations.TargetClaudeCode,
+		integrations.TargetClaudeDesktop,
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
-	linkTarget, err := os.Readlink(filepath.Join(project, "CLAUDE.md"))
-	if err != nil || linkTarget != "AGENTS.md" {
-		t.Fatalf("CLAUDE.md link target = %q, error = %v", linkTarget, err)
+	if len(destinations) != 1 || destinations[0].target != integrations.TargetClaudeCode {
+		t.Fatalf("destinations = %#v, want one Claude Code path", destinations)
 	}
 }
 
 func TestRunInstructionsInstallReportsSelectedFileErrors(t *testing.T) {
 	project := testsupport.TempDir(t)
 	t.Chdir(project)
-	testsupport.SetHome(t, testsupport.TempDir(t))
-	if err := os.WriteFile(filepath.Join(project, "AGENTS.md"), []byte("<!-- BEGIN KIVGRAPH INSTRUCTIONS -->\n"), 0o600); err != nil {
+	home := testsupport.TempDir(t)
+	testsupport.SetHome(t, home)
+	path := filepath.Join(home, ".codex", "AGENTS.md")
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("<!-- BEGIN KIVGRAPH INSTRUCTIONS -->\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -223,8 +230,13 @@ func TestRunInstructionsInstallReportsExplicitDestinationSelectors(t *testing.T)
 		t.Run(test.name, func(t *testing.T) {
 			project := testsupport.TempDir(t)
 			t.Chdir(project)
-			testsupport.SetHome(t, testsupport.TempDir(t))
-			if err := os.WriteFile(filepath.Join(project, "AGENTS.md"), []byte("<!-- BEGIN KIVGRAPH INSTRUCTIONS -->\n"), 0o600); err != nil {
+			home := testsupport.TempDir(t)
+			testsupport.SetHome(t, home)
+			path := filepath.Join(home, ".codex", "AGENTS.md")
+			if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte("<!-- BEGIN KIVGRAPH INSTRUCTIONS -->\n"), 0o600); err != nil {
 				t.Fatal(err)
 			}
 
@@ -242,9 +254,11 @@ func TestRunInstructionsInstallReportsExplicitDestinationSelectors(t *testing.T)
 
 func TestInstructionsDestinationHelpers(t *testing.T) {
 	skipWindowsSymlinkTest(t)
+	t.Setenv("CODEX_HOME", "")
 	project := t.TempDir()
+	home := t.TempDir()
 	manager, err := integrations.New(integrations.Options{
-		HomeDir:    t.TempDir(),
+		HomeDir:    home,
 		ProjectDir: project,
 	})
 	if err != nil {
@@ -253,7 +267,11 @@ func TestInstructionsDestinationHelpers(t *testing.T) {
 	if _, err := instructionsDestinations(manager, instructionsOptions{}, []integrations.Target{"unknown-agent"}); err == nil {
 		t.Fatal("instructionsDestinations() accepted an unknown target")
 	}
-	if err := os.Symlink("outside.md", filepath.Join(project, "AGENTS.md")); err != nil {
+	codexDir := filepath.Join(home, ".codex")
+	if err := os.MkdirAll(codexDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("outside.md", filepath.Join(codexDir, "AGENTS.md")); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := instructionsDestinations(manager, instructionsOptions{Agent: "codex"}, nil); err == nil || !strings.Contains(err.Error(), "symlink") {
@@ -278,20 +296,23 @@ func skipWindowsSymlinkTest(t *testing.T) {
 	}
 }
 
-func TestRunInstructionsInstallSelectsAgentContextFile(t *testing.T) {
+func TestRunInstructionsInstallSelectsGlobalAgentContextFile(t *testing.T) {
 	tests := map[string]string{
-		"claude":      "CLAUDE.md",
-		"claude-code": "CLAUDE.md",
-		"codex":       "AGENTS.md",
-		"omp":         ".omp/AGENTS.md",
-		"oh-my-pi":    ".omp/AGENTS.md",
-		"opencode":    "AGENTS.md",
+		"claude":      ".claude/CLAUDE.md",
+		"claude-code": ".claude/CLAUDE.md",
+		"codex":       ".codex/AGENTS.md",
+		"omp":         ".omp/agent/AGENTS.md",
+		"oh-my-pi":    ".omp/agent/AGENTS.md",
+		"opencode":    ".config/opencode/opencode.json",
 	}
 	for agent, file := range tests {
 		t.Run(agent, func(t *testing.T) {
+			t.Setenv("CODEX_HOME", "")
+			t.Setenv("PI_CODING_AGENT_DIR", "")
 			project := testsupport.TempDir(t)
 			t.Chdir(project)
-			testsupport.SetHome(t, testsupport.TempDir(t))
+			home := testsupport.TempDir(t)
+			testsupport.SetHome(t, home)
 
 			var stdout, stderr bytes.Buffer
 			args := []string{"kivgraph", "instructions", "install", "--agent", agent}
@@ -301,15 +322,11 @@ func TestRunInstructionsInstallSelectsAgentContextFile(t *testing.T) {
 			if !strings.Contains(stdout.String(), "--agent "+agent) || stderr.Len() != 0 {
 				t.Fatalf("%s output = stdout %q stderr %q", agent, stdout.String(), stderr.String())
 			}
-			if _, err := os.Stat(filepath.Join(project, file)); err != nil {
+			if _, err := os.Stat(filepath.Join(home, file)); err != nil {
 				t.Fatalf("%s context file missing: %v", agent, err)
 			}
-			other := "AGENTS.md"
-			if file == other {
-				other = "CLAUDE.md"
-			}
-			if _, err := os.Stat(filepath.Join(project, other)); !os.IsNotExist(err) {
-				t.Fatalf("%s also wrote %s: %v", agent, other, err)
+			if _, err := os.Stat(filepath.Join(project, "AGENTS.md")); !os.IsNotExist(err) {
+				t.Fatalf("%s changed the project instructions: %v", agent, err)
 			}
 		})
 	}
@@ -318,7 +335,8 @@ func TestRunInstructionsInstallSelectsAgentContextFile(t *testing.T) {
 func TestRunInstructionsInstallSupportsClaudeFileAndDryRun(t *testing.T) {
 	project := testsupport.TempDir(t)
 	t.Chdir(project)
-	testsupport.SetHome(t, testsupport.TempDir(t))
+	home := testsupport.TempDir(t)
+	testsupport.SetHome(t, home)
 
 	var stdout, stderr bytes.Buffer
 	if code := run([]string{"kivgraph", "instructions", "install", "--file", "CLAUDE.md", "--dry-run"}, &stdout, &stderr); code != 0 {
@@ -327,8 +345,8 @@ func TestRunInstructionsInstallSupportsClaudeFileAndDryRun(t *testing.T) {
 	if !strings.Contains(stdout.String(), "would-install") {
 		t.Fatalf("dry-run output = %q", stdout.String())
 	}
-	if _, err := os.Stat(filepath.Join(project, "CLAUDE.md")); !os.IsNotExist(err) {
-		t.Fatalf("dry-run created CLAUDE.md: %v", err)
+	if _, err := os.Stat(filepath.Join(home, ".claude", "CLAUDE.md")); !os.IsNotExist(err) {
+		t.Fatalf("dry-run created global CLAUDE.md: %v", err)
 	}
 }
 

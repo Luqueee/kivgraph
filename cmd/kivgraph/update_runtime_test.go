@@ -541,6 +541,8 @@ func TestRefreshInstalledRuntimeReportsFilesystemFailures(t *testing.T) {
 
 func TestRefreshInstalledRuntimeDoesNotCreateMissingConfiguration(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
+	t.Setenv("CODEX_HOME", "")
+	t.Setenv("PI_CODING_AGENT_DIR", "")
 	var stdout, stderr bytes.Buffer
 	if err := refreshInstalledRuntime(filepath.Join(t.TempDir(), "bin", "kivgraph"), &stdout, &stderr); err != nil {
 		t.Fatalf("refreshInstalledRuntime() error = %v", err)

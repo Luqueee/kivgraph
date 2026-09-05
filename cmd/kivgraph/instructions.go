@@ -10,7 +10,7 @@ import (
 	"github.com/Luqueee/kivgraph/internal/integrations"
 )
 
-// instructionsOptions carries the flags for the project context installer.
+// instructionsOptions carries the flags for the user-context installer.
 type instructionsOptions struct {
 	Agent  string
 	File   string
@@ -23,7 +23,7 @@ func instructionsFlagSet(options *instructionsOptions) *flag.FlagSet {
 	flags.SetOutput(io.Discard)
 	flags.StringVar(&options.Agent, "agent", "", "coding agent: use --help for supported agents")
 	flags.StringVar(&options.File, "file", "",
-		"override the agent's project context file")
+		"deprecated global file selector; prefer --agent")
 	flags.BoolVar(&options.DryRun, "dry-run", false, "show the change without writing")
 	flags.BoolVar(&options.Force, "force", false, "replace an edited Kivgraph block")
 	return flags
@@ -65,12 +65,7 @@ func runInstructionsInstallWithInput(args []string, input io.Reader, stdout, std
 		return 2
 	}
 
-	projectRoot, err := currentProjectRoot()
-	if err != nil {
-		writeCommandError(stderr, "instructions install: %v", err)
-		return 1
-	}
-	manager, err := integrations.New(integrations.Options{ProjectDir: projectRoot})
+	manager, err := integrations.New(integrations.Options{})
 	if err != nil {
 		writeCommandError(stderr, "instructions install: %v", err)
 		return 1
@@ -83,7 +78,7 @@ func runInstructionsInstallWithInput(args []string, input io.Reader, stdout, std
 	selectedTargets := []integrations.Target{}
 	if options.Agent == "" && options.File == "" {
 		selectedTargets, err = selectIntegrationTargets(
-			input, stdout, manager, "instructions", integrations.ScopeProject)
+			input, stdout, manager, "instructions", integrations.ScopeUser)
 		if err != nil {
 			writeCommandError(stderr, "instructions install: %v", err)
 			return 2
@@ -97,7 +92,7 @@ func runInstructionsInstallWithInput(args []string, input io.Reader, stdout, std
 
 	failed := false
 	for _, destination := range destinations {
-		plan, err := manager.InstallInstructions(destination.file, options.DryRun, options.Force)
+		plan, err := manager.InstallInstructionsForTarget(destination.target, options.DryRun, options.Force)
 		if err != nil {
 			writeCommandError(stderr, "instructions install %s: %v", destination.selector(), err)
 			failed = true
@@ -112,15 +107,19 @@ func runInstructionsInstallWithInput(args []string, input io.Reader, stdout, std
 }
 
 type instructionsDestination struct {
-	file  string
-	agent string
+	target integrations.Target
+	agent  string
+	file   string
 }
 
 func (destination instructionsDestination) selector() string {
 	if destination.agent != "" {
 		return "--agent " + destination.agent
 	}
-	return "--file " + destination.file
+	if destination.file != "" {
+		return "--file " + destination.file
+	}
+	return "--agent " + string(destination.target)
 }
 
 func instructionsDestinations(
@@ -129,27 +128,56 @@ func instructionsDestinations(
 	targets []integrations.Target,
 ) ([]instructionsDestination, error) {
 	if options.File != "" {
-		return []instructionsDestination{{file: options.File}}, nil
-	}
-	if options.Agent != "" {
-		file, err := integrations.InstructionsFileForTarget(integrations.Target(options.Agent))
+		targets, err := instructionsTargetsForFile(options.File)
 		if err != nil {
 			return nil, err
 		}
-		if _, err := manager.InstructionsDestination(file); err != nil {
+		destinations, err := instructionDestinationsForTargets(manager, targets)
+		if err != nil {
 			return nil, err
 		}
-		return []instructionsDestination{{file: file, agent: options.Agent}}, nil
+		for index := range destinations {
+			destinations[index].agent = ""
+			destinations[index].file = options.File
+		}
+		return destinations, nil
 	}
+	if options.Agent != "" {
+		target := integrations.Target(options.Agent)
+		if _, _, err := manager.InstructionsDestinationForTarget(target); err != nil {
+			return nil, err
+		}
+		return []instructionsDestination{{target: target, agent: options.Agent}}, nil
+	}
+	return instructionDestinationsForTargets(manager, targets)
+}
 
+func instructionsTargetsForFile(file string) ([]integrations.Target, error) {
+	targets := make([]integrations.Target, 0, len(integrations.InstructionsTargets()))
+	for _, target := range integrations.InstructionsTargets() {
+		name, err := integrations.InstructionsFileForTarget(target)
+		if err != nil {
+			return nil, err
+		}
+		if name == file {
+			targets = append(targets, target)
+		}
+	}
+	if len(targets) == 0 {
+		return nil, fmt.Errorf("unsupported instructions file %q (want %s)", file,
+			strings.Join(instructionsFileNames(), ", "))
+	}
+	return targets, nil
+}
+
+func instructionDestinationsForTargets(
+	manager integrations.Manager,
+	targets []integrations.Target,
+) ([]instructionsDestination, error) {
 	destinations := make([]instructionsDestination, 0, len(targets))
 	seen := make(map[string]struct{}, len(targets))
 	for _, target := range targets {
-		file, err := integrations.InstructionsFileForTarget(target)
-		if err != nil {
-			return nil, err
-		}
-		path, err := manager.InstructionsDestination(file)
+		_, path, err := manager.InstructionsDestinationForTarget(target)
 		if err != nil {
 			return nil, err
 		}
@@ -158,8 +186,8 @@ func instructionsDestinations(
 		}
 		seen[path] = struct{}{}
 		destinations = append(destinations, instructionsDestination{
-			file:  file,
-			agent: string(target),
+			target: target,
+			agent:  string(target),
 		})
 	}
 	return destinations, nil
@@ -170,8 +198,12 @@ func writeInstructionsPlan(stdout io.Writer, plan integrations.InstructionsPlan,
 	if agent != "" {
 		selector = fmt.Sprintf("--agent %s", agent)
 	}
+	location := plan.Path
+	if plan.SourcePath != "" {
+		location += " ← " + plan.SourcePath
+	}
 	message := fmt.Sprintf("instructions install %s: %s (%s) — %s",
-		selector, plan.Status, plan.Path, plan.Detail)
+		selector, plan.Status, location, plan.Detail)
 	switch plan.Status {
 	case "installed":
 		writeSuccess(stdout, "%s", message)
@@ -185,9 +217,10 @@ func writeInstructionsPlan(stdout io.Writer, plan integrations.InstructionsPlan,
 func writeInstructionsHelp(stdout io.Writer) {
 	paint := styleFor(stdout)
 	fmt.Fprintf(stdout, "%sUsage%s: kivgraph instructions <operation> [flags]\n\n", paint.bold, paint.reset)
-	fmt.Fprintf(stdout, "%sManage project instructions loaded by coding agents%s\n\n", paint.dim, paint.reset)
+	fmt.Fprintf(stdout, "%sManage user-level instructions loaded by coding agents%s\n\n", paint.dim, paint.reset)
 	fmt.Fprintln(stdout, "  instructions install [--agent AGENT] [--file AGENTS.md|CLAUDE.md|.omp/AGENTS.md] [--dry-run] [--force]")
 	fmt.Fprintln(stdout, "  without --agent or --file, choose one or more coding agents interactively")
+	fmt.Fprintln(stdout, "  --file is kept for compatibility and selects every matching user-level client")
 	fmt.Fprintln(stdout, "\nSupported agents: "+strings.Join(instructionsAgentNames(), ", "))
 	fmt.Fprintln(stdout, "Supported files: "+strings.Join(instructionsFileNames(), ", "))
 }

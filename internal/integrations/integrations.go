@@ -103,6 +103,10 @@ type Options struct {
 	ProjectDir string
 	Executable string
 	GOOS       string
+	// CodexDir and OhMyPiDir override their clients' user configuration roots.
+	// Empty values resolve their documented environment variables once in New.
+	CodexDir  string
+	OhMyPiDir string
 	// Endpoint, when set, makes plans point at a running daemon over HTTP
 	// rather than at this executable over stdio.
 	Endpoint Endpoint
@@ -119,6 +123,8 @@ type Manager struct {
 	projectDir       string
 	executable       string
 	goos             string
+	codexDir         string
+	ohMyPiDir        string
 	endpoint         Endpoint
 	previousEndpoint Endpoint
 }
@@ -291,14 +297,42 @@ func New(options Options) (Manager, error) {
 	if err := options.PreviousEndpoint.validate(); err != nil {
 		return Manager{}, fmt.Errorf("previous endpoint: %w", err)
 	}
+	codexDir, err := clientConfigDir(options.CodexDir, "CODEX_HOME", filepath.Join(homeDir, ".codex"),
+		"Codex configuration directory", options.HomeDir == "")
+	if err != nil {
+		return Manager{}, err
+	}
+	ohMyPiDir, err := clientConfigDir(options.OhMyPiDir, "PI_CODING_AGENT_DIR",
+		filepath.Join(homeDir, ".omp", "agent"), "Oh My Pi configuration directory", options.HomeDir == "")
+	if err != nil {
+		return Manager{}, err
+	}
 	return Manager{
 		homeDir:          homeDir,
 		projectDir:       projectDir,
 		executable:       executable,
 		goos:             goos,
+		codexDir:         codexDir,
+		ohMyPiDir:        ohMyPiDir,
 		endpoint:         options.Endpoint,
 		previousEndpoint: options.PreviousEndpoint,
 	}, nil
+}
+
+func clientConfigDir(option, environment, fallback, label string, useEnvironment bool) (string, error) {
+	configured := strings.TrimSpace(option)
+	source := "option"
+	if configured == "" && useEnvironment {
+		configured = strings.TrimSpace(os.Getenv(environment))
+		source = environment
+	}
+	if configured == "" {
+		return fallback, nil
+	}
+	if !filepath.IsAbs(configured) {
+		return "", fmt.Errorf("%s from %s must be absolute, got %q", label, source, configured)
+	}
+	return absolutePath(configured, label)
 }
 
 // InstallMCP registers the local MCP server, or returns an idempotent plan if
@@ -420,7 +454,11 @@ func (manager Manager) targetDetectionPaths(target Target, scope Scope, skill bo
 	case TargetClaudeDesktop:
 		paths = append(paths, manager.claudeDesktopMarkers()...)
 	case TargetCodex:
-		paths = append(paths, filepath.Join(base, ".codex"))
+		if scope == ScopeUser {
+			paths = append(paths, manager.codexInstructionsDir())
+		} else {
+			paths = append(paths, filepath.Join(base, ".codex"))
+		}
 		if skill {
 			paths = append(paths, filepath.Join(base, ".agents"))
 		}
@@ -430,7 +468,11 @@ func (manager Manager) targetDetectionPaths(target Target, scope Scope, skill bo
 		}
 		paths = append(paths, filepath.Join(base, ".opencode"))
 	case TargetOhMyPi:
-		paths = append(paths, filepath.Join(base, ".omp"))
+		if scope == ScopeUser {
+			paths = append(paths, manager.ohMyPiInstructionsDir())
+		} else {
+			paths = append(paths, filepath.Join(base, ".omp"))
+		}
 	}
 	return paths, nil
 }
@@ -556,7 +598,7 @@ func (manager Manager) mcpPath(target Target, scope Scope) (string, fileFormat, 
 		}
 	case TargetCodex:
 		if scope == ScopeUser {
-			return filepath.Join(manager.homeDir, ".codex", "config.toml"), formatTOML, "mcp_servers", nil
+			return filepath.Join(manager.codexInstructionsDir(), "config.toml"), formatTOML, "mcp_servers", nil
 		}
 		return filepath.Join(manager.projectDir, ".codex", "config.toml"), formatTOML, "mcp_servers", nil
 	case TargetOpenCode:
@@ -566,7 +608,7 @@ func (manager Manager) mcpPath(target Target, scope Scope) (string, fileFormat, 
 		return filepath.Join(manager.projectDir, "opencode.json"), formatJSON, "mcp", nil
 	case TargetOhMyPi:
 		if scope == ScopeUser {
-			return filepath.Join(manager.homeDir, ".omp", "agent", "mcp.json"), formatJSON, "mcpServers", nil
+			return filepath.Join(manager.ohMyPiInstructionsDir(), "mcp.json"), formatJSON, "mcpServers", nil
 		}
 		return filepath.Join(manager.projectDir, ".omp", "mcp.json"), formatJSON, "mcpServers", nil
 	default:
@@ -594,7 +636,7 @@ func (manager Manager) skillPath(target Target, scope Scope) (string, error) {
 		return filepath.Join(base, ".opencode", "skills", "kivgraph", "SKILL.md"), nil
 	case TargetOhMyPi:
 		if scope == ScopeUser {
-			return filepath.Join(base, ".omp", "agent", "skills", "kivgraph", "SKILL.md"), nil
+			return filepath.Join(manager.ohMyPiInstructionsDir(), "skills", "kivgraph", "SKILL.md"), nil
 		}
 		return filepath.Join(base, ".omp", "skills", "kivgraph", "SKILL.md"), nil
 	case TargetClaudeDesktop:
