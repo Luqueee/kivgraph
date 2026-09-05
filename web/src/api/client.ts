@@ -75,6 +75,7 @@ export interface TopologyProfile {
   readonly id: string;
   readonly generationId: string;
   readonly status: string;
+  readonly compositionComplete: boolean;
   readonly reason?: string;
   readonly worktrees: readonly string[];
 }
@@ -347,6 +348,12 @@ function decodeTopologyProfile(
       record,
       "status",
       `profiles[${index}].status`,
+      status,
+    ),
+    compositionComplete: requiredBoolean(
+      record,
+      "composition_complete",
+      `profiles[${index}].composition_complete`,
       status,
     ),
     ...(reason === undefined ? {} : { reason }),

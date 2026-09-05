@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Luqueee/kivgraph/internal/config"
@@ -289,23 +290,94 @@ func ObserveSources(ctx context.Context, options FullOptions) (sourceobservation
 	if err != nil {
 		return sourceobservation.Manifest{}, nil, fmt.Errorf("observe index sources: %w", err)
 	}
+	composition, err := observedTopologyComposition(manifest, observedRepositories)
+	if err != nil {
+		return sourceobservation.Manifest{}, nil, fmt.Errorf("derive effective topology composition: %w", err)
+	}
 	if options.Composition != nil {
-		composition, err := sourceobservation.NewTopologyComposition(*options.Composition)
-		if err != nil {
-			return sourceobservation.Manifest{}, nil, fmt.Errorf("observe effective topology composition: %w", err)
-		}
-		if err := validateObservedComposition(*options.Composition, observedRepositories); err != nil {
-			return sourceobservation.Manifest{}, nil, fmt.Errorf("observe effective topology composition: %w", err)
-		}
-		manifest.Composition = &composition
-		if err := manifest.Validate(); err != nil {
-			return sourceobservation.Manifest{}, nil, fmt.Errorf("validate effective topology composition: %w", err)
-		}
+		composition = *options.Composition
+	}
+	persistedComposition, err := sourceobservation.NewTopologyComposition(composition)
+	if err != nil {
+		return sourceobservation.Manifest{}, nil, fmt.Errorf("observe effective topology composition: %w", err)
+	}
+	if err := validateObservedComposition(composition, manifest, observedRepositories); err != nil {
+		return sourceobservation.Manifest{}, nil, fmt.Errorf("observe effective topology composition: %w", err)
+	}
+	manifest.Composition = &persistedComposition
+	if err := manifest.Validate(); err != nil {
+		return sourceobservation.Manifest{}, nil, fmt.Errorf("validate effective topology composition: %w", err)
 	}
 	return manifest, observedRepositories, nil
 }
 
-func validateObservedComposition(composition topology.ProfileComposition, observed []workspace.Repository) error {
+// observedTopologyComposition gives legacy registries the same immutable
+// generation record as topology-backed profiles. It selects only direct source
+// repositories; analyzer-derived providers remain additional observed inputs
+// and cannot be profile worktrees.
+func observedTopologyComposition(
+	manifest sourceobservation.Manifest,
+	observed []workspace.Repository,
+) (topology.ProfileComposition, error) {
+	profile, err := topology.NewProfileID(manifest.Profile)
+	if err != nil {
+		return topology.ProfileComposition{}, fmt.Errorf("source observation profile: %w", err)
+	}
+	sources := make(map[string]sourceobservation.Source, len(manifest.Sources))
+	for _, source := range manifest.Sources {
+		sources[source.Repository] = source
+	}
+	composition := topology.ProfileComposition{
+		Profile: topology.Profile{ID: profile},
+	}
+	selected := make(map[string]struct{}, len(observed))
+	for _, repository := range observed {
+		name := strings.TrimSpace(repository.Name)
+		source, found := sources[name]
+		if !found {
+			return topology.ProfileComposition{}, fmt.Errorf("observed source repository %q is missing from source observations", repository.Name)
+		}
+		if source.Derived != repository.Derived {
+			return topology.ProfileComposition{}, fmt.Errorf("observed source repository %q has a different derived state", source.Repository)
+		}
+		if source.Derived {
+			continue
+		}
+		if _, exists := selected[source.Repository]; exists {
+			return topology.ProfileComposition{}, fmt.Errorf("observed source repository %q is duplicated", source.Repository)
+		}
+		repositoryID, err := topology.NewLogicalRepositoryID(source.Repository)
+		if err != nil {
+			return topology.ProfileComposition{}, fmt.Errorf("observed source repository %q: %w", source.Repository, err)
+		}
+		worktree := topology.Worktree{
+			ID: source.Observation.Worktree, Repository: repositoryID, Path: repository.Path,
+		}
+		composition.Profile.Worktrees = append(composition.Profile.Worktrees, topology.WorktreeSelection{
+			Repository: repositoryID, Worktree: worktree.ID,
+		})
+		composition.Repositories = append(composition.Repositories, topology.LogicalRepository{
+			ID: repositoryID, Name: source.Repository,
+		})
+		composition.Worktrees = append(composition.Worktrees, worktree)
+		selected[source.Repository] = struct{}{}
+	}
+	for _, source := range manifest.Sources {
+		if source.Derived {
+			continue
+		}
+		if _, found := selected[source.Repository]; !found {
+			return topology.ProfileComposition{}, fmt.Errorf("source repository %q was not observed", source.Repository)
+		}
+	}
+	return composition, nil
+}
+
+func validateObservedComposition(
+	composition topology.ProfileComposition,
+	manifest sourceobservation.Manifest,
+	observed []workspace.Repository,
+) error {
 	repositories := make(map[string]workspace.Repository, len(observed))
 	for _, repository := range observed {
 		name := repository.Name
@@ -313,6 +385,10 @@ func validateObservedComposition(composition topology.ProfileComposition, observ
 			return fmt.Errorf("observed source repository %q is duplicated", name)
 		}
 		repositories[name] = repository
+	}
+	sources := make(map[string]sourceobservation.Source, len(manifest.Sources))
+	for _, source := range manifest.Sources {
+		sources[source.Repository] = source
 	}
 	worktrees := make(map[topology.LogicalRepositoryID]topology.Worktree, len(composition.Worktrees))
 	for _, worktree := range composition.Worktrees {
@@ -334,8 +410,16 @@ func validateObservedComposition(composition topology.ProfileComposition, observ
 		if !exists {
 			return fmt.Errorf("topology repository %q selects no worktree", name)
 		}
-		if repository.Worktree != worktree.ID {
-			return fmt.Errorf("topology repository %q selects worktree %q, observed %q", name, worktree.ID, repository.Worktree)
+		observedWorktree := repository.Worktree
+		if observedWorktree == "" {
+			source, found := sources[name]
+			if !found {
+				return fmt.Errorf("topology repository %q has no source observation", name)
+			}
+			observedWorktree = source.Observation.Worktree
+		}
+		if observedWorktree != worktree.ID {
+			return fmt.Errorf("topology repository %q selects worktree %q, observed %q", name, worktree.ID, observedWorktree)
 		}
 		if filepath.Clean(repository.Path) != filepath.Clean(worktree.Path) {
 			return fmt.Errorf("topology repository %q selects path %q, observed %q", name, worktree.Path, repository.Path)

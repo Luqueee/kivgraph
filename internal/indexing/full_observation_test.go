@@ -24,6 +24,45 @@ func TestObserveSourcesRejectsACompositionForAnotherPath(t *testing.T) {
 	}
 }
 
+func TestObservedTopologyCompositionRejectsAnUnobservedSource(t *testing.T) {
+	options, _ := topologyObservationOptions(t)
+	manifest, _, err := ObserveSources(context.Background(), options)
+	if err != nil {
+		t.Fatalf("ObserveSources(profile=%q repositories=%#v) error = %v", options.Profile, options.Repositories, err)
+	}
+	manifest.Composition = nil
+
+	if _, err := observedTopologyComposition(manifest, nil); err == nil || !strings.Contains(err.Error(), "was not observed") {
+		t.Fatalf("observedTopologyComposition(manifest=%#v observed=nil) error = %v, want an unobserved-source refusal", manifest, err)
+	}
+}
+
+func TestObserveSourcesDerivesCompositionForPlainRegistry(t *testing.T) {
+	options, _ := topologyObservationOptions(t)
+	options.Composition = nil
+	options.Repositories[0].Worktree = ""
+
+	manifest, observed, err := ObserveSources(context.Background(), options)
+	if err != nil {
+		t.Fatalf("ObserveSources(profile=%q repositories=%#v) error = %v", options.Profile, options.Repositories, err)
+	}
+	if len(observed) != 1 || manifest.Composition == nil {
+		t.Fatalf("observed repositories/manifest composition = %#v / %#v, want one repository and a composition", observed, manifest.Composition)
+	}
+	got, err := manifest.Composition.ProfileComposition()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := topology.ProfileComposition{
+		Profile:      topology.Profile{ID: "default", Worktrees: []topology.WorktreeSelection{{Repository: "source", Worktree: "legacy:source"}}},
+		Repositories: []topology.LogicalRepository{{ID: "source", Name: "source"}},
+		Worktrees:    []topology.Worktree{{ID: "legacy:source", Repository: "source", Path: options.Repositories[0].Path}},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("derived plain-registry topology composition = %#v, want %#v", got, want)
+	}
+}
+
 func TestObserveSourcesPersistsTheEffectiveTopologyComposition(t *testing.T) {
 	options, composition := topologyObservationOptions(t)
 	want := cloneProfileComposition(composition)

@@ -1,10 +1,12 @@
 package webapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -579,8 +581,8 @@ func TestHandlerTopologyKeepsPublishedCompositionAfterConfigurationChanges(t *te
 		t.Fatalf("published profiles for %s = %#v, want default:000007 and other:000008", request.URL.String(), profiles)
 	}
 	for _, profile := range profiles {
-		if profile.Status == "partial" {
-			t.Fatalf("profile %q status = %q reason = %q, want the published composition", profile.ID, profile.Status, profile.Reason)
+		if profile.Status == "partial" || !profile.CompositionComplete {
+			t.Fatalf("profile %q status/composition completeness = %q/%t reason = %q, want the published composition", profile.ID, profile.Status, profile.CompositionComplete, profile.Reason)
 		}
 	}
 }
@@ -634,10 +636,15 @@ func TestHandlerTopologyMarksInvalidManifestIncomplete(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handler := NewHandlerWithTopology(hotsnapshot.NewSnapshotStore(testSnapshotWithTopologyID(t, 7)), TopologyOptions{
+	handler, ok := NewHandlerWithTopology(hotsnapshot.NewSnapshotStore(testSnapshotWithTopologyID(t, 7)), TopologyOptions{
 		ConfigPath: configPath,
 		Profile:    "default",
-	})
+	}).(*Handler)
+	if !ok {
+		t.Fatal("NewHandlerWithTopology() did not return *Handler")
+	}
+	var logs bytes.Buffer
+	handler.logger = slog.New(slog.NewTextHandler(&logs, nil))
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/topology?generation_id=000007", nil)
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
@@ -652,6 +659,10 @@ func TestHandlerTopologyMarksInvalidManifestIncomplete(t *testing.T) {
 		got.Profiles[0].CompositionComplete || got.Profiles[0].Reason != "indexed source observations are invalid" ||
 		!strings.Contains(got.Completeness.Reason, "indexed source observations are invalid") || len(got.Worktrees) != 0 {
 		t.Fatalf("invalid-manifest topology = %#v, want an explicit incomplete composition", got)
+	}
+	if logOutput := logs.String(); !strings.Contains(logOutput, "published source observations are invalid") ||
+		!strings.Contains(logOutput, "does not match source observation profile") {
+		t.Fatalf("invalid-manifest logs = %q, want the original source observation diagnostic", logOutput)
 	}
 }
 

@@ -13,6 +13,7 @@ const topologyPayload = {
       id: "default",
       generation_id: "000007",
       status: "ready",
+      composition_complete: true,
       worktrees: ["wt-main"],
     },
   ],
@@ -68,6 +69,29 @@ describe("fetchTopology", () => {
     expect(topology.worktrees[0].git).toEqual({
       commonDirectory: "/workspace/.git",
     });
+    expect(topology.profiles[0].compositionComplete).toBe(true);
+  });
+
+  it("rejects a profile without its composition completeness", async () => {
+    const { composition_complete: _compositionComplete, ...incompleteProfile } =
+      topologyPayload.profiles[0];
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({ ...topologyPayload, profiles: [incompleteProfile] }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchTopology()).rejects.toEqual(
+      expect.objectContaining({
+        code: "INVALID_RESPONSE",
+        status: 200,
+        message: expect.stringContaining("profiles[0].composition_complete"),
+      }),
+    );
   });
 
   it("surfaces generation changes as the server error instead of rendering stale data", async () => {

@@ -898,9 +898,12 @@ func (handler *Handler) loadTopologyProfile(
 			break
 		}
 	}
-	composition, compositionOK, compositionReason, err := publishedComposition(selection.Name, manifest, manifestOK, manifestReason)
-	if err != nil {
-		return topologyProfileData{}, fmt.Errorf("%w: load profile %q composition: %v", errTopologyUnavailable, selection.Name, err)
+	composition, compositionOK, compositionReason, diagnostic := publishedComposition(selection.Name, manifest, manifestOK, manifestReason)
+	if diagnostic != nil {
+		if compositionReason == "" {
+			return topologyProfileData{}, fmt.Errorf("%w: load profile %q composition: %v", errTopologyUnavailable, selection.Name, diagnostic)
+		}
+		handler.logger.Error("published topology composition is invalid", "profile", selection.Name, "generation", generationID, "error", diagnostic)
 	}
 	return topologyProfileData{
 		Name: selection.Name, GenerationID: generationID, Generation: numeric, Snapshot: snapshot,
@@ -922,6 +925,7 @@ func (handler *Handler) profileManifest(
 		return manifest, true, "", invalidation.State{}, false, nil
 	}
 	if errors.Is(err, sourceobservation.ErrInvalid) {
+		handler.logger.Error("published source observations are invalid", "profile", loaded.Profile, "generation", generationID, "error", err)
 		state, stateErr := handler.profileInvalidationState(ctx, loaded, loaded.Profile, invalidationStates)
 		if stateErr != nil {
 			return sourceobservation.Manifest{}, false, "", invalidation.State{}, false, stateErr
@@ -1024,11 +1028,11 @@ func publishedComposition(
 	composition, err := manifest.Composition.ProfileComposition()
 	if err != nil {
 		return topology.ProfileComposition{Profile: topology.Profile{ID: profileID}}, false,
-			"generation records an invalid topology composition", nil
+			"generation records an invalid topology composition", fmt.Errorf("reconstruct persisted topology composition: %w", err)
 	}
 	if composition.Profile.ID != profileID {
 		return topology.ProfileComposition{Profile: topology.Profile{ID: profileID}}, false,
-			"generation records a composition for another profile", nil
+			"generation records a composition for another profile", fmt.Errorf("persisted topology composition is for profile %q", composition.Profile.ID)
 	}
 	return composition, true, "", nil
 }
