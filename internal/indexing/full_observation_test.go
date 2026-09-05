@@ -37,16 +37,22 @@ func TestObservedTopologyCompositionRejectsAnUnobservedSource(t *testing.T) {
 	}
 }
 
-func TestValidateObservedCompositionNormalizesRepositoryNames(t *testing.T) {
-	options, composition := topologyObservationOptions(t)
+func TestObserveSourcesNormalizesRepositoryNames(t *testing.T) {
+	options, _ := topologyObservationOptions(t)
+	options.Repositories[0].Name = " source "
 	manifest, observed, err := ObserveSources(context.Background(), options)
 	if err != nil {
 		t.Fatalf("ObserveSources(profile=%q repositories=%#v) error = %v", options.Profile, options.Repositories, err)
 	}
-	observed[0].Name = " source "
-
-	if err := validateObservedComposition(composition, manifest, observed); err != nil {
-		t.Fatalf("validateObservedComposition(composition=%#v observed=%#v) error = %v, want normalized source name", composition, observed, err)
+	if len(observed) != 1 || manifest.Composition == nil {
+		t.Fatalf("observed repositories/manifest composition = %#v / %#v, want one normalized source and a composition", observed, manifest.Composition)
+	}
+	composition, err := manifest.Composition.ProfileComposition()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(composition.Repositories) != 1 || composition.Repositories[0].ID != "source" {
+		t.Fatalf("observed topology composition = %#v, want normalized repository id %q", composition, "source")
 	}
 }
 

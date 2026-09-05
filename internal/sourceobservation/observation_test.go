@@ -578,6 +578,11 @@ func TestManifestValidateRejectsCompositionForAnotherProfile(t *testing.T) {
 
 func TestManifestValidateNormalizesProfileBeforeComparingComposition(t *testing.T) {
 	manifest := validManifest(t)
+	composition, err := NewTopologyComposition(testProfileComposition(t, "default"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest.Composition = &composition
 	manifest.Profile = " default "
 
 	if err := manifest.Validate(); err != nil {
