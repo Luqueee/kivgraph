@@ -2063,6 +2063,22 @@ func doctorFlagSet(options *doctorOptions) *flag.FlagSet {
 	return flags
 }
 
+// Doctor follows the same default profile as serve, without initiating a
+// migration during diagnosis. A legacy installation still has its old layout.
+func readDoctorConfiguration(configPath string) (config.Loaded, error) {
+	loaded, err := config.Load(configPath)
+	if err != nil {
+		return config.Loaded{}, err
+	}
+	profiles := filepath.Join(filepath.Dir(loaded.Config.Storage.DatabasePath), "profiles")
+	if _, err := os.Stat(profiles); errors.Is(err, os.ErrNotExist) {
+		return loaded, nil
+	} else if err != nil {
+		return config.Loaded{}, fmt.Errorf("inspect profiles: %w", err)
+	}
+	return config.ReadProfile(configPath, "")
+}
+
 func runDoctor(args []string, stdout, stderr io.Writer) int {
 	var options doctorOptions
 	flags := doctorFlagSet(&options)
@@ -2074,7 +2090,7 @@ func runDoctor(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	loaded, err := config.Load(options.ConfigPath)
+	loaded, err := readDoctorConfiguration(options.ConfigPath)
 	if err != nil {
 		writeResult(stdout, false, "config: FAIL (%v)", err)
 		writeResult(stdout, false, "doctor: FAIL")
