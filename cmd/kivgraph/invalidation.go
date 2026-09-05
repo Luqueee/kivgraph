@@ -255,6 +255,10 @@ func watchProfileSources(
 		options.ResolverVersion = version.Value
 		registry, err := registryForProfile(watchCtx, loaded)
 		if err != nil {
+			if stateErr := handleUnavailableProfileSources(watchCtx, manager, loaded.Profile, err, logger, command); stateErr != nil {
+				logger.Error("could not synchronize unavailable source state", "command", command, "profile", loaded.Profile, "error", stateErr)
+			}
+			scheduler.enqueueStale()
 			logger.Error("could not prepare source watcher", "command", command, "profile", loaded.Profile, "error", err)
 			return
 		}

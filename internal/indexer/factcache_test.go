@@ -58,26 +58,32 @@ func TestFullWithRepositoriesDoesNotAdmitFactsBeforeCommit(t *testing.T) {
 		CacheDirectory:    fixture.cache,
 	}, []workspace.Repository{fixture.repository})
 	if err != nil {
-		t.Fatalf("FullWithRepositories() error = %v", err)
+		t.Fatalf("FullWithRepositories(root=%q cache=%q mode=%q) error = %v",
+			fixture.root, fixture.cache, fixture.mode, err)
 	}
 	if len(set.Symbols) == 0 {
-		t.Fatal("FullWithRepositories() returned no facts")
+		t.Fatalf("FullWithRepositories(root=%q cache=%q mode=%q) returned no facts",
+			fixture.root, fixture.cache, fixture.mode)
 	}
 	entries, err := os.ReadDir(fixture.cache)
 	if err != nil {
-		t.Fatalf("ReadDir() before commit error = %v", err)
+		t.Fatalf("ReadDir(root=%q cache=%q mode=%q) before commit error = %v",
+			fixture.root, fixture.cache, fixture.mode, err)
 	}
 	if len(entries) != 0 {
-		t.Fatalf("cache admitted %d entries before commit, want none", len(entries))
+		t.Fatalf("cache admitted %d entries before commit for root=%q cache=%q mode=%q, want none",
+			len(entries), fixture.root, fixture.cache, fixture.mode)
 	}
 
 	report.CommitCache()
 	entries, err = os.ReadDir(fixture.cache)
 	if err != nil {
-		t.Fatalf("ReadDir() after commit error = %v", err)
+		t.Fatalf("ReadDir(root=%q cache=%q mode=%q) after commit error = %v",
+			fixture.root, fixture.cache, fixture.mode, err)
 	}
 	if len(entries) == 0 {
-		t.Fatal("CommitCache() admitted no entry")
+		t.Fatalf("CommitCache() admitted no entry for root=%q cache=%q mode=%q",
+			fixture.root, fixture.cache, fixture.mode)
 	}
 }
 
