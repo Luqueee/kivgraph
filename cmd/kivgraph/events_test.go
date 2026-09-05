@@ -48,13 +48,14 @@ func TestToolMetricsRegistryRecordsThroughToTheStore(t *testing.T) {
 	registry := toolMetricsRegistry(writer)
 	registry.ObserveQuery(metrics.QueryObservation{
 		ToolName: "find_references",
+		Query:    `name="NewServer"`,
 		Elapsed:  8 * time.Millisecond,
 		Returned: 66,
 	})
 	registry.ObserveQuery(metrics.QueryObservation{
 		ToolName: "get_source",
 		Elapsed:  2 * time.Millisecond,
-		Err:      errors.New("SYMBOL_NOT_FOUND: no such symbol"),
+		Err:      tools.NewToolError(tools.CodeSymbolNotFound, "no such symbol"),
 	})
 	writer.Close()
 
@@ -75,14 +76,18 @@ func TestToolMetricsRegistryRecordsThroughToTheStore(t *testing.T) {
 	if answered.Results == nil || *answered.Results != 66 {
 		t.Fatalf("the answered call lost its row count: %+v", answered)
 	}
-	failed := events[1]
-	if !failed.Failed() || failed.Level != eventlog.LevelError {
-		t.Fatalf("the failed call = %+v, want a failure", failed)
+	if answered.Query != `name="NewServer"` {
+		t.Fatalf("the answered call lost its query: %+v", answered)
 	}
-	// The rendered error leads with the stable tool code, so the
-	// classification survives without a field of its own.
-	if !strings.HasPrefix(failed.Error, "SYMBOL_NOT_FOUND: ") {
-		t.Fatalf("the failure lost its code: %q", failed.Error)
+	notFound := events[1]
+	if notFound.Failed() || notFound.Status != eventlog.StatusNotFound {
+		t.Fatalf("the missing-symbol call = %+v, want a non-failing not_found result", notFound)
+	}
+	if notFound.Results == nil || *notFound.Results != 0 {
+		t.Fatalf("the missing-symbol call = %+v, want zero results", notFound)
+	}
+	if notFound.Error != "" {
+		t.Fatalf("the missing-symbol result carried an error: %q", notFound.Error)
 	}
 	// The in-memory counters graph_status reads back must keep working.
 	report := registry.Report()
@@ -90,7 +95,7 @@ func TestToolMetricsRegistryRecordsThroughToTheStore(t *testing.T) {
 		t.Fatalf("the registry counted %d calls to find_references, want 1", got)
 	}
 	if got := report.Queries["get_source"].Errors; got != 1 {
-		t.Fatalf("the registry counted %d errors on get_source, want 1", got)
+		t.Fatalf("the in-memory registry counted %d errors on get_source, want 1", got)
 	}
 }
 

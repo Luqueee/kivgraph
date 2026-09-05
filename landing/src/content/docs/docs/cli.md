@@ -60,7 +60,7 @@ updating only the Python analyzer settings in the selected configuration.
 | `graph status --root PATH` | Report the active and backup generations |
 | `daemon status` | Report whether the daemon has an owner, and where its unit lives |
 | `stats [--interval D] [--once] [--json]` | Watch what every kivgraph process on this machine costs |
-| `logs [--follow] [--kind K] [--tool NAME] [--since D] [--limit N] [--failures] [--json]` | Read what this machine indexed, served and answered |
+| `logs [--follow] [--kind K] [--tool NAME] [--since D] [--limit N] [--failures] [--json]` | Read aligned machine history with query summaries and neutral NOT_FOUND results |
 | `tool-stats [--tool NAME] [--since D] [--json]` | Report the cost and the failures of every tool |
 | `version [--json]` | Print the release, with --json for full provenance |
 

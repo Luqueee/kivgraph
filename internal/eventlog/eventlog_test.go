@@ -113,6 +113,11 @@ func TestReadFiltersAndBoundsTheWindow(t *testing.T) {
 		Time: base.Add(2 * time.Hour), Kind: KindTool, Message: "get_source",
 		Tool: "get_source", Status: StatusError, Level: LevelError, Error: "SYMBOL_NOT_FOUND: no",
 	})
+	writer.Append(Event{
+		Time: base.Add(3 * time.Hour), Kind: KindTool, Message: "graph_status",
+		Tool: "graph_status", Status: StatusError, Level: LevelError,
+		Error: "SNAPSHOT_UNAVAILABLE: active snapshot is corrupt",
+	})
 	writer.Close()
 
 	cases := []struct {
@@ -120,12 +125,12 @@ func TestReadFiltersAndBoundsTheWindow(t *testing.T) {
 		options ReadOptions
 		want    []string
 	}{
-		{"everything", ReadOptions{}, []string{"old pass", "find_symbol", "get_source"}},
-		{"by kind", ReadOptions{Kinds: []Kind{KindTool}}, []string{"find_symbol", "get_source"}},
+		{"everything", ReadOptions{}, []string{"old pass", "find_symbol", "get_source", "graph_status"}},
+		{"by kind", ReadOptions{Kinds: []Kind{KindTool}}, []string{"find_symbol", "get_source", "graph_status"}},
 		{"by tool", ReadOptions{Tool: "get_source"}, []string{"get_source"}},
-		{"failures only", ReadOptions{FailuresOnly: true}, []string{"get_source"}},
-		{"since", ReadOptions{Since: base.Add(90 * time.Minute)}, []string{"get_source"}},
-		{"newest only", ReadOptions{Limit: 1}, []string{"get_source"}},
+		{"failures only", ReadOptions{FailuresOnly: true}, []string{"graph_status"}},
+		{"since", ReadOptions{Since: base.Add(90 * time.Minute)}, []string{"get_source", "graph_status"}},
+		{"newest only", ReadOptions{Limit: 1}, []string{"graph_status"}},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {

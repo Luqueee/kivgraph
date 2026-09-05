@@ -355,7 +355,7 @@ Day to day:
 kivgraph graph status      # what is published, and whether a tree has moved
 kivgraph doctor            # toolchains, storage, and the type-checking ceiling
 kivgraph ui                # read-only 3D viewer, default 0.0.0.0:7777
-kivgraph logs --follow     # what it indexed, served and answered, as it happens
+kivgraph logs --follow     # aligned history of what it indexed, served and queried
 kivgraph tool-stats        # per-tool cost, calls, and failures
 kivgraph stop              # terminate this user's serve and ui, never an index
 kivgraph clean --keep-active
@@ -369,6 +369,13 @@ authentication, so it logs exactly what it exposes and `--addr` restricts it.
 rather than asking a server, which is why they can answer at all: the per-tool
 counters a `serve` keeps are minted when it starts and gone when it stops.
 Reading the file also makes the answer span every server that ever ran.
+
+`logs` renders a fixed-column table. Tool rows include a bounded, allow-listed
+query summary: `find_by_intent` records its exact `intent` and any `keywords`,
+while opaque cursors, consent flags, stable keys, and absolute project paths
+stay out of the record. `--json` preserves the individual append-only records.
+`SYMBOL_NOT_FOUND` renders as the neutral `NOT_FOUND` status with zero results,
+not as an operational failure.
 
 Configure any MCP client to start the server over STDIO:
 

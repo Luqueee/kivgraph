@@ -116,7 +116,7 @@ func RegisterListRepositoriesWithObserverAndSnapshotStore(
 		) (*sdkmcp.CallToolResult, Response[[]RepositorySummary], error) {
 			start := time.Now()
 			result, repositories, err := underlying(ctx, request, arguments)
-			observe(observer, callObserver, repositoryQueryToolName, start, repositories, err)
+			observe(observer, callObserver, repositoryQueryToolName, request, start, repositories, err)
 			return result, repositories, err
 		}
 	}

@@ -64,3 +64,58 @@ func TestInstalledSkillsAndHandshakeShareToolVisibility(t *testing.T) {
 		})
 	}
 }
+
+// TestVisibleToolUseNamesTheIntentQuery guards the one query value the desktop
+// call chrome does not render. The model must state it in the conversation
+// before it calls the retrieval, rather than leaving the user with only the
+// generic "Find by intent" label.
+func TestVisibleToolUseNamesTheIntentQuery(t *testing.T) {
+	for _, server := range []*sdkmcp.Server{NewServer(), publishedServer(t)} {
+		instructions := connectToServer(t, server).InitializeResult().Instructions
+		if !strings.Contains(instructions, "quote its exact \"intent\" value") {
+			t.Fatalf("instructions = %q, want find_by_intent's exact query to be visible", instructions)
+		}
+	}
+}
+
+// A graph for another checkout is not a weaker form of evidence for this one.
+// The client must repair the graph through its consent-gated mutation and
+// attest the new publication before asking semantic questions.
+func TestFreshnessPolicyRepairsTheTargetCheckoutBeforeUsingGraphEvidence(t *testing.T) {
+	server := NewServerWithIndexer(&fakeProjectIndexer{})
+	instructions := connectToServer(t, server).InitializeResult().Instructions
+	for _, want := range []string{
+		"Freshness is a gate",
+		"index_project",
+		"call graph_status again",
+	} {
+		if !strings.Contains(instructions, want) {
+			t.Fatalf("instructions = %q, want %q", instructions, want)
+		}
+	}
+
+	manager, err := integrations.New(integrations.Options{
+		HomeDir: t.TempDir(), ProjectDir: t.TempDir(), GOOS: "darwin",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := manager.InstallSkill(integrations.TargetCodex, integrations.ScopeUser, false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	skill, err := os.ReadFile(plan.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy := strings.Join(strings.Fields(string(skill)), " ")
+	for _, want := range []string{
+		"does not attest the target checkout",
+		"index_project",
+		"then call graph_status again",
+	} {
+		if !strings.Contains(policy, want) {
+			t.Fatalf("installed skill does not require fresh graph evidence: want %q", want)
+		}
+	}
+}

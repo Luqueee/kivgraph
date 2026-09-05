@@ -13,15 +13,18 @@ text-only search.
 
 ## Visible tool use
 
-Before every Kivgraph MCP tool call, send a brief user-visible chat preamble
-in the conversation's language: Kivgraph · <tool> — <target>: <purpose>.
-Name the exact tool, the symbol/file/repository/scope being queried, and the
-question the call will answer. For parallel calls, one preamble may list a
-separate line for each call; announce each repeated call too. State intent,
-not success; do not dump arguments or secrets. This notice is not approval
-for index_project.
+Before every Kivgraph MCP call, send a brief user-visible preamble in the
+conversation's language: Kivgraph · <tool> — <target>: <purpose>. Name the
+exact tool, queried symbol/file/repository/scope, and question it answers. For
+find_by_intent, quote its exact "intent" value as the target, never a summary.
+For parallel calls, one preamble may list each call; announce repeats too.
+State intent, not success; do not dump other arguments or secrets. This notice
+is not approval for index_project. Freshness is a gate: if graph_status does
+not attest the target checkout and generation, use consent-gated index_project,
+then call graph_status again before using graph evidence.
 
 For example: `Kivgraph · find_references — NewServer: check who calls it.`
+For `find_by_intent`: `Kivgraph · find_by_intent — "HTTP endpoints and routes": find the declarations that implement it.`
 
 ## Workflow
 
@@ -108,12 +111,19 @@ repository/path/qualified-name triple remains portable across profiles.
 7. **`graph_status` when an answer looks stale**, which is what its own
    description says, or when you must establish that a published generation
    exists at all. It reports the snapshot, its age, repository coverage and
-   whether a repository moved since it was indexed. Read `content_freshness`
-   separately from `repository_freshness`: only `fresh`, `stale` or
-   generation-bound `unverified` evidence whose generation equals the response
-   snapshot applies to that graph. Any mismatch is reported as `unverified` and
-   requires a retry. An `unavailable` result without a generation means the
-   check could not run and applies regardless of the response snapshot.
+   whether a repository moved since it was indexed. Treat it as a freshness
+   gate: the target checkout needs a matching `repository_freshness` row with
+   `moved: false` and a `current_commit`, plus `content_freshness.state: fresh`
+   whose generation equals `snapshot_id`. If any condition is missing, `stale`,
+   `unverified` or `unavailable`, send the visible preamble and call
+   `index_project` for the target checkout through the client's approval flow.
+   When it succeeds, call `graph_status` again and use graph evidence only from
+   the attested generation. If the checkout is not registered, obtain its
+   `index_project` arguments from its local project manifests; do not invent a
+   repository name or language list. If approval is denied, the tool is absent,
+   or indexing fails, name that limitation, then inspect only the directly
+   relevant files. Never present a graph from another checkout as evidence for
+   the target branch.
 
 Python, Dart, Java and C# notes:
 

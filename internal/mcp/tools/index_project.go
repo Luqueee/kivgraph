@@ -112,11 +112,11 @@ func RegisterIndexProject(
 		start := time.Now()
 		batch, err := arguments.projects()
 		if err != nil {
-			observeCall(nil, callObserver, indexProjectToolName, start, err)
+			observeCall(nil, callObserver, indexProjectToolName, request, start, err)
 			return nil, indexing.ProjectResult{}, err
 		}
 		if err := requireIndexConsent(ctx, request, batch, arguments.Confirmed); err != nil {
-			observeCall(nil, callObserver, indexProjectToolName, start, err)
+			observeCall(nil, callObserver, indexProjectToolName, request, start, err)
 			return nil, indexing.ProjectResult{}, err
 		}
 		progress := progressReporter(ctx, request)
@@ -125,7 +125,7 @@ func RegisterIndexProject(
 			profileIndexer, ok := indexer.(profileProjectIndexer)
 			if !ok {
 				err = NewToolError(CodeInvalidArgument, fmt.Sprintf("project indexer does not support profile %q", profile))
-				observeCall(nil, callObserver, indexProjectToolName, start, err)
+				observeCall(nil, callObserver, indexProjectToolName, request, start, err)
 				return nil, indexing.ProjectResult{}, err
 			} else {
 				result, err = profileIndexer.IndexProjectsInProfile(ctx, profile, batch, progress)
@@ -147,10 +147,10 @@ func RegisterIndexProject(
 				"project indexing failed: "+err.Error(),
 				err,
 			)
-			observeCall(nil, callObserver, indexProjectToolName, start, failure)
+			observeCall(nil, callObserver, indexProjectToolName, request, start, failure)
 			return nil, indexing.ProjectResult{}, failure
 		}
-		observeCall(nil, callObserver, indexProjectToolName, start, nil)
+		observeCall(nil, callObserver, indexProjectToolName, request, start, nil)
 		return nil, result, nil
 	})
 }

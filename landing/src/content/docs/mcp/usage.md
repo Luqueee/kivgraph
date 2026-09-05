@@ -649,5 +649,10 @@ Rebuilding is `kivgraph index --full` from the CLI, or
 [`index_project`](/docs/tools/index-project/) from the client. The tool
 requires explicit user approval before it runs: called without `confirmed`, it
 returns `PERMISSION_REQUIRED`. A rebuild costs the whole corpus, so pass every
-project in one call. See [`/guides/indexing/`](/guides/indexing/) for the full
-procedure.
+project in one call. An MCP agent treats freshness as a gate: when the target
+checkout is absent from `repository_freshness`, moved, or lacks `fresh`
+`content_freshness` for the response generation, it requests `index_project`,
+waits for approval and publication, then calls `graph_status` again. It may
+inspect directly relevant source only if that repair is unavailable, denied or
+fails; it must not use a graph from another checkout as evidence. See
+[`/guides/indexing/`](/guides/indexing/) for the full procedure.

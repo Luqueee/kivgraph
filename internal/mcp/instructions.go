@@ -3,7 +3,7 @@ package mcp
 // toolVisibilityInstructions is shared by both availability states: even a
 // cold server can expose index_project. Keep it aligned with the installed
 // skill; visibility is client/model behavior, not a server-injected chat event.
-const toolVisibilityInstructions = `Before every Kivgraph MCP tool call, send a brief user-visible chat preamble in the conversation's language: Kivgraph · <tool> — <target>: <purpose>. Name the exact tool, the symbol/file/repository/scope being queried, and the question the call will answer. For parallel calls, one preamble may list a separate line for each call; announce each repeated call too. State intent, not success; do not dump arguments or secrets. This notice is not approval for index_project.`
+const toolVisibilityInstructions = `Before every Kivgraph MCP call, send a brief user-visible preamble in the conversation's language: Kivgraph · <tool> — <target>: <purpose>. Name the exact tool, queried symbol/file/repository/scope, and question it answers. For find_by_intent, quote its exact "intent" value as the target, never a summary. For parallel calls, one preamble may list each call; announce repeats too. State intent, not success; do not dump other arguments or secrets. This notice is not approval for index_project. Freshness is a gate: if graph_status does not attest the target checkout and generation, use consent-gated index_project, then call graph_status again before using graph evidence.`
 
 // serverInstructions carries routing and visibility guidance across schema
 // deferral in clients that consume MCP connection instructions.
@@ -25,7 +25,7 @@ const toolVisibilityInstructions = `Before every Kivgraph MCP tool call, send a 
 // call twice.
 const serverInstructions = toolVisibilityInstructions + `
 
-Kivgraph answers "what breaks if I change this" from a published code graph over Go, TypeScript, Rust, Python, Dart, Java and C#. Go, TypeScript and Rust edges are type-checked; Dart edges are resolved by Dart Analysis Server; Java and C# edges come from SCIP indexes scip-java and scip-dotnet emit through javac and Roslyn; Python uses exact semantic facts when a configured analyzer provides them and CANDIDATE facts in its bundled AST fallback. Before grepping or reading files to find callers, references or impact, call find_references or get_blast_radius; to read the code they name, call get_source.
+Kivgraph answers "what breaks if I change this" from a published Go, TypeScript, Rust, Python, Dart, Java and C# graph. Before grepping or reading files to find callers, references or impact, call find_references or get_blast_radius; to read their code, call get_source.
 
 Its edges are resolved by language analyzers or explicitly marked as CANDIDATE/UNRESOLVED; they are never created by matching names. Read confidence and completeness before treating an empty or partial answer as proof of absence. Grep cannot provide that distinction.
 
