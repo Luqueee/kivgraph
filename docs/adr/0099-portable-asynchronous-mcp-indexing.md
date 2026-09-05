@@ -80,6 +80,9 @@ an on-disk state machine and recovery contract of its own.
 
 The configured surface grows from twelve to fourteen tools: eleven graph
 queries, one read-only operation-status query, and two consent-gated mutations.
+That count is the `tools/list` surface measured by
+`go run ./benchmarks/mcp-token-cost --server <bundle> --smoke`; the categorized
+list is recorded in `docs/protocol/mcp-surface-v3.md`.
 The installed skill and user documentation route new work through the
 asynchronous pair while retaining the synchronous tool as compatibility
 fallback.

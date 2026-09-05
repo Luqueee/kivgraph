@@ -414,7 +414,7 @@ func TestGetIndexStatusRejectsMissingAndUnknownOperationIDs(t *testing.T) {
 				t.Fatalf("CallTool() result = %#v, want invalid argument", result)
 			}
 			if text := contentText(t, result); !strings.Contains(text, "operation_id") {
-				t.Fatalf("error = %q, want narrowing guidance", text)
+				t.Fatalf("operation_id %q: error = %q, want narrowing guidance", operationID, text)
 			}
 		})
 	}

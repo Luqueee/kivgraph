@@ -28,7 +28,7 @@ comprobando un path que ya no existe, es decir, nada.
 | --- | --- |
 | Páginas HTML | 27 |
 | Páginas de documentación | 26 (4.388 líneas de markdown) |
-| Referencia por tool | 12 páginas (3.713 líneas de markdown) |
+| Referencia por tool | 14 páginas |
 | Sección MCP | 4 páginas: clientes, skill, uso, troubleshooting |
 | Componentes de la landing | 16 (1.612 líneas) |
 | Piel de Starlight | `docs.css`, 742 líneas |
@@ -41,9 +41,10 @@ comprobando un path que ya no existe, es decir, nada.
 
 ## La documentación del MCP sale de una captura, no de la memoria
 
-Todo ejemplo de las doce páginas de tool es una captura literal. Se construyó el
-binario de HEAD con el tag `ladybug` y se condujo `kivgraph serve` por stdio
-contra la generación publicada `30` -- 2 repositorios, 311 ficheros, 57 paquetes,
+Todo ejemplo de las catorce páginas de tool es una captura literal. Se
+construyó el binario de HEAD con el tag `ladybug` y se condujo
+`kivgraph serve` por stdio contra la generación publicada `30` -- 2 repositorios,
+311 ficheros, 57 paquetes,
 10.957 símbolos, 40.125 aristas, 1.642 referencias no resueltas -- registrando
 `tools/list` completo, una llamada real por tool y los caminos de error.
 

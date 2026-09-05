@@ -197,6 +197,9 @@ another process is publishing into this generation store
 ```
 
 Reaching a client through `index_project`, this arrives as `INDEXING_FAILED` with that text inside the message.
+Through `start_index_project`, the accepted call returns an `operation_id`;
+polling `get_index_status` later reports `failed`, with `INDEXING_FAILED` and the
+same lock message.
 
 **Cause**
 
@@ -206,7 +209,10 @@ The lock does not wait. A rebuild takes minutes and blocking would look like a h
 
 **Fix**
 
-Let the winner finish, then retry. For the follower inside a running `serve` or `ui` this is not a failure and is not reported as one: it is exactly what the lock exists to produce, and the generation already published keeps answering.
+Let the winner finish, then retry the failed asynchronous operation. For the
+follower inside a running `serve` or `ui` this is not a failure and is not
+reported as one: it is exactly what the lock exists to produce, and the
+generation already published keeps answering.
 
 ## The graph is behind the working tree
 

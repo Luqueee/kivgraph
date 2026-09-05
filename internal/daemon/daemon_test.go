@@ -380,7 +380,16 @@ func TestDaemonSharesIndexStatusAcrossSessions(t *testing.T) {
 		t.Fatalf("get_index_status from another session = %#v, %v", statusResult, err)
 	}
 	statusText, ok := statusResult.Content[0].(*sdkmcp.TextContent)
-	if !ok || !strings.Contains(statusText.Text, `"status":"working"`) {
+	if !ok {
+		t.Fatalf("status content = %#v, want text", statusResult.Content)
+	}
+	var status struct {
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal([]byte(statusText.Text), &status); err != nil {
+		t.Fatalf("decode status response %q: %v", statusText.Text, err)
+	}
+	if status.Status != "working" {
 		t.Fatalf("status content = %#v, want working", statusResult.Content)
 	}
 	close(indexer.release)

@@ -117,6 +117,8 @@ are outside this chat-notice contract.
 | Consumers in another repository | [`find_cross_repo_consumers`](/docs/tools/find-cross-repo-consumers/) |
 | Bounded incoming impact, grouped | [`get_blast_radius`](/docs/tools/get-blast-radius/) |
 | Register projects and rebuild the graph | [`index_project`](/docs/tools/index-project/) |
+| Start a rebuild without holding one call open | [`start_index_project`](/docs/tools/start-index-project/) |
+| Poll an asynchronous rebuild | [`get_index_status`](/docs/tools/get-index-status/) |
 
 The skill orders the first moves: `graph_status` to confirm a published
 snapshot exists and how old it is, then `list_repositories` to pick the

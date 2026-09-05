@@ -121,9 +121,13 @@ repository/path/qualified-name triple remains portable across profiles.
    `start_index_project` for the target checkout through the client's approval
    flow, then poll `get_index_status` until it completes or fails.
    When it succeeds, call `graph_status` again and use graph evidence only from
-   the attested generation. If the session began with no published graph, only
-   the three indexing controls were exposed: reconnect after it publishes
-   before that `graph_status` call. Content freshness attests the default
+   the attested generation. If a normal server session began with no published
+   graph, only the three indexing controls were exposed: reconnect after it
+   publishes before that `graph_status` call. Introspection is
+   different: `kivgraph serve --introspection` sets
+   `ExposeUnavailableTools: true` and exposes the complete catalog, so in that
+   mode call `graph_status` without reconnecting.
+   Content freshness attests the default
    profile only. A non-default profile or aggregate response deliberately omits it; its
    `snapshot_id` is not a substitute. Name that limitation and inspect only
    directly relevant files instead of claiming fresh graph evidence. If the

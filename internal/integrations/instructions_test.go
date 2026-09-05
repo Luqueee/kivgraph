@@ -43,7 +43,16 @@ func writeInstructionsFile(path string, data []byte, mode os.FileMode) error {
 	return os.WriteFile(path, data, mode)
 }
 
-func TestEmbeddedInstructionsRequireSemanticFirstResearch(t *testing.T) {
+func TestInstalledInstructionsRequireSemanticFirstResearch(t *testing.T) {
+	manager, _ := testInstructionsManager(t)
+	plan, err := manager.InstallInstructionsForTarget(TargetCodex, false, false)
+	if err != nil {
+		t.Fatalf("InstallInstructionsForTarget() error = %v", err)
+	}
+	installed, err := os.ReadFile(plan.SourcePath)
+	if err != nil {
+		t.Fatalf("read installed instructions: %v", err)
+	}
 	for _, text := range []string{
 		"Do not launch an Explore, research, or code-analysis subagent",
 		"find_by_intent",
@@ -55,8 +64,8 @@ func TestEmbeddedInstructionsRequireSemanticFirstResearch(t *testing.T) {
 		"`index_project` and `start_index_project` change Kivgraph state",
 		"poll `get_index_status`",
 	} {
-		if !bytes.Contains(embeddedInstructions, []byte(text)) {
-			t.Fatalf("embedded instructions missing required workflow rule %q", text)
+		if !bytes.Contains(installed, []byte(text)) {
+			t.Fatalf("installed instructions missing required workflow rule %q", text)
 		}
 	}
 }
