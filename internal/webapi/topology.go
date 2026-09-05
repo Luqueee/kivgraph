@@ -50,7 +50,8 @@ func newTopologyAssembler() *topologyAssembler {
 		worktrees:            make(map[topology.WorktreeID]topology.Worktree),
 		profiles:             make([]topologyProfileView, 0),
 		sources:              make([]topologySourceView, 0),
-		shared:               make(map[topology.WorktreeID]map[string]struct{}),
+		shared:               make(map[topology.WorktreeID]*topologySharedInput),
+		profileGenerations:   make(map[string]string),
 		relationships:        make([]topologyRelationshipView, 0),
 		relationshipKeys:     make(map[string]struct{}),
 	}
@@ -73,21 +74,36 @@ func (assembler *topologyAssembler) addComposition(ctx context.Context, data top
 		}
 		assembler.worktrees[worktree.ID] = worktree
 	}
+	overlayWorktrees := make(map[topology.WorktreeID]topology.Worktree, len(data.Composition.OverlayWorktrees))
+	for _, worktree := range data.Composition.OverlayWorktrees {
+		overlayWorktrees[worktree.ID] = worktree
+	}
 	worktreeIDs := make([]string, 0, len(data.Composition.Profile.Worktrees))
 	for _, selection := range data.Composition.Profile.Worktrees {
 		worktreeIDs = append(worktreeIDs, string(selection.Worktree))
-		if assembler.shared[selection.Worktree] == nil {
-			assembler.shared[selection.Worktree] = make(map[string]struct{})
-		}
-		assembler.shared[selection.Worktree][data.Name] = struct{}{}
+		selected := assembler.worktrees[selection.Worktree]
+		input := assembler.sharedInput(selection.Worktree, selected.Repository)
+		input.Owners[data.Name] = struct{}{}
 		assembler.addRelationship(
-			structuralRelationship(data.Name, topologyNodeView{Type: "profile", ID: data.Name},
+			structuralRelationship(data.Name, data.GenerationID, topologyNodeView{Type: "profile", ID: data.Name},
 				topologyNodeView{Type: "worktree", ID: string(selection.Worktree)}, "membership"),
 		)
+		if selection.Overlays != "" {
+			overlay, exists := overlayWorktrees[selection.Overlays]
+			if !exists {
+				return fmt.Errorf("%w: profile %q overlay worktree %q is not present in its composition", errTopologyAmbiguous, data.Name, selection.Overlays)
+			}
+			assembler.sharedInput(selection.Overlays, overlay.Repository).Overlay = true
+			relationship := structuralRelationship(data.Name, data.GenerationID,
+				topologyNodeView{Type: "worktree", ID: string(selection.Worktree)},
+				topologyNodeView{Type: "shared_input", ID: sharedInputID("worktree", selection.Overlays)}, "overlays")
+			relationship.Type = "worktree_overlay"
+			assembler.addRelationship(relationship)
+		}
 	}
 	for _, worktree := range data.Composition.Worktrees {
 		assembler.addRelationship(
-			structuralRelationship(data.Name,
+			structuralRelationship(data.Name, data.GenerationID,
 				topologyNodeView{Type: "worktree", ID: string(worktree.ID)},
 				topologyNodeView{Type: "repository", ID: string(worktree.Repository)}, "represents"),
 		)
@@ -113,8 +129,33 @@ func (assembler *topologyAssembler) addComposition(ctx context.Context, data top
 		ID: data.Name, GenerationID: data.GenerationID, Status: status, CompositionComplete: data.CompositionOK,
 		Reason: reason, Worktrees: worktreeIDs,
 	})
+	assembler.profileGenerations[data.Name] = data.GenerationID
+	assembler.recordSharedInputChanges(data)
 	assembler.addSources(data)
 	return assembler.addSnapshotRepositories(ctx, data.Snapshot)
+}
+
+func (assembler *topologyAssembler) sharedInput(worktree topology.WorktreeID, repository topology.LogicalRepositoryID) *topologySharedInput {
+	input, exists := assembler.shared[worktree]
+	if !exists {
+		input = &topologySharedInput{Repository: repository, Owners: make(map[string]struct{}), Changes: make(map[string]invalidation.SourceChange)}
+		assembler.shared[worktree] = input
+		return input
+	}
+	if input.Repository == "" {
+		input.Repository = repository
+	}
+	return input
+}
+
+func (assembler *topologyAssembler) recordSharedInputChanges(data topologyProfileData) {
+	if data.State == nil {
+		return
+	}
+	for _, change := range data.State.Changes {
+		input := assembler.sharedInput(change.Worktree, topology.LogicalRepositoryID(change.Repository))
+		input.Changes[data.Name] = change
+	}
 }
 
 func (assembler *topologyAssembler) addSources(data topologyProfileData) {
@@ -318,7 +359,7 @@ func (assembler *topologyAssembler) addSnapshotRelationships(ctx context.Context
 			}
 		}
 		if !assembler.addRelationship(topologyRelationshipView{
-			Profile: data.Name, Type: "code_dependency",
+			Profile: data.Name, GenerationID: data.GenerationID, Type: "code_dependency",
 			Source: topologyNodeView{Type: "repository", ID: sourceName},
 			Target: &topologyNodeView{Type: "repository", ID: targetName},
 			Kind:   string(kind), Status: relationshipStatus(confidence), Confidence: string(confidence),
@@ -373,7 +414,7 @@ func (assembler *topologyAssembler) addSnapshotRelationships(ctx context.Context
 				return err
 			}
 			if !assembler.addRelationship(topologyRelationshipView{
-				Profile: data.Name, Type: "code_dependency",
+				Profile: data.Name, GenerationID: data.GenerationID, Type: "code_dependency",
 				Source: topologyNodeView{Type: "repository", ID: sourceName},
 				Target: &topologyNodeView{Type: "repository", ID: targetName},
 				Kind:   string(kind), Status: relationshipStatus(confidence), Confidence: string(confidence),
@@ -414,7 +455,7 @@ func (assembler *topologyAssembler) addSnapshotRelationships(ctx context.Context
 			}
 		}
 		if !assembler.addRelationship(topologyRelationshipView{
-			Profile: data.Name, Type: "unresolved_reference",
+			Profile: data.Name, GenerationID: data.GenerationID, Type: "unresolved_reference",
 			Source: topologyNodeView{Type: "repository", ID: repository},
 			Status: status, Confidence: string(facts.Unresolved), Provenance: "UNRESOLVED_REFERENCE",
 			Reason: strings.Join(parts, ": "),
@@ -426,6 +467,7 @@ func (assembler *topologyAssembler) addSnapshotRelationships(ctx context.Context
 }
 
 func (assembler *topologyAssembler) response() topologyResponse {
+	assembler.emitSharedInputRelationships()
 	repositories := make([]topologyRepositoryView, 0, len(assembler.repositories))
 	for _, repository := range assembler.repositories {
 		languages := assembler.repositoryLanguages[repository.ID]
@@ -461,16 +503,19 @@ func (assembler *topologyAssembler) response() topologyResponse {
 		return relationshipSortKey(first) < relationshipSortKey(second)
 	})
 	shared := make([]topologySharedInputView, 0)
-	for worktree, owners := range assembler.shared {
-		if len(owners) < 2 {
+	for worktree, input := range assembler.shared {
+		if len(input.Owners) < 2 && !input.Overlay && len(input.Changes) == 0 {
 			continue
 		}
-		values := make([]string, 0, len(owners))
-		for owner := range owners {
+		values := make([]string, 0, len(input.Owners))
+		for owner := range input.Owners {
 			values = append(values, owner)
 		}
 		sort.Strings(values)
-		shared = append(shared, topologySharedInputView{Type: "worktree", ID: string(worktree), Owners: values})
+		status, reason := sharedInputStatus(input.Changes)
+		shared = append(shared, topologySharedInputView{
+			Type: "worktree", ID: string(worktree), Repository: string(input.Repository), Owners: values, Status: status, Reason: reason,
+		})
 	}
 	sort.Slice(shared, func(left, right int) bool { return shared[left].ID < shared[right].ID })
 	complete := true
@@ -542,9 +587,88 @@ func (assembler *topologyAssembler) response() topologyResponse {
 	return response
 }
 
-func structuralRelationship(profile string, source, target topologyNodeView, kind string) topologyRelationshipView {
+func (assembler *topologyAssembler) emitSharedInputRelationships() {
+	worktrees := make([]topology.WorktreeID, 0, len(assembler.shared))
+	for worktree := range assembler.shared {
+		worktrees = append(worktrees, worktree)
+	}
+	sort.Slice(worktrees, func(left, right int) bool { return worktrees[left] < worktrees[right] })
+	for _, worktree := range worktrees {
+		input := assembler.shared[worktree]
+		if len(input.Owners) < 2 && !input.Overlay && len(input.Changes) == 0 {
+			continue
+		}
+		owners := make([]string, 0, len(input.Owners))
+		for owner := range input.Owners {
+			owners = append(owners, owner)
+		}
+		sort.Strings(owners)
+		inputNode := topologyNodeView{Type: "shared_input", ID: sharedInputID("worktree", worktree)}
+		for _, owner := range owners {
+			relationship := structuralRelationship(owner, assembler.profileGenerations[owner],
+				topologyNodeView{Type: "profile", ID: owner}, inputNode, "uses")
+			relationship.Type = "shared_input_usage"
+			assembler.addRelationship(relationship)
+		}
+		changedProfiles := make([]string, 0, len(input.Changes))
+		for profile := range input.Changes {
+			changedProfiles = append(changedProfiles, profile)
+		}
+		sort.Strings(changedProfiles)
+		for _, profile := range changedProfiles {
+			change := input.Changes[profile]
+			reason := strings.TrimSpace(change.Detail)
+			if reason == "" {
+				reason = string(change.Reason)
+			}
+			assembler.addRelationship(topologyRelationshipView{
+				Profile: profile, GenerationID: assembler.profileGenerations[profile], Type: "shared_input_invalidation",
+				Source: inputNode, Target: &topologyNodeView{Type: "profile", ID: profile}, Kind: "invalidates",
+				Status: "structural", Confidence: string(facts.StructuralCertain), Provenance: "SOURCE_INVALIDATION", Reason: reason,
+			})
+		}
+	}
+}
+
+func sharedInputID(kind string, worktree topology.WorktreeID) string {
+	return kind + ":" + string(worktree)
+}
+
+func sharedInputStatus(changes map[string]invalidation.SourceChange) (string, string) {
+	status := "shared"
+	reasons := make([]string, 0, len(changes))
+	seen := make(map[string]struct{}, len(changes))
+	for _, change := range changes {
+		reason := strings.TrimSpace(change.Detail)
+		if reason == "" {
+			reason = string(change.Reason)
+		}
+		if reason != "" {
+			if _, exists := seen[reason]; !exists {
+				seen[reason] = struct{}{}
+				reasons = append(reasons, reason)
+			}
+		}
+		switch change.Reason {
+		case invalidation.ReasonSourceUnavailable:
+			status = "unavailable"
+		case invalidation.ReasonSourceRemoved:
+			if status != "unavailable" {
+				status = "missing"
+			}
+		default:
+			if status == "shared" {
+				status = "stale"
+			}
+		}
+	}
+	sort.Strings(reasons)
+	return status, strings.Join(reasons, "; ")
+}
+
+func structuralRelationship(profile, generation string, source, target topologyNodeView, kind string) topologyRelationshipView {
 	return topologyRelationshipView{
-		Profile: profile, Type: kind, Source: source, Target: &target, Status: "structural",
+		Profile: profile, GenerationID: generation, Type: kind, Source: source, Target: &target, Kind: kind, Status: "structural",
 		Confidence: string(facts.StructuralCertain), Provenance: "TOPOLOGY_DECLARATION",
 	}
 }
@@ -628,7 +752,7 @@ func relationshipSortKey(relationship topologyRelationshipView) string {
 		target = relationship.Target.Type + ":" + relationship.Target.ID
 	}
 	return strings.Join([]string{
-		relationship.Profile, relationship.Type, relationship.Source.Type + ":" + relationship.Source.ID,
+		relationship.Profile, relationship.GenerationID, relationship.Type, relationship.Source.Type + ":" + relationship.Source.ID,
 		target, relationship.Kind, relationship.Status, relationship.Evidence,
 	}, "\x00")
 }
@@ -777,6 +901,12 @@ func (handler *Handler) buildTopology(ctx context.Context, query topologyQuery) 
 		if err := assembler.addComposition(ctx, profileData); err != nil {
 			return topologyResponse{}, err
 		}
+	}
+	// Composition relationships take precedence over the bounded dependency
+	// projection, so an overflowing code graph cannot hide an overlay or a
+	// shared-input invalidation that explains why a generation is stale.
+	assembler.emitSharedInputRelationships()
+	for _, profileData := range data {
 		if err := handler.addSnapshotRelationships(ctx, assembler, profileData); err != nil {
 			return topologyResponse{}, fmt.Errorf("profile %q: %w", profileData.Name, err)
 		}

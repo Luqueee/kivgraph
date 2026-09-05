@@ -202,6 +202,27 @@ func TestTopologyRejectsAmbiguousOrIncompleteDefinitions(t *testing.T) {
 				Worktree:   "backend-maintenance",
 			})
 		}, want: "conflicting worktrees"},
+		{name: "unknown overlay target", mutate: func(value *Topology) {
+			value.Profiles[0].Worktrees[1].Overlays = "missing"
+		}, want: "overlay worktree is not declared"},
+		{name: "self overlay", mutate: func(value *Topology) {
+			value.Profiles[0].Worktrees[1].Overlays = "backend-main"
+		}, want: "cannot overlay itself"},
+		{name: "cross repository overlay", mutate: func(value *Topology) {
+			value.Profiles[0].Worktrees[1].Overlays = "frontend"
+		}, want: "same logical repository"},
+		{name: "overlay target selected by same profile", mutate: func(value *Topology) {
+			value.Profiles[0].Worktrees[1] = WorktreeSelection{
+				Repository: "backend", Worktree: "backend-maintenance", Overlays: "backend-main",
+			}
+			value.Profiles[0].Worktrees = append(value.Profiles[0].Worktrees, WorktreeSelection{
+				Repository: "backend", Worktree: "backend-main",
+			})
+		}, want: "overlay target is also selected"},
+		{name: "overlay target is another overlay", mutate: func(value *Topology) {
+			value.Profiles[0].Worktrees[1].Overlays = "backend-maintenance"
+			value.Profiles[1].Worktrees[0].Overlays = "backend-main"
+		}, want: "cannot overlay another overlay"},
 	}
 
 	for _, test := range tests {

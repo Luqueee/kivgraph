@@ -104,6 +104,30 @@ func TestComposeSelectsMultipleRepositoriesInDeclarationOrder(t *testing.T) {
 	}
 }
 
+func TestComposePreservesWorktreeOverlayWithoutChangingRepositoryIdentity(t *testing.T) {
+	topology := compositionFixture()
+	topology.Profiles[0].Worktrees[1] = WorktreeSelection{
+		Repository: "backend", Worktree: "backend-maintenance", Overlays: "backend-main",
+	}
+
+	composition, err := topology.Compose("feature-login")
+	if err != nil {
+		t.Fatalf("Compose(feature-login) error = %v", err)
+	}
+	if got := composition.Repositories[1].ID; got != "backend" {
+		t.Fatalf("composed logical repository = %q, want backend", got)
+	}
+	if got := composition.Worktrees[1].ID; got != "backend-maintenance" {
+		t.Fatalf("composed selected worktree = %q, want backend-maintenance", got)
+	}
+	if got := composition.Profile.Worktrees[1].Overlays; got != "backend-main" {
+		t.Fatalf("composed overlay target = %q, want backend-main", got)
+	}
+	if want := []Worktree{topology.Worktrees[1]}; !reflect.DeepEqual(composition.OverlayWorktrees, want) {
+		t.Fatalf("composed overlay worktrees = %#v, want %#v", composition.OverlayWorktrees, want)
+	}
+}
+
 func TestComposeKeepsProfilesIsolated(t *testing.T) {
 	topology := compositionFixture()
 	feature, err := topology.Compose(ProfileID("feature-login"))

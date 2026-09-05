@@ -212,6 +212,107 @@ func TestManifestRoundTripsPublishedTopologyComposition(t *testing.T) {
 	}
 }
 
+func TestManifestVersionTwoCompositionRemainsReadable(t *testing.T) {
+	manifest := validManifest(t)
+	manifest.Version = CompositionVersion
+	composition, err := NewTopologyComposition(testProfileComposition(t, "default"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest.Composition = &composition
+	candidate := testsupport.TempDir(t)
+	if err := Write(candidate, manifest); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := Read(candidate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Version != CompositionVersion || loaded.Composition == nil {
+		t.Fatalf("version-two manifest = %#v, want a readable persisted composition", loaded)
+	}
+}
+
+func TestManifestVersionTwoRejectsWorktreeOverlays(t *testing.T) {
+	value := topology.Topology{
+		Version:      topology.CurrentSchemaVersion,
+		Repositories: []topology.LogicalRepository{{ID: "source", Name: "Source"}},
+		Worktrees: []topology.Worktree{
+			{ID: "source-main", Repository: "source", Path: "/workspace/source-main"},
+			{ID: "source-feature", Repository: "source", Path: "/workspace/source-feature"},
+		},
+		Profiles: []topology.Profile{{
+			ID: "default",
+			Worktrees: []topology.WorktreeSelection{{
+				Repository: "source", Worktree: "source-feature", Overlays: "source-main",
+			}},
+		}},
+	}
+	composition, err := value.Compose("default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	persisted, err := NewTopologyComposition(composition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest := validManifest(t)
+	manifest.Version = CompositionVersion
+	manifest.Composition = &persisted
+	if err := manifest.Validate(); err == nil || !strings.Contains(err.Error(), "version 2 must not contain worktree overlays") {
+		t.Fatalf("version-two overlay manifest error = %v, want explicit version refusal", err)
+	}
+}
+
+func TestManifestRoundTripsPublishedWorktreeOverlay(t *testing.T) {
+	value := topology.Topology{
+		Version:      topology.CurrentSchemaVersion,
+		Repositories: []topology.LogicalRepository{{ID: "source", Name: "Source"}},
+		Worktrees: []topology.Worktree{
+			{ID: "source-main", Repository: "source", Path: "/workspace/source-main"},
+			{ID: "source-feature", Repository: "source", Path: "/workspace/source-feature"},
+		},
+		Profiles: []topology.Profile{{
+			ID: "feature",
+			Worktrees: []topology.WorktreeSelection{{
+				Repository: "source", Worktree: "source-feature", Overlays: "source-main",
+			}},
+		}},
+	}
+	want, err := value.Compose("feature")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stored, err := NewTopologyComposition(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	observation, err := topology.NewSourceObservation("source-feature", "0123456789abcdef", "feature", false, strings.Repeat("a", 64))
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest := Manifest{
+		Version: CurrentVersion, Profile: "feature", ResolverVersion: "resolver-1", AnalyzerFingerprint: "analyzer-1",
+		Sources:     []Source{{Repository: "source", Observation: observation, Policy: Policy{Languages: []string{"go"}}}},
+		Composition: &stored,
+	}
+	candidate := testsupport.TempDir(t)
+	if err := Write(candidate, manifest); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := Read(candidate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := loaded.Composition.ProfileComposition()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("published overlay composition = %#v, want %#v", got, want)
+	}
+}
+
 func TestNewTopologyCompositionRejectsAnInconsistentEffectiveSelection(t *testing.T) {
 	composition := testProfileComposition(t, "default")
 	composition.Profile.Worktrees[0].Worktree = "other-worktree"
