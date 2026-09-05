@@ -496,16 +496,24 @@ func validateProfile(profile Profile, worktrees map[WorktreeID]Worktree) error {
 
 func validateOverlayOwnership(profiles []Profile) error {
 	overlays := make(map[WorktreeID]WorktreeID)
-	owners := make(map[WorktreeID]ProfileID)
+	overlayOwners := make(map[WorktreeID]ProfileID)
+	normalOwners := make(map[WorktreeID]ProfileID)
 	for profileIndex, profile := range profiles {
 		for selectionIndex, selection := range profile.Worktrees {
 			if selection.Overlays == "" {
+				if owner, exists := overlayOwners[selection.Worktree]; exists {
+					return fmt.Errorf("profiles[%d] %q worktrees[%d].worktree %q: %w: overlay worktree belongs to profile %q and cannot be selected normally", profileIndex, profile.ID, selectionIndex, selection.Worktree, ErrInvalidTopology, owner)
+				}
+				normalOwners[selection.Worktree] = profile.ID
 				continue
 			}
-			if owner, exists := owners[selection.Worktree]; exists {
+			if owner, exists := normalOwners[selection.Worktree]; exists {
+				return fmt.Errorf("profiles[%d] %q worktrees[%d].worktree %q: %w: overlay worktree is already selected normally by profile %q", profileIndex, profile.ID, selectionIndex, selection.Worktree, ErrInvalidTopology, owner)
+			}
+			if owner, exists := overlayOwners[selection.Worktree]; exists {
 				return fmt.Errorf("profiles[%d] %q worktrees[%d].worktree %q: %w: overlay worktree already belongs to profile %q", profileIndex, profile.ID, selectionIndex, selection.Worktree, ErrInvalidTopology, owner)
 			}
-			owners[selection.Worktree] = profile.ID
+			overlayOwners[selection.Worktree] = profile.ID
 			overlays[selection.Worktree] = selection.Overlays
 		}
 	}

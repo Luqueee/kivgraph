@@ -109,6 +109,9 @@ func TestComposePreservesWorktreeOverlayWithoutChangingRepositoryIdentity(t *tes
 	topology.Profiles[0].Worktrees[1] = WorktreeSelection{
 		Repository: "backend", Worktree: "backend-maintenance", Overlays: "backend-main",
 	}
+	topology.Profiles[1].Worktrees[0] = WorktreeSelection{
+		Repository: "backend", Worktree: "backend-main",
+	}
 
 	composition, err := topology.Compose("feature-login")
 	if err != nil {

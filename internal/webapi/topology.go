@@ -82,7 +82,10 @@ func (assembler *topologyAssembler) addComposition(ctx context.Context, data top
 	for _, selection := range data.Composition.Profile.Worktrees {
 		worktreeIDs = append(worktreeIDs, string(selection.Worktree))
 		selected := assembler.worktrees[selection.Worktree]
-		input := assembler.sharedInput(selection.Worktree, selected.Repository)
+		input, err := assembler.sharedInput(selection.Worktree, selected.Repository)
+		if err != nil {
+			return err
+		}
 		input.Owners[data.Name] = struct{}{}
 		assembler.addRelationship(
 			structuralRelationship(data.Name, data.GenerationID, topologyNodeView{Type: "profile", ID: data.Name},
@@ -93,7 +96,11 @@ func (assembler *topologyAssembler) addComposition(ctx context.Context, data top
 			if !exists {
 				return fmt.Errorf("%w: profile %q overlay worktree %q is not present in its composition", errTopologyAmbiguous, data.Name, selection.Overlays)
 			}
-			assembler.sharedInput(selection.Overlays, overlay.Repository).Overlay = true
+			input, err := assembler.sharedInput(selection.Overlays, overlay.Repository)
+			if err != nil {
+				return err
+			}
+			input.Overlay = true
 			relationship := structuralRelationship(data.Name, data.GenerationID,
 				topologyNodeView{Type: "worktree", ID: string(selection.Worktree)},
 				topologyNodeView{Type: "shared_input", ID: sharedInputID("worktree", selection.Overlays)}, "overlays")
@@ -130,32 +137,41 @@ func (assembler *topologyAssembler) addComposition(ctx context.Context, data top
 		Reason: reason, Worktrees: worktreeIDs,
 	})
 	assembler.profileGenerations[data.Name] = data.GenerationID
-	assembler.recordSharedInputChanges(data)
+	if err := assembler.recordSharedInputChanges(data); err != nil {
+		return err
+	}
 	assembler.addSources(data)
 	return assembler.addSnapshotRepositories(ctx, data.Snapshot)
 }
 
-func (assembler *topologyAssembler) sharedInput(worktree topology.WorktreeID, repository topology.LogicalRepositoryID) *topologySharedInput {
+func (assembler *topologyAssembler) sharedInput(worktree topology.WorktreeID, repository topology.LogicalRepositoryID) (*topologySharedInput, error) {
 	input, exists := assembler.shared[worktree]
 	if !exists {
 		input = &topologySharedInput{Repository: repository, Owners: make(map[string]struct{}), Changes: make(map[string]invalidation.SourceChange)}
 		assembler.shared[worktree] = input
-		return input
+		return input, nil
+	}
+	if input.Repository != "" && repository != "" && input.Repository != repository {
+		return nil, fmt.Errorf("%w: shared input worktree %q maps to logical repositories %q and %q", errTopologyAmbiguous, worktree, input.Repository, repository)
 	}
 	if input.Repository == "" {
 		input.Repository = repository
 	}
-	return input
+	return input, nil
 }
 
-func (assembler *topologyAssembler) recordSharedInputChanges(data topologyProfileData) {
+func (assembler *topologyAssembler) recordSharedInputChanges(data topologyProfileData) error {
 	if data.State == nil {
-		return
+		return nil
 	}
 	for _, change := range data.State.Changes {
-		input := assembler.sharedInput(change.Worktree, topology.LogicalRepositoryID(change.Repository))
+		input, err := assembler.sharedInput(change.Worktree, topology.LogicalRepositoryID(change.Repository))
+		if err != nil {
+			return err
+		}
 		input.Changes[data.Name] = change
 	}
+	return nil
 }
 
 func (assembler *topologyAssembler) addSources(data topologyProfileData) {

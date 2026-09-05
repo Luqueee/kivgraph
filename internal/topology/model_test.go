@@ -223,6 +223,19 @@ func TestTopologyRejectsAmbiguousOrIncompleteDefinitions(t *testing.T) {
 			value.Profiles[0].Worktrees[1].Overlays = "backend-maintenance"
 			value.Profiles[1].Worktrees[0].Overlays = "backend-main"
 		}, want: "cannot overlay another overlay"},
+		{name: "overlay worktree reused normally", mutate: func(value *Topology) {
+			value.Profiles[0].Worktrees[1] = WorktreeSelection{
+				Repository: "backend", Worktree: "backend-maintenance", Overlays: "backend-main",
+			}
+		}, want: "cannot be selected normally"},
+		{name: "normally selected worktree reused as overlay", mutate: func(value *Topology) {
+			value.Profiles[0].Worktrees[1] = WorktreeSelection{
+				Repository: "backend", Worktree: "backend-maintenance",
+			}
+			value.Profiles[1].Worktrees[0] = WorktreeSelection{
+				Repository: "backend", Worktree: "backend-maintenance", Overlays: "backend-main",
+			}
+		}, want: "already selected normally"},
 	}
 
 	for _, test := range tests {
