@@ -350,6 +350,114 @@ function createFallbackLayout(
   };
 }
 
+function sortedNeighbours(
+  neighbours: ReadonlyMap<string, ReadonlySet<string>>,
+  key: string,
+): readonly string[] {
+  return [...(neighbours.get(key) ?? [])].sort((left, right) =>
+    left.localeCompare(right),
+  );
+}
+
+// Condense cycles before assigning ranks. The fallback runs synchronously while
+// ELK is loading, so neither traversal may consume the browser call stack.
+function dependencyRanks(
+  outgoing: ReadonlyMap<string, ReadonlySet<string>>,
+  incoming: ReadonlyMap<string, ReadonlySet<string>>,
+): ReadonlyMap<string, number> {
+  const keys = [...outgoing.keys()].sort((left, right) =>
+    left.localeCompare(right),
+  );
+  const visited = new Set<string>();
+  const finishOrder: string[] = [];
+
+  for (const root of keys) {
+    if (visited.has(root)) continue;
+    visited.add(root);
+    const stack: {
+      readonly key: string;
+      readonly targets: Iterator<string>;
+    }[] = [{ key: root, targets: sortedNeighbours(outgoing, root).values() }];
+    while (stack.length > 0) {
+      const current = stack.at(-1);
+      if (!current) break;
+      const next = current.targets.next();
+      if (next.done) {
+        finishOrder.push(current.key);
+        stack.pop();
+        continue;
+      }
+      if (visited.has(next.value)) continue;
+      visited.add(next.value);
+      stack.push({
+        key: next.value,
+        targets: sortedNeighbours(outgoing, next.value).values(),
+      });
+    }
+  }
+
+  const componentFor = new Map<string, number>();
+  let componentTotal = 0;
+  for (const root of [...finishOrder].reverse()) {
+    if (componentFor.has(root)) continue;
+    const component = componentTotal;
+    componentTotal += 1;
+    componentFor.set(root, component);
+    const stack = [root];
+    while (stack.length > 0) {
+      const current = stack.pop();
+      if (!current) continue;
+      for (const neighbour of sortedNeighbours(incoming, current)) {
+        if (componentFor.has(neighbour)) continue;
+        componentFor.set(neighbour, component);
+        stack.push(neighbour);
+      }
+    }
+  }
+
+  const componentOutgoing = Array.from(
+    { length: componentTotal },
+    () => new Set<number>(),
+  );
+  const componentIncoming = Array.from(
+    { length: componentTotal },
+    () => new Set<number>(),
+  );
+  for (const key of keys) {
+    const source = componentFor.get(key);
+    if (source === undefined) continue;
+    for (const targetKey of outgoing.get(key) ?? []) {
+      const target = componentFor.get(targetKey);
+      if (target === undefined || target === source) continue;
+      componentOutgoing[source]?.add(target);
+      componentIncoming[target]?.add(source);
+    }
+  }
+
+  const remainingTargets = componentOutgoing.map((targets) => targets.size);
+  const ranks = Array.from({ length: componentTotal }, () => 0);
+  const ready = remainingTargets.flatMap((count, component) =>
+    count === 0 ? [component] : [],
+  );
+  while (ready.length > 0) {
+    const component = ready.pop();
+    if (component === undefined) continue;
+    for (const source of componentIncoming[component] ?? []) {
+      ranks[source] = Math.max(ranks[source] ?? 0, (ranks[component] ?? 0) + 1);
+      const remaining = (remainingTargets[source] ?? 0) - 1;
+      remainingTargets[source] = remaining;
+      if (remaining === 0) ready.push(source);
+    }
+  }
+
+  const result = new Map<string, number>();
+  for (const key of keys) {
+    const component = componentFor.get(key);
+    if (component !== undefined) result.set(key, ranks[component] ?? 0);
+  }
+  return result;
+}
+
 function createDependencyLayout(
   nodes: readonly FlowDisplayNode[],
   edges: readonly TopologyEdge[],
@@ -384,24 +492,9 @@ function createDependencyLayout(
     incoming.get(edge.targetKey)?.add(edge.sourceKey);
   }
 
-  const ranks = new Map<string, number>();
-  const visiting = new Set<string>();
-  const rankFor = (key: string): number => {
-    const known = ranks.get(key);
-    if (known !== undefined) return known;
-    if (visiting.has(key)) return 0;
-    visiting.add(key);
-    const rank = Math.max(
-      0,
-      ...[...(outgoing.get(key) ?? [])].map((target) => rankFor(target) + 1),
-    );
-    visiting.delete(key);
-    ranks.set(key, rank);
-    return rank;
-  };
-  for (const key of repositoryKeys) rankFor(key);
-
-  const maxRank = Math.max(...ranks.values());
+  const ranks = dependencyRanks(outgoing, incoming);
+  let maxRank = 0;
+  for (const rank of ranks.values()) maxRank = Math.max(maxRank, rank);
   const repositoriesByRank = new Map<number, string[]>();
   for (const node of repositoryNodes) {
     const rank = ranks.get(node.topologyNode.key) ?? 0;

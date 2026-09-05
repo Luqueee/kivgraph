@@ -115,7 +115,83 @@ const model: TopologyModel = {
   },
 };
 
+function dependencyModel(count: number, cycle = false): TopologyModel {
+  const nodes = Array.from({ length: count }, (_, index) => ({
+    ...sourceNode,
+    key: `repository:deep-${index}`,
+    id: `deep-${index}`,
+    label: `deep-${index}`,
+    subtitle: "TypeScript",
+    repositoryIds: [`deep-${index}`],
+    languages: ["typescript"],
+  }));
+  const relationships = Array.from(
+    { length: cycle ? count : count - 1 },
+    (_, index): TopologyRelationship => {
+      const target = cycle ? (index + 1) % count : index + 1;
+      return {
+        ...relationship,
+        source: { type: "repository", id: `deep-${index}` },
+        target: { type: "repository", id: `deep-${target}` },
+        evidence: `deep.ts:${index + 1}`,
+      };
+    },
+  );
+  const edges = relationships.map((relationship, index) => {
+    const target = cycle ? (index + 1) % count : index + 1;
+    return {
+      key: `edge:deep-${index}`,
+      relationshipIndex: index,
+      sourceKey: `repository:deep-${index}`,
+      targetKey: `repository:deep-${target}`,
+      relationship,
+    };
+  });
+
+  return {
+    ...model,
+    nodes,
+    edges,
+    relationships,
+  };
+}
+
 describe("TopologyFlow", () => {
+  it("lays out a 5,000-node dependency chain without using the call stack", () => {
+    const nodes = createTopologyFlowNodes(
+      dependencyModel(5_000),
+      null,
+      () => {},
+    );
+
+    expect(nodes).toHaveLength(5_000);
+    expect(
+      nodes.every(
+        (node) =>
+          Number.isFinite(node.position.x) && Number.isFinite(node.position.y),
+      ),
+    ).toBe(true);
+  });
+
+  it("places cyclic dependencies deterministically with finite coordinates", () => {
+    const cycle = dependencyModel(12, true);
+    const first = createTopologyFlowNodes(cycle, null, () => {});
+    const second = createTopologyFlowNodes(cycle, null, () => {});
+
+    expect(
+      first.map((node) => [node.id, node.position.x, node.position.y]),
+    ).toEqual(
+      second.map((node) => [node.id, node.position.x, node.position.y]),
+    );
+    expect(
+      first.every(
+        (node) =>
+          Number.isFinite(node.position.x) && Number.isFinite(node.position.y),
+      ),
+    ).toBe(true);
+    expect(new Set(first.map((node) => node.position.x)).size).toBe(1);
+  });
+
   it("does not draw relationships whose target was not resolved", () => {
     const edges = createTopologyFlowEdges(
       {
