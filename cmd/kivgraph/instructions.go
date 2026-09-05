@@ -25,7 +25,7 @@ func instructionsFlagSet(options *instructionsOptions) *flag.FlagSet {
 	flags.StringVar(&options.File, "file", "",
 		"deprecated global file selector; prefer --agent")
 	flags.BoolVar(&options.DryRun, "dry-run", false, "show the change without writing")
-	flags.BoolVar(&options.Force, "force", false, "replace an edited Kivgraph block")
+	flags.BoolVar(&options.Force, "force", false, "replace or refresh Kivgraph instructions")
 	return flags
 }
 

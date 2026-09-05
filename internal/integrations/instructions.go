@@ -244,7 +244,7 @@ func installInstructionsSource(path string, state instructionsSourceState, dryRu
 	if state.exists && !state.managed && !force {
 		return false, fmt.Errorf("%w in %q; use --force to replace it", errEditedInstructionsSource, path)
 	}
-	if state.exists && state.current {
+	if state.exists && state.current && !force {
 		return false, nil
 	}
 	if dryRun {
@@ -269,7 +269,7 @@ func (manager Manager) installReferencedInstructions(file, path, sourcePath stri
 	if err != nil {
 		return InstructionsPlan{}, fmt.Errorf("%w in %q", err, path)
 	}
-	sourceChanged := !source.exists || !source.current
+	sourceChanged := !source.exists || !source.current || force
 	if source.exists && !source.managed && !force {
 		return InstructionsPlan{}, fmt.Errorf("%w in %q; use --force to replace it", errEditedInstructionsSource, sourcePath)
 	}
@@ -342,7 +342,7 @@ func (manager Manager) installOpenCodeInstructions(file, path, sourcePath string
 	if err != nil {
 		return InstructionsPlan{}, fmt.Errorf("configure OpenCode instructions in %q: %w", path, err)
 	}
-	sourceChanged := !source.exists || !source.current
+	sourceChanged := !source.exists || !source.current || force
 	if source.exists && !source.managed && !force {
 		return InstructionsPlan{}, fmt.Errorf("%w in %q; use --force to replace it", errEditedInstructionsSource, sourcePath)
 	}

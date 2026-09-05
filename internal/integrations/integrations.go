@@ -335,8 +335,8 @@ func clientConfigDir(option, environment, fallback, label string, useEnvironment
 	return absolutePath(configured, label)
 }
 
-// InstallMCP registers the local MCP server, or returns an idempotent plan if
-// the exact Kivgraph-managed entry already exists.
+// InstallMCP registers the local MCP server. Exact Kivgraph-managed entries
+// are idempotent unless force explicitly asks to refresh them.
 func (manager Manager) InstallMCP(target Target, scope Scope, dryRun, force bool) (Plan, error) {
 	document, err := manager.mcpDocument(target, scope)
 	if err != nil {
@@ -822,7 +822,7 @@ func (manager Manager) installJSON(document mcpDocument, dryRun, force bool) (Pl
 	if err != nil {
 		return Plan{}, err
 	}
-	if state.status == "managed" {
+	if state.status == "managed" && !force {
 		return Plan{Action: ActionInstall, Target: document.target, Scope: document.scope, Path: document.path, Status: state.status, Detail: "MCP entry already matches Kivgraph"}, nil
 	}
 	if state.status == "incompatible" && !force {
@@ -962,7 +962,7 @@ func (manager Manager) installTOML(document mcpDocument, dryRun, force bool) (Pl
 	if err != nil {
 		return Plan{}, err
 	}
-	if state.status == "managed" {
+	if state.status == "managed" && !force {
 		return Plan{Action: ActionInstall, Target: document.target, Scope: document.scope, Path: document.path, Status: state.status, Detail: "MCP entry already matches Kivgraph"}, nil
 	}
 	if state.status == "incompatible" && !force {
@@ -973,7 +973,8 @@ func (manager Manager) installTOML(document mcpDocument, dryRun, force bool) (Pl
 	// included. Codex picks its transport from the shape, so a `command` left
 	// beside a `url` is two entries under one key and the client reads whichever
 	// it finds first.
-	if state.status == "incompatible" || state.status == statusSuperseded {
+	if state.status == "incompatible" || state.status == statusSuperseded ||
+		(force && state.status == "managed") {
 		data, err = removeTOMLSection(data, "mcp_servers.kivgraph")
 		if err != nil {
 			return Plan{}, fmt.Errorf("replace Kivgraph TOML table: %w", err)
@@ -1248,7 +1249,7 @@ func (manager Manager) installSkillFile(target Target, scope Scope, path string,
 	}
 	status := "absent"
 	if exists {
-		if bytes.Equal(data, embeddedSkill) {
+		if bytes.Equal(data, embeddedSkill) && !force {
 			return Plan{Action: ActionInstall, Target: target, Scope: scope, Path: path, Status: "managed", Detail: "skill already matches Kivgraph"}, nil
 		}
 		status = "incompatible"

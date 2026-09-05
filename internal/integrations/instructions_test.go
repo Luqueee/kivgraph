@@ -573,6 +573,10 @@ func TestInstallInstructionsReportsAtomicWriteFailures(t *testing.T) {
 			if _, err := manager.InstallInstructions(InstructionsFileAgents, false, false); err != nil {
 				t.Fatal(err)
 			}
+			sourceBackup := filepath.Join(home, ".codex", InstructionsCanonicalFile) + ".kivgraph.bak"
+			if err := os.WriteFile(sourceBackup, []byte("existing source backup\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
 			data, err := os.ReadFile(path)
 			if err != nil {
 				t.Fatal(err)

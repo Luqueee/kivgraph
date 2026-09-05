@@ -100,8 +100,12 @@ func TestAnUpgradeKeepsAnEditedCanonical(t *testing.T) {
 	}
 
 	// And --force is how the shipped version is taken back.
+	path, err := manager.skillPath(TargetClaudeCode, ScopeUser)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, err := manager.InstallSkill(TargetClaudeCode, ScopeUser, false, true); err != nil {
-		t.Fatalf("forced InstallSkill() error = %v", err)
+		t.Fatalf("forced InstallSkill(target=%q, scope=%q, path=%q) error = %v", TargetClaudeCode, ScopeUser, path, err)
 	}
 	data, err = os.ReadFile(manager.canonicalSkillPath())
 	if err != nil {
@@ -109,6 +113,31 @@ func TestAnUpgradeKeepsAnEditedCanonical(t *testing.T) {
 	}
 	if string(data) == edited {
 		t.Fatal("--force did not restore the shipped skill")
+	}
+	linkTarget, err := os.Readlink(path)
+	if err != nil {
+		t.Fatalf("--force did not leave a skill link at %q: %v", path, err)
+	}
+	if !filepath.IsAbs(linkTarget) {
+		linkTarget = filepath.Join(filepath.Dir(path), linkTarget)
+	}
+	resolvedTarget, err := filepath.EvalSymlinks(linkTarget)
+	if err != nil {
+		t.Fatalf("resolve skill link target %q: %v", linkTarget, err)
+	}
+	canonicalPath, err := filepath.EvalSymlinks(manager.canonicalSkillPath())
+	if err != nil {
+		t.Fatalf("resolve canonical skill %q: %v", manager.canonicalSkillPath(), err)
+	}
+	if resolvedTarget != canonicalPath {
+		t.Fatalf("--force link target for target=%q scope=%q path=%q resolves to %q, want %q", TargetClaudeCode, ScopeUser, path, resolvedTarget, canonicalPath)
+	}
+	linkedData, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read refreshed skill through link (target=%q, scope=%q, path=%q): %v", TargetClaudeCode, ScopeUser, path, err)
+	}
+	if !bytes.Equal(linkedData, embeddedSkill) {
+		t.Fatalf("--force did not restore the shipped skill through link: target=%q scope=%q path=%q", TargetClaudeCode, ScopeUser, path)
 	}
 }
 

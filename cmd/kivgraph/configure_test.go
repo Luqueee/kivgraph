@@ -35,20 +35,22 @@ func TestConfigureRejectsConflictingTransportBeforeWriting(t *testing.T) {
 func TestInstallConfigureHooksSkipsUnsupportedTarget(t *testing.T) {
 	var target integrations.Target = integrations.TargetClaudeDesktop
 	var supportedTargets []integrations.Target
-	var stdout, stderr bytes.Buffer
+	report := newConfigureReport([]integrations.Target{target}, false)
+	var stderr bytes.Buffer
 	if failed := installConfigureHooks(
 		integrations.Manager{},
 		[]integrations.Target{target},
 		supportedTargets,
 		false,
 		false,
-		&stdout,
+		report,
 		&stderr,
 	); failed {
-		t.Fatalf("installConfigureHooks(target=%s, supportedTargets=%v) reported failure: stdout=%q stderr=%q", target, supportedTargets, stdout.String(), stderr.String())
+		t.Fatalf("installConfigureHooks(target=%s, supportedTargets=%v) reported failure: stderr=%q", target, supportedTargets, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "hook skipped for Claude Desktop") {
-		t.Fatalf("installConfigureHooks(target=%s, supportedTargets=%v) output = %q, want unsupported-target message", target, supportedTargets, stdout.String())
+	cell := report.targets[0].cells[configureSurfaceHook]
+	if cell.state != configureStateNotSupported || cell.text != "not supported" {
+		t.Fatalf("installConfigureHooks(target=%s, supportedTargets=%v) cell = %#v, want not supported", target, supportedTargets, cell)
 	}
 	if stderr.Len() != 0 {
 		t.Fatalf("installConfigureHooks(target=%s, supportedTargets=%v) stderr = %q, want empty", target, supportedTargets, stderr.String())
@@ -176,11 +178,71 @@ func TestConfigureDryRunDoesNotInitializeOrWrite(t *testing.T) {
 			t.Fatalf("configure dry-run wrote %s: %v", path, err)
 		}
 	}
-	if !strings.Contains(stdout.String(), "would-install") {
-		t.Fatalf("configure dry-run output = %q, want plans", stdout.String())
+	for _, want := range []string{
+		"Kivgraph configuration plan",
+		"Mode: dry-run; no files changed",
+		"will install",
+		"Changes: 4 planned.",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("configure dry-run output = %q, want %q", stdout.String(), want)
+		}
 	}
 	if stderr.Len() != 0 {
 		t.Fatalf("configure dry-run stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestConfigureNamesExistingComponentsAndCanReplaceThem(t *testing.T) {
+	home := t.TempDir()
+	project := t.TempDir()
+	testsupport.SetHome(t, home)
+	t.Chdir(project)
+
+	var stdout, stderr bytes.Buffer
+	args := []string{"--target", "codex", "--stdio"}
+	if code := runConfigure(args, &stdout, &stderr); code != 0 {
+		t.Fatalf("initial configure exit code = %d, stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if code := runConfigure(args, &stdout, &stderr); code != 0 {
+		t.Fatalf("unchanged configure exit code = %d, stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Codex  already configured") {
+		t.Fatalf("unchanged configure output = %q, want an already configured status", stdout.String())
+	}
+	backupPath := filepath.Join(home, ".codex", "config.toml.kivgraph.bak")
+	if _, err := os.Stat(backupPath); !os.IsNotExist(err) {
+		t.Fatalf("unchanged configure rewrote managed MCP configuration: %v", err)
+	}
+
+	question := ""
+	stdout.Reset()
+	stderr.Reset()
+	if code := runConfigureWithResolverAndPrompt(
+		args,
+		strings.NewReader(""),
+		&stdout,
+		&stderr,
+		integrationManagerOptionsWithInput,
+		func(_ io.Reader, _ io.Writer, got string) bool {
+			question = got
+			return true
+		},
+	); code != 0 {
+		t.Fatalf("replacement configure exit code = %d, stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	const replacementQuestion = "Some selected Kivgraph components are already configured. Replace all selected components?"
+	if question != replacementQuestion {
+		t.Fatalf("replacement question for args %q = %q, want %q", args, question, replacementQuestion)
+	}
+	if !strings.Contains(stdout.String(), "Changes: 4 applied.") {
+		t.Fatalf("replacement configure output = %q, want all Codex components applied", stdout.String())
+	}
+	if _, err := os.Stat(backupPath); err != nil {
+		t.Fatalf("replacement configure did not rewrite managed MCP configuration: %v", err)
 	}
 }
 
@@ -210,13 +272,98 @@ func TestConfigureInteractiveAppliesAllSupportedSurfaces(t *testing.T) {
 			t.Fatalf("configure did not install %s: %v; stdout=%q stderr=%q", path, err, stdout.String(), stderr.String())
 		}
 	}
-	for _, want := range []string{"mcp install", "skill install", "hook install", "instructions install"} {
+	for _, want := range []string{
+		"Kivgraph configured",
+		"Search guard",
+		"Claude Code     installed",
+		"Claude Desktop  installed  not supported  already configured  shared",
+		"Codex           installed",
+		"Changes: 17 applied, 1 already configured, 1 not supported.",
+	} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("configure output = %q, want %q", stdout.String(), want)
 		}
 	}
 	if stderr.Len() != 0 {
 		t.Fatalf("interactive configure stderr = %q, want empty", stderr.String())
+	}
+
+	question := ""
+	stdout.Reset()
+	stderr.Reset()
+	if code := runConfigureWithResolverAndPrompt(
+		[]string{
+			"--target", "claude-code",
+			"--target", "claude-desktop",
+			"--target", "codex",
+			"--target", "opencode",
+			"--target", "oh-my-pi",
+			"--stdio",
+		},
+		strings.NewReader(""),
+		&stdout,
+		&stderr,
+		integrationManagerOptionsWithInput,
+		func(_ io.Reader, _ io.Writer, got string) bool {
+			question = got
+			return true
+		},
+	); code != 0 {
+		t.Fatalf("replacement configure exit code = %d, stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	const replacementQuestion = "Some selected Kivgraph components are already configured. Replace all selected components?"
+	if question != replacementQuestion {
+		t.Fatalf("replacement question for all selected targets = %q, want %q", question, replacementQuestion)
+	}
+	if !strings.Contains(stdout.String(), "Changes: 18 applied, 1 not supported.") {
+		t.Fatalf("replacement configure output = %q, want every supported component applied", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("replacement configure stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestConfigureSummarizesSelectedAgentsWithoutImplementationPaths(t *testing.T) {
+	home := t.TempDir()
+	project := t.TempDir()
+	testsupport.SetHome(t, home)
+	t.Chdir(project)
+
+	var stdout, stderr bytes.Buffer
+	if code := runConfigure(
+		[]string{"--target", "codex", "--target", "claude-desktop", "--stdio"},
+		&stdout,
+		&stderr,
+	); code != 0 {
+		t.Fatalf("configure exit code = %d, stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+
+	output := stdout.String()
+	for _, want := range []string{
+		"Kivgraph configured",
+		"Agent           MCP",
+		"Codex           installed",
+		"Claude Desktop  installed",
+		"not supported",
+		"Changes:",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("configure output = %q, want %q", output, want)
+		}
+	}
+	for _, unexpected := range []string{
+		filepath.Join(home, ".codex", "config.toml"),
+		"mcp install --target",
+		"skill install --target",
+		"hook install --target",
+		"instructions install --agent",
+	} {
+		if strings.Contains(output, unexpected) {
+			t.Fatalf("configure output exposes implementation detail %q: %q", unexpected, output)
+		}
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("configure stderr = %q, want empty", stderr.String())
 	}
 }
 
@@ -231,8 +378,8 @@ func TestConfigureSkipsSurfacesUnsupportedByClaudeDesktop(t *testing.T) {
 		t.Fatalf("Claude Desktop configure exit code = %d, stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
 	for _, want := range []string{
-		"skill skipped for Claude Desktop",
-		"instructions install",
+		"Claude Desktop  installed  not supported  installed     installed",
+		"Changes: 3 applied, 1 not supported.",
 	} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("configure output = %q, want %q", stdout.String(), want)
@@ -312,6 +459,15 @@ func TestConfigureContinuesAfterAnMCPInstallFailure(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "configure mcp --target codex") {
 		t.Fatalf("MCP failure = %q", stderr.String())
+	}
+	for _, want := range []string{
+		"Kivgraph configuration incomplete",
+		"Codex  failed  installed  installed     installed",
+		"Changes: 3 applied, 1 failed; see errors above.",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("MCP failure summary = %q, want %q", stdout.String(), want)
+		}
 	}
 	if _, err := os.Stat(filepath.Join(home, ".agents", "skills", "kivgraph", "SKILL.md")); err != nil {
 		t.Fatalf("configure did not continue with skill installation: %v", err)
