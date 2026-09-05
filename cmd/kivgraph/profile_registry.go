@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/topology"
@@ -11,6 +12,9 @@ import (
 )
 
 func registryForProfile(ctx context.Context, loaded config.Loaded) (*workspace.Registry, error) {
+	if strings.TrimSpace(loaded.ConfigPath) == "" {
+		return workspace.NewRegistry(ctx, loaded.Repositories)
+	}
 	value, present, err := config.LoadProfileTopology(loaded.ConfigPath, loaded.Profile)
 	if err != nil {
 		return nil, err

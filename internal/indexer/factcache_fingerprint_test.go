@@ -62,7 +62,9 @@ func TestEveryLanguagesManifestsInvalidateAnEntry(t *testing.T) {
 	for _, manifest := range []string{
 		"go.mod", "go.sum", "go.work", "package.json", "tsconfig.json",
 		"Cargo.toml", "Cargo.lock", "pyproject.toml", "requirements.txt",
-		"requirements-dev.txt", "pubspec.yaml", "analysis_options.yaml",
+		"requirements-dev.txt", "pubspec.yaml", "analysis_options.yaml", "pom.xml",
+		"build.gradle", "build.gradle.kts", "app.csproj", "pnpm-lock.yaml",
+		"tsconfig.build.json", filepath.Join(".dart_tool", "package_config.json"),
 	} {
 		if !isFingerprintedSource(manifest) {
 			t.Fatalf("%s does not invalidate a cache entry", manifest)

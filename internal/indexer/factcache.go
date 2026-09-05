@@ -214,6 +214,14 @@ type factCache struct {
 	verified     atomic.Int64
 	refusalMutex sync.Mutex
 	refusals     map[CacheRefusalReason]int
+	pendingMutex sync.Mutex
+	pending      []pendingCacheEntry
+	commitOnce   sync.Once
+}
+
+type pendingCacheEntry struct {
+	path string
+	data []byte
 }
 
 // newFactCache prepares the cache for a pass.
@@ -376,8 +384,9 @@ func (cache *factCache) load(identity, localAddress string) (cacheEntry, bool, C
 	return entry, true, ""
 }
 
-// store writes the entry for a unit. A failure to write is not a failure of
-// the pass: the graph is already correct, the next pass just pays again.
+// store stages the entry for a unit. The pass may still fail source
+// verification before publication, so admitting facts to the shared cache
+// here would let an unpublishable analysis poison a later pass.
 func (cache *factCache) store(
 	identity string,
 	localAddress string,
@@ -408,7 +417,33 @@ func (cache *factCache) store(
 	if err != nil {
 		return
 	}
-	path := cache.path(identity, localAddress)
+	cache.pendingMutex.Lock()
+	cache.pending = append(cache.pending, pendingCacheEntry{
+		path: cache.path(identity, localAddress),
+		data: data,
+	})
+	cache.pendingMutex.Unlock()
+}
+
+// commit admits the entries produced by a pass after its caller has completed
+// publication gates. A failure to write is not a failure of the pass: the
+// graph is already correct, and the next pass just pays for the analysis again.
+func (cache *factCache) commit() {
+	if cache == nil || !cache.enabled() {
+		return
+	}
+	cache.commitOnce.Do(func() {
+		cache.pendingMutex.Lock()
+		pending := append([]pendingCacheEntry(nil), cache.pending...)
+		cache.pending = nil
+		cache.pendingMutex.Unlock()
+		for _, entry := range pending {
+			cache.write(entry.path, entry.data)
+		}
+	})
+}
+
+func (cache *factCache) write(path string, data []byte) {
 	temporary, err := os.CreateTemp(cache.directory, "entry-*.tmp")
 	if err != nil {
 		return

@@ -17,7 +17,6 @@ import (
 	"github.com/Luqueee/kivgraph/internal/sourceobservation"
 	"github.com/Luqueee/kivgraph/internal/version"
 	"github.com/Luqueee/kivgraph/internal/watcher"
-	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 const (
@@ -254,8 +253,12 @@ func watchProfileSources(
 		options.Profile = loaded.Profile
 		options.Repositories = nil
 		options.ResolverVersion = version.Value
-		registry, err := workspace.NewRegistry(watchCtx, loaded.Repositories)
+		registry, err := registryForProfile(watchCtx, loaded)
 		if err != nil {
+			if stateErr := handleUnavailableProfileSources(watchCtx, manager, loaded.Profile, err, logger, command); stateErr != nil {
+				logger.Error("could not synchronize unavailable source state", "command", command, "profile", loaded.Profile, "error", stateErr)
+			}
+			scheduler.enqueueStale()
 			logger.Error("could not prepare source watcher", "command", command, "profile", loaded.Profile, "error", err)
 			return
 		}
@@ -313,7 +316,7 @@ func refreshInvalidationForProfile(
 	options := indexing.OptionsFromConfig(loaded.Config)
 	options.Profile = loaded.Profile
 	options.ResolverVersion = version.Value
-	registry, err := workspace.NewRegistry(ctx, loaded.Repositories)
+	registry, err := registryForProfile(ctx, loaded)
 	if err != nil {
 		if stateErr := handleUnavailableProfileSources(ctx, manager, loaded.Profile, err, logger, command); stateErr != nil {
 			return stateErr
