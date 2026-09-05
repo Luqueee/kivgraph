@@ -187,7 +187,10 @@ func TestInstructionsDestinationsDeduplicateSharedClaudeConfiguration(t *testing
 		t.Fatal(err)
 	}
 	if len(destinations) != 1 || destinations[0].target != integrations.TargetClaudeCode {
-		t.Fatalf("destinations = %#v, want one Claude Code path", destinations)
+		t.Fatalf("destinations for targets %#v = %#v, want one Claude Code path", []integrations.Target{
+			integrations.TargetClaudeCode,
+			integrations.TargetClaudeDesktop,
+		}, destinations)
 	}
 }
 

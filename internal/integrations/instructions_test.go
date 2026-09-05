@@ -221,10 +221,21 @@ func TestDetectInstructionsTargetsContinuesAfterOneAgentPathFails(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
+	if len(detections) != len(InstructionsTargets()) {
+		t.Fatalf("detections = %#v, want one entry per target", detections)
+	}
+	foundCodex := false
 	for _, detection := range detections {
-		if detection.Target == TargetCodex && detection.Detected {
+		if detection.Target != TargetCodex {
+			continue
+		}
+		foundCodex = true
+		if detection.Detected {
 			t.Fatalf("Codex detection = %#v, want an undetected invalid root", detection)
 		}
+	}
+	if !foundCodex {
+		t.Fatalf("detections = %#v, want a Codex entry", detections)
 	}
 }
 
