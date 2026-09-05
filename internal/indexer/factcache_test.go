@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -79,7 +80,7 @@ func TestFullWithRepositoriesDoesNotAdmitFactsBeforeCommit(t *testing.T) {
 		t.Fatalf("uncommitted FullWithRepositories(root=%q cache=%q mode=%q) cache = %+v, want one miss",
 			fixture.root, fixture.cache, fixture.mode, uncommittedReport.Cache)
 	}
-	if encodedFacts(t, cold) != encodedFacts(t, uncommitted) {
+	if !reflect.DeepEqual(cold, uncommitted) {
 		t.Fatalf("uncommitted FullWithRepositories(root=%q cache=%q mode=%q) returned different facts",
 			fixture.root, fixture.cache, fixture.mode)
 	}
@@ -94,7 +95,7 @@ func TestFullWithRepositoriesDoesNotAdmitFactsBeforeCommit(t *testing.T) {
 		t.Fatalf("committed FullWithRepositories(root=%q cache=%q mode=%q) cache = %+v, want one hit",
 			fixture.root, fixture.cache, fixture.mode, warmReport.Cache)
 	}
-	if encodedFacts(t, cold) != encodedFacts(t, warm) {
+	if !reflect.DeepEqual(cold, warm) {
 		t.Fatalf("committed FullWithRepositories(root=%q cache=%q mode=%q) returned different facts",
 			fixture.root, fixture.cache, fixture.mode)
 	}
