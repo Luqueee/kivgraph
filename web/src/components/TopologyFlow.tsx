@@ -42,10 +42,11 @@ export const TOPOLOGY_NODE_STYLES: Record<
 
 const REPOSITORY_GROUP_COLOR = "#2563eb";
 export const TOPOLOGY_EDGE_COLORS = {
-  overview: "#94a3b8",
-  direct: "#22c55e",
-  trace: "#64748b",
-  dimmed: "#334155",
+  exact: "#16a34a",
+  candidate: "#ea580c",
+  unresolved: "#eab308",
+  conflict: "#ef4444",
+  structural: "#64748b",
 } as const;
 const FLOW_NODE_WIDTH = 220;
 const FLOW_NODE_HEIGHT = 90;
@@ -190,6 +191,28 @@ function relationshipLabel(relationship: TopologyRelationship): string {
   return topologyEdgeKind(relationship).toLocaleLowerCase();
 }
 
+type RelationshipVisualStatus = keyof typeof TOPOLOGY_EDGE_COLORS;
+
+function relationshipVisualStatus(
+  relationship: TopologyRelationship,
+): RelationshipVisualStatus {
+  if (
+    relationship.status === "structural" ||
+    relationshipLabel(relationship) === "contains"
+  ) {
+    return "structural";
+  }
+  switch (relationship.status) {
+    case "exact":
+    case "candidate":
+    case "unresolved":
+    case "conflict":
+      return relationship.status;
+    default:
+      return "unresolved";
+  }
+}
+
 function flowEdgeGroupKey(edge: TopologyEdge): string {
   const relationship = edge.relationship;
   return JSON.stringify([
@@ -204,9 +227,8 @@ function flowEdgeGroupKey(edge: TopologyEdge): string {
 function flowEdgeLabel(
   relationship: TopologyRelationship,
   count: number,
-): string | undefined {
+): string {
   const label = relationshipLabel(relationship);
-  if (label === "contains") return undefined;
   return `${label}${count > 1 ? ` ×${count}` : ""}`;
 }
 
@@ -951,24 +973,13 @@ function createTopologyFlowEdgesForGraph(
     .map(({ key, edge, count }) => {
       const relationship = edge.relationship;
       const semanticLabel = relationshipLabel(relationship);
-      const isStructural = semanticLabel === "contains";
+      const visualStatus = relationshipVisualStatus(relationship);
+      const isStructural = visualStatus === "structural";
       const isDirect = focus.directEdgeKeys.has(edge.key);
       const isTrace = focus.traceEdgeKeys.has(edge.key);
       const isFocused = isDirect || isTrace;
-      const color =
-        focus.mode === null
-          ? TOPOLOGY_EDGE_COLORS.overview
-          : isDirect
-            ? TOPOLOGY_EDGE_COLORS.direct
-            : isTrace
-              ? TOPOLOGY_EDGE_COLORS.trace
-              : TOPOLOGY_EDGE_COLORS.dimmed;
-      const label =
-        count > 1
-          ? `×${count}`
-          : isStructural || relationship.status === "exact"
-            ? undefined
-            : flowEdgeLabel(relationship, count);
+      const color = TOPOLOGY_EDGE_COLORS[visualStatus];
+      const label = flowEdgeLabel(relationship, count);
 
       return {
         id: `topology-flow-edge-${key}`,
@@ -988,7 +999,7 @@ function createTopologyFlowEdgesForGraph(
         label,
         labelShowBg: Boolean(label),
         labelStyle: {
-          fill: "#d4d4d4",
+          fill: color,
           fontFamily: "ui-monospace, monospace",
           fontSize: 10,
           fontWeight: 600,

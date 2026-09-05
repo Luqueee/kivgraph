@@ -440,30 +440,37 @@ function TopologyLegend(): React.ReactElement {
         <span className="flex items-center gap-1.5">
           <span
             className="h-0.5 w-4 border-t border-dashed"
-            style={{ borderColor: TOPOLOGY_EDGE_COLORS.overview }}
+            style={{ borderColor: TOPOLOGY_EDGE_COLORS.structural }}
           />
           dashed arrow · contains
         </span>
         <span className="flex items-center gap-1.5">
           <span
             className="h-0.5 w-4 rounded-none"
-            style={{ backgroundColor: TOPOLOGY_EDGE_COLORS.overview }}
+            style={{ backgroundColor: TOPOLOGY_EDGE_COLORS.exact }}
           />
-          gray arrow · relationship overview
+          green arrow · exact relationship
         </span>
         <span className="flex items-center gap-1.5">
           <span
             className="h-0.5 w-4 rounded-none"
-            style={{ backgroundColor: TOPOLOGY_EDGE_COLORS.direct }}
+            style={{ backgroundColor: TOPOLOGY_EDGE_COLORS.candidate }}
           />
-          green arrow · direct relationship
+          orange arrow · candidate relationship
         </span>
         <span className="flex items-center gap-1.5">
           <span
             className="h-0.5 w-4 rounded-none"
-            style={{ backgroundColor: TOPOLOGY_EDGE_COLORS.trace }}
+            style={{ backgroundColor: TOPOLOGY_EDGE_COLORS.unresolved }}
           />
-          slate arrow · relationship trace
+          yellow arrow · unresolved relationship
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span
+            className="h-0.5 w-4 rounded-none"
+            style={{ backgroundColor: TOPOLOGY_EDGE_COLORS.conflict }}
+          />
+          red arrow · conflicting relationship
         </span>
       </div>
     </div>
