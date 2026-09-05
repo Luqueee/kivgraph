@@ -224,18 +224,28 @@ func TestDetectInstructionsTargetsContinuesAfterOneAgentPathFails(t *testing.T) 
 	if len(detections) != len(InstructionsTargets()) {
 		t.Fatalf("detections = %#v, want one entry per target", detections)
 	}
+	targetCounts := make(map[Target]int, len(InstructionsTargets()))
+	for _, target := range InstructionsTargets() {
+		targetCounts[target]++
+	}
 	foundCodex := false
 	for _, detection := range detections {
+		targetCounts[detection.Target]--
 		if detection.Target != TargetCodex {
 			continue
 		}
 		foundCodex = true
 		if detection.Detected {
-			t.Fatalf("Codex detection = %#v, want an undetected invalid root", detection)
+			t.Fatalf("Codex detection for root %q = %#v, want an undetected invalid root", manager.codexDir, detection)
 		}
 	}
 	if !foundCodex {
 		t.Fatalf("detections = %#v, want a Codex entry", detections)
+	}
+	for target, count := range targetCounts {
+		if count != 0 {
+			t.Fatalf("detections = %#v, target %q count = %d, want one", detections, target, 1-count)
+		}
 	}
 }
 
