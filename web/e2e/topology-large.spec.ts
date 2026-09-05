@@ -717,9 +717,9 @@ test("keeps the current map pinned until the reader loads a newer generation", a
     ),
   ).toBeVisible();
   await expect(page.getByText("10,000/10,000")).toBeVisible();
-  expect(topologyRequests).toContain("?profile=*");
+  expect(topologyRequests).toContain("?profile=*&relationships=grouped");
   expect(topologyRequests).toContain(
-    "?profile=*&generation=default%3A000107",
+    "?profile=*&generation=default%3A000107&relationships=grouped",
   );
 
   latestGeneration = "000108";

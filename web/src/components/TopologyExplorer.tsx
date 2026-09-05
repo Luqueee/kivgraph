@@ -114,13 +114,15 @@ export function pinnedTopologyURL(
     .sort((left, right) =>
       left.id < right.id ? -1 : left.id > right.id ? 1 : 0,
     );
-  if (applicableProfiles.length === 0) return "/api/v1/topology";
+  if (applicableProfiles.length === 0)
+    return "/api/v1/topology?relationships=grouped";
 
   const query = new URLSearchParams();
   for (const profile of applicableProfiles) query.append("profile", profile.id);
   for (const profile of applicableProfiles) {
     query.append("generation", `${profile.id}:${profile.generationId}`);
   }
+  query.set("relationships", "grouped");
   return `/api/v1/topology?${query.toString()}`;
 }
 
@@ -290,6 +292,10 @@ function DetailsPanel({
   const relationships = model.edges.filter(
     (edge) => edge.sourceKey === node.key || edge.targetKey === node.key,
   );
+  const relationshipCount = relationships.reduce(
+    (total, edge) => total + (edge.relationship.occurrences ?? 1),
+    0,
+  );
   const topologyURL = pinnedTopologyURL(node.profileIds, data.profiles);
   const graphURL = `/api/v1/search?name=${encodeURIComponent(node.id)}&mode=prefix`;
 
@@ -375,7 +381,7 @@ function DetailsPanel({
 
       <div className="grid gap-2">
         <h3 className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400">
-          evidence · {relationships.length}
+          evidence · {relationshipCount.toLocaleString()}
         </h3>
         {relationships.length === 0 ? (
           <p className="text-xs text-gray-400">
@@ -389,7 +395,12 @@ function DetailsPanel({
                 className="rounded-none border border-rule bg-raise p-2.5 text-[10px]"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span>{topologyEdgeKind(edge.relationship)}</span>
+                  <span>
+                    {topologyEdgeKind(edge.relationship)}
+                    {(edge.relationship.occurrences ?? 1) > 1
+                      ? ` ×${edge.relationship.occurrences?.toLocaleString()}`
+                      : ""}
+                  </span>
                   <Badge
                     className={statusClass(edge.relationship.status)}
                     variant="outline"
@@ -547,6 +558,11 @@ function RelationshipTable({
                 <span className="font-medium">
                   {topologyEdgeKind(relationship)}
                 </span>
+                {(relationship.occurrences ?? 1) > 1 ? (
+                  <span className="ml-2 text-slate-500">
+                    ×{relationship.occurrences?.toLocaleString()}
+                  </span>
+                ) : null}
                 <span className="ml-2 text-slate-500">
                   {relationship.status}
                 </span>
@@ -701,10 +717,20 @@ export function TopologyExplorer(): React.ReactElement {
       ].sort()
     : [];
   const isRepositoryMap = expandedProfiles.length > 0 || showWorktrees;
-  const relationshipCount = filteredModel?.relationships.length ?? 0;
+  const relationshipRowCount = filteredModel?.relationships.length ?? 0;
+  const relationshipCount =
+    filteredModel?.relationships.reduce(
+      (total, relationship) => total + (relationship.occurrences ?? 1),
+      0,
+    ) ?? 0;
+  const totalRelationshipCount =
+    model?.relationships.reduce(
+      (total, relationship) => total + (relationship.occurrences ?? 1),
+      0,
+    ) ?? 0;
   const relationshipPageCount = Math.max(
     1,
-    Math.ceil(relationshipCount / ACCESSIBLE_RELATIONSHIPS_PER_PAGE),
+    Math.ceil(relationshipRowCount / ACCESSIBLE_RELATIONSHIPS_PER_PAGE),
   );
   const visibleRelationshipPage = Math.min(
     relationshipPage,
@@ -815,8 +841,8 @@ export function TopologyExplorer(): React.ReactElement {
                   relationships
                 </span>
                 <span className="font-mono text-sm font-semibold tabular-nums text-gray-100">
-                  {filteredModel.relationships.length.toLocaleString()}/
-                  {model.relationships.length.toLocaleString()}
+                  {relationshipCount.toLocaleString()}/
+                  {totalRelationshipCount.toLocaleString()}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-3 rounded-none border border-rule bg-panel px-3 py-2.5">
@@ -1082,7 +1108,7 @@ export function TopologyExplorer(): React.ReactElement {
                       <p aria-live="polite">
                         Showing rows {firstRelationshipRow + 1}–
                         {lastRelationshipRow} of{" "}
-                        {relationshipCount.toLocaleString()} returned
+                        {relationshipRowCount.toLocaleString()} returned
                         relationships.
                       </p>
                       {relationshipPageCount > 1 ? (

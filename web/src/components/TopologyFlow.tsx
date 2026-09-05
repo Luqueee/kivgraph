@@ -269,9 +269,13 @@ function groupFlowEdges(
     const key = flowEdgeGroupKey(edge);
     const group = groups.get(key);
     if (group) {
-      group.count += 1;
+      group.count += edge.relationship.occurrences ?? 1;
     } else {
-      groups.set(key, { key, edge, count: 1 });
+      groups.set(key, {
+        key,
+        edge,
+        count: edge.relationship.occurrences ?? 1,
+      });
     }
   }
   return [...groups.values()];

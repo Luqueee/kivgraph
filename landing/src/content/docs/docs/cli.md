@@ -34,7 +34,9 @@ someone who mistyped one word.
 Profiles share one installation, daemon and analyzer toolchain, but each owns
 its repository registry, fact cache, canonical database and generations.
 `index --full` uses `profiles.default` when no profile is named. `ui` opens every
-published profile by default; `--profile` pins the viewer to one profile.
+published profile by default and represents every emitted relationship through
+semantic groups with occurrence totals; `--profile` pins the viewer to one
+profile.
 
 ## Diagnostics
 

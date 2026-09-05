@@ -26,9 +26,11 @@ describe("TopologyExplorer", () => {
     ];
 
     expect(pinnedTopologyURL(["other", "default"], profiles)).toBe(
-      "/api/v1/topology?profile=default&profile=other&generation=default%3A000007&generation=other%3A000008",
+      "/api/v1/topology?profile=default&profile=other&generation=default%3A000007&generation=other%3A000008&relationships=grouped",
     );
-    expect(pinnedTopologyURL([], profiles)).toBe("/api/v1/topology");
+    expect(pinnedTopologyURL([], profiles)).toBe(
+      "/api/v1/topology?relationships=grouped",
+    );
   });
 
   it("builds a stable pin set for the generation being viewed", () => {

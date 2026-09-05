@@ -141,6 +141,7 @@ export interface TopologyRelationship {
   readonly provenance: string;
   readonly evidence?: string;
   readonly reason?: string;
+  readonly occurrences?: number;
 }
 
 export interface TopologyCompleteness {
@@ -279,6 +280,20 @@ function requiredInteger(
 ): number {
   const value = record[key];
   if (typeof value !== "number" || !Number.isInteger(value)) {
+    throw invalidTopologyResponse(path, status);
+  }
+  return value;
+}
+
+function optionalPositiveInteger(
+  record: JsonRecord,
+  key: string,
+  path: string,
+  status: number,
+): number | undefined {
+  const value = record[key];
+  if (value === undefined) return undefined;
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) {
     throw invalidTopologyResponse(path, status);
   }
   return value;
@@ -554,6 +569,12 @@ function decodeTopologyRelationship(
     status,
   );
   const reason = optionalString(record, "reason", `${path}.reason`, status);
+  const occurrences = optionalPositiveInteger(
+    record,
+    "occurrences",
+    `${path}.occurrences`,
+    status,
+  );
   const target =
     record.target === undefined
       ? undefined
@@ -584,6 +605,7 @@ function decodeTopologyRelationship(
     ),
     ...(evidence === undefined ? {} : { evidence }),
     ...(reason === undefined ? {} : { reason }),
+    ...(occurrences === undefined ? {} : { occurrences }),
   };
 }
 
@@ -844,6 +866,7 @@ export async function fetchTopology(
       `${profile}:${(request.generationPins as Record<string, string>)[profile]}`,
     );
   }
+  query.set("relationships", "grouped");
   const encodedQuery = query.toString();
   const response = await fetch(
     `/api/v1/topology${encodedQuery.length > 0 ? `?${encodedQuery}` : ""}`,
