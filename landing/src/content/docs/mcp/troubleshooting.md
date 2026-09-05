@@ -209,8 +209,10 @@ The lock does not wait. A rebuild takes minutes and blocking would look like a h
 
 **Fix**
 
-Let the winner finish, then retry the failed asynchronous operation. For the
-follower inside a running `serve` or `ui` this is not a failure and is not
+Let the winner finish, then call `start_index_project` again with the same
+projects to create a new operation. A failed `operation_id` is terminal and
+`get_index_status` only reports its outcome; it does not rerun the index. For
+the follower inside a running `serve` or `ui` this is not a failure and is not
 reported as one: it is exactly what the lock exists to produce, and the
 generation already published keeps answering.
 
