@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -38,18 +39,34 @@ func TestSummarizeLogQueryNamesTheIntentAndKeywords(t *testing.T) {
 }
 
 func TestSummarizeLogQueryRedactsAbsolutePaths(t *testing.T) {
-	got := summarizeLogQuery(fileOutlineToolName, []byte(`{
-		"repository":"kivgraph", "path":"/private/worktree/internal/mcp/server.go"
-	}`))
-	want := `repository="kivgraph" path="[absolute path]"`
-	if got != want || strings.Contains(got, "/private/worktree") {
-		t.Fatalf("summarizeLogQuery(file outline path) = %q, want %q without the absolute path", got, want)
+	for _, test := range []struct {
+		name string
+		path string
+	}{
+		{"unix", "/private/worktree/internal/mcp/server.go"},
+		{"windows drive", `C:\private\worktree\internal\mcp\server.go`},
+		{"windows UNC", `\\server\private\worktree\internal\mcp\server.go`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			raw, err := json.Marshal(map[string]string{
+				"repository": "kivgraph",
+				"path":       test.path,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := summarizeLogQuery(fileOutlineToolName, raw)
+			want := `repository="kivgraph" path="[absolute path]"`
+			if got != want || strings.Contains(got, "private") {
+				t.Fatalf("summarizeLogQuery(file outline %s path) = %q, want %q without the absolute path", test.name, got, want)
+			}
+		})
 	}
 
-	got = summarizeLogQuery(getSourceToolName, []byte(`{
+	got := summarizeLogQuery(getSourceToolName, []byte(`{
 		"symbols":[{"repository":"kivgraph", "path":"/private/worktree/internal/mcp/server.go"}]
 	}`))
-	want = `symbols=["kivgraph:[absolute path]"]`
+	want := `symbols=["kivgraph:[absolute path]"]`
 	if got != want || strings.Contains(got, "/private/worktree") {
 		t.Fatalf("summarizeLogQuery(source selector) = %q, want %q without the absolute path", got, want)
 	}

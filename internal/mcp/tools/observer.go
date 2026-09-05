@@ -3,7 +3,6 @@ package tools
 import (
 	"bytes"
 	"encoding/json"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -176,7 +175,7 @@ func logQueryValue(field string, raw json.RawMessage) (string, bool) {
 	}
 	if isLoggedPathField(field) {
 		var path string
-		if err := json.Unmarshal(raw, &path); err == nil && filepath.IsAbs(path) {
+		if err := json.Unmarshal(raw, &path); err == nil && isAbsoluteLogPath(path) {
 			return `"[absolute path]"`, true
 		}
 	}
@@ -197,10 +196,25 @@ func isLoggedPathField(field string) bool {
 }
 
 func safeLoggedPath(path string) string {
-	if filepath.IsAbs(path) {
+	if isAbsoluteLogPath(path) {
 		return "[absolute path]"
 	}
 	return path
+}
+
+// isAbsoluteLogPath recognizes client path syntax rather than the daemon's
+// current platform. A Windows client can send a drive or UNC path to a Linux
+// daemon, and retaining it would still leak the client's local layout.
+func isAbsoluteLogPath(path string) bool {
+	if strings.HasPrefix(path, "/") || strings.HasPrefix(path, `\`) {
+		return true
+	}
+	return len(path) >= 3 && isASCIIAlpha(path[0]) && path[1] == ':' &&
+		(path[2] == '/' || path[2] == '\\')
+}
+
+func isASCIIAlpha(value byte) bool {
+	return (value >= 'a' && value <= 'z') || (value >= 'A' && value <= 'Z')
 }
 
 func truncateLoggedQuery(query string) string {

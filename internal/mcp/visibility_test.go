@@ -78,8 +78,13 @@ func TestVisibleToolUseNamesTheIntentQuery(t *testing.T) {
 		{"published graph", publishedServer(t)},
 	} {
 		instructions := connectToServer(t, state.server).InitializeResult().Instructions
-		if !strings.Contains(instructions, "quote its exact \"intent\" value") {
-			t.Fatalf("%s instructions = %q, want find_by_intent's exact query to be visible", state.name, instructions)
+		for _, want := range []string{
+			"Kivgraph · <tool> — <target>: <purpose>",
+			"For find_by_intent, quote its exact \"intent\" value as the target, never a summary.",
+		} {
+			if !strings.Contains(instructions, want) {
+				t.Fatalf("%s instructions = %q, want visible find_by_intent preamble contract %q", state.name, instructions, want)
+			}
 		}
 	}
 }
