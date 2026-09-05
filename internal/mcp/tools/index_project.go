@@ -120,19 +120,7 @@ func RegisterIndexProject(
 			return nil, indexing.ProjectResult{}, err
 		}
 		progress := progressReporter(ctx, request)
-		var result indexing.ProjectResult
-		if profile := strings.TrimSpace(arguments.Profile); profile != "" {
-			profileIndexer, ok := indexer.(profileProjectIndexer)
-			if !ok {
-				err = NewToolError(CodeInvalidArgument, fmt.Sprintf("project indexer does not support profile %q", profile))
-				observeCall(nil, callObserver, indexProjectToolName, request, start, err)
-				return nil, indexing.ProjectResult{}, err
-			} else {
-				result, err = profileIndexer.IndexProjectsInProfile(ctx, profile, batch, progress)
-			}
-		} else {
-			result, err = indexer.IndexProjects(ctx, batch, progress)
-		}
+		result, err := runProjectIndex(ctx, indexer, arguments.Profile, batch, progress)
 		if err != nil {
 			// This tool fails on the caller's own configuration: a
 			// module that needs a newer toolchain, a path that is not
@@ -153,6 +141,27 @@ func RegisterIndexProject(
 		observeCall(nil, callObserver, indexProjectToolName, request, start, nil)
 		return nil, result, nil
 	})
+}
+
+func runProjectIndex(
+	ctx context.Context,
+	indexer indexing.ProjectIndexer,
+	profile string,
+	batch []indexing.Project,
+	progress func(indexing.ProjectProgress),
+) (indexing.ProjectResult, error) {
+	profile = strings.TrimSpace(profile)
+	if profile == "" {
+		return indexer.IndexProjects(ctx, batch, progress)
+	}
+	profileIndexer, ok := indexer.(profileProjectIndexer)
+	if !ok {
+		return indexing.ProjectResult{}, NewToolError(
+			CodeInvalidArgument,
+			fmt.Sprintf("project indexer does not support profile %q", profile),
+		)
+	}
+	return profileIndexer.IndexProjectsInProfile(ctx, profile, batch, progress)
 }
 
 // progressReporter forwards index progress to the client that asked for it.

@@ -31,10 +31,24 @@ type ServerOptions struct {
 	// nothing to score. It changes what is *listed* and nothing else. There
 	// is still no graph, so graph-dependent query tools return INDEX_NOT_READY
 	// until one is published while graph_status reports an empty graph status.
-	// index_project stays behind the same consent gate, and the handshake still
-	// carries the repair instructions -- telling a client a graph exists when
-	// none does would be the one lie this option must not tell.
+	// Both indexing entry points stay behind the same consent gate, and the
+	// handshake still carries the repair instructions -- telling a client a
+	// graph exists when none does would be the one lie this option must not tell.
 	ExposeUnavailableTools bool
+	// IndexJobs shares asynchronous indexing state across the MCP sessions a
+	// daemon creates. Nil gives this server its own bounded registry; a caller
+	// that constructs multiple servers must share one explicitly.
+	IndexJobs *tools.IndexJobs
+}
+
+// IndexJobs is the shared asynchronous indexing registry used by a hosting
+// process. The alias keeps daemon wiring out of the tool implementation package.
+type IndexJobs = tools.IndexJobs
+
+// NewIndexJobs creates one asynchronous indexing registry for a hosting
+// process. A daemon shares it across every session it accepts.
+func NewIndexJobs(indexer indexing.ProjectIndexer) *IndexJobs {
+	return tools.NewIndexJobs(indexer)
 }
 
 // NewServer creates the Kivgraph MCP server with no graph source.
@@ -43,7 +57,7 @@ func NewServer() *sdkmcp.Server {
 }
 
 // NewServerWithIndexer creates a server that also exposes the explicit
-// permission-gated index_project mutation.
+// permission-gated indexing controls.
 func NewServerWithIndexer(indexer indexing.ProjectIndexer) *sdkmcp.Server {
 	return newServerWithIndexer(nil, nil, nil, indexer, ServerOptions{})
 }
@@ -160,6 +174,10 @@ func newServerWithIndexer(
 		Name:    serverName,
 		Version: version.Value,
 	}, &sdkmcp.ServerOptions{Instructions: instructions})
+	indexJobs := options.IndexJobs
+	if indexJobs == nil && indexer != nil {
+		indexJobs = tools.NewIndexJobs(indexer)
+	}
 	var callObserver tools.CallObserver
 	if registry != nil {
 		callObserver = func(observation tools.CallObservation) {
@@ -184,9 +202,10 @@ func newServerWithIndexer(
 	// would require the graph. The loader records it when it runs, which is also
 	// the moment the numbers become true of this process.
 	if !exposeQueries {
-		// index_project is the exception: it is how a client without a graph
-		// builds one, and it needs no graph to run.
+		// The indexing controls are the exception: they are how a client
+		// without a graph builds one, and they need no graph to run.
 		tools.RegisterIndexProject(server, indexer, callObserver)
+		tools.RegisterIndexProjectJobs(server, indexJobs, callObserver)
 		return server
 	}
 	var statusProbe tools.HostStatusProbe
@@ -200,6 +219,7 @@ func newServerWithIndexer(
 	}
 	registerQueryTools(server, observer, snapshotStore, registry, callObserver, statusProbe)
 	tools.RegisterIndexProject(server, indexer, callObserver)
+	tools.RegisterIndexProjectJobs(server, indexJobs, callObserver)
 	return server
 }
 
@@ -245,7 +265,7 @@ func RunWithSnapshotStore(ctx context.Context, snapshotStore *hotsnapshot.Snapsh
 }
 
 // RunWithSnapshotStoreAndIndexer serves the configured MCP surface, including
-// the permission-gated index_project tool.
+// the permission-gated indexing controls.
 func RunWithSnapshotStoreAndIndexer(
 	ctx context.Context,
 	snapshotStore *hotsnapshot.SnapshotStore,

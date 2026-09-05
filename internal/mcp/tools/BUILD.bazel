@@ -16,6 +16,7 @@ go_library(
         "get_source.go",
         "get_symbol.go",
         "guidance.go",
+        "index_jobs.go",
         "index_project.go",
         "meta.go",
         "observer.go",

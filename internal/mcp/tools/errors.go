@@ -20,6 +20,7 @@ const (
 	CodeIndexNotReady         = "INDEX_NOT_READY"
 	CodePermissionRequired    = "PERMISSION_REQUIRED"
 	CodePermissionDenied      = "PERMISSION_DENIED"
+	CodeIndexingInProgress    = "INDEXING_IN_PROGRESS"
 	CodeIndexingFailed        = "INDEXING_FAILED"
 )
 
@@ -72,7 +73,7 @@ func WrapToolError(code, message string, cause error) *ToolError {
 // carries the guidance.
 func ErrIndexNotReady() *ToolError {
 	return NewToolError(CodeIndexNotReady,
-		"no graph is published yet: index a project with index_project, or run \"kivgraph index --full\"")
+		"no graph is published yet: start a project index with start_index_project, or run \"kivgraph index --full\"")
 }
 
 // RefusalCodes are the codes a tool returns when declining *is* the good

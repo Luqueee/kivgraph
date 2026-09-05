@@ -108,6 +108,7 @@ var logQueryFields = map[string][]string{
 	blastRadiusToolName:            {"qualified_name", "repository", "path", "depth", "max_nodes", "edge_kinds", "confidence", "kinds", "profile"},
 	unresolvedReferencesToolName:   {"repo", "package", "requested_package", "requested_symbol", "reason", "language"},
 	indexProjectToolName:           {"profile", "name", "languages"},
+	startIndexProjectToolName:      {"profile", "name", "languages"},
 }
 
 // maxLoggedQueryRunes retains enough intent to identify a call while keeping

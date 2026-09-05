@@ -2,7 +2,10 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -12,6 +15,68 @@ import (
 
 	"github.com/Luqueee/kivgraph/internal/indexing"
 )
+
+type controlledProjectIndexer struct {
+	started chan struct{}
+	release chan struct{}
+	err     error
+}
+
+func newControlledProjectIndexer() *controlledProjectIndexer {
+	return &controlledProjectIndexer{
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+}
+
+func (indexer *controlledProjectIndexer) IndexProjects(
+	ctx context.Context,
+	projects []indexing.Project,
+	progress func(indexing.ProjectProgress),
+) (indexing.ProjectResult, error) {
+	close(indexer.started)
+	if progress != nil {
+		progress(indexing.ProjectProgress{
+			Phase: "go", Repository: projects[0].Name, Completed: 0, Total: 1,
+		})
+	}
+	select {
+	case <-indexer.release:
+	case <-ctx.Done():
+		return indexing.ProjectResult{}, ctx.Err()
+	}
+	if indexer.err != nil {
+		return indexing.ProjectResult{}, indexer.err
+	}
+	return indexing.ProjectResult{
+		Project: projects[0], Projects: projects, GenerationID: "8", SnapshotID: 8,
+	}, nil
+}
+
+type startIndexProjectResponse struct {
+	OperationID string `json:"operation_id"`
+	Status      string `json:"status"`
+}
+
+type getIndexStatusResponse struct {
+	OperationID string                    `json:"operation_id"`
+	Status      string                    `json:"status"`
+	Progress    *indexing.ProjectProgress `json:"progress"`
+	Result      *indexing.ProjectResult   `json:"result"`
+	Failure     *struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	} `json:"failure"`
+}
+
+func decodeToolResponse[T any](t *testing.T, result *sdkmcp.CallToolResult) T {
+	t.Helper()
+	var decoded T
+	if err := json.Unmarshal([]byte(contentText(t, result)), &decoded); err != nil {
+		t.Fatalf("decode tool response: %v", err)
+	}
+	return decoded
+}
 
 type fakeProjectIndexer struct {
 	mu       sync.Mutex
@@ -240,6 +305,292 @@ func TestIndexProjectSkipsProgressWithoutAToken(t *testing.T) {
 	if fake.progress != 0 {
 		t.Fatalf("progress callbacks = %d, want none without a token", fake.progress)
 	}
+}
+
+func TestStartIndexProjectRequiresExplicitConsent(t *testing.T) {
+	indexer := newControlledProjectIndexer()
+	session := connectToServer(t, NewServerWithIndexer(indexer))
+	result, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name: "start_index_project",
+		Arguments: map[string]any{
+			"name": "demo", "path": "/tmp/demo", "languages": []any{"go"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CallTool() transport error = %v", err)
+	}
+	if result == nil || !result.IsError {
+		t.Fatalf("CallTool() result = %#v, want permission error", result)
+	}
+	select {
+	case <-indexer.started:
+		t.Fatal("indexing started without consent")
+	default:
+	}
+}
+
+func TestStartIndexProjectRejectsInvalidInputBeforeStarting(t *testing.T) {
+	indexer := newControlledProjectIndexer()
+	session := connectToServer(t, NewServerWithIndexer(indexer))
+	for name, arguments := range map[string]map[string]any{
+		"missing project": {"confirmed": true},
+		"unsupported profile": {
+			"profile": "other", "name": "demo", "path": "/tmp/demo",
+			"languages": []any{"go"}, "confirmed": true,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			result, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{
+				Name: "start_index_project", Arguments: arguments,
+			})
+			if err != nil {
+				t.Fatalf("CallTool() transport error = %v", err)
+			}
+			if result == nil || !result.IsError {
+				t.Fatalf("CallTool() result = %#v, want invalid argument", result)
+			}
+		})
+	}
+	select {
+	case <-indexer.started:
+		t.Fatal("indexing started for invalid input")
+	default:
+	}
+}
+
+func TestStartIndexProjectReturnsBeforeTheIndexFinishes(t *testing.T) {
+	indexer := newControlledProjectIndexer()
+	session := connectToServer(t, NewServerWithIndexer(indexer))
+	callContext, cancelCall := context.WithCancel(context.Background())
+	result, err := session.CallTool(callContext, &sdkmcp.CallToolParams{
+		Name: "start_index_project",
+		Arguments: map[string]any{
+			"name": "demo", "path": "/tmp/demo", "languages": []any{"go"}, "confirmed": true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("CallTool() transport error = %v", err)
+	}
+	if result == nil || result.IsError {
+		t.Fatalf("CallTool() result = %#v, want accepted operation", result)
+	}
+	started := decodeToolResponse[startIndexProjectResponse](t, result)
+	if started.OperationID == "" || started.Status != "working" {
+		t.Fatalf("start response = %#v, want a working operation ID", started)
+	}
+	select {
+	case <-indexer.started:
+	case <-time.After(time.Second):
+		t.Fatal("background index did not start")
+	}
+
+	// The operation belongs to the server, not to the short tools/call
+	// request. Cancelling that request after its response must not cancel the
+	// rebuild the response just accepted.
+	cancelCall()
+	close(indexer.release)
+	status := waitForIndexStatus(t, session, started.OperationID, "completed")
+	if status.Result == nil || status.Result.GenerationID != "8" || status.Result.SnapshotID != 8 {
+		t.Fatalf("completed status = %#v, want the published result", status)
+	}
+}
+
+func TestGetIndexStatusRejectsMissingAndUnknownOperationIDs(t *testing.T) {
+	session := connectToServer(t, NewServerWithIndexer(&fakeProjectIndexer{}))
+	for name, operationID := range map[string]string{
+		"missing":         "",
+		"unknown":         "0123456789abcdef0123456789abcdef",
+		"corrupt":         "not-an-operation-id",
+		"non hexadecimal": "gggggggggggggggggggggggggggggggg",
+	} {
+		t.Run(name, func(t *testing.T) {
+			result, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{
+				Name: "get_index_status", Arguments: map[string]any{"operation_id": operationID},
+			})
+			if err != nil {
+				t.Fatalf("CallTool() transport error = %v", err)
+			}
+			if result == nil || !result.IsError {
+				t.Fatalf("CallTool() result = %#v, want invalid argument", result)
+			}
+			if text := contentText(t, result); !strings.Contains(text, "operation_id") {
+				t.Fatalf("error = %q, want narrowing guidance", text)
+			}
+		})
+	}
+}
+
+func TestStartIndexProjectRoutesANamedProfileAsynchronously(t *testing.T) {
+	indexer := &fakeProfileProjectIndexer{}
+	session := connectToServer(t, NewServerWithIndexer(indexer))
+	result, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name: "start_index_project",
+		Arguments: map[string]any{
+			"profile": "other", "name": "demo", "path": "/tmp/demo",
+			"languages": []any{"go"}, "confirmed": true,
+		},
+	})
+	if err != nil || result == nil || result.IsError {
+		t.Fatalf("start CallTool() = %#v, %v", result, err)
+	}
+	started := decodeToolResponse[startIndexProjectResponse](t, result)
+	waitForIndexStatus(t, session, started.OperationID, "completed")
+	if indexer.profile != "other" {
+		t.Fatalf("profile = %q, want other", indexer.profile)
+	}
+}
+
+func TestIndexStatusBoundsCompletedHistory(t *testing.T) {
+	session := connectToServer(t, NewServerWithIndexer(&fakeProjectIndexer{}))
+	operationIDs := make([]string, 0, 33)
+	for index := range 33 {
+		result, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{
+			Name: "start_index_project",
+			Arguments: map[string]any{
+				"name": fmt.Sprintf("demo-%d", index), "path": fmt.Sprintf("/tmp/demo-%d", index),
+				"languages": []any{"go"}, "confirmed": true,
+			},
+		})
+		if err != nil || result == nil || result.IsError {
+			t.Fatalf("start %d = %#v, %v", index, result, err)
+		}
+		started := decodeToolResponse[startIndexProjectResponse](t, result)
+		operationIDs = append(operationIDs, started.OperationID)
+		waitForIndexStatus(t, session, started.OperationID, "completed")
+	}
+	result, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name: "get_index_status", Arguments: map[string]any{"operation_id": operationIDs[0]},
+	})
+	if err != nil {
+		t.Fatalf("get pruned status transport error = %v", err)
+	}
+	if result == nil || !result.IsError || !strings.Contains(contentText(t, result), "no longer retained") {
+		t.Fatalf("oldest status = %#v, want bounded-history refusal", result)
+	}
+}
+
+func TestStartIndexProjectRejectsASecondActiveOperation(t *testing.T) {
+	indexer := newControlledProjectIndexer()
+	session := connectToServer(t, NewServerWithIndexer(indexer))
+	arguments := map[string]any{
+		"name": "demo", "path": "/tmp/demo", "languages": []any{"go"}, "confirmed": true,
+	}
+	first, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name: "start_index_project", Arguments: arguments,
+	})
+	if err != nil || first == nil || first.IsError {
+		t.Fatalf("first CallTool() = %#v, %v", first, err)
+	}
+	started := decodeToolResponse[startIndexProjectResponse](t, first)
+	select {
+	case <-indexer.started:
+	case <-time.After(time.Second):
+		t.Fatal("background index did not start")
+	}
+	second, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name: "start_index_project", Arguments: arguments,
+	})
+	if err != nil {
+		t.Fatalf("second CallTool() transport error = %v", err)
+	}
+	if second == nil || !second.IsError || !strings.Contains(contentText(t, second), "already running") ||
+		!strings.Contains(contentText(t, second), started.OperationID) {
+		t.Fatalf("second CallTool() = %#v, want active-operation refusal", second)
+	}
+	close(indexer.release)
+}
+
+func TestGetIndexStatusReportsProgressAndFailure(t *testing.T) {
+	indexer := newControlledProjectIndexer()
+	indexer.err = errors.New("analyzer exploded")
+	session := connectToServer(t, NewServerWithIndexer(indexer))
+	result, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name: "start_index_project",
+		Arguments: map[string]any{
+			"name": "demo", "path": "/tmp/demo", "languages": []any{"go"}, "confirmed": true,
+		},
+	})
+	if err != nil || result == nil || result.IsError {
+		t.Fatalf("start CallTool() = %#v, %v", result, err)
+	}
+	started := decodeToolResponse[startIndexProjectResponse](t, result)
+	select {
+	case <-indexer.started:
+	case <-time.After(time.Second):
+		t.Fatal("background index did not start")
+	}
+	running := waitForIndexStatus(t, session, started.OperationID, "working")
+	if running.Progress == nil || running.Progress.Phase != "go" || running.Progress.Repository != "demo" {
+		t.Fatalf("working status = %#v, want observed progress", running)
+	}
+	close(indexer.release)
+	failed := waitForIndexStatus(t, session, started.OperationID, "failed")
+	if failed.Failure == nil || failed.Failure.Code != "INDEXING_FAILED" ||
+		!strings.Contains(failed.Failure.Message, "analyzer exploded") {
+		t.Fatalf("failed status = %#v, want classified observed cause", failed)
+	}
+}
+
+func TestIndexStatusSurvivesAcrossDaemonStyleSessions(t *testing.T) {
+	indexer := newControlledProjectIndexer()
+	jobs := NewIndexJobs(indexer)
+	newSession := func() *sdkmcp.ClientSession {
+		return connectToServer(t, newServerWithIndexer(
+			nil, nil, nil, indexer, ServerOptions{IndexJobs: jobs},
+		))
+	}
+	starter := newSession()
+	result, err := starter.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name: "start_index_project",
+		Arguments: map[string]any{
+			"name": "demo", "path": "/tmp/demo", "languages": []any{"go"}, "confirmed": true,
+		},
+	})
+	if err != nil || result == nil || result.IsError {
+		t.Fatalf("start CallTool() = %#v, %v", result, err)
+	}
+	started := decodeToolResponse[startIndexProjectResponse](t, result)
+	select {
+	case <-indexer.started:
+	case <-time.After(time.Second):
+		t.Fatal("background index did not start")
+	}
+
+	observer := newSession()
+	working := waitForIndexStatus(t, observer, started.OperationID, "working")
+	if working.OperationID != started.OperationID {
+		t.Fatalf("operation ID = %q, want %q", working.OperationID, started.OperationID)
+	}
+	close(indexer.release)
+	waitForIndexStatus(t, observer, started.OperationID, "completed")
+}
+
+func waitForIndexStatus(
+	t *testing.T,
+	session *sdkmcp.ClientSession,
+	operationID string,
+	want string,
+) getIndexStatusResponse {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		result, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{
+			Name: "get_index_status", Arguments: map[string]any{"operation_id": operationID},
+		})
+		if err != nil {
+			t.Fatalf("get_index_status transport error = %v", err)
+		}
+		if result == nil || result.IsError {
+			t.Fatalf("get_index_status result = %#v", result)
+		}
+		status := decodeToolResponse[getIndexStatusResponse](t, result)
+		if status.Status == want {
+			return status
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("operation %q did not reach %q", operationID, want)
+	return getIndexStatusResponse{}
 }
 
 // A rebuild resolves cross-repository edges over the complete fact set, so it
