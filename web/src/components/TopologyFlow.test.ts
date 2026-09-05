@@ -156,6 +156,68 @@ function dependencyModel(count: number, cycle = false): TopologyModel {
   };
 }
 
+function groupedSemanticsModel(): TopologyModel {
+  const variants: readonly Pick<
+    TopologyRelationship,
+    "status" | "confidence" | "type" | "kind" | "provenance"
+  >[] = [
+    {
+      status: "exact",
+      confidence: "EXACT_TYPECHECKED",
+      type: "code_dependency",
+      kind: "CALLS_DIRECT",
+      provenance: "GO_TYPES_USE",
+    },
+    {
+      status: "candidate",
+      confidence: "CANDIDATE",
+      type: "code_dependency",
+      kind: "CALLS_DIRECT",
+      provenance: "TEXTUAL_CANDIDATE",
+    },
+    {
+      status: "unresolved",
+      confidence: "UNRESOLVED",
+      type: "unresolved_reference",
+      kind: "UNRESOLVED_REFERENCE",
+      provenance: "UNRESOLVED_REFERENCE",
+    },
+    {
+      status: "conflict",
+      confidence: "CONFLICT",
+      type: "code_dependency",
+      kind: "CALLS_DIRECT",
+      provenance: "CONFLICTING_EVIDENCE",
+    },
+    {
+      status: "structural",
+      confidence: "STRUCTURAL_CERTAIN",
+      type: "membership",
+      kind: "contains",
+      provenance: "TOPOLOGY_DECLARATION",
+    },
+  ];
+  const relationships = variants.flatMap((variant) =>
+    [0, 1].map((occurrence) => ({
+      ...relationship,
+      ...variant,
+      evidence: `source.go:${occurrence + 1}`,
+    })),
+  );
+
+  return {
+    ...model,
+    edges: relationships.map((groupedRelationship, index) => ({
+      key: `edge:semantic-${index}`,
+      relationshipIndex: index,
+      sourceKey: sourceNode.key,
+      targetKey: targetNode.key,
+      relationship: groupedRelationship,
+    })),
+    relationships,
+  };
+}
+
 describe("TopologyFlow", () => {
   it("lays out a 5,000-node dependency chain without using the call stack", () => {
     const nodes = createTopologyFlowNodes(
@@ -209,12 +271,72 @@ describe("TopologyFlow", () => {
 
     expect(edges).toHaveLength(1);
     expect(edges[0].data?.count).toBe(2);
-    expect(edges[0].label).toBe("×2");
+    expect(edges[0].label).toBe("depends on ×2");
     expect(edges[0].ariaLabel).toContain("2 grouped relationships");
     expect(edges[0].source).toBe(sourceNode.key);
     expect(edges[0].target).toBe(targetNode.key);
     expect(edges[0].sourceHandle).toBe("source");
     expect(edges[0].targetHandle).toBe("target");
+  });
+
+  it("keeps grouped relationship semantics visible in canvas and accessible labels", () => {
+    const expected = [
+      {
+        status: "exact",
+        label: "depends on ×2",
+        color: "#16a34a",
+        ariaLabel:
+          "depends on relationship from repository:source to repository:target, 2 grouped relationships",
+      },
+      {
+        status: "candidate",
+        label: "candidate dependency ×2",
+        color: "#ea580c",
+        ariaLabel:
+          "candidate dependency relationship from repository:source to repository:target, 2 grouped relationships",
+      },
+      {
+        status: "unresolved",
+        label: "not resolved ×2",
+        color: "#eab308",
+        ariaLabel:
+          "not resolved relationship from repository:source to repository:target, 2 grouped relationships",
+      },
+      {
+        status: "conflict",
+        label: "conflicts with ×2",
+        color: "#ef4444",
+        ariaLabel:
+          "conflicts with relationship from repository:source to repository:target, 2 grouped relationships",
+      },
+      {
+        status: "structural",
+        label: "contains ×2",
+        color: "#64748b",
+        ariaLabel:
+          "contains relationship from repository:source to repository:target, 2 grouped relationships",
+      },
+    ];
+    const grouped = createTopologyFlowEdges(groupedSemanticsModel(), null);
+    const focused = createTopologyFlowEdges(
+      groupedSemanticsModel(),
+      sourceNode.key,
+    );
+
+    expect(
+      grouped.map((edge) => ({
+        status: edge.data?.relationship.status,
+        label: edge.label,
+        color: edge.style?.stroke,
+        ariaLabel: edge.ariaLabel,
+      })),
+    ).toEqual(expected);
+    expect(focused.map((edge) => edge.style?.stroke)).toEqual(
+      expected.map((edge) => edge.color),
+    );
+    expect(grouped.map((edge) => edge.markerEnd)).toEqual(
+      expected.map((edge) => ({ type: "arrowclosed", color: edge.color })),
+    );
   });
 
   it("highlights direct relationships without removing the surrounding map", () => {
@@ -245,9 +367,9 @@ describe("TopologyFlow", () => {
       hoveredKey: sourceNode.key,
     });
 
-    expect(overviewEdges[0].style?.stroke).toBe("#94a3b8");
+    expect(overviewEdges[0].style?.stroke).toBe("#16a34a");
     expect(overviewEdges[0].style?.opacity).toBe(0.6);
-    expect(hoveredEdges[0].style?.stroke).toBe("#22c55e");
+    expect(hoveredEdges[0].style?.stroke).toBe("#16a34a");
     expect(hoveredEdges[0].style?.opacity).toBe(0.9);
     expect(
       hoveredNodes.find((node) => node.id === unrelatedNode.key)?.data.active,
@@ -317,6 +439,13 @@ describe("TopologyFlow", () => {
           edge.target === "topology:repository-group:default",
       ),
     ).toBe(true);
+    expect(
+      edges.find(
+        (edge) =>
+          edge.source === profileNode.key &&
+          edge.target === "topology:repository-group:default",
+      )?.label,
+    ).toBe("contains");
   });
 
   it("lays out grouped direct relationships and omits internal self-edges", () => {
