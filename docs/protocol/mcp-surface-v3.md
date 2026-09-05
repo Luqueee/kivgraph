@@ -20,8 +20,10 @@ find_cross_repo_consumers                      trace_dependencies
 get_blast_radius        get_source             graph_status
 ```
 
-Una `serve` configurada añade `index_project`, la única mutación, con su puerta
-de consentimiento.
+Una `serve` configurada añade tres controles de indexado:
+`index_project`, `start_index_project` y `get_index_status`. Las dos primeras
+mutan tras la misma puerta de consentimiento; la tercera sólo consulta el
+estado de una operación.
 
 Todas las consultas aceptan `profile` como lista y omitirla usa el perfil por
 defecto. Todas aceptan varios nombres o `["*"]`;
@@ -33,9 +35,15 @@ payload y enumeran los perfiles que las aportaron. El cursor queda ligado al
 conjunto canónico de nombres y generaciones. Una `stable_key` exige exactamente
 un perfil cuando la instalación contiene varios.
 
-`index_project` acepta en cambio un `profile` string: omitirlo escribe en el
-perfil por defecto y un nombre inexistente crea su directorio antes de la
-reconstrucción.
+`index_project` y `start_index_project` aceptan en cambio un `profile` string:
+omitirlo escribe en el perfil por defecto y un nombre inexistente crea su
+directorio antes de la reconstrucción.
+
+`start_index_project` devuelve un `operation_id` sin sostener la llamada durante
+la reconstrucción. `get_index_status` lo consulta y responde `working`,
+`completed` o `failed`, con el último progreso observado y el resultado o fallo
+terminal. El estado se comparte entre sesiones de un mismo daemon, conserva
+como máximo 32 operaciones terminadas y no sobrevive un reinicio. Ver ADR 0099.
 
 `get_unresolved_references` **salió** de la superficie del modelo: responde una
 pregunta sobre el índice y no sobre el código, y cada tool de la lista cuesta
@@ -56,7 +64,8 @@ registro o la herramienta de desarrollo que sólo puede leer lo que devuelve
 
 Lo que la opción cambia es qué se **lista**, y nada más. No crea un índice, no
 fabrica un grafo vacío, no relaja ninguna comprobación de espacio en disco y no
-toca la puerta de consentimiento de `index_project`. Las once tools que expone
+toca la puerta de consentimiento de las dos mutaciones. Las once tools de
+consulta del grafo que expone
 siguen contestando `INDEX_NOT_READY` hasta que haya generación -- `graph_status`
 es la excepción de siempre, porque la tool que explica por qué las demás se
 niegan no puede negarse ella-- y el handshake sigue llevando las instrucciones

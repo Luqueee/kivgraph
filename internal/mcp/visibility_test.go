@@ -13,7 +13,8 @@ import (
 // Exercise the two delivery paths, not just their source strings: an installed
 // skill (including user-scope links) and the instructions a client receives.
 // The cold indexing server matters: Desktop has no skill and can call
-// index_project before any graph exists. This does not test model compliance.
+// the indexing controls before any graph exists. This does not test model
+// compliance.
 func TestInstalledSkillsAndHandshakeShareToolVisibility(t *testing.T) {
 	for _, state := range []struct {
 		name   string
@@ -97,12 +98,13 @@ func TestFreshnessPolicyRepairsTheTargetCheckoutBeforeUsingGraphEvidence(t *test
 	instructions := connectToServer(t, server).InitializeResult().Instructions
 	for _, want := range []string{
 		"Freshness is a gate",
-		"index_project",
+		"start_index_project",
+		"get_index_status",
 		"reconnect if graph_status was absent",
 		"call graph_status again",
 		"Only the default profile carries content freshness",
-		"If index_project is exposed, use it through its approval flow",
-		"reconnect this server before calling graph_status",
+		"If start_index_project is exposed, use its approval flow",
+		"then reconnect before calling graph_status",
 	} {
 		if !strings.Contains(instructions, want) {
 			t.Fatalf("instructions = %q, want %q", instructions, want)
@@ -126,7 +128,8 @@ func TestFreshnessPolicyRepairsTheTargetCheckoutBeforeUsingGraphEvidence(t *test
 	policy := strings.Join(strings.Fields(string(skill)), " ")
 	for _, want := range []string{
 		"does not attest the target checkout",
-		"index_project",
+		"start_index_project",
+		"get_index_status",
 		"reconnect if graph_status was absent",
 		"then call graph_status again",
 		"Only the default profile carries content freshness",

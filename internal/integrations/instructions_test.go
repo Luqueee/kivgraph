@@ -52,7 +52,8 @@ func TestEmbeddedInstructionsRequireSemanticFirstResearch(t *testing.T) {
 		"find_cross_repo_consumers",
 		"get_source",
 		"at most 20 symbols",
-		"`index_project` changes Kivgraph state",
+		"`index_project` and `start_index_project` change Kivgraph state",
+		"poll `get_index_status`",
 	} {
 		if !bytes.Contains(embeddedInstructions, []byte(text)) {
 			t.Fatalf("embedded instructions missing required workflow rule %q", text)

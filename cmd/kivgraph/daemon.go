@@ -11,6 +11,7 @@ import (
 	"github.com/Luqueee/kivgraph/internal/eventlog"
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 	"github.com/Luqueee/kivgraph/internal/indexing"
+	mcpserver "github.com/Luqueee/kivgraph/internal/mcp"
 )
 
 // runDaemon serves MCP over a socket and over HTTP, from one process.
@@ -48,6 +49,7 @@ func runDaemon(logger *slog.Logger, flags *daemonOptions) configuredMCPRunner {
 			SnapshotStore:  store,
 			Registry:       toolMetricsRegistry(events),
 			Indexer:        indexer,
+			IndexJobs:      mcpserver.NewIndexJobs(indexer),
 			OnSession: func(event string, err error) {
 				if err != nil {
 					logger.Error("daemon session "+event, "command", "daemon", "error", err)
