@@ -596,7 +596,20 @@ export function TopologyExplorer(): React.ReactElement {
     () => (model ? filterTopology(model, filters) : null),
     [filters, model],
   );
-  const selectedNode = model?.nodes.find((node) => node.key === selectedKey);
+  const scopeModel = useMemo(
+    () =>
+      model
+        ? filterTopology(model, {
+            ...INITIAL_FILTERS,
+            profile: filters.profile,
+          })
+        : null,
+    [filters.profile, model],
+  );
+  const scopedData = scopeModel?.response ?? state.data;
+  const selectedNode = filteredModel?.nodes.find(
+    (node) => node.key === selectedKey,
+  );
   const selectedFlowKey = filteredModel?.nodes.some(
     (node) => node.key === selectedKey,
   )
@@ -615,16 +628,23 @@ export function TopologyExplorer(): React.ReactElement {
   }, []);
 
   const profiles = state.data?.profiles.map((profile) => profile.id) ?? [];
-  const worktrees = state.data?.worktrees.map((worktree) => worktree.id) ?? [];
-  const repositories =
-    state.data?.repositories.map((repository) => repository.id) ?? [];
-  const languages = model
-    ? [...new Set(model.nodes.flatMap((node) => node.languages))].sort()
+  const worktrees = scopeModel
+    ? scopeModel.nodes
+        .filter((node) => node.type === "worktree")
+        .map((node) => node.id)
     : [];
-  const edgeKinds = model
+  const repositories = scopeModel
+    ? scopeModel.nodes
+        .filter((node) => node.type === "repository")
+        .map((node) => node.id)
+    : [];
+  const languages = scopeModel
+    ? [...new Set(scopeModel.nodes.flatMap((node) => node.languages))].sort()
+    : [];
+  const edgeKinds = scopeModel
     ? [
         ...new Set(
-          model.relationships.map((relationship) =>
+          scopeModel.relationships.map((relationship) =>
             topologyEdgeKind(relationship),
           ),
         ),
@@ -708,7 +728,7 @@ export function TopologyExplorer(): React.ReactElement {
           </div>
         ) : null}
 
-        {state.data && model && filteredModel ? (
+        {state.data && scopedData && model && filteredModel && scopeModel ? (
           <>
             <div className="grid shrink-0 gap-2 sm:grid-cols-2 xl:grid-cols-4">
               <div className="flex items-center justify-between gap-3 rounded-none border border-rule bg-panel px-3 py-2.5">
@@ -733,7 +753,10 @@ export function TopologyExplorer(): React.ReactElement {
                   profiles
                 </span>
                 <span className="font-mono text-sm font-semibold tabular-nums text-gray-100">
-                  {state.data.profiles.length}
+                  {
+                    scopeModel.nodes.filter((node) => node.type === "profile")
+                      .length
+                  }
                 </span>
               </div>
               <div className="min-w-0 rounded-none border border-rule bg-panel px-3 py-2.5">
@@ -742,11 +765,11 @@ export function TopologyExplorer(): React.ReactElement {
                 </span>
                 <span
                   className="mt-1 block truncate text-xs font-medium text-gray-200"
-                  title={state.data.profiles
+                  title={scopedData.profiles
                     .map((profile) => `${profile.id} ${profile.generationId}`)
                     .join(" · ")}
                 >
-                  {state.data.profiles
+                  {scopedData.profiles
                     .map((profile) => `${profile.id} ${profile.generationId}`)
                     .join(" · ")}
                 </span>
@@ -951,8 +974,8 @@ export function TopologyExplorer(): React.ReactElement {
               {selectedNode ? (
                 <DetailsPanel
                   node={selectedNode}
-                  data={state.data}
-                  model={model}
+                  data={scopedData}
+                  model={filteredModel}
                 />
               ) : null}
             </div>
