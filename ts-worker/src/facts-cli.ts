@@ -1,7 +1,7 @@
 /**
  * Emit the canonical fact payload of one TypeScript repository.
  *
- * The payload is the wire contract `ts-facts-v4` consumed by
+ * The payload is the wire contract `ts-facts-v5` consumed by
  * `internal/facts`: the worker reports identity components and positions, and
  * Go derives the durable keys. Nothing here computes a key, so both languages
  * cannot drift into two identities for one symbol.
@@ -30,8 +30,8 @@
  * repository resolves through `targetQualifiedName`/`targetFile`; a base
  * introduced by an import reuses the exact provider-source identity an
  * `IMPORTS_SYMBOL` edge for that same binding already carries, never a
- * second resolution of its own. `implements` never appears here: see
- * `extends-resolver.ts` for why.
+ * second resolution of its own. `implementations` adds compiler-proven declared and structural relationships;
+ * `implementationLimitations` records excluded analysis scopes.
  *
  * `dependencies` is `PACKAGE_DEPENDS_ON`: one entry per package this
  * repository's own package really imports from, backed by a checker-resolved
@@ -68,15 +68,15 @@
  * provider's configuration, and an inferred project has none. The Go side
  * only passes this when `typescript.include_unclaimed_sources` is on.
  *
- * Regenerate the `ts-facts-v4` goldens, from `ts-worker/`:
+ * Regenerate the `ts-facts-v5` goldens, from `ts-worker/`:
  *
  *   pnpm facts shared-library ../testdata/typescript/cross-repository/shared-library \
- *     ../testdata/protocol/ts-facts-v4/shared-library.json
+ *     ../testdata/protocol/ts-facts-v5/shared-library.json
  *   pnpm facts consumer-a ../testdata/typescript/cross-repository/consumer-a \
- *     ../testdata/protocol/ts-facts-v4/consumer-a.json \
+ *     ../testdata/protocol/ts-facts-v5/consumer-a.json \
  *     --provider shared-library=../testdata/typescript/cross-repository/shared-library
  *   pnpm facts consumer-b ../testdata/typescript/cross-repository/consumer-b \
- *     ../testdata/protocol/ts-facts-v4/consumer-b.json \
+ *     ../testdata/protocol/ts-facts-v5/consumer-b.json \
  *     --provider shared-library=../testdata/typescript/cross-repository/shared-library
  */
 
@@ -85,6 +85,7 @@ import path from "node:path";
 
 import { isEntryPoint } from "./entry-point.js";
 import { type ExtendsEdge, resolveExtends } from "./extends-resolver.js";
+import { resolveImplementations } from "./implements-resolver.js";
 import type {
   ImportedSymbol,
   ReexportedSymbol,
@@ -108,7 +109,7 @@ import { extractLocalSymbols } from "./symbol-extractor.js";
 import { resolveUnresolvedReferences } from "./unresolved-reference-resolver.js";
 
 interface FactsPayload {
-  readonly version: 4;
+  readonly version: 5;
   readonly repository: { readonly name: string };
   readonly package: {
     readonly name: string;
@@ -122,6 +123,11 @@ interface FactsPayload {
   readonly imports: readonly FactImport[];
   readonly exports: readonly FactExport[];
   readonly extends: readonly FactExtends[];
+  readonly implementations: readonly (FactExtends & {
+    readonly detection: "declared" | "structural";
+    readonly relation: "IMPLEMENTS" | "OVERRIDES";
+  })[];
+  readonly implementationLimitations: readonly string[];
   readonly dependencies: readonly FactDependency[];
   readonly unresolved: readonly FactUnresolved[];
 }
@@ -340,6 +346,12 @@ export async function collectFacts(
       symbols,
       resolution.symbols,
     );
+    const implementationResolution = await resolveImplementations(
+      service,
+      view,
+      symbols,
+      resolution.symbols,
+    );
     const importSymbols = importFactSymbols(root, resolution.symbols);
     // An export's public name frequently repeats the local declaration it
     // exposes (`export function foo() {}` names both "foo"), unlike an
@@ -440,7 +452,7 @@ export async function collectFacts(
     ].sort(compareUnresolved);
 
     return {
-      version: 4,
+      version: 5,
       repository: { name: repositoryName },
       package: manifest,
       files: files.map((file) => relative(root, file)),
@@ -510,6 +522,24 @@ export async function collectFacts(
       }),
       exports: exportSymbols.exports,
       extends: extendsFacts.extends,
+      implementations: implementationResolution.edges.map((edge) => {
+        const fact = extendsFactSymbols(
+          root,
+          [edge],
+          manifest?.name ?? repositoryName,
+        ).extends[0];
+        if (fact === undefined)
+          throw new Error("implementation normalization omitted an edge");
+        return { ...fact, detection: edge.detection, relation: edge.relation };
+      }),
+      implementationLimitations: [
+        ...implementationResolution.limitations,
+        ...(unclaimed.length > 0
+          ? [
+              "Inferred files contribute symbols and references, but do not attest implementation coverage.",
+            ]
+          : []),
+      ],
       dependencies: dependencyFacts,
       unresolved,
     };
@@ -1218,7 +1248,7 @@ interface CliArgs {
 
 const USAGE = `usage: pnpm facts <repository-name> <repository-root> <output.json> [--project <path>] [--provider <name>=<path>]... [--provider-project <name>=<path>]... [--unclaimed <absolute path>]...
 
-Emits the ts-facts-v4 payload of <repository-root>, named <repository-name>.
+Emits the ts-facts-v5 payload of <repository-root>, named <repository-name>.
 
   --project <path>            TypeScript project to load, relative to the
                               repository root. Defaults to <root>/tsconfig.json.
@@ -1233,12 +1263,12 @@ Emits the ts-facts-v4 payload of <repository-root>, named <repository-name>.
                               absolute and inside the repository root.
                               Repeatable.
 
-Example — regenerate the ts-facts-v4 goldens, from ts-worker/:
+Example — regenerate the ts-facts-v5 goldens, from ts-worker/:
 
   pnpm facts shared-library ../testdata/typescript/cross-repository/shared-library \\
-    ../testdata/protocol/ts-facts-v4/shared-library.json
+    ../testdata/protocol/ts-facts-v5/shared-library.json
   pnpm facts consumer-a ../testdata/typescript/cross-repository/consumer-a \\
-    ../testdata/protocol/ts-facts-v4/consumer-a.json \\
+    ../testdata/protocol/ts-facts-v5/consumer-a.json \\
     --provider shared-library=../testdata/typescript/cross-repository/shared-library
 `;
 

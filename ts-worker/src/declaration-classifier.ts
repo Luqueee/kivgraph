@@ -28,6 +28,8 @@ import {
   isIdentifier,
   isInterfaceDeclaration,
   isMethodDeclaration,
+  isMethodSignatureDeclaration,
+  isPropertySignatureDeclaration,
   isModuleDeclaration,
   isObjectBindingPattern,
   isPropertyDeclaration,
@@ -109,11 +111,15 @@ export function declarationCandidate(
     // `symbol-extractor.ts`'s sibling handling and `classifyDeclarationAt`).
     nameNode = names[0];
     kind = "variable";
-  } else if (isPropertyDeclaration(node)) {
+  } else if (
+    isPropertyDeclaration(node) ||
+    isPropertySignatureDeclaration(node)
+  ) {
     nameNode = node.name;
     kind = "property";
   } else if (
     isMethodDeclaration(node) ||
+    isMethodSignatureDeclaration(node) ||
     isGetAccessorDeclaration(node) ||
     isSetAccessorDeclaration(node)
   ) {
@@ -190,6 +196,7 @@ export function scopeName(node: Node): string | undefined {
   }
   if (
     isMethodDeclaration(node) ||
+    isMethodSignatureDeclaration(node) ||
     isGetAccessorDeclaration(node) ||
     isSetAccessorDeclaration(node) ||
     isPropertyDeclaration(node)
