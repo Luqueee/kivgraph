@@ -25,8 +25,11 @@ import (
 )
 
 const (
+	// LegacyVersion is the source observation schema written before published
+	// topology compositions were recorded. It remains readable as incomplete.
+	LegacyVersion = 1
 	// CurrentVersion is the schema version of a stored source observation.
-	CurrentVersion = 1
+	CurrentVersion = 2
 	// FileName is the fixed filename a generation uses for its source inputs.
 	FileName = "source-observations.json"
 )
@@ -42,6 +45,9 @@ var (
 	// ErrChanged reports that the source state captured before analysis no
 	// longer agrees with the state observed before publication.
 	ErrChanged = errors.New("source observations changed during indexing")
+	// ErrInvalid reports a stored source observation document that could be
+	// read but does not satisfy its persisted schema or integrity checks.
+	ErrInvalid = errors.New("source observations are invalid")
 )
 
 // Policy records the provider configuration that decides which source files a
@@ -65,6 +71,144 @@ type Source struct {
 	Policy      Policy                     `json:"policy"`
 }
 
+// TopologyRepository is one stable repository identity recorded with a
+// generation's effective composition.
+type TopologyRepository struct {
+	ID   string `json:"id"`
+	Name string `json:"name,omitempty"`
+}
+
+// TopologyWorktree is one selected mutable worktree recorded with a
+// generation's effective composition.
+type TopologyWorktree struct {
+	ID              string `json:"id"`
+	Repository      string `json:"repository"`
+	Path            string `json:"path"`
+	GitDirectory    string `json:"git_directory,omitempty"`
+	CommonDirectory string `json:"common_directory,omitempty"`
+}
+
+// TopologyComposition is the effective topology membership that selected the
+// sources for a generation. It is separate from the live topology.yaml so a
+// pinned response cannot combine old facts with a later worktree selection.
+type TopologyComposition struct {
+	Profile      string               `json:"profile"`
+	Repositories []TopologyRepository `json:"repositories"`
+	Worktrees    []TopologyWorktree   `json:"worktrees"`
+}
+
+// NewTopologyComposition converts one validated effective composition into
+// the persisted form stored beside a generation.
+func NewTopologyComposition(value topology.ProfileComposition) (TopologyComposition, error) {
+	if err := validateEffectiveComposition(value); err != nil {
+		return TopologyComposition{}, err
+	}
+	profile, err := topology.NewProfileID(string(value.Profile.ID))
+	if err != nil {
+		return TopologyComposition{}, fmt.Errorf("topology composition profile: %w", err)
+	}
+	composition := TopologyComposition{
+		Profile:      string(profile),
+		Repositories: make([]TopologyRepository, 0, len(value.Repositories)),
+		Worktrees:    make([]TopologyWorktree, 0, len(value.Worktrees)),
+	}
+	for _, repository := range value.Repositories {
+		composition.Repositories = append(composition.Repositories, TopologyRepository{
+			ID: string(repository.ID), Name: repository.Name,
+		})
+	}
+	for _, worktree := range value.Worktrees {
+		composition.Worktrees = append(composition.Worktrees, TopologyWorktree{
+			ID:              string(worktree.ID),
+			Repository:      string(worktree.Repository),
+			Path:            worktree.Path,
+			GitDirectory:    worktree.Git.GitDirectory,
+			CommonDirectory: worktree.Git.CommonDirectory,
+		})
+	}
+	if _, err := composition.ProfileComposition(); err != nil {
+		return TopologyComposition{}, err
+	}
+	return composition, nil
+}
+
+// ProfileComposition reconstructs and validates the effective composition
+// persisted with a generation.
+func (composition TopologyComposition) ProfileComposition() (topology.ProfileComposition, error) {
+	profile, err := topology.NewProfileID(strings.TrimSpace(composition.Profile))
+	if err != nil {
+		return topology.ProfileComposition{}, fmt.Errorf("topology composition profile: %w", err)
+	}
+	value := topology.Topology{
+		Version:      topology.CurrentSchemaVersion,
+		Repositories: make([]topology.LogicalRepository, 0, len(composition.Repositories)),
+		Worktrees:    make([]topology.Worktree, 0, len(composition.Worktrees)),
+		Profiles:     []topology.Profile{{ID: profile, Worktrees: make([]topology.WorktreeSelection, 0, len(composition.Worktrees))}},
+	}
+	for _, repository := range composition.Repositories {
+		value.Repositories = append(value.Repositories, topology.LogicalRepository{
+			ID: topology.LogicalRepositoryID(repository.ID), Name: repository.Name,
+		})
+	}
+	for _, worktree := range composition.Worktrees {
+		id := topology.WorktreeID(worktree.ID)
+		repository := topology.LogicalRepositoryID(worktree.Repository)
+		value.Worktrees = append(value.Worktrees, topology.Worktree{
+			ID: id, Repository: repository, Path: worktree.Path,
+			Git: topology.GitLayout{GitDirectory: worktree.GitDirectory, CommonDirectory: worktree.CommonDirectory},
+		})
+		value.Profiles[0].Worktrees = append(value.Profiles[0].Worktrees, topology.WorktreeSelection{
+			Repository: repository, Worktree: id,
+		})
+	}
+	resolved, err := value.Compose(profile)
+	if err != nil {
+		return topology.ProfileComposition{}, fmt.Errorf("topology composition: %w", err)
+	}
+	if len(resolved.Repositories) != len(composition.Repositories) ||
+		len(resolved.Worktrees) != len(composition.Worktrees) ||
+		len(composition.Repositories) != len(composition.Worktrees) {
+		return topology.ProfileComposition{}, errors.New("topology composition: selected repositories and worktrees must have matching counts")
+	}
+	for index := range resolved.Repositories {
+		if resolved.Repositories[index].ID != topology.LogicalRepositoryID(composition.Repositories[index].ID) ||
+			resolved.Repositories[index].Name != composition.Repositories[index].Name ||
+			resolved.Worktrees[index].ID != topology.WorktreeID(composition.Worktrees[index].ID) ||
+			resolved.Worktrees[index].Repository != topology.LogicalRepositoryID(composition.Worktrees[index].Repository) ||
+			resolved.Worktrees[index].Path != composition.Worktrees[index].Path ||
+			resolved.Worktrees[index].Git.GitDirectory != composition.Worktrees[index].GitDirectory ||
+			resolved.Worktrees[index].Git.CommonDirectory != composition.Worktrees[index].CommonDirectory {
+			return topology.ProfileComposition{}, fmt.Errorf("topology composition: selected entry %d differs from persisted order", index)
+		}
+	}
+	return resolved, nil
+}
+
+func validateEffectiveComposition(value topology.ProfileComposition) error {
+	if _, err := topology.NewProfileID(string(value.Profile.ID)); err != nil {
+		return fmt.Errorf("topology composition profile: %w", err)
+	}
+	if len(value.Repositories) != len(value.Worktrees) || len(value.Profile.Worktrees) != len(value.Worktrees) {
+		return errors.New("topology composition: selected repositories and worktrees must have matching counts")
+	}
+	for index := range value.Worktrees {
+		if value.Profile.Worktrees[index].Repository != value.Repositories[index].ID ||
+			value.Profile.Worktrees[index].Worktree != value.Worktrees[index].ID {
+			return fmt.Errorf("topology composition: selected entry %d differs from effective worktree", index)
+		}
+	}
+	valueAsTopology := topology.Topology{
+		Version:      topology.CurrentSchemaVersion,
+		Repositories: append([]topology.LogicalRepository(nil), value.Repositories...),
+		Worktrees:    append([]topology.Worktree(nil), value.Worktrees...),
+		Profiles:     []topology.Profile{value.Profile},
+	}
+	if _, err := valueAsTopology.Compose(value.Profile.ID); err != nil {
+		return fmt.Errorf("topology composition: %w", err)
+	}
+	return nil
+}
+
 // Manifest is the complete input record for one profile generation.
 // AnalyzerFingerprint identifies the actual analyzer configuration and build;
 // ResolverVersion identifies the graph resolver whose rules produced the
@@ -75,6 +219,9 @@ type Manifest struct {
 	ResolverVersion     string   `json:"resolver_version"`
 	AnalyzerFingerprint string   `json:"analyzer_fingerprint"`
 	Sources             []Source `json:"sources"`
+	// Composition is optional so generations written before composition
+	// persistence remain readable and can be reported as incomplete.
+	Composition *TopologyComposition `json:"composition,omitempty"`
 }
 
 // Capture observes every registered repository now. It refreshes Git state
@@ -232,6 +379,9 @@ func Compare(expected, actual Manifest) error {
 	if expected.AnalyzerFingerprint != actual.AnalyzerFingerprint {
 		return fmt.Errorf("%w: analyzer configuration changed", ErrChanged)
 	}
+	if !bytes.Equal(mustEncode(expected.Composition), mustEncode(actual.Composition)) {
+		return fmt.Errorf("%w: topology composition changed", ErrChanged)
+	}
 	for index := 0; index < len(expected.Sources) && index < len(actual.Sources); index++ {
 		before, after := expected.Sources[index], actual.Sources[index]
 		if before.Repository != after.Repository {
@@ -248,10 +398,14 @@ func Compare(expected, actual Manifest) error {
 // Validate checks that the persisted record is complete and each source state
 // retains the deterministic topology observation identity it claims.
 func (manifest Manifest) Validate() error {
-	if manifest.Version != CurrentVersion {
-		return fmt.Errorf("source observation version %d: want %d", manifest.Version, CurrentVersion)
+	if manifest.Version != LegacyVersion && manifest.Version != CurrentVersion {
+		return fmt.Errorf("source observation version %d: want %d or %d", manifest.Version, LegacyVersion, CurrentVersion)
 	}
-	if _, err := topology.NewProfileID(strings.TrimSpace(manifest.Profile)); err != nil {
+	if manifest.Version == LegacyVersion && manifest.Composition != nil {
+		return errors.New("source observation version 1 must not contain a topology composition")
+	}
+	profile, err := topology.NewProfileID(strings.TrimSpace(manifest.Profile))
+	if err != nil {
 		return fmt.Errorf("source observation profile: %w", err)
 	}
 	if strings.TrimSpace(manifest.ResolverVersion) == "" {
@@ -260,18 +414,59 @@ func (manifest Manifest) Validate() error {
 	if strings.TrimSpace(manifest.AnalyzerFingerprint) == "" {
 		return errors.New("source observation analyzer fingerprint is required")
 	}
-	seen := make(map[string]struct{}, len(manifest.Sources))
+	var composition topology.ProfileComposition
+	if manifest.Composition != nil {
+		var err error
+		composition, err = manifest.Composition.ProfileComposition()
+		if err != nil {
+			return err
+		}
+		if composition.Profile.ID != profile {
+			return fmt.Errorf("topology composition profile %q does not match source observation profile %q", composition.Profile.ID, manifest.Profile)
+		}
+	}
+	sources := make(map[string]Source, len(manifest.Sources))
 	for index, source := range manifest.Sources {
 		name := strings.TrimSpace(source.Repository)
 		if name == "" {
 			return fmt.Errorf("source observations[%d].repository: must not be empty", index)
 		}
-		if _, exists := seen[name]; exists {
+		if _, exists := sources[name]; exists {
 			return fmt.Errorf("source observations[%d].repository %q: duplicate", index, name)
 		}
-		seen[name] = struct{}{}
+		sources[name] = source
 		if err := source.Observation.Validate(); err != nil {
 			return fmt.Errorf("source observations[%d] %q: %w", index, name, err)
+		}
+	}
+	if manifest.Composition == nil {
+		return nil
+	}
+	selected := make(map[string]topology.WorktreeID, len(composition.Repositories))
+	for index, repository := range composition.Repositories {
+		name := string(repository.ID)
+		source, exists := sources[name]
+		if !exists {
+			return fmt.Errorf("topology composition repositories[%d] %q has no observed source", index, name)
+		}
+		if source.Derived {
+			return fmt.Errorf("topology composition repositories[%d] %q selects a derived source", index, name)
+		}
+		worktree := composition.Worktrees[index].ID
+		if source.Observation.Worktree != worktree {
+			return fmt.Errorf("topology composition repositories[%d] %q selects worktree %q, observed %q", index, name, worktree, source.Observation.Worktree)
+		}
+		selected[name] = worktree
+	}
+	for index, source := range manifest.Sources {
+		if source.Derived {
+			// Derived analyzer providers are additional, content-addressed inputs;
+			// they have no profile-selectable Git worktree.
+			continue
+		}
+		name := strings.TrimSpace(source.Repository)
+		if _, exists := selected[name]; !exists {
+			return fmt.Errorf("source observations[%d] %q is not selected by topology composition", index, source.Repository)
 		}
 	}
 	return nil
@@ -325,17 +520,17 @@ func Read(generationPath string) (Manifest, error) {
 	decoder.DisallowUnknownFields()
 	var manifest Manifest
 	if err := decoder.Decode(&manifest); err != nil {
-		return Manifest{}, fmt.Errorf("decode source observations: %w", err)
+		return Manifest{}, fmt.Errorf("%w: decode source observations: %w", ErrInvalid, err)
 	}
 	var extra any
 	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
 		if err == nil {
-			return Manifest{}, errors.New("decode source observations: multiple documents")
+			return Manifest{}, fmt.Errorf("%w: decode source observations: multiple documents", ErrInvalid)
 		}
-		return Manifest{}, fmt.Errorf("decode source observations: %w", err)
+		return Manifest{}, fmt.Errorf("%w: decode source observations: %w", ErrInvalid, err)
 	}
 	if err := manifest.Validate(); err != nil {
-		return Manifest{}, err
+		return Manifest{}, fmt.Errorf("%w: validate source observations: %w", ErrInvalid, err)
 	}
 	return manifest, nil
 }

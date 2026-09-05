@@ -97,12 +97,21 @@ func (assembler *topologyAssembler) addComposition(ctx context.Context, data top
 	if data.State != nil && data.State.Stale {
 		status = "stale"
 		reason = data.State.Reason
-	} else if !data.ManifestOK {
-		status = "partial"
-		reason = "indexed source observations are unavailable"
+	}
+	if !data.CompositionOK {
+		if status != "stale" {
+			status = "partial"
+		}
+		compositionReason := strings.TrimSpace(data.CompositionReason)
+		if reason == "" {
+			reason = compositionReason
+		} else if compositionReason != "" && reason != compositionReason {
+			reason += "; " + compositionReason
+		}
 	}
 	assembler.profiles = append(assembler.profiles, topologyProfileView{
-		ID: data.Name, GenerationID: data.GenerationID, Status: status, Reason: reason, Worktrees: worktreeIDs,
+		ID: data.Name, GenerationID: data.GenerationID, Status: status, CompositionComplete: data.CompositionOK,
+		Reason: reason, Worktrees: worktreeIDs,
 	})
 	assembler.addSources(data)
 	return assembler.addSnapshotRepositories(ctx, data.Snapshot)
@@ -465,15 +474,17 @@ func (assembler *topologyAssembler) response() topologyResponse {
 	}
 	sort.Slice(shared, func(left, right int) bool { return shared[left].ID < shared[right].ID })
 	complete := true
+	sourcesIncomplete := false
 	for _, source := range assembler.sources {
 		if source.Status == "missing" || source.Status == "unavailable" || source.Status == "unknown" {
+			sourcesIncomplete = true
 			complete = false
 			break
 		}
 	}
 	if complete {
 		for _, profile := range assembler.profiles {
-			if profile.Status == "partial" {
+			if profile.Status == "partial" || !profile.CompositionComplete {
 				complete = false
 				break
 			}
@@ -500,12 +511,29 @@ func (assembler *topologyAssembler) response() topologyResponse {
 		Relationships: assembler.relationships,
 		Completeness:  topologyCompletenessView{Complete: complete && !assembler.truncated, Truncated: assembler.truncated},
 	}
-	reasons := make([]string, 0, 2)
-	if !complete {
-		reasons = append(reasons, "one or more source observations or indexed manifests are missing or unavailable")
+	reasons := make([]string, 0, len(assembler.profiles)+2)
+	seenReasons := make(map[string]struct{}, len(assembler.profiles)+2)
+	appendReason := func(reason string) {
+		reason = strings.TrimSpace(reason)
+		if reason == "" {
+			return
+		}
+		if _, exists := seenReasons[reason]; exists {
+			return
+		}
+		seenReasons[reason] = struct{}{}
+		reasons = append(reasons, reason)
+	}
+	if sourcesIncomplete {
+		appendReason("one or more source observations or indexed manifests are missing or unavailable")
+	}
+	for _, profile := range assembler.profiles {
+		if profile.Status == "partial" || !profile.CompositionComplete {
+			appendReason(profile.Reason)
+		}
 	}
 	if assembler.truncated {
-		reasons = append(reasons, assembler.truncatedReason)
+		appendReason(assembler.truncatedReason)
 	}
 	response.Completeness.Reason = strings.Join(reasons, "; ")
 	if len(assembler.profiles) == 1 {
@@ -852,11 +880,7 @@ func (handler *Handler) loadTopologyProfile(
 	if err != nil {
 		return topologyProfileData{}, fmt.Errorf("%w: load profile %q: %v", errTopologyUnavailable, selection.Name, err)
 	}
-	value, present, err := config.LoadProfileTopology(handler.topologyOptions.ConfigPath, selection.Name)
-	if err != nil {
-		return topologyProfileData{}, fmt.Errorf("%w: load profile %q topology: %v", errTopologyUnavailable, selection.Name, err)
-	}
-	manifest, manifestOK, state, stateLoaded, err := handler.profileManifest(ctx, loaded, generationID, invalidationStates)
+	manifest, manifestOK, manifestReason, state, stateLoaded, err := handler.profileManifest(ctx, loaded, generationID, invalidationStates)
 	if err != nil {
 		return topologyProfileData{}, err
 	}
@@ -874,18 +898,17 @@ func (handler *Handler) loadTopologyProfile(
 			break
 		}
 	}
-	var composition topology.ProfileComposition
-	if present {
-		composition, err = value.Compose(topology.ProfileID(selection.Name))
-	} else {
-		composition, err = legacyComposition(loaded, manifest)
-	}
-	if err != nil {
-		return topologyProfileData{}, fmt.Errorf("%w: compose profile %q: %v", errTopologyAmbiguous, selection.Name, err)
+	composition, compositionOK, compositionReason, diagnostic := publishedComposition(selection.Name, manifest, manifestOK, manifestReason)
+	if diagnostic != nil {
+		if compositionReason == "" {
+			return topologyProfileData{}, fmt.Errorf("%w: load profile %q composition: %v", errTopologyUnavailable, selection.Name, diagnostic)
+		}
+		handler.logger.Error("published topology composition is invalid", "profile", selection.Name, "generation", generationID, "error", diagnostic)
 	}
 	return topologyProfileData{
 		Name: selection.Name, GenerationID: generationID, Generation: numeric, Snapshot: snapshot,
-		Composition: composition, Manifest: manifest, ManifestOK: manifestOK, State: profileState,
+		Composition: composition, CompositionOK: compositionOK, CompositionReason: compositionReason,
+		Manifest: manifest, ManifestOK: manifestOK, State: profileState,
 	}, nil
 }
 
@@ -894,27 +917,35 @@ func (handler *Handler) profileManifest(
 	loaded config.Loaded,
 	generationID string,
 	invalidationStates map[string]invalidation.State,
-) (sourceobservation.Manifest, bool, invalidation.State, bool, error) {
+) (sourceobservation.Manifest, bool, string, invalidation.State, bool, error) {
 	root := filepath.Dir(loaded.Config.Storage.DatabasePath)
 	path := filepath.Join(generation.GenerationsDir(root), generationID)
 	manifest, err := sourceobservation.Read(path)
 	if err == nil {
-		return manifest, true, invalidation.State{}, false, nil
+		return manifest, true, "", invalidation.State{}, false, nil
+	}
+	if errors.Is(err, sourceobservation.ErrInvalid) {
+		handler.logger.Error("published source observations are invalid", "profile", loaded.Profile, "generation", generationID, "error", err)
+		state, stateErr := handler.profileInvalidationState(ctx, loaded, loaded.Profile, invalidationStates)
+		if stateErr != nil {
+			return sourceobservation.Manifest{}, false, "", invalidation.State{}, false, stateErr
+		}
+		return sourceobservation.Manifest{}, false, "indexed source observations are invalid", state, true, nil
 	}
 	if !errors.Is(err, os.ErrNotExist) {
-		return sourceobservation.Manifest{}, false, invalidation.State{}, false,
+		return sourceobservation.Manifest{}, false, "", invalidation.State{}, false,
 			fmt.Errorf("%w: read source observations for generation %s: %v", errTopologyUnavailable, generationID, err)
 	}
 	state, stateErr := handler.profileInvalidationState(ctx, loaded, loaded.Profile, invalidationStates)
 	if stateErr != nil {
-		return sourceobservation.Manifest{}, false, invalidation.State{}, false, stateErr
+		return sourceobservation.Manifest{}, false, "", invalidation.State{}, false, stateErr
 	}
 	for _, profile := range state.Profiles {
 		if profile.Profile == loaded.Profile && profile.Generation == generationID {
-			return profile.Manifest, true, state, true, nil
+			return profile.Manifest, true, "", state, true, nil
 		}
 	}
-	return sourceobservation.Manifest{}, false, state, true, nil
+	return sourceobservation.Manifest{}, false, "indexed source observations are unavailable", state, true, nil
 }
 
 func topologyClientError(code string, err error) string {
@@ -973,27 +1004,35 @@ func (handler *Handler) invalidationRoot(loaded config.Loaded) string {
 	return databaseDirectory
 }
 
-func legacyComposition(loaded config.Loaded, manifest sourceobservation.Manifest) (topology.ProfileComposition, error) {
-	observed := make(map[string]topology.WorktreeID, len(manifest.Sources))
-	for _, source := range manifest.Sources {
-		observed[source.Repository] = source.Observation.Worktree
+func publishedComposition(
+	profile string,
+	manifest sourceobservation.Manifest,
+	manifestOK bool,
+	manifestReason string,
+) (topology.ProfileComposition, bool, string, error) {
+	profileID, err := topology.NewProfileID(profile)
+	if err != nil {
+		return topology.ProfileComposition{}, false, "", err
 	}
-	composition := topology.ProfileComposition{Profile: topology.Profile{ID: topology.ProfileID(loaded.Profile)}}
-	for _, configured := range loaded.Repositories.Repositories {
-		repositoryID, err := topology.NewLogicalRepositoryID(configured.Name)
-		if err != nil {
-			return topology.ProfileComposition{}, fmt.Errorf("legacy repository %q: %w", configured.Name, err)
+	if !manifestOK {
+		if strings.TrimSpace(manifestReason) == "" {
+			manifestReason = "indexed source observations are unavailable"
 		}
-		worktreeID := observed[configured.Name]
-		if worktreeID == "" {
-			worktreeID, err = topology.NewWorktreeID("legacy:" + configured.Name)
-			if err != nil {
-				return topology.ProfileComposition{}, fmt.Errorf("legacy worktree %q: %w", configured.Name, err)
-			}
-		}
-		composition.Repositories = append(composition.Repositories, topology.LogicalRepository{ID: repositoryID, Name: configured.Name})
-		composition.Worktrees = append(composition.Worktrees, topology.Worktree{ID: worktreeID, Repository: repositoryID, Path: configured.Path})
-		composition.Profile.Worktrees = append(composition.Profile.Worktrees, topology.WorktreeSelection{Repository: repositoryID, Worktree: worktreeID})
+		return topology.ProfileComposition{Profile: topology.Profile{ID: profileID}}, false,
+			manifestReason, nil
 	}
-	return composition, nil
+	if manifest.Composition == nil {
+		return topology.ProfileComposition{Profile: topology.Profile{ID: profileID}}, false,
+			"generation does not record topology composition", nil
+	}
+	composition, err := manifest.Composition.ProfileComposition()
+	if err != nil {
+		return topology.ProfileComposition{Profile: topology.Profile{ID: profileID}}, false,
+			"generation records an invalid topology composition", fmt.Errorf("reconstruct persisted topology composition: %w", err)
+	}
+	if composition.Profile.ID != profileID {
+		return topology.ProfileComposition{Profile: topology.Profile{ID: profileID}}, false,
+			"generation records a composition for another profile", fmt.Errorf("persisted topology composition is for profile %q", composition.Profile.ID)
+	}
+	return composition, true, "", nil
 }

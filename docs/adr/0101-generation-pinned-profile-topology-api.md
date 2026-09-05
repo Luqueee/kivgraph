@@ -34,6 +34,17 @@ captures immutable snapshot pointers for all selected profiles and checks
 their generation IDs again before returning, so it never assembles one
 response from a changing profile store.
 
+Generations indexed with an effective profile composition persist the selection
+that chose their worktrees in version 2 of `source-observations.json`. Topology
+responses read membership, repository declarations, and worktree paths from
+that generation-owned record, never from live `topology.yaml`. The generation
+vector therefore pins both the dependency evidence and its resolution universe.
+Observations without a persisted composition, including version 1 observations,
+remain readable but are explicitly incomplete with
+`profiles[].composition_complete: false`; the server does not infer their
+membership from current configuration. A stale profile keeps its `stale` status
+while this separate field reports the composition gap.
+
 Relationships are bounded at 10,000 unique emitted relationships per response.
 Relationships with distinct evidence remain distinct. When the bound is
 reached, the server keeps the deterministic prefix and sets
@@ -70,11 +81,12 @@ unscoped view and follows each child generation independently; an explicit
 - The visualizer has one stable, typed source for profile/worktree topology.
 - A client can distinguish a stable generation from stale or unavailable
   mutable inputs and can recover from a concurrent publication by refreshing.
+- Editing a worktree or topology declaration affects a future generation, not
+  the composition reported for one that is already pinned.
 - JSON payload size is observable before deciding whether a binary topology
   representation is warranted.
-- Legacy profiles without `topology.yaml` remain readable through conservative
-  `legacy:<repository>` worktree identities, while missing source manifests
-  are reported as incomplete rather than inferred as current.
+- Legacy generations without a persisted composition remain readable but
+  incomplete; their membership is never inferred from a current configuration.
 
 ## Rejected alternatives
 
@@ -90,5 +102,6 @@ unscoped view and follows each child generation independently; an explicit
 `internal/webapi/handler_test.go` covers missing generations, malformed pins,
 single- and multi-profile generation identities, shared ownership, exact,
 candidate, structural, conflict and unresolved relationships, unavailable
-sources and stale continuations. Existing symbol and binary viewer tests
-continue to exercise the unchanged endpoints and `LGVB` payload.
+sources, stale continuations, published compositions after live configuration
+changes, and legacy incomplete compositions. Existing symbol and binary viewer
+tests continue to exercise the unchanged endpoints and `LGVB` payload.
