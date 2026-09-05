@@ -321,7 +321,7 @@ func RegisterFindCrossRepoConsumersWithObserverAndSnapshotStore(
 		) (*sdkmcp.CallToolResult, Response[CrossRepoConsumers], error) {
 			start := time.Now()
 			result, response, err := underlying(ctx, request, arguments)
-			observe(observer, callObserver, findCrossRepoConsumersToolName, start, response, err)
+			observe(observer, callObserver, findCrossRepoConsumersToolName, request, start, response, err)
 			return result, response, err
 		}
 	}

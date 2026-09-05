@@ -165,6 +165,7 @@ func newServerWithIndexer(
 		callObserver = func(observation tools.CallObservation) {
 			registry.ObserveQuery(metrics.QueryObservation{
 				ToolName:          observation.ToolName,
+				Query:             observation.Query,
 				Elapsed:           observation.Elapsed,
 				Returned:          observation.Returned,
 				Truncated:         observation.Truncated,

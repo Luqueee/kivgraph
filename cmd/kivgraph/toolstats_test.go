@@ -175,20 +175,18 @@ func TestToolStatsSeparatesTheDesignedRefusalFromAFailure(t *testing.T) {
 	output := stdout.String()
 	for _, want := range []string{
 		"REFUSED",
-		// One answered, two refused, one failed. Summed, this row read 1 of 4.
-		"calls=4 ok=1 refused=2 failed=1",
+		// One answered, one missing result, and two designed refusals. None is
+		// an operational failure.
+		"calls=4 ok=2 refused=2 failed=0",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("runToolStats() output lost %q:\n%s", want, output)
 		}
 	}
-	// The actionable line points at the failure, never at the answer. Pointing
-	// a reader at a refusal is how a count sends someone looking for a bug.
-	if !strings.Contains(output, "tool-stats.failure: find_references: SYMBOL_NOT_FOUND") {
-		t.Fatalf("the last real failure stopped being reported:\n%s", output)
-	}
-	if strings.Contains(output, "tool-stats.failure: find_references: AMBIGUOUS_SYMBOL") {
-		t.Fatalf("a refusal was reported as the last failure:\n%s", output)
+	// Neither a refusal nor an expected absence should produce an actionable
+	// failure line.
+	if strings.Contains(output, "tool-stats.failure:") {
+		t.Fatalf("an answer was reported as a failure:\n%s", output)
 	}
 }
 

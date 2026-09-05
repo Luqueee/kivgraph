@@ -103,6 +103,14 @@ func IsRefusal(err error) bool {
 	return slices.Contains(RefusalCodes(), code)
 }
 
+// IsExpectedAbsence reports whether err says a lookup completed but found no
+// matching symbol. The MCP result remains an error so clients can branch on
+// its stable code, while the durable operator log renders this ordinary absence
+// as not_found rather than an operational failure.
+func IsExpectedAbsence(err error) bool {
+	return ErrorCode(err) == CodeSymbolNotFound
+}
+
 // ErrorCode returns the stable public code carried by err, or an empty string
 // when err is not a classified MCP tool error.
 func ErrorCode(err error) string {

@@ -66,6 +66,9 @@ const (
 const (
 	// StatusOK marks work that finished as asked.
 	StatusOK = "ok"
+	// StatusNotFound marks a completed lookup that found no matching symbol.
+	// It is distinct from both a successful row-bearing query and a failure.
+	StatusNotFound = "not_found"
 	// StatusError marks work that failed.
 	StatusError = "error"
 )
@@ -87,7 +90,10 @@ type Event struct {
 	// Tool, Status and DurationMS describe a completed call or pass. A
 	// duration is a pointer because zero milliseconds is a real answer and
 	// "not timed" is a different one.
-	Tool       string   `json:"tool,omitempty"`
+	Tool string `json:"tool,omitempty"`
+	// Query is the bounded, user-facing part of a tool request. It is optional
+	// so records written by older binaries remain valid history.
+	Query      string   `json:"query,omitempty"`
 	Status     string   `json:"status,omitempty"`
 	DurationMS *float64 `json:"duration_ms,omitempty"`
 
@@ -112,6 +118,16 @@ func (event Event) Duration() (time.Duration, bool) {
 	return time.Duration(*event.DurationMS * float64(time.Millisecond)), true
 }
 
+// NotFound reports whether a lookup completed without a matching symbol.
+//
+// Older records wrote this outcome as SYMBOL_NOT_FOUND on the MCP error path.
+// Keep recognising that durable shape so their reader-visible status changes
+// with the current contract without rewriting append-only history.
+func (event Event) NotFound() bool {
+	return event.Status == StatusNotFound ||
+		(event.Kind == KindTool && event.ErrorCode() == "SYMBOL_NOT_FOUND")
+}
+
 // Failed reports whether the event describes work that did not answer.
 //
 // A refusal is one of these: it returns no rows, so it takes the error path and
@@ -119,7 +135,7 @@ func (event Event) Duration() (time.Duration, bool) {
 // the tool vocabulary, which this package does not have -- see ErrorCode and
 // Summarize.
 func (event Event) Failed() bool {
-	return event.Status == StatusError || event.Level == LevelError
+	return !event.NotFound() && (event.Status == StatusError || event.Level == LevelError)
 }
 
 // ErrorCode is the stable code a failed tool call carries.

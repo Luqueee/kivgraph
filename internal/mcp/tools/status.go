@@ -247,7 +247,7 @@ func RegisterGraphStatusWithObserverAndSnapshotStoreAndMetrics(
 		) (*sdkmcp.CallToolResult, Response[GraphStatus], error) {
 			start := time.Now()
 			result, status, err := underlying(ctx, request, arguments)
-			observe(observer, callObserver, graphStatusToolName, start, status, err)
+			observe(observer, callObserver, graphStatusToolName, request, start, status, err)
 			return result, status, err
 		}
 	}

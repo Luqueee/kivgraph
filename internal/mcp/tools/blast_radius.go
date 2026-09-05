@@ -401,7 +401,7 @@ func RegisterGetBlastRadiusWithObserverAndSnapshotStore(
 		) (*sdkmcp.CallToolResult, Response[BlastRadius], error) {
 			start := time.Now()
 			result, response, err := underlying(ctx, request, arguments)
-			observe(observer, callObserver, blastRadiusToolName, start, response, err)
+			observe(observer, callObserver, blastRadiusToolName, request, start, response, err)
 			return result, response, err
 		}
 	}
