@@ -457,8 +457,7 @@ func appendOpenCodeJSONCInstruction(data []byte, root *hujson.Value, sourcePath 
 }
 
 func insertOpenCodeJSONCBytes(data []byte, offset int, insert []byte) []byte {
-	updated := make([]byte, 0, len(data)+len(insert))
-	updated = append(updated, data[:offset]...)
+	updated := append([]byte(nil), data[:offset]...)
 	updated = append(updated, insert...)
 	return append(updated, data[offset:]...)
 }
@@ -596,13 +595,6 @@ func instructionLineEnding(data []byte) string {
 
 func managedInstructionsReference(newline, sourcePath string) []byte {
 	return []byte(instructionsBeginMarker + newline + "@" + sourcePath + newline + instructionsEndMarker)
-}
-
-// managedInstructionsBlock remains an internal compatibility name for tests
-// and callers that exercise the marker framing. New installations write the
-// small reference rather than copying the complete prompt into this file.
-func managedInstructionsBlock(newline string) []byte {
-	return legacyManagedInstructionsReference(newline)
 }
 
 func legacyManagedInstructionsReference(newline string) []byte {
