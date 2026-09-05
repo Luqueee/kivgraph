@@ -51,38 +51,55 @@ func Greeting() string { return "hello" }
 
 func TestFullWithRepositoriesDoesNotAdmitFactsBeforeCommit(t *testing.T) {
 	fixture := newCachedFixture(t)
-	set, report, err := FullWithRepositories(context.Background(), FullOptions{
+	options := FullOptions{
 		Repositories:      []workspace.Repository{fixture.repository},
 		SyntheticWorkFile: fixture.workFile,
 		CacheMode:         fixture.mode,
 		CacheDirectory:    fixture.cache,
-	}, []workspace.Repository{fixture.repository})
+	}
+	cold, report, err := FullWithRepositories(context.Background(), options, []workspace.Repository{fixture.repository})
 	if err != nil {
 		t.Fatalf("FullWithRepositories(root=%q cache=%q mode=%q) error = %v",
 			fixture.root, fixture.cache, fixture.mode, err)
 	}
-	if len(set.Symbols) == 0 {
-		t.Fatalf("FullWithRepositories(root=%q cache=%q mode=%q) returned no facts",
-			fixture.root, fixture.cache, fixture.mode)
+	if report.Cache.Hits != 0 || report.Cache.Misses != 1 {
+		t.Fatalf("cold FullWithRepositories(root=%q cache=%q mode=%q) cache = %+v, want one miss",
+			fixture.root, fixture.cache, fixture.mode, report.Cache)
 	}
-	entries, err := os.ReadDir(fixture.cache)
+
+	// A second pass before the first one commits must miss through the cache
+	// lookup itself. This keeps the regression about admission, not about the
+	// cache directory's current files.
+	uncommitted, uncommittedReport, err := FullWithRepositories(context.Background(), options, []workspace.Repository{fixture.repository})
 	if err != nil {
-		t.Fatalf("ReadDir(root=%q cache=%q mode=%q) before commit error = %v",
+		t.Fatalf("uncommitted FullWithRepositories(root=%q cache=%q mode=%q) error = %v",
 			fixture.root, fixture.cache, fixture.mode, err)
 	}
-	if len(entries) != 0 {
-		t.Fatalf("cache admitted %d entries before commit for root=%q cache=%q mode=%q, want none",
-			len(entries), fixture.root, fixture.cache, fixture.mode)
+	if uncommittedReport.Cache.Hits != 0 || uncommittedReport.Cache.Misses != 1 {
+		t.Fatalf("uncommitted FullWithRepositories(root=%q cache=%q mode=%q) cache = %+v, want one miss",
+			fixture.root, fixture.cache, fixture.mode, uncommittedReport.Cache)
+	}
+	if encodedFacts(t, cold) != encodedFacts(t, uncommitted) {
+		t.Fatalf("uncommitted FullWithRepositories(root=%q cache=%q mode=%q) returned different facts",
+			fixture.root, fixture.cache, fixture.mode)
 	}
 
 	report.CommitCache()
-	entries, err = os.ReadDir(fixture.cache)
+	warm, warmReport, err := FullWithRepositories(context.Background(), options, []workspace.Repository{fixture.repository})
 	if err != nil {
-		t.Fatalf("ReadDir(root=%q cache=%q mode=%q) after commit error = %v",
+		t.Fatalf("committed FullWithRepositories(root=%q cache=%q mode=%q) error = %v",
 			fixture.root, fixture.cache, fixture.mode, err)
 	}
-	if len(entries) == 0 {
-		t.Fatalf("CommitCache() admitted no entry for root=%q cache=%q mode=%q",
+	if warmReport.Cache.Hits != 1 || warmReport.Cache.Misses != 0 {
+		t.Fatalf("committed FullWithRepositories(root=%q cache=%q mode=%q) cache = %+v, want one hit",
+			fixture.root, fixture.cache, fixture.mode, warmReport.Cache)
+	}
+	if encodedFacts(t, cold) != encodedFacts(t, warm) {
+		t.Fatalf("committed FullWithRepositories(root=%q cache=%q mode=%q) returned different facts",
+			fixture.root, fixture.cache, fixture.mode)
+	}
+	if len(warm.Symbols) == 0 {
+		t.Fatalf("FullWithRepositories(root=%q cache=%q mode=%q) returned no facts",
 			fixture.root, fixture.cache, fixture.mode)
 	}
 }
