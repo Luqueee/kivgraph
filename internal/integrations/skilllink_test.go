@@ -71,14 +71,6 @@ func TestAnUpgradeKeepsAnEditedCanonical(t *testing.T) {
 	if _, err := manager.InstallSkill(TargetClaudeCode, ScopeUser, false, false); err != nil {
 		t.Fatal(err)
 	}
-	path, err := manager.skillPath(TargetClaudeCode, ScopeUser)
-	if err != nil {
-		t.Fatal(err)
-	}
-	linkBefore, err := os.Lstat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
 	const edited = "# mine\n"
 	if err := os.WriteFile(manager.canonicalSkillPath(), []byte(edited), 0o600); err != nil {
 		t.Fatal(err)
@@ -118,12 +110,23 @@ func TestAnUpgradeKeepsAnEditedCanonical(t *testing.T) {
 	if string(data) == edited {
 		t.Fatal("--force did not restore the shipped skill")
 	}
-	linkAfter, err := os.Lstat(path)
+	path, err := manager.skillPath(TargetClaudeCode, ScopeUser)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !os.SameFile(linkBefore, linkAfter) {
-		t.Fatal("--force replaced an already correct skill link")
+	linkTarget, err := os.Readlink(path)
+	if err != nil {
+		t.Fatalf("--force did not leave a skill link at %q: %v", path, err)
+	}
+	if linkTarget != manager.canonicalSkillPath() {
+		t.Fatalf("--force link target = %q, want %q", linkTarget, manager.canonicalSkillPath())
+	}
+	linkedData, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read refreshed skill through link: %v", err)
+	}
+	if !bytes.Equal(linkedData, embeddedSkill) {
+		t.Fatal("--force did not restore the shipped skill through the existing link")
 	}
 }
 
