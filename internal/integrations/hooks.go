@@ -159,7 +159,7 @@ func (manager Manager) InstallHook(target Target, scope Scope, dryRun, force boo
 		return Plan{}, err
 	}
 	if document.kind == hookEntry {
-		return manager.installHookEntry(document, dryRun)
+		return manager.installHookEntry(document, dryRun, force)
 	}
 	return manager.installPlugin(document, dryRun, force)
 }
