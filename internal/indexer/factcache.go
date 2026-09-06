@@ -16,6 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/csharploader"
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/goworkspace"
@@ -488,21 +489,6 @@ func (cache *factCache) prune(maximumAge time.Duration) {
 	}
 }
 
-// semanticManifestNames are the files whose content changes what a semantic
-// analyzer answers about a repository. A manifest a language reads and this
-// list does not name is a file that can be edited without invalidating
-// anything, so the pass would serve the previous manifest's facts.
-var semanticManifestNames = []string{
-	"pyproject.toml", "setup.py", "setup.cfg", "requirements.txt",
-	"Pipfile", "Pipfile.lock", "poetry.lock", "uv.lock",
-	"pubspec.yaml", "pubspec.lock", "analysis_options.yaml",
-	filepath.Join(".dart_tool", "package_config.json"),
-	"pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle",
-	"settings.gradle.kts", "gradle.properties", "build.sbt",
-	"Directory.Build.props", "Directory.Packages.props", "NuGet.config",
-	"global.json", "packages.lock.json",
-}
-
 // unitIdentity names what the entry is about, never what it read.
 //
 // It had no branch for Rust, and the fallthrough was TypeScript: every Rust
@@ -594,6 +580,20 @@ func (cache *factCache) describeInputs(
 			Kind: kind, Name: name, Fingerprint: cache.fingerprint(kind, name),
 		})
 	}
+	manifestRoot := unit.repository.RealPath
+	if manifestRoot == "" {
+		manifestRoot = unit.repository.Path
+	}
+	for _, manifest := range unit.repository.Manifests {
+		manifest = strings.TrimSpace(manifest)
+		if manifest == "" {
+			continue
+		}
+		if !filepath.IsAbs(manifest) && manifestRoot != "" {
+			manifest = filepath.Join(manifestRoot, manifest)
+		}
+		add(inputFile, filepath.Clean(manifest))
+	}
 
 	if unit.kind == unitGo {
 		// Every module of the workspace group, not only this one: modules
@@ -631,8 +631,8 @@ func (cache *factCache) describeInputs(
 			root = unit.repository.Path
 		}
 		add(inputTree, root)
-		for _, name := range semanticManifestNames {
-			add(inputFile, filepath.Join(root, name))
+		for _, manifest := range config.BuildConfigurationPaths(root) {
+			add(inputFile, manifest)
 		}
 		if unit.language == facts.LanguageDart && strings.TrimSpace(options.DartPackageConfig) != "" && options.DartPackageConfig != "auto" {
 			packageConfig := options.DartPackageConfig

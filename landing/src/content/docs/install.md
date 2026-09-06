@@ -25,6 +25,7 @@ refuses rather than downloading something that will not run.
   installers are two programs, and the Windows one exists because `install.sh`
   cannot run where there is no POSIX shell
 - Node.js `22` or later — the TypeScript worker is a Node process
+- npm — only when installing a managed analyzer with `kivgraph toolchain`
 - Python `3.10` or later when indexing Python — the bundled worker is a Python
   process
 - The Dart or Flutter SDK when indexing Dart — the loader drives the Dart
@@ -79,7 +80,7 @@ From a checkout, either installer runs directly:
 To install a specific release instead of the latest one:
 
 ```bash
-KIVGRAPH_VERSION=v0.9.8-dev.1 ./scripts/install.sh
+KIVGRAPH_VERSION=v0.9.10 ./scripts/install.sh
 ```
 
 `KIVGRAPH_VERSION` is read by both installers, and so are

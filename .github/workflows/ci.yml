@@ -170,26 +170,26 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
           check-latest: true
 
       - name: Set up Dart
-        uses: dart-lang/setup-dart@v1
+        uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1
         with:
           sdk: stable
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         with:
           version: 11.5.1
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
           cache: pnpm
@@ -205,7 +205,7 @@ jobs:
       # skipping. Maven ships with the runner image; the JDK and the indexer do
       # not.
       - name: Set up the JDK
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6
         with:
           distribution: temurin
           java-version: '21'
@@ -226,7 +226,7 @@ jobs:
       # the SDK -- which also runs the `dotnet restore` every C# index begins
       # with.
       - name: Set up the .NET SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: '8.0.x'
 
@@ -248,7 +248,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           # The landing's sitemap dates every URL from the commit that last
           # touched its source, and refuses to publish a date it cannot
@@ -258,7 +258,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
           check-latest: true
@@ -269,12 +269,12 @@ jobs:
       # now gates -- and until then the Python analyzer tests had never run in
       # this workflow at all.
       - name: Set up Dart
-        uses: dart-lang/setup-dart@v1
+        uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1
         with:
           sdk: stable
 
       - name: Set up Node.js for the analyzers
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
 
@@ -287,7 +287,7 @@ jobs:
       # in the coverage manifest. Maven ships with the runner image; the JDK and
       # the indexer do not.
       - name: Set up the JDK
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6
         with:
           distribution: temurin
           java-version: '21'
@@ -307,7 +307,7 @@ jobs:
       # the `dotnet restore` every C# index begins with. Without it the C#
       # suite skips, and a skipped suite hides a gated language.
       - name: Set up the .NET SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: '8.0.x'
 
@@ -405,12 +405,12 @@ jobs:
         run: go build ./cmd/kivgraph
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         with:
           version: 11.5.1
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
           cache: pnpm
@@ -488,21 +488,21 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
           check-latest: true
 
       - name: Set up pnpm for distribution
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         with:
           version: 11.5.1
 
       - name: Set up Node.js for distribution
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
           cache: pnpm
@@ -528,7 +528,7 @@ jobs:
           sudo apt-get install -y patchelf
 
       - name: Cache pinned LadybugDB
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: .tooling/ladybug
           key: ladybug-linux-amd64-${{ hashFiles('scripts/fetch-ladybug.sh', 'docs/dependencies/ladybugdb.md') }}
@@ -536,7 +536,7 @@ jobs:
       # The Rust engine is a 40 MB download the bundle carries; the digest in
       # the manifest is what makes the cache safe to reuse.
       - name: Cache pinned rust-analyzer
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: .tooling/rust-analyzer
           key: rust-analyzer-linux-amd64-${{ hashFiles('tools/manifest.json', 'scripts/fetch-rust-analyzer.sh') }}
@@ -561,7 +561,7 @@ jobs:
         run: scripts/check-reproducible-bundle.sh
 
       - name: Upload Linux distribution bundle for smoke
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: linux-bundle
           path: dist/kivgraph-linux-amd64
@@ -577,10 +577,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
           check-latest: true
@@ -592,7 +592,7 @@ jobs:
           echo "$analyzer_dir" >> "$GITHUB_PATH"
 
       - name: Cache pinned LadybugDB
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: .tooling/ladybug
           key: ladybug-linux-amd64-${{ hashFiles('scripts/fetch-ladybug.sh', 'docs/dependencies/ladybugdb.md') }}
@@ -626,16 +626,16 @@ jobs:
     # publishes one, which is why they shipped in v0.8.0.
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
           check-latest: true
 
       - name: Download Linux distribution bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: linux-bundle
           path: dist/kivgraph-linux-amd64
@@ -763,10 +763,10 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
 
@@ -777,12 +777,12 @@ jobs:
           echo "$analyzer_dir" >> "$GITHUB_PATH"
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         with:
           version: 11.5.1
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
           cache: pnpm
@@ -791,13 +791,13 @@ jobs:
             web/pnpm-lock.yaml
 
       - name: Cache pinned LadybugDB
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: .tooling/ladybug
           key: ladybug-darwin-arm64-${{ hashFiles('scripts/fetch-ladybug.sh', 'docs/dependencies/ladybugdb.md') }}
 
       - name: Cache pinned rust-analyzer
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: .tooling/rust-analyzer
           key: rust-analyzer-darwin-arm64-${{ hashFiles('tools/manifest.json', 'scripts/fetch-rust-analyzer.sh') }}
@@ -846,10 +846,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
           check-latest: true
@@ -861,12 +861,12 @@ jobs:
           echo "$analyzer_dir" >> "$GITHUB_PATH"
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         with:
           version: 11.5.1
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
           cache: pnpm
@@ -933,7 +933,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       # These scripts are not exercised by the Go test suite: a syntax error in
       # either one is published and downloaded before anyone finds out. The
@@ -954,7 +954,7 @@ jobs:
           }
 
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
           check-latest: true

@@ -7,6 +7,7 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/Luqueee/kivgraph/internal/freshness"
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 	"github.com/Luqueee/kivgraph/internal/indexing"
 	"github.com/Luqueee/kivgraph/internal/mcp/tools"
@@ -30,10 +31,29 @@ type ServerOptions struct {
 	// nothing to score. It changes what is *listed* and nothing else. There
 	// is still no graph, so graph-dependent query tools return INDEX_NOT_READY
 	// until one is published while graph_status reports an empty graph status.
-	// index_project stays behind the same consent gate, and the handshake still
-	// carries the repair instructions -- telling a client a graph exists when
-	// none does would be the one lie this option must not tell.
+	// Both indexing entry points stay behind the same consent gate, and the
+	// handshake still carries the repair instructions -- telling a client a
+	// graph exists when none does would be the one lie this option must not tell.
 	ExposeUnavailableTools bool
+	// IndexJobs shares asynchronous indexing state across the MCP sessions a
+	// daemon creates. Nil gives this server its own bounded registry; a caller
+	// that constructs multiple servers must share one explicitly.
+	IndexJobs *tools.IndexJobs
+}
+
+// IndexJobs is the shared asynchronous indexing registry used by a hosting
+// process. The alias keeps daemon wiring out of the tool implementation package.
+type IndexJobs = tools.IndexJobs
+
+// NewIndexJobs creates one asynchronous indexing registry for a hosting
+// process. A daemon shares it across every session it accepts.
+func NewIndexJobs(indexer indexing.ProjectIndexer) *IndexJobs {
+	return tools.NewIndexJobs(indexer)
+}
+
+// NewIndexJobsWithContext binds asynchronous indexing to a hosting process.
+func NewIndexJobsWithContext(ctx context.Context, indexer indexing.ProjectIndexer) *IndexJobs {
+	return tools.NewIndexJobsWithContext(ctx, indexer)
 }
 
 // NewServer creates the Kivgraph MCP server with no graph source.
@@ -42,7 +62,7 @@ func NewServer() *sdkmcp.Server {
 }
 
 // NewServerWithIndexer creates a server that also exposes the explicit
-// permission-gated index_project mutation.
+// permission-gated indexing controls.
 func NewServerWithIndexer(indexer indexing.ProjectIndexer) *sdkmcp.Server {
 	return newServerWithIndexer(nil, nil, nil, indexer, ServerOptions{})
 }
@@ -151,19 +171,25 @@ func newServerWithIndexer(
 	// answer and read the refusals as broken tools; the repair instructions
 	// are what let it act instead.
 	exposeQueries := published || options.ExposeUnavailableTools
-	instructions := serverInstructions
+	hasIndexer := indexer != nil
+	instructions := serverInstructions(hasIndexer)
 	if !published {
-		instructions = staleServerInstructions
+		instructions = staleServerInstructions(hasIndexer)
 	}
 	server := sdkmcp.NewServer(&sdkmcp.Implementation{
 		Name:    serverName,
 		Version: version.Value,
 	}, &sdkmcp.ServerOptions{Instructions: instructions})
+	indexJobs := options.IndexJobs
+	if indexJobs == nil && indexer != nil {
+		indexJobs = tools.NewIndexJobs(indexer)
+	}
 	var callObserver tools.CallObserver
 	if registry != nil {
 		callObserver = func(observation tools.CallObservation) {
 			registry.ObserveQuery(metrics.QueryObservation{
 				ToolName:          observation.ToolName,
+				Query:             observation.Query,
 				Elapsed:           observation.Elapsed,
 				Returned:          observation.Returned,
 				Truncated:         observation.Truncated,
@@ -182,13 +208,24 @@ func newServerWithIndexer(
 	// would require the graph. The loader records it when it runs, which is also
 	// the moment the numbers become true of this process.
 	if !exposeQueries {
-		// index_project is the exception: it is how a client without a graph
-		// builds one, and it needs no graph to run.
+		// The indexing controls are the exception: they are how a client
+		// without a graph builds one, and they need no graph to run.
 		tools.RegisterIndexProject(server, indexer, callObserver)
+		tools.RegisterIndexProjectJobs(server, indexJobs, callObserver)
 		return server
 	}
-	registerQueryTools(server, observer, snapshotStore, registry, callObserver)
+	var statusProbe tools.HostStatusProbe
+	if verifier, ok := indexer.(interface {
+		ContentFreshness(context.Context) freshness.Status
+	}); ok {
+		statusProbe = func(ctx context.Context) (tools.HostStatus, error) {
+			status := verifier.ContentFreshness(ctx)
+			return tools.HostStatus{ContentFreshness: &status}, nil
+		}
+	}
+	registerQueryTools(server, observer, snapshotStore, registry, callObserver, statusProbe)
 	tools.RegisterIndexProject(server, indexer, callObserver)
+	tools.RegisterIndexProjectJobs(server, indexJobs, callObserver)
 	return server
 }
 
@@ -202,8 +239,13 @@ func registerQueryTools(
 	snapshotStore *hotsnapshot.SnapshotStore,
 	registry *metrics.Registry,
 	callObserver tools.CallObserver,
+	probes ...tools.HostStatusProbe,
 ) {
-	tools.RegisterGraphStatusWithObserverAndSnapshotStoreAndMetrics(server, observer, snapshotStore, nil, registry, callObserver)
+	var probe tools.HostStatusProbe
+	if len(probes) > 0 {
+		probe = probes[0]
+	}
+	tools.RegisterGraphStatusWithObserverAndSnapshotStoreAndMetrics(server, observer, snapshotStore, probe, registry, callObserver)
 	tools.RegisterListRepositoriesWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
 	tools.RegisterFindSymbolWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
 	tools.RegisterFindByIntentWithObserverAndSnapshotStore(server, observer, snapshotStore, callObserver)
@@ -229,7 +271,7 @@ func RunWithSnapshotStore(ctx context.Context, snapshotStore *hotsnapshot.Snapsh
 }
 
 // RunWithSnapshotStoreAndIndexer serves the configured MCP surface, including
-// the permission-gated index_project tool.
+// the permission-gated indexing controls.
 func RunWithSnapshotStoreAndIndexer(
 	ctx context.Context,
 	snapshotStore *hotsnapshot.SnapshotStore,
@@ -277,6 +319,10 @@ func RunWithMetricsAndSnapshotStoreAndIndexerOptions(
 ) error {
 	if registry == nil {
 		registry = metrics.NewRegistry()
+	}
+	if options.IndexJobs == nil && indexer != nil {
+		options.IndexJobs = NewIndexJobsWithContext(ctx, indexer)
+		defer options.IndexJobs.Close()
 	}
 	server := NewServerWithMetricsAndSnapshotStoreAndIndexerOptions(registry, snapshotStore, indexer, options)
 	return server.Run(ctx, &sdkmcp.StdioTransport{})

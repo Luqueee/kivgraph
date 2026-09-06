@@ -30,7 +30,7 @@ type profileProjectIndexer interface {
 // The single-project fields remain for one repository and for clients that
 // already send them.
 //
-// The confirmed flag is used by clients that do not implement MCP
+// The confirmed flag is used by clients that cannot answer MCP form
 // elicitation; those clients must obtain user approval before sending true.
 type IndexProjectInput struct {
 	Profile   string              `json:"profile,omitempty" jsonschema:"Profile to index; omit for the default. A missing name creates it."`
@@ -38,7 +38,7 @@ type IndexProjectInput struct {
 	Name      string              `json:"name,omitempty" jsonschema:"Name for a single project. Use it with path and languages, never together with projects."`
 	Path      string              `json:"path,omitempty" jsonschema:"Absolute directory of a single project. Nothing is written inside it."`
 	Languages []string            `json:"languages,omitempty" jsonschema:"Languages to index in the single project, such as go, typescript, rust, python or dart."`
-	Confirmed *bool               `json:"confirmed,omitempty" jsonschema:"Set true only after the user approved this call, and only from a client that cannot answer an elicitation."`
+	Confirmed *bool               `json:"confirmed,omitempty" jsonschema:"Set true only after the user approved this call, and only from a client that cannot answer MCP form elicitation."`
 }
 
 // IndexProjectEntry is one repository of a batch.
@@ -98,7 +98,7 @@ func RegisterIndexProject(
 	sdkmcp.AddTool(server, &sdkmcp.Tool{
 		Name:        indexProjectToolName,
 		Title:       "Index project",
-		Description: "Registers projects and rebuilds the graph once, after explicit user approval. Pass every project in one call: a rebuild costs the whole corpus. It never writes inside the source projects.",
+		Description: "Registers projects and rebuilds after approval. Pass all projects together; never writes to them.",
 		Annotations: &sdkmcp.ToolAnnotations{
 			ReadOnlyHint:    false,
 			DestructiveHint: &confirmed,
@@ -112,28 +112,20 @@ func RegisterIndexProject(
 		start := time.Now()
 		batch, err := arguments.projects()
 		if err != nil {
-			observeCall(nil, callObserver, indexProjectToolName, start, err)
+			observeCall(nil, callObserver, indexProjectToolName, request, start, err)
 			return nil, indexing.ProjectResult{}, err
 		}
 		if err := requireIndexConsent(ctx, request, batch, arguments.Confirmed); err != nil {
-			observeCall(nil, callObserver, indexProjectToolName, start, err)
+			observeCall(nil, callObserver, indexProjectToolName, request, start, err)
 			return nil, indexing.ProjectResult{}, err
 		}
 		progress := progressReporter(ctx, request)
-		var result indexing.ProjectResult
-		if profile := strings.TrimSpace(arguments.Profile); profile != "" {
-			profileIndexer, ok := indexer.(profileProjectIndexer)
-			if !ok {
-				err = NewToolError(CodeInvalidArgument, fmt.Sprintf("project indexer does not support profile %q", profile))
-				observeCall(nil, callObserver, indexProjectToolName, start, err)
-				return nil, indexing.ProjectResult{}, err
-			} else {
-				result, err = profileIndexer.IndexProjectsInProfile(ctx, profile, batch, progress)
-			}
-		} else {
-			result, err = indexer.IndexProjects(ctx, batch, progress)
-		}
+		result, err := runProjectIndex(ctx, indexer, arguments.Profile, batch, progress)
 		if err != nil {
+			if ErrorCode(err) == CodeInvalidArgument {
+				observeCall(nil, callObserver, indexProjectToolName, request, start, err)
+				return nil, indexing.ProjectResult{}, err
+			}
 			// This tool fails on the caller's own configuration: a
 			// module that needs a newer toolchain, a path that is not
 			// a repository, a dependency the module cache does not
@@ -147,12 +139,33 @@ func RegisterIndexProject(
 				"project indexing failed: "+err.Error(),
 				err,
 			)
-			observeCall(nil, callObserver, indexProjectToolName, start, failure)
+			observeCall(nil, callObserver, indexProjectToolName, request, start, failure)
 			return nil, indexing.ProjectResult{}, failure
 		}
-		observeCall(nil, callObserver, indexProjectToolName, start, nil)
+		observeCall(nil, callObserver, indexProjectToolName, request, start, nil)
 		return nil, result, nil
 	})
+}
+
+func runProjectIndex(
+	ctx context.Context,
+	indexer indexing.ProjectIndexer,
+	profile string,
+	batch []indexing.Project,
+	progress func(indexing.ProjectProgress),
+) (indexing.ProjectResult, error) {
+	profile = strings.TrimSpace(profile)
+	if profile == "" {
+		return indexer.IndexProjects(ctx, batch, progress)
+	}
+	profileIndexer, ok := indexer.(profileProjectIndexer)
+	if !ok {
+		return indexing.ProjectResult{}, NewToolError(
+			CodeInvalidArgument,
+			fmt.Sprintf("project indexer does not support profile %q", profile),
+		)
+	}
+	return profileIndexer.IndexProjectsInProfile(ctx, profile, batch, progress)
 }
 
 // progressReporter forwards index progress to the client that asked for it.
@@ -194,7 +207,7 @@ func requireIndexConsent(
 ) error {
 	if request != nil && request.Session != nil {
 		initialize := request.Session.InitializeParams()
-		if initialize != nil && initialize.Capabilities != nil && initialize.Capabilities.Elicitation != nil {
+		if usesMCPFormElicitation(initialize) {
 			result, err := request.Session.Elicit(ctx, &sdkmcp.ElicitParams{
 				Message: fmt.Sprintf(
 					"Allow Kivgraph to register and index %s? This updates the registry and publishes a new graph generation.",
@@ -227,6 +240,30 @@ func requireIndexConsent(
 		)
 	}
 	return nil
+}
+
+// usesMCPFormElicitation selects the interactive consent path only when the
+// client can actually answer a form elicitation. URL-only clients must use
+// the explicit confirmed fallback because Elicit defaults to form requests.
+// Codex exposes its own approval UI while currently returning a declined
+// response to server-side elicitation, so its native approval is paired with
+// the same confirmed fallback used by clients without elicitation support.
+func usesMCPFormElicitation(initialize *sdkmcp.InitializeParams) bool {
+	if initialize == nil || initialize.Capabilities == nil {
+		return false
+	}
+	elicitation := initialize.Capabilities.Elicitation
+	if elicitation == nil || isCodexClient(initialize.ClientInfo) {
+		return false
+	}
+	return elicitation.Form != nil || elicitation.URL == nil
+}
+
+func isCodexClient(clientInfo *sdkmcp.Implementation) bool {
+	if clientInfo == nil {
+		return false
+	}
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(clientInfo.Name)), "codex")
 }
 
 // describeBatch names what approval covers. Approving "11 projects" without

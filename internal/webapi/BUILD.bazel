@@ -38,6 +38,7 @@ go_test(
         "//internal/hotsnapshot",
         "//internal/invalidation",
         "//internal/sourceobservation",
+        "//internal/storage/generation",
         "//internal/testsupport",
         "//internal/topology",
     ],

@@ -123,7 +123,7 @@ func RegisterGetUnresolvedReferencesWithObserverAndSnapshotStore(
 		) (*sdkmcp.CallToolResult, Response[[]UnresolvedReferenceSummary], error) {
 			start := time.Now()
 			result, response, err := underlying(ctx, request, arguments)
-			observe(observer, callObserver, unresolvedReferencesToolName, start, response, err)
+			observe(observer, callObserver, unresolvedReferencesToolName, request, start, response, err)
 			return result, response, err
 		}
 	}

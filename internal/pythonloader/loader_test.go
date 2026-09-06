@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/Luqueee/kivgraph/internal/facts"
@@ -54,6 +55,74 @@ func TestRunExactModeUsesConfiguredAnalyzer(t *testing.T) {
 	}
 	if !result.Authoritative || result.Analyzer != provider {
 		t.Fatalf("exact result = authoritative=%v analyzer=%q", result.Authoritative, result.Analyzer)
+	}
+}
+
+func TestResolveCommandUnquotesAnalyzerPathWithSpaces(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "project with spaces")
+	workingDirectory := filepath.Join(root, "workspace")
+	if err := os.MkdirAll(filepath.Join(workingDirectory, "python-worker"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	adapter := filepath.Join(workingDirectory, "python-worker", "pyright_index.py")
+	if err := os.WriteFile(adapter, []byte("# adapter\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	python, err := filepath.Abs(os.Args[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	analyzer := filepath.Join(root, "node_modules", ".bin", "pyright-langserver")
+	commands := map[string]string{
+		"single quotes": "kivgraph-python-pyright --analyzer '" + analyzer + "'",
+		"double quotes": "kivgraph-python-pyright --analyzer \"" + analyzer + "\"",
+	}
+	for name, command := range commands {
+		t.Run(name, func(t *testing.T) {
+			args, executable, fallback, err := resolveCommand(command, python, workingDirectory)
+			if err != nil {
+				t.Fatalf("resolveCommand(%q) error = %v", command, err)
+			}
+			if executable != python || fallback {
+				t.Fatalf("resolveCommand(%q) executable=%q fallback=%v, want %q and false", command, executable, fallback, python)
+			}
+			want := []string{adapter, "--analyzer", analyzer}
+			if !slices.Equal(args, want) {
+				t.Fatalf("resolveCommand(%q) args = %#v, want %#v", command, args, want)
+			}
+		})
+	}
+}
+
+func TestResolveCommandPreservesLegacyUnquotedApostrophe(t *testing.T) {
+	workingDirectory := filepath.Join(t.TempDir(), "workspace")
+	if err := os.MkdirAll(filepath.Join(workingDirectory, "python-worker"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	adapter := filepath.Join(workingDirectory, "python-worker", "pyright_index.py")
+	if err := os.WriteFile(adapter, []byte("# adapter\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	python, err := filepath.Abs(os.Args[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	analyzer := filepath.Join(t.TempDir(), "project's", "pyright-langserver")
+	command := "kivgraph-python-pyright --analyzer " + analyzer
+
+	if got := ProducerFile("unused", command, "exact", python, workingDirectory); got != adapter {
+		t.Fatalf("ProducerFile(command=%q) = %q, want adapter %q", command, got, adapter)
+	}
+	args, executable, fallback, err := resolveCommand(command, python, workingDirectory)
+	if err != nil {
+		t.Fatalf("resolveCommand(%q) error = %v", command, err)
+	}
+	if executable != python || fallback {
+		t.Fatalf("resolveCommand(%q) executable=%q fallback=%v, want %q and false", command, executable, fallback, python)
+	}
+	want := []string{adapter, "--analyzer", analyzer}
+	if !slices.Equal(args, want) {
+		t.Fatalf("resolveCommand(%q) args = %#v, want %#v", command, args, want)
 	}
 }
 

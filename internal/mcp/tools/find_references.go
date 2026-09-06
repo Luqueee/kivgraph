@@ -443,7 +443,7 @@ func RegisterFindReferencesWithObserverAndSnapshotStore(
 		) (*sdkmcp.CallToolResult, Response[ReferenceResult], error) {
 			start := time.Now()
 			result, references, err := underlying(ctx, request, arguments)
-			observe(observer, callObserver, findReferencesToolName, start, references, err)
+			observe(observer, callObserver, findReferencesToolName, request, start, references, err)
 			return result, references, err
 		}
 	}

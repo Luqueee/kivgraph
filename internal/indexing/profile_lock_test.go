@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/Luqueee/kivgraph/internal/filelock"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 func TestFullIndexRefusesAConcurrentProfileHoldingSharedAnalyzerTargets(t *testing.T) {
@@ -24,5 +25,24 @@ func TestFullIndexRefusesAConcurrentProfileHoldingSharedAnalyzerTargets(t *testi
 	})
 	if err == nil || !strings.Contains(err.Error(), "shared analyzer targets are busy") {
 		t.Fatalf("RunFull() error = %v, want named cross-profile lock refusal", err)
+	}
+}
+
+func TestFreshnessFailureReleasesSharedAnalyzerTargets(t *testing.T) {
+	root := t.TempDir()
+	lockPath := filepath.Join(root, "analyzer-targets.lock")
+	_, err := RunFull(t.Context(), FullOptions{
+		Root: root, ResolverVersion: "test", SharedTargetsLockPath: lockPath,
+		Repositories: []workspace.Repository{{Name: "missing", Path: filepath.Join(root, "missing")}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "observe index sources") {
+		t.Fatalf("RunFull() error = %v, want source observation refusal", err)
+	}
+	lock, acquired, err := filelock.Acquire(lockPath)
+	if err != nil || !acquired {
+		t.Fatalf("inventory failure retained profile lock: %v, %t", err, acquired)
+	}
+	if err := lock.Release(); err != nil {
+		t.Fatal(err)
 	}
 }

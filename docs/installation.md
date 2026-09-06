@@ -108,11 +108,33 @@ curl -fsSL https://kivgraph.dev/install.sh | bash
 El instalador no requiere Go, pnpm ni un compilador C. Para fijar una versión:
 
 ```bash
-KIVGRAPH_VERSION=v0.9.8-dev.1 ./scripts/install.sh
+KIVGRAPH_VERSION=v0.9.10 ./scripts/install.sh
 ```
 
 Si el repositorio de releases es privado, proporciona
 `KIVGRAPH_GITHUB_TOKEN` al instalador.
+
+Después de una instalación interactiva, el instalador pregunta si quieres
+configurar Kivgraph. También puedes ejecutar el flujo guiado en cualquier
+momento:
+
+```bash
+kivgraph configure
+```
+
+El selector permite elegir uno o varios coding agents. El comando configura en
+alcance de usuario sus registros MCP, la skill y los hooks compatibles; añade
+las instrucciones al proyecto actual; e instala el daemon supervisado si se
+acepta la pregunta correspondiente. Inicializa la configuración vacía de
+Kivgraph cuando hace falta, pero no registra repositorios ni indexa. Usa
+`--target AGENT` repetidas veces para evitar el selector, `--stdio` para no
+usar daemon, `--daemon` para exigirlo, `--dry-run` para previsualizar y
+`--force` para reemplazar entradas gestionadas incompatibles.
+
+En una ejecución sin terminal, el instalador no puede abrir el selector y deja
+la orden `kivgraph configure` para ejecutarla después. Puedes controlar ese
+comportamiento con `KIVGRAPH_CONFIGURE=0` para omitir la pregunta o
+`KIVGRAPH_CONFIGURE=1` para solicitar la configuración cuando haya terminal.
 
 Comprueba y aplica actualizaciones desde el bundle instalado:
 
@@ -620,6 +642,39 @@ Un resultado `PASS` debe incluir una generación activa, un digest de snapshot y
 el conteo de referencias no resueltas retenidas. `UNRESOLVED` no es un error de
 instalación: son hechos que el resolver no pudo demostrar exactamente y que el
 contrato conserva como resultado distinto de `EXACT`.
+
+### Añadir las instrucciones globales del agente
+
+Para que los agentes sepan cuándo usar el grafo semántico, añade el bloque de
+instrucciones a su configuración global:
+
+```bash
+kivgraph instructions install
+# El selector permite elegir uno o varios agentes.
+kivgraph instructions install --agent codex
+kivgraph instructions install --agent claude
+kivgraph instructions install --agent omp
+```
+
+Sin `--agent` ni `--file`, el selector interactivo permite elegir uno o varios
+agentes. Cada instalación guarda el prompt canónico en `KIVGRAPH.md`, junto a
+la configuración global del cliente. Codex (`~/.codex/AGENTS.md`), Claude Code
+y Claude Desktop (`~/.claude/CLAUDE.md`) y Oh My Pi
+(`~/.omp/agent/AGENTS.md`) sólo reciben una referencia gestionada con la ruta
+absoluta de `KIVGRAPH.md`. OpenCode conserva su `AGENTS.md`: añade la ruta
+canónica a la lista nativa `instructions` de
+`~/.config/opencode/opencode.json`. El selector
+deduplica destinos compartidos. `--file` se conserva por compatibilidad y
+selecciona todos los clientes globales que usan ese nombre; para automatizaciones
+nuevas usa `--agent`. El comando conserva el contenido existente, no inicializa
+ni indexa Kivgraph, y nunca modifica las instrucciones del repositorio.
+`--dry-run` muestra el plan sin escribir y `--force` permite reemplazar un
+prompt o referencia Kivgraph editados. Para configurar también MCP, skills,
+hooks y daemon en una sola selección, usa `kivgraph configure`.
+
+Si están definidas, `CODEX_HOME` sustituye `~/.codex` y
+`PI_CODING_AGENT_DIR` sustituye `~/.omp/agent`, igual que en los propios
+clientes.
 
 ## Ejecutar como servidor MCP
 

@@ -370,7 +370,11 @@ func prepareDocument(
 		// node to the graph.
 		return nil, nil
 	}
-	if workspace.CargoExcludes(repositoryRoot, absolute, options.Repository.Exclusions) {
+	excluded, err := workspace.CargoExcludesChecked(repositoryRoot, absolute, options.Repository.Exclusions)
+	if err != nil {
+		return nil, fmt.Errorf("check Cargo exclusion for %q: %w", absolute, err)
+	}
+	if excluded {
 		// Cargo discovery never walked this directory, so no manifest below
 		// it was read and no crate it declares belongs to this repository. A
 		// vendored crate patched into the build is real code the analyzer

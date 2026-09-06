@@ -16,12 +16,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Luqueee/kivgraph/internal/filelock"
 	"gopkg.in/yaml.v3"
 )
 
 const (
 	// CurrentSchemaVersion is the configuration schema understood by Kivgraph.
 	CurrentSchemaVersion = 1
+	// DefaultPythonAnalyzerCommand names the bundled Python analyzer adapter.
+	DefaultPythonAnalyzerCommand = "kivgraph-python-pyright"
 
 	defaultConfigFile       = "~/.config/kivgraph/config.yaml"
 	defaultRepositoriesFile = "~/.config/kivgraph/repositories.yaml"
@@ -222,6 +225,35 @@ func mappingValue(mapping *yaml.Node, field string) *yaml.Node {
 			return mapping.Content[index+1]
 		}
 	}
+	return nil
+}
+
+// setMappingScalar updates one string field in a YAML mapping, adding it when
+// the document did not spell it. Configuration commands use this instead of
+// marshaling Config: that keeps a toolchain activation from rewriting every
+// unrelated setting in the user's file.
+func setMappingScalar(mapping *yaml.Node, field, value string) error {
+	if mapping == nil || mapping.Kind != yaml.MappingNode {
+		return fmt.Errorf("YAML field %q must be a mapping", field)
+	}
+	for index := 0; index+1 < len(mapping.Content); index += 2 {
+		if mapping.Content[index].Value != field {
+			continue
+		}
+		node := mapping.Content[index+1]
+		node.Kind = yaml.ScalarNode
+		node.Tag = "!!str"
+		node.Style = 0
+		node.Value = value
+		node.Content = nil
+		node.Alias = nil
+		node.Anchor = ""
+		return nil
+	}
+	mapping.Content = append(mapping.Content,
+		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: field},
+		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: value},
+	)
 	return nil
 }
 
@@ -580,7 +612,7 @@ func DefaultConfig() Config {
 		},
 		Python: PythonConfig{
 			IndexerCommand:   "kivgraph-python-worker",
-			AnalyzerCommand:  "kivgraph-python-pyright",
+			AnalyzerCommand:  DefaultPythonAnalyzerCommand,
 			AnalyzerMode:     "fallback",
 			MaximumWorkers:   3,
 			PythonPath:       "python3",
@@ -681,11 +713,16 @@ func projectSyntheticWorkFile(configPath string) (string, error) {
 // MigrateProjectSyntheticWorkFile moves the invalid workspace path written by
 // older project-local configurations. A different value is user-owned and is
 // never changed.
-func MigrateProjectSyntheticWorkFile(configPath string) (bool, error) {
+func MigrateProjectSyntheticWorkFile(configPath string) (changed bool, err error) {
 	resolvedPath, err := resolveConfigPath(configPath)
 	if err != nil {
 		return false, fmt.Errorf("resolve config path: %w", err)
 	}
+	lock, err := acquireConfigLock(resolvedPath)
+	if err != nil {
+		return false, err
+	}
+	defer releaseConfigLock(lock, &err)
 	configuration, _, err := loadConfigFile(resolvedPath)
 	if err != nil {
 		return false, fmt.Errorf("load config %q: %w", resolvedPath, err)
@@ -741,14 +778,30 @@ func DefaultRepositoriesPath() (string, error) {
 	return expandPath(defaultRepositoriesFile, "")
 }
 
+// DefaultStateDirectory returns the installation-level state directory used
+// when no configuration exists yet. Read-only commands use this instead of
+// creating a configuration merely to answer a status question.
+func DefaultStateDirectory() (string, error) {
+	databasePath, err := expandPath(defaultDatabasePath, "")
+	if err != nil {
+		return "", err
+	}
+	return filepath.Dir(databasePath), nil
+}
+
 // Initialize creates the default configuration and repository registry without
 // replacing existing files unless Force is set. It also creates every local
 // state directory named by the configuration.
-func Initialize(options InitOptions) (InitResult, error) {
+func Initialize(options InitOptions) (result InitResult, err error) {
 	configPath, err := resolveConfigPath(options.ConfigPath)
 	if err != nil {
 		return InitResult{}, fmt.Errorf("resolve config path: %w", err)
 	}
+	lock, err := acquireConfigLock(configPath)
+	if err != nil {
+		return InitResult{}, err
+	}
+	defer releaseConfigLock(lock, &err)
 	repositoriesPath, err := resolveRepositoriesPath(options.RepositoriesPath)
 	if err != nil {
 		return InitResult{}, fmt.Errorf("resolve repositories path: %w", err)
@@ -989,6 +1042,109 @@ func LoadConfig(path string) (Config, error) {
 		return Config{}, fmt.Errorf("load config %q: %w", configPath, err)
 	}
 	return configuration, nil
+}
+
+func acquireConfigLock(configPath string) (*filelock.Lock, error) {
+	lock, held, err := filelock.Acquire(configPath + ".lock")
+	if err != nil {
+		return nil, fmt.Errorf("lock config %q: %w", configPath, err)
+	}
+	if !held {
+		return nil, fmt.Errorf("config %q is being updated by another process", configPath)
+	}
+	return lock, nil
+}
+
+func releaseConfigLock(lock *filelock.Lock, operationErr *error) {
+	if err := lock.Release(); err != nil {
+		*operationErr = errors.Join(*operationErr, fmt.Errorf("release config lock: %w", err))
+	}
+}
+
+// SetPythonAnalyzer changes only the Python analyzer settings in an existing
+// configuration. It is used by managed toolchains to activate an analyzer
+// without replacing repositories, paths or settings the user owns.
+func SetPythonAnalyzer(path, command, mode string) error {
+	_, err := setPythonAnalyzer(path, nil, command, mode)
+	return err
+}
+
+// SetPythonAnalyzerIfCurrent changes the analyzer only when its command still
+// equals expectedCommand. The compare and replacement happen under the same
+// configuration lock, so a remove operation cannot disable a setting another
+// process changed after it read the file.
+func SetPythonAnalyzerIfCurrent(path, expectedCommand, command, mode string) (bool, error) {
+	return setPythonAnalyzer(path, &expectedCommand, command, mode)
+}
+
+func setPythonAnalyzer(path string, expectedCommand *string, command, mode string) (changed bool, err error) {
+	if strings.TrimSpace(command) == "" {
+		return false, errors.New("python analyzer command must not be empty")
+	}
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	if mode != "fallback" && mode != "exact" {
+		return false, fmt.Errorf("python analyzer mode %q is invalid: want fallback or exact", mode)
+	}
+	configPath, err := resolveConfigPath(path)
+	if err != nil {
+		return false, fmt.Errorf("resolve config path: %w", err)
+	}
+	lock, err := acquireConfigLock(configPath)
+	if err != nil {
+		return false, err
+	}
+	defer releaseConfigLock(lock, &err)
+	configuration, _, err := loadConfigFile(configPath)
+	if err != nil {
+		return false, fmt.Errorf("load config %q: %w", configPath, err)
+	}
+	if expectedCommand != nil && configuration.Python.AnalyzerCommand != *expectedCommand {
+		return false, nil
+	}
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return false, fmt.Errorf("read config %q: %w", configPath, err)
+	}
+	var root yaml.Node
+	if err := yaml.Unmarshal(data, &root); err != nil {
+		return false, fmt.Errorf("decode config %q: %w", configPath, err)
+	}
+	document := &root
+	if document.Kind == yaml.DocumentNode && len(document.Content) == 1 {
+		document = document.Content[0]
+	}
+	if document.Kind != yaml.MappingNode {
+		return false, errors.New("config: top-level document must be a mapping")
+	}
+	python := mappingValue(document, "python")
+	if python == nil {
+		python = &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+		document.Content = append(document.Content,
+			&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "python"}, python,
+		)
+	} else if python.Kind == yaml.ScalarNode && python.Tag == "!!null" {
+		python.Kind = yaml.MappingNode
+		python.Tag = "!!map"
+		python.Style = 0
+		python.Value = ""
+		python.Content = nil
+	} else if python.Kind != yaml.MappingNode {
+		return false, errors.New("config.python: must be a mapping")
+	}
+	if err := setMappingScalar(python, "analyzer_command", command); err != nil {
+		return false, err
+	}
+	if err := setMappingScalar(python, "analyzer_mode", mode); err != nil {
+		return false, err
+	}
+	rewritten, err := yaml.Marshal(&root)
+	if err != nil {
+		return false, fmt.Errorf("encode config %q: %w", configPath, err)
+	}
+	if _, err := writeInitialFile(configPath, rewritten, true); err != nil {
+		return false, fmt.Errorf("write config %q: %w", configPath, err)
+	}
+	return true, nil
 }
 
 // LoadRepositories reads and validates a repository registry document.

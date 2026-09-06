@@ -37,6 +37,7 @@ go_test(
         "factcache_java_test.go",
         "factcache_python_test.go",
         "factcache_test.go",
+        "full_repositories_test.go",
         "full_test.go",
         "rust_unit_test.go",
         "semantic_test.go",

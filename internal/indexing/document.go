@@ -41,8 +41,8 @@ type FullDocument struct {
 	// Error is why the pass did not pass. It is the child's own message,
 	// preserved so the caller reports the reason rather than an exit code.
 	Error string `json:"error,omitempty"`
-	// RecordingError means the generation passed and was published, but the
-	// derived invalidation record was not persisted.
+	// RecordingError means the generation passed and was published, but derived
+	// freshness or invalidation state was not persisted.
 	RecordingError string `json:"recording_error,omitempty"`
 }
 

@@ -2,7 +2,9 @@ package workspace
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -37,6 +39,9 @@ func DiscoverCargo(ctx context.Context, repository Repository) (CargoDiscovery, 
 	_, root, err := inspectRepositoryPath(rootInput)
 	if err != nil {
 		return CargoDiscovery{}, fmt.Errorf("discover Cargo root: %w", err)
+	}
+	if err := validateExclusionPatterns(root, repository.Exclusions); err != nil {
+		return CargoDiscovery{}, fmt.Errorf("validate Cargo exclusions: %w", err)
 	}
 
 	manifests := make(map[string]cargoManifest)
@@ -310,7 +315,11 @@ func walkCargoFiles(ctx context.Context, base, current string, exclusions []stri
 			continue
 		}
 		isDirectory := entry.IsDir()
-		if isCargoDiscoveryExcluded(base, entryPath, entry.Name(), isDirectory, exclusions) {
+		excluded, err := isCargoDiscoveryExcluded(base, entryPath, entry.Name(), isDirectory, exclusions)
+		if err != nil {
+			return fmt.Errorf("check Cargo exclusion for %q: %w", entryPath, err)
+		}
+		if excluded {
 			continue
 		}
 		if isDirectory {
@@ -336,13 +345,17 @@ func walkCargoFiles(ctx context.Context, base, current string, exclusions []stri
 	return nil
 }
 
-func isCargoDiscoveryExcluded(base, candidate, name string, isDirectory bool, exclusions []string) bool {
+func isCargoDiscoveryExcluded(base, candidate, name string, isDirectory bool, exclusions []string) (bool, error) {
+	excluded, err := MatchesExclusion(base, candidate, exclusions)
+	if err != nil {
+		return false, err
+	}
 	if isDirectory {
 		if _, excluded := defaultCargoExcludedDirectories[name]; excluded {
-			return true
+			return true, nil
 		}
 	}
-	return isDiscoveryExcluded(base, candidate, name, isDirectory, exclusions)
+	return excluded, nil
 }
 
 // CargoExcludes reports whether Cargo discovery would skip a file below the
@@ -354,22 +367,43 @@ func isCargoDiscoveryExcluded(base, candidate, name string, isDirectory bool, ex
 // same question over a path it did not walk, and it has to answer it the same
 // way: the boundary of a repository is one decision, not one per caller.
 func CargoExcludes(root, path string, exclusions []string) bool {
+	excluded, err := CargoExcludesChecked(root, path, exclusions)
+	return err == nil && excluded
+}
+
+// CargoExcludesChecked is CargoExcludes with validation errors preserved for
+// callers that can stop analysis rather than treating malformed input as an
+// unexcluded path.
+func CargoExcludesChecked(root, path string, exclusions []string) (bool, error) {
 	relative, err := filepath.Rel(root, path)
 	if err != nil {
-		return false
+		return false, fmt.Errorf("resolve Cargo path %q relative to %q: %w", path, root, err)
 	}
 	relative = filepath.ToSlash(relative)
-	if relative == "." || relative == "" || strings.HasPrefix(relative, "../") {
-		return false
+	if relative == "." || relative == "" || relative == ".." || strings.HasPrefix(relative, "../") {
+		return false, nil
+	}
+	matched, err := MatchesExclusion(root, path, exclusions)
+	if err != nil {
+		return false, fmt.Errorf("check Cargo exclusion for %q: %w", path, err)
+	}
+	if matched {
+		return true, nil
 	}
 	components := strings.Split(relative, "/")
-	current := root
+	finalIsDirectory := false
+	switch info, statErr := os.Stat(path); {
+	case statErr == nil:
+		finalIsDirectory = info.IsDir()
+	case !errors.Is(statErr, fs.ErrNotExist):
+		return false, fmt.Errorf("inspect Cargo path %q: %w", path, statErr)
+	}
 	for index, component := range components {
-		current = filepath.Join(current, component)
-		isDirectory := index < len(components)-1
-		if isCargoDiscoveryExcluded(root, current, component, isDirectory, exclusions) {
-			return true
+		if index < len(components)-1 || finalIsDirectory {
+			if _, excluded := defaultCargoExcludedDirectories[component]; excluded {
+				return true, nil
+			}
 		}
 	}
-	return false
+	return false, nil
 }

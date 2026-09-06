@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_test")
 go_test(
     name = "release_test",
     srcs = [
+        "dev_install_test.go",
         "install_parity_test.go",
         "publish_coverage_test.go",
         "uninstall_test.go",

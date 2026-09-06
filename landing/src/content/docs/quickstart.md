@@ -36,6 +36,19 @@ the published graph. It names the language version ceiling this binary
 type-checks Go with, which is not the `go` on your `PATH` and is the number
 that decides whether a module can be indexed at all.
 
+If you want exact Python edges, install the optional managed analyzer before
+indexing:
+
+```bash
+kivgraph toolchain install pyright
+```
+
+The command installs the pinned Pyright release under Kivgraph's state and
+activates it in the selected configuration. Use
+`--config .kivgraph/config.yaml` for a project-local configuration. The
+bundled Python worker remains available as a `CANDIDATE`-only fallback, and
+`kivgraph toolchain status` reports which mode is active.
+
 ## 3. Index and publish
 
 ```bash
@@ -74,11 +87,11 @@ skill. See [Clients](/mcp/clients/).
 
 ## What `serve` guarantees
 
-With no published generation there is no query surface. `serve` completes the
-handshake, publishes only `index_project` — which is how a client with no graph
-builds its first one — and puts the rebuild command in its `instructions`. It
-does not exit: a client launches the process itself, so exiting reads as a
-crash.
+With no published generation there is no graph-query surface. `serve` completes
+the handshake and publishes the three indexing controls — which is how a client
+with no graph builds its first one — and puts the rebuild path in its
+`instructions`. It does not exit: a client launches the process itself, so
+exiting reads as a crash.
 
 The process writes MCP framing exclusively to `stdout` and logs to `stderr`. It
 follows the published generation: it loads the HotSnapshot at start and

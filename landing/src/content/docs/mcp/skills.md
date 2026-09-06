@@ -6,10 +6,11 @@ description: What Kivgraph's Agent Skill tells a coding agent, how to install it
 ## What a skill is here
 
 An Agent Skill is a Markdown instruction file a coding agent loads alongside its
-tools. Kivgraph ships one, and it exists for a single reason: to route a
-question to the right tool before the agent reaches for grep or starts opening
-files. It is not required in order to use the MCP server. Install it to change
-which tool the agent picks; skip it and the twelve tools still work.
+tools. Kivgraph ships one to route a question to the right tool before the agent
+reaches for grep or starts opening files, and to request visible notices of
+tool use. It is not required in order to use the MCP server. Install it to
+change which tool the agent picks; skip it and the server keeps its normal
+surface: three indexing controls before publication and fourteen tools after.
 
 ## Install
 
@@ -68,9 +69,38 @@ the MCP server for it and it uses the tools without the skill.
 
 ## What the skill says
 
-The skill teaches one contract: reach for the graph when the question is about
+The skill's routing contract is to reach for the graph when the question is about
 callers, references, impact or cross-repository consumers, and reach for the
 files only after the graph has named them.
+
+### Visible tool use
+
+Before every Kivgraph MCP call, the skill asks the agent to send a short chat
+notice naming the exact tool, its target (symbol, file, repository or scope),
+and the question it will answer, in the conversation's language. For example:
+
+`Kivgraph · find_references — NewServer: check who calls it.`
+
+Repeated calls each get a notice. Parallel calls may share a preamble, with a
+separate line for each call. The notice states intent, not success, and does not
+replace user approval for either indexing mutation. There is no additional
+mandatory completion message, setting or change to tool results.
+
+The MCP server sends the same rule in its connection instructions, including
+when no graph exists. This is **best effort**: the client decides whether to
+give the instructions to its model and display the model's preamble. Claude
+Desktop has no local skill and relies on the MCP instructions alone. This is
+not a server-generated chat event or an audit log.
+
+After upgrading the running server, reconnect the client (or start a new chat)
+so it receives the new instructions. Existing skills, including local edits,
+are not overwritten automatically; installs without an existing skill receive
+the new skill.
+To adopt the skill notice without replacing your customizations, copy its
+"Visible tool use" section from the shipped skill into your existing one.
+User-scope links share `~/.config/kivgraph/skills/kivgraph/SKILL.md`;
+project-scoped skills are separate copies. CLI commands such as `kivgraph ui`
+are outside this chat-notice contract.
 
 ### Routing
 
@@ -88,11 +118,15 @@ files only after the graph has named them.
 | Consumers in another repository | [`find_cross_repo_consumers`](/docs/tools/find-cross-repo-consumers/) |
 | Bounded incoming impact, grouped | [`get_blast_radius`](/docs/tools/get-blast-radius/) |
 | Register projects and rebuild the graph | [`index_project`](/docs/tools/index-project/) |
+| Start a rebuild without holding one call open | [`start_index_project`](/docs/tools/start-index-project/) |
+| Poll an asynchronous rebuild | [`get_index_status`](/docs/tools/get-index-status/) |
 
-The skill orders the first moves: `graph_status` to confirm a published
-snapshot exists and how old it is, then `list_repositories` to pick the
-repository and language before narrowing. Repository names are case sensitive;
-two names differing only in case are two repositories.
+Without a published generation, the skill starts with `start_index_project`,
+polls `get_index_status` to a terminal result, and reconnects after publication.
+With a published graph, its first moves are `graph_status` to confirm its age
+and freshness, then `list_repositories` to pick the repository and language
+before narrowing. Repository names are case sensitive; two names differing
+only in case are two repositories.
 
 ### Why an empty answer is an answer
 
@@ -130,14 +164,20 @@ enter the conversation.
 
 ### Indexing
 
-`index_project` is the only mutating tool. The skill requires explicit user
-approval before calling it, all projects passed in one call through `projects`,
-and no claim of success until a new generation and snapshot are published. A
+`index_project` and `start_index_project` are the two mutating tools. The skill
+requires explicit user approval before calling either one, all projects passed
+in one call through `projects`, and no claim of success until a new generation
+and snapshot are published. It prefers the asynchronous start and polls
+`get_index_status` so a client timeout cannot interrupt the call. A
 rebuild resolves cross-repository edges over the complete fact set, so it costs
 the whole corpus whatever was added: eleven separate calls build eleven graphs
 and keep the last one. A full rebuild can outlive the client's per-call
 timeout; the work still completes, and `graph_status` showing an advanced
 `snapshot_id` is the check, not a retry.
+
+Clients with form elicitation receive the server prompt. Codex uses its native
+tool-approval prompt and then sends `confirmed: true`; URL-only clients use the
+same fallback.
 
 ### Where it loses
 

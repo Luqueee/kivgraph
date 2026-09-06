@@ -11,6 +11,7 @@ import (
 	"github.com/Luqueee/kivgraph/internal/eventlog"
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 	"github.com/Luqueee/kivgraph/internal/indexing"
+	mcpserver "github.com/Luqueee/kivgraph/internal/mcp"
 )
 
 // runDaemon serves MCP over a socket and over HTTP, from one process.
@@ -40,6 +41,8 @@ func runDaemon(logger *slog.Logger, flags *daemonOptions) configuredMCPRunner {
 		indexer indexing.ProjectIndexer,
 		events *eventlog.Writer,
 	) error {
+		indexJobs := mcpserver.NewIndexJobsWithContext(ctx, indexer)
+		defer indexJobs.Close()
 		// Profiles own generations, but the daemon owns every profile in one
 		// installation. Keep its endpoint, token and socket at installation scope:
 		// this is the same directory mcp install, serve and update read.
@@ -48,6 +51,7 @@ func runDaemon(logger *slog.Logger, flags *daemonOptions) configuredMCPRunner {
 			SnapshotStore:  store,
 			Registry:       toolMetricsRegistry(events),
 			Indexer:        indexer,
+			IndexJobs:      indexJobs,
 			OnSession: func(event string, err error) {
 				if err != nil {
 					logger.Error("daemon session "+event, "command", "daemon", "error", err)

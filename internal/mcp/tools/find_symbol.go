@@ -385,7 +385,7 @@ func RegisterFindSymbolWithObserverAndSnapshotStore(
 		) (*sdkmcp.CallToolResult, Response[SymbolResults], error) {
 			start := time.Now()
 			result, symbols, err := underlying(ctx, request, arguments)
-			observe(observer, callObserver, findSymbolToolName, start, symbols, err)
+			observe(observer, callObserver, findSymbolToolName, request, start, symbols, err)
 			return result, symbols, err
 		}
 	}

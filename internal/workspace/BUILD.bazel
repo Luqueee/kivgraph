@@ -40,6 +40,7 @@ go_test(
         "cargo_discovery_test.go",
         "composition_test.go",
         "discovery_test.go",
+        "exclusion_validation_test.go",
         "go_discovery_test.go",
         "go_registry_test.go",
         "paths_test.go",
@@ -58,7 +59,7 @@ go_test(
     embed = [":workspace"],
     deps = [
         "//internal/config",
-        "//internal/topology",
         "//internal/testsupport",
+        "//internal/topology",
     ],
 )

@@ -51,6 +51,9 @@ func UnclaimedTypeScriptSources(
 		return nil, err
 	}
 	root := filepath.Clean(repositoryRootPath(repository))
+	if err := validateExclusionPatterns(root, repository.Exclusions); err != nil {
+		return nil, fmt.Errorf("validate TypeScript exclusions: %w", err)
+	}
 
 	claimed := make(map[string]struct{})
 	excludePatternSegments := make([][]string, 0, len(discovery.Projects)*4)
@@ -116,7 +119,11 @@ func walkUnclaimedTypeScriptFiles(
 		}
 		entryPath := filepath.Join(current, entry.Name())
 		isDirectory := entry.IsDir()
-		if isDiscoveryExcluded(base, entryPath, entry.Name(), isDirectory, exclusions) {
+		excluded, err := isDiscoveryExcluded(base, entryPath, entry.Name(), isDirectory, exclusions)
+		if err != nil {
+			return fmt.Errorf("check exclusion for %q: %w", entryPath, err)
+		}
+		if excluded {
 			continue
 		}
 		if isDirectory {

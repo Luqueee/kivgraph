@@ -244,10 +244,36 @@ func TestCargoExcludesAnswersForAPathDiscoveryNeverWalked(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			candidate := filepath.Join(root, filepath.FromSlash(test.path))
-			if excluded := CargoExcludes(root, candidate, test.exclusions); excluded != test.want {
-				t.Fatalf("CargoExcludes(%q) = %t, want %t", test.path, excluded, test.want)
+			excluded := CargoExcludes(root, candidate, test.exclusions)
+			if excluded != test.want {
+				t.Fatalf("CargoExcludes(%q, %q) = %t, want %t", test.path, test.exclusions, excluded, test.want)
 			}
 		})
+	}
+}
+
+func TestCargoExcludesCheckedRejectsInvalidExclusionPattern(t *testing.T) {
+	root := testsupport.TempDir(t)
+	candidate := filepath.Join(root, "src", "lib.rs")
+	exclusions := []string{"["}
+	_, err := CargoExcludesChecked(root, candidate, exclusions)
+	if err == nil || !strings.Contains(err.Error(), "exclusions[0]") {
+		t.Fatalf("CargoExcludesChecked() candidate=%q exclusions=%q error = %v, want invalid exclusion error", candidate, exclusions, err)
+	}
+}
+
+func TestCargoExcludesDefaultExcludedDirectoryItself(t *testing.T) {
+	root := testsupport.TempDir(t)
+	target := filepath.Join(root, "target")
+	if err := os.Mkdir(target, 0o700); err != nil {
+		t.Fatalf("create Cargo output directory %q: %v", target, err)
+	}
+	excluded, err := CargoExcludesChecked(root, target, nil)
+	if err != nil {
+		t.Fatalf("CargoExcludesChecked(%q) error = %v", target, err)
+	}
+	if !excluded {
+		t.Fatalf("CargoExcludesChecked(%q) = false, want default output directory excluded", target)
 	}
 }
 

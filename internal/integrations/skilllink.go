@@ -134,7 +134,7 @@ func (manager Manager) ensureCanonicalSkill(force bool) (bool, error) {
 		return false, err
 	}
 	switch {
-	case exists && bytes.Equal(data, embeddedSkill):
+	case exists && bytes.Equal(data, embeddedSkill) && !force:
 		return false, nil
 	case exists && !force:
 		// Not an error: the links still have to be made, and the caller
@@ -182,6 +182,10 @@ func (manager Manager) installLinkedSkill(target Target, scope Scope, path strin
 			plan.Status, plan.Changed = statusBroken, true
 			plan.Detail = "restore " + manager.canonicalSkillPath() + ", which the link points at"
 		}
+		if force && state.placement == skillLinked {
+			plan.Changed = true
+			plan.Detail = "refresh the canonical Kivgraph skill used by this link"
+		}
 		if dryRun {
 			plan.DryRun = true
 			if plan.Changed {
@@ -194,6 +198,11 @@ func (manager Manager) installLinkedSkill(target Target, scope Scope, path strin
 			return Plan{}, err
 		}
 		if written && state.placement == skillDangling {
+			plan.Status = "installed"
+		}
+		if force && state.placement == skillLinked {
+			// The link already targets the canonical skill. Refreshing that file is
+			// sufficient, and retaining the link avoids a window without a skill.
 			plan.Status = "installed"
 		}
 		return plan, nil

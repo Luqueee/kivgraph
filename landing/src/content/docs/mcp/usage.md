@@ -4,9 +4,9 @@ description: Route a question to the right Kivgraph tool, address a symbol witho
 ---
 
 `kivgraph serve` speaks MCP over stdio and, once a generation is published,
-registers twelve tools; before that it registers `index_project` alone. This page
-is about using them: which tool answers which question, how to name a symbol, and
-how to read what comes back. Per-tool arguments live under
+registers fourteen tools, including the three indexing controls.
+This page is about using them: which tool answers which question, how to name a
+symbol, and how to read what comes back. Per-tool arguments live under
 [`/docs/mcp-tools/`](/docs/mcp-tools/) and on each tool's own page.
 
 Which process answers does not change any of that. `serve` normally forwards
@@ -75,10 +75,12 @@ model at the moment it decides whether to call anything.
 | Give me the code of these symbols | [`get_source`](/docs/tools/get-source/) |
 | Which repositories does the graph cover, at which commit | [`list_repositories`](/docs/tools/list-repositories/) |
 | Is the published graph current | [`graph_status`](/docs/tools/graph-status/) |
+| Start a rebuild without a long call | [`start_index_project`](/docs/tools/start-index-project/) |
+| Check asynchronous rebuild progress | [`get_index_status`](/docs/tools/get-index-status/) |
 | Register projects and rebuild the graph | [`index_project`](/docs/tools/index-project/) |
 
-`index_project` is the only tool that changes anything. Every other tool is
-annotated `readOnlyHint`.
+`index_project` and `start_index_project` are the only tools that change
+anything. Every other tool is annotated `readOnlyHint`.
 
 Start with [`find_by_intent`](/docs/tools/find-by-intent/) when the question is
 about behavior rather than an identifier. It returns ranked candidates and the
@@ -646,8 +648,21 @@ counts the ones that left the indexed commit. A repository whose HEAD could not
 be read is not counted as moved and not silently counted as fresh either.
 
 Rebuilding is `kivgraph index --full` from the CLI, or
-[`index_project`](/docs/tools/index-project/) from the client. The tool
+[`start_index_project`](/docs/tools/start-index-project/) from the client. The tool
 requires explicit user approval before it runs: called without `confirmed`, it
 returns `PERMISSION_REQUIRED`. A rebuild costs the whole corpus, so pass every
-project in one call. See [`/guides/indexing/`](/guides/indexing/) for the full
+project in one call. An MCP agent treats freshness as a gate: when the target
+checkout is absent from `repository_freshness`, moved, or lacks `fresh`
+`content_freshness` for the response generation, it requests
+`start_index_project`, waits for approval, polls `get_index_status` to
+completion, then calls `graph_status` again. It may
+inspect directly relevant source only if that repair is unavailable, denied or
+fails; it must not use a graph from another checkout as evidence. A session
+that began with no published graph exposes only the three indexing controls, so
+the agent reconnects after publication before that `graph_status` call. Content
+freshness attests the default profile only. A non-default profile or aggregate
+response deliberately omits it; its `snapshot_id` is not a substitute. The
+agent names
+that limitation and uses directly relevant source rather than claiming fresh
+graph evidence. See [`/guides/indexing/`](/guides/indexing/) for the full
 procedure.

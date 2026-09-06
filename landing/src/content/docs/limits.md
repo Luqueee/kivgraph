@@ -41,10 +41,10 @@ completeness to back it.
 
 ## Nothing answers before a generation is published
 
-`serve` with no published graph registers `index_project` and nothing else.
-That is deliberate — publishing ten tools that all answer `INDEX_NOT_READY`
-teaches an agent that the tools do not work — but it does mean a fresh install
-cannot answer a single question until `kivgraph index --full` has completed.
+`serve` with no published graph registers only its three indexing controls.
+That is deliberate — publishing eleven graph tools that all answer
+`INDEX_NOT_READY` teaches an agent that the tools do not work — but it does mean
+a fresh install cannot answer a code question until the first index completes.
 
 There is no incremental path: a rebuild is a full pass over every registered
 repository.

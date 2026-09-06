@@ -70,7 +70,7 @@ func TestLogsRendersTheRecordedHistory(t *testing.T) {
 		eventlog.Event{
 			Time: logEvent(time.Second, eventlog.KindTool, "").Time, Level: eventlog.LevelInfo,
 			Kind: eventlog.KindTool, Message: "find_references", Tool: "find_references",
-			Status: eventlog.StatusOK, PID: 4242,
+			Query: `name="NewServer"`, Status: eventlog.StatusOK, PID: 4242,
 		}.WithDuration(8*time.Millisecond).WithResults(66),
 	)
 	var stdout, stderr bytes.Buffer
@@ -78,23 +78,52 @@ func TestLogsRendersTheRecordedHistory(t *testing.T) {
 		t.Fatalf("runLogs() = %d, stderr=%q", code, stderr.String())
 	}
 	lines := strings.Split(strings.TrimRight(stdout.String(), "\n"), "\n")
-	if len(lines) != 2 {
-		t.Fatalf("runLogs() printed %d lines, want 2:\n%s", len(lines), stdout.String())
+	if len(lines) != 3 {
+		t.Fatalf("runLogs() printed %d lines, want a header and two records:\n%s", len(lines), stdout.String())
 	}
-	if !strings.Contains(lines[0], "13:10:57") || !strings.Contains(lines[0], "INFO") {
-		t.Fatalf("the serve line lost its time or its badge: %q", lines[0])
+	if !strings.Contains(lines[0], "TIME") || !strings.Contains(lines[0], "QUERY") || !strings.Contains(lines[0], "RESULTS") {
+		t.Fatalf("the table header = %q, want the visible columns", lines[0])
 	}
-	// A tool line carries the badge of its kind, the elapsed time and the
-	// row count -- the three things the command exists to answer.
-	for _, want := range []string{"TOOL", "find_references", "took=8ms", "results=66", "pid=4242"} {
-		if !strings.Contains(lines[1], want) {
-			t.Fatalf("the tool line lost %q: %q", want, lines[1])
+	if !strings.Contains(lines[1], "13:10:57") || !strings.Contains(lines[1], "INFO") {
+		t.Fatalf("the serve line lost its time or its badge: %q", lines[1])
+	}
+	// A tool row carries its query, elapsed time and row count in their own
+	// columns instead of a shifting tail of key=value fields.
+	for _, want := range []string{"TOOL", "find_references", `name="NewServer"`, "8ms", "66", "4242"} {
+		if !strings.Contains(lines[2], want) {
+			t.Fatalf("the tool line lost %q: %q", want, lines[2])
 		}
 	}
-	// The message of a tool event is the tool name, so a tool= field would
-	// spend a column repeating it.
-	if strings.Contains(lines[1], "tool=") {
-		t.Fatalf("the tool line repeated the tool name as a field: %q", lines[1])
+	if tool, query := strings.Index(lines[2], "find_references"), strings.Index(lines[2], `name="NewServer"`); tool < 0 || query <= tool {
+		t.Fatalf("the tool and query did not occupy ordered columns: %q", lines[2])
+	}
+}
+
+// Two calls to the same tool with different questions are not one run. The
+// query is visible to an operator, so collapsing it would both hide work and
+// report a meaningless mean over unrelated calls.
+func TestLogsKeepsDifferentQueriesInSeparateTableRows(t *testing.T) {
+	base := logEvent(0, eventlog.KindTool, "find_by_intent").Time
+	configPath := writeEventStore(t,
+		eventlog.Event{Time: base, Kind: eventlog.KindTool, Message: "find_by_intent", Tool: "find_by_intent", Query: `intent="HTTP routes"`}.WithDuration(time.Millisecond),
+		eventlog.Event{Time: base.Add(time.Second), Kind: eventlog.KindTool, Message: "find_by_intent", Tool: "find_by_intent", Query: `intent="database migrations"`}.WithDuration(2*time.Millisecond),
+	)
+	var stdout, stderr bytes.Buffer
+	if code := runLogs([]string{"--config", configPath}, &stdout, &stderr); code != 0 {
+		t.Fatalf("runLogs() = %d, stderr=%q", code, stderr.String())
+	}
+	lines := strings.Split(strings.TrimRight(stdout.String(), "\n"), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("runLogs() printed %d lines, want a header and two calls:\n%s", len(lines), stdout.String())
+	}
+	for _, want := range []string{`intent="HTTP routes"`, `intent="database migrations"`} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("query %q was hidden:\n%s", want, stdout.String())
+		}
+	}
+	if queryColumn := strings.Index(lines[0], "QUERY"); queryColumn < 0 ||
+		strings.Index(lines[1], "intent=") != queryColumn || strings.Index(lines[2], "intent=") != queryColumn {
+		t.Fatalf("queries are not aligned under the table column:\n%s", stdout.String())
 	}
 }
 
@@ -111,12 +140,20 @@ func TestLogsRendersWithoutColourWhenRedirected(t *testing.T) {
 	}
 }
 
+func TestLogDetailPreservesLongEventMessage(t *testing.T) {
+	message := "index --full started over 12 repositories"
+	detail := logDetail(logLine{event: eventlog.Event{Kind: eventlog.KindIndex, Message: message}})
+	if !strings.Contains(detail, "message="+message) {
+		t.Fatalf("logDetail(message=%q) = %q, want the full message", message, detail)
+	}
+}
+
 // The badge is a solid-background column, which is new: the rest of the
 // non-TUI surface has foreground colours only.
 func TestLogBadgeIsAColouredFixedWidthColumn(t *testing.T) {
 	plain := logStyles{}
 	coloured := logStyles{color: true}
-	for _, badge := range []logBadge{logBadgeInfo, logBadgeWarn, logBadgeError, logBadgeTool, logBadgeIndex} {
+	for _, badge := range []logBadge{logBadgeInfo, logBadgeWarn, logBadgeError, logBadgeNotFound, logBadgeTool, logBadgeIndex} {
 		rendered := plain.badge(badge)
 		if len(rendered) != logBadgeWidth {
 			t.Fatalf("badge %q rendered %d columns, want %d: %q",
@@ -138,6 +175,13 @@ func TestLogBadgeNamesWhatHappened(t *testing.T) {
 		{"a call that answered", eventlog.Event{Kind: eventlog.KindTool, Status: eventlog.StatusOK}, "TOOL"},
 		{"a pass", eventlog.Event{Kind: eventlog.KindIndex}, "INDEX"},
 		{"a lifecycle line", eventlog.Event{Kind: eventlog.KindServe}, "INFO"},
+		// A missing symbol is a completed query with an empty answer. The MCP
+		// surface keeps its precise code for callers, but the operator log must
+		// not present an ordinary absence as an operational failure.
+		{"a symbol that was not found", eventlog.Event{
+			Kind: eventlog.KindTool, Status: eventlog.StatusError,
+			Error: "SYMBOL_NOT_FOUND: name \"topologyProfile\" was not found",
+		}, "NOT_FOUND"},
 		// A failing call is an error first and a call second: the reader is
 		// scanning for the failure, not for the subsystem.
 		{"a call that failed", eventlog.Event{Kind: eventlog.KindTool, Status: eventlog.StatusError}, "ERROR"},

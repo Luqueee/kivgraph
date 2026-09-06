@@ -250,7 +250,7 @@ func RegisterFindByIntentWithObserverAndSnapshotStore(
 		) (*sdkmcp.CallToolResult, Response[IntentMatches], error) {
 			start := time.Now()
 			result, matches, err := underlying(ctx, request, arguments)
-			observe(observer, callObserver, findByIntentToolName, start, matches, err)
+			observe(observer, callObserver, findByIntentToolName, request, start, matches, err)
 			return result, matches, err
 		}
 	}

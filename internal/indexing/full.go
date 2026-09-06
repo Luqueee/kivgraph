@@ -12,6 +12,7 @@ import (
 	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/filelock"
+	"github.com/Luqueee/kivgraph/internal/freshness"
 	"github.com/Luqueee/kivgraph/internal/indexer"
 	"github.com/Luqueee/kivgraph/internal/invalidation"
 	"github.com/Luqueee/kivgraph/internal/metrics"
@@ -447,8 +448,8 @@ type FullResult struct {
 	Counts        Counts
 	IndexReport   indexer.FullReport
 	RebuildReport rebuild.Report
-	// RecordingError means the graph was published but its derived source
-	// invalidation record could not be persisted. It must not turn a valid
+	// RecordingError means the graph was published but derived freshness or
+	// invalidation state could not be persisted. It must not turn a valid
 	// generation into a failed rebuild.
 	RecordingError error
 }
@@ -487,6 +488,10 @@ func RunFull(ctx context.Context, options FullOptions) (result FullResult, resul
 	if err != nil {
 		return FullResult{}, err
 	}
+	before, err := freshness.Capture(ctx, observedRepositories)
+	if err != nil {
+		return FullResult{}, fmt.Errorf("capture source inventory: %w", err)
+	}
 
 	factSet, indexReport, err := indexer.FullWithRepositories(ctx, indexOptions, observedRepositories)
 	result = FullResult{IndexReport: indexReport}
@@ -494,6 +499,13 @@ func RunFull(ctx context.Context, options FullOptions) (result FullResult, resul
 		return result, fmt.Errorf("index repositories: %w", err)
 	}
 	result.Counts = countsFromFacts(factSet)
+	after, err := freshness.Capture(ctx, observedRepositories)
+	if err != nil {
+		return result, fmt.Errorf("verify source inventory: %w", err)
+	}
+	if before != after {
+		return result, fmt.Errorf("source inventory changed during indexing; no fresh generation published")
+	}
 
 	layout, err := rebuild.Roles(ctx, rebuild.LayoutOptions{
 		Root:  filepath.Clean(options.Root),
@@ -533,13 +545,17 @@ func RunFull(ctx context.Context, options FullOptions) (result FullResult, resul
 		return result, fmt.Errorf("rebuild graph did not pass its gates")
 	}
 	indexReport.CommitCache()
+	if err := freshness.Save(ctx, options.Root, uint64(snapshotID), after); err != nil {
+		result.RecordingError = fmt.Errorf("record published generation freshness: %w", err)
+	}
 	if options.Invalidation != nil {
 		if err := options.Invalidation.RecordPublished(ctx, invalidation.ProfileRecord{
 			Profile:    options.Profile,
 			Generation: rebuildReport.GenerationID,
 			Manifest:   manifest,
 		}); err != nil {
-			result.RecordingError = fmt.Errorf("record published source state: %w", err)
+			result.RecordingError = errors.Join(result.RecordingError,
+				fmt.Errorf("record published source state: %w", err))
 		}
 	}
 	return result, nil

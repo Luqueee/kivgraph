@@ -9,6 +9,7 @@ import (
 	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/eventlog"
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/mcp/tools"
 	"github.com/Luqueee/kivgraph/internal/metrics"
 	"github.com/Luqueee/kivgraph/internal/rebuild"
 )
@@ -54,6 +55,7 @@ func toolMetricsRegistry(events *eventlog.Writer) *metrics.Registry {
 			Kind:    eventlog.KindTool,
 			Message: observation.ToolName,
 			Tool:    observation.ToolName,
+			Query:   observation.Query,
 			Status:  eventlog.StatusOK,
 		}
 		event = event.WithDuration(observation.Elapsed)
@@ -61,11 +63,19 @@ func toolMetricsRegistry(events *eventlog.Writer) *metrics.Registry {
 			event = event.WithResults(observation.Returned)
 		}
 		if observation.Err != nil {
-			// The rendered error already leads with the stable tool code,
-			// so the classification survives without a field of its own.
-			event.Level = eventlog.LevelError
-			event.Status = eventlog.StatusError
-			event.Error = errorWithCause(observation.Err)
+			if tools.IsExpectedAbsence(observation.Err) {
+				// A lookup that found nothing is a complete answer. The MCP
+				// surface retains SYMBOL_NOT_FOUND for callers that branch on
+				// codes, while the operator log calls the outcome what it is.
+				event.Status = eventlog.StatusNotFound
+				event = event.WithResults(0)
+			} else {
+				// The rendered error already leads with the stable tool code,
+				// so the classification survives without a field of its own.
+				event.Level = eventlog.LevelError
+				event.Status = eventlog.StatusError
+				event.Error = errorWithCause(observation.Err)
+			}
 		}
 		events.Append(event)
 	})

@@ -12,6 +12,7 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/freshness"
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 	"github.com/Luqueee/kivgraph/internal/metrics"
 	"github.com/Luqueee/kivgraph/internal/storage/ladybug"
@@ -154,10 +155,11 @@ func TestGraphStatusReportsHostProbeResults(t *testing.T) {
 	store := graphStatusStore(t, 62)
 	probe := func(context.Context) (HostStatus, error) {
 		return HostStatus{
-			LastRebuildAt: time.Unix(1_700_000_100, 0).UTC(),
-			LastUpdateAt:  time.Unix(1_700_000_200, 0).UTC(),
-			Worker:        ComponentHealth{State: "healthy", Detail: "typescript worker v1"},
-			Storage:       ComponentHealth{State: "degraded", Detail: "integrity sample pending"},
+			ContentFreshness: &freshness.Status{Generation: 62, State: "fresh"},
+			LastRebuildAt:    time.Unix(1_700_000_100, 0).UTC(),
+			LastUpdateAt:     time.Unix(1_700_000_200, 0).UTC(),
+			Worker:           ComponentHealth{State: "healthy", Detail: "typescript worker v1"},
+			Storage:          ComponentHealth{State: "degraded", Detail: "integrity sample pending"},
 		}, nil
 	}
 
@@ -166,11 +168,106 @@ func TestGraphStatusReportsHostProbeResults(t *testing.T) {
 		t.Fatal(err)
 	}
 	status := response.Results
+	if !reflect.DeepEqual(status.ContentFreshness, &freshness.Status{Generation: 62, State: "fresh"}) {
+		t.Fatalf("content freshness for generation=62 state=fresh = %#v", status.ContentFreshness)
+	}
 	if status.LastRebuildAt != "2023-11-14T22:15:00Z" || status.LastUpdateAt != "2023-11-14T22:16:40Z" {
 		t.Fatalf("host timestamps = %q/%q", status.LastRebuildAt, status.LastUpdateAt)
 	}
 	if status.Worker.State != "healthy" || status.Storage.State != "degraded" {
 		t.Fatalf("health = %#v/%#v", status.Worker, status.Storage)
+	}
+}
+
+func TestGraphStatusPinsSnapshotBeforeFreshnessProbe(t *testing.T) {
+	for _, state := range []string{"fresh", "stale"} {
+		t.Run(state, func(t *testing.T) {
+			store := graphStatusStore(t, 76)
+			probe := func(context.Context) (HostStatus, error) {
+				if err := store.Publish(graphStatusStore(t, 77).Load()); err != nil {
+					t.Fatalf("state=%q: publish generation 77: %v", state, err)
+				}
+				return HostStatus{ContentFreshness: &freshness.Status{Generation: 76, State: state}}, nil
+			}
+			_, response, err := graphStatus(t.Context(), nil, struct{}{}, store, probe)
+			if err != nil {
+				t.Fatalf("state=%q: graphStatus() error = %v", state, err)
+			}
+			contentFreshness := response.Results.ContentFreshness
+			if response.Results.SnapshotID == nil || *response.Results.SnapshotID != 76 || contentFreshness == nil || contentFreshness.Generation != 76 || contentFreshness.State != state {
+				t.Fatalf("state=%q: mixed publication and attestation: %+v", state, response.Results)
+			}
+		})
+	}
+}
+
+func TestGraphStatusDoesNotClaimFreshnessFromAnotherGeneration(t *testing.T) {
+	store := graphStatusStore(t, 76)
+	probe := func(context.Context) (HostStatus, error) {
+		if err := store.Publish(graphStatusStore(t, 77).Load()); err != nil {
+			t.Fatalf("pinned generation 76, attested generation 77: publish: %v", err)
+		}
+		return HostStatus{ContentFreshness: &freshness.Status{Generation: 77, State: "fresh"}}, nil
+	}
+	_, response, err := graphStatus(t.Context(), nil, struct{}{}, store, probe)
+	if err != nil {
+		t.Fatalf("pinned generation 76, attested generation 77: graphStatus() error = %v", err)
+	}
+	got := response.Results.ContentFreshness
+	if response.Results.SnapshotID == nil || *response.Results.SnapshotID != 76 || got == nil || got.State != "unverified" || got.Generation != 77 || got.Detail != "generation changed during freshness check; retry graph_status" {
+		t.Fatalf("pinned=76 attested=77: a concurrent generation lent its attestation: %+v", response.Results)
+	}
+}
+
+func TestGraphStatusRejectsGenerationlessFreshnessStates(t *testing.T) {
+	for _, state := range []string{"fresh", "stale"} {
+		t.Run(state, func(t *testing.T) {
+			probe := func(context.Context) (HostStatus, error) {
+				return HostStatus{ContentFreshness: &freshness.Status{State: state}}, nil
+			}
+			_, response, err := graphStatus(t.Context(), nil, struct{}{}, graphStatusStore(t, 76), probe)
+			if err != nil {
+				t.Fatalf("state=%q: graphStatus() error = %v", state, err)
+			}
+			got := response.Results.ContentFreshness
+			want := &freshness.Status{
+				State:  "unverified",
+				Detail: "freshness state has no published generation",
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("generationless %s freshness = %#v, want %#v", state, got, want)
+			}
+		})
+	}
+}
+
+func TestGraphStatusPreservesAnUnavailableInventoryWithoutGeneration(t *testing.T) {
+	const detail = "profile storage changed; restart the server before checking freshness"
+	probe := func(context.Context) (HostStatus, error) {
+		return HostStatus{ContentFreshness: &freshness.Status{State: "unavailable", Detail: detail}}, nil
+	}
+	want := &freshness.Status{State: "unavailable", Detail: detail}
+	_, response, err := graphStatus(t.Context(), nil, struct{}{}, graphStatusStore(t, 76), probe)
+	if err != nil {
+		t.Fatalf("unavailable freshness: graphStatus() error = %v", err)
+	}
+	if !reflect.DeepEqual(response.Results.ContentFreshness, want) {
+		t.Fatalf("configuration failure was hidden by a publication retry: %+v", response.Results.ContentFreshness)
+	}
+}
+
+func TestGraphStatusPreservesGenerationlessUnverifiedState(t *testing.T) {
+	const detail = "content freshness has not been verified"
+	probe := func(context.Context) (HostStatus, error) {
+		return HostStatus{ContentFreshness: &freshness.Status{State: "unverified", Detail: detail}}, nil
+	}
+	want := &freshness.Status{State: "unverified", Detail: detail}
+	_, response, err := graphStatus(t.Context(), nil, struct{}{}, graphStatusStore(t, 76), probe)
+	if err != nil {
+		t.Fatalf("generationless unverified freshness: graphStatus() error = %v", err)
+	}
+	if !reflect.DeepEqual(response.Results.ContentFreshness, want) {
+		t.Fatalf("generationless unverified state was changed: got %#v, want %#v", response.Results.ContentFreshness, want)
 	}
 }
 

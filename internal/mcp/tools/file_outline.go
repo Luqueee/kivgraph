@@ -399,7 +399,7 @@ func RegisterGetFileOutlineWithObserverAndSnapshotStore(
 		) (*sdkmcp.CallToolResult, Response[FileOutline], error) {
 			start := time.Now()
 			result, outline, err := underlying(ctx, request, arguments)
-			observe(observer, callObserver, fileOutlineToolName, start, outline, err)
+			observe(observer, callObserver, fileOutlineToolName, request, start, outline, err)
 			return result, outline, err
 		}
 	}

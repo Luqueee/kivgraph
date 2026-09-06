@@ -1,6 +1,8 @@
 ---
 title: index_project
-description: Registers projects and rebuilds the graph once, after explicit user approval. The only Kivgraph MCP tool that mutates anything.
+description: >-
+  Synchronously registers projects and rebuilds the graph after explicit user
+  approval.
 ---
 
 > Registers projects and rebuilds the graph once, after explicit user approval. Pass every project in one call: a rebuild costs the whole corpus. It never writes inside the source projects.
@@ -14,7 +16,7 @@ description: Registers projects and rebuilds the graph once, after explicit user
 | `name` | string | none | Single-project form: the repository identifier. |
 | `path` | string | none | Single-project form: the repository directory. Absolute, `~`-prefixed, or relative to the working directory of the server process. |
 | `languages` | array of strings | none | Single-project form: the languages to index. |
-| `confirmed` | boolean or null | `null` | Approval from a client that cannot use MCP elicitation. Only `true` proceeds. |
+| `confirmed` | boolean or null | `null` | Approval from a client that cannot answer MCP form elicitation. Only `true` proceeds. |
 
 Naming both forms in one request is rejected with `INVALID_ARGUMENT`, because two
 selectors can disagree and there is nothing to decide between them. Naming
@@ -32,19 +34,27 @@ a word outside the list is rejected before anything is written.
 
 ## Answers
 
-Nothing, in the sense the other ten tools do. It registers the projects it is
+Nothing, in the sense the read-only tools do. It registers the projects it is
 given in the repository registry, rebuilds the complete canonical graph once, and
 publishes the result as a new generation. On success it reports the generation
 and snapshot it published together with the per-language counters of the pass. It
-is the only mutating tool on the surface.
+is the synchronous mutating tool on the surface. New integrations should prefer
+[`start_index_project`](/docs/tools/start-index-project/) and poll
+[`get_index_status`](/docs/tools/get-index-status/) so no call remains open for
+the full rebuild.
 
 ## Consent
 
-It refuses without explicit approval. A client that declares the MCP elicitation
-capability is asked directly, and the request proceeds only when the user
-accepts. A client that does not implement elicitation must obtain approval itself
-and then send `confirmed: true`; sending it without having asked is a lie the
-server cannot detect.
+It refuses without explicit approval. A client capable of MCP form elicitation
+is asked directly, and the request proceeds only when the user accepts. A
+client that cannot answer form elicitation must obtain approval itself and then
+send `confirmed: true`; sending it without having asked is a lie the server
+cannot detect.
+
+Codex uses its native tool-approval prompt and then sends `confirmed: true`,
+because Codex currently cannot complete Kivgraph's server-side form elicitation.
+A client that advertises only URL elicitation uses the same fallback. The
+server still requires `confirmed: true` on every fallback path.
 
 Called without either, it fails:
 
@@ -124,10 +134,12 @@ The tool exists only on a configured `serve` route. Without a configured indexer
 it is not registered at all, so the read-only server cannot gain filesystem or
 storage access by accident.
 
-It is also the only tool registered when no generation has been published yet.
-That is how a client with no graph builds its first one: the server completes the
-handshake, publishes `index_project` alone, and the other ten appear once a
-generation exists. See [Troubleshooting](/mcp/troubleshooting/).
+It is one of the three indexing controls registered when no generation has been
+published yet. That is how a client with no graph builds its first one: the
+server completes the handshake, publishes both indexing mutations and their
+read-only status tool. Once the first generation exists, reconnect the MCP
+client so the new session exposes the graph-query tools. See
+[Troubleshooting](/mcp/troubleshooting/).
 
 ## Registering the same project twice
 
@@ -156,9 +168,9 @@ own timeout to the call, thirty seconds in some, and cancels work that is
 progressing fine.
 
 A request that carries a `progressToken` gets `notifications/progress` for every
-unit of work: the phase, the repository and a detail. A client that honours them
-waits for as long as the work reports. Without a token no progress callback is
-installed at all, so the index does not pay for a channel nobody reads.
+unit of work: the phase, the repository and a detail. A client may still apply
+an absolute timeout. Without a token no progress callback is installed at all,
+so the index does not pay for a channel nobody reads.
 
 Progress counts up and never repeats a value, as the protocol requires. A
 notification that cannot be delivered is dropped rather than failing the index.
@@ -171,10 +183,10 @@ the process answering queries; see [Indexing](/guides/indexing/#where-a-pass-run
 
 - It never writes inside the source projects. It writes the repository registry
   and the Kivgraph state directory; the checkouts it reads are left untouched.
-- One index runs at a time inside a process. An `index_project` and a
-  resynchronisation cannot overlap, and across processes a lock elects the single
-  writer: the loser does not wait, because a rebuild lasting minutes would look
-  like a hang.
+- One index runs at a time inside a process. Either indexing mutation and a
+  resynchronisation cannot overlap, and across processes a lock elects the
+  single writer: the loser does not wait, because a rebuild lasting minutes
+  would look like a hang.
 - A failure is reported as `INDEXING_FAILED` with the observed cause in the
   message: a module that needs a newer toolchain, a path that is not a
   repository, a dependency the module cache does not hold.
