@@ -98,6 +98,9 @@ func TestColdInstructionsNameOnlyPublishedControls(t *testing.T) {
 			t.Fatalf("cold instructions = %q, want no unavailable tool %q", instructions, unavailable)
 		}
 	}
+	if !strings.Contains(instructions, "start_index_project") {
+		t.Fatalf("cold instructions = %q, want the published indexing control", instructions)
+	}
 }
 
 // A graph for another checkout is not a weaker form of evidence for this one.

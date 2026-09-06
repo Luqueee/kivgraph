@@ -3,32 +3,39 @@ import {
   BackgroundVariant,
   BaseEdge,
   Controls,
+  type Edge,
+  type EdgeProps,
   Handle,
   MarkerType,
   MiniMap,
-  Position,
-  ReactFlow,
-  type Edge,
-  type EdgeProps,
   type Node,
   type NodeProps,
+  Position,
+  ReactFlow,
 } from "@xyflow/react";
-import { useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import "@xyflow/react/dist/style.css";
 
 import type { TopologyRelationship } from "@/api/client";
+import { cn } from "@/lib/utils";
 import {
-  topologyEdgeKind,
   type TopologyEdge,
   type TopologyModel,
   type TopologyNode,
+  topologyEdgeKind,
 } from "@/topology";
 import {
   calculateTopologyLayout,
   type TopologyLayoutInputEdge,
   type TopologyLayoutInputNode,
 } from "@/topology-layout";
-import { cn } from "@/lib/utils";
+
+export const TOPOLOGY_FLOW_ARIA_LABEL = "Profile topology map";
+
+const HOVER_DIRECT_EDGE_WIDTH = 2.4;
+const HOVER_DIMMED_EDGE_WIDTH = 1.2;
+const HOVER_DIRECT_EDGE_OPACITY = 0.9;
+const HOVER_DIMMED_EDGE_OPACITY = 0.5;
 
 export const TOPOLOGY_NODE_STYLES: Record<
   TopologyNode["type"],
@@ -142,6 +149,7 @@ export type TopologyFlowNode = Node<TopologyFlowNodeData, "topology">;
 
 export type TopologyFlowEdgeData = Record<string, unknown> & {
   readonly relationship: TopologyRelationship;
+  readonly edgeKey: string;
   readonly count: number;
   readonly routePath?: string;
 };
@@ -854,6 +862,34 @@ interface TopologyFlowFocus {
   readonly traceEdgeKeys: ReadonlySet<string>;
 }
 
+const TopologyFlowHoverContext = createContext<TopologyFlowFocus | null>(null);
+
+export function preserveTopologyFlowLayout(
+  fallback: FlowGraph["layout"],
+  previous: FlowGraph["layout"] | null,
+): FlowGraph["layout"] {
+  if (!previous) return fallback;
+
+  const previousNodes = new Map(previous.nodes.map((node) => [node.key, node]));
+  const nodes = fallback.nodes.map((node) => {
+    const previousNode = previousNodes.get(node.key);
+    return previousNode
+      ? { ...node, x: previousNode.x, y: previousNode.y }
+      : node;
+  });
+  return {
+    width: Math.max(
+      fallback.width,
+      ...nodes.map((node) => node.x + node.width + FLOW_PADDING),
+    ),
+    height: Math.max(
+      fallback.height,
+      ...nodes.map((node) => node.y + node.height + FLOW_PADDING),
+    ),
+    nodes,
+  };
+}
+
 function dependencyEdge(edge: TopologyEdge): boolean {
   return relationshipLabel(edge.relationship) !== "contains";
 }
@@ -1027,6 +1063,7 @@ function createTopologyFlowEdgesForGraph(
         type: "routed",
         data: {
           relationship,
+          edgeKey: edge.key,
           count,
           routePath: routesByGroupKey.get(key),
         },
@@ -1054,8 +1091,8 @@ function createTopologyFlowEdgesForGraph(
                 ? 1.35
                 : 1.25
               : isDirect
-                ? 2.4
-                : 1.2,
+                ? HOVER_DIRECT_EDGE_WIDTH
+                : HOVER_DIMMED_EDGE_WIDTH,
           opacity:
             focus.mode === null
               ? isStructural
@@ -1063,8 +1100,8 @@ function createTopologyFlowEdgesForGraph(
                 : 0.6
               : focus.mode === "hover"
                 ? isDirect
-                  ? 0.9
-                  : 0.5
+                  ? HOVER_DIRECT_EDGE_OPACITY
+                  : HOVER_DIMMED_EDGE_OPACITY
                 : isDirect
                   ? 0.98
                   : isTrace
@@ -1096,6 +1133,11 @@ function TopologyFlowNodeView({
 }: NodeProps<TopologyFlowNode>): React.ReactElement {
   const { displayNode, ports, active, emphasized, onSelect, onToggleProfile } =
     data;
+  const hoverFocus = useContext(TopologyFlowHoverContext);
+  const nodeKey = displayNodeKey(displayNode);
+  const visibleEmphasis = hoverFocus
+    ? hoverFocus.directNodeKeys.has(nodeKey)
+    : emphasized;
   const isGroup = displayNode.kind === "repository_group";
   const color = displayNodeColor(displayNode);
   const label = displayNodeLabel(displayNode);
@@ -1125,7 +1167,7 @@ function TopologyFlowNodeView({
           active ? "opacity-100" : "opacity-25",
           selected
             ? "border-gray-100 shadow-[0_0_0_2px_rgba(245,245,245,0.18),0_12px_28px_rgba(0,0,0,0.32)]"
-            : emphasized
+            : visibleEmphasis
               ? "border-graph-exact shadow-[0_0_0_1px_rgba(34,197,94,0.35)]"
               : "border-rule-strong hover:border-gray-500",
         )}
@@ -1203,15 +1245,28 @@ function RoutedTopologyEdge({
   labelBgPadding,
   labelBgBorderRadius,
 }: EdgeProps<TopologyFlowEdge>): React.ReactElement {
+  const hoverFocus = useContext(TopologyFlowHoverContext);
   const path =
     data?.routePath ??
     `M ${sourceX},${sourceY} H ${(sourceX + targetX) / 2} V ${targetY} H ${targetX}`;
+  const visibleStyle =
+    hoverFocus?.mode === "hover" && data
+      ? {
+          ...style,
+          strokeWidth: hoverFocus.directEdgeKeys.has(data.edgeKey)
+            ? HOVER_DIRECT_EDGE_WIDTH
+            : HOVER_DIMMED_EDGE_WIDTH,
+          opacity: hoverFocus.directEdgeKeys.has(data.edgeKey)
+            ? HOVER_DIRECT_EDGE_OPACITY
+            : HOVER_DIMMED_EDGE_OPACITY,
+        }
+      : style;
   return (
     <BaseEdge
       id={id}
       path={path}
       markerEnd={markerEnd}
-      style={style}
+      style={visibleStyle}
       label={label}
       labelX={(sourceX + targetX) / 2}
       labelY={(sourceY + targetY) / 2}
@@ -1244,7 +1299,10 @@ export function TopologyFlow({
   readonly expandedProfiles?: readonly string[];
 }): React.ReactElement {
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
-  const [elkLayout, setElkLayout] = useState<FlowGraph["layout"] | null>(null);
+  const [elkLayout, setElkLayout] = useState<{
+    readonly graph: FlowGraph;
+    readonly layout: FlowGraph["layout"];
+  } | null>(null);
   const graph = useMemo(
     () =>
       createTopologyFlowGraph(model, {
@@ -1257,20 +1315,33 @@ export function TopologyFlow({
   );
   useEffect(() => {
     let cancelled = false;
-    setElkLayout(null);
     void createElkLayout(graph.nodes, graph.edgeGroups)
       .then((layout) => {
-        if (!cancelled) setElkLayout(layout);
+        if (!cancelled) setElkLayout({ graph, layout });
       })
       .catch(() => {
-        if (!cancelled) setElkLayout(null);
+        if (!cancelled) {
+          setElkLayout((previous) => ({
+            graph,
+            layout: preserveTopologyFlowLayout(
+              graph.layout,
+              previous?.layout ?? null,
+            ),
+          }));
+        }
       });
     return () => {
       cancelled = true;
     };
   }, [graph]);
   const renderedGraph = useMemo(
-    () => (elkLayout ? { ...graph, layout: elkLayout } : graph),
+    () => ({
+      ...graph,
+      layout:
+        elkLayout?.graph === graph
+          ? elkLayout.layout
+          : preserveTopologyFlowLayout(graph.layout, elkLayout?.layout ?? null),
+    }),
     [elkLayout, graph],
   );
   const nodes = useMemo(
@@ -1279,135 +1350,144 @@ export function TopologyFlow({
         renderedGraph,
         selectedKey,
         (key) => onSelect(key),
-        hoveredKey,
+        null,
         onToggleProfile,
       ),
-    [hoveredKey, onSelect, onToggleProfile, renderedGraph, selectedKey],
+    [onSelect, onToggleProfile, renderedGraph, selectedKey],
   );
   const edges = useMemo(
-    () =>
-      createTopologyFlowEdgesForGraph(renderedGraph, selectedKey, hoveredKey),
-    [hoveredKey, renderedGraph, selectedKey],
+    () => createTopologyFlowEdgesForGraph(renderedGraph, selectedKey, null),
+    [renderedGraph, selectedKey],
   );
   const focus = useMemo(
     () => createTopologyFlowFocus(renderedGraph, selectedKey, hoveredKey),
     [hoveredKey, renderedGraph, selectedKey],
   );
-  const representedRelationshipCount = edges.reduce(
-    (count, edge) => count + (edge.data?.count ?? 1),
-    0,
+  const hoverFocus = focus.mode === "hover" ? focus : null;
+  const representedRelationshipCount = useMemo(
+    () => edges.reduce((count, edge) => count + (edge.data?.count ?? 1), 0),
+    [edges],
   );
-  const totalRelationshipCount = renderedGraph.edgeGroups.reduce(
-    (count, group) => count + group.count,
-    0,
+  const totalRelationshipCount = useMemo(
+    () =>
+      renderedGraph.edgeGroups.reduce((count, group) => count + group.count, 0),
+    [renderedGraph.edgeGroups],
   );
   const edgeGroupsTruncated = edges.length < renderedGraph.edgeGroups.length;
-  const selectedRepository = model.nodes.find(
-    (node) => node.key === selectedKey && node.type === "repository",
-  );
+  const selectedDisplayNode = selectedKey
+    ? renderedGraph.nodesByKey.get(selectedKey)
+    : undefined;
+  const selectedRepository =
+    selectedDisplayNode?.kind === "topology" &&
+    selectedDisplayNode.topologyNode.type === "repository"
+      ? selectedDisplayNode.topologyNode
+      : undefined;
 
   return (
     <div className="relative h-full min-h-0 w-full overflow-hidden rounded-none">
-      <ReactFlow<TopologyFlowNode, TopologyFlowEdge>
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={topologyNodeTypes}
-        edgeTypes={topologyEdgeTypes}
-        colorMode="dark"
-        fitView
-        fitViewOptions={{ padding: 0.24, minZoom: 0.35, maxZoom: 1.25 }}
-        minZoom={0.25}
-        maxZoom={2}
-        nodesDraggable={false}
-        nodesConnectable={false}
-        elementsSelectable={false}
-        nodesFocusable
-        edgesFocusable
-        autoPanOnNodeFocus
-        onNodeClick={(_, node) => {
-          if (node.data.displayNode.kind === "topology") onSelect(node.id);
-        }}
-        onNodeMouseEnter={(_, node) => {
-          if (node.data.displayNode.kind === "topology") setHoveredKey(node.id);
-        }}
-        onNodeMouseLeave={(_, node) => {
-          setHoveredKey((current) => (current === node.id ? null : current));
-        }}
-        onPaneClick={() => onSelect(null)}
-        proOptions={{ hideAttribution: false }}
-        defaultEdgeOptions={{
-          type: "routed",
-          selectable: false,
-          focusable: true,
-        }}
-        className="topology-flow"
-        aria-label="Profile topology map"
-      >
-        <Background
-          color="#333a42"
-          gap={28}
-          size={1}
-          variant={BackgroundVariant.Dots}
-        />
-        <Controls
-          showInteractive={false}
-          className="!m-3 overflow-hidden !border !border-rule-strong !bg-panel shadow-xl"
-          aria-label="Topology map controls"
-        />
-        <MiniMap<TopologyFlowNode>
-          pannable
-          zoomable
-          nodeColor={(node) => displayNodeColor(node.data.displayNode)}
-          nodeStrokeColor="#0a0b0d"
-          nodeStrokeWidth={2}
-          className="!m-3 !border !border-rule-strong !bg-panel shadow-xl"
-          aria-label="Topology minimap"
-        />
-        <div className="pointer-events-none absolute left-3 top-3 z-10 border border-rule-strong bg-panel px-3 py-2 font-mono text-[10px] text-gray-400 shadow-xl">
-          <span className="text-gray-100">
-            {expandedProfiles.length > 0 || showWorktrees
-              ? "repository map"
-              : "profile overview"}
-          </span>
-          <span className="mx-1.5 text-gray-500">·</span>
-          <span>
-            {expandedProfiles.length > 0 || showWorktrees
-              ? "select a repository to highlight its direct links"
-              : "open the repository group to explore"}
-          </span>
-        </div>
-        {selectedRepository ? (
-          <div className="absolute right-3 top-3 z-10 flex border border-rule-strong bg-panel font-mono text-[10px] shadow-xl">
-            <span className="px-3 py-2 text-gray-300">
-              ← {focus.directEdgeKeys.size} direct links
+      <TopologyFlowHoverContext.Provider value={hoverFocus}>
+        <ReactFlow<TopologyFlowNode, TopologyFlowEdge>
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={topologyNodeTypes}
+          edgeTypes={topologyEdgeTypes}
+          colorMode="dark"
+          fitView
+          fitViewOptions={{ padding: 0.24, minZoom: 0.35, maxZoom: 1.25 }}
+          minZoom={0.25}
+          maxZoom={2}
+          nodesDraggable={false}
+          nodesConnectable={false}
+          elementsSelectable={false}
+          nodesFocusable
+          edgesFocusable
+          autoPanOnNodeFocus
+          onNodeClick={(_, node) => {
+            if (node.data.displayNode.kind === "topology") onSelect(node.id);
+          }}
+          onNodeMouseEnter={(_, node) => {
+            if (node.data.displayNode.kind === "topology")
+              setHoveredKey(node.id);
+          }}
+          onNodeMouseLeave={(_, node) => {
+            setHoveredKey((current) => (current === node.id ? null : current));
+          }}
+          onPaneClick={() => onSelect(null)}
+          proOptions={{ hideAttribution: false }}
+          defaultEdgeOptions={{
+            type: "routed",
+            selectable: false,
+            focusable: true,
+          }}
+          className="topology-flow"
+          aria-label={TOPOLOGY_FLOW_ARIA_LABEL}
+        >
+          <Background
+            color="#333a42"
+            gap={28}
+            size={1}
+            variant={BackgroundVariant.Dots}
+          />
+          <Controls
+            showInteractive={false}
+            className="!m-3 overflow-hidden !border !border-rule-strong !bg-panel shadow-xl"
+            aria-label="Topology map controls"
+          />
+          <MiniMap<TopologyFlowNode>
+            pannable
+            zoomable
+            nodeColor={(node) => displayNodeColor(node.data.displayNode)}
+            nodeStrokeColor="#0a0b0d"
+            nodeStrokeWidth={2}
+            className="!m-3 !border !border-rule-strong !bg-panel shadow-xl"
+            aria-label="Topology minimap"
+          />
+          <div className="pointer-events-none absolute left-3 top-3 z-10 border border-rule-strong bg-panel px-3 py-2 font-mono text-[10px] text-gray-400 shadow-xl">
+            <span className="text-gray-100">
+              {expandedProfiles.length > 0 || showWorktrees
+                ? "repository map"
+                : "profile overview"}
             </span>
-            <span className="border-x border-rule-strong px-3 py-2 font-semibold text-gray-100">
-              {selectedRepository.label}
+            <span className="mx-1.5 text-gray-500">·</span>
+            <span>
+              {expandedProfiles.length > 0 || showWorktrees
+                ? "select a repository to highlight its direct links"
+                : "open the repository group to explore"}
             </span>
-            <button
-              type="button"
-              className="px-3 py-2 text-gray-300 transition-colors hover:bg-raise hover:text-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-200"
-              onClick={() => onSelect(null)}
-            >
-              clear trace
-            </button>
           </div>
-        ) : null}
-        <div className="pointer-events-none absolute right-60 bottom-3 left-16 z-10 border border-rule-strong bg-panel px-3 py-2 font-mono text-[10px] text-gray-400 shadow-xl">
-          {nodes.length} visible nodes · {edges.length}/
-          {renderedGraph.edgeGroups.length} visual links ·{" "}
-          {representedRelationshipCount}/{totalRelationshipCount} relationships
-          represented
-          {edgeGroupsTruncated
-            ? ` · link display limited to ${MAX_RENDERED_FLOW_EDGES} groups`
-            : ""}
-          {focus.mode === "selection"
-            ? " · trace shows up to three relationship steps"
-            : expandedProfiles.length > 0
-              ? " · select or hover a repository to trace its links"
+          {selectedRepository ? (
+            <div className="absolute right-3 top-3 z-10 flex border border-rule-strong bg-panel font-mono text-[10px] shadow-xl">
+              <span className="px-3 py-2 text-gray-300">
+                ← {focus.directEdgeKeys.size} direct links
+              </span>
+              <span className="border-x border-rule-strong px-3 py-2 font-semibold text-gray-100">
+                {selectedRepository.label}
+              </span>
+              <button
+                type="button"
+                className="px-3 py-2 text-gray-300 transition-colors hover:bg-raise hover:text-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-200"
+                onClick={() => onSelect(null)}
+              >
+                clear trace
+              </button>
+            </div>
+          ) : null}
+          <div className="pointer-events-none absolute right-60 bottom-3 left-16 z-10 border border-rule-strong bg-panel px-3 py-2 font-mono text-[10px] text-gray-400 shadow-xl">
+            {nodes.length} visible nodes · {edges.length}/
+            {renderedGraph.edgeGroups.length} visual links ·{" "}
+            {representedRelationshipCount}/{totalRelationshipCount}{" "}
+            relationships represented
+            {edgeGroupsTruncated
+              ? ` · link display limited to ${MAX_RENDERED_FLOW_EDGES} groups`
               : ""}
-        </div>
-      </ReactFlow>
+            {focus.mode === "selection"
+              ? " · trace shows up to three relationship steps"
+              : expandedProfiles.length > 0
+                ? " · select or hover a repository to trace its links"
+                : ""}
+          </div>
+        </ReactFlow>
+      </TopologyFlowHoverContext.Provider>
     </div>
   );
 }

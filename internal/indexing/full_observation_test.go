@@ -49,7 +49,8 @@ func TestObserveSourcesNormalizesRepositoryNames(t *testing.T) {
 	}
 	composition, err := manifest.Composition.ProfileComposition()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("manifest.Composition.ProfileComposition() for profile=%q repositories=%#v composition=%#v error = %v",
+			options.Profile, options.Repositories, manifest.Composition, err)
 	}
 	if len(composition.Repositories) != 1 || composition.Repositories[0].ID != "source" {
 		t.Fatalf("observed topology composition = %#v, want normalized repository id %q", composition, "source")
@@ -70,7 +71,8 @@ func TestObserveSourcesDerivesCompositionForPlainRegistry(t *testing.T) {
 	}
 	got, err := manifest.Composition.ProfileComposition()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("manifest.Composition.ProfileComposition() for profile=%q repositories=%#v composition=%#v error = %v",
+			options.Profile, options.Repositories, manifest.Composition, err)
 	}
 	want := topology.ProfileComposition{
 		Profile:      topology.Profile{ID: "default", Worktrees: []topology.WorktreeSelection{{Repository: "source", Worktree: "legacy:source"}}},
@@ -94,7 +96,8 @@ func TestObserveSourcesPersistsTheEffectiveTopologyComposition(t *testing.T) {
 	}
 	got, err := manifest.Composition.ProfileComposition()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("manifest.Composition.ProfileComposition() for profile=%q repositories=%#v composition=%#v error = %v",
+			options.Profile, options.Repositories, manifest.Composition, err)
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("observed topology composition = %#v, want %#v", got, want)

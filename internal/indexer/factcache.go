@@ -199,6 +199,7 @@ type CacheReport struct {
 // them routinely depend on the same directory tree.
 type factCache struct {
 	directory string
+	staging   string
 	mode      CacheMode
 	analyzer  string
 
@@ -221,8 +222,8 @@ type factCache struct {
 }
 
 type pendingCacheEntry struct {
-	path string
-	data []byte
+	staged string
+	path   string
 }
 
 // newFactCache prepares the cache for a pass.
@@ -252,8 +253,13 @@ func newFactCache(options FullOptions) (*factCache, error) {
 	if err != nil {
 		return nil, fmt.Errorf("fact cache: observe analyzer configuration: %w", err)
 	}
+	staging, err := os.MkdirTemp(directory, ".staging-*")
+	if err != nil {
+		return nil, fmt.Errorf("fact cache: prepare staging directory: %w", err)
+	}
 	return &factCache{
 		directory: directory,
+		staging:   staging,
 		mode:      mode,
 		analyzer:  analyzer,
 		trees:     newFingerprintMemo(),
@@ -418,10 +424,15 @@ func (cache *factCache) store(
 	if err != nil {
 		return
 	}
+	path := cache.path(identity, localAddress)
+	staged := filepath.Join(cache.staging, filepath.Base(path))
+	if !cache.write(staged, data) {
+		return
+	}
 	cache.pendingMutex.Lock()
 	cache.pending = append(cache.pending, pendingCacheEntry{
-		path: cache.path(identity, localAddress),
-		data: data,
+		staged: staged,
+		path:   path,
 	})
 	cache.pendingMutex.Unlock()
 }
@@ -434,33 +445,50 @@ func (cache *factCache) commit() {
 		return
 	}
 	cache.commitOnce.Do(func() {
+		defer func() { _ = os.RemoveAll(cache.staging) }()
 		cache.pendingMutex.Lock()
 		pending := append([]pendingCacheEntry(nil), cache.pending...)
 		cache.pending = nil
 		cache.pendingMutex.Unlock()
 		for _, entry := range pending {
-			cache.write(entry.path, entry.data)
+			if err := os.Rename(entry.staged, entry.path); err != nil {
+				_ = os.Remove(entry.staged)
+			}
 		}
 	})
 }
 
-func (cache *factCache) write(path string, data []byte) {
-	temporary, err := os.CreateTemp(cache.directory, "entry-*.tmp")
-	if err != nil {
+func (cache *factCache) discard() {
+	if !cache.enabled() {
 		return
+	}
+	cache.commitOnce.Do(func() {
+		cache.pendingMutex.Lock()
+		cache.pending = nil
+		cache.pendingMutex.Unlock()
+		_ = os.RemoveAll(cache.staging)
+	})
+}
+
+func (cache *factCache) write(path string, data []byte) bool {
+	temporary, err := os.CreateTemp(filepath.Dir(path), ".entry-*.tmp")
+	if err != nil {
+		return false
 	}
 	if _, err := temporary.Write(data); err != nil {
 		_ = temporary.Close()
 		_ = os.Remove(temporary.Name())
-		return
+		return false
 	}
 	if err := temporary.Close(); err != nil {
 		_ = os.Remove(temporary.Name())
-		return
+		return false
 	}
 	if err := os.Rename(temporary.Name(), path); err != nil {
 		_ = os.Remove(temporary.Name())
+		return false
 	}
+	return true
 }
 
 func (cache *factCache) path(identity, localAddress string) string {
@@ -485,7 +513,12 @@ func (cache *factCache) prune(maximumAge time.Duration) {
 		if err != nil || info.ModTime().After(deadline) {
 			continue
 		}
-		_ = os.Remove(filepath.Join(cache.directory, entry.Name()))
+		path := filepath.Join(cache.directory, entry.Name())
+		if entry.IsDir() && strings.HasPrefix(entry.Name(), ".staging-") {
+			_ = os.RemoveAll(path)
+			continue
+		}
+		_ = os.Remove(path)
 	}
 }
 

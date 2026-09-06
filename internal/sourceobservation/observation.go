@@ -413,6 +413,9 @@ func Compare(expected, actual Manifest) error {
 	if expected.AnalyzerFingerprint != actual.AnalyzerFingerprint {
 		return fmt.Errorf("%w: analyzer configuration changed", ErrChanged)
 	}
+	if expected.Version != actual.Version {
+		return fmt.Errorf("%w: source observation schema changed from version %d to %d", ErrChanged, expected.Version, actual.Version)
+	}
 	if !bytes.Equal(mustEncode(expected.Composition), mustEncode(actual.Composition)) {
 		return fmt.Errorf("%w: topology composition changed", ErrChanged)
 	}
@@ -426,7 +429,10 @@ func Compare(expected, actual Manifest) error {
 			return fmt.Errorf("%w: source %q no longer matches observation %q", ErrChanged, before.Repository, before.Observation.ID)
 		}
 	}
-	return fmt.Errorf("%w: source count changed from %d to %d", ErrChanged, len(expected.Sources), len(actual.Sources))
+	if len(expected.Sources) != len(actual.Sources) {
+		return fmt.Errorf("%w: source count changed from %d to %d", ErrChanged, len(expected.Sources), len(actual.Sources))
+	}
+	return fmt.Errorf("%w: source observations differ in representation", ErrChanged)
 }
 
 // Validate checks that the persisted record is complete and each source state

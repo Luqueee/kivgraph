@@ -523,6 +523,13 @@ func TestCompareNamesEveryChangedDimension(t *testing.T) {
 		want   string
 	}{
 		{
+			name: "version",
+			change: func(manifest *Manifest) {
+				manifest.Version = CompositionVersion
+			},
+			want: "schema changed from version 3 to 2",
+		},
+		{
 			name: "profile",
 			change: func(manifest *Manifest) {
 				manifest.Profile = "other"
@@ -578,6 +585,20 @@ func TestCompareNamesEveryChangedDimension(t *testing.T) {
 				t.Fatalf("Compare() error = %v, want changed observation naming %q", err, test.want)
 			}
 		})
+	}
+}
+
+func TestCompareReportsEqualCountRepresentationDifferenceTruthfully(t *testing.T) {
+	before := validManifest(t)
+	before.Sources = nil
+	after := before
+	after.Sources = []Source{}
+	err := Compare(before, after)
+	if !errors.Is(err, ErrChanged) || !strings.Contains(err.Error(), "differ in representation") {
+		t.Fatalf("Compare(nil sources, empty sources) error = %v, want truthful representation difference", err)
+	}
+	if strings.Contains(err.Error(), "count changed") {
+		t.Fatalf("Compare(nil sources, empty sources) error = %v, must not claim an unchanged count changed", err)
 	}
 }
 

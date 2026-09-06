@@ -498,6 +498,7 @@ func RunFull(ctx context.Context, options FullOptions) (result FullResult, resul
 	if err != nil {
 		return result, fmt.Errorf("index repositories: %w", err)
 	}
+	defer indexReport.DiscardCache()
 	result.Counts = countsFromFacts(factSet)
 	after, err := freshness.Capture(ctx, observedRepositories)
 	if err != nil {

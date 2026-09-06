@@ -45,7 +45,7 @@ func TestIsExpectedAbsenceNamesOnlyAMissingSymbol(t *testing.T) {
 		t.Fatal("an unclassified error was read as an expected absence")
 	}
 	if IsExpectedAbsence(nil) {
-		t.Fatal("a call that did not fail was classified as an expected absence")
+		t.Fatal("err=nil was classified as an expected absence")
 	}
 	if !IsExpectedAbsence(fmt.Errorf("resolve: %w", NewToolError(CodeSymbolNotFound, "no match"))) {
 		t.Fatal("a wrapped absence stopped being one")

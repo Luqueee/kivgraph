@@ -279,6 +279,26 @@ func TestCoalesceReconciliationResultsUsesLatestExclusiveState(t *testing.T) {
 	}
 }
 
+func TestCoalesceReconciliationResultsKeepsPendingChangesOverLaterObservations(t *testing.T) {
+	modified := watcher.FileState{Repository: "repo", Path: "/repo/modified.go", ContentHash: "changed"}
+	removed := watcher.FileState{Repository: "repo", Path: "/repo/removed.go", Operations: watcher.OperationRemove}
+	previous := watcher.ReconciliationResult{Modified: []watcher.FileState{modified}, Removed: []watcher.FileState{removed}}
+	next := watcher.ReconciliationResult{
+		Added:     []watcher.FileState{{Repository: "repo", Path: "/repo/other.go"}},
+		Unchanged: []watcher.FileState{{Repository: "repo", Path: modified.Path}},
+		Skipped:   []watcher.FileState{{Repository: "repo", Path: removed.Path}},
+	}
+	got := coalesceReconciliationResults(previous, next)
+	want := watcher.ReconciliationResult{
+		Added:    []watcher.FileState{{Repository: "repo", Path: "/repo/other.go"}},
+		Modified: []watcher.FileState{modified},
+		Removed:  []watcher.FileState{removed},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("coalesceReconciliationResults(previous=%#v, next=%#v) = %#v, want %#v", previous, next, got, want)
+	}
+}
+
 func TestWatchSourcesRequiresAChangeHandler(t *testing.T) {
 	err := WatchSources(context.Background(), SourceWatchOptions{})
 	if !errors.Is(err, ErrChangeHandlerRequired) {

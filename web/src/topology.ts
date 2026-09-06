@@ -207,7 +207,81 @@ function languagesForRepositories(
   );
 }
 
-function createNodes(response: TopologyResponse): TopologyNode[] {
+interface TopologyResponseIndex {
+  readonly worktreeIDsByRepository: ReadonlyMap<string, readonly string[]>;
+  readonly relationshipProfilesByNode: ReadonlyMap<string, readonly string[]>;
+  readonly relationshipNodeKeysByProfile: ReadonlyMap<
+    string,
+    ReadonlySet<string>
+  >;
+  readonly relationshipsByProfile: ReadonlyMap<
+    string,
+    readonly TopologyRelationship[]
+  >;
+}
+
+const responseIndexes = new WeakMap<TopologyResponse, TopologyResponseIndex>();
+const scopedModels = new WeakMap<TopologyModel, Map<string, TopologyModel>>();
+
+function topologyResponseIndex(
+  response: TopologyResponse,
+): TopologyResponseIndex {
+  const cached = responseIndexes.get(response);
+  if (cached) return cached;
+
+  const worktreeIDsByRepository = new Map<string, string[]>();
+  for (const worktree of response.worktrees) {
+    const worktrees = worktreeIDsByRepository.get(worktree.repository) ?? [];
+    worktrees.push(worktree.id);
+    worktreeIDsByRepository.set(worktree.repository, worktrees);
+  }
+  const relationshipProfilesByNode = new Map<string, string[]>();
+  const relationshipNodeKeysByProfile = new Map<string, Set<string>>();
+  const relationshipsByProfile = new Map<string, TopologyRelationship[]>();
+  for (const relationship of response.relationships) {
+    const keys = [
+      relationshipNodeKey(relationship.source),
+      ...(relationship.target
+        ? [relationshipNodeKey(relationship.target)]
+        : []),
+    ];
+    for (const key of keys) {
+      if (!relationship.profile) continue;
+      const profiles = relationshipProfilesByNode.get(key) ?? [];
+      profiles.push(relationship.profile);
+      relationshipProfilesByNode.set(key, profiles);
+      const profileKeys =
+        relationshipNodeKeysByProfile.get(relationship.profile) ??
+        new Set<string>();
+      profileKeys.add(key);
+      relationshipNodeKeysByProfile.set(relationship.profile, profileKeys);
+    }
+    if (relationship.profile) {
+      const relationships =
+        relationshipsByProfile.get(relationship.profile) ?? [];
+      relationships.push(relationship);
+      relationshipsByProfile.set(relationship.profile, relationships);
+    }
+  }
+  const index = {
+    worktreeIDsByRepository,
+    relationshipProfilesByNode: new Map(
+      [...relationshipProfilesByNode.entries()].map(([key, profiles]) => [
+        key,
+        sortStrings(profiles),
+      ]),
+    ),
+    relationshipNodeKeysByProfile,
+    relationshipsByProfile,
+  };
+  responseIndexes.set(response, index);
+  return index;
+}
+
+function createNodes(
+  response: TopologyResponse,
+  index: TopologyResponseIndex,
+): TopologyNode[] {
   const repositoryForWorktree = repositoriesByWorktree(response);
   const languages = languagesByRepository(response);
   const profilesForWorktree = profileForWorktree(response);
@@ -235,9 +309,7 @@ function createNodes(response: TopologyResponse): TopologyNode[] {
   }
 
   for (const repository of response.repositories) {
-    const worktrees = response.worktrees
-      .filter((worktree) => worktree.repository === repository.id)
-      .map((worktree) => worktree.id);
+    const worktrees = index.worktreeIDsByRepository.get(repository.id) ?? [];
     const profiles = sortStrings(
       worktrees.flatMap((worktree) => profilesForWorktree.get(worktree) ?? []),
     );
@@ -279,16 +351,8 @@ function createNodes(response: TopologyResponse): TopologyNode[] {
             input.repository ?? repositoryForWorktree.get(input.id) ?? "",
           ].filter((repository) => repository.length > 0)
         : [];
-    const relatedProfiles = response.relationships.flatMap((relationship) => {
-      if (!relationship.profile) return [];
-      const sourceKey = relationshipNodeKey(relationship.source);
-      const targetKey = relationship.target
-        ? relationshipNodeKey(relationship.target)
-        : undefined;
-      return sourceKey === inputKey || targetKey === inputKey
-        ? [relationship.profile]
-        : [];
-    });
+    const relatedProfiles =
+      index.relationshipProfilesByNode.get(inputKey) ?? [];
     nodes.push({
       key: inputKey,
       id: `${input.type}:${input.id}`,
@@ -422,6 +486,7 @@ function edgeKind(relationship: TopologyRelationship): string {
 function scopeTopologyResponse(
   response: TopologyResponse,
   profileID: string,
+  index: TopologyResponseIndex,
 ): TopologyResponse {
   if (profileID === ALL_TOPOLOGY_FILTER) return response;
 
@@ -436,11 +501,12 @@ function scopeTopologyResponse(
   const repositoryIDs = new Set(
     worktrees.map((worktree) => worktree.repository),
   );
-  const relationships = response.relationships.filter(
-    (relationship) =>
-      relationship.profile !== undefined &&
-      profileIDs.has(relationship.profile),
-  );
+  const relationships = profileIDs.has(profileID)
+    ? (index.relationshipsByProfile.get(profileID) ?? [])
+    : [];
+  const scopedRelationshipNodeKeys = profileIDs.has(profileID)
+    ? (index.relationshipNodeKeysByProfile.get(profileID) ?? new Set<string>())
+    : new Set<string>();
   const sharedInputs = response.sharedInputs
     .map((input) => ({
       ...input,
@@ -449,14 +515,7 @@ function scopeTopologyResponse(
     .filter((input) => {
       const inputKey = sharedInputNodeKey(input.type, input.id);
       return (
-        input.owners.length > 0 ||
-        relationships.some((relationship) => {
-          const sourceKey = relationshipNodeKey(relationship.source);
-          const targetKey = relationship.target
-            ? relationshipNodeKey(relationship.target)
-            : undefined;
-          return sourceKey === inputKey || targetKey === inputKey;
-        })
+        input.owners.length > 0 || scopedRelationshipNodeKeys.has(inputKey)
       );
     });
 
@@ -482,7 +541,7 @@ function scopeTopologyResponse(
 }
 
 export function createTopologyModel(response: TopologyResponse): TopologyModel {
-  const nodes = createNodes(response);
+  const nodes = createNodes(response, topologyResponseIndex(response));
   const relationships = response.relationships;
   const { edges, unrendered } = buildEdges(relationships, nodes);
   return {
@@ -496,15 +555,36 @@ export function createTopologyModel(response: TopologyResponse): TopologyModel {
   };
 }
 
+function modelForProfile(
+  model: TopologyModel,
+  profileID: string,
+): TopologyModel {
+  if (!model.response || profileID === ALL_TOPOLOGY_FILTER) return model;
+
+  let byProfile = scopedModels.get(model);
+  if (!byProfile) {
+    byProfile = new Map();
+    scopedModels.set(model, byProfile);
+  }
+  const cached = byProfile.get(profileID);
+  if (cached) return cached;
+
+  const scoped = createTopologyModel(
+    scopeTopologyResponse(
+      model.response,
+      profileID,
+      topologyResponseIndex(model.response),
+    ),
+  );
+  byProfile.set(profileID, scoped);
+  return scoped;
+}
+
 export function filterTopology(
   model: TopologyModel,
   filters: TopologyFilters,
 ): TopologyModel {
-  const scopedModel = model.response
-    ? createTopologyModel(
-        scopeTopologyResponse(model.response, filters.profile),
-      )
-    : model;
+  const scopedModel = modelForProfile(model, filters.profile);
   const nodes = scopedModel.nodes.filter((node) => matchesNode(node, filters));
   const visibleKeys = new Set(nodes.map((node) => node.key));
   const relationships = scopedModel.relationships.filter((relationship) => {

@@ -319,4 +319,33 @@ describe("topology model", () => {
     ]);
     expect(filtered.boundaries).toEqual([]);
   });
+
+  it("reuses the profile-scoped model when only query filters change", () => {
+    const model = createTopologyModel(topology);
+    const first = filterTopology(model, {
+      ...allFilters,
+      profile: "other",
+    });
+    const second = filterTopology(model, {
+      ...allFilters,
+      profile: "other",
+      query: "alpha",
+    });
+
+    expect(second.response).toBe(first.response);
+    expect(second.nodes.find((node) => node.key === "repository:repo-a")).toBe(
+      first.nodes.find((node) => node.key === "repository:repo-a"),
+    );
+  });
+
+  it("does not retain relationships for an unknown profile", () => {
+    const filtered = filterTopology(createTopologyModel(topology), {
+      ...allFilters,
+      profile: "missing",
+    });
+
+    expect(filtered.nodes).toEqual([]);
+    expect(filtered.relationships).toEqual([]);
+    expect(filtered.response?.sharedInputs).toEqual([]);
+  });
 });

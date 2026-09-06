@@ -157,8 +157,8 @@ func (manager *Manager) Snapshot() State {
 	return cloneState(manager.state)
 }
 
-// Refresh reloads the atomically replaced state file without taking the write
-// lock. A missing file resets the manager to an empty state.
+// Refresh reloads the atomically replaced state file. A missing file resets
+// the manager to an empty state.
 func (manager *Manager) Refresh(ctx context.Context) error {
 	if manager == nil {
 		return errors.New("source invalidation manager is nil")
@@ -169,13 +169,13 @@ func (manager *Manager) Refresh(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
 	state, err := read(manager.path)
 	if err != nil {
 		return err
 	}
-	manager.mu.Lock()
 	manager.state = state
-	manager.mu.Unlock()
 	return nil
 }
 
