@@ -283,13 +283,19 @@ func copyProfileArtifact(source, destination string) error {
 	if err != nil {
 		return fmt.Errorf("read legacy profile artifact %q: %w", source, err)
 	}
-	defer input.Close()
+	openedInfo, err := input.Stat()
+	if err != nil {
+		return errors.Join(fmt.Errorf("inspect opened legacy profile artifact %q: %w", source, err), input.Close())
+	}
+	if !openedInfo.Mode().IsRegular() || !os.SameFile(info, openedInfo) {
+		return errors.Join(fmt.Errorf("legacy profile artifact %q changed while it was opened", source), input.Close())
+	}
 	output, err := os.OpenFile(destination, os.O_CREATE|os.O_EXCL|os.O_WRONLY, info.Mode().Perm())
 	if err != nil {
-		return fmt.Errorf("create copied artifact %q: %w", destination, err)
+		return errors.Join(fmt.Errorf("create copied artifact %q: %w", destination, err), input.Close())
 	}
 	_, copyErr := io.Copy(output, input)
-	if err := errors.Join(copyErr, output.Close()); err != nil {
+	if err := errors.Join(copyErr, output.Close(), input.Close()); err != nil {
 		return fmt.Errorf("copy legacy profile artifact %q: %w", source, err)
 	}
 	return nil

@@ -128,8 +128,6 @@ var confidenceCodes = map[Confidence]uint8{
 }
 
 var provenanceCodes = map[Provenance]uint8{
-	TypeScriptImplementationDeclared:   CodeTypeScriptImplementationDeclared,
-	TypeScriptImplementationStructural: CodeTypeScriptImplementationStructural,
 	TypeScriptChecker:                  CodeTypeScriptChecker,
 	TypeScriptModuleResolution:         CodeTypeScriptModuleResolution,
 	TypeScriptDeclarationMap:           CodeTypeScriptDeclarationMap,
@@ -159,6 +157,8 @@ var provenanceCodes = map[Provenance]uint8{
 	JavaScipUse:                        CodeJavaScipUse,
 	CSharpScipDefinition:               CodeCSharpScipDefinition,
 	CSharpScipUse:                      CodeCSharpScipUse,
+	TypeScriptImplementationDeclared:   CodeTypeScriptImplementationDeclared,
+	TypeScriptImplementationStructural: CodeTypeScriptImplementationStructural,
 }
 
 // reverse builds the decoding table of a coding table. The tables are

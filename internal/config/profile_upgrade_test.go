@@ -172,10 +172,16 @@ func TestProfileUpgradeResumesOnlyAnIdenticalBackup(t *testing.T) {
 			}
 			_, err := LoadProfile(path, "")
 			if changed && err == nil {
-				t.Fatal("overwrote mismatched recovery point")
+				t.Fatalf("changed=%t: overwrote mismatched recovery point", changed)
+			}
+			if changed {
+				contents, readErr := os.ReadFile(filepath.Join(state+".pre-profiles", "CURRENT"))
+				if readErr != nil || string(contents) != "different\n" {
+					t.Fatalf("changed=%t: recovery CURRENT = %q, %v", changed, contents, readErr)
+				}
 			}
 			if !changed && err != nil {
-				t.Fatalf("resume: %v", err)
+				t.Fatalf("changed=%t: resume: %v", changed, err)
 			}
 		})
 	}

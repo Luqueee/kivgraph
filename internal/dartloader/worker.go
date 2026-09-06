@@ -88,7 +88,7 @@ func (w *workerProcess) failure(phase string, cause error) error {
 	}
 	select {
 	case <-w.done:
-		return fmt.Errorf("Dart analyzer %s: %v; process exit: %v; stderr: %s", phase, cause, w.exit, w.stderr.text())
+		return fmt.Errorf("Dart analyzer %s: %w; process exit: %v; stderr: %s", phase, cause, w.exit, w.stderr.text())
 	case <-time.After(100 * time.Millisecond):
 		return fmt.Errorf("Dart analyzer %s: %w; stderr: %s", phase, cause, w.stderr.text())
 	}

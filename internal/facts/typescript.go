@@ -19,12 +19,6 @@ const TypeScriptWireVersion = 5
 // The worker reports identity components and positions; it never computes a
 // key. Deriving keys on a single side is what keeps one symbol from getting
 // two identities when a consumer and its provider are indexed separately.
-type TypeScriptImplementation struct {
-	TypeScriptExtends
-	Detection string   `json:"detection"`
-	Relation  EdgeKind `json:"relation"`
-}
-
 type TypeScriptPayload struct {
 	Version                   int                        `json:"version"`
 	Repository                TypeScriptRepository       `json:"repository"`
@@ -39,6 +33,12 @@ type TypeScriptPayload struct {
 	ImplementationLimitations []string                   `json:"implementationLimitations"`
 	Dependencies              []TypeScriptDependency     `json:"dependencies"`
 	Unresolved                []TypeScriptUnresolved     `json:"unresolved"`
+}
+
+type TypeScriptImplementation struct {
+	TypeScriptExtends
+	Detection string   `json:"detection"`
+	Relation  EdgeKind `json:"relation"`
 }
 
 // TypeScriptRepository names the repository the payload belongs to.
@@ -294,7 +294,10 @@ type TypeScriptReport struct {
 // key the provider assigns its own declaration. What is retired here are the
 // uses whose **source** file is the provider's output -- facts about the
 // provider, which the provider's own pass is the one to report.
-const UnresolvedFileOutsideRepository = "FILE_OUTSIDE_REPOSITORY"
+const (
+	UnresolvedFileOutsideRepository  = "FILE_OUTSIDE_REPOSITORY"
+	UnresolvedImplementationCoverage = "IMPLEMENTATION_COVERAGE_PARTIAL"
+)
 
 // escapesRepository reports whether a repository-relative path leaves its own
 // repository. Cleaning first is what makes `src/../../x` and `../x` the same
@@ -761,7 +764,7 @@ func NormalizeTypeScript(
 	}
 	for _, impl := range payload.Implementations {
 		if (impl.Relation != Implements && impl.Relation != Overrides) || (impl.Detection != "declared" && impl.Detection != "structural") {
-			return Set{}, TypeScriptReport{}, fmt.Errorf("%w: invalid implementation relation or detection", ErrInvalidFacts)
+			return Set{}, TypeScriptReport{}, fmt.Errorf("%w: implementation %q in %q has relation %q and detection %q", ErrInvalidFacts, impl.QualifiedName, impl.File, impl.Relation, impl.Detection)
 		}
 		relations = append(relations, relationFact{impl.TypeScriptExtends, impl.Relation, impl.Detection})
 	}
@@ -863,7 +866,7 @@ func NormalizeTypeScript(
 		limits = append(limits, "Legacy TypeScript worker did not analyze implementation relations; rebuild with ts-facts-v5.")
 	}
 	for _, detail := range limits {
-		set.Unresolved = append(set.Unresolved, UnresolvedReference{RepositoryKey: repositoryKey, Language: LanguageTypeScript, Reason: "IMPLEMENTATION_COVERAGE_PARTIAL", Detail: detail, RequestedPackage: payload.Package.Name})
+		set.Unresolved = append(set.Unresolved, UnresolvedReference{RepositoryKey: repositoryKey, Language: LanguageTypeScript, Reason: UnresolvedImplementationCoverage, Detail: detail, RequestedPackage: payload.Package.Name})
 	}
 
 	// PACKAGE_DEPENDS_ON needs no symbol lookup at all: both ends are the

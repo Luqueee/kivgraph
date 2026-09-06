@@ -24,7 +24,7 @@ func TestImplementationsPageContainsTypedRelationsOnly(t *testing.T) {
 		t.Fatalf("second page with %#v: %#v %v", args, second, err)
 	}
 	if first.Results.Implementations[0].StableKey == second.Results.Implementations[0].StableKey {
-		t.Fatal("duplicate page")
+		t.Fatalf("duplicate page for %#v: first=%q second=%q", args, first.Results.Implementations[0].StableKey, second.Results.Implementations[0].StableKey)
 	}
 	args.Detection = "declared"
 	if _, _, err := findImplementations(context.Background(), nil, args, store); err == nil {

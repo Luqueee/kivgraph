@@ -85,6 +85,10 @@ export const instance = new Generic<string>('value');
 export type TextBox = Box<string>;
 `);
   const result = await resolveImplementations(service, view, symbols, []);
+  const brute = await resolveImplementations(service, view, symbols, [], {
+    exhaustive: true,
+  });
+  expect(result.edges).toEqual(brute.edges);
   expect(
     result.edges.map((edge) => [
       edge.base.sourceQualifiedName,
@@ -206,10 +210,15 @@ it("retains canonical provider identities for imported interfaces and methods", 
     ["Structural.read", "Reader.read", "structural"],
   ]);
   expect(
-    result.edges.every(
-      (edge) =>
-        edge.identity?.repository === "provider-repo" &&
-        edge.identity?.file === "src/contracts.ts",
-    ),
-  ).toBe(true);
+    result.edges.map((edge) => [
+      edge.base.sourceQualifiedName,
+      edge.identity?.repository,
+      edge.identity?.file,
+    ]),
+  ).toEqual([
+    ["Declared", "provider-repo", "src/contracts.ts"],
+    ["Declared.read", "provider-repo", "src/contracts.ts"],
+    ["Structural", "provider-repo", "src/contracts.ts"],
+    ["Structural.read", "provider-repo", "src/contracts.ts"],
+  ]);
 });

@@ -287,7 +287,12 @@ export async function resolveImplementations(
         const type = await providerView.checker.getDeclaredTypeOfSymbol(
           parent.symbol,
         );
-        if (!valid(type)) continue;
+        if (!valid(type)) {
+          limitations.add(
+            "Provider declared types that fail validation contribute no member provenance.",
+          );
+          continue;
+        }
         const members = new Map<string, ImportedSymbolIdentity>();
         for (const member of await providerView.checker.getPropertiesOfType(
           type,
@@ -362,11 +367,45 @@ export async function resolveImplementations(
       detection,
       relation: method ? "OVERRIDES" : "IMPLEMENTS",
     };
-    const key = `${source.fileName}:${source.qualifiedName}:${target.local?.fileName ?? target.imported?.target.identity?.repository}:${target.local?.qualifiedName ?? target.imported?.target.identity?.qualifiedName}`;
+    const identity = target.imported?.target.identity;
+    const targetLocation =
+      target.local?.fileName ??
+      (identity === undefined
+        ? undefined
+        : `${identity.repository}\u0000${identity.file}`);
+    const key = `${source.fileName}:${source.qualifiedName}:${targetLocation}:${target.local?.qualifiedName ?? identity?.qualifiedName}`;
     if (edges.get(key)?.detection !== "declared") edges.set(key, edge);
   }
+
+  const targetIDsByRequiredName = new Map<string, Set<number>>();
+  for (const target of targets.values()) {
+    for (const targetType of target.types.values()) {
+      for (const property of await props(targetType)) {
+        if ((property.flags & SymbolFlags.Optional) !== 0) continue;
+        const matching =
+          targetIDsByRequiredName.get(property.name) ?? new Set();
+        matching.add(target.symbol.id);
+        targetIDsByRequiredName.set(property.name, matching);
+      }
+    }
+  }
   for (const source of sources.values()) {
-    for (const target of targets.values()) {
+    const candidateIDs = new Set(source.declared);
+    for (const sourceType of source.types.values()) {
+      for (const property of await props(sourceType)) {
+        for (const targetID of targetIDsByRequiredName.get(property.name) ??
+          []) {
+          candidateIDs.add(targetID);
+        }
+      }
+    }
+    const candidates = options.exhaustive
+      ? targets.values()
+      : [...candidateIDs]
+          .sort((left, right) => left - right)
+          .map((targetID) => targets.get(targetID))
+          .filter((target): target is Target => target !== undefined);
+    for (const target of candidates) {
       const detection = source.declared.has(target.symbol.id)
         ? "declared"
         : "structural";

@@ -43,8 +43,16 @@ func TestDartWorkerFailurePreservesExitAndBoundedStderr(t *testing.T) {
 				<-c.worker.done
 				_, err = c.call(t.Context(), "analysis.getNavigation", map[string]any{})
 			}
-			if err == nil || !strings.Contains(err.Error(), "exit status 23") || !strings.Contains(err.Error(), "fixture analyzer crash") || len(err.Error()) > 17000 {
-				t.Fatalf("missing or unbounded worker diagnosis: %v", err)
+			if err == nil {
+				t.Fatalf("%s: request after worker exit returned no error", protocol)
+			}
+			for _, want := range []string{"exit status 23", "fixture analyzer crash"} {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("%s: diagnosis missing %q: %v", protocol, want, err)
+				}
+			}
+			if size := len(err.Error()); size > 17000 {
+				t.Errorf("%s: diagnosis is %d bytes, want at most 17000", protocol, size)
 			}
 		})
 	}

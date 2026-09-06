@@ -1392,8 +1392,37 @@ func TestNormalizeTypeScriptImplementationEvidence(t *testing.T) {
 	if len(payload.Implementations) == 0 {
 		t.Fatal("worker emitted no implementations")
 	}
+	limited := payload
+	limited.ImplementationLimitations = []string{"provider source unavailable"}
+	limitedSet, _, err := NormalizeTypeScript(t.Context(), limited, workspace.Repository{RealPath: "/fixtures/implementations"})
+	if err != nil {
+		t.Fatalf("NormalizeTypeScript(explicit limitation) error = %v", err)
+	}
+	if got := implementationCoverageRows(limitedSet.Unresolved); len(got) != 1 || got[0].Detail != "provider source unavailable" || got[0].RequestedPackage != "@fixture/implementations" {
+		t.Fatalf("explicit implementation limitations = %#v", got)
+	}
+	legacy := payload
+	legacy.Version = 4
+	legacy.Implementations = nil
+	legacySet, _, err := NormalizeTypeScript(t.Context(), legacy, workspace.Repository{RealPath: "/fixtures/implementations"})
+	if err != nil {
+		t.Fatalf("NormalizeTypeScript(v4) error = %v", err)
+	}
+	if got := implementationCoverageRows(legacySet.Unresolved); len(got) != 1 || got[0].Detail != "Legacy TypeScript worker did not analyze implementation relations; rebuild with ts-facts-v5." || got[0].RequestedPackage != "@fixture/implementations" {
+		t.Fatalf("legacy implementation limitations = %#v", got)
+	}
 	payload.Implementations[0].Detection = "guessed"
 	if _, _, err := NormalizeTypeScript(t.Context(), payload, workspace.Repository{RealPath: "/fixtures/implementations"}); err == nil {
 		t.Fatal("unknown implementation evidence accepted")
 	}
+}
+
+func implementationCoverageRows(rows []UnresolvedReference) []UnresolvedReference {
+	var coverage []UnresolvedReference
+	for _, row := range rows {
+		if row.Reason == UnresolvedImplementationCoverage {
+			coverage = append(coverage, row)
+		}
+	}
+	return coverage
 }

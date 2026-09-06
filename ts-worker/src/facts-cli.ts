@@ -394,11 +394,14 @@ export async function collectFacts(
       extendsResolution.extends,
       manifest?.name ?? repositoryName,
     );
-    const implementationFacts = extendsFactSymbols(
+    const implementationNormalization = extendsFactSymbols(
       root,
       implementationResolution.edges,
       manifest?.name ?? repositoryName,
-    ).extends;
+    );
+    if (implementationNormalization.unresolved.length !== 0)
+      throw new Error("resolved implementations produced unresolved facts");
+    const implementationFacts = implementationNormalization.extends;
 
     const dependencyEvidenceFiles = dependencyResolution.dependencies
       .map((dependency) => dependency.imports[0]?.fileName)

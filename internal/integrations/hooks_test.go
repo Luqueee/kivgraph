@@ -650,6 +650,27 @@ func TestClaudeDesktopIsDetectedByItsOwnEntry(t *testing.T) {
 	}
 }
 
+func TestClaudeDesktopDetectionUsesConfiguredSystemRoot(t *testing.T) {
+	manager, _, _ := testManager(t)
+	entry := filepath.Join(manager.systemRoot, "Applications", "Claude.app")
+	if err := os.MkdirAll(entry, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	detections, err := manager.DetectHookTargets(ScopeUser)
+	if err != nil {
+		t.Fatalf("DetectHookTargets() error = %v", err)
+	}
+	for _, detection := range detections {
+		if detection.Target == TargetClaudeDesktop {
+			if !detection.Detected {
+				t.Fatalf("system application below configured root %q was not detected", manager.systemRoot)
+			}
+			return
+		}
+	}
+	t.Fatal("claude-desktop is not offered as a hook target")
+}
+
 // TestOhMyPiProjectIsDetectedByItsAgentRoot keeps project selection from
 // treating the extension file as the installation marker. The project root is
 // what Oh My Pi owns even before a Kivgraph extension is written.
