@@ -122,14 +122,14 @@ func TestFactCacheStagesEntriesOnDiskUntilCommit(t *testing.T) {
 		t.Fatalf("read uncommitted cache %q: %v", fixture.cache, err)
 	}
 	if len(entries) != 1 || !entries[0].IsDir() || !strings.HasPrefix(entries[0].Name(), ".staging-") {
-		t.Fatalf("uncommitted cache entries = %#v, want one staging directory and no admitted entry", entries)
+		t.Fatalf("uncommitted cache %q entries = %#v, want one staging directory and no admitted entry", fixture.cache, entries)
 	}
 	staged, err := os.ReadDir(filepath.Join(fixture.cache, entries[0].Name()))
 	if err != nil {
 		t.Fatalf("read staged cache %q entry %q: %v", fixture.cache, entries[0].Name(), err)
 	}
 	if len(staged) != 1 || staged[0].IsDir() || filepath.Ext(staged[0].Name()) != ".json" {
-		t.Fatalf("staged cache entries = %#v, want one JSON file", staged)
+		t.Fatalf("staged cache %q entries = %#v, want one JSON file", fixture.cache, staged)
 	}
 
 	report.CommitCache()
