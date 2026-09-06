@@ -402,6 +402,9 @@ export async function collectFacts(
       implementationResolution.edges,
       manifest?.name ?? repositoryName,
     );
+    // Implementation targets come only from local declarations or imports
+    // whose provider identity was proven, so an unresolved row contradicts
+    // resolveImplementations rather than describing a partial result.
     if (implementationNormalization.unresolved.length !== 0)
       throw new Error("resolved implementations produced unresolved facts");
 

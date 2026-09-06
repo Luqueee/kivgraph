@@ -241,12 +241,13 @@ it("retains canonical provider identities for imported interfaces and methods", 
       edge.base.sourceQualifiedName,
       edge.identity?.qualifiedName,
       edge.detection,
+      edge.relation,
     ]),
   ).toEqual([
-    ["Declared", "Reader", "declared"],
-    ["Declared.read", "Reader.read", "declared"],
-    ["Structural", "Reader", "structural"],
-    ["Structural.read", "Reader.read", "structural"],
+    ["Declared", "Reader", "declared", "IMPLEMENTS"],
+    ["Declared.read", "Reader.read", "declared", "IMPLEMENTS"],
+    ["Structural", "Reader", "structural", "IMPLEMENTS"],
+    ["Structural.read", "Reader.read", "structural", "IMPLEMENTS"],
   ]);
   expect(
     result.edges.map((edge) => [
@@ -260,4 +261,19 @@ it("retains canonical provider identities for imported interfaces and methods", 
     ["Structural", "provider-repo", "src/contracts.ts"],
     ["Structural.read", "provider-repo", "src/contracts.ts"],
   ]);
+
+  await writeFile(
+    path.join(provider, "src/contracts.ts"),
+    "export interface Different { read(): string; }\n",
+  );
+  const unavailable = await resolveImplementations(
+    service,
+    view,
+    symbols,
+    imports.symbols,
+  );
+  expect(unavailable.edges).toEqual([]);
+  expect(unavailable.limitations).toContain(
+    "Provider declaration identity could not be revalidated.",
+  );
 });

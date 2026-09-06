@@ -199,7 +199,8 @@ export function scopeName(node: Node): string | undefined {
     isMethodSignatureDeclaration(node) ||
     isGetAccessorDeclaration(node) ||
     isSetAccessorDeclaration(node) ||
-    isPropertyDeclaration(node)
+    isPropertyDeclaration(node) ||
+    isPropertySignatureDeclaration(node)
   ) {
     return displayName(node.name);
   }

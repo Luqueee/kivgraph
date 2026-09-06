@@ -53,7 +53,7 @@ func TestSystemApplicationRootIsResolved(t *testing.T) {
 	}
 	want := filepath.Join(working, "system")
 	if manager.systemRoot != want {
-		t.Fatalf("systemRoot = %q, want %q", manager.systemRoot, want)
+		t.Fatalf("systemRoot for SystemRoot %q = %q, want %q", "system", manager.systemRoot, want)
 	}
 }
 

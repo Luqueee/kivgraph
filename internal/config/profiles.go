@@ -86,9 +86,6 @@ func ensureDefaultProfile(configuration Config, repositoriesPath string) (result
 	} else if err != nil {
 		return fmt.Errorf("inspect legacy profile state %q: %w", stateRoot, err)
 	}
-	if err := inspectLegacyRuntime(stateRoot); err != nil {
-		return err
-	}
 	for _, name := range []string{"analyzer-targets.lock", "resync.lock", "publish.lock"} {
 		lock, acquired, err := filelock.Acquire(filepath.Join(stateRoot, name))
 		if err != nil {
@@ -98,6 +95,9 @@ func ensureDefaultProfile(configuration Config, repositoriesPath string) (result
 			return fmt.Errorf("profile migration blocked by active writer (%s); stop writers and retry", name)
 		}
 		defer func() { resultErr = errors.Join(resultErr, lock.Release()) }()
+	}
+	if err := inspectLegacyRuntime(stateRoot); err != nil {
+		return err
 	}
 	root := profilesRoot(configuration)
 	if entries, err := os.ReadDir(root); err == nil {

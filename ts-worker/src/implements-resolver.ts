@@ -180,7 +180,12 @@ export async function resolveImplementations(
     if (file === undefined) continue;
     const nodes: Node[] = [];
     const visit = (node: Node): void => {
-      nodes.push(node);
+      if (
+        isClassDeclaration(node) ||
+        isTypeReferenceNode(node) ||
+        isNewExpression(node)
+      )
+        nodes.push(node);
       node.forEachChild(visit);
     };
     file.forEachChild(visit);
@@ -488,6 +493,7 @@ export async function resolveImplementations(
               symbol: targetMember,
               imported: {
                 ...target.imported,
+                exportedName: targetMember.name,
                 target: { ...target.imported.target, identity: memberIdentity },
               },
               types: new Map(),
