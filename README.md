@@ -44,6 +44,7 @@ checkout, which is what a reader on a fork or without a network still has.
 | give me the code of these symbols | `get_source` |
 | everything about this one symbol | `get_symbol` |
 | what is indexed, and is the graph current | `list_repositories`, `graph_status` |
+| how is an asynchronous index progressing | `get_index_status` |
 
 Thirteen read-only tools, plus two consent-gated mutations (`index_project` and
 `start_index_project`) that a client has to authorize before either can register

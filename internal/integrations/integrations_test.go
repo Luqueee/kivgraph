@@ -71,7 +71,7 @@ func TestSystemApplicationRootIsResolved(t *testing.T) {
 			return
 		}
 	}
-	t.Fatal("claude-desktop is not offered as a hook target")
+	t.Fatalf("claude-desktop is not offered as a hook target for SystemRoot %q", "system")
 }
 
 func TestInstallJSONIsIdempotentAndBacksUpOnRemoval(t *testing.T) {

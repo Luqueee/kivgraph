@@ -168,7 +168,12 @@ export async function resolveImplementations(
     const type = await checker.getDeclaredTypeOfSymbol(symbol);
     if (!valid(type) || !(type.isObjectType() || type.isIntersectionType()))
       continue;
-    if (!["interface", "type"].includes(entry.target.identity.kind)) continue;
+    if (!["interface", "type"].includes(entry.target.identity.kind)) {
+      limitations.add(
+        "Imported targets that are not an interface or a type alias are excluded.",
+      );
+      continue;
+    }
     targets.set(symbol.id, {
       symbol,
       imported: entry,
@@ -508,11 +513,13 @@ export async function resolveImplementations(
           );
           continue;
         }
-        if (
-          badDeclarations.has(sourceLocal.symbolId) ||
-          sourceLocal.symbolId === targetLocal.symbolId
-        )
+        if (badDeclarations.has(sourceLocal.symbolId)) {
+          limitations.add(
+            "Type declarations with compiler errors are excluded from implementation proofs.",
+          );
           continue;
+        }
+        if (sourceLocal.symbolId === targetLocal.symbolId) continue;
         emit(
           sourceLocal,
           { symbol: targetMember, local: targetLocal, types: new Map() },

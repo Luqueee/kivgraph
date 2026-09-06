@@ -1388,7 +1388,7 @@ func TestNormalizeTypeScriptImplementationEvidence(t *testing.T) {
 		}
 	}
 	if _, exists := edges["Wrong->Reader"]; exists {
-		t.Fatal("incompatible types connected")
+		t.Fatal("implementation Wrong->Reader: incompatible types connected")
 	}
 	if len(payload.Implementations) == 0 {
 		t.Fatal("worker emitted no implementations")

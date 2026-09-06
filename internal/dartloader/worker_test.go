@@ -29,7 +29,7 @@ func TestDartWorkerFailurePreservesExitAndBoundedStderr(t *testing.T) {
 			if protocol == "lsp" {
 				c, e := start(t.Context(), command, "", testsupport.TempDir(t))
 				if e != nil {
-					t.Fatal(e)
+					t.Fatalf("%s worker startup: %v", protocol, e)
 				}
 				defer c.close()
 				<-c.worker.done
@@ -37,7 +37,7 @@ func TestDartWorkerFailurePreservesExitAndBoundedStderr(t *testing.T) {
 			} else {
 				c, e := startAnalyzer(t.Context(), command, "", testsupport.TempDir(t))
 				if e != nil {
-					t.Fatal(e)
+					t.Fatalf("%s worker startup: %v", protocol, e)
 				}
 				defer c.close()
 				<-c.worker.done
