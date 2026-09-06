@@ -86,10 +86,10 @@ function FilterSelect({
   options,
 }: FilterSelectProps): React.ReactElement {
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+    <div className="flex min-w-0 flex-1 flex-col gap-1 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400">
       <span>{label}</span>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="h-7 w-full text-xs normal-case tracking-normal">
+        <SelectTrigger className="h-8 w-full rounded-none border-rule bg-raise text-xs font-normal normal-case tracking-normal text-gray-200">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -118,10 +118,10 @@ function SymbolResult({
     <button
       type="button"
       className={cn(
-        "flex w-full flex-col gap-0.5 rounded-lg border px-2.5 py-2 text-left transition-colors",
+        "flex w-full flex-col gap-0.5 border px-2.5 py-2 text-left transition-colors",
         selected
-          ? "border-primary/60 bg-primary/15 text-foreground"
-          : "border-border/60 bg-background/40 text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+          ? "border-graph-package/60 bg-graph-package/15 text-gray-100"
+          : "border-rule bg-shell/60 text-gray-400 hover:bg-raise hover:text-gray-100",
       )}
       onClick={onSelect}
       aria-label={`Open ${symbol.qualifiedName || symbol.name}`}
@@ -171,13 +171,13 @@ function SymbolDetails({
           {symbol.file}:{symbol.startLine}-{symbol.endLine}
         </span>
       </div>
-      <div className="border-t border-border/60 pt-1.5">
+      <div className="border-t border-rule pt-1.5">
         <span className="text-muted-foreground">signature</span>
         <code className="mt-1 block max-h-16 overflow-auto whitespace-pre-wrap break-words text-[10px] text-foreground">
           {symbol.signature || symbol.qualifiedName || symbol.name}
         </code>
       </div>
-      <div className="border-t border-border/60 pt-1.5">
+      <div className="border-t border-rule pt-1.5">
         <span className="text-muted-foreground">stable key</span>
         <code className="mt-1 block truncate text-[10px] text-foreground">
           {symbol.stableKey}
@@ -196,7 +196,7 @@ function SnapshotMessage({
 }): React.ReactElement | null {
   if (!changed) return null;
   return (
-    <div className="flex items-center justify-between gap-2 rounded-lg border border-amber-400/40 bg-amber-500/10 px-2.5 py-2 text-xs text-amber-100">
+    <div className="flex items-center justify-between gap-2 border border-graph-symbol/40 bg-graph-symbol/10 px-2.5 py-2 text-xs text-gray-200">
       <span>published snapshot changed</span>
       <Button type="button" size="xs" variant="outline" onClick={onReload}>
         reload
@@ -394,15 +394,20 @@ export function ViewerChrome({
 
   return (
     <aside
-      className="pointer-events-auto absolute left-4 top-16 z-20 flex max-h-[calc(100svh-8rem)] w-[min(24rem,calc(100vw-2rem))] flex-col gap-3 overflow-y-auto rounded-2xl border border-border/80 bg-background/90 p-3 text-foreground shadow-2xl backdrop-blur"
+      className="pointer-events-auto absolute top-16 left-3 z-20 flex max-h-[calc(100svh-5rem)] w-[min(21rem,calc(100vw-1.5rem))] flex-col gap-2 overflow-y-auto border border-rule bg-panel/95 p-3 text-gray-100 shadow-xl backdrop-blur"
       data-testid="viewer-chrome"
       aria-label="Graph explorer"
     >
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-sm font-semibold">Explore snapshot</h1>
-          <p className="text-[10px] text-muted-foreground">
-            read-only · snapshot {meta?.snapshotId ?? "not ready"}
+        <div className="min-w-0">
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-graph-package">
+            Kivgraph / graph
+          </p>
+          <h1 className="mt-1 font-mono text-sm font-semibold text-gray-100">
+            Graph explorer
+          </h1>
+          <p className="text-[10px] text-gray-400">
+            read only · snapshot {meta?.snapshotId ?? "not ready"}
           </p>
         </div>
         {meta?.status ? <Badge variant="outline">{meta.status}</Badge> : null}
@@ -411,13 +416,13 @@ export function ViewerChrome({
       <SnapshotMessage changed={snapshotChanged} onReload={onReload} />
 
       {loading ? (
-        <div className="rounded-lg border border-border/60 bg-muted/20 px-2.5 py-2 text-xs text-muted-foreground">
+        <div className="border border-rule bg-raise px-2.5 py-2 text-xs text-gray-400">
           loading snapshot…
         </div>
       ) : null}
       {error ? (
         <div
-          className="grid gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-2.5 py-2 text-xs text-destructive-foreground"
+          className="grid gap-2 border border-destructive/40 bg-destructive/10 px-2.5 py-2 text-xs text-destructive-foreground"
           role="alert"
         >
           <span>{error}</span>
@@ -427,14 +432,15 @@ export function ViewerChrome({
         </div>
       ) : null}
       {emptySnapshot ? (
-        <div className="rounded-lg border border-border/60 bg-muted/20 px-2.5 py-2 text-xs text-muted-foreground">
+        <div className="border border-rule bg-raise px-2.5 py-2 text-xs text-gray-400">
           published snapshot is empty
         </div>
       ) : null}
 
-      <div className="grid gap-2 border-t border-border/60 pt-3">
+      <div className="grid gap-2 border-t border-rule pt-3">
         <div className="flex gap-2">
           <Input
+            className="h-9 rounded-none border-rule bg-raise text-xs text-gray-200 placeholder:text-gray-500"
             value={query}
             onChange={(event) => setQuery(event.currentTarget.value)}
             placeholder="Search symbol or qualified name"
@@ -451,14 +457,14 @@ export function ViewerChrome({
           </Button>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+          <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400">
             mode
           </span>
           <Select
             value={mode}
             onValueChange={(value) => setMode(value as SearchMode)}
           >
-            <SelectTrigger className="h-7 flex-1 text-xs">
+            <SelectTrigger className="h-8 flex-1 rounded-none border-rule bg-raise text-xs text-gray-200">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -477,7 +483,7 @@ export function ViewerChrome({
 
       {searchError ? (
         <div
-          className="rounded-lg border border-destructive/40 bg-destructive/10 px-2.5 py-2 text-xs text-destructive-foreground"
+          className="border border-destructive/40 bg-destructive/10 px-2.5 py-2 text-xs text-destructive-foreground"
           role="alert"
         >
           {searchError}
@@ -485,9 +491,9 @@ export function ViewerChrome({
       ) : null}
 
       {results.length > 0 ? (
-        <div className="grid gap-2 border-t border-border/60 pt-3">
+        <div className="grid gap-2 border-t border-rule pt-3">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+            <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400">
               results · {filteredResults.length}/{resultTotal}
             </span>
             {resultTotal > filteredResults.length ? (
@@ -526,7 +532,7 @@ export function ViewerChrome({
       ) : null}
 
       {selected ? (
-        <div className="grid gap-2 border-t border-border/60 pt-3">
+        <div className="grid gap-2 border-t border-rule pt-3">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <h2 className="truncate text-xs font-semibold">
@@ -544,7 +550,7 @@ export function ViewerChrome({
               {detailError}
             </p>
           ) : null}
-          <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-2">
+          <div className="flex items-center justify-between gap-2 border-t border-rule pt-2">
             <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
               neighborhood
             </span>
@@ -585,7 +591,7 @@ export function ViewerChrome({
                 {neighborhood.nodes.length} nodes · {visibleEdges.length} edges
                 {neighborhood.truncated ? " · truncated" : ""}
               </p>
-              <div className="max-h-32 overflow-y-auto rounded-lg border border-border/60 bg-muted/10 p-2">
+              <div className="max-h-32 overflow-y-auto border border-rule bg-shell/60 p-2">
                 {visibleEdges.length === 0 ? (
                   <p>no edges match this confidence</p>
                 ) : (

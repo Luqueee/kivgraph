@@ -9,7 +9,7 @@ import (
 // ContentFreshness reads the cached observation for the currently published
 // generation. It deliberately performs no registry read, directory walk or
 // content hash: graph_status is a fast status query, and a monitor or a full
-// rebuild updates this cache outside the tool call.
+// rebuild updates this cache outside the `graph_status` tool call.
 func (service *Service) ContentFreshness(_ context.Context) freshness.Status {
 	if service == nil {
 		return freshness.Status{State: "unverified", Detail: "content freshness is not cached"}

@@ -41,6 +41,7 @@ var analyzerBuildConfigurationNames = []string{
 	"pom.xml",
 	"pubspec.lock",
 	"pubspec.yaml",
+	"pyrightconfig.json",
 	"pyproject.toml",
 	"requirements.txt",
 	"setup.cfg",

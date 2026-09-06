@@ -1,4 +1,4 @@
-# ADR 0096: guided first-run configuration
+# ADR 0110: guided first-run configuration
 
 - **Status:** accepted
 - **Date:** 2026-09-04

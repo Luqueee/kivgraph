@@ -179,7 +179,8 @@ func Serve(ctx context.Context, listener net.Listener, options Options) error {
 		// Serve builds one MCP server per connection. Create the registry once
 		// outside that loop so a reconnect can poll work accepted by an earlier
 		// session even when an embedding caller did not supply one explicitly.
-		options.IndexJobs = kivmcp.NewIndexJobs(options.Indexer)
+		options.IndexJobs = kivmcp.NewIndexJobsWithContext(ctx, options.Indexer)
+		defer options.IndexJobs.Close()
 	}
 	notify := options.OnSession
 	if notify == nil {

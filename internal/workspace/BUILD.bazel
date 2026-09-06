@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "cargo_discovery.go",
         "cargo_manifests.go",
+        "composition.go",
         "discovery.go",
         "go_discovery.go",
         "go_manifests.go",
@@ -25,6 +26,7 @@ go_library(
     visibility = ["//:__subpackages__"],
     deps = [
         "//internal/config",
+        "//internal/topology",
         "@com_github_burntsushi_toml//:toml",
         "@in_gopkg_yaml_v3//:yaml_v3",
         "@org_golang_x_mod//modfile",
@@ -36,7 +38,9 @@ go_test(
     name = "workspace_test",
     srcs = [
         "cargo_discovery_test.go",
+        "composition_test.go",
         "discovery_test.go",
+        "exclusion_validation_test.go",
         "go_discovery_test.go",
         "go_registry_test.go",
         "paths_test.go",
@@ -56,5 +60,6 @@ go_test(
     deps = [
         "//internal/config",
         "//internal/testsupport",
+        "//internal/topology",
     ],
 )

@@ -262,6 +262,21 @@ func TestCargoExcludesCheckedRejectsInvalidExclusionPattern(t *testing.T) {
 	}
 }
 
+func TestCargoExcludesDefaultExcludedDirectoryItself(t *testing.T) {
+	root := testsupport.TempDir(t)
+	target := filepath.Join(root, "target")
+	if err := os.Mkdir(target, 0o700); err != nil {
+		t.Fatalf("create Cargo output directory %q: %v", target, err)
+	}
+	excluded, err := CargoExcludesChecked(root, target, nil)
+	if err != nil {
+		t.Fatalf("CargoExcludesChecked(%q) error = %v", target, err)
+	}
+	if !excluded {
+		t.Fatalf("CargoExcludesChecked(%q) = false, want default output directory excluded", target)
+	}
+}
+
 // TestDiscoverCargoAcceptsAVendoredWorkspaceRoot is the shape of the Rust
 // standard library: `library/backtrace` declares its own `[workspace]` inside
 // `library/`, is not one of its members and is not excluded either. Cargo builds

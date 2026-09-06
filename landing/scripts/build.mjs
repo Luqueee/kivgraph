@@ -8,11 +8,15 @@ const astroPackage = require.resolve("astro/package.json");
 const astroCLI = join(dirname(astroPackage), "bin", "astro.mjs");
 const landingDirectory = fileURLToPath(new URL("../", import.meta.url));
 
-const child = spawn(process.execPath, [astroCLI, "build"], {
-  cwd: landingDirectory,
-  env: process.env,
-  stdio: ["inherit", "pipe", "pipe"],
-});
+const child = spawn(
+  process.execPath,
+  [astroCLI, "build", ...process.argv.slice(2)],
+  {
+    cwd: landingDirectory,
+    env: process.env,
+    stdio: ["inherit", "pipe", "pipe"],
+  },
+);
 
 let output = "";
 for (const [stream, destination] of [

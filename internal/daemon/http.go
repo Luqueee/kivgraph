@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -219,6 +220,8 @@ type HTTPServer struct {
 	server   *http.Server
 	endpoint Endpoint
 	path     string
+	jobs     *kivmcp.IndexJobs
+	jobsOnce sync.Once
 }
 
 // Endpoint returns what a client needs to reach this server.
@@ -237,7 +240,13 @@ func (served *HTTPServer) Addr() net.Addr { return served.listener.Addr() }
 // the same withdrawal on its own way out, so calling both is safe.
 func (served *HTTPServer) Close() error {
 	_ = os.Remove(served.path)
-	return served.listener.Close()
+	err := served.listener.Close()
+	served.jobsOnce.Do(func() {
+		if served.jobs != nil {
+			served.jobs.Close()
+		}
+	})
+	return err
 }
 
 // ListenHTTP binds the daemon's HTTP transport and publishes its endpoint.
@@ -245,6 +254,16 @@ func (served *HTTPServer) Close() error {
 // The endpoint file is written with the same private umask as the socket,
 // because it holds the token that replaces the socket's mode as the key.
 func ListenHTTP(options Options, httpOptions HTTPOptions) (*HTTPServer, error) {
+	var ownedJobs *kivmcp.IndexJobs
+	if options.IndexJobs == nil && options.Indexer != nil {
+		ownedJobs = kivmcp.NewIndexJobs(options.Indexer)
+		options.IndexJobs = ownedJobs
+	}
+	defer func() {
+		if ownedJobs != nil {
+			ownedJobs.Close()
+		}
+	}()
 	address := httpOptions.Address
 	automaticPort := address == ""
 	if address == "" {
@@ -330,11 +349,13 @@ func ListenHTTP(options Options, httpOptions HTTPOptions) (*HTTPServer, error) {
 		listener: listener,
 		endpoint: endpoint,
 		path:     EndpointPath(options.StateDirectory),
+		jobs:     ownedJobs,
 	}
 	served.server = &http.Server{
 		Handler:           mcpHandler(options, token),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
+	ownedJobs = nil
 	return served, nil
 }
 
@@ -382,6 +403,11 @@ func writePrivateFile(path string, content []byte) error {
 
 // Serve answers until ctx is cancelled, then removes the published endpoint.
 func (served *HTTPServer) Serve(ctx context.Context) error {
+	defer served.jobsOnce.Do(func() {
+		if served.jobs != nil {
+			served.jobs.Close()
+		}
+	})
 	done := make(chan struct{})
 	defer close(done)
 	go func() {
@@ -411,11 +437,6 @@ func (served *HTTPServer) Serve(ctx context.Context) error {
 // keeps another local process out, and the origin check keeps a web page from
 // making the user's own browser ask on its behalf.
 func mcpHandler(options Options, token string) http.Handler {
-	if options.IndexJobs == nil && options.Indexer != nil {
-		// The SDK callback builds one server per HTTP session. Keep operation
-		// state outside it so reconnecting does not lose an in-flight index.
-		options.IndexJobs = kivmcp.NewIndexJobs(options.Indexer)
-	}
 	// A server per session, for the same reason the socket half builds one: the
 	// tool surface is decided when a server is built, and a daemon outlives
 	// generations.

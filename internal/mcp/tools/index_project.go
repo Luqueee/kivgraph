@@ -122,6 +122,10 @@ func RegisterIndexProject(
 		progress := progressReporter(ctx, request)
 		result, err := runProjectIndex(ctx, indexer, arguments.Profile, batch, progress)
 		if err != nil {
+			if ErrorCode(err) == CodeInvalidArgument {
+				observeCall(nil, callObserver, indexProjectToolName, request, start, err)
+				return nil, indexing.ProjectResult{}, err
+			}
 			// This tool fails on the caller's own configuration: a
 			// module that needs a newer toolchain, a path that is not
 			// a repository, a dependency the module cache does not

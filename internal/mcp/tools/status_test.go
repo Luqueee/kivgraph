@@ -169,7 +169,7 @@ func TestGraphStatusReportsHostProbeResults(t *testing.T) {
 	}
 	status := response.Results
 	if !reflect.DeepEqual(status.ContentFreshness, &freshness.Status{Generation: 62, State: "fresh"}) {
-		t.Fatalf("content freshness lost: %#v", status.ContentFreshness)
+		t.Fatalf("content freshness for generation=62 state=fresh = %#v", status.ContentFreshness)
 	}
 	if status.LastRebuildAt != "2023-11-14T22:15:00Z" || status.LastUpdateAt != "2023-11-14T22:16:40Z" {
 		t.Fatalf("host timestamps = %q/%q", status.LastRebuildAt, status.LastUpdateAt)

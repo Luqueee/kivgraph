@@ -1,4 +1,4 @@
-# ADR 0094: Codex MCP consent compatibility
+# ADR 0108: Codex MCP consent compatibility
 
 **Status:** accepted
 **Date:** 2026-09-04

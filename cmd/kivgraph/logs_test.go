@@ -140,6 +140,14 @@ func TestLogsRendersWithoutColourWhenRedirected(t *testing.T) {
 	}
 }
 
+func TestLogDetailPreservesLongEventMessage(t *testing.T) {
+	message := "index --full started over 12 repositories"
+	detail := logDetail(logLine{event: eventlog.Event{Kind: eventlog.KindIndex, Message: message}})
+	if !strings.Contains(detail, "message="+message) {
+		t.Fatalf("logDetail(message=%q) = %q, want the full message", message, detail)
+	}
+}
+
 // The badge is a solid-background column, which is new: the rest of the
 // non-TUI surface has foreground colours only.
 func TestLogBadgeIsAColouredFixedWidthColumn(t *testing.T) {

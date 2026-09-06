@@ -46,6 +46,7 @@ func TestSummarizeLogQueryRedactsAbsolutePaths(t *testing.T) {
 		{"unix", "/private/worktree/internal/mcp/server.go"},
 		{"windows drive", `C:\private\worktree\internal\mcp\server.go`},
 		{"windows UNC", `\\server\private\worktree\internal\mcp\server.go`},
+		{"file URI", `file:///private/worktree/internal/mcp/server.go`},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			raw, err := json.Marshal(map[string]string{

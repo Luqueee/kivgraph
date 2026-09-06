@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Luqueee/kivgraph/internal/config"
@@ -13,9 +14,12 @@ import (
 	"github.com/Luqueee/kivgraph/internal/filelock"
 	"github.com/Luqueee/kivgraph/internal/freshness"
 	"github.com/Luqueee/kivgraph/internal/indexer"
+	"github.com/Luqueee/kivgraph/internal/invalidation"
 	"github.com/Luqueee/kivgraph/internal/metrics"
 	"github.com/Luqueee/kivgraph/internal/rebuild"
+	"github.com/Luqueee/kivgraph/internal/sourceobservation"
 	"github.com/Luqueee/kivgraph/internal/storage/generation"
+	"github.com/Luqueee/kivgraph/internal/topology"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
@@ -23,8 +27,12 @@ import (
 // The operation reads every configured repository and publishes a new
 // generation only after the rebuild gates pass.
 type FullOptions struct {
-	Profile           string
-	Repositories      []workspace.Repository
+	Profile      string
+	Repositories []workspace.Repository
+	// Composition is the effective worktree selection that produced
+	// Repositories. When present, it is persisted with the generation instead
+	// of being reconstructed from live topology configuration by readers.
+	Composition       *topology.ProfileComposition
 	SyntheticWorkFile string
 	IncludeTests      bool
 	GoOS              string
@@ -104,6 +112,11 @@ type FullOptions struct {
 	ResolverVersion       string
 	Store                 generation.Config
 	Metrics               *metrics.Registry
+	// Invalidation records the source manifest only after the complete rebuild
+	// has passed and the generation has been published. A nil manager keeps the
+	// lower-level indexing API useful for callers that do not own installation
+	// state.
+	Invalidation *invalidation.Manager
 
 	Progress        func(indexer.ProgressEvent)
 	RebuildProgress func(rebuild.StageName)
@@ -185,60 +198,10 @@ func OptionsFromConfig(configuration config.Config) FullOptions {
 	}
 }
 
-// Counts is the number of authoritative facts produced by one full pass.
-type Counts struct {
-	Repositories int `json:"repositories"`
-	Packages     int `json:"packages"`
-	Files        int `json:"files"`
-	Symbols      int `json:"symbols"`
-	Evidence     int `json:"evidence"`
-	Edges        int `json:"edges"`
-	Unresolved   int `json:"unresolved"`
-}
-
-// FullResult contains the reports needed by CLI and MCP callers without
-// exposing the temporary facts set after the rebuild has completed.
-type FullResult struct {
-	Counts        Counts
-	IndexReport   indexer.FullReport
-	RebuildReport rebuild.Report
-}
-
-// RunFull indexes all repositories, validates the facts, and publishes one
-// canonical generation. It does not modify the repository registry; callers
-// that manage a candidate registry commit it separately.
-func RunFull(ctx context.Context, options FullOptions) (result FullResult, resultErr error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if options.Root == "" {
-		return FullResult{}, fmt.Errorf("full index: root is required")
-	}
-	if options.ResolverVersion == "" {
-		return FullResult{}, fmt.Errorf("full index: resolver version is required")
-	}
-	if options.SharedTargetsLockPath != "" {
-		lock, acquired, err := filelock.Acquire(options.SharedTargetsLockPath)
-		if err != nil {
-			return FullResult{}, fmt.Errorf("full index: acquire shared analyzer targets lock: %w", err)
-		}
-		if !acquired {
-			return FullResult{}, fmt.Errorf("full index: shared analyzer targets are busy; another profile is indexing")
-		}
-		defer func() {
-			if err := lock.Release(); err != nil {
-				resultErr = errors.Join(resultErr,
-					fmt.Errorf("full index: release shared analyzer targets lock: %w", err))
-			}
-		}()
-	}
-
-	before, err := freshness.Capture(ctx, options.Repositories)
-	if err != nil {
-		return FullResult{}, fmt.Errorf("capture source inventory: %w", err)
-	}
-	factSet, indexReport, err := indexer.Full(ctx, indexer.FullOptions{
+func (options FullOptions) indexerOptions() indexer.FullOptions {
+	return indexer.FullOptions{
 		Profile:                           options.Profile,
+		ResolverVersion:                   options.ResolverVersion,
 		Repositories:                      options.Repositories,
 		SyntheticWorkFile:                 options.SyntheticWorkFile,
 		IncludeTests:                      options.IncludeTests,
@@ -301,13 +264,243 @@ func RunFull(ctx context.Context, options FullOptions) (result FullResult, resul
 		CacheMode:                         options.CacheMode,
 		CacheDirectory:                    options.CacheDirectory,
 		Progress:                          options.Progress,
-	})
+	}
+}
+
+// ObserveSources resolves the providers a full pass will read and captures
+// their current mutable state. Watchers use the same route as RunFull so a
+// stale registry or analyzer fingerprint cannot make invalidation disagree
+// with the manifest that a subsequent rebuild publishes.
+func ObserveSources(ctx context.Context, options FullOptions) (sourceobservation.Manifest, []workspace.Repository, error) {
+	indexOptions := options.indexerOptions()
+	effectiveRepositories, err := indexer.ResolveRepositories(indexOptions)
+	if err != nil {
+		return sourceobservation.Manifest{}, nil, fmt.Errorf("resolve effective index sources: %w", err)
+	}
+	analyzerFingerprint, err := indexer.AnalyzerFingerprint(indexOptions)
+	if err != nil {
+		return sourceobservation.Manifest{}, nil, fmt.Errorf("observe index analyzer configuration: %w", err)
+	}
+	manifest, observedRepositories, err := sourceobservation.CaptureWithRepositories(
+		ctx,
+		options.Profile,
+		options.ResolverVersion,
+		analyzerFingerprint,
+		effectiveRepositories,
+	)
+	if err != nil {
+		return sourceobservation.Manifest{}, nil, fmt.Errorf("observe index sources: %w", err)
+	}
+	var composition topology.ProfileComposition
+	if options.Composition != nil {
+		composition = *options.Composition
+	} else {
+		composition, err = observedTopologyComposition(manifest, observedRepositories)
+		if err != nil {
+			return sourceobservation.Manifest{}, nil, fmt.Errorf("derive effective topology composition: %w", err)
+		}
+	}
+	persistedComposition, err := sourceobservation.NewTopologyComposition(composition)
+	if err != nil {
+		return sourceobservation.Manifest{}, nil, fmt.Errorf("observe effective topology composition: %w", err)
+	}
+	if err := validateObservedComposition(composition, manifest, observedRepositories); err != nil {
+		return sourceobservation.Manifest{}, nil, fmt.Errorf("observe effective topology composition: %w", err)
+	}
+	manifest.Composition = &persistedComposition
+	if err := manifest.Validate(); err != nil {
+		return sourceobservation.Manifest{}, nil, fmt.Errorf("validate effective topology composition: %w", err)
+	}
+	return manifest, observedRepositories, nil
+}
+
+// observedTopologyComposition gives legacy registries the same immutable
+// generation record as topology-backed profiles. It selects only direct source
+// repositories; analyzer-derived providers remain additional observed inputs
+// and cannot be profile worktrees.
+func observedTopologyComposition(
+	manifest sourceobservation.Manifest,
+	observed []workspace.Repository,
+) (topology.ProfileComposition, error) {
+	profile, err := topology.NewProfileID(manifest.Profile)
+	if err != nil {
+		return topology.ProfileComposition{}, fmt.Errorf("source observation profile: %w", err)
+	}
+	sources := make(map[string]sourceobservation.Source, len(manifest.Sources))
+	for _, source := range manifest.Sources {
+		sources[source.Repository] = source
+	}
+	composition := topology.ProfileComposition{
+		Profile: topology.Profile{ID: profile},
+	}
+	selected := make(map[string]struct{}, len(observed))
+	for _, repository := range observed {
+		name := strings.TrimSpace(repository.Name)
+		source, found := sources[name]
+		if !found {
+			return topology.ProfileComposition{}, fmt.Errorf("observed source repository %q is missing from source observations", repository.Name)
+		}
+		if source.Derived != repository.Derived {
+			return topology.ProfileComposition{}, fmt.Errorf("observed source repository %q has a different derived state", source.Repository)
+		}
+		if source.Derived {
+			continue
+		}
+		if _, exists := selected[source.Repository]; exists {
+			return topology.ProfileComposition{}, fmt.Errorf("observed source repository %q is duplicated", source.Repository)
+		}
+		repositoryID, err := topology.NewLogicalRepositoryID(source.Repository)
+		if err != nil {
+			return topology.ProfileComposition{}, fmt.Errorf("observed source repository %q: %w", source.Repository, err)
+		}
+		worktree := topology.Worktree{
+			ID: source.Observation.Worktree, Repository: repositoryID, Path: repository.Path,
+		}
+		composition.Profile.Worktrees = append(composition.Profile.Worktrees, topology.WorktreeSelection{
+			Repository: repositoryID, Worktree: worktree.ID,
+		})
+		composition.Repositories = append(composition.Repositories, topology.LogicalRepository{
+			ID: repositoryID, Name: source.Repository,
+		})
+		composition.Worktrees = append(composition.Worktrees, worktree)
+		selected[source.Repository] = struct{}{}
+	}
+	for _, source := range manifest.Sources {
+		if source.Derived {
+			continue
+		}
+		if _, found := selected[source.Repository]; !found {
+			return topology.ProfileComposition{}, fmt.Errorf("source repository %q was not observed", source.Repository)
+		}
+	}
+	return composition, nil
+}
+
+func validateObservedComposition(
+	composition topology.ProfileComposition,
+	manifest sourceobservation.Manifest,
+	observed []workspace.Repository,
+) error {
+	repositories := make(map[string]workspace.Repository, len(observed))
+	for _, repository := range observed {
+		name := strings.TrimSpace(repository.Name)
+		if _, exists := repositories[name]; exists {
+			return fmt.Errorf("observed source repository %q is duplicated", name)
+		}
+		repositories[name] = repository
+	}
+	sources := make(map[string]sourceobservation.Source, len(manifest.Sources))
+	for _, source := range manifest.Sources {
+		sources[source.Repository] = source
+	}
+	worktrees := make(map[topology.LogicalRepositoryID]topology.Worktree, len(composition.Worktrees))
+	for _, worktree := range composition.Worktrees {
+		if _, exists := worktrees[worktree.Repository]; exists {
+			return fmt.Errorf("topology repository %q selects multiple worktrees", worktree.Repository)
+		}
+		worktrees[worktree.Repository] = worktree
+	}
+	for _, selected := range composition.Repositories {
+		name := string(selected.ID)
+		repository, exists := repositories[name]
+		if !exists {
+			return fmt.Errorf("topology repository %q was not observed", name)
+		}
+		if repository.Derived {
+			return fmt.Errorf("topology repository %q selects a derived source", name)
+		}
+		worktree, exists := worktrees[selected.ID]
+		if !exists {
+			return fmt.Errorf("topology repository %q selects no worktree", name)
+		}
+		observedWorktree := repository.Worktree
+		if observedWorktree == "" {
+			source, found := sources[name]
+			if !found {
+				return fmt.Errorf("topology repository %q has no source observation", name)
+			}
+			observedWorktree = source.Observation.Worktree
+		}
+		if observedWorktree != worktree.ID {
+			return fmt.Errorf("topology repository %q selects worktree %q, observed %q", name, worktree.ID, observedWorktree)
+		}
+		if filepath.Clean(repository.Path) != filepath.Clean(worktree.Path) {
+			return fmt.Errorf("topology repository %q selects path %q, observed %q", name, worktree.Path, repository.Path)
+		}
+	}
+	return nil
+}
+
+// Counts is the number of authoritative facts produced by one full pass.
+type Counts struct {
+	Repositories int `json:"repositories"`
+	Packages     int `json:"packages"`
+	Files        int `json:"files"`
+	Symbols      int `json:"symbols"`
+	Evidence     int `json:"evidence"`
+	Edges        int `json:"edges"`
+	Unresolved   int `json:"unresolved"`
+}
+
+// FullResult contains the reports needed by CLI and MCP callers without
+// exposing the temporary facts set after the rebuild has completed.
+type FullResult struct {
+	Counts        Counts
+	IndexReport   indexer.FullReport
+	RebuildReport rebuild.Report
+	// RecordingError means the graph was published but derived freshness or
+	// invalidation state could not be persisted. It must not turn a valid
+	// generation into a failed rebuild.
+	RecordingError error
+}
+
+// RunFull indexes all repositories, validates the facts, and publishes one
+// canonical generation. It does not modify the repository registry; callers
+// that manage a candidate registry commit it separately.
+func RunFull(ctx context.Context, options FullOptions) (result FullResult, resultErr error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if options.Root == "" {
+		return FullResult{}, fmt.Errorf("full index: root is required")
+	}
+	if options.ResolverVersion == "" {
+		return FullResult{}, fmt.Errorf("full index: resolver version is required")
+	}
+	if options.SharedTargetsLockPath != "" {
+		lock, acquired, err := filelock.Acquire(options.SharedTargetsLockPath)
+		if err != nil {
+			return FullResult{}, fmt.Errorf("full index: acquire shared analyzer targets lock: %w", err)
+		}
+		if !acquired {
+			return FullResult{}, fmt.Errorf("full index: shared analyzer targets are busy; another profile is indexing")
+		}
+		defer func() {
+			if err := lock.Release(); err != nil {
+				resultErr = errors.Join(resultErr,
+					fmt.Errorf("full index: release shared analyzer targets lock: %w", err))
+			}
+		}()
+	}
+
+	indexOptions := options.indexerOptions()
+	manifest, observedRepositories, err := ObserveSources(ctx, options)
+	if err != nil {
+		return FullResult{}, err
+	}
+	before, err := freshness.Capture(ctx, observedRepositories)
+	if err != nil {
+		return FullResult{}, fmt.Errorf("capture source inventory: %w", err)
+	}
+
+	factSet, indexReport, err := indexer.FullWithRepositories(ctx, indexOptions, observedRepositories)
 	result = FullResult{IndexReport: indexReport}
 	if err != nil {
 		return result, fmt.Errorf("index repositories: %w", err)
 	}
+	defer indexReport.DiscardCache()
 	result.Counts = countsFromFacts(factSet)
-	after, err := freshness.Capture(ctx, options.Repositories)
+	after, err := freshness.Capture(ctx, observedRepositories)
 	if err != nil {
 		return result, fmt.Errorf("verify source inventory: %w", err)
 	}
@@ -336,6 +529,14 @@ func RunFull(ctx context.Context, options FullOptions) (result FullResult, resul
 		Store:           options.Store,
 		Metrics:         options.Metrics,
 		Progress:        options.RebuildProgress,
+		SourceManifest:  &manifest,
+		VerifySources: func(verifyCtx context.Context) error {
+			current, _, observeErr := ObserveSources(verifyCtx, options)
+			if observeErr != nil {
+				return observeErr
+			}
+			return sourceobservation.Compare(manifest, current)
+		},
 	})
 	result.RebuildReport = rebuildReport
 	if err != nil {
@@ -344,8 +545,19 @@ func RunFull(ctx context.Context, options FullOptions) (result FullResult, resul
 	if !rebuildReport.Passed {
 		return result, fmt.Errorf("rebuild graph did not pass its gates")
 	}
+	indexReport.CommitCache()
 	if err := freshness.Save(ctx, options.Root, uint64(snapshotID), after); err != nil {
-		return result, fmt.Errorf("record published generation freshness: %w", err)
+		result.RecordingError = fmt.Errorf("record published generation freshness: %w", err)
+	}
+	if options.Invalidation != nil {
+		if err := options.Invalidation.RecordPublished(ctx, invalidation.ProfileRecord{
+			Profile:    options.Profile,
+			Generation: rebuildReport.GenerationID,
+			Manifest:   manifest,
+		}); err != nil {
+			result.RecordingError = errors.Join(result.RecordingError,
+				fmt.Errorf("record published source state: %w", err))
+		}
 	}
 	return result, nil
 }

@@ -51,6 +51,11 @@ func NewIndexJobs(indexer indexing.ProjectIndexer) *IndexJobs {
 	return tools.NewIndexJobs(indexer)
 }
 
+// NewIndexJobsWithContext binds asynchronous indexing to a hosting process.
+func NewIndexJobsWithContext(ctx context.Context, indexer indexing.ProjectIndexer) *IndexJobs {
+	return tools.NewIndexJobsWithContext(ctx, indexer)
+}
+
 // NewServer creates the Kivgraph MCP server with no graph source.
 func NewServer() *sdkmcp.Server {
 	return newServer(nil, nil, nil)
@@ -166,9 +171,10 @@ func newServerWithIndexer(
 	// answer and read the refusals as broken tools; the repair instructions
 	// are what let it act instead.
 	exposeQueries := published || options.ExposeUnavailableTools
-	instructions := serverInstructions
+	hasIndexer := indexer != nil
+	instructions := serverInstructions(hasIndexer)
 	if !published {
-		instructions = staleServerInstructions
+		instructions = staleServerInstructions(hasIndexer)
 	}
 	server := sdkmcp.NewServer(&sdkmcp.Implementation{
 		Name:    serverName,
@@ -313,6 +319,10 @@ func RunWithMetricsAndSnapshotStoreAndIndexerOptions(
 ) error {
 	if registry == nil {
 		registry = metrics.NewRegistry()
+	}
+	if options.IndexJobs == nil && indexer != nil {
+		options.IndexJobs = NewIndexJobsWithContext(ctx, indexer)
+		defer options.IndexJobs.Close()
 	}
 	server := NewServerWithMetricsAndSnapshotStoreAndIndexerOptions(registry, snapshotStore, indexer, options)
 	return server.Run(ctx, &sdkmcp.StdioTransport{})

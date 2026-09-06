@@ -1,6 +1,8 @@
 ---
 title: get_index_status
-description: Returns progress and the terminal result for an asynchronous Kivgraph index operation.
+description: >-
+  Returns progress and the terminal result for an asynchronous Kivgraph index
+  operation.
 ---
 
 > Polls an index started by

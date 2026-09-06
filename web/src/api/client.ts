@@ -71,6 +71,100 @@ export interface NeighborhoodResponse {
   readonly edges: readonly NeighborhoodEdge[];
 }
 
+export interface TopologyProfile {
+  readonly id: string;
+  readonly generationId: string;
+  readonly status: string;
+  readonly compositionComplete: boolean;
+  readonly reason?: string;
+  readonly worktrees: readonly string[];
+}
+
+export interface TopologyRepository {
+  readonly id: string;
+  readonly name?: string;
+  readonly languages: readonly string[];
+}
+
+export interface TopologyWorktree {
+  readonly id: string;
+  readonly repository: string;
+  readonly path: string;
+  readonly git?: {
+    readonly gitDirectory?: string;
+    readonly commonDirectory?: string;
+  };
+}
+
+export interface TopologyObservation {
+  readonly id: string;
+  readonly worktree: string;
+  readonly commit: string;
+  readonly branch?: string;
+  readonly dirty: boolean;
+  readonly contentDigest: string;
+}
+
+export interface TopologySource {
+  readonly profile: string;
+  readonly repository: string;
+  readonly worktree: string;
+  readonly status: string;
+  readonly reason?: string;
+  readonly indexed?: TopologyObservation;
+  readonly current?: TopologyObservation;
+}
+
+export interface TopologySharedInput {
+  readonly type: string;
+  readonly id: string;
+  readonly repository?: string;
+  readonly owners: readonly string[];
+  readonly status: string;
+  readonly reason?: string;
+}
+
+export interface TopologyNodeReference {
+  readonly type: string;
+  readonly id: string;
+}
+
+export interface TopologyRelationship {
+  readonly profile?: string;
+  readonly generationId?: string;
+  readonly type: string;
+  readonly source: TopologyNodeReference;
+  readonly target?: TopologyNodeReference;
+  readonly kind?: string;
+  readonly status: string;
+  readonly confidence: string;
+  readonly provenance: string;
+  readonly evidence?: string;
+  readonly reason?: string;
+  readonly occurrences?: number;
+}
+
+export interface TopologyCompleteness {
+  readonly complete: boolean;
+  readonly truncated: boolean;
+  readonly reason?: string;
+}
+
+export interface TopologyResponse {
+  readonly apiVersion: string;
+  readonly topologyVersion: number;
+  readonly status: string;
+  readonly generationId?: string;
+  readonly selectedProfiles: readonly string[];
+  readonly profiles: readonly TopologyProfile[];
+  readonly repositories: readonly TopologyRepository[];
+  readonly worktrees: readonly TopologyWorktree[];
+  readonly sources: readonly TopologySource[];
+  readonly sharedInputs: readonly TopologySharedInput[];
+  readonly relationships: readonly TopologyRelationship[];
+  readonly completeness: TopologyCompleteness;
+}
+
 /** An API response the viewer refuses to interpret, with the server's code. */
 export class ApiError extends Error {
   readonly code: string;
@@ -131,6 +225,465 @@ interface NeighborhoodPayload {
   readonly truncated: boolean;
   readonly nodes: readonly SymbolPayload[];
   readonly edges: readonly NeighborhoodEdge[];
+}
+
+interface JsonRecord {
+  readonly [key: string]: unknown;
+}
+
+function asRecord(value: unknown, path: string, status: number): JsonRecord {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw invalidTopologyResponse(path, status);
+  }
+  return value as JsonRecord;
+}
+
+function requiredString(
+  record: JsonRecord,
+  key: string,
+  path: string,
+  status: number,
+): string {
+  const value = record[key];
+  if (typeof value !== "string") throw invalidTopologyResponse(path, status);
+  return value;
+}
+
+function optionalString(
+  record: JsonRecord,
+  key: string,
+  path: string,
+  status: number,
+): string | undefined {
+  const value = record[key];
+  if (value === undefined) return undefined;
+  if (typeof value !== "string") throw invalidTopologyResponse(path, status);
+  return value;
+}
+
+function requiredBoolean(
+  record: JsonRecord,
+  key: string,
+  path: string,
+  status: number,
+): boolean {
+  const value = record[key];
+  if (typeof value !== "boolean") throw invalidTopologyResponse(path, status);
+  return value;
+}
+
+function requiredInteger(
+  record: JsonRecord,
+  key: string,
+  path: string,
+  status: number,
+): number {
+  const value = record[key];
+  if (typeof value !== "number" || !Number.isInteger(value)) {
+    throw invalidTopologyResponse(path, status);
+  }
+  return value;
+}
+
+function optionalPositiveInteger(
+  record: JsonRecord,
+  key: string,
+  path: string,
+  status: number,
+): number | undefined {
+  const value = record[key];
+  if (value === undefined) return undefined;
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) {
+    throw invalidTopologyResponse(path, status);
+  }
+  return value;
+}
+
+function requiredArray(
+  record: JsonRecord,
+  key: string,
+  path: string,
+  status: number,
+): readonly unknown[] {
+  const value = record[key];
+  if (!Array.isArray(value)) throw invalidTopologyResponse(path, status);
+  return value;
+}
+
+function requiredStringArray(
+  record: JsonRecord,
+  key: string,
+  path: string,
+  status: number,
+): readonly string[] {
+  return requiredArray(record, key, path, status).map((value, index) => {
+    if (typeof value !== "string") {
+      throw invalidTopologyResponse(`${path}[${index}]`, status);
+    }
+    return value;
+  });
+}
+
+function optionalRecord(
+  record: JsonRecord,
+  key: string,
+  path: string,
+  status: number,
+): JsonRecord | undefined {
+  const value = record[key];
+  if (value === undefined) return undefined;
+  return asRecord(value, path, status);
+}
+
+function invalidTopologyResponse(path: string, status: number): ApiError {
+  return new ApiError(
+    "INVALID_RESPONSE",
+    status,
+    `topology response has an invalid ${path}`,
+  );
+}
+
+function decodeTopologyProfile(
+  value: unknown,
+  index: number,
+  status: number,
+): TopologyProfile {
+  const record = asRecord(value, `profiles[${index}]`, status);
+  const reason = optionalString(
+    record,
+    "reason",
+    `profiles[${index}].reason`,
+    status,
+  );
+  return {
+    id: requiredString(record, "id", `profiles[${index}].id`, status),
+    generationId: requiredString(
+      record,
+      "generation_id",
+      `profiles[${index}].generation_id`,
+      status,
+    ),
+    status: requiredString(
+      record,
+      "status",
+      `profiles[${index}].status`,
+      status,
+    ),
+    compositionComplete: requiredBoolean(
+      record,
+      "composition_complete",
+      `profiles[${index}].composition_complete`,
+      status,
+    ),
+    ...(reason === undefined ? {} : { reason }),
+    worktrees: requiredStringArray(
+      record,
+      "worktrees",
+      `profiles[${index}].worktrees`,
+      status,
+    ),
+  };
+}
+
+function decodeTopologyRepository(
+  value: unknown,
+  index: number,
+  status: number,
+): TopologyRepository {
+  const record = asRecord(value, `repositories[${index}]`, status);
+  const name = optionalString(
+    record,
+    "name",
+    `repositories[${index}].name`,
+    status,
+  );
+  return {
+    id: requiredString(record, "id", `repositories[${index}].id`, status),
+    ...(name === undefined ? {} : { name }),
+    languages: requiredStringArray(
+      record,
+      "languages",
+      `repositories[${index}].languages`,
+      status,
+    ),
+  };
+}
+
+function decodeTopologyWorktree(
+  value: unknown,
+  index: number,
+  status: number,
+): TopologyWorktree {
+  const record = asRecord(value, `worktrees[${index}]`, status);
+  const git = optionalRecord(record, "git", `worktrees[${index}].git`, status);
+  const gitDirectory = git
+    ? optionalString(
+        git,
+        "git_directory",
+        `worktrees[${index}].git.git_directory`,
+        status,
+      )
+    : undefined;
+  const commonDirectory = git
+    ? optionalString(
+        git,
+        "common_directory",
+        `worktrees[${index}].git.common_directory`,
+        status,
+      )
+    : undefined;
+  const decodedGit = git
+    ? {
+        ...(gitDirectory === undefined ? {} : { gitDirectory }),
+        ...(commonDirectory === undefined ? {} : { commonDirectory }),
+      }
+    : undefined;
+  return {
+    id: requiredString(record, "id", `worktrees[${index}].id`, status),
+    repository: requiredString(
+      record,
+      "repository",
+      `worktrees[${index}].repository`,
+      status,
+    ),
+    path: requiredString(record, "path", `worktrees[${index}].path`, status),
+    ...(decodedGit === undefined ? {} : { git: decodedGit }),
+  };
+}
+
+function decodeTopologyObservation(
+  value: unknown,
+  path: string,
+  status: number,
+): TopologyObservation {
+  const record = asRecord(value, path, status);
+  const branch = optionalString(record, "branch", `${path}.branch`, status);
+  return {
+    id: requiredString(record, "id", `${path}.id`, status),
+    worktree: requiredString(record, "worktree", `${path}.worktree`, status),
+    commit: requiredString(record, "commit", `${path}.commit`, status),
+    ...(branch === undefined ? {} : { branch }),
+    dirty: requiredBoolean(record, "dirty", `${path}.dirty`, status),
+    contentDigest: requiredString(
+      record,
+      "content_digest",
+      `${path}.content_digest`,
+      status,
+    ),
+  };
+}
+
+function decodeTopologySource(
+  value: unknown,
+  index: number,
+  status: number,
+): TopologySource {
+  const path = `sources[${index}]`;
+  const record = asRecord(value, path, status);
+  const reason = optionalString(record, "reason", `${path}.reason`, status);
+  const indexed =
+    record.indexed === undefined
+      ? undefined
+      : decodeTopologyObservation(record.indexed, `${path}.indexed`, status);
+  const current =
+    record.current === undefined
+      ? undefined
+      : decodeTopologyObservation(record.current, `${path}.current`, status);
+  return {
+    profile: requiredString(record, "profile", `${path}.profile`, status),
+    repository: requiredString(
+      record,
+      "repository",
+      `${path}.repository`,
+      status,
+    ),
+    worktree: requiredString(record, "worktree", `${path}.worktree`, status),
+    status: requiredString(record, "status", `${path}.status`, status),
+    ...(reason === undefined ? {} : { reason }),
+    ...(indexed === undefined ? {} : { indexed }),
+    ...(current === undefined ? {} : { current }),
+  };
+}
+
+function decodeTopologySharedInput(
+  value: unknown,
+  index: number,
+  status: number,
+): TopologySharedInput {
+  const path = `shared_inputs[${index}]`;
+  const record = asRecord(value, path, status);
+  const repository = optionalString(
+    record,
+    "repository",
+    `${path}.repository`,
+    status,
+  );
+  const inputStatus = optionalString(
+    record,
+    "status",
+    `${path}.status`,
+    status,
+  );
+  const reason = optionalString(record, "reason", `${path}.reason`, status);
+  return {
+    type: requiredString(record, "type", `${path}.type`, status),
+    id: requiredString(record, "id", `${path}.id`, status),
+    ...(repository === undefined ? {} : { repository }),
+    owners: requiredStringArray(record, "owners", `${path}.owners`, status),
+    status: inputStatus ?? "shared",
+    ...(reason === undefined ? {} : { reason }),
+  };
+}
+
+function decodeTopologyNodeReference(
+  value: unknown,
+  path: string,
+  status: number,
+): TopologyNodeReference {
+  const record = asRecord(value, path, status);
+  return {
+    type: requiredString(record, "type", `${path}.type`, status),
+    id: requiredString(record, "id", `${path}.id`, status),
+  };
+}
+
+function decodeTopologyRelationship(
+  value: unknown,
+  index: number,
+  status: number,
+): TopologyRelationship {
+  const path = `relationships[${index}]`;
+  const record = asRecord(value, path, status);
+  const profile = optionalString(record, "profile", `${path}.profile`, status);
+  const generationId = optionalString(
+    record,
+    "generation_id",
+    `${path}.generation_id`,
+    status,
+  );
+  const kind = optionalString(record, "kind", `${path}.kind`, status);
+  const evidence = optionalString(
+    record,
+    "evidence",
+    `${path}.evidence`,
+    status,
+  );
+  const reason = optionalString(record, "reason", `${path}.reason`, status);
+  const occurrences = optionalPositiveInteger(
+    record,
+    "occurrences",
+    `${path}.occurrences`,
+    status,
+  );
+  const target =
+    record.target === undefined
+      ? undefined
+      : decodeTopologyNodeReference(record.target, `${path}.target`, status);
+  return {
+    ...(profile === undefined ? {} : { profile }),
+    ...(generationId === undefined ? {} : { generationId }),
+    type: requiredString(record, "type", `${path}.type`, status),
+    source: decodeTopologyNodeReference(
+      record.source,
+      `${path}.source`,
+      status,
+    ),
+    ...(target === undefined ? {} : { target }),
+    ...(kind === undefined ? {} : { kind }),
+    status: requiredString(record, "status", `${path}.status`, status),
+    confidence: requiredString(
+      record,
+      "confidence",
+      `${path}.confidence`,
+      status,
+    ),
+    provenance: requiredString(
+      record,
+      "provenance",
+      `${path}.provenance`,
+      status,
+    ),
+    ...(evidence === undefined ? {} : { evidence }),
+    ...(reason === undefined ? {} : { reason }),
+    ...(occurrences === undefined ? {} : { occurrences }),
+  };
+}
+
+/** Decodes and validates the compact, versioned topology read model. */
+export function decodeTopology(value: unknown, status = 200): TopologyResponse {
+  const record = asRecord(value, "envelope", status);
+  const generationId = optionalString(
+    record,
+    "generation_id",
+    "generation_id",
+    status,
+  );
+  const completeness = asRecord(record.completeness, "completeness", status);
+  const reason = optionalString(
+    completeness,
+    "reason",
+    "completeness.reason",
+    status,
+  );
+  return {
+    apiVersion: requiredString(record, "api_version", "api_version", status),
+    topologyVersion: requiredInteger(
+      record,
+      "topology_version",
+      "topology_version",
+      status,
+    ),
+    status: requiredString(record, "status", "status", status),
+    ...(generationId === undefined ? {} : { generationId }),
+    selectedProfiles: requiredStringArray(
+      record,
+      "selected_profiles",
+      "selected_profiles",
+      status,
+    ),
+    profiles: requiredArray(record, "profiles", "profiles", status).map(
+      (item, index) => decodeTopologyProfile(item, index, status),
+    ),
+    repositories: requiredArray(
+      record,
+      "repositories",
+      "repositories",
+      status,
+    ).map((item, index) => decodeTopologyRepository(item, index, status)),
+    worktrees: requiredArray(record, "worktrees", "worktrees", status).map(
+      (item, index) => decodeTopologyWorktree(item, index, status),
+    ),
+    sources: requiredArray(record, "sources", "sources", status).map(
+      (item, index) => decodeTopologySource(item, index, status),
+    ),
+    sharedInputs: requiredArray(
+      record,
+      "shared_inputs",
+      "shared_inputs",
+      status,
+    ).map((item, index) => decodeTopologySharedInput(item, index, status)),
+    relationships: requiredArray(
+      record,
+      "relationships",
+      "relationships",
+      status,
+    ).map((item, index) => decodeTopologyRelationship(item, index, status)),
+    completeness: {
+      complete: requiredBoolean(
+        completeness,
+        "complete",
+        "completeness.complete",
+        status,
+      ),
+      truncated: requiredBoolean(
+        completeness,
+        "truncated",
+        "completeness.truncated",
+        status,
+      ),
+      ...(reason === undefined ? {} : { reason }),
+    },
+  };
 }
 
 function decodeSymbol(payload: SymbolPayload): SymbolView {
@@ -287,6 +840,53 @@ export async function fetchNeighborhood(
     nodes: (payload.nodes ?? []).map(decodeSymbol),
     edges: payload.edges ?? [],
   };
+}
+
+export interface TopologyRequest {
+  readonly profiles?: readonly string[];
+  readonly generationId?: string;
+  readonly generationPins?: Readonly<Record<string, string>>;
+}
+
+/** Fetches one generation-consistent topology read model. */
+export async function fetchTopology(
+  request: TopologyRequest = {},
+  signal?: AbortSignal,
+): Promise<TopologyResponse> {
+  const query = new URLSearchParams();
+  for (const profile of request.profiles ?? ["*"]) {
+    query.append("profile", profile);
+  }
+  if (request.generationId !== undefined) {
+    query.set("generation_id", request.generationId);
+  }
+  for (const profile of Object.keys(request.generationPins ?? {}).sort()) {
+    query.append(
+      "generation",
+      `${profile}:${(request.generationPins as Record<string, string>)[profile]}`,
+    );
+  }
+  query.set("relationships", "grouped");
+  const encodedQuery = query.toString();
+  const response = await fetch(
+    `/api/v1/topology${encodedQuery.length > 0 ? `?${encodedQuery}` : ""}`,
+    {
+      signal,
+      headers: { Accept: "application/json" },
+    },
+  );
+  if (!response.ok) throw await apiError(response);
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    throw new ApiError(
+      "INVALID_RESPONSE",
+      response.status,
+      "topology response is not valid JSON",
+    );
+  }
+  return decodeTopology(payload, response.status);
 }
 
 export interface TileRequest {

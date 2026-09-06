@@ -1,6 +1,6 @@
-# ADR 0095: project agent instructions
+# ADR 0109: project agent instructions
 
-- **Status:** accepted
+- **Status:** superseded by ADR 0112
 - **Date:** 2026-09-04
 - **Changes the CLI surface:** yes -- adds `instructions install`
 - **Changes the graph or MCP protocol:** no

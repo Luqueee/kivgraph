@@ -55,3 +55,20 @@ func TestContentFreshnessReturnsCachedDeferredGeneration(t *testing.T) {
 		t.Fatalf("content freshness = %+v, want the cached deferred generation 42", got)
 	}
 }
+
+func TestNewServiceStartsFreshnessVerificationForTheActiveGeneration(t *testing.T) {
+	store := hotsnapshot.NewDeferredSnapshotStore(42, func() (*hotsnapshot.GraphSnapshot, error) {
+		return nil, errors.New("deferred loader must not be called")
+	})
+	service := NewService(config.Loaded{}, store, "resolver-v1", "")
+
+	got := service.ContentFreshness(t.Context())
+	want := freshness.Status{
+		Generation: 42,
+		State:      "unverified",
+		Detail:     "content freshness has not been verified",
+	}
+	if got != want {
+		t.Fatalf("initial content freshness = %+v, want %+v", got, want)
+	}
+}

@@ -164,6 +164,11 @@ func NewService(
 		workingDirectory, _ = os.Getwd()
 	}
 	initialFreshness := freshness.Status{State: "unverified", Detail: "content freshness has not been verified"}
+	if snapshotStore != nil {
+		if generation, known := snapshotStore.ActiveID(); known {
+			initialFreshness.Generation = generation
+		}
+	}
 	return &Service{
 		gate:             make(chan struct{}, 1),
 		loaded:           cloneLoaded(loaded),

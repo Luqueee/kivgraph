@@ -2,7 +2,9 @@ package workspace
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -381,17 +383,26 @@ func CargoExcludesChecked(root, path string, exclusions []string) (bool, error) 
 	if relative == "." || relative == "" || relative == ".." || strings.HasPrefix(relative, "../") {
 		return false, nil
 	}
+	matched, err := MatchesExclusion(root, path, exclusions)
+	if err != nil {
+		return false, fmt.Errorf("check Cargo exclusion for %q: %w", path, err)
+	}
+	if matched {
+		return true, nil
+	}
 	components := strings.Split(relative, "/")
-	current := root
+	finalIsDirectory := false
+	switch info, statErr := os.Stat(path); {
+	case statErr == nil:
+		finalIsDirectory = info.IsDir()
+	case !errors.Is(statErr, fs.ErrNotExist):
+		return false, fmt.Errorf("inspect Cargo path %q: %w", path, statErr)
+	}
 	for index, component := range components {
-		current = filepath.Join(current, component)
-		isDirectory := index < len(components)-1
-		excluded, err := isCargoDiscoveryExcluded(root, current, component, isDirectory, exclusions)
-		if err != nil {
-			return false, fmt.Errorf("check Cargo exclusion for %q: %w", current, err)
-		}
-		if excluded {
-			return true, nil
+		if index < len(components)-1 || finalIsDirectory {
+			if _, excluded := defaultCargoExcludedDirectories[component]; excluded {
+				return true, nil
+			}
 		}
 	}
 	return false, nil

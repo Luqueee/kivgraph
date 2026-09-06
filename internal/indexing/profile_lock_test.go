@@ -35,8 +35,8 @@ func TestFreshnessFailureReleasesSharedAnalyzerTargets(t *testing.T) {
 		Root: root, ResolverVersion: "test", SharedTargetsLockPath: lockPath,
 		Repositories: []workspace.Repository{{Name: "missing", Path: filepath.Join(root, "missing")}},
 	})
-	if err == nil || !strings.Contains(err.Error(), "capture source inventory") {
-		t.Fatalf("RunFull() error = %v, want inventory refusal", err)
+	if err == nil || !strings.Contains(err.Error(), "observe index sources") {
+		t.Fatalf("RunFull() error = %v, want source observation refusal", err)
 	}
 	lock, acquired, err := filelock.Acquire(lockPath)
 	if err != nil || !acquired {

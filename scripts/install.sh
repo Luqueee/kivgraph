@@ -278,8 +278,6 @@ printf 'kivgraph install: launchers in %s\n' "$bin_dir"
 if [[ ":${PATH}:" != *":${bin_dir}:"* ]]; then
   printf 'kivgraph install: add %s to PATH before using kivgraph\n' "$bin_dir"
 fi
-printf 'kivgraph install: run "kivgraph configure" to set up MCP, skill, hooks, daemon and instructions\n'
-
 # Configuration is offered only after the bundle and its launchers are safely
 # installed. `/dev/tty` is used instead of stdin because the documented curl
 # pipeline owns stdin; when there is no terminal the install remains usable and
@@ -288,11 +286,11 @@ printf 'kivgraph install: run "kivgraph configure" to set up MCP, skill, hooks, 
 configure_after_install() {
   local answer
   if [[ "$configure_mode" == "0" ]]; then
-    printf 'kivgraph install: configuration skipped; run "kivgraph configure" when ready\n'
+    printf 'kivgraph install: configuration skipped; run "%s/bin/kivgraph configure" when ready\n' "$install_root"
     return 0
   fi
   if ! exec 3<>/dev/tty; then
-    printf 'kivgraph install: no interactive terminal; run "kivgraph configure" to finish setup\n'
+    printf 'kivgraph install: no interactive terminal; run "%s/bin/kivgraph configure" to finish setup\n' "$install_root"
     return 0
   fi
   if [[ "$configure_mode" == "ask" ]]; then
@@ -303,14 +301,14 @@ configure_after_install() {
     case "$answer" in
       ''|y|Y|yes|YES) ;;
       *)
-        printf 'kivgraph install: configuration skipped; run "kivgraph configure" when ready\n' >&3
+        printf 'kivgraph install: configuration skipped; run "%s/bin/kivgraph configure" when ready\n' "$install_root" >&3
         exec 3>&-
         return 0
         ;;
     esac
   fi
   if ! "$install_root/bin/kivgraph" configure <&3 >&3 2>&3; then
-    printf 'kivgraph install: configuration did not finish; run "kivgraph configure" to retry\n' >&2
+    printf 'kivgraph install: configuration did not finish; run "%s/bin/kivgraph configure" to retry\n' "$install_root" >&2
   fi
   exec 3>&-
 }

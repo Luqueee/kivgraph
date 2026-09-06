@@ -59,7 +59,8 @@ func TestToolchainInstallActivatesAndRemoveRestoresPythonFallback(t *testing.T) 
 		t.Fatalf("install JSON %q: %v", stdout.String(), err)
 	}
 	if installed["analyzer_mode"] != "exact" || installed["version"] != toolchain.DefaultPyrightVersion {
-		t.Fatalf("install result = %#v", installed)
+		t.Fatalf("toolchain install pyright version=%q result = %#v",
+			toolchain.DefaultPyrightVersion, installed)
 	}
 	configuration, err := config.LoadConfig(configPath)
 	if err != nil {
@@ -85,7 +86,7 @@ func TestToolchainInstallActivatesAndRemoveRestoresPythonFallback(t *testing.T) 
 	}
 	tools, ok := status["tools"].([]any)
 	if !ok || len(tools) != 1 {
-		t.Fatalf("status result = %#v", status)
+		t.Fatalf("toolchain status --config %q --json result = %#v, want one tool", configPath, status)
 	}
 	tool, ok := tools[0].(map[string]any)
 	if !ok || tool["state"] != "installed" {
@@ -135,6 +136,6 @@ printf '#!/bin/sh\nexit 0\n' > "$prefix/node_modules/.bin/pyright-langserver"
 chmod 700 "$prefix/node_modules/.bin/pyright-langserver"
 `
 	if err := os.WriteFile(path, []byte(script), 0o700); err != nil {
-		t.Fatal(err)
+		t.Fatalf("write fake npm %q: %v", path, err)
 	}
 }

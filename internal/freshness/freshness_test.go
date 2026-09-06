@@ -4,10 +4,12 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
@@ -123,6 +125,39 @@ func TestInventoryIncludesRegisteredScopeAndExplicitManifests(t *testing.T) {
 	}
 	if capture() == initial {
 		t.Fatalf("explicit manifest %q outside the repository walk was not fingerprinted", external)
+	}
+}
+
+func TestInventoryCanonicalizesEffectiveRepositoryConfiguration(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"main.go", "package.json"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte(name+"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	defaults := workspace.Repository{
+		Name: "test", Path: root,
+		Roots:      []string{"z", "a"},
+		Manifests:  []string{"package.json", "missing.json"},
+		Exclusions: []string{"vendor", "dist"},
+	}
+	explicit := defaults
+	explicit.Languages = slices.Clone(config.SupportedLanguages())
+	slices.Reverse(explicit.Languages)
+	explicit.Roots = []string{"a", "z"}
+	explicit.Manifests = []string{"missing.json", "package.json"}
+	explicit.Exclusions = []string{"dist", "vendor"}
+
+	defaultDigest, err := Capture(t.Context(), []workspace.Repository{defaults})
+	if err != nil {
+		t.Fatal(err)
+	}
+	explicitDigest, err := Capture(t.Context(), []workspace.Repository{explicit})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if defaultDigest != explicitDigest {
+		t.Fatalf("equivalent repository configuration produced %q and %q", defaultDigest, explicitDigest)
 	}
 }
 
@@ -272,7 +307,6 @@ func TestFreshnessMonitorInvalidatesOnlyRegisteredInputs(t *testing.T) {
 	if err := os.WriteFile(ignored, []byte("ignored\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	assertFreshFor(t, cache, 200*time.Millisecond, ignored)
 	if err := os.WriteFile(source, []byte("changed\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -280,23 +314,8 @@ func TestFreshnessMonitorInvalidatesOnlyRegisteredInputs(t *testing.T) {
 	if got := cache.Load(); !strings.Contains(got.Detail, source) {
 		t.Fatalf("source input %q did not produce the invalidation: %+v", source, got)
 	}
-}
-
-func assertFreshFor(t *testing.T, cache *Cache, duration time.Duration, input string) {
-	t.Helper()
-	deadline := time.NewTimer(duration)
-	defer deadline.Stop()
-	ticker := time.NewTicker(10 * time.Millisecond)
-	defer ticker.Stop()
-	for {
-		if got := cache.Load(); got.State != "fresh" {
-			t.Fatalf("input %q invalidated cache: %+v", input, got)
-		}
-		select {
-		case <-deadline.C:
-			return
-		case <-ticker.C:
-		}
+	if got := cache.Load(); strings.Contains(got.Detail, ignored) {
+		t.Fatalf("excluded input %q produced the invalidation: %+v", ignored, got)
 	}
 }
 

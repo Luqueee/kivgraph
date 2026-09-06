@@ -3,23 +3,34 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "config",
     srcs = [
+        "build_files.go",
         "config.go",
         "detect.go",
         "languages.go",
+        "profile_topology.go",
         "profiles.go",
     ],
     importpath = "github.com/Luqueee/kivgraph/internal/config",
     visibility = ["//:__subpackages__"],
-    deps = ["@in_gopkg_yaml_v3//:yaml_v3"],
+    deps = [
+        "//internal/filelock",
+        "//internal/topology",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+    ],
 )
 
 go_test(
     name = "config_test",
     srcs = [
+        "build_files_test.go",
         "config_test.go",
         "languages_test.go",
+        "profile_topology_test.go",
         "profiles_test.go",
     ],
     embed = [":config"],
-    deps = ["//internal/testsupport"],
+    deps = [
+        "//internal/testsupport",
+        "//internal/topology",
+    ],
 )

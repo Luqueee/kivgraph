@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/tailscale/hujson"
@@ -240,15 +241,12 @@ func readInstructionsSource(path string) (instructionsSourceState, error) {
 	}, nil
 }
 
-func installInstructionsSource(path string, state instructionsSourceState, dryRun, force bool) (bool, error) {
+func installInstructionsSource(path string, state instructionsSourceState, force bool) (bool, error) {
 	if state.exists && !state.managed && !force {
 		return false, fmt.Errorf("%w in %q; use --force to replace it", errEditedInstructionsSource, path)
 	}
 	if state.exists && state.current && !force {
 		return false, nil
-	}
-	if dryRun {
-		return true, nil
 	}
 	if err := writeDestination(path, embeddedInstructions, state.exists, state.data); err != nil {
 		return false, err
@@ -286,7 +284,7 @@ func (manager Manager) installReferencedInstructions(file, path, sourcePath stri
 		plan.Status = "would-install"
 		return plan, nil
 	}
-	if _, err := installInstructionsSource(sourcePath, source, false, force); err != nil {
+	if _, err := installInstructionsSource(sourcePath, source, force); err != nil {
 		return InstructionsPlan{}, err
 	}
 	if referenceChanged {
@@ -318,7 +316,9 @@ func referencedInstructionsUpdate(data []byte, exists bool, sourcePath string, f
 	}
 	blockNewline := instructionLineEnding(block)
 	if bytes.Equal(block, legacyManagedInstructionsReference(blockNewline)) ||
-		bytes.Equal(block, legacyManagedInstructionsBlock(blockNewline)) {
+		slices.ContainsFunc(legacyManagedInstructionsBlocks(blockNewline), func(legacy []byte) bool {
+			return bytes.Equal(block, legacy)
+		}) {
 		return replaceInstructionsBlock(data, start, end, reference), true, false,
 			"migrate the Kivgraph block to its canonical prompt reference", nil
 	}
@@ -357,7 +357,7 @@ func (manager Manager) installOpenCodeInstructions(file, path, sourcePath string
 		plan.Status = "would-install"
 		return plan, nil
 	}
-	if _, err := installInstructionsSource(sourcePath, source, false, force); err != nil {
+	if _, err := installInstructionsSource(sourcePath, source, force); err != nil {
 		return InstructionsPlan{}, err
 	}
 	if configChanged {
@@ -371,7 +371,11 @@ func (manager Manager) installOpenCodeInstructions(file, path, sourcePath string
 func openCodeInstructionsUpdate(data []byte, exists bool, sourcePath string) ([]byte, bool, bool, error) {
 	root := map[string]json.RawMessage{}
 	if !exists || len(bytes.TrimSpace(data)) == 0 {
-		root["instructions"] = json.RawMessage(fmt.Sprintf("[%q]", sourcePath))
+		instructions, err := json.Marshal([]string{sourcePath})
+		if err != nil {
+			return nil, false, false, fmt.Errorf("encode OpenCode instruction: %w", err)
+		}
+		root["instructions"] = instructions
 		updated, err := json.MarshalIndent(root, "", "  ")
 		if err != nil {
 			return nil, false, false, fmt.Errorf("encode JSON: %w", err)
@@ -601,9 +605,13 @@ func legacyManagedInstructionsReference(newline string) []byte {
 	return []byte(instructionsBeginMarker + newline + "@" + InstructionsCanonicalFile + newline + instructionsEndMarker)
 }
 
-func legacyManagedInstructionsBlock(newline string) []byte {
-	body := strings.ReplaceAll(string(embeddedInstructions), "\n", newline)
-	return []byte(instructionsBeginMarker + newline + body + instructionsEndMarker)
+func legacyManagedInstructionsBlocks(newline string) [][]byte {
+	blocks := make([][]byte, 0, 2)
+	for _, prompt := range [][]byte{embeddedInstructions, legacyEmbeddedInstructions} {
+		body := strings.ReplaceAll(string(prompt), "\n", newline)
+		blocks = append(blocks, []byte(instructionsBeginMarker+newline+body+instructionsEndMarker))
+	}
+	return blocks
 }
 
 func appendInstructionsBlock(data, block []byte, newline string) []byte {

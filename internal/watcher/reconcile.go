@@ -188,6 +188,45 @@ func (reconciler *Reconciler) Reconcile(ctx context.Context) (ReconciliationResu
 	if err != nil {
 		return ReconciliationResult{}, fmt.Errorf("hash reconciliation: %w", err)
 	}
+	return reconciler.resultFromHashes(hashes, known), nil
+}
+
+// Process handles notifications from Watcher without scanning the complete
+// repository tree. It filters paths using the same source and manifest policy
+// as Reconcile, then compares their content against the reconciliation cache.
+// A caller can therefore use filesystem events for low latency and keep
+// Reconcile as the periodic recovery path for missed notifications.
+func (reconciler *Reconciler) Process(ctx context.Context, batch Batch) (ReconciliationResult, error) {
+	if reconciler == nil {
+		return ReconciliationResult{}, errors.New("process nil reconciler")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	events, err := normalizeHashEvents(batch.Events)
+	if err != nil {
+		return ReconciliationResult{}, fmt.Errorf("normalize watcher events: %w", err)
+	}
+	filtered := make([]Event, 0, len(events))
+	known := make(map[FileKey]string, len(events))
+	for _, event := range events {
+		key := FileKey{Repository: event.Repository, Path: event.Path}
+		if !reconciler.isTrackedPath(key.Repository, key.Path) {
+			continue
+		}
+		if hash, exists := reconciler.hasher.KnownHash(key.Repository, key.Path); exists {
+			known[key] = hash
+		}
+		filtered = append(filtered, event)
+	}
+	hashes, err := reconciler.hasher.Process(ctx, Batch{Events: filtered})
+	if err != nil {
+		return ReconciliationResult{}, fmt.Errorf("hash watcher events: %w", err)
+	}
+	return reconciler.resultFromHashes(hashes, known), nil
+}
+
+func (reconciler *Reconciler) resultFromHashes(hashes HashResult, known map[FileKey]string) ReconciliationResult {
 	result := ReconciliationResult{
 		Unchanged: append([]FileState(nil), hashes.Unchanged...),
 		Removed:   append([]FileState(nil), hashes.Removed...),
@@ -204,7 +243,7 @@ func (reconciler *Reconciler) Reconcile(ctx context.Context) (ReconciliationResu
 	result.Renamed = detectRenames(result.Added, result.Removed, known)
 	result.ManifestChanges = reconciler.manifestChanges(result.Added, result.Modified, result.Removed)
 	sortReconciliationResult(&result)
-	return result, nil
+	return result
 }
 
 // Run performs one reconciliation immediately and repeats it at interval until
@@ -447,6 +486,19 @@ func (reconciler *Reconciler) isManifest(repositoryName, path string) bool {
 		}
 	}
 	return isManifestPath(path)
+}
+
+func (reconciler *Reconciler) isTrackedPath(repositoryName, path string) bool {
+	for _, repository := range reconciler.repositories {
+		if repository.name != repositoryName {
+			continue
+		}
+		if repository.ignored.ignored(path) {
+			return false
+		}
+		return repository.isManifest(path) || repository.isSource(path)
+	}
+	return false
 }
 
 func sortReconciliationResult(result *ReconciliationResult) {

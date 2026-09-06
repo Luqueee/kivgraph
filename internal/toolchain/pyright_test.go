@@ -120,6 +120,37 @@ func TestSplitCommandLinePreservesWindowsUNCPaths(t *testing.T) {
 	}
 }
 
+func TestSplitCommandLinePreservesTrailingWindowsSeparator(t *testing.T) {
+	analyzer := `C:\tools\pyright\`
+	for name, command := range map[string]string{
+		"quoted":   `kivgraph-python-pyright --analyzer "` + analyzer + `"`,
+		"unquoted": `kivgraph-python-pyright --analyzer ` + analyzer,
+	} {
+		t.Run(name, func(t *testing.T) {
+			args, err := splitCommandLine(command, true)
+			if err != nil {
+				t.Fatalf("splitCommandLine(%q) error = %v", command, err)
+			}
+			want := []string{"kivgraph-python-pyright", "--analyzer", analyzer}
+			if !slices.Equal(args, want) {
+				t.Fatalf("splitCommandLine(%q) = %#v, want %#v", command, args, want)
+			}
+		})
+	}
+}
+
+func TestSplitCommandLineConcatenatesAdjacentQuotedFragments(t *testing.T) {
+	command := `kivgraph-python-pyright --analyzer="path with spaces"/pyright-langserver`
+	args, err := splitCommandLine(command, false)
+	if err != nil {
+		t.Fatalf("splitCommandLine(%q) error = %v", command, err)
+	}
+	want := []string{"kivgraph-python-pyright", "--analyzer=path with spaces/pyright-langserver"}
+	if !slices.Equal(args, want) {
+		t.Fatalf("splitCommandLine(%q) = %#v, want %#v", command, args, want)
+	}
+}
+
 func TestInstallUsesTheRequestedVersionWhenAnotherVersionIsNewer(t *testing.T) {
 	state := t.TempDir()
 	for _, version := range []string{"1.1.413", "1.1.400"} {

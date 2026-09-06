@@ -23,6 +23,7 @@ type Profile struct {
 	Default          bool
 	StateDirectory   string
 	RepositoriesPath string
+	TopologyPath     string
 }
 
 func profilesRoot(configuration Config) string {
@@ -36,6 +37,7 @@ func profileAt(configuration Config, name string) Profile {
 		Default:          name == configuration.Profiles.Default,
 		StateDirectory:   directory,
 		RepositoriesPath: filepath.Join(directory, "repositories.yaml"),
+		TopologyPath:     filepath.Join(directory, "topology.yaml"),
 	}
 }
 
@@ -93,7 +95,7 @@ func ensureDefaultProfile(configuration Config, repositoriesPath string) error {
 	}
 	for _, name := range []string{
 		"generations", "CURRENT", "BACKUP", "backups", "publish.lock",
-		"resync.lock", "factcache", "go.work", "graph.lbdb",
+		"resync.lock", "go.work", "graph.lbdb",
 	} {
 		source := filepath.Join(temporaryState, name)
 		if _, err := os.Lstat(source); errors.Is(err, os.ErrNotExist) {
@@ -244,8 +246,8 @@ func ListProfiles(configPath string) ([]Profile, error) {
 }
 
 // LoadProfile loads one profile and rewrites only the state that belongs to
-// its independently published graph. Analyzer targets and the event log remain
-// shared at installation scope.
+// its independently published graph. Analyzer targets, the event log and the
+// content-addressed fact cache remain shared at installation scope.
 func LoadProfile(configPath, name string) (Loaded, error) {
 	loaded, err := Load(configPath)
 	if err != nil {
@@ -277,10 +279,12 @@ func LoadProfile(configPath, name string) (Loaded, error) {
 	loaded.Profile = name
 	loaded.Repositories = repositories
 	loaded.RepositoriesPath = repositoriesPath
+	loaded.TopologyPath = profile.TopologyPath
+	sharedFactCache := filepath.Join(filepath.Dir(filepath.Dir(profile.StateDirectory)), "factcache")
 	loaded.Config.Workspace.RepositoriesFile = repositoriesPath
 	loaded.Config.Storage.DatabasePath = filepath.Join(profile.StateDirectory, "graph.lbdb")
 	loaded.Config.Storage.BackupsPath = filepath.Join(profile.StateDirectory, "backups")
-	loaded.Config.Indexing.FactCachePath = filepath.Join(profile.StateDirectory, "factcache")
+	loaded.Config.Indexing.FactCachePath = sharedFactCache
 	loaded.Config.Go.SyntheticWorkFile = filepath.Join(profile.StateDirectory, "go.work")
 	return loaded, nil
 }
@@ -324,11 +328,20 @@ func CreateProfile(configPath, name string) error {
 }
 
 // UseProfile moves the default pointer only after proving the target exists.
-func UseProfile(configPath, name string) error {
+func UseProfile(configPath, name string) (err error) {
 	if err := ValidateProfileName(name); err != nil {
 		return fmt.Errorf("profile name: %w", err)
 	}
-	configuration, err := LoadConfig(configPath)
+	resolved, err := resolveConfigPath(configPath)
+	if err != nil {
+		return err
+	}
+	lock, err := acquireConfigLock(resolved)
+	if err != nil {
+		return err
+	}
+	defer releaseConfigLock(lock, &err)
+	configuration, _, err := loadConfigFile(resolved)
 	if err != nil {
 		return err
 	}
@@ -338,7 +351,7 @@ func UseProfile(configPath, name string) error {
 		}
 		return fmt.Errorf("inspect profile %q: %w", name, err)
 	}
-	return writeDefaultProfile(configPath, name)
+	return writeDefaultProfileLocked(resolved, name)
 }
 
 // RemoveProfile removes one non-default profile and refuses to leave none.
@@ -368,16 +381,7 @@ func RemoveProfile(configPath, name string) error {
 	return fmt.Errorf("profile %q: %w", name, ErrProfileNotFound)
 }
 
-func writeDefaultProfile(configPath, name string) error {
-	resolved, err := resolveConfigPath(configPath)
-	if err != nil {
-		return err
-	}
-	lock, err := acquireConfigLock(resolved)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = lock.Release() }()
+func writeDefaultProfileLocked(resolved, name string) error {
 	data, err := os.ReadFile(resolved)
 	if err != nil {
 		return fmt.Errorf("read config %q: %w", resolved, err)

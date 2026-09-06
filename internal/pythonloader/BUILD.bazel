@@ -6,7 +6,9 @@ go_library(
     importpath = "github.com/Luqueee/kivgraph/internal/pythonloader",
     visibility = ["//:__subpackages__"],
     deps = [
+        "//internal/config",
         "//internal/facts",
+        "//internal/toolchain",
         "//internal/workspace",
     ],
 )

@@ -67,6 +67,7 @@ go_test(
         "get_source_test.go",
         "get_symbol_test.go",
         "guidance_test.go",
+        "observer_test.go",
         "profiles_test.go",
         "repositories_test.go",
         "response_test.go",

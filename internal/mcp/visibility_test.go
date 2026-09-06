@@ -55,9 +55,11 @@ func TestInstalledSkillsAndHandshakeShareToolVisibility(t *testing.T) {
 						}
 						paragraph, _, _ := strings.Cut(section, "\n\n")
 						policy := strings.Join(strings.Fields(paragraph), " ")
-						first, _, _ := strings.Cut(instructions, "\n\n")
-						if policy == "" || first != policy || strings.Count(instructions, policy) != 1 {
-							t.Fatalf("handshake must lead with the installed skill's policy exactly once:\nhandshake: %q\nskill: %q", first, policy)
+						plainPolicy := strings.ReplaceAll(policy, "`", "")
+						if plainPolicy == "" || !strings.HasPrefix(plainPolicy, toolVisibilityInstructions) ||
+							!strings.HasPrefix(instructions, toolVisibilityInstructions) ||
+							strings.Count(instructions, toolVisibilityInstructions) != 1 {
+							t.Fatalf("handshake and installed skill must share the visible-use policy exactly once:\nhandshake: %q\nskill: %q", instructions, policy)
 						}
 					})
 				}
@@ -75,7 +77,6 @@ func TestVisibleToolUseNamesTheIntentQuery(t *testing.T) {
 		name   string
 		server *sdkmcp.Server
 	}{
-		{"no graph", NewServer()},
 		{"published graph", publishedServer(t)},
 	} {
 		instructions := connectToServer(t, state.server).InitializeResult().Instructions
@@ -90,11 +91,23 @@ func TestVisibleToolUseNamesTheIntentQuery(t *testing.T) {
 	}
 }
 
+func TestColdInstructionsNameOnlyPublishedControls(t *testing.T) {
+	instructions := connectToServer(t, NewServerWithIndexer(&fakeProjectIndexer{})).InitializeResult().Instructions
+	for _, unavailable := range []string{"find_by_intent", "find_references", "get_blast_radius", "get_source"} {
+		if strings.Contains(instructions, unavailable) {
+			t.Fatalf("cold instructions = %q, want no unavailable tool %q", instructions, unavailable)
+		}
+	}
+	if !strings.Contains(instructions, "start_index_project") {
+		t.Fatalf("cold instructions = %q, want the published indexing control", instructions)
+	}
+}
+
 // A graph for another checkout is not a weaker form of evidence for this one.
 // The client must repair the graph through its consent-gated mutation and
 // attest the new publication before asking semantic questions.
 func TestFreshnessPolicyRepairsTheTargetCheckoutBeforeUsingGraphEvidence(t *testing.T) {
-	server := NewServerWithIndexer(&fakeProjectIndexer{})
+	server := NewServerWithSnapshotStoreAndIndexer(publishedStore(t), &fakeProjectIndexer{})
 	instructions := connectToServer(t, server).InitializeResult().Instructions
 	for _, want := range []string{
 		"Freshness is a gate",
@@ -103,8 +116,6 @@ func TestFreshnessPolicyRepairsTheTargetCheckoutBeforeUsingGraphEvidence(t *test
 		"reconnect if graph_status was absent",
 		"call graph_status again",
 		"Only the default profile carries content freshness",
-		"If start_index_project is exposed, use its approval flow",
-		"then reconnect before calling graph_status",
 	} {
 		if !strings.Contains(instructions, want) {
 			t.Fatalf("instructions = %q, want %q", instructions, want)
@@ -125,7 +136,7 @@ func TestFreshnessPolicyRepairsTheTargetCheckoutBeforeUsingGraphEvidence(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	policy := strings.Join(strings.Fields(string(skill)), " ")
+	policy := strings.ReplaceAll(strings.Join(strings.Fields(string(skill)), " "), "`", "")
 	for _, want := range []string{
 		"does not attest the target checkout",
 		"start_index_project",
@@ -137,5 +148,17 @@ func TestFreshnessPolicyRepairsTheTargetCheckoutBeforeUsingGraphEvidence(t *test
 		if !strings.Contains(policy, want) {
 			t.Fatalf("installed skill does not require fresh graph evidence: want %q", want)
 		}
+	}
+}
+
+func TestFreshnessPolicyDoesNotAdvertiseUnavailableIndexingTools(t *testing.T) {
+	instructions := connectToServer(t, NewServer()).InitializeResult().Instructions
+	for _, unavailable := range []string{"index_project", "start_index_project", "get_index_status"} {
+		if strings.Contains(instructions, unavailable) {
+			t.Fatalf("instructions without an indexer advertise %q: %q", unavailable, instructions)
+		}
+	}
+	if !strings.Contains(instructions, `kivgraph index --full`) {
+		t.Fatalf("instructions without an indexer = %q, want the available CLI repair", instructions)
 	}
 }

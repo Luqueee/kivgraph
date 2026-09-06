@@ -56,10 +56,33 @@ type IndexJobs struct {
 	active   bool
 	activeID string
 	indexer  indexing.ProjectIndexer
+	ctx      context.Context
+	cancel   context.CancelFunc
+	close    sync.Once
 }
 
 func NewIndexJobs(indexer indexing.ProjectIndexer) *IndexJobs {
-	return &IndexJobs{jobs: make(map[string]IndexJobStatus), indexer: indexer}
+	return NewIndexJobsWithContext(context.Background(), indexer)
+}
+
+// NewIndexJobsWithContext binds background index work to its hosting process.
+func NewIndexJobsWithContext(ctx context.Context, indexer indexing.ProjectIndexer) *IndexJobs {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	jobContext, cancel := context.WithCancel(ctx)
+	return &IndexJobs{
+		jobs: make(map[string]IndexJobStatus), indexer: indexer,
+		ctx: jobContext, cancel: cancel,
+	}
+}
+
+// Close cancels an operation still running when its hosting process stops.
+func (jobs *IndexJobs) Close() {
+	if jobs == nil {
+		return
+	}
+	jobs.close.Do(jobs.cancel)
 }
 
 // RegisterIndexProjectJobs adds the portable asynchronous indexing pair. It
@@ -179,7 +202,7 @@ func (jobs *IndexJobs) run(operationID, profile string, batch []indexing.Project
 		jobs.jobs[operationID] = status
 		jobs.mu.Unlock()
 	}
-	result, err := runProjectIndex(context.Background(), jobs.indexer, profile, batch, progress)
+	result, err := runProjectIndex(jobs.ctx, jobs.indexer, profile, batch, progress)
 	jobs.mu.Lock()
 	defer jobs.mu.Unlock()
 	status := jobs.jobs[operationID]

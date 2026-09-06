@@ -181,7 +181,7 @@ declarado en la raíz.
   hasta `completed` o `failed`. El daemon comparte el estado entre sus sesiones;
   un `serve` por stdio lo conserva durante la vida de ese proceso. El estado no
   sobrevive un reinicio y conserva como máximo 32 operaciones terminadas. Ver
-  ADR 0099.
+  ADR 0114.
 - `index_project` acepta un lote (`projects`) y reconstruye **una sola vez**.
   Un rebuild resuelve las aristas cross-repository sobre el conjunto completo
   de hechos, así que cuesta el corpus entero se añada lo que se añada: llamar

@@ -1,4 +1,4 @@
-# ADR 0097: durable bounded tool query summaries
+# ADR 0111: durable bounded tool query summaries
 
 - Date: 2026-09-05
 - Status: accepted

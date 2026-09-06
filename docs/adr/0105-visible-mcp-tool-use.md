@@ -1,4 +1,4 @@
-# ADR 0085: announce Kivgraph tool use in the agent's chat
+# ADR 0105: announce Kivgraph tool use in the agent's chat
 
 - Date: 2026-09-03
 - Status: accepted
@@ -60,22 +60,19 @@ claim that it followed the rule. Record client/model versions and any omissions.
 Test Desktop without a skill; test the other clients with and without it.
 These UI checks must be reported separately from automated protocol tests.
 
-### Verification on 2026-09-03
+### Verification after branch reconciliation on 2026-09-06
 
-The new cross-delivery test failed before the policy existed and passed after
-the change. MCP tests, CLI race tests and `go vet ./...` passed. A compiled
-binary served the same policy over STDIO with an isolated configuration:
-668 bytes in the cold handshake, twelve introspection tools, and a successful
-`graph_status` response without a duplicate structured channel.
+The delivery and protocol paths passed with:
 
-The full suite, and therefore `make build`, failed on the existing
-`TestClaudeDesktopIsDetectedByItsOwnEntry`: it reads `/Applications/Claude.app`
-outside its temporary home. The same test failed in a clean archive of `HEAD`.
-The remaining integration tests passed when that test was explicitly excluded;
-standalone `go build` passed. This unrelated test was not changed.
+```bash
+go test ./internal/mcp/... ./internal/integrations
+go test -race ./cmd/kivgraph/...
+go vet ./...
+make build
+pnpm --dir landing check
+pnpm --dir landing build
+```
 
-Landing check/build passed; the build warned about the competing `/404` route.
-The generated pages contain the notice section and its links. The generic
-skill validator rejects the pre-existing `compatibility` frontmatter field;
-the field is unchanged. Actual chat rendering and model compliance have not
-been qualified in Codex, Claude Code, Desktop, OpenCode or Oh My Pi.
+The landing build emitted no route warning after `/404` moved to the framework
+route. Actual chat rendering and model compliance have not been qualified in
+Codex, Claude Code, Desktop, OpenCode or Oh My Pi.

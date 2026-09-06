@@ -4,7 +4,7 @@ description: Route a question to the right Kivgraph tool, address a symbol witho
 ---
 
 `kivgraph serve` speaks MCP over stdio and, once a generation is published,
-registers fourteen tools; before that it registers the three indexing controls.
+registers fourteen tools, including the three indexing controls.
 This page is about using them: which tool answers which question, how to name a
 symbol, and how to read what comes back. Per-tool arguments live under
 [`/docs/mcp-tools/`](/docs/mcp-tools/) and on each tool's own page.
@@ -660,8 +660,9 @@ inspect directly relevant source only if that repair is unavailable, denied or
 fails; it must not use a graph from another checkout as evidence. A session
 that began with no published graph exposes only the three indexing controls, so
 the agent reconnects after publication before that `graph_status` call. Content
-freshness attests the default profile only. A non-default profile or aggregate response
-deliberately omits it; its `snapshot_id` is not a substitute. The agent names
+freshness attests the default profile only. A non-default profile or aggregate
+response deliberately omits it; its `snapshot_id` is not a substitute. The
+agent names
 that limitation and uses directly relevant source rather than claiming fresh
 graph evidence. See [`/guides/indexing/`](/guides/indexing/) for the full
 procedure.

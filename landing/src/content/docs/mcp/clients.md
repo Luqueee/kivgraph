@@ -121,7 +121,12 @@ appended at the end of the file; the rest of the TOML is untouched.
 [mcp_servers.kivgraph]
 command = "/usr/local/bin/kivgraph"
 args = ["serve"]
+```
 
+The installer writes the server table above. Add the approval policy manually
+if you want Codex to prompt specifically for both mutating tools:
+
+```toml
 [mcp_servers.kivgraph.tools.index_project]
 approval_mode = "prompt"
 
@@ -129,9 +134,7 @@ approval_mode = "prompt"
 approval_mode = "prompt"
 ```
 
-The per-tool approval entries make Codex ask before invoking either mutating
-index tool. The Kivgraph installer preserves approval settings and does not add
-this policy automatically.
+The installer preserves these approval settings on later updates.
 
 ### OpenCode
 
@@ -322,7 +325,8 @@ supervised daemon onto the installed release.
 
 With no published generation, `serve` still completes the handshake. It exposes
 the three indexing controls, and its `instructions` tell the agent to start and
-poll an index or run `kivgraph index --full`, then restart the server. Nothing
+poll an index or run `kivgraph index --full`, then reconnect the MCP client.
+Nothing
 is broken: there is simply no graph to answer from yet.
 
 `serve` also writes the default configuration when none exists, and continues,

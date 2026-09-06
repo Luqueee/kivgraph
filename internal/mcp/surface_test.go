@@ -99,7 +99,7 @@ func TestTheSpecificationNamesEveryToolThatIsServed(t *testing.T) {
 	// Indexing controls are documented in prose rather than in the block,
 	// because a client that never configures indexing never sees them.
 	for _, name := range []string{"index_project", "start_index_project", "get_index_status"} {
-		if !strings.Contains(string(document), name) {
+		if !strings.Contains(string(document), "`"+name+"`") {
 			t.Errorf("%s does not mention %s", surfaceSpecification, name)
 		}
 	}
@@ -472,9 +472,9 @@ func TestStaleInstructionsRouteToTheRepair(t *testing.T) {
 	// The healthy card is the budget this one is measured against: the state
 	// with one action available cannot cost more to describe than the state
 	// with eleven tools to route between.
-	if len(instructions) > len(serverInstructions) {
+	if len(instructions) > len(serverInstructions(false)) {
 		t.Fatalf("the stale card is %d bytes against the routing card's %d; it has one action to name",
-			len(instructions), len(serverInstructions))
+			len(instructions), len(serverInstructions(false)))
 	}
 	// `--introspection` is a mode a client is never in. It changes what an
 	// inspector can list and nothing a client can act on, so naming it here

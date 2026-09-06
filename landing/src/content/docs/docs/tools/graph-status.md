@@ -1,6 +1,8 @@
 ---
 title: graph_status
-description: What the server is serving from, how large it is, how it resolved, and whether repository identity or registered content has changed.
+description: >-
+  What the server is serving from, how large it is, how it resolved, and whether
+  repository identity or registered content has changed.
 ---
 
 > The published generation: counts, provenance, and whether a repository moved since it was indexed. Call it when an answer looks stale.

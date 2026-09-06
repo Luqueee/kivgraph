@@ -25,21 +25,26 @@ Every failure the tool surface returns carries a stable code and a human-readabl
 
 **Symptom**
 
-The client lists the three indexing controls and no graph-query tools. The session instructions explain how to start and poll the first index.
+The client lists the three indexing controls and no graph-query tools. The
+session instructions explain how to start and poll the first index.
 
-```text
-Kivgraph has no published graph, so no graph query can answer from one. Use start_index_project and poll get_index_status, or run "kivgraph index --full", then restart this server.
-```
+The instructions say that no graph query can answer yet: use
+`start_index_project` and poll `get_index_status`, or run
+`kivgraph index --full`, then reconnect the MCP client.
 
 **Cause**
 
-`serve` checks for a published generation before it registers graph-query tools. With none, it registers `start_index_project`, `get_index_status`, and the synchronous compatibility tool `index_project`. They need no graph to run.
+`serve` checks for a published generation before it registers graph-query tools.
+With none, it registers `start_index_project`, `get_index_status`, and the
+synchronous compatibility tool `index_project`. They need no graph to run.
 
-The handshake still completes. The client spawns this process itself, so exiting reads as a crash and says nothing; and publishing eleven graph tools that would answer `INDEX_NOT_READY` to everything teaches the agent that the tools do not work.
+The handshake still completes. The client spawns this process itself, so exiting
+reads as a crash and says nothing; publishing eleven graph tools that would
+answer `INDEX_NOT_READY` to everything teaches the agent that they do not work.
 
 **Fix**
 
-Build a generation, then restart the server so it loads it:
+Build a generation, then reconnect the MCP client so it discovers the tools:
 
 ```bash
 kivgraph index --full

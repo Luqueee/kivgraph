@@ -635,7 +635,7 @@ func TestAnalysisQueueStartsWithTheHeaviestUnit(t *testing.T) {
 	}
 
 	var order []string
-	_, _, err := analyse(context.Background(), FullOptions{
+	_, _, _, _, err := analyse(context.Background(), FullOptions{
 		TypeScriptMaximumWorkers: 1,
 		Progress: func(event ProgressEvent) {
 			if event.Started {

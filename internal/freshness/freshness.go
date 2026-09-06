@@ -65,11 +65,20 @@ func Capture(ctx context.Context, repositories []workspace.Repository) (string, 
 		if err != nil {
 			return "", fmt.Errorf("resolve repository %s roots: %w", repo.Name, err)
 		}
+		languages := slices.Clone(repo.Languages)
+		if len(languages) == 0 {
+			languages = config.SupportedLanguages()
+		}
+		exclusions := slices.Clone(repo.Exclusions)
+		slices.Sort(languages)
+		slices.Sort(roots)
+		slices.Sort(manifests)
+		slices.Sort(exclusions)
 		identity, err := json.Marshal(struct {
 			Name, Path, Commit, Branch string
 			Languages, Roots           []string
 			Manifests, Exclusions      []string
-		}{repo.Name, root, repo.Commit, repo.Branch, repo.Languages, roots, manifests, repo.Exclusions})
+		}{repo.Name, root, repo.Commit, repo.Branch, languages, roots, manifests, exclusions})
 		if err != nil {
 			return "", fmt.Errorf("encode repository %s inventory identity: %w", repo.Name, err)
 		}
@@ -81,10 +90,6 @@ func Capture(ctx context.Context, repositories []workspace.Repository) (string, 
 			explicitManifests[manifest] = struct{}{}
 		}
 		hashedFiles := make(map[string]struct{})
-		languages := repo.Languages
-		if len(languages) == 0 {
-			languages = config.SupportedLanguages()
-		}
 		extensions := config.SourceExtensionSet(languages)
 		err = filepath.WalkDir(root, func(filename string, entry fs.DirEntry, walkErr error) error {
 			if walkErr != nil {

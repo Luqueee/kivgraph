@@ -384,6 +384,10 @@ func logDetail(line logLine) string {
 		}
 		fields = append(fields, key+"="+oneLine(value))
 	}
+	if activity := oneLine(event.Message); event.Tool == "" &&
+		len([]rune(activity)) > logEventColumnWidth {
+		appendField("message", activity)
+	}
 	// The message of a tool event is the tool name, so repeating it would
 	// spend a column on nothing.
 	if event.Tool != "" && event.Tool != event.Message {

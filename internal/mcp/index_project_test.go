@@ -14,12 +14,14 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Luqueee/kivgraph/internal/indexing"
+	"github.com/Luqueee/kivgraph/internal/mcp/tools"
 )
 
 type controlledProjectIndexer struct {
-	started chan struct{}
-	release chan struct{}
-	err     error
+	started   chan struct{}
+	startOnce sync.Once
+	release   chan struct{}
+	err       error
 }
 
 func newControlledProjectIndexer() *controlledProjectIndexer {
@@ -34,7 +36,10 @@ func (indexer *controlledProjectIndexer) IndexProjects(
 	projects []indexing.Project,
 	progress func(indexing.ProjectProgress),
 ) (indexing.ProjectResult, error) {
-	close(indexer.started)
+	indexer.startOnce.Do(func() { close(indexer.started) })
+	if len(projects) == 0 {
+		return indexing.ProjectResult{}, errors.New("indexer received an empty project batch")
+	}
 	if progress != nil {
 		progress(indexing.ProjectProgress{
 			Phase: "go", Repository: projects[0].Name, Completed: 0, Total: 1,
@@ -116,6 +121,9 @@ func TestIndexProjectRejectsNamedProfileWhenIndexerCannotRouteIt(t *testing.T) {
 	}
 	if result == nil || !result.IsError {
 		t.Fatalf("CallTool() result = %#v, want indexing error", result)
+	}
+	if body := contentText(t, result); !strings.Contains(body, tools.CodeInvalidArgument) {
+		t.Fatalf("CallTool() error = %q, want %s", body, tools.CodeInvalidArgument)
 	}
 	if calls := fake.callCount(); calls != 0 {
 		t.Fatalf("default indexer calls = %d, want 0", calls)
@@ -565,6 +573,35 @@ func TestIndexStatusSurvivesAcrossDaemonStyleSessions(t *testing.T) {
 	waitForIndexStatus(t, observer, started.OperationID, "completed")
 }
 
+func TestIndexJobsCloseCancelsRunningOperation(t *testing.T) {
+	indexer := newControlledProjectIndexer()
+	jobs := NewIndexJobsWithContext(t.Context(), indexer)
+	session := connectToServer(t, newServerWithIndexer(
+		nil, nil, nil, indexer, ServerOptions{IndexJobs: jobs},
+	))
+	result, err := session.CallTool(t.Context(), &sdkmcp.CallToolParams{
+		Name: "start_index_project",
+		Arguments: map[string]any{
+			"name": "demo", "path": "/tmp/demo", "languages": []any{"go"}, "confirmed": true,
+		},
+	})
+	if err != nil || result == nil || result.IsError {
+		t.Fatalf("start CallTool() = %#v, %v", result, err)
+	}
+	started := decodeToolResponse[startIndexProjectResponse](t, result)
+	select {
+	case <-indexer.started:
+	case <-time.After(time.Second):
+		t.Fatal("background index did not start")
+	}
+
+	jobs.Close()
+	failed := waitForIndexStatus(t, session, started.OperationID, "failed")
+	if failed.Failure == nil || !strings.Contains(failed.Failure.Message, context.Canceled.Error()) {
+		t.Fatalf("closed hosting process status = %#v, want cancellation failure", failed)
+	}
+}
+
 func waitForIndexStatus(
 	t *testing.T,
 	session *sdkmcp.ClientSession,
@@ -735,6 +772,9 @@ func TestIndexProjectUsesConfirmedFallbackForURLOnlyElicitation(t *testing.T) {
 	})
 	if err != nil || result == nil || !result.IsError {
 		t.Fatalf("CallTool() = %#v, error %v; want permission error without confirmed", result, err)
+	}
+	if unexpectedElicitation.Load() {
+		t.Fatal("form elicitation requested without confirmed for client=url-only-client with elicitation.url capability")
 	}
 	if calls := fake.callCount(); calls != 1 {
 		t.Fatalf("indexer calls after missing confirmation = %d, want 1", calls)

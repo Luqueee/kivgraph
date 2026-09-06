@@ -1,6 +1,8 @@
 ---
 title: MCP tools
-description: The fourteen tools Kivgraph registers once a generation is published, and which question each one answers.
+description: >-
+  The fourteen tools Kivgraph registers once a generation is published, and
+  which question each one answers.
 ---
 
 `kivgraph serve` registers fourteen tools *once a generation is published*.
@@ -27,9 +29,12 @@ open the database for those queries and does not run the TypeScript worker.
 | Everything known about one symbol | [`get_symbol`](/docs/tools/get-symbol/) |
 | What is indexed, and is it current | [`graph_status`](/docs/tools/graph-status/) |
 | Which repositories are registered | [`list_repositories`](/docs/tools/list-repositories/) |
-| Start an index without holding a long call open | [`start_index_project`](/docs/tools/start-index-project/) |
-| Check an asynchronous index | [`get_index_status`](/docs/tools/get-index-status/) |
+| Start an index | [`start_index_project`][start-index] |
+| Check index status | [`get_index_status`][index-status] |
 | Index a project and rebuild | [`index_project`](/docs/tools/index-project/) |
+
+[start-index]: /docs/tools/start-index-project/
+[index-status]: /docs/tools/get-index-status/
 
 Edges are resolved by language analyzers, never by matching names, and the
 resolution is not uniform across the five languages: Go, TypeScript and Rust

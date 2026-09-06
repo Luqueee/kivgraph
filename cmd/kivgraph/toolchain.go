@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/toolchain"
@@ -152,7 +154,9 @@ func runToolchainInstall(tool string, args []string, stdout, stderr io.Writer) i
 		writeCommandError(stderr, "toolchain install: %v", err)
 		return 1
 	}
-	status, err := toolchain.Install(context.Background(), stateDirectory(loaded), tool, options.Version, "")
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	status, err := toolchain.Install(ctx, stateDirectory(loaded), tool, options.Version, "")
 	if err != nil {
 		writeCommandError(stderr, "toolchain install: %v", err)
 		return 1

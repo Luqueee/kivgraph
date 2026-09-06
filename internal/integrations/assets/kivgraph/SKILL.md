@@ -16,14 +16,15 @@ text-only search.
 Before every Kivgraph MCP call, send a brief user-visible preamble in the
 conversation's language: Kivgraph · <tool> — <target>: <purpose>. Name the
 exact tool, queried symbol/file/repository/scope, and question it answers. For
-find_by_intent, quote its exact "intent" value as the target, never a summary.
-For parallel calls, one preamble may list each call; announce repeats too.
-State intent, not success; do not dump other arguments or secrets. This notice
-is not approval for index_project or start_index_project. Freshness is a gate:
-if graph_status does not attest the target checkout and generation, use
-consent-gated start_index_project, poll get_index_status to completion, reconnect
-if graph_status was absent, then call graph_status again before using graph
-evidence. Only the default profile carries content freshness.
+parallel calls, one preamble may list each call; announce repeats too. State
+intent, not success; do not dump other arguments or secrets. For
+`find_by_intent`, quote its exact "intent" value as the target, never a summary.
+This notice
+is not approval for `index_project` or `start_index_project`. Freshness is a
+gate: if `graph_status` does not attest the target checkout and generation, use
+consent-gated `start_index_project`, poll `get_index_status` to completion,
+reconnect if `graph_status` was absent, then call `graph_status` again before
+using graph evidence. Only the default profile carries content freshness.
 
 For example: `Kivgraph · find_references — NewServer: check who calls it.`
 For `find_by_intent`: `Kivgraph · find_by_intent — "HTTP endpoints and routes": find the declarations that implement it.`
@@ -110,9 +111,10 @@ repository/path/qualified-name triple remains portable across profiles.
 6. **`list_repositories` when you do not know the repository name**, and not
    as a matter of course. Repository names are case sensitive: two
    repositories whose names differ only in case are two repositories.
-7. **`graph_status` when an answer looks stale**, which is what its own
-   description says, or when you must establish that a published generation
-   exists at all. It reports the snapshot, its age, repository coverage and
+7. **`graph_status` once before using graph evidence for a target checkout**,
+   even when the answer does not yet look stale. The cost guidance above
+   applies to repeat calls within the same attested session. It reports the
+   snapshot, its age, repository coverage and
    whether a repository moved since it was indexed. Treat it as a freshness
    gate: the target checkout needs a matching `repository_freshness` row with
    `moved: false` and a `current_commit`, plus `content_freshness.state: fresh`
@@ -307,7 +309,8 @@ for `REFERENCES` too when a search for callers of a Rust function looks empty.
 ## Indexing
 
 `index_project` and `start_index_project` are the two mutating tools. Both
-require explicit user approval, register projects and rebuild the whole graph.
+require explicit user approval. Pass every repository together in their shared
+`projects` array so the whole graph is rebuilt once.
 Their optional string `profile` selects that graph and creates the profile when
 it does not exist. Prefer `start_index_project`: it returns an `operation_id`
 immediately, and `get_index_status` reports `working`, `completed` or `failed`
@@ -323,6 +326,8 @@ only URL elicitation use the same explicit fallback.
   cross-repository edges over the complete fact set, so it costs the whole
   corpus whatever was added: eleven separate calls build eleven graphs and
   keep the last one.
+- Poll the returned `operation_id` only for `start_index_project`; the
+  synchronous `index_project` returns the completed publication directly.
 - Poll `get_index_status` using the exact `operation_id` returned by
   `start_index_project`. Never retry the mutation because a status poll failed:
   that would start the whole rebuild again. The synchronous compatibility tool

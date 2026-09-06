@@ -167,7 +167,7 @@ func splitCommandLine(command string, windows bool) ([]string, error) {
 				token = true
 				continue
 			}
-			if character == '\\' && index+1 < len(runes) && (runes[index+1] == '"' || (!windows && strings.ContainsRune("\\$`", runes[index+1]))) {
+			if !windows && character == '\\' && index+1 < len(runes) && strings.ContainsRune("\"\\$`", runes[index+1]) {
 				escaped = true
 				continue
 			}
@@ -177,13 +177,13 @@ func splitCommandLine(command string, windows bool) ([]string, error) {
 		}
 		switch {
 		case character == '\\':
-			if index+1 == len(runes) {
-				return nil, errors.New("unterminated escape")
-			}
 			if windows {
 				current.WriteRune(character)
 				token = true
 				continue
+			}
+			if index+1 == len(runes) {
+				return nil, errors.New("unterminated escape")
 			}
 			if unicode.IsSpace(runes[index+1]) || runes[index+1] == '\\' || runes[index+1] == '\'' || runes[index+1] == '"' {
 				escaped = true
@@ -192,11 +192,7 @@ func splitCommandLine(command string, windows bool) ([]string, error) {
 			}
 			token = true
 		case character == '\'' || character == '"':
-			if token {
-				current.WriteRune(character)
-			} else {
-				quote = character
-			}
+			quote = character
 			token = true
 		case unicode.IsSpace(character):
 			if token {
@@ -601,7 +597,7 @@ func treeDigest(root string) (string, error) {
 
 func shellQuote(value string) string {
 	if runtime.GOOS == "windows" {
-		return `"` + strings.ReplaceAll(value, `"`, `\"`) + `"`
+		return `"` + value + `"`
 	}
 	escaped := strings.NewReplacer(`\`, `\\`, `"`, `\"`, `$`, `\$`, "`", "\\`").Replace(value)
 	return `"` + escaped + `"`

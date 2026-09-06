@@ -97,7 +97,8 @@ func (endpoint Endpoint) validate() error {
 
 // Options identifies the filesystem roots used by a Manager. HomeDir and
 // ProjectDir are injectable to make safety checks testable without touching a
-// real client configuration.
+// real client configuration. Client-specific environment overrides remain
+// effective unless their corresponding explicit option is set.
 type Options struct {
 	HomeDir    string
 	ProjectDir string
@@ -298,12 +299,12 @@ func New(options Options) (Manager, error) {
 		return Manager{}, fmt.Errorf("previous endpoint: %w", err)
 	}
 	codexDir, err := clientConfigDir(options.CodexDir, "CODEX_HOME", filepath.Join(homeDir, ".codex"),
-		"Codex configuration directory", options.HomeDir == "")
+		"Codex configuration directory")
 	if err != nil {
 		return Manager{}, err
 	}
 	ohMyPiDir, err := clientConfigDir(options.OhMyPiDir, "PI_CODING_AGENT_DIR",
-		filepath.Join(homeDir, ".omp", "agent"), "Oh My Pi configuration directory", options.HomeDir == "")
+		filepath.Join(homeDir, ".omp", "agent"), "Oh My Pi configuration directory")
 	if err != nil {
 		return Manager{}, err
 	}
@@ -319,10 +320,10 @@ func New(options Options) (Manager, error) {
 	}, nil
 }
 
-func clientConfigDir(option, environment, fallback, label string, useEnvironment bool) (string, error) {
+func clientConfigDir(option, environment, fallback, label string) (string, error) {
 	configured := strings.TrimSpace(option)
 	source := "option"
-	if configured == "" && useEnvironment {
+	if configured == "" {
 		configured = strings.TrimSpace(os.Getenv(environment))
 		source = environment
 	}
@@ -330,6 +331,9 @@ func clientConfigDir(option, environment, fallback, label string, useEnvironment
 		return fallback, nil
 	}
 	if !filepath.IsAbs(configured) {
+		if source != "option" {
+			return filepath.Abs(configured)
+		}
 		return "", fmt.Errorf("%s from %s must be absolute, got %q", label, source, configured)
 	}
 	return absolutePath(configured, label)

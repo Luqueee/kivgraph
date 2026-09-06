@@ -650,7 +650,10 @@ func configureClaudeDesktopMCPPath(home string) string {
 
 func integrationsManagerForConfigureTest(t *testing.T) integrations.Manager {
 	t.Helper()
-	manager, err := integrations.New(integrations.Options{ProjectDir: t.TempDir()})
+	manager, err := integrations.New(integrations.Options{
+		HomeDir:    testsupport.TempDir(t),
+		ProjectDir: testsupport.TempDir(t),
+	})
 	if err != nil {
 		t.Fatalf("integrations.New() error = %v", err)
 	}

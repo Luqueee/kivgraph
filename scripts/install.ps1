@@ -57,6 +57,7 @@ $installRoot = if ($env:KIVGRAPH_INSTALL_ROOT) { $env:KIVGRAPH_INSTALL_ROOT }
                else { Join-Path $env:LOCALAPPDATA 'Programs\kivgraph' }
 $binDir = if ($env:KIVGRAPH_BIN_DIR) { $env:KIVGRAPH_BIN_DIR }
           else { Join-Path $env:LOCALAPPDATA 'Programs\kivgraph-bin' }
+$installedExecutable = Join-Path $installRoot 'bin\kivgraph.exe'
 $releaseBase = if ($env:KIVGRAPH_RELEASE_BASE_URL) { $env:KIVGRAPH_RELEASE_BASE_URL.TrimEnd('/') }
                else { 'https://github.com/Luqueee/kivgraph/releases' }
 $requestedVersion = $env:KIVGRAPH_VERSION
@@ -264,7 +265,7 @@ try {
         }
     }
     # check: launcher-ownership
-    Test-Launcher (Join-Path $binDir 'kivgraph.cmd') (Join-Path $installRoot 'bin\kivgraph.exe')
+    Test-Launcher (Join-Path $binDir 'kivgraph.cmd') $installedExecutable
     Test-Launcher (Join-Path $binDir 'kivgraph-ts-worker.cmd') (Join-Path $installRoot 'bin\kivgraph-ts-worker.cmd')
 
     if (Test-Path -LiteralPath $installRoot) {
@@ -278,7 +279,7 @@ try {
     $newRootInstalled = $true
 
     foreach ($pair in @(
-            @{ name = 'kivgraph.cmd'; target = (Join-Path $installRoot 'bin\kivgraph.exe') },
+            @{ name = 'kivgraph.cmd'; target = $installedExecutable },
             @{ name = 'kivgraph-ts-worker.cmd'; target = (Join-Path $installRoot 'bin\kivgraph-ts-worker.cmd') })) {
         $launcher = Join-Path $binDir $pair.name
         if (Test-Path -LiteralPath $launcher) { continue }
@@ -302,17 +303,17 @@ try {
         Write-Host "install: $binDir is not on PATH. To add it for this account:"
         Write-Host "install:   setx PATH `"%PATH%;$binDir`""
     }
-    Write-Host 'install: run "kivgraph configure" to set up MCP, skill, hooks, daemon and instructions'
+    Write-Host "install: run `"$installedExecutable`" configure to set up MCP, skill, hooks, daemon and instructions"
 
     # Configuration is offered only after the bundle and launchers are safely
     # installed. A non-interactive host gets the exact command to run later;
     # configuration failures do not roll back an already successful install.
     try {
         if ($configureMode -eq '0') {
-            Write-Host 'install: configuration skipped; run "kivgraph configure" when ready'
+            Write-Host "install: configuration skipped; run `"$installedExecutable`" configure when ready"
         }
         elseif ([Console]::IsInputRedirected) {
-            Write-Host 'install: no interactive terminal; run "kivgraph configure" to finish setup'
+            Write-Host "install: no interactive terminal; run `"$installedExecutable`" configure to finish setup"
         }
         else {
             $configure = $true
@@ -321,18 +322,18 @@ try {
                 $configure = [string]::IsNullOrWhiteSpace($answer) -or $answer -match '^(?i:y|yes)$'
             }
             if (-not $configure) {
-                Write-Host 'install: configuration skipped; run "kivgraph configure" when ready'
+                Write-Host "install: configuration skipped; run `"$installedExecutable`" configure when ready"
             }
             else {
-                & (Join-Path $installRoot 'bin\kivgraph.exe') configure
+                & $installedExecutable configure
                 if ($LASTEXITCODE -ne 0) {
-                    Write-Warning 'configuration did not finish; run "kivgraph configure" to retry'
+                    Write-Warning "configuration did not finish; run `"$installedExecutable`" configure to retry"
                 }
             }
         }
     }
     catch {
-        Write-Warning "configuration did not finish; run \"kivgraph configure\" to retry: $($_.Exception.Message)"
+        Write-Warning ('configuration did not finish; run "{0}" configure to retry: {1}' -f $installedExecutable, $_.Exception.Message)
     }
 
     # The install is finished above and stays finished whatever happens here.

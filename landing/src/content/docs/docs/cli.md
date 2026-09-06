@@ -19,7 +19,7 @@ someone who mistyped one word.
 | `daemon [--addr HOST:PORT] [--allow-remote]` | Serve MCP to many clients from one process, over HTTP and a unix socket |
 | `daemon install [--addr HOST:PORT] [--allow-remote]` | Give the daemon an owner, so the platform starts it and restarts it |
 | `daemon remove` | Stop the daemon and take its supervisor entry out |
-| `ui [--addr HOST:PORT] [--profile NAME]` | Serve one profile in the read-only graph viewer |
+| `ui [--addr HOST:PORT] [--profile NAME]` | Serve every profile in the read-only graph viewer, or pin one by name |
 | `stop [--dry-run]` | Stop every running serve, daemon and ui of this user |
 
 ## Profiles
@@ -33,7 +33,10 @@ someone who mistyped one word.
 
 Profiles share one installation, daemon and analyzer toolchain, but each owns
 its repository registry, fact cache, canonical database and generations.
-`index --full` and `ui` use `profiles.default` when `--profile` is omitted.
+`index --full` uses `profiles.default` when no profile is named. `ui` opens every
+published profile by default and represents every emitted relationship through
+semantic groups with occurrence totals; `--profile` pins the viewer to one
+profile.
 
 ## Toolchains
 
@@ -60,7 +63,7 @@ updating only the Python analyzer settings in the selected configuration.
 | `graph status --root PATH` | Report the active and backup generations |
 | `daemon status` | Report whether the daemon has an owner, and where its unit lives |
 | `stats [--interval D] [--once] [--json]` | Watch what every kivgraph process on this machine costs |
-| `logs [--follow] [--kind K] [--tool NAME] [--since D] [--limit N] [--failures] [--json]` | Read aligned machine history with query summaries and neutral NOT_FOUND results |
+| `logs [OPTIONS]` | Read query history and neutral `NOT_FOUND` results |
 | `tool-stats [--tool NAME] [--since D] [--json]` | Report the cost and the failures of every tool |
 | `version [--json]` | Print the release, with --json for full provenance |
 

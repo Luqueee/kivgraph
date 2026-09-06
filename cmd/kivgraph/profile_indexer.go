@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/Luqueee/kivgraph/internal/config"
@@ -105,11 +106,14 @@ func (indexer *profileProjectIndexer) IndexProjectsInProfile(
 		cache := indexer.freshnessCache(profile, profileStore)
 		cache.Store(service.ContentFreshness(ctx))
 		watchLoaded, watchErr := config.LoadProfile(indexer.configPath, profile)
-		if watchErr != nil {
-			cache.MarkUnavailable(
-				fmt.Sprintf("refresh content-freshness registry: %v", watchErr))
-		} else {
+		// The generation and its attestation were already published. A
+		// registry reload failure prevents replacing the watcher, but it
+		// does not invalidate the completed freshness observation.
+		if watchErr == nil {
 			indexer.watchProfile(profile, watchLoaded, profileStore)
+		} else {
+			writeWarning(os.Stderr,
+				"profile %q: reload configuration for the watcher: %v", profile, watchErr)
 		}
 	}
 	return result, err

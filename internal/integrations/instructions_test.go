@@ -154,6 +154,24 @@ func TestInstructionsDestinationForTargetHonorsAgentConfigurationRoots(t *testin
 	}
 }
 
+func TestInstructionsDestinationHonorsEnvironmentWithInjectedHome(t *testing.T) {
+	_, home := testInstructionsManager(t)
+	codexRoot := filepath.Join(home, "environment-codex")
+	t.Setenv("CODEX_HOME", codexRoot)
+	manager, err := New(Options{HomeDir: home})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, got, err := manager.InstructionsDestinationForTarget(TargetCodex)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(codexRoot, InstructionsFileAgents)
+	if got != want {
+		t.Fatalf("Codex destination with CODEX_HOME=%q = %q, want %q", codexRoot, got, want)
+	}
+}
+
 func TestInstallInstructionsForTargetLeavesProjectInstructionsUntouched(t *testing.T) {
 	manager, home, project := testManager(t)
 	projectInstructions := filepath.Join(project, "AGENTS.md")
@@ -855,7 +873,7 @@ func TestInstallInstructionsWritesCanonicalPromptAndSmallReference(t *testing.T)
 func TestInstallInstructionsMigratesExactLegacyBlock(t *testing.T) {
 	manager, home := testInstructionsManager(t)
 	path := filepath.Join(home, ".codex", InstructionsFileAgents)
-	legacy := append(legacyManagedInstructionsBlock("\n"), '\n')
+	legacy := []byte(instructionsBeginMarker + "\n" + string(legacyEmbeddedInstructions) + instructionsEndMarker + "\n")
 	if err := writeInstructionsFile(path, legacy, 0o600); err != nil {
 		t.Fatal(err)
 	}

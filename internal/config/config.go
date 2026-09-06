@@ -523,6 +523,7 @@ type Loaded struct {
 	Repositories     RepositoriesFile
 	ConfigPath       string
 	RepositoriesPath string
+	TopologyPath     string
 	// Profile is empty only for callers using the legacy unscoped Load seam.
 	Profile string
 	// RetiredKeys are the dotted names of keys the file carries that this
@@ -712,7 +713,7 @@ func projectSyntheticWorkFile(configPath string) (string, error) {
 // MigrateProjectSyntheticWorkFile moves the invalid workspace path written by
 // older project-local configurations. A different value is user-owned and is
 // never changed.
-func MigrateProjectSyntheticWorkFile(configPath string) (bool, error) {
+func MigrateProjectSyntheticWorkFile(configPath string) (changed bool, err error) {
 	resolvedPath, err := resolveConfigPath(configPath)
 	if err != nil {
 		return false, fmt.Errorf("resolve config path: %w", err)
@@ -721,7 +722,7 @@ func MigrateProjectSyntheticWorkFile(configPath string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer func() { _ = lock.Release() }()
+	defer releaseConfigLock(lock, &err)
 	configuration, _, err := loadConfigFile(resolvedPath)
 	if err != nil {
 		return false, fmt.Errorf("load config %q: %w", resolvedPath, err)
@@ -791,7 +792,7 @@ func DefaultStateDirectory() (string, error) {
 // Initialize creates the default configuration and repository registry without
 // replacing existing files unless Force is set. It also creates every local
 // state directory named by the configuration.
-func Initialize(options InitOptions) (InitResult, error) {
+func Initialize(options InitOptions) (result InitResult, err error) {
 	configPath, err := resolveConfigPath(options.ConfigPath)
 	if err != nil {
 		return InitResult{}, fmt.Errorf("resolve config path: %w", err)
@@ -800,7 +801,7 @@ func Initialize(options InitOptions) (InitResult, error) {
 	if err != nil {
 		return InitResult{}, err
 	}
-	defer func() { _ = lock.Release() }()
+	defer releaseConfigLock(lock, &err)
 	repositoriesPath, err := resolveRepositoriesPath(options.RepositoriesPath)
 	if err != nil {
 		return InitResult{}, fmt.Errorf("resolve repositories path: %w", err)
@@ -1054,6 +1055,12 @@ func acquireConfigLock(configPath string) (*filelock.Lock, error) {
 	return lock, nil
 }
 
+func releaseConfigLock(lock *filelock.Lock, operationErr *error) {
+	if err := lock.Release(); err != nil {
+		*operationErr = errors.Join(*operationErr, fmt.Errorf("release config lock: %w", err))
+	}
+}
+
 // SetPythonAnalyzer changes only the Python analyzer settings in an existing
 // configuration. It is used by managed toolchains to activate an analyzer
 // without replacing repositories, paths or settings the user owns.
@@ -1070,7 +1077,7 @@ func SetPythonAnalyzerIfCurrent(path, expectedCommand, command, mode string) (bo
 	return setPythonAnalyzer(path, &expectedCommand, command, mode)
 }
 
-func setPythonAnalyzer(path string, expectedCommand *string, command, mode string) (bool, error) {
+func setPythonAnalyzer(path string, expectedCommand *string, command, mode string) (changed bool, err error) {
 	if strings.TrimSpace(command) == "" {
 		return false, errors.New("python analyzer command must not be empty")
 	}
@@ -1086,7 +1093,7 @@ func setPythonAnalyzer(path string, expectedCommand *string, command, mode strin
 	if err != nil {
 		return false, err
 	}
-	defer func() { _ = lock.Release() }()
+	defer releaseConfigLock(lock, &err)
 	configuration, _, err := loadConfigFile(configPath)
 	if err != nil {
 		return false, fmt.Errorf("load config %q: %w", configPath, err)

@@ -39,7 +39,7 @@ func TestProfileSelectionDoesNotBorrowDefaultFreshness(t *testing.T) {
 		t.Run(profile, func(t *testing.T) {
 			result, err := cs.CallTool(t.Context(), &sdkmcp.CallToolParams{Name: "graph_status", Arguments: map[string]any{"profile": []string{profile}}})
 			if err != nil || result.IsError {
-				t.Fatalf("call: %v, %v", result, err)
+				t.Fatalf("profile %q call: result=%v err=%v", profile, result, err)
 			}
 			status := decodeResponse[GraphStatus](t, result).Results
 			if profile == "default" {

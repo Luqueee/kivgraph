@@ -6,8 +6,8 @@ go_library(
         "hooks.go",
         "hooks_entry.go",
         "hooks_plugin.go",
-        "integrations.go",
         "instructions.go",
+        "integrations.go",
         "skill.go",
         "skilllink.go",
     ],
@@ -16,12 +16,14 @@ go_library(
         "assets/hooks/opencode.js",
         "assets/kivgraph/INSTRUCTIONS.md",
         "assets/kivgraph/SKILL.md",
+        "assets/kivgraph/INSTRUCTIONS-v0.9.9.md",
     ],
     importpath = "github.com/Luqueee/kivgraph/internal/integrations",
     visibility = ["//:__subpackages__"],
     deps = [
         "//internal/durable",
         "@com_github_burntsushi_toml//:toml",
+        "@com_github_tailscale_hujson//:hujson",
     ],
 )
 
@@ -30,8 +32,8 @@ go_test(
     srcs = [
         "endpoint_test.go",
         "hooks_test.go",
-        "integrations_test.go",
         "instructions_test.go",
+        "integrations_test.go",
         "migrate_test.go",
         "scaffolding_test.go",
         "skilllink_test.go",
@@ -43,5 +45,6 @@ go_test(
         "//internal/executable",
         "//internal/testsupport",
         "@com_github_burntsushi_toml//:toml",
+        "@com_github_tailscale_hujson//:hujson",
     ],
 )

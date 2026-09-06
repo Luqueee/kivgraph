@@ -1,4 +1,4 @@
-# ADR 0086: Content freshness belongs to the published generation
+# ADR 0106: Content freshness belongs to the published generation
 
 Status: accepted.
 

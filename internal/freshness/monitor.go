@@ -39,6 +39,9 @@ func NewRegistryMonitor(
 	attestationRoot string,
 	cache *Cache,
 ) (*Monitor, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if cache == nil {
 		return nil, errors.New("freshness monitor: cache is nil")
 	}

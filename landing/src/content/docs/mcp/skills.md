@@ -9,7 +9,8 @@ An Agent Skill is a Markdown instruction file a coding agent loads alongside its
 tools. Kivgraph ships one to route a question to the right tool before the agent
 reaches for grep or starts opening files, and to request visible notices of
 tool use. It is not required in order to use the MCP server. Install it to
-change which tool the agent picks; skip it and the fourteen tools still work.
+change which tool the agent picks; skip it and the server keeps its normal
+surface: three indexing controls before publication and fourteen tools after.
 
 ## Install
 
@@ -120,10 +121,12 @@ are outside this chat-notice contract.
 | Start a rebuild without holding one call open | [`start_index_project`](/docs/tools/start-index-project/) |
 | Poll an asynchronous rebuild | [`get_index_status`](/docs/tools/get-index-status/) |
 
-The skill orders the first moves: `graph_status` to confirm a published
-snapshot exists and how old it is, then `list_repositories` to pick the
-repository and language before narrowing. Repository names are case sensitive;
-two names differing only in case are two repositories.
+Without a published generation, the skill starts with `start_index_project`,
+polls `get_index_status` to a terminal result, and reconnects after publication.
+With a published graph, its first moves are `graph_status` to confirm its age
+and freshness, then `list_repositories` to pick the repository and language
+before narrowing. Repository names are case sensitive; two names differing
+only in case are two repositories.
 
 ### Why an empty answer is an answer
 

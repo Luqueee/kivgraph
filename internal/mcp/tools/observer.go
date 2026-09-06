@@ -207,6 +207,9 @@ func safeLoggedPath(path string) string {
 // current platform. A Windows client can send a drive or UNC path to a Linux
 // daemon, and retaining it would still leak the client's local layout.
 func isAbsoluteLogPath(path string) bool {
+	if strings.HasPrefix(strings.ToLower(path), "file:") {
+		return true
+	}
 	if strings.HasPrefix(path, "/") || strings.HasPrefix(path, `\`) {
 		return true
 	}

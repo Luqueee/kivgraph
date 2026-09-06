@@ -230,8 +230,8 @@ kivgraph configure
 ```
 
 `configure` opens one selector for the coding agents detected on this machine
-and installs the user-scoped MCP entry, skill and hook for every selected agent.
-It also adds user-level Kivgraph instructions for every selected agent. It
+and installs each user-scoped surface that the selected agent supports. It
+also adds user-level Kivgraph instructions for every selected agent. It
 initializes the empty Kivgraph configuration when needed, but it does not
 register a repository or run an index. Repeat `--target TARGET` for scripted
 setup; omit it to open the selector.

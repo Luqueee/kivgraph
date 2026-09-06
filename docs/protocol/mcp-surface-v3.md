@@ -43,7 +43,7 @@ directorio antes de la reconstrucción.
 la reconstrucción. `get_index_status` lo consulta y responde `working`,
 `completed` o `failed`, con el último progreso observado y el resultado o fallo
 terminal. El estado se comparte entre sesiones de un mismo daemon, conserva
-como máximo 32 operaciones terminadas y no sobrevive un reinicio. Ver ADR 0099.
+como máximo 32 operaciones terminadas y no sobrevive un reinicio. Ver ADR 0114.
 
 `get_unresolved_references` **salió** de la superficie del modelo: responde una
 pregunta sobre el índice y no sobre el código, y cada tool de la lista cuesta

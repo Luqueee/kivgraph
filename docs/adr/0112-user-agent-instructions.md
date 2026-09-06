@@ -1,4 +1,4 @@
-# ADR 0097: user-level agent instructions
+# ADR 0112: user-level agent instructions
 
 - **Status:** accepted
 - **Date:** 2026-09-04
@@ -8,7 +8,7 @@
 
 ## Context
 
-ADR 0095 put the Kivgraph navigation block in a repository instruction file.
+ADR 0109 put the Kivgraph navigation block in a repository instruction file.
 That treats an agent integration as project-owned source and causes a setup
 command to mutate the checkout from which it is invoked. It is also wrong for
 the intended persistent behavior: each supported coding agent loads a distinct
@@ -20,7 +20,7 @@ outside a repository choose the current directory as an accidental target.
 
 ## Decision
 
-Supersede the instruction-scope decisions in ADR 0095 and ADR 0096. The
+Supersede the instruction-scope decisions in ADR 0109 and ADR 0110. The
 managed Kivgraph block is user configuration and never modifies a repository.
 
 `kivgraph instructions install` and `kivgraph configure` own a canonical

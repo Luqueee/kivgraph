@@ -194,6 +194,9 @@ func MatchesExclusion(base, candidate string, exclusions []string) (bool, error)
 		if pattern == "" || pattern == "." {
 			continue
 		}
+		if err := validateDiscoveryPattern(pattern); err != nil {
+			return false, fmt.Errorf("exclusions[%d] %q: %w", index, rawPattern, err)
+		}
 		for end := 1; end <= len(parts); end++ {
 			matched, err := discoveryPatternMatch(pattern, strings.Join(parts[:end], "/"))
 			if err != nil {
@@ -216,7 +219,7 @@ func validateExclusionPatterns(base string, exclusions []string) error {
 		if pattern == "" || pattern == "." {
 			continue
 		}
-		if _, err := discoveryPatternMatch(pattern, ""); err != nil {
+		if err := validateDiscoveryPattern(pattern); err != nil {
 			return fmt.Errorf("exclusions[%d] %q: %w", index, rawPattern, err)
 		}
 	}
@@ -248,14 +251,6 @@ func normalizeExclusionPattern(base, rawPattern string) (string, error) {
 func discoveryPatternMatch(pattern, relative string) (bool, error) {
 	patternParts := splitDiscoveryPath(pattern)
 	relativeParts := splitDiscoveryPath(relative)
-	for _, patternPart := range patternParts {
-		if patternPart == "**" {
-			continue
-		}
-		if _, err := path.Match(patternPart, ""); err != nil {
-			return false, err
-		}
-	}
 	memo := make(map[[2]int]bool)
 	visited := make(map[[2]int]bool)
 	var match func(int, int) bool
@@ -281,6 +276,19 @@ func discoveryPatternMatch(pattern, relative string) (bool, error) {
 		return memo[key]
 	}
 	return match(0, 0), nil
+}
+
+func validateDiscoveryPattern(pattern string) error {
+	patternParts := splitDiscoveryPath(pattern)
+	for _, patternPart := range patternParts {
+		if patternPart == "**" {
+			continue
+		}
+		if _, err := path.Match(patternPart, ""); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func splitDiscoveryPath(value string) []string {

@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "toolchain",
+    srcs = ["pyright.go"],
+    importpath = "github.com/Luqueee/kivgraph/internal/toolchain",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/filelock",
+        "@org_golang_x_mod//semver",
+    ],
+)
+
+go_test(
+    name = "toolchain_test",
+    srcs = ["pyright_test.go"],
+    embed = [":toolchain"],
+)

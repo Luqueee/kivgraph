@@ -1,4 +1,4 @@
-# ADR 0098: a missing symbol is a neutral log result
+# ADR 0113: a missing symbol is a neutral log result
 
 - Date: 2026-09-05
 - Status: accepted

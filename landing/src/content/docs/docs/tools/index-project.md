@@ -1,6 +1,8 @@
 ---
 title: index_project
-description: Synchronously registers projects and rebuilds the graph after explicit user approval.
+description: >-
+  Synchronously registers projects and rebuilds the graph after explicit user
+  approval.
 ---
 
 > Registers projects and rebuilds the graph once, after explicit user approval. Pass every project in one call: a rebuild costs the whole corpus. It never writes inside the source projects.
@@ -135,8 +137,9 @@ storage access by accident.
 It is one of the three indexing controls registered when no generation has been
 published yet. That is how a client with no graph builds its first one: the
 server completes the handshake, publishes both indexing mutations and their
-read-only status tool, and the graph-query tools appear once a generation
-exists. See [Troubleshooting](/mcp/troubleshooting/).
+read-only status tool. Once the first generation exists, reconnect the MCP
+client so the new session exposes the graph-query tools. See
+[Troubleshooting](/mcp/troubleshooting/).
 
 ## Registering the same project twice
 

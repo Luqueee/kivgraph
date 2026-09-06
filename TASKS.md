@@ -18773,7 +18773,7 @@ Cada llamada repetida se anuncia; las paralelas pueden compartir un preámbulo
 con una línea por llamada. El aviso usa el idioma de la conversación y declara
 intención, no éxito. Claude Desktop depende sólo de las instrucciones MCP.
 La UI y el modelo del cliente siguen teniendo la última palabra: no hay un
-evento del servidor que fuerce un mensaje del asistente. Ver ADR 0085.
+evento del servidor que fuerce un mensaje del asistente. Ver ADR 0105.
 
 **Verificación:** el test de integración instala la skill en ambos ámbitos
 para los cuatro clientes compatibles y compara su contrato con el handshake
@@ -18800,7 +18800,7 @@ el campo `compatibility`, preexistente y conservado.
 
 **Estado:** implementado y verificado por protocolo; cualificación visual de
 los chats pendiente. No se han sustituido skills instaladas, reiniciado
-servicios ni publicado una release. Las limitaciones quedan en el ADR 0085.
+servicios ni publicado una release. Las limitaciones quedan en el ADR 0105.
 
 ## LUQUE-2237 - Instalar instrucciones de Kivgraph en el contexto del proyecto
 

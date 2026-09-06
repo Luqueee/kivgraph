@@ -1,6 +1,8 @@
 ---
 title: start_index_project
-description: Starts a consent-gated graph rebuild and returns immediately with an operation ID that any MCP client can poll.
+description: >-
+  Starts a consent-gated graph rebuild and returns immediately with an operation
+  ID that any MCP client can poll.
 ---
 
 > Starts a graph rebuild without holding one MCP call open for the duration of
@@ -31,12 +33,18 @@ The call returns before analysis finishes:
 Treat `operation_id` as opaque. Poll
 [`get_index_status`](/docs/tools/get-index-status/) at the suggested interval
 until it reports `completed` or `failed`. Do not repeat `start_index_project`
-after a failed status poll: that would request another complete rebuild.
+after an ordinary terminal failure: that would request another complete
+rebuild. A failure that explicitly names temporary cross-process store-lock
+contention may be retried after the winning rebuild releases the lock.
 
 Only one asynchronous index can run at a time. A second start returns
 `INDEXING_IN_PROGRESS`, includes the active `operation_id`, and directs the
 caller back to that operation. This also recovers when the original start
 response was lost.
+
+When this operation publishes the first generation, reconnect the MCP client
+before calling graph-query tools; the current session retains the surface it
+advertised during its handshake.
 
 ## Lifetime
 

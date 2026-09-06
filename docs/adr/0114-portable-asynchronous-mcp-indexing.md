@@ -1,4 +1,4 @@
-# ADR 0099: portable asynchronous MCP indexing
+# ADR 0114: portable asynchronous MCP indexing
 
 - **Status:** accepted
 - **Date:** 2026-09-05
@@ -52,9 +52,8 @@ A second start fails with `INDEXING_IN_PROGRESS` and includes the active
 `operation_id`. That makes a lost start response recoverable without repeating
 or abandoning the mutation.
 
-`notifications/progress` remains on synchronous calls and may later accompany
-the asynchronous route. It is a user-interface enhancement, not a correctness
-or liveness dependency.
+`notifications/progress` remains on synchronous calls. It is a user-interface
+enhancement, not a correctness or liveness dependency.
 
 ## Compatibility
 
@@ -64,8 +63,8 @@ that tool continue to work as before.
 
 The two new tools use ordinary `tools/call`, so they require no optional MCP
 capability. The status response uses the existing single text channel and does
-not add an `outputSchema`; `index_project` remains the only measured exception
-that returns its fixed report through both channels.
+not add an `outputSchema`; `index_project` remains the sole exception, returning
+its fixed report through both the text and structured channels.
 
 ## Consequences
 

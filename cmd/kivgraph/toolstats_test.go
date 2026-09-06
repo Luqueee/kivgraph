@@ -186,7 +186,7 @@ func TestToolStatsSeparatesTheDesignedRefusalFromAFailure(t *testing.T) {
 	// Neither a refusal nor an expected absence should produce an actionable
 	// failure line.
 	if strings.Contains(output, "tool-stats.failure:") {
-		t.Fatalf("an answer was reported as a failure:\n%s", output)
+		t.Fatalf("Transport, Status, or posthog neutral result was reported as a failure:\n%s", output)
 	}
 }
 
