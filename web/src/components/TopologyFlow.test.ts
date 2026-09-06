@@ -4,6 +4,7 @@ import type { TopologyRelationship } from "@/api/client";
 import {
   createTopologyFlowEdges,
   createTopologyFlowNodes,
+  preserveTopologyFlowLayout,
 } from "@/components/TopologyFlow";
 import type { TopologyModel } from "@/topology";
 
@@ -219,6 +220,35 @@ function groupedSemanticsModel(): TopologyModel {
 }
 
 describe("TopologyFlow", () => {
+  it("preserves unchanged positions and falls back only for new keys", () => {
+    const fallback = {
+      width: 520,
+      height: 180,
+      nodes: [
+        { key: sourceNode.key, x: 24, y: 24, width: 220, height: 90 },
+        { key: targetNode.key, x: 296, y: 24, width: 220, height: 90 },
+      ],
+    };
+    const previous = {
+      width: 900,
+      height: 600,
+      nodes: [
+        { key: sourceNode.key, x: 640, y: 320, width: 220, height: 90 },
+        { key: unrelatedNode.key, x: 40, y: 40, width: 220, height: 90 },
+      ],
+      routes: [{ id: "stale", path: "M 0,0 L 1,1" }],
+    };
+
+    expect(preserveTopologyFlowLayout(fallback, previous)).toEqual({
+      width: 888,
+      height: 438,
+      nodes: [
+        { key: sourceNode.key, x: 640, y: 320, width: 220, height: 90 },
+        { key: targetNode.key, x: 296, y: 24, width: 220, height: 90 },
+      ],
+    });
+  });
+
   it("lays out a 5,000-node dependency chain without using the call stack", () => {
     const nodes = createTopologyFlowNodes(
       dependencyModel(5_000),

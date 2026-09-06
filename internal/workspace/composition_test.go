@@ -362,6 +362,7 @@ func TestNewComposedRegistryUsesSelectedWorktreesAndRetainsProviderMetadata(t *t
 			{ID: "frontend-feature", Repository: "frontend", Path: frontend},
 			{ID: "backend-feature", Repository: "backend", Path: backend},
 		},
+		OverlayWorktrees: []topology.Worktree{{ID: "frontend-overlay", Repository: "frontend", Path: oldFrontend}},
 	}
 	git := fakeGit(map[string]string{
 		"rev-parse HEAD":                              "commit",
@@ -409,9 +410,13 @@ func TestNewComposedRegistryUsesSelectedWorktreesAndRetainsProviderMetadata(t *t
 	}
 
 	provenance.Worktrees[0].Path = "changed"
+	provenance.OverlayWorktrees[0].Path = "changed"
+	provenance.Repositories[0].Name = "changed"
 	provenance.Profile.Worktrees[0].Worktree = "changed"
 	again, ok := registry.Composition()
-	if !ok || again.Worktrees[0].Path != frontend || again.Profile.Worktrees[0].Worktree != "frontend-feature" {
+	if !ok || again.Worktrees[0].Path != frontend || again.OverlayWorktrees[0].Path != oldFrontend ||
+		again.Repositories[0].Name != "Frontend" ||
+		again.Profile.Worktrees[0].Worktree != "frontend-feature" {
 		t.Fatalf("Composition() returned aliased data = %#v", again)
 	}
 }

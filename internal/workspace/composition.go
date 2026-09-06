@@ -124,5 +124,8 @@ func cloneProfileComposition(composition topology.ProfileComposition) topology.P
 	if composition.Worktrees != nil {
 		composition.Worktrees = append([]topology.Worktree{}, composition.Worktrees...)
 	}
+	if composition.OverlayWorktrees != nil {
+		composition.OverlayWorktrees = append([]topology.Worktree{}, composition.OverlayWorktrees...)
+	}
 	return composition
 }

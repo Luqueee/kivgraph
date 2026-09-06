@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Luqueee/kivgraph/internal/sourceobservation"
 	"github.com/Luqueee/kivgraph/internal/testsupport"
@@ -469,6 +470,34 @@ func TestOpenRefreshesStateFromAnotherManager(t *testing.T) {
 	}
 	if got := second.ProfilesForSource("source"); !equalStrings(got, []string{"default"}) {
 		t.Fatalf("ProfilesForSource(%q) after Refresh = %v, want %v", "source", got, []string{"default"})
+	}
+}
+
+func TestRefreshReadsStateWhileHoldingManagerLock(t *testing.T) {
+	manager, err := Open(testsupport.TempDir(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager.path = testsupport.TempDir(t)
+	manager.mu.Lock()
+	done := make(chan error, 1)
+	go func() {
+		done <- manager.Refresh(context.Background())
+	}()
+	select {
+	case err := <-done:
+		manager.mu.Unlock()
+		t.Fatalf("Refresh() returned %v while manager lock was held; file read must be serialized", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+	manager.mu.Unlock()
+	select {
+	case err := <-done:
+		if err == nil || !strings.Contains(err.Error(), "read source invalidation state") {
+			t.Fatalf("Refresh() with manager.path %q error = %v, want read failure after lock release", manager.path, err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Refresh() did not finish after manager lock was released")
 	}
 }
 

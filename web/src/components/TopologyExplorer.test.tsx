@@ -4,10 +4,11 @@ import { describe, expect, it } from "vitest";
 import type { TopologyProfile } from "@/api/client";
 import {
   pinnedTopologyURL,
-  topologyGenerationPins,
-  topologyFilterLabelID,
   TopologyExplorer,
+  topologyFilterLabelID,
+  topologyGenerationPins,
 } from "@/components/TopologyExplorer";
+import { TOPOLOGY_FLOW_ARIA_LABEL } from "@/components/TopologyFlow";
 
 describe("TopologyExplorer", () => {
   it("exposes a read-only loading surface before the topology request resolves", () => {
@@ -16,7 +17,7 @@ describe("TopologyExplorer", () => {
     expect(markup).toContain("Profile topology");
     expect(markup).toContain("loading topology");
     expect(markup).toContain("read only");
-    expect(markup).not.toContain("<canvas");
+    expect(markup).not.toContain(TOPOLOGY_FLOW_ARIA_LABEL);
   });
 
   it("pins topology links to every displayed profile generation", () => {

@@ -513,7 +513,7 @@ func TestALeakyTokenFileIsNamedRatherThanReplaced(t *testing.T) {
 		t.Fatalf("write the token: %v", err)
 	}
 	if err := os.Chmod(tokenPath, 0o644); err != nil {
-		t.Fatalf("make the token intentionally readable: %v", err)
+		t.Fatalf("chmod token %q to 0644: %v", tokenPath, err)
 	}
 
 	var warned []string

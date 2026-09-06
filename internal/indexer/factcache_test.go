@@ -105,6 +105,74 @@ func TestFullWithRepositoriesDoesNotAdmitFactsBeforeCommit(t *testing.T) {
 	}
 }
 
+func TestFactCacheStagesEntriesOnDiskUntilCommit(t *testing.T) {
+	fixture := newCachedFixture(t)
+	_, report, err := FullWithRepositories(context.Background(), FullOptions{
+		Repositories:      []workspace.Repository{fixture.repository},
+		SyntheticWorkFile: fixture.workFile,
+		CacheMode:         fixture.mode,
+		CacheDirectory:    fixture.cache,
+	}, []workspace.Repository{fixture.repository})
+	if err != nil {
+		t.Fatalf("FullWithRepositories(cache=%q, repository=%q) error = %v", fixture.cache, fixture.repository.Path, err)
+	}
+
+	entries, err := os.ReadDir(fixture.cache)
+	if err != nil {
+		t.Fatalf("read uncommitted cache %q: %v", fixture.cache, err)
+	}
+	if len(entries) != 1 || !entries[0].IsDir() || !strings.HasPrefix(entries[0].Name(), ".staging-") {
+		t.Fatalf("uncommitted cache entries = %#v, want one staging directory and no admitted entry", entries)
+	}
+	staged, err := os.ReadDir(filepath.Join(fixture.cache, entries[0].Name()))
+	if err != nil {
+		t.Fatalf("read staged cache %q entry %q: %v", fixture.cache, entries[0].Name(), err)
+	}
+	if len(staged) != 1 || staged[0].IsDir() || filepath.Ext(staged[0].Name()) != ".json" {
+		t.Fatalf("staged cache entries = %#v, want one JSON file", staged)
+	}
+
+	report.CommitCache()
+	entries, err = os.ReadDir(fixture.cache)
+	if err != nil {
+		t.Fatalf("read committed cache %q: %v", fixture.cache, err)
+	}
+	if len(entries) != 1 || entries[0].IsDir() || filepath.Ext(entries[0].Name()) != ".json" {
+		t.Fatalf("committed cache entries = %#v, want one admitted JSON file and no staging directory", entries)
+	}
+}
+
+func TestFactCacheDiscardRemovesStagedEntries(t *testing.T) {
+	fixture := newCachedFixture(t)
+	_, report, err := FullWithRepositories(context.Background(), FullOptions{
+		Repositories:      []workspace.Repository{fixture.repository},
+		SyntheticWorkFile: fixture.workFile,
+		CacheMode:         fixture.mode,
+		CacheDirectory:    fixture.cache,
+	}, []workspace.Repository{fixture.repository})
+	if err != nil {
+		t.Fatalf("FullWithRepositories(cache=%q, repository=%q) error = %v",
+			fixture.cache, fixture.repository.Path, err)
+	}
+
+	report.DiscardCache()
+	entries, err := os.ReadDir(fixture.cache)
+	if err != nil {
+		t.Fatalf("read discarded cache %q: %v", fixture.cache, err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("discarded cache entries = %#v, want none", entries)
+	}
+	report.CommitCache()
+	entries, err = os.ReadDir(fixture.cache)
+	if err != nil {
+		t.Fatalf("read cache %q after late commit: %v", fixture.cache, err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("cache entries after late commit = %#v, want none", entries)
+	}
+}
+
 func (fixture *cachedFixture) index() (facts.Set, FullReport) {
 	return fixture.indexProfile("")
 }

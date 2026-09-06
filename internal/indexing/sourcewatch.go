@@ -223,9 +223,15 @@ func coalesceReconciliationResults(
 		state    watcher.FileState
 	}
 	states := make(map[watcher.FileKey]pendingState)
+	isChange := func(category stateCategory) bool {
+		return category == addedCategory || category == modifiedCategory || category == removedCategory
+	}
 	merge := func(category stateCategory, group []watcher.FileState) {
 		for _, state := range group {
 			key := watcher.FileKey{Repository: state.Repository, Path: state.Path}
+			if existing, tracked := states[key]; tracked && isChange(existing.category) && !isChange(category) {
+				continue
+			}
 			states[key] = pendingState{category: category, state: state}
 		}
 	}
