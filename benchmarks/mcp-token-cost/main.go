@@ -87,9 +87,10 @@ func canonicalCommand(cfg config) string {
 // internal/mcp guards the same surface in bytes, because that package has no
 // tokenizer; this is the figure the reports and the protocol document quote, and
 // it is the half a byte guard cannot see -- a description rewritten into fewer,
-// longer words moves one number and not the other. Measured at 716 over
-// generation 000206, guarded with the headroom of one description.
-const maximumResidentSurfaceTokens = 800
+// longer words moves one number and not the other. Measured at 812 after
+// find_implementations joined the configured surface, guarded with the
+// headroom of one description.
+const maximumResidentSurfaceTokens = 850
 
 func run(ctx context.Context, cfg config, command string) error {
 	tokens, err := newCounter()
@@ -253,6 +254,7 @@ func probeTools(ctx context.Context, session *sdkmcp.ClientSession, questions qu
 		{"find_symbol", map[string]any{"name": root}},
 		{"find_by_intent", map[string]any{"intent": "publish a generation"}},
 		{"find_references", map[string]any{"name": root}},
+		{"find_implementations", map[string]any{"name": root}},
 		{"trace_dependencies", map[string]any{"qualified_name": root, "depth": 2}},
 		{"get_blast_radius", map[string]any{"qualified_name": root, "depth": 2}},
 	} {

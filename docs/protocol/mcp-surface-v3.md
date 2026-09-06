@@ -270,10 +270,10 @@ anuncia y no se rellena describe una respuesta que no se envía.
 **Lo que un anfitrión mantiene residente no es el esquema.** Oh My Pi monta cada
 tool como un dispositivo cuya documentación se lee bajo demanda; Claude Code
 difiere los esquemas detrás de su búsqueda de tools e inyecta `instructions` al
-abrir la sesión. Lo residente es el nombre, dos veces, y la descripción: `716`
-tokens -- `220` de enrutado y `496` de descripciones-- para las once de consulta
-más `index_project`, medido por el arnés sobre la generación `000206`, frente a
-`2.104` de esquema diferido.
+abrir la sesión. Lo residente es el nombre, dos veces, y la descripción: `812`
+tokens -- `279` de enrutado y `533` de descripciones-- para las doce de consulta
+más los tres controles de indexado, medido por el smoke del arnés tras incorporar
+`find_implementations`, frente a `5.049` de esquema diferido.
 
 Ahí es donde vive el enrutado, y por eso cada descripción dice contra qué
 alternativa nativa compite y **dónde pierde**. Nada de eso puede llevar un número

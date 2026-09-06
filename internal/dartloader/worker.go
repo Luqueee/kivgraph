@@ -81,16 +81,16 @@ func launchWorker(ctx context.Context, executable string, args []string, root st
 
 func (w *workerProcess) failure(phase string, cause error) error {
 	if w == nil {
-		return fmt.Errorf("Dart analyzer %s: %w", phase, cause)
+		return fmt.Errorf("dart analyzer %s: %w", phase, cause)
 	}
 	if err := w.ctx.Err(); err != nil {
-		return fmt.Errorf("Dart analyzer %s: %w", phase, err)
+		return fmt.Errorf("dart analyzer %s: %w", phase, err)
 	}
 	select {
 	case <-w.done:
-		return fmt.Errorf("Dart analyzer %s: %w; process exit: %v; stderr: %s", phase, cause, w.exit, w.stderr.text())
+		return fmt.Errorf("dart analyzer %s: %w; process exit: %v; stderr: %s", phase, cause, w.exit, w.stderr.text())
 	case <-time.After(100 * time.Millisecond):
-		return fmt.Errorf("Dart analyzer %s: %w; stderr: %s", phase, cause, w.stderr.text())
+		return fmt.Errorf("dart analyzer %s: %w; stderr: %s", phase, cause, w.stderr.text())
 	}
 }
 
