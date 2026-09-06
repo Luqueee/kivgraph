@@ -146,6 +146,8 @@ var canonicalProvenanceValues = []facts.Provenance{
 	facts.JavaScipUse,
 	facts.CSharpScipDefinition,
 	facts.CSharpScipUse,
+	facts.TypeScriptImplementationDeclared,
+	facts.TypeScriptImplementationStructural,
 }
 
 // exactConfidenceValues is the subset of canonicalConfidenceValues that

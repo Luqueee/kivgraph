@@ -242,7 +242,7 @@ func (manager Manager) claudeDesktopMarkers() []string {
 	if manager.goos == "darwin" {
 		return []string{
 			filepath.Join(manager.homeDir, "Applications", "Claude.app"),
-			"/Applications/Claude.app",
+			filepath.Join(manager.systemRoot, "Applications", "Claude.app"),
 		}
 	}
 	if manager.goos == "windows" {
@@ -273,9 +273,9 @@ func (manager Manager) claudeDesktopMarkers() []string {
 	}
 	return []string{
 		filepath.Join(manager.homeDir, ".local", "share", "applications", "com.anthropic.Claude.desktop"),
-		"/usr/share/applications/com.anthropic.Claude.desktop",
+		filepath.Join(manager.systemRoot, "usr", "share", "applications", "com.anthropic.Claude.desktop"),
 		filepath.Join(manager.homeDir, ".local", "share", "applications", "claude.desktop"),
-		"/usr/share/applications/claude.desktop",
+		filepath.Join(manager.systemRoot, "usr", "share", "applications", "claude.desktop"),
 	}
 }
 

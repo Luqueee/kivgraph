@@ -96,6 +96,7 @@ go_test(
         "complete_test.go",
         "configure_test.go",
         "daemon_test.go",
+        "doctor_profile_test.go",
         "endpoint_test.go",
         "events_test.go",
         "hook_test.go",

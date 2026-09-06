@@ -93,7 +93,9 @@ repository/path/qualified-name triple remains portable across profiles.
    opening it, and `get_source` answers in prose rather than JSON and takes a
    list of selectors, so one call reads several declarations.
 4. **Follow the edges.** `find_references` for direct incoming or outgoing
-   references, `trace_dependencies` for bounded dependency paths,
+   references, `find_implementations` for typed implementations (declared and
+   structural TypeScript, with generation and completeness),
+   `trace_dependencies` for bounded dependency paths,
    `find_cross_repo_consumers` for consumers in another repository, and
    `get_blast_radius` for bounded impact analysis. Read the last one's
    `coverage` carefully: `exact` and `candidate` count consumers of the symbol

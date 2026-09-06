@@ -1351,3 +1351,80 @@ func TestEscapesRepositoryReadsThePathAndNotItsSpelling(t *testing.T) {
 		}
 	}
 }
+
+func TestNormalizeTypeScriptImplementationEvidence(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "testdata", "protocol", "ts-facts-v5", "implementations.json"))
+	if err != nil {
+		t.Fatalf("read implementations.json: %v", err)
+	}
+	payload, err := DecodeTypeScriptPayload(data)
+	if err != nil {
+		t.Fatalf("decode implementations.json: %v", err)
+	}
+	set, _, err := NormalizeTypeScript(t.Context(), payload, workspace.Repository{RealPath: "/fixtures/implementations"})
+	if err != nil {
+		t.Fatalf("normalize implementations.json: %v", err)
+	}
+	if err := set.Validate(); err != nil {
+		t.Fatalf("validate implementations.json: %v", err)
+	}
+	names := map[string]string{}
+	for _, symbol := range set.Symbols {
+		names[symbol.Key] = symbol.QualifiedName
+	}
+	edges := map[string]Provenance{}
+	for _, edge := range set.Edges {
+		if edge.Kind == Implements || edge.Kind == Overrides {
+			pair := names[edge.SourceKey] + "->" + names[edge.TargetKey]
+			if !edge.Confidence.Exact() || edge.EvidenceKey == "" {
+				t.Fatalf("%s: unproven relationship: %#v", pair, edge)
+			}
+			edges[pair] = edge.Provenance
+		}
+	}
+	for pair, provenance := range map[string]Provenance{"Declared->Reader": TypeScriptImplementationDeclared, "Structural->Reader": TypeScriptImplementationStructural, "Declared.read->Reader.read": TypeScriptImplementationDeclared, "Generic->TextBox": TypeScriptImplementationStructural, "Concrete.read->Abstract.read": TypeScriptImplementationDeclared} {
+		if edges[pair] != provenance {
+			t.Errorf("%s provenance=%s want=%s", pair, edges[pair], provenance)
+		}
+	}
+	if _, exists := edges["Wrong->Reader"]; exists {
+		t.Fatal("implementation Wrong->Reader: incompatible types connected")
+	}
+	if len(payload.Implementations) == 0 {
+		t.Fatal("worker emitted no implementations")
+	}
+	limited := payload
+	limited.ImplementationLimitations = []string{"provider source unavailable"}
+	limitedSet, _, err := NormalizeTypeScript(t.Context(), limited, workspace.Repository{RealPath: "/fixtures/implementations"})
+	if err != nil {
+		t.Fatalf("NormalizeTypeScript(explicit limitation) error = %v", err)
+	}
+	if got := implementationCoverageRows(limitedSet.Unresolved); len(got) != 1 || got[0].Detail != "provider source unavailable" || got[0].RequestedPackage != "@fixture/implementations" {
+		t.Fatalf("explicit implementation limitations = %#v", got)
+	}
+	legacy := payload
+	legacy.Version = 4
+	legacy.Implementations = nil
+	legacySet, _, err := NormalizeTypeScript(t.Context(), legacy, workspace.Repository{RealPath: "/fixtures/implementations"})
+	if err != nil {
+		t.Fatalf("NormalizeTypeScript(v4) error = %v", err)
+	}
+	if got := implementationCoverageRows(legacySet.Unresolved); len(got) != 1 || got[0].Detail != "Legacy TypeScript worker did not analyze implementation relations; rebuild with ts-facts-v5." || got[0].RequestedPackage != "@fixture/implementations" {
+		t.Fatalf("legacy implementation limitations = %#v", got)
+	}
+	payload.Implementations[0].Detection = "guessed"
+	if _, _, err := NormalizeTypeScript(t.Context(), payload, workspace.Repository{RealPath: "/fixtures/implementations"}); err == nil {
+		t.Fatalf("unknown implementation evidence accepted: qualified_name=%q relation=%q detection=%q",
+			payload.Implementations[0].QualifiedName, payload.Implementations[0].Relation, payload.Implementations[0].Detection)
+	}
+}
+
+func implementationCoverageRows(rows []UnresolvedReference) []UnresolvedReference {
+	var coverage []UnresolvedReference
+	for _, row := range rows {
+		if row.Reason == UnresolvedImplementationCoverage {
+			coverage = append(coverage, row)
+		}
+	}
+	return coverage
+}

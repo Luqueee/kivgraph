@@ -17,6 +17,9 @@ whether a repository can be indexed. It also checks `cargo` separately: the
 bundle carries `rust-analyzer` but no Rust toolchain, and the analyzer cannot
 load a workspace without cargo.
 
+On installations with profiles, `doctor` inspects the default profile served
+by MCP. It preserves the legacy backup and does not initiate a migration.
+
 `graph status` prints `graph.active`, `graph.next` and `graph.backup` with the
 path each names on disk, plus the full list of retained generations. A store
 with no active generation reports `graph.active: none`; that is not an error.

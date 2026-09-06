@@ -2063,6 +2063,26 @@ func doctorFlagSet(options *doctorOptions) *flag.FlagSet {
 	return flags
 }
 
+// Doctor follows the same default profile as serve, without initiating a
+// migration during diagnosis. A legacy installation still has its old layout.
+func readDoctorConfiguration(configPath string) (loadedConfiguration config.Loaded, profileErr, configurationErr error) {
+	loadedConfiguration, configurationErr = config.Load(configPath)
+	if configurationErr != nil {
+		return config.Loaded{}, nil, configurationErr
+	}
+	profiles := filepath.Join(filepath.Dir(loadedConfiguration.Config.Storage.DatabasePath), "profiles")
+	if _, err := os.Stat(profiles); errors.Is(err, os.ErrNotExist) {
+		return loadedConfiguration, nil, nil
+	} else if err != nil {
+		return config.Loaded{}, nil, fmt.Errorf("inspect profiles: %w", err)
+	}
+	profile, profileErr := config.ReadProfile(configPath, "")
+	if profileErr != nil {
+		return loadedConfiguration, profileErr, nil
+	}
+	return profile, nil, nil
+}
+
 func runDoctor(args []string, stdout, stderr io.Writer) int {
 	var options doctorOptions
 	flags := doctorFlagSet(&options)
@@ -2074,7 +2094,7 @@ func runDoctor(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	loaded, err := config.Load(options.ConfigPath)
+	loaded, profileErr, err := readDoctorConfiguration(options.ConfigPath)
 	if err != nil {
 		writeResult(stdout, false, "config: FAIL (%v)", err)
 		writeResult(stdout, false, "doctor: FAIL")
@@ -2092,6 +2112,9 @@ func runDoctor(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	doctorResult("config", true, fmt.Sprintf("schema=%d", loaded.Config.Version))
+	if profileErr != nil {
+		doctorResult("profiles", false, profileErr.Error())
+	}
 	// A retired key is not a defect in the store and not a reason to fail: the
 	// file was valid when it was written and the key never did anything. Saying
 	// so is what lets someone delete it; silence would leave it there forever.

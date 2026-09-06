@@ -84,7 +84,7 @@ export function umamiTracker(): UmamiTracker | null {
 }
 
 /**
- * The fourteen tools the server registers, in the order the reference lists
+ * The fifteen tools the server registers, in the order the reference lists
  * them: retrieval first, then lookups, traversal, whole-graph tools and index
  * control. `get_unresolved_references` is not
  * among them.
@@ -101,6 +101,7 @@ export const MCP_TOOLS = [
   "get_source",
   "get_file_outline",
   "find_references",
+  "find_implementations",
   "find_cross_repo_consumers",
   "trace_dependencies",
   "get_blast_radius",

@@ -34,6 +34,7 @@ checkout, which is what a reader on a fork or without a network still has.
 | the question | the tool |
 | --- | --- |
 | who calls this, what references this | `find_references` |
+| who implements a type or method | `find_implementations` |
 | what breaks if I change it | `get_blast_radius` |
 | what does this reach outward | `trace_dependencies` |
 | who uses it from another repository | `find_cross_repo_consumers` |
@@ -43,10 +44,11 @@ checkout, which is what a reader on a fork or without a network still has.
 | give me the code of these symbols | `get_source` |
 | everything about this one symbol | `get_symbol` |
 | what is indexed, and is the graph current | `list_repositories`, `graph_status` |
+| how is an asynchronous index progressing | `get_index_status` |
 
-Eleven read-only tools, plus one consent-gated mutation (`index_project`) that a
-client has to authorize before it can register a repository or publish a
-generation.
+Thirteen read-only tools, plus two consent-gated mutations (`index_project` and
+`start_index_project`) that a client has to authorize before either can register
+a repository or publish a generation.
 
 Every row that names a symbol carries its repository, path, qualified name and
 line range, so it can be opened without a second call, and every tool accepts
@@ -81,8 +83,8 @@ backlog and the acceptance gate of every phase are in [`TASKS.md`](TASKS.md).
 - **Semantic dependencies:** Python and Dart imports can publish a package
   dependency when exactly one registered provider owns the requested package;
   symbol-level cross-repository edges require an explicit provider identity.
-- **Surface:** eleven read-only tools over STDIO, plus one consent-gated
-  mutation (`index_project`). The contract is
+- **Surface:** thirteen read-only tools over STDIO, plus two consent-gated
+  mutations (`index_project` and `start_index_project`). The contract is
   [docs/protocol/mcp-surface-v3.md](docs/protocol/mcp-surface-v3.md).
 - **Storage:** LadybugDB is canonical; queries are served from an immutable
   HotSnapshot published atomically, never from the database.

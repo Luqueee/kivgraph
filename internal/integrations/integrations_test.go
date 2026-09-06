@@ -18,6 +18,7 @@ func testManager(t *testing.T) (Manager, string, string) {
 	project := t.TempDir()
 	manager, err := New(Options{
 		HomeDir:    home,
+		SystemRoot: filepath.Join(home, "system"),
 		ProjectDir: project,
 		Executable: testsupport.InstalledExecutable(),
 		GOOS:       "darwin",
@@ -26,6 +27,51 @@ func testManager(t *testing.T) (Manager, string, string) {
 		t.Fatalf("New() error = %v", err)
 	}
 	return manager, home, project
+}
+
+func TestSystemApplicationRootIsResolved(t *testing.T) {
+	t.Setenv("CODEX_HOME", "")
+	t.Setenv("PI_CODING_AGENT_DIR", "")
+	working := t.TempDir()
+	previous, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(working); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(previous); err != nil {
+			t.Errorf("restore working directory %q: %v", previous, err)
+		}
+	})
+	marker := filepath.Join(working, "system", "Applications", "Claude.app")
+	if err := os.MkdirAll(marker, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	manager, err := New(Options{
+		HomeDir:    t.TempDir(),
+		SystemRoot: "system",
+		ProjectDir: t.TempDir(),
+		Executable: testsupport.InstalledExecutable(),
+		GOOS:       "darwin",
+	})
+	if err != nil {
+		t.Fatalf("New(SystemRoot=%q) error = %v", "system", err)
+	}
+	detections, err := manager.DetectHookTargets(ScopeUser)
+	if err != nil {
+		t.Fatalf("DetectHookTargets(%q) error = %v", ScopeUser, err)
+	}
+	for _, detection := range detections {
+		if detection.Target == TargetClaudeDesktop {
+			if !detection.Detected {
+				t.Fatalf("relative SystemRoot %q did not find marker %q", "system", marker)
+			}
+			return
+		}
+	}
+	t.Fatalf("claude-desktop is not offered as a hook target for SystemRoot %q", "system")
 }
 
 func TestInstallJSONIsIdempotentAndBacksUpOnRemoval(t *testing.T) {

@@ -1,6 +1,6 @@
 # Esquema canónico de LadybugDB
 
-Versión del esquema: `004`. DDL versionado: `schemas/ladybug/004-canonical.cypher`.
+Versión del esquema: `005`. DDL versionado: `schemas/ladybug/005-canonical.cypher`.
 
 Este documento se genera desde `internal/storage/ladybug.CanonicalSchemaDocumentation`; no se edita a mano.
 

@@ -7,10 +7,10 @@ import (
 
 // CanonicalSchemaVersion is the version of the definitive graph schema. It is
 // stored in the database so a rebuild can detect an incompatible layout.
-const CanonicalSchemaVersion = 4
+const CanonicalSchemaVersion = 5
 
 // CanonicalSchemaFile is the versioned DDL generated from this metadata.
-const CanonicalSchemaFile = "schemas/ladybug/004-canonical.cypher"
+const CanonicalSchemaFile = "schemas/ladybug/005-canonical.cypher"
 
 // SchemaProperty is one column of a node or relationship table.
 type SchemaProperty struct {

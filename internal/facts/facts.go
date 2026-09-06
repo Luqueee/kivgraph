@@ -70,10 +70,12 @@ func (confidence Confidence) Exact() bool {
 type Provenance string
 
 const (
-	TypeScriptChecker          Provenance = "TYPESCRIPT_CHECKER"
-	TypeScriptModuleResolution Provenance = "TYPESCRIPT_MODULE_RESOLUTION"
-	TypeScriptDeclarationMap   Provenance = "TYPESCRIPT_DECLARATION_MAP"
-	TypeScriptProjectReference Provenance = "TYPESCRIPT_PROJECT_REFERENCE"
+	TypeScriptImplementationDeclared   Provenance = "TYPESCRIPT_IMPL_DECLARED"
+	TypeScriptImplementationStructural Provenance = "TYPESCRIPT_IMPL_STRUCTURAL"
+	TypeScriptChecker                  Provenance = "TYPESCRIPT_CHECKER"
+	TypeScriptModuleResolution         Provenance = "TYPESCRIPT_MODULE_RESOLUTION"
+	TypeScriptDeclarationMap           Provenance = "TYPESCRIPT_DECLARATION_MAP"
+	TypeScriptProjectReference         Provenance = "TYPESCRIPT_PROJECT_REFERENCE"
 
 	GoTypesDefinition Provenance = "GO_TYPES_DEF"
 	GoTypesUse        Provenance = "GO_TYPES_USE"

@@ -1,7 +1,7 @@
 /**
  * Emit the canonical fact payload of one TypeScript repository.
  *
- * The payload is the wire contract `ts-facts-v4` consumed by
+ * The payload is the wire contract `ts-facts-v5` consumed by
  * `internal/facts`: the worker reports identity components and positions, and
  * Go derives the durable keys. Nothing here computes a key, so both languages
  * cannot drift into two identities for one symbol.
@@ -30,8 +30,8 @@
  * repository resolves through `targetQualifiedName`/`targetFile`; a base
  * introduced by an import reuses the exact provider-source identity an
  * `IMPORTS_SYMBOL` edge for that same binding already carries, never a
- * second resolution of its own. `implements` never appears here: see
- * `extends-resolver.ts` for why.
+ * second resolution of its own. `implementations` adds compiler-proven declared and structural relationships;
+ * `implementationLimitations` records excluded analysis scopes.
  *
  * `dependencies` is `PACKAGE_DEPENDS_ON`: one entry per package this
  * repository's own package really imports from, backed by a checker-resolved
@@ -68,16 +68,12 @@
  * provider's configuration, and an inferred project has none. The Go side
  * only passes this when `typescript.include_unclaimed_sources` is on.
  *
- * Regenerate the `ts-facts-v4` goldens, from `ts-worker/`:
+ * The cross-repository v4 goldens are frozen compatibility inputs: this v5
+ * worker must not overwrite them. Regenerate the v5 implementation contract
+ * golden from `ts-worker/` with:
  *
- *   pnpm facts shared-library ../testdata/typescript/cross-repository/shared-library \
- *     ../testdata/protocol/ts-facts-v4/shared-library.json
- *   pnpm facts consumer-a ../testdata/typescript/cross-repository/consumer-a \
- *     ../testdata/protocol/ts-facts-v4/consumer-a.json \
- *     --provider shared-library=../testdata/typescript/cross-repository/shared-library
- *   pnpm facts consumer-b ../testdata/typescript/cross-repository/consumer-b \
- *     ../testdata/protocol/ts-facts-v4/consumer-b.json \
- *     --provider shared-library=../testdata/typescript/cross-repository/shared-library
+ *   pnpm facts implementations ../testdata/typescript/implementations \
+ *     ../testdata/protocol/ts-facts-v5/implementations.json
  */
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -85,6 +81,10 @@ import path from "node:path";
 
 import { isEntryPoint } from "./entry-point.js";
 import { type ExtendsEdge, resolveExtends } from "./extends-resolver.js";
+import {
+  type ImplementationEdge,
+  resolveImplementations,
+} from "./implements-resolver.js";
 import type {
   ImportedSymbol,
   ReexportedSymbol,
@@ -108,7 +108,7 @@ import { extractLocalSymbols } from "./symbol-extractor.js";
 import { resolveUnresolvedReferences } from "./unresolved-reference-resolver.js";
 
 interface FactsPayload {
-  readonly version: 4;
+  readonly version: 5;
   readonly repository: { readonly name: string };
   readonly package: {
     readonly name: string;
@@ -122,6 +122,11 @@ interface FactsPayload {
   readonly imports: readonly FactImport[];
   readonly exports: readonly FactExport[];
   readonly extends: readonly FactExtends[];
+  readonly implementations: readonly (FactExtends & {
+    readonly detection: "declared" | "structural";
+    readonly relation: "IMPLEMENTS" | "OVERRIDES";
+  })[];
+  readonly implementationLimitations: readonly string[];
   readonly dependencies: readonly FactDependency[];
   readonly unresolved: readonly FactUnresolved[];
 }
@@ -340,6 +345,12 @@ export async function collectFacts(
       symbols,
       resolution.symbols,
     );
+    const implementationResolution = await resolveImplementations(
+      service,
+      view,
+      symbols,
+      resolution.symbols,
+    );
     const importSymbols = importFactSymbols(root, resolution.symbols);
     // An export's public name frequently repeats the local declaration it
     // exposes (`export function foo() {}` names both "foo"), unlike an
@@ -382,6 +393,19 @@ export async function collectFacts(
       extendsResolution.extends,
       manifest?.name ?? repositoryName,
     );
+    const implementationNormalization = implementationFactSymbols(
+      root,
+      implementationResolution.edges,
+      manifest?.name ?? repositoryName,
+    );
+    // Implementation targets come only from local declarations or imports
+    // whose provider identity was proven, so an unresolved row contradicts
+    // resolveImplementations rather than describing a partial result.
+    const contradiction = implementationNormalization.unresolved[0];
+    if (contradiction !== undefined)
+      throw new Error(
+        `resolved implementations produced unresolved facts: ${contradiction.file} @${contradiction.start} ${contradiction.reason}`,
+      );
 
     const dependencyEvidenceFiles = dependencyResolution.dependencies
       .map((dependency) => dependency.imports[0]?.fileName)
@@ -440,7 +464,7 @@ export async function collectFacts(
     ].sort(compareUnresolved);
 
     return {
-      version: 4,
+      version: 5,
       repository: { name: repositoryName },
       package: manifest,
       files: files.map((file) => relative(root, file)),
@@ -510,6 +534,15 @@ export async function collectFacts(
       }),
       exports: exportSymbols.exports,
       extends: extendsFacts.extends,
+      implementations: implementationNormalization.implementations,
+      implementationLimitations: [
+        ...implementationResolution.limitations,
+        ...(unclaimed.length > 0
+          ? [
+              "Inferred files contribute symbols and references, but do not attest implementation coverage.",
+            ]
+          : []),
+      ],
       dependencies: dependencyFacts,
       unresolved,
     };
@@ -922,48 +955,85 @@ function extendsFactSymbols(
   const unresolved: FactUnresolved[] = [];
 
   for (const edge of edges) {
-    const identity = edge.identity;
-    facts.push({
-      file: relative(root, edge.base.fileName),
-      qualifiedName: edge.base.sourceQualifiedName,
-      start: edge.base.start,
-      end: edge.base.end,
-      startLine: edge.base.startLine,
-      text: edge.base.text,
-      targetQualifiedName: edge.targetQualifiedName ?? null,
-      targetFile:
-        edge.targetFile === undefined ? null : relative(root, edge.targetFile),
-      target:
-        identity === undefined
-          ? null
-          : {
-              repository: identity.repository,
-              package: identity.package,
-              qualifiedName: identity.qualifiedName,
-              kind: identity.kind,
-              signature: identity.signature,
-              file: identity.file,
-              startLine: identity.startLine,
-              source: identity.source,
-            },
-      requestedPackage: edge.packageName ?? null,
-      requestedSymbol: edge.exportedName ?? null,
-      reason: edge.unresolvedReason ?? null,
-      detail: edge.unresolvedDetail ?? null,
-    });
-    if (edge.targetQualifiedName === undefined && identity === undefined) {
-      unresolved.push({
-        file: relative(root, edge.base.fileName),
-        reason: edge.unresolvedReason ?? "PROVIDER_SOURCE_UNAVAILABLE",
-        requestedPackage: edge.packageName ?? localPackage,
-        requestedSymbol: edge.exportedName ?? edge.base.text,
-        detail: edge.unresolvedDetail ?? null,
-        start: edge.base.start,
-      });
-    }
+    const normalized = normalizeExtendsFact(root, edge, localPackage);
+    facts.push(normalized.fact);
+    if (normalized.unresolved !== undefined)
+      unresolved.push(normalized.unresolved);
   }
 
   return { extends: facts, unresolved };
+}
+
+function implementationFactSymbols(
+  root: string,
+  edges: readonly ImplementationEdge[],
+  localPackage: string,
+): {
+  readonly implementations: FactsPayload["implementations"];
+  readonly unresolved: readonly FactUnresolved[];
+} {
+  const implementations: Array<FactsPayload["implementations"][number]> = [];
+  const unresolved: FactUnresolved[] = [];
+  for (const edge of edges) {
+    const normalized = normalizeExtendsFact(root, edge, localPackage);
+    implementations.push({
+      ...normalized.fact,
+      detection: edge.detection,
+      relation: edge.relation,
+    });
+    if (normalized.unresolved !== undefined)
+      unresolved.push(normalized.unresolved);
+  }
+  return { implementations, unresolved };
+}
+
+function normalizeExtendsFact(
+  root: string,
+  edge: ExtendsEdge,
+  localPackage: string,
+): { readonly fact: FactExtends; readonly unresolved?: FactUnresolved } {
+  const identity = edge.identity;
+  const fact: FactExtends = {
+    file: relative(root, edge.base.fileName),
+    qualifiedName: edge.base.sourceQualifiedName,
+    start: edge.base.start,
+    end: edge.base.end,
+    startLine: edge.base.startLine,
+    text: edge.base.text,
+    targetQualifiedName: edge.targetQualifiedName ?? null,
+    targetFile:
+      edge.targetFile === undefined ? null : relative(root, edge.targetFile),
+    target:
+      identity === undefined
+        ? null
+        : {
+            repository: identity.repository,
+            package: identity.package,
+            qualifiedName: identity.qualifiedName,
+            kind: identity.kind,
+            signature: identity.signature,
+            file: identity.file,
+            startLine: identity.startLine,
+            source: identity.source,
+          },
+    requestedPackage: edge.packageName ?? null,
+    requestedSymbol: edge.exportedName ?? null,
+    reason: edge.unresolvedReason ?? null,
+    detail: edge.unresolvedDetail ?? null,
+  };
+  if (edge.targetQualifiedName !== undefined || identity !== undefined)
+    return { fact };
+  return {
+    fact,
+    unresolved: {
+      file: relative(root, edge.base.fileName),
+      reason: edge.unresolvedReason ?? "PROVIDER_SOURCE_UNAVAILABLE",
+      requestedPackage: edge.packageName ?? localPackage,
+      requestedSymbol: edge.exportedName ?? edge.base.text,
+      detail: edge.unresolvedDetail ?? null,
+      start: edge.base.start,
+    },
+  };
 }
 
 function compareUnresolved(
@@ -1218,7 +1288,7 @@ interface CliArgs {
 
 const USAGE = `usage: pnpm facts <repository-name> <repository-root> <output.json> [--project <path>] [--provider <name>=<path>]... [--provider-project <name>=<path>]... [--unclaimed <absolute path>]...
 
-Emits the ts-facts-v4 payload of <repository-root>, named <repository-name>.
+Emits the ts-facts-v5 payload of <repository-root>, named <repository-name>.
 
   --project <path>            TypeScript project to load, relative to the
                               repository root. Defaults to <root>/tsconfig.json.
@@ -1233,12 +1303,12 @@ Emits the ts-facts-v4 payload of <repository-root>, named <repository-name>.
                               absolute and inside the repository root.
                               Repeatable.
 
-Example — regenerate the ts-facts-v4 goldens, from ts-worker/:
+Example — regenerate the ts-facts-v5 goldens, from ts-worker/:
 
   pnpm facts shared-library ../testdata/typescript/cross-repository/shared-library \\
-    ../testdata/protocol/ts-facts-v4/shared-library.json
+    ../testdata/protocol/ts-facts-v5/shared-library.json
   pnpm facts consumer-a ../testdata/typescript/cross-repository/consumer-a \\
-    ../testdata/protocol/ts-facts-v4/consumer-a.json \\
+    ../testdata/protocol/ts-facts-v5/consumer-a.json \\
     --provider shared-library=../testdata/typescript/cross-repository/shared-library
 `;
 

@@ -11,8 +11,8 @@ import (
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
-// TypeScriptWireVersion is the version of the `ts-facts-v4` payload.
-const TypeScriptWireVersion = 4
+// TypeScriptWireVersion is the version of the `ts-facts-v5` payload.
+const TypeScriptWireVersion = 5
 
 // TypeScriptPayload is the fact payload the worker emits for one repository.
 //
@@ -20,17 +20,25 @@ const TypeScriptWireVersion = 4
 // key. Deriving keys on a single side is what keeps one symbol from getting
 // two identities when a consumer and its provider are indexed separately.
 type TypeScriptPayload struct {
-	Version      int                    `json:"version"`
-	Repository   TypeScriptRepository   `json:"repository"`
-	Package      *TypeScriptPackage     `json:"package"`
-	Files        []string               `json:"files"`
-	Symbols      []TypeScriptSymbol     `json:"symbols"`
-	References   []TypeScriptReference  `json:"references"`
-	Imports      []TypeScriptImport     `json:"imports"`
-	Exports      []TypeScriptExport     `json:"exports"`
-	Extends      []TypeScriptExtends    `json:"extends"`
-	Dependencies []TypeScriptDependency `json:"dependencies"`
-	Unresolved   []TypeScriptUnresolved `json:"unresolved"`
+	Version                   int                        `json:"version"`
+	Repository                TypeScriptRepository       `json:"repository"`
+	Package                   *TypeScriptPackage         `json:"package"`
+	Files                     []string                   `json:"files"`
+	Symbols                   []TypeScriptSymbol         `json:"symbols"`
+	References                []TypeScriptReference      `json:"references"`
+	Imports                   []TypeScriptImport         `json:"imports"`
+	Exports                   []TypeScriptExport         `json:"exports"`
+	Extends                   []TypeScriptExtends        `json:"extends"`
+	Implementations           []TypeScriptImplementation `json:"implementations"`
+	ImplementationLimitations []string                   `json:"implementationLimitations"`
+	Dependencies              []TypeScriptDependency     `json:"dependencies"`
+	Unresolved                []TypeScriptUnresolved     `json:"unresolved"`
+}
+
+type TypeScriptImplementation struct {
+	TypeScriptExtends
+	Detection string   `json:"detection"`
+	Relation  EdgeKind `json:"relation"`
 }
 
 // TypeScriptRepository names the repository the payload belongs to.
@@ -286,7 +294,10 @@ type TypeScriptReport struct {
 // key the provider assigns its own declaration. What is retired here are the
 // uses whose **source** file is the provider's output -- facts about the
 // provider, which the provider's own pass is the one to report.
-const UnresolvedFileOutsideRepository = "FILE_OUTSIDE_REPOSITORY"
+const (
+	UnresolvedFileOutsideRepository  = "FILE_OUTSIDE_REPOSITORY"
+	UnresolvedImplementationCoverage = "IMPLEMENTATION_COVERAGE_PARTIAL"
+)
 
 // escapesRepository reports whether a repository-relative path leaves its own
 // repository. Cleaning first is what makes `src/../../x` and `../x` the same
@@ -300,13 +311,13 @@ func escapesRepository(file string) bool {
 	return cleaned == ".." || strings.HasPrefix(cleaned, "../")
 }
 
-// DecodeTypeScriptPayload parses a `ts-facts-v4` document.
+// DecodeTypeScriptPayload parses a `ts-facts-v5` document.
 func DecodeTypeScriptPayload(data []byte) (TypeScriptPayload, error) {
 	var payload TypeScriptPayload
 	if err := json.Unmarshal(data, &payload); err != nil {
 		return TypeScriptPayload{}, fmt.Errorf("decode typescript facts: %w", err)
 	}
-	if payload.Version != TypeScriptWireVersion {
+	if payload.Version != TypeScriptWireVersion && payload.Version != 4 {
 		return TypeScriptPayload{}, fmt.Errorf("%w: unsupported typescript facts version %d",
 			ErrInvalidFacts, payload.Version)
 	}
@@ -742,7 +753,23 @@ func NormalizeTypeScript(
 		})
 	}
 
+	type relationFact struct {
+		TypeScriptExtends
+		kind      EdgeKind
+		detection string
+	}
+	relations := make([]relationFact, 0, len(payload.Extends)+len(payload.Implementations))
 	for _, ext := range payload.Extends {
+		relations = append(relations, relationFact{ext, Extends, ""})
+	}
+	for _, impl := range payload.Implementations {
+		if (impl.Relation != Implements && impl.Relation != Overrides) || (impl.Detection != "declared" && impl.Detection != "structural") {
+			return Set{}, TypeScriptReport{}, fmt.Errorf("%w: implementation %q in %q has relation %q and detection %q", ErrInvalidFacts, impl.QualifiedName, impl.File, impl.Relation, impl.Detection)
+		}
+		relations = append(relations, relationFact{impl.TypeScriptExtends, impl.Relation, impl.Detection})
+	}
+	for _, relation := range relations {
+		ext := relation.TypeScriptExtends
 		if err := ctx.Err(); err != nil {
 			return Set{}, TypeScriptReport{}, err
 		}
@@ -814,18 +841,32 @@ func NormalizeTypeScript(
 			Text:          ext.Text,
 		}
 		set.Evidence = append(set.Evidence, evidence)
+		if relation.detection == "declared" {
+			provenance = TypeScriptImplementationDeclared
+		}
+		if relation.detection == "structural" {
+			provenance = TypeScriptImplementationStructural
+		}
 		// TargetKey names a symbol the PROVIDER repository normalises when
 		// the base crosses repositories: this Set alone will fail
 		// Validate() with a dangling edge until the caller merges the
 		// provider's Set in, exactly like an IMPORTS_SYMBOL edge.
 		set.Edges = append(set.Edges, Edge{
-			Kind:        Extends,
+			Kind:        relation.kind,
 			SourceKey:   sourceKey,
 			TargetKey:   targetKey,
 			Confidence:  confidence,
 			Provenance:  provenance,
 			EvidenceKey: evidence.Key,
 		})
+	}
+
+	limits := append([]string(nil), payload.ImplementationLimitations...)
+	if payload.Version < 5 {
+		limits = append(limits, "Legacy TypeScript worker did not analyze implementation relations; rebuild with ts-facts-v5.")
+	}
+	for _, detail := range limits {
+		set.Unresolved = append(set.Unresolved, UnresolvedReference{RepositoryKey: repositoryKey, Language: LanguageTypeScript, Reason: UnresolvedImplementationCoverage, Detail: detail, RequestedPackage: payload.Package.Name})
 	}
 
 	// PACKAGE_DEPENDS_ON needs no symbol lookup at all: both ends are the
