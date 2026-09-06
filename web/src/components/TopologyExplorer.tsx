@@ -115,7 +115,7 @@ export function pinnedTopologyURL(
       left.id < right.id ? -1 : left.id > right.id ? 1 : 0,
     );
   if (applicableProfiles.length === 0)
-    return "/api/v1/topology?relationships=grouped";
+    return "/api/v1/topology?profile=*&relationships=grouped";
 
   const query = new URLSearchParams();
   for (const profile of applicableProfiles) query.append("profile", profile.id);

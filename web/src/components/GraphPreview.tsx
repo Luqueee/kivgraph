@@ -597,9 +597,11 @@ export function GraphPreview() {
             </span>
           )}
         </span>
-        <span className="shrink-0 border border-rule bg-panel/90 px-3 py-2 text-gray-400 shadow-xl backdrop-blur">
-          <FrameRate /> · {rendererLabel} ·{" "}
-          <HoverStatus channel={statusChannel} />
+        <span className="min-w-0 max-w-[50%] overflow-hidden border border-rule bg-panel/90 px-3 py-2 text-gray-400 shadow-xl backdrop-blur">
+          <span className="block truncate">
+            <FrameRate /> · {rendererLabel} ·{" "}
+            <HoverStatus channel={statusChannel} />
+          </span>
         </span>
       </div>
       <details
@@ -653,8 +655,8 @@ export function GraphPreview() {
           </span>
         </div>
       </details>
-      <div className="pointer-events-auto absolute inset-x-3 bottom-3 flex items-center justify-center font-mono text-[10px]">
-        <div className="flex items-center border border-rule bg-panel/90 shadow-xl backdrop-blur">
+      <div className="pointer-events-none absolute inset-x-3 bottom-3 flex items-center justify-center font-mono text-[10px]">
+        <div className="pointer-events-auto flex items-center border border-rule bg-panel/90 shadow-xl backdrop-blur">
           {LOD_LABELS.map((label, level) => (
             <button
               key={label}
