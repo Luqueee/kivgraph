@@ -1,16 +1,16 @@
 ---
 title: MCP tools
-description: The twelve tools Kivgraph registers over stdio once a generation is published, and which question each one answers.
+description: The fourteen tools Kivgraph registers once a generation is published, and which question each one answers.
 ---
 
-`kivgraph serve` registers twelve tools over stdio *once a generation is
-published*. Eleven are read-only. `index_project` is the only one that mutates
-anything, and only after explicit consent. A server with no published
-generation registers `index_project` alone; see
+`kivgraph serve` registers fourteen tools *once a generation is published*.
+Twelve are read-only. `index_project` and `start_index_project` mutate only
+after explicit consent. A server with no published generation registers those
+two tools plus `get_index_status`; see
 [Before a generation is published](#before-a-generation-is-published).
 
-Every tool answers from the published HotSnapshot. `serve` does not open the
-database and does not run the TypeScript worker.
+Every graph-query tool answers from the published HotSnapshot. `serve` does not
+open the database for those queries and does not run the TypeScript worker.
 
 ## Pick the tool by the question
 
@@ -27,6 +27,8 @@ database and does not run the TypeScript worker.
 | Everything known about one symbol | [`get_symbol`](/docs/tools/get-symbol/) |
 | What is indexed, and is it current | [`graph_status`](/docs/tools/graph-status/) |
 | Which repositories are registered | [`list_repositories`](/docs/tools/list-repositories/) |
+| Start an index without holding a long call open | [`start_index_project`](/docs/tools/start-index-project/) |
+| Check an asynchronous index | [`get_index_status`](/docs/tools/get-index-status/) |
 | Index a project and rebuild | [`index_project`](/docs/tools/index-project/) |
 
 Edges are resolved by language analyzers, never by matching names, and the
@@ -66,10 +68,12 @@ Read-only, the index itself:
 
 - [`list_repositories`](/docs/tools/list-repositories/)
 - [`graph_status`](/docs/tools/graph-status/)
+- [`get_index_status`](/docs/tools/get-index-status/)
 
 Mutating:
 
 - [`index_project`](/docs/tools/index-project/)
+- [`start_index_project`](/docs/tools/start-index-project/)
 
 ## Addressing a symbol
 
@@ -85,9 +89,9 @@ stable keys never have to enter the conversation.
 
 ## Before a generation is published
 
-With no published generation there is no query surface. The server completes
-the handshake, publishes only `index_project`, and puts the rebuild command in
-its `instructions`.
+With no published generation there is no graph-query surface. The server
+completes the handshake, publishes the three indexing controls, and puts the
+rebuild path in its `instructions`.
 
 A client launches the process itself, so exiting would read as a crash, and
 publishing tools that answer `INDEX_NOT_READY` to everything would teach the

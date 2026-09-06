@@ -40,6 +40,8 @@ repository, or after Kivgraph is unavailable or cannot cover the question. Say
 which limitation required the fallback. Do not use a fallback merely to avoid
 the semantic workflow.
 
-`index_project` changes Kivgraph state. Never call it just to make research
-easier: obtain explicit user consent before registering a repository or
-publishing a generation.
+`index_project` and `start_index_project` change Kivgraph state. Never call
+either just to make research easier: obtain explicit user consent before
+registering a repository or publishing a generation. Prefer
+`start_index_project`, then poll `get_index_status`, so the rebuild does not
+hold one tool call open.

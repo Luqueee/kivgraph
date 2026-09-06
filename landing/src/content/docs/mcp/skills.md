@@ -8,8 +8,8 @@ description: What Kivgraph's Agent Skill tells a coding agent, how to install it
 An Agent Skill is a Markdown instruction file a coding agent loads alongside its
 tools. Kivgraph ships one to route a question to the right tool before the agent
 reaches for grep or starts opening files, and to request visible notices of
-tool use. It is not required in order to use the MCP server. Install it to change
-which tool the agent picks; skip it and the twelve tools still work.
+tool use. It is not required in order to use the MCP server. Install it to
+change which tool the agent picks; skip it and the fourteen tools still work.
 
 ## Install
 
@@ -82,8 +82,8 @@ and the question it will answer, in the conversation's language. For example:
 
 Repeated calls each get a notice. Parallel calls may share a preamble, with a
 separate line for each call. The notice states intent, not success, and does not
-replace user approval for `index_project`. There is no additional mandatory
-completion message, setting or change to tool results.
+replace user approval for either indexing mutation. There is no additional
+mandatory completion message, setting or change to tool results.
 
 The MCP server sends the same rule in its connection instructions, including
 when no graph exists. This is **best effort**: the client decides whether to
@@ -117,6 +117,8 @@ are outside this chat-notice contract.
 | Consumers in another repository | [`find_cross_repo_consumers`](/docs/tools/find-cross-repo-consumers/) |
 | Bounded incoming impact, grouped | [`get_blast_radius`](/docs/tools/get-blast-radius/) |
 | Register projects and rebuild the graph | [`index_project`](/docs/tools/index-project/) |
+| Start a rebuild without holding one call open | [`start_index_project`](/docs/tools/start-index-project/) |
+| Poll an asynchronous rebuild | [`get_index_status`](/docs/tools/get-index-status/) |
 
 The skill orders the first moves: `graph_status` to confirm a published
 snapshot exists and how old it is, then `list_repositories` to pick the
@@ -159,9 +161,11 @@ enter the conversation.
 
 ### Indexing
 
-`index_project` is the only mutating tool. The skill requires explicit user
-approval before calling it, all projects passed in one call through `projects`,
-and no claim of success until a new generation and snapshot are published. A
+`index_project` and `start_index_project` are the two mutating tools. The skill
+requires explicit user approval before calling either one, all projects passed
+in one call through `projects`, and no claim of success until a new generation
+and snapshot are published. It prefers the asynchronous start and polls
+`get_index_status` so a client timeout cannot interrupt the call. A
 rebuild resolves cross-repository edges over the complete fact set, so it costs
 the whole corpus whatever was added: eleven separate calls build eleven graphs
 and keep the last one. A full rebuild can outlive the client's per-call

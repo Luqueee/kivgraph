@@ -97,6 +97,7 @@ type Options struct {
 	SnapshotStore  *hotsnapshot.SnapshotStore
 	Registry       *metrics.Registry
 	Indexer        indexing.ProjectIndexer
+	IndexJobs      *kivmcp.IndexJobs
 
 	// OnSession, when set, is called when a session starts and when it ends.
 	// The error is nil on a clean end. It is a typed hook rather than a
@@ -174,6 +175,12 @@ func Serve(ctx context.Context, listener net.Listener, options Options) error {
 	if listener == nil {
 		return errors.New("daemon: no listener")
 	}
+	if options.IndexJobs == nil && options.Indexer != nil {
+		// Serve builds one MCP server per connection. Create the registry once
+		// outside that loop so a reconnect can poll work accepted by an earlier
+		// session even when an embedding caller did not supply one explicitly.
+		options.IndexJobs = kivmcp.NewIndexJobs(options.Indexer)
+	}
 	notify := options.OnSession
 	if notify == nil {
 		notify = func(string, error) {}
@@ -225,8 +232,9 @@ func Serve(ctx context.Context, listener net.Listener, options Options) error {
 
 // serveSession runs one MCP session to completion over connection.
 func serveSession(ctx context.Context, connection net.Conn, options Options) error {
-	server := kivmcp.NewServerWithMetricsAndSnapshotStoreAndIndexer(
-		options.Registry, options.SnapshotStore, options.Indexer)
+	server := kivmcp.NewServerWithMetricsAndSnapshotStoreAndIndexerOptions(
+		options.Registry, options.SnapshotStore, options.Indexer,
+		kivmcp.ServerOptions{IndexJobs: options.IndexJobs})
 	session, err := server.Connect(ctx, &kivmcp.StreamTransport{Stream: connection}, nil)
 	if err != nil {
 		return fmt.Errorf("connect: %w", err)

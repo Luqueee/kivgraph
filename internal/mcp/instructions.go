@@ -1,9 +1,10 @@
 package mcp
 
 // toolVisibilityInstructions is shared by both availability states: even a
-// cold server can expose index_project. Keep it aligned with the installed
-// skill; visibility is client/model behavior, not a server-injected chat event.
-const toolVisibilityInstructions = `Before every Kivgraph MCP call, send a brief user-visible preamble in the conversation's language: Kivgraph · <tool> — <target>: <purpose>. Name the exact tool, queried symbol/file/repository/scope, and question it answers. For find_by_intent, quote its exact "intent" value as the target, never a summary. For parallel calls, one preamble may list each call; announce repeats too. State intent, not success; do not dump other arguments or secrets. This notice is not approval for index_project. Freshness is a gate: if graph_status does not attest the target checkout and generation, use consent-gated index_project, reconnect if graph_status was absent, then call graph_status again before using graph evidence. Only the default profile carries content freshness.`
+// cold server can expose the indexing controls. Keep it aligned with the
+// installed skill; visibility is client/model behavior, not a server-injected
+// chat event.
+const toolVisibilityInstructions = `Before every Kivgraph MCP call, send a brief user-visible preamble in the conversation's language: Kivgraph · <tool> — <target>: <purpose>. Name the exact tool, queried symbol/file/repository/scope, and question it answers. For find_by_intent, quote its exact "intent" value as the target, never a summary. For parallel calls, one preamble may list each call; announce repeats too. State intent, not success; do not dump other arguments or secrets. This notice is not approval for index_project or start_index_project. Freshness is a gate: if graph_status does not attest the target checkout and generation, use consent-gated start_index_project, poll get_index_status to completion, reconnect if graph_status was absent, then call graph_status again before using graph evidence. Only the default profile carries content freshness.`
 
 // serverInstructions carries routing and visibility guidance across schema
 // deferral in clients that consume MCP connection instructions.
@@ -57,4 +58,4 @@ Where it loses: a rare name in a single small repository is cheaper to grep, and
 // this.
 const staleServerInstructions = toolVisibilityInstructions + `
 
-Kivgraph has no published graph, so no query tool can answer from one. If index_project is exposed, use it through its approval flow, then reconnect this server before calling graph_status. Otherwise, run "kivgraph index --full" to build one, then restart this server. Until then, use the host's own search and file tools.`
+Kivgraph has no published graph, so no graph query can answer from one. If start_index_project is exposed, use its approval flow and poll get_index_status until completion, then reconnect before calling graph_status. Otherwise, use index_project through its approval flow or run "kivgraph index --full", then restart this server. Until then, use the host's own search and file tools.`

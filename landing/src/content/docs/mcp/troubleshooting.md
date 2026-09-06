@@ -16,25 +16,26 @@ Every failure the tool surface returns carries a stable code and a human-readabl
 | `TRAVERSAL_LIMIT_REACHED` | The traversal exceeded its deadline. |
 | `SNAPSHOT_UNAVAILABLE` | The published snapshot is inconsistent or could not be read. |
 | `INDEX_NOT_READY` | No graph is published. |
-| `PERMISSION_REQUIRED` | `index_project` was called without approval. |
-| `PERMISSION_DENIED` | The user refused the `index_project` elicitation. |
-| `INDEXING_FAILED` | `index_project` ran and the pass failed. |
+| `PERMISSION_REQUIRED` | An indexing mutation was called without approval. |
+| `PERMISSION_DENIED` | The user refused an indexing elicitation. |
+| `INDEXING_FAILED` | An indexing pass failed. |
+| `INDEXING_IN_PROGRESS` | An asynchronous index is already running. |
 
 ## The client sees no tools
 
 **Symptom**
 
-The client lists one tool, `index_project`, and nothing else. The session instructions read:
+The client lists the three indexing controls and no graph-query tools. The session instructions explain how to start and poll the first index.
 
 ```text
-Kivgraph has no published graph, so no query tool can answer from one. Run "kivgraph index --full" to build one, then restart this server. Until then, use the host's own search and file tools.
+Kivgraph has no published graph, so no graph query can answer from one. Use start_index_project and poll get_index_status, or run "kivgraph index --full", then restart this server.
 ```
 
 **Cause**
 
-`serve` checks for a published generation before it registers anything. With none, it registers only `index_project` and returns. `index_project` is the exception because it is how a client without a graph builds one, and it needs no graph to run.
+`serve` checks for a published generation before it registers graph-query tools. With none, it registers `start_index_project`, `get_index_status`, and the synchronous compatibility tool `index_project`. They need no graph to run.
 
-The handshake still completes. The client spawns this process itself, so exiting reads as a crash and says nothing; and publishing ten tools that would answer `INDEX_NOT_READY` to everything teaches the agent that the tools do not work.
+The handshake still completes. The client spawns this process itself, so exiting reads as a crash and says nothing; and publishing eleven graph tools that would answer `INDEX_NOT_READY` to everything teaches the agent that the tools do not work.
 
 **Fix**
 
@@ -154,7 +155,7 @@ The two not-found cases need different fixes, so they read differently. The firs
 
 Drop `repository` and `path` and call again. If it is still absent, search by name instead: `find_symbol` returns an empty result set rather than an error, so `{"name": "ThisSymbolDoesNotExistAnywhere"}` answers `"total": 0` and proves the absence. Use `list_repositories` for the registered names.
 
-## index_project refuses to run
+## An indexing tool refuses to run
 
 **Symptom**
 
@@ -170,7 +171,9 @@ PERMISSION_DENIED: project indexing was not approved
 
 **Cause**
 
-`index_project` registers projects and rebuilds the whole corpus. It is gated on explicit user approval, and it never infers approval from the call.
+`index_project` and `start_index_project` register projects and rebuild the
+whole corpus. Both are gated on explicit user approval, and neither infers
+approval from the call.
 
 **Fix**
 
@@ -194,6 +197,9 @@ another process is publishing into this generation store
 ```
 
 Reaching a client through `index_project`, this arrives as `INDEXING_FAILED` with that text inside the message.
+Through `start_index_project`, the accepted call returns an `operation_id`;
+polling `get_index_status` later reports `failed`, with `INDEXING_FAILED` and the
+same lock message.
 
 **Cause**
 
@@ -203,7 +209,12 @@ The lock does not wait. A rebuild takes minutes and blocking would look like a h
 
 **Fix**
 
-Let the winner finish, then retry. For the follower inside a running `serve` or `ui` this is not a failure and is not reported as one: it is exactly what the lock exists to produce, and the generation already published keeps answering.
+Let the winner finish, then call `start_index_project` again with the same
+projects to create a new operation. A failed `operation_id` is terminal and
+`get_index_status` only reports its outcome; it does not rerun the index. For
+the follower inside a running `serve` or `ui` this is not a failure and is not
+reported as one: it is exactly what the lock exists to produce, and the
+generation already published keeps answering.
 
 ## The graph is behind the working tree
 

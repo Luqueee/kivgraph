@@ -176,6 +176,12 @@ declarado en la raíz.
 - `index_project` emite `notifications/progress` cuando la petición trae
   `progressToken`: un rebuild completo dura minutos y un cliente MCP aplica su
   propio timeout a la llamada. Sin token no se instala callback alguno.
+- `start_index_project` es la ruta portable para clientes con un timeout fijo:
+  devuelve un `operation_id` inmediatamente y `get_index_status` lo consulta
+  hasta `completed` o `failed`. El daemon comparte el estado entre sus sesiones;
+  un `serve` por stdio lo conserva durante la vida de ese proceso. El estado no
+  sobrevive un reinicio y conserva como máximo 32 operaciones terminadas. Ver
+  ADR 0099.
 - `index_project` acepta un lote (`projects`) y reconstruye **una sola vez**.
   Un rebuild resuelve las aristas cross-repository sobre el conjunto completo
   de hechos, así que cuesta el corpus entero se añada lo que se añada: llamar

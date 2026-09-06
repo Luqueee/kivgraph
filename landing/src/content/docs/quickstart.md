@@ -87,11 +87,11 @@ skill. See [Clients](/mcp/clients/).
 
 ## What `serve` guarantees
 
-With no published generation there is no query surface. `serve` completes the
-handshake, publishes only `index_project` — which is how a client with no graph
-builds its first one — and puts the rebuild command in its `instructions`. It
-does not exit: a client launches the process itself, so exiting reads as a
-crash.
+With no published generation there is no graph-query surface. `serve` completes
+the handshake and publishes the three indexing controls — which is how a client
+with no graph builds its first one — and puts the rebuild path in its
+`instructions`. It does not exit: a client launches the process itself, so
+exiting reads as a crash.
 
 The process writes MCP framing exclusively to `stdout` and logs to `stderr`. It
 follows the published generation: it loads the HotSnapshot at start and

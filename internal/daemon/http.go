@@ -411,6 +411,11 @@ func (served *HTTPServer) Serve(ctx context.Context) error {
 // keeps another local process out, and the origin check keeps a web page from
 // making the user's own browser ask on its behalf.
 func mcpHandler(options Options, token string) http.Handler {
+	if options.IndexJobs == nil && options.Indexer != nil {
+		// The SDK callback builds one server per HTTP session. Keep operation
+		// state outside it so reconnecting does not lose an in-flight index.
+		options.IndexJobs = kivmcp.NewIndexJobs(options.Indexer)
+	}
 	// A server per session, for the same reason the socket half builds one: the
 	// tool surface is decided when a server is built, and a daemon outlives
 	// generations.
@@ -427,8 +432,9 @@ func mcpHandler(options Options, token string) http.Handler {
 	crossOrigin := http.NewCrossOriginProtection()
 	crossOrigin.AddInsecureBypassPattern(MCPPath)
 	handler := sdkmcp.NewStreamableHTTPHandler(func(*http.Request) *sdkmcp.Server {
-		return kivmcp.NewServerWithMetricsAndSnapshotStoreAndIndexer(
-			options.Registry, options.SnapshotStore, options.Indexer)
+		return kivmcp.NewServerWithMetricsAndSnapshotStoreAndIndexerOptions(
+			options.Registry, options.SnapshotStore, options.Indexer,
+			kivmcp.ServerOptions{IndexJobs: options.IndexJobs})
 	}, &sdkmcp.StreamableHTTPOptions{CrossOriginProtection: crossOrigin})
 
 	// The comparison is constant-time, and no test in this package proves it:

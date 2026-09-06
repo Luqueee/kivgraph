@@ -124,11 +124,14 @@ args = ["serve"]
 
 [mcp_servers.kivgraph.tools.index_project]
 approval_mode = "prompt"
+
+[mcp_servers.kivgraph.tools.start_index_project]
+approval_mode = "prompt"
 ```
 
-The per-tool approval entry makes Codex ask before invoking the mutating
-`index_project` tool. The Kivgraph installer preserves approval settings and
-does not add this policy automatically.
+The per-tool approval entries make Codex ask before invoking either mutating
+index tool. The Kivgraph installer preserves approval settings and does not add
+this policy automatically.
 
 ### OpenCode
 
@@ -318,9 +321,9 @@ using it. The message names both versions; `kivgraph update` restarts a
 supervised daemon onto the installed release.
 
 With no published generation, `serve` still completes the handshake. It exposes
-only `index_project`, and its `instructions` tell the agent to run
-`kivgraph index --full` and restart the server. Nothing is broken: there is
-simply no graph to answer from yet.
+the three indexing controls, and its `instructions` tell the agent to start and
+poll an index or run `kivgraph index --full`, then restart the server. Nothing
+is broken: there is simply no graph to answer from yet.
 
 `serve` also writes the default configuration when none exists, and continues,
 because a client spawns the server itself and exiting because nobody ran `init`

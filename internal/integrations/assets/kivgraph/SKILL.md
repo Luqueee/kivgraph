@@ -19,10 +19,11 @@ exact tool, queried symbol/file/repository/scope, and question it answers. For
 find_by_intent, quote its exact "intent" value as the target, never a summary.
 For parallel calls, one preamble may list each call; announce repeats too.
 State intent, not success; do not dump other arguments or secrets. This notice
-is not approval for index_project. Freshness is a gate: if graph_status does
-not attest the target checkout and generation, use consent-gated index_project,
-reconnect if graph_status was absent, then call graph_status again before using
-graph evidence. Only the default profile carries content freshness.
+is not approval for index_project or start_index_project. Freshness is a gate:
+if graph_status does not attest the target checkout and generation, use
+consent-gated start_index_project, poll get_index_status to completion, reconnect
+if graph_status was absent, then call graph_status again before using graph
+evidence. Only the default profile carries content freshness.
 
 For example: `Kivgraph · find_references — NewServer: check who calls it.`
 For `find_by_intent`: `Kivgraph · find_by_intent — "HTTP endpoints and routes": find the declarations that implement it.`
@@ -117,16 +118,21 @@ repository/path/qualified-name triple remains portable across profiles.
    `moved: false` and a `current_commit`, plus `content_freshness.state: fresh`
    whose generation equals `snapshot_id`. If any condition is missing, `stale`,
    `unverified` or `unavailable`, send the visible preamble and call
-   `index_project` for the target checkout through the client's approval flow.
+   `start_index_project` for the target checkout through the client's approval
+   flow, then poll `get_index_status` until it completes or fails.
    When it succeeds, call `graph_status` again and use graph evidence only from
-   the attested generation. If the session began with no published graph, only
-   `index_project` was exposed: reconnect after it publishes before that
-   `graph_status` call. Content freshness attests the default profile only. A
-   non-default profile or aggregate response deliberately omits it; its
+   the attested generation. If a normal server session began with no published
+   graph, only the three indexing controls were exposed: reconnect after it
+   publishes before that `graph_status` call. Introspection is
+   different: `kivgraph serve --introspection` sets
+   `ExposeUnavailableTools: true` and exposes the complete catalog, so in that
+   mode call `graph_status` without reconnecting.
+   Content freshness attests the default
+   profile only. A non-default profile or aggregate response deliberately omits it; its
    `snapshot_id` is not a substitute. Name that limitation and inspect only
    directly relevant files instead of claiming fresh graph evidence. If the
-   checkout is not registered, obtain its `index_project` arguments from its
-   local project manifests; do not invent a repository name or language list.
+   checkout is not registered, obtain its `start_index_project` arguments from
+   its local project manifests; do not invent a repository name or language list.
    If approval is denied, the tool is absent, or indexing fails, name that
    limitation, then inspect only the directly relevant files. Never present a
    graph from another checkout as evidence for the target branch.
@@ -300,11 +306,14 @@ for `REFERENCES` too when a search for callers of a Rust function looks empty.
 
 ## Indexing
 
-`index_project` is the only mutating tool. It requires explicit user approval,
-registers projects and rebuilds the whole graph. Its optional string `profile`
-selects that graph and creates the profile when it does not exist. Ask for
-confirmation first,
-and never claim success until the new generation and snapshot are published.
+`index_project` and `start_index_project` are the two mutating tools. Both
+require explicit user approval, register projects and rebuild the whole graph.
+Their optional string `profile` selects that graph and creates the profile when
+it does not exist. Prefer `start_index_project`: it returns an `operation_id`
+immediately, and `get_index_status` reports `working`, `completed` or `failed`
+without holding one tool call open for the rebuild. Ask for confirmation first,
+and never claim success until the status carries the published generation and
+snapshot.
 
 Clients with MCP form elicitation are prompted by the server. Codex uses its
 native tool-approval prompt instead, then sends `confirmed: true`; clients with
@@ -314,11 +323,11 @@ only URL elicitation use the same explicit fallback.
   cross-repository edges over the complete fact set, so it costs the whole
   corpus whatever was added: eleven separate calls build eleven graphs and
   keep the last one.
-- The call reports `notifications/progress` per unit of work. A full rebuild
-  can outlive the timeout a client applies to a single call; if the client
-  gives up, the work still completes and publishes. Verify with `graph_status`
-  -- a `snapshot_id` that advanced means the pass finished -- rather than
-  retrying, which starts the whole rebuild again.
+- Poll `get_index_status` using the exact `operation_id` returned by
+  `start_index_project`. Never retry the mutation because a status poll failed:
+  that would start the whole rebuild again. The synchronous compatibility tool
+  reports `notifications/progress` per unit of work, but clients are not
+  required to extend their timeout when those notifications arrive.
 - Reindexing after a change is much cheaper than the first pass: unindexed
   work is served from the fact cache, and only the units whose inputs changed
   are analysed again.
