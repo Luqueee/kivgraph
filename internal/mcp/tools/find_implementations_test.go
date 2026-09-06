@@ -10,7 +10,7 @@ func TestImplementationsPageContainsTypedRelationsOnly(t *testing.T) {
 	args := FindImplementationsInput{StableKey: "iface-shared", Limit: 1}
 	_, first, err := findImplementations(context.Background(), nil, args, store)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("find implementations with %#v: %v", args, err)
 	}
 	if first.Total != 2 || first.Returned != 1 || first.NextCursor == nil {
 		t.Fatalf("page: %#v", first)
@@ -21,18 +21,18 @@ func TestImplementationsPageContainsTypedRelationsOnly(t *testing.T) {
 	args.Cursor = *first.NextCursor
 	_, second, err := findImplementations(context.Background(), nil, args, store)
 	if err != nil || second.Returned != 1 || second.NextCursor != nil {
-		t.Fatalf("second: %#v %v", second, err)
+		t.Fatalf("second page with %#v: %#v %v", args, second, err)
 	}
 	if first.Results.Implementations[0].StableKey == second.Results.Implementations[0].StableKey {
 		t.Fatal("duplicate page")
 	}
 	args.Detection = "declared"
 	if _, _, err := findImplementations(context.Background(), nil, args, store); err == nil {
-		t.Fatal("cursor accepted changed filters")
+		t.Fatalf("cursor accepted changed filters: %#v", args)
 	}
 	args.Detection = ""
 	if _, _, err := findImplementations(context.Background(), nil, args, dispatchSnapshot(t, 201, 2)); err == nil {
-		t.Fatal("cursor crossed generations")
+		t.Fatalf("cursor crossed generations: %#v", args)
 	}
 	_, concrete, err := findImplementations(context.Background(), nil, FindImplementationsInput{StableKey: "impl-sole"}, store)
 	if err != nil || concrete.Total != 0 {

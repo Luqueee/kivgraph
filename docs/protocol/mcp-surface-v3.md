@@ -294,9 +294,9 @@ leería como «aquí no hay nada declarado», que es una respuesta distinta.
 
 ## Implementaciones tipadas
 
-`find_implementations` consulta relaciones IMPLEMENTS y OVERRIDES, con evidencia
+`find_implementations` consulta relaciones `IMPLEMENTS` y `OVERRIDES`, con evidencia
 declarada o estructural de TypeScript. Devuelve `results.subject` e
 `results.implementations`, identidades canónicas, generación, cursor y
 completitud. Los filtros `repo`, `language`, `paths` y `detection` se aplican
-antes de paginar. Una generación anterior al esquema 5 devuelve LOWER_BOUND.
-Véase ADR 0116 para el ámbito de tipos y la compatibilidad del protocolo.
+antes de paginar. Una generación anterior al esquema `5` devuelve `LOWER_BOUND`.
+Véase ADR `0116` para el ámbito de tipos y la compatibilidad del protocolo.

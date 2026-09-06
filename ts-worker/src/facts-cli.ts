@@ -394,6 +394,11 @@ export async function collectFacts(
       extendsResolution.extends,
       manifest?.name ?? repositoryName,
     );
+    const implementationFacts = extendsFactSymbols(
+      root,
+      implementationResolution.edges,
+      manifest?.name ?? repositoryName,
+    ).extends;
 
     const dependencyEvidenceFiles = dependencyResolution.dependencies
       .map((dependency) => dependency.imports[0]?.fileName)
@@ -522,12 +527,8 @@ export async function collectFacts(
       }),
       exports: exportSymbols.exports,
       extends: extendsFacts.extends,
-      implementations: implementationResolution.edges.map((edge) => {
-        const fact = extendsFactSymbols(
-          root,
-          [edge],
-          manifest?.name ?? repositoryName,
-        ).extends[0];
+      implementations: implementationResolution.edges.map((edge, index) => {
+        const fact = implementationFacts[index];
         if (fact === undefined)
           throw new Error("implementation normalization omitted an edge");
         return { ...fact, detection: edge.detection, relation: edge.relation };

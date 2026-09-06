@@ -106,7 +106,7 @@ func TestProfileUpgradeRefusesActiveWritersAndCanRetry(t *testing.T) {
 			}
 			t.Cleanup(func() { _ = lock.Release() })
 			if _, err := LoadProfile(path, ""); err == nil {
-				t.Fatal("migrated during active write")
+				t.Fatalf("migrated while %q was held", name)
 			}
 			if _, err := os.Stat(filepath.Join(state, "profiles", "default")); !errors.Is(err, os.ErrNotExist) {
 				t.Fatalf("published on refusal: %v", err)

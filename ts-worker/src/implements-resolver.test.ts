@@ -86,27 +86,19 @@ export type TextBox = Box<string>;
 `);
   const result = await resolveImplementations(service, view, symbols, []);
   expect(
-    result.edges.some(
-      (edge) =>
-        edge.base.sourceQualifiedName === "StringBox" &&
-        edge.targetQualifiedName === "Box" &&
-        edge.detection === "declared",
-    ),
-  ).toBe(true);
-  expect(
-    result.edges.some(
-      (edge) =>
-        edge.base.sourceQualifiedName === "Generic" &&
-        edge.targetQualifiedName === "TextBox",
-    ),
-  ).toBe(true);
-  expect(
-    result.edges.some(
-      (edge) =>
-        edge.base.sourceQualifiedName === "NumericBox" &&
-        edge.targetQualifiedName === "TextBox",
-    ),
-  ).toBe(false);
+    result.edges.map((edge) => [
+      edge.base.sourceQualifiedName,
+      edge.targetQualifiedName,
+      edge.detection,
+    ]),
+  ).toEqual([
+    ["Generic", "Box", "structural"],
+    ["Generic", "TextBox", "structural"],
+    ["Generic.get", "Box.get", "structural"],
+    ["StringBox", "Box", "declared"],
+    ["StringBox", "TextBox", "structural"],
+    ["StringBox.get", "Box.get", "declared"],
+  ]);
 });
 
 it("retains canonical provider identities for imported interfaces and methods", async () => {

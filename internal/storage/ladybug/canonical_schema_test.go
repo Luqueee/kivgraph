@@ -15,7 +15,7 @@ func TestCanonicalSchemaFileMatchesTheMetadata(t *testing.T) {
 	path := filepath.Join("..", "..", "..", "schemas", "ladybug", "005-canonical.cypher")
 	contents, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("read canonical schema: %v", err)
+		t.Fatalf("read canonical schema %q: %v", path, err)
 	}
 	if string(contents) != CanonicalSchemaDocument() {
 		t.Fatalf("%s is out of date; regenerate it from CanonicalSchemaDocument", path)

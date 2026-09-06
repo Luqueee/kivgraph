@@ -547,12 +547,27 @@ func readAnalyzerMessages(reader io.Reader, output chan<- analyzerMessage, done 
 	for scanner.Scan() {
 		var message analyzerMessage
 		if json.Unmarshal(scanner.Bytes(), &message) == nil && (message.ID != "" || message.Event != "") {
-			select {
-			case output <- message:
-			case <-done:
+			if !deliverBeforeShutdown(output, message, done) {
 				return
 			}
 		}
+	}
+}
+
+// deliverBeforeShutdown preserves a decoded final frame when the worker exit
+// and the reader become observable together. It still lets an undrained reader
+// stop once delivering the frame would block.
+func deliverBeforeShutdown[T any](output chan<- T, value T, done <-chan struct{}) bool {
+	select {
+	case output <- value:
+		return true
+	default:
+	}
+	select {
+	case output <- value:
+		return true
+	case <-done:
+		return false
 	}
 }
 
@@ -1178,9 +1193,7 @@ func readMessages(reader io.Reader, output chan<- rpcMessage, done <-chan struct
 		}
 		if json.Unmarshal(body, &envelope) == nil {
 			message = rpcMessage{ID: envelope.ID, Method: envelope.Method, Result: envelope.Result, Error: envelope.Error}
-			select {
-			case output <- message:
-			case <-done:
+			if !deliverBeforeShutdown(output, message, done) {
 				return
 			}
 		}

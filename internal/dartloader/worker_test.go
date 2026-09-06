@@ -70,6 +70,25 @@ func TestDartReaderStopsWhenNobodyDrainsNotifications(t *testing.T) {
 	select {
 	case <-finished:
 	case <-time.After(time.Second):
-		t.Fatal("reader leaked on a full output channel")
+		t.Fatal("analyzer reader did not stop after done closed while output was blocked")
+	}
+}
+
+func TestDartReadersDeliverDecodedFrameBeforeObservedShutdown(t *testing.T) {
+	done := make(chan struct{})
+	close(done)
+
+	analyzerOutput := make(chan analyzerMessage, 1)
+	readAnalyzerMessages(strings.NewReader(`{"event":"server.status"}`+"\n"), analyzerOutput, done)
+	if message, ok := <-analyzerOutput; !ok || message.Event != "server.status" {
+		t.Fatalf("analyzer final frame = %#v, open = %v", message, ok)
+	}
+
+	lspOutput := make(chan rpcMessage, 1)
+	body := `{"jsonrpc":"2.0","id":1,"result":{"ready":true}}`
+	framed := fmt.Sprintf("Content-Length: %d\r\n\r\n%s", len(body), body)
+	readMessages(strings.NewReader(framed), lspOutput, done)
+	if message, ok := <-lspOutput; !ok || string(message.ID) != "1" {
+		t.Fatalf("LSP final frame = %#v, open = %v", message, ok)
 	}
 }

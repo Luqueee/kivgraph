@@ -1355,7 +1355,7 @@ func TestEscapesRepositoryReadsThePathAndNotItsSpelling(t *testing.T) {
 func TestNormalizeTypeScriptImplementationEvidence(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join("..", "..", "testdata", "protocol", "ts-facts-v5", "implementations.json"))
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("read implementations.json: %v", err)
 	}
 	payload, err := DecodeTypeScriptPayload(data)
 	if err != nil {
