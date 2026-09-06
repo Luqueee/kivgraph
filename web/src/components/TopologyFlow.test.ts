@@ -279,6 +279,23 @@ describe("TopologyFlow", () => {
     expect(edges[0].targetHandle).toBe("target");
   });
 
+  it("adds server-grouped occurrences to the visual edge count", () => {
+    const groupedModel = {
+      ...model,
+      edges: model.edges.map((edge, index) =>
+        index === 0
+          ? { ...edge, relationship: { ...edge.relationship, occurrences: 5 } }
+          : edge,
+      ),
+    };
+
+    const edges = createTopologyFlowEdges(groupedModel, null);
+
+    expect(edges).toHaveLength(1);
+    expect(edges[0].data?.count).toBe(6);
+    expect(edges[0].label).toBe("depends on ×6");
+  });
+
   it("keeps grouped relationship semantics visible in canvas and accessible labels", () => {
     const expected = [
       {

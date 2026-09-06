@@ -22,11 +22,33 @@ import (
 )
 
 func (assembler *topologyAssembler) addRelationship(relationship topologyRelationshipView) bool {
+	if assembler.groupRelationships && relationship.Type == "code_dependency" {
+		key := relationshipGroupKey(relationship)
+		evidence := relationship.Evidence
+		occurrences := relationship.Occurrences
+		if occurrences == 0 {
+			occurrences = 1
+		}
+		if index, exists := assembler.relationshipGroups[key]; exists {
+			if _, duplicate := assembler.groupEvidence[key][evidence]; duplicate {
+				return true
+			}
+			assembler.groupEvidence[key][evidence] = struct{}{}
+			assembler.relationships[index].Occurrences += occurrences
+			return true
+		}
+		relationship.Evidence = ""
+		relationship.Occurrences = occurrences
+		assembler.relationshipGroups[key] = len(assembler.relationships)
+		assembler.groupEvidence[key] = map[string]struct{}{evidence: {}}
+		assembler.relationships = append(assembler.relationships, relationship)
+		return true
+	}
 	key := relationshipIdentityKey(relationship)
 	if _, exists := assembler.relationshipKeys[key]; exists {
 		return true
 	}
-	if len(assembler.relationships) >= maxTopologyRelationships {
+	if assembler.maxRelationships > 0 && len(assembler.relationships) >= assembler.maxRelationships {
 		assembler.markTruncated("relationship limit reached")
 		return false
 	}
@@ -43,6 +65,10 @@ func (assembler *topologyAssembler) markTruncated(reason string) {
 }
 
 func newTopologyAssembler() *topologyAssembler {
+	return newTopologyAssemblerWithLimit(maxTopologyRelationships)
+}
+
+func newTopologyAssemblerWithLimit(maxRelationships int) *topologyAssembler {
 	return &topologyAssembler{
 		repositories:         make(map[topology.LogicalRepositoryID]topology.LogicalRepository),
 		repositoryLanguages:  make(map[topology.LogicalRepositoryID][]string),
@@ -54,7 +80,16 @@ func newTopologyAssembler() *topologyAssembler {
 		profileGenerations:   make(map[string]string),
 		relationships:        make([]topologyRelationshipView, 0),
 		relationshipKeys:     make(map[string]struct{}),
+		relationshipGroups:   make(map[string]int),
+		groupEvidence:        make(map[string]map[string]struct{}),
+		maxRelationships:     maxRelationships,
 	}
+}
+
+func newGroupedTopologyAssembler() *topologyAssembler {
+	assembler := newTopologyAssemblerWithLimit(0)
+	assembler.groupRelationships = true
+	return assembler
 }
 
 func (assembler *topologyAssembler) addComposition(ctx context.Context, data topologyProfileData) error {
@@ -346,6 +381,9 @@ func (handler *Handler) evictTopologyRelationshipsLocked() {
 func (assembler *topologyAssembler) addSnapshotRelationships(ctx context.Context, data topologyProfileData) error {
 	snapshot := data.Snapshot
 	for _, dependency := range snapshot.AllPackageDependencies() {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		source, sourceOK := snapshot.Package(dependency.Source)
 		target, targetOK := snapshot.Package(dependency.Target)
 		if !sourceOK || !targetOK {
@@ -448,6 +486,9 @@ func (assembler *topologyAssembler) addSnapshotRelationships(ctx context.Context
 		return nil
 	}
 	for _, unresolved := range snapshot.UnresolvedReferences() {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		repository, err := snapshotRepositoryName(snapshot, unresolved.Repository)
 		if err != nil {
 			return err
@@ -604,6 +645,10 @@ func (assembler *topologyAssembler) response() topologyResponse {
 }
 
 func (assembler *topologyAssembler) emitSharedInputRelationships() {
+	if assembler.sharedEmitted {
+		return
+	}
+	assembler.sharedEmitted = true
 	worktrees := make([]topology.WorktreeID, 0, len(assembler.shared))
 	for worktree := range assembler.shared {
 		worktrees = append(worktrees, worktree)
@@ -779,6 +824,22 @@ func relationshipIdentityKey(relationship topologyRelationshipView) string {
 	}, "\x00")
 }
 
+func relationshipGroupKey(relationship topologyRelationshipView) string {
+	return strings.Join([]string{
+		relationship.Profile, relationship.GenerationID, relationship.Type,
+		relationship.Source.Type + ":" + relationship.Source.ID,
+		relationshipTargetKey(relationship), relationship.Kind, relationship.Status,
+		relationship.Confidence, relationship.Provenance, relationship.Reason,
+	}, "\x00")
+}
+
+func relationshipTargetKey(relationship topologyRelationshipView) string {
+	if relationship.Target == nil {
+		return ""
+	}
+	return relationship.Target.Type + ":" + relationship.Target.ID
+}
+
 func topologyConflictReason(reason string) bool {
 	switch strings.ToUpper(strings.TrimSpace(reason)) {
 	case "AMBIGUOUS_MODULE_PROVIDER", "AMBIGUOUS_PACKAGE_PROVIDER", "AMBIGUOUS_SYMBOL",
@@ -850,6 +911,16 @@ func parseTopologyQuery(values url.Values) (topologyQuery, error) {
 		}
 		query.GenerationPins[profile] = generationID
 	}
+	relationshipModes := values["relationships"]
+	if len(relationshipModes) > 1 {
+		return topologyQuery{}, errors.New("relationships may be supplied only once")
+	}
+	if len(relationshipModes) == 1 {
+		if relationshipModes[0] != "all" && relationshipModes[0] != "grouped" {
+			return topologyQuery{}, errors.New("relationships must be all or grouped when supplied")
+		}
+		query.RelationshipMode = relationshipModes[0]
+	}
 	return query, nil
 }
 
@@ -913,6 +984,11 @@ func (handler *Handler) buildTopology(ctx context.Context, query topologyQuery) 
 		data = append(data, profileData)
 	}
 	assembler := newTopologyAssembler()
+	if query.RelationshipMode == "all" {
+		assembler = newTopologyAssemblerWithLimit(0)
+	} else if query.RelationshipMode == "grouped" {
+		assembler = newGroupedTopologyAssembler()
+	}
 	for _, profileData := range data {
 		if err := assembler.addComposition(ctx, profileData); err != nil {
 			return topologyResponse{}, err
@@ -923,7 +999,13 @@ func (handler *Handler) buildTopology(ctx context.Context, query topologyQuery) 
 	// shared-input invalidation that explains why a generation is stale.
 	assembler.emitSharedInputRelationships()
 	for _, profileData := range data {
-		if err := handler.addSnapshotRelationships(ctx, assembler, profileData); err != nil {
+		var err error
+		if query.RelationshipMode == "all" || query.RelationshipMode == "grouped" {
+			err = assembler.addSnapshotRelationships(ctx, profileData)
+		} else {
+			err = handler.addSnapshotRelationships(ctx, assembler, profileData)
+		}
+		if err != nil {
 			return topologyResponse{}, fmt.Errorf("profile %q: %w", profileData.Name, err)
 		}
 	}

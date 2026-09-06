@@ -114,13 +114,15 @@ export function pinnedTopologyURL(
     .sort((left, right) =>
       left.id < right.id ? -1 : left.id > right.id ? 1 : 0,
     );
-  if (applicableProfiles.length === 0) return "/api/v1/topology";
+  if (applicableProfiles.length === 0)
+    return "/api/v1/topology?profile=*&relationships=grouped";
 
   const query = new URLSearchParams();
   for (const profile of applicableProfiles) query.append("profile", profile.id);
   for (const profile of applicableProfiles) {
     query.append("generation", `${profile.id}:${profile.generationId}`);
   }
+  query.set("relationships", "grouped");
   return `/api/v1/topology?${query.toString()}`;
 }
 
@@ -290,6 +292,10 @@ function DetailsPanel({
   const relationships = model.edges.filter(
     (edge) => edge.sourceKey === node.key || edge.targetKey === node.key,
   );
+  const relationshipCount = relationships.reduce(
+    (total, edge) => total + (edge.relationship.occurrences ?? 1),
+    0,
+  );
   const topologyURL = pinnedTopologyURL(node.profileIds, data.profiles);
   const graphURL = `/api/v1/search?name=${encodeURIComponent(node.id)}&mode=prefix`;
 
@@ -375,7 +381,7 @@ function DetailsPanel({
 
       <div className="grid gap-2">
         <h3 className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400">
-          evidence · {relationships.length}
+          evidence · {relationshipCount.toLocaleString()}
         </h3>
         {relationships.length === 0 ? (
           <p className="text-xs text-gray-400">
@@ -389,7 +395,12 @@ function DetailsPanel({
                 className="rounded-none border border-rule bg-raise p-2.5 text-[10px]"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span>{topologyEdgeKind(edge.relationship)}</span>
+                  <span>
+                    {topologyEdgeKind(edge.relationship)}
+                    {(edge.relationship.occurrences ?? 1) > 1
+                      ? ` ×${edge.relationship.occurrences?.toLocaleString()}`
+                      : ""}
+                  </span>
                   <Badge
                     className={statusClass(edge.relationship.status)}
                     variant="outline"
@@ -547,6 +558,11 @@ function RelationshipTable({
                 <span className="font-medium">
                   {topologyEdgeKind(relationship)}
                 </span>
+                {(relationship.occurrences ?? 1) > 1 ? (
+                  <span className="ml-2 text-slate-500">
+                    ×{relationship.occurrences?.toLocaleString()}
+                  </span>
+                ) : null}
                 <span className="ml-2 text-slate-500">
                   {relationship.status}
                 </span>
@@ -701,10 +717,20 @@ export function TopologyExplorer(): React.ReactElement {
       ].sort()
     : [];
   const isRepositoryMap = expandedProfiles.length > 0 || showWorktrees;
-  const relationshipCount = filteredModel?.relationships.length ?? 0;
+  const relationshipRowCount = filteredModel?.relationships.length ?? 0;
+  const relationshipCount =
+    filteredModel?.relationships.reduce(
+      (total, relationship) => total + (relationship.occurrences ?? 1),
+      0,
+    ) ?? 0;
+  const totalRelationshipCount =
+    model?.relationships.reduce(
+      (total, relationship) => total + (relationship.occurrences ?? 1),
+      0,
+    ) ?? 0;
   const relationshipPageCount = Math.max(
     1,
-    Math.ceil(relationshipCount / ACCESSIBLE_RELATIONSHIPS_PER_PAGE),
+    Math.ceil(relationshipRowCount / ACCESSIBLE_RELATIONSHIPS_PER_PAGE),
   );
   const visibleRelationshipPage = Math.min(
     relationshipPage,
@@ -728,9 +754,9 @@ export function TopologyExplorer(): React.ReactElement {
       className="h-full min-h-0 overflow-hidden bg-shell text-gray-100"
       data-testid="topology-explorer"
     >
-      <div className="mx-auto flex h-full min-h-0 w-full max-w-none flex-col gap-3 overflow-hidden px-3 py-3 md:px-5 md:py-4 lg:px-6">
-        <header className="flex shrink-0 flex-wrap items-end justify-between gap-3 pr-28 sm:pr-36">
-          <div>
+      <div className="mx-auto flex h-full min-h-0 w-full max-w-none flex-col gap-2 overflow-hidden p-2 md:p-3">
+        <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 pr-28 sm:pr-36">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
             <div className="flex items-center gap-2 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-graph-package">
               <span className="h-2 w-2 rounded-full bg-graph-package" />
               <span>Kivgraph / topology</span>
@@ -738,10 +764,10 @@ export function TopologyExplorer(): React.ReactElement {
                 read only
               </span>
             </div>
-            <h1 className="mt-2 font-mono text-2xl font-semibold tracking-tight text-gray-100 md:text-3xl">
+            <h1 className="font-mono text-lg font-semibold tracking-tight text-gray-100 md:text-xl">
               Profile topology
             </h1>
-            <p className="mt-1 text-xs text-gray-300">
+            <p className="hidden text-xs text-gray-400 2xl:block">
               A profile is the set of repositories Kivgraph resolves together.
             </p>
           </div>
@@ -802,7 +828,7 @@ export function TopologyExplorer(): React.ReactElement {
         {state.data && scopedData && model && filteredModel && scopeModel ? (
           <>
             <div className="grid shrink-0 gap-2 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="flex items-center justify-between gap-3 rounded-none border border-rule bg-panel px-3 py-2.5">
+              <div className="flex items-center justify-between gap-3 rounded-none border border-rule bg-panel px-3 py-1.5">
                 <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400">
                   visible nodes
                 </span>
@@ -810,16 +836,16 @@ export function TopologyExplorer(): React.ReactElement {
                   {filteredModel.nodes.length}/{model.nodes.length}
                 </span>
               </div>
-              <div className="flex items-center justify-between gap-3 rounded-none border border-rule bg-panel px-3 py-2.5">
+              <div className="flex items-center justify-between gap-3 rounded-none border border-rule bg-panel px-3 py-1.5">
                 <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400">
                   relationships
                 </span>
                 <span className="font-mono text-sm font-semibold tabular-nums text-gray-100">
-                  {filteredModel.relationships.length.toLocaleString()}/
-                  {model.relationships.length.toLocaleString()}
+                  {relationshipCount.toLocaleString()}/
+                  {totalRelationshipCount.toLocaleString()}
                 </span>
               </div>
-              <div className="flex items-center justify-between gap-3 rounded-none border border-rule bg-panel px-3 py-2.5">
+              <div className="flex items-center justify-between gap-3 rounded-none border border-rule bg-panel px-3 py-1.5">
                 <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400">
                   profiles
                 </span>
@@ -830,12 +856,12 @@ export function TopologyExplorer(): React.ReactElement {
                   }
                 </span>
               </div>
-              <div className="min-w-0 rounded-none border border-rule bg-panel px-3 py-2.5">
-                <span className="block font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400">
+              <div className="flex min-w-0 items-center justify-between gap-3 rounded-none border border-rule bg-panel px-3 py-1.5">
+                <span className="shrink-0 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400">
                   pinned generation
                 </span>
                 <span
-                  className="mt-1 block truncate text-xs font-medium text-gray-200"
+                  className="min-w-0 truncate text-xs font-medium text-gray-200"
                   title={scopedData.profiles
                     .map((profile) => `${profile.id} ${profile.generationId}`)
                     .join(" · ")}
@@ -865,30 +891,11 @@ export function TopologyExplorer(): React.ReactElement {
               </div>
             ) : null}
 
-            {filteredModel.boundaries.length > 0 ? (
-              <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 rounded-none border border-graph-cross/40 bg-graph-cross/10 px-3 py-2 text-[11px] text-gray-200">
-                <span className="font-mono font-semibold uppercase tracking-[0.14em] text-graph-cross">
-                  profile isolation
-                </span>
-                <span>
-                  {filteredModel.boundaries
-                    .map(
-                      (boundary) =>
-                        `${boundary.leftProfile} ↔ ${boundary.rightProfile}`,
-                    )
-                    .join(" · ")}
-                </span>
-                <span className="text-gray-400">
-                  cross-profile code relationships are not evaluated
-                </span>
-              </div>
-            ) : null}
-
             <div
-              className={`grid min-h-0 min-w-0 flex-1 gap-3 overflow-y-auto lg:overflow-hidden ${
+              className={`grid min-h-0 min-w-0 flex-1 gap-2 overflow-y-auto lg:overflow-hidden ${
                 selectedNode
-                  ? "lg:grid-cols-[13rem_minmax(0,1fr)_16rem]"
-                  : "lg:grid-cols-[13rem_minmax(0,1fr)]"
+                  ? "lg:grid-cols-[12rem_minmax(0,1fr)_15rem]"
+                  : "lg:grid-cols-[12rem_minmax(0,1fr)]"
               }`}
             >
               <aside className="min-h-0 overflow-y-auto rounded-none border border-rule bg-panel p-3">
@@ -1008,7 +1015,7 @@ export function TopologyExplorer(): React.ReactElement {
                 className="flex min-h-[36rem] min-w-0 flex-col overflow-hidden rounded-none border border-rule bg-panel lg:min-h-0"
                 aria-label="Topology map"
               >
-                <div className="flex shrink-0 items-center justify-between gap-3 border-b border-rule bg-panel px-3 py-2">
+                <div className="flex shrink-0 items-center justify-between gap-3 border-b border-rule bg-panel px-3 py-1.5">
                   <div>
                     <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400">
                       canvas
@@ -1020,9 +1027,39 @@ export function TopologyExplorer(): React.ReactElement {
                     </p>
                   </div>
                   <div className="text-right font-mono text-[10px] tabular-nums text-gray-400">
-                    <span className="block text-gray-200">
-                      {isRepositoryMap ? "repository map" : "profile overview"}
-                    </span>
+                    <div className="flex items-center justify-end gap-2">
+                      {filteredModel.boundaries.length > 0 ? (
+                        <span
+                          className="border border-graph-cross/40 bg-graph-cross/10 px-1.5 py-0.5 text-graph-cross"
+                          title={`${filteredModel.boundaries
+                            .map(
+                              (boundary) =>
+                                `${boundary.leftProfile} ↔ ${boundary.rightProfile}`,
+                            )
+                            .join(
+                              " · ",
+                            )}. Cross-profile code relationships are not evaluated.`}
+                        >
+                          <span aria-hidden="true">profiles isolated</span>
+                          <span className="sr-only">
+                            Profiles isolated:{" "}
+                            {filteredModel.boundaries
+                              .map(
+                                (boundary) =>
+                                  `${boundary.leftProfile} and ${boundary.rightProfile}`,
+                              )
+                              .join(", ")}
+                            . Cross-profile code relationships are not
+                            evaluated.
+                          </span>
+                        </span>
+                      ) : null}
+                      <span className="text-gray-200">
+                        {isRepositoryMap
+                          ? "repository map"
+                          : "profile overview"}
+                      </span>
+                    </div>
                     <span>
                       {isRepositoryMap
                         ? "selection highlights direct links"
@@ -1053,17 +1090,17 @@ export function TopologyExplorer(): React.ReactElement {
             </div>
 
             <details className="shrink-0 overflow-hidden rounded-none border border-rule bg-panel">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
-                <div>
-                  <span className="block font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-1.5 [&::-webkit-details-marker]:hidden">
+                <div className="flex items-baseline gap-3">
+                  <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400">
                     accessibility
                   </span>
-                  <span className="mt-1 block font-mono text-sm font-semibold text-gray-100">
+                  <span className="font-mono text-xs font-semibold text-gray-100">
                     Relationship list
                   </span>
                 </div>
-                <div className="text-right font-mono text-[10px] text-gray-400">
-                  <span className="block tabular-nums text-gray-200">
+                <div className="flex items-center gap-3 text-right font-mono text-[10px] text-gray-400">
+                  <span className="tabular-nums text-gray-200">
                     {filteredModel.relationships.length.toLocaleString()} rows
                   </span>
                   <span>keyboard-friendly detail view</span>
@@ -1082,7 +1119,7 @@ export function TopologyExplorer(): React.ReactElement {
                       <p aria-live="polite">
                         Showing rows {firstRelationshipRow + 1}–
                         {lastRelationshipRow} of{" "}
-                        {relationshipCount.toLocaleString()} returned
+                        {relationshipRowCount.toLocaleString()} returned
                         relationships.
                       </p>
                       {relationshipPageCount > 1 ? (

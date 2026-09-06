@@ -384,6 +384,50 @@ function overlayInvalidationTopologyPayload(): object {
   };
 }
 
+test("keeps the general graph chrome compact and clear of the view switcher", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/meta", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        status: "ready",
+        snapshot_id: 7,
+        counts: {
+          repositories: 0,
+          packages: 0,
+          files: 0,
+          symbols: 0,
+          edges: 0,
+          unresolved: 0,
+        },
+        layout: null,
+      }),
+    });
+  });
+
+  await page.goto("/");
+
+  const chrome = page.getByTestId("viewer-chrome");
+  const status = page.getByTestId("graph-status-bar");
+  const viewSwitcher = page.getByRole("group", { name: "Viewer mode" });
+  const legend = page.getByTestId("graph-legend");
+  await expect(chrome).toBeVisible();
+  await expect(
+    chrome.getByText("Graph explorer", { exact: true }),
+  ).toBeVisible();
+  await expect(chrome).toHaveCSS("border-radius", "0px");
+  await expect(legend).not.toHaveAttribute("open");
+
+  const statusBox = await status.boundingBox();
+  const switcherBox = await viewSwitcher.boundingBox();
+  expect(statusBox).not.toBeNull();
+  expect(switcherBox).not.toBeNull();
+  expect((statusBox?.x ?? 0) + (statusBox?.width ?? 0)).toBeLessThanOrEqual(
+    switcherBox?.x ?? 0,
+  );
+});
+
 test("keeps a large topology explorable", async ({ page }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
@@ -673,6 +717,49 @@ test("keeps overlay and shared-input invalidation semantics visible", async ({
   expect(pageErrors).toEqual([]);
 });
 
+test("gives the topology map most of the viewport without clipping controls", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/meta", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ status: "ready", counts: {} }),
+    });
+  });
+  await page.route("**/api/v1/topology**", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify(overlayInvalidationTopologyPayload()),
+    });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "topology" }).click();
+
+  const map = page.getByLabel("Profile topology map");
+  const controls = page.getByLabel("Topology map controls");
+  await expect(map).toBeVisible();
+  await expect(controls).toBeVisible();
+  await expect(
+    page.getByText("profiles isolated", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("cross-profile code relationships are not evaluated", {
+      exact: true,
+    }),
+  ).toHaveCount(0);
+
+  const mapBox = await map.boundingBox();
+  const controlsBox = await controls.boundingBox();
+  expect(mapBox).not.toBeNull();
+  expect(controlsBox).not.toBeNull();
+  expect(mapBox?.height).toBeGreaterThan(750);
+  expect(controlsBox?.y).toBeGreaterThanOrEqual(mapBox?.y ?? 0);
+  expect(
+    (controlsBox?.y ?? 0) + (controlsBox?.height ?? 0),
+  ).toBeLessThanOrEqual((mapBox?.y ?? 0) + (mapBox?.height ?? 0));
+});
+
 test("keeps the current map pinned until the reader loads a newer generation", async ({
   page,
 }) => {
@@ -717,7 +804,10 @@ test("keeps the current map pinned until the reader loads a newer generation", a
     ),
   ).toBeVisible();
   await expect(page.getByText("10,000/10,000")).toBeVisible();
-  expect(topologyRequests).toContain("?generation=default%3A000107");
+  expect(topologyRequests).toContain("?profile=*&relationships=grouped");
+  expect(topologyRequests).toContain(
+    "?profile=*&generation=default%3A000107&relationships=grouped",
+  );
 
   latestGeneration = "000108";
   await page.getByRole("button", { name: "load latest" }).click();

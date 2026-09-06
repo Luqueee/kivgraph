@@ -291,6 +291,8 @@ func TestHandlerTopologyReturnsPinnedProfilesAndRelationships(t *testing.T) {
 		"/api/v1/topology?profile=default&generation=other:000008",
 		"/api/v1/topology?profile=default&generation=default:not-a-generation",
 		"/api/v1/topology?profile=default&generation=default:000007&generation=default:000008",
+		"/api/v1/topology?relationships=full",
+		"/api/v1/topology?relationships=all&relationships=all",
 	} {
 		request = httptest.NewRequest(http.MethodGet, rejected, nil)
 		response = httptest.NewRecorder()
@@ -344,6 +346,74 @@ func TestTopologyRelationshipsPreserveCrossRepositoryEndpoints(t *testing.T) {
 		}
 	}
 	t.Fatalf("cross-repository dependency = missing from %#v", assembler.relationships)
+}
+
+func TestTopologyRelationshipScanStopsWhenCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := newTopologyAssemblerWithLimit(0).addSnapshotRelationships(ctx, topologyProfileData{
+		Name: "default", GenerationID: "000007", Snapshot: testSnapshotWithTopologyID(t, 7),
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("addSnapshotRelationships(profile=default, generation=000007, snapshot=7) error = %v, want context.Canceled", err)
+	}
+}
+
+func TestHandlerTopologyReturnsEveryRelationshipWhenRequested(t *testing.T) {
+	configPath, _ := topologyTestConfiguration(t, "default")
+	handler := NewHandlerWithTopology(
+		hotsnapshot.NewSnapshotStore(testSnapshotWithRelationshipCount(t, 7, maxTopologyRelationships+1)),
+		TopologyOptions{ConfigPath: configPath, Profile: "default"},
+	)
+	requestTopology := func(path string) topologyResponse {
+		t.Helper()
+		request := httptest.NewRequest(http.MethodGet, path, nil)
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("%s: topology status = %d, want %d; body=%s", path, response.Code, http.StatusOK, response.Body.String())
+		}
+		var value topologyResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &value); err != nil {
+			t.Fatalf("%s: decode topology: %v", path, err)
+		}
+		return value
+	}
+
+	bounded := requestTopology("/api/v1/topology")
+	if len(bounded.Relationships) != maxTopologyRelationships || !bounded.Completeness.Truncated {
+		t.Fatalf("/api/v1/topology with %d distinct fixture relationships = %d / %#v, want the declared default limit", maxTopologyRelationships+1, len(bounded.Relationships), bounded.Completeness)
+	}
+	const allRequest = "/api/v1/topology?relationships=all"
+	value := requestTopology(allRequest)
+	if len(value.Relationships) <= maxTopologyRelationships {
+		t.Fatalf("%s: relationships = %d, want more than the default limit %d", allRequest, len(value.Relationships), maxTopologyRelationships)
+	}
+	if value.Completeness.Truncated || strings.Contains(value.Completeness.Reason, "relationship limit reached") {
+		t.Fatalf("%s with %d distinct fixture relationships: completeness = %#v, want no relationship truncation", allRequest, maxTopologyRelationships+1, value.Completeness)
+	}
+	grouped := requestTopology("/api/v1/topology?relationships=grouped")
+	var groupedOccurrences uint64
+	for _, relationship := range grouped.Relationships {
+		occurrences := relationship.Occurrences
+		if occurrences == 0 {
+			occurrences = 1
+		}
+		groupedOccurrences += occurrences
+		if relationship.Type == "code_dependency" && relationship.Evidence != "" {
+			t.Fatalf("grouped code dependency evidence = %q, want evidence represented by occurrences", relationship.Evidence)
+		}
+	}
+	if groupedOccurrences != uint64(len(value.Relationships)) || len(grouped.Relationships) >= len(value.Relationships) {
+		t.Fatalf("grouped relationships = %d rows / %d occurrences, want %d complete occurrences in fewer rows", len(grouped.Relationships), groupedOccurrences, len(value.Relationships))
+	}
+	if grouped.Completeness.Truncated || strings.Contains(grouped.Completeness.Reason, "relationship limit reached") {
+		t.Fatalf("grouped completeness = %#v, want no relationship truncation", grouped.Completeness)
+	}
+	bounded = requestTopology("/api/v1/topology")
+	if len(bounded.Relationships) != maxTopologyRelationships || !bounded.Completeness.Truncated {
+		t.Fatalf("/api/v1/topology with %d distinct fixture relationships after complete requests = %d / %#v, want the declared default limit", maxTopologyRelationships+1, len(bounded.Relationships), bounded.Completeness)
+	}
 }
 
 func TestTopologyResponseUsesEmptyLanguageArrayWhenMetadataIsUnavailable(t *testing.T) {
@@ -1016,6 +1086,11 @@ func testSnapshotWithCrossRepositoryTopology(t *testing.T, snapshotID uint64) *h
 	return testSnapshotDataWithLanguagesAndCrossRepository(t, snapshotID, true, "go", true)
 }
 
+func testSnapshotWithRelationshipCount(t *testing.T, snapshotID uint64, relationshipCount int) *hotsnapshot.GraphSnapshot {
+	t.Helper()
+	return testSnapshotDataWithLanguagesCrossRepositoryAndRelationshipCount(t, snapshotID, true, "go", false, relationshipCount)
+}
+
 func testSnapshotData(t *testing.T, snapshotID uint64, includeTopologyRecords bool) *hotsnapshot.GraphSnapshot {
 	t.Helper()
 	return testSnapshotDataWithLanguages(t, snapshotID, includeTopologyRecords, "go")
@@ -1031,6 +1106,19 @@ func testSnapshotDataWithLanguagesAndCrossRepository(
 	includeTopologyRecords bool,
 	repositoryLanguages string,
 	includeCrossRepository bool,
+) *hotsnapshot.GraphSnapshot {
+	return testSnapshotDataWithLanguagesCrossRepositoryAndRelationshipCount(
+		t, snapshotID, includeTopologyRecords, repositoryLanguages, includeCrossRepository, 1,
+	)
+}
+
+func testSnapshotDataWithLanguagesCrossRepositoryAndRelationshipCount(
+	t *testing.T,
+	snapshotID uint64,
+	includeTopologyRecords bool,
+	repositoryLanguages string,
+	includeCrossRepository bool,
+	relationshipCount int,
 ) *hotsnapshot.GraphSnapshot {
 	t.Helper()
 	interner := hotsnapshot.NewStringInterner()
@@ -1057,6 +1145,10 @@ func testSnapshotDataWithLanguagesAndCrossRepository(
 	qnameC := intern("example.Other")
 	kindFunction := intern("function")
 	evidenceKey := intern("evidence:file:repo:src/index.go:1:2")
+	packageEvidence := make([]hotsnapshot.InternedString, relationshipCount)
+	for index := range packageEvidence {
+		packageEvidence[index] = intern(fmt.Sprintf("manifest:dependency:%06d", index))
+	}
 	intern("repo")
 	intern("/workspace/repo")
 	intern("example")
@@ -1103,10 +1195,19 @@ func testSnapshotDataWithLanguagesAndCrossRepository(
 	var packageDependencies []hotsnapshot.PackageDependencyRecord
 	var unresolved []hotsnapshot.UnresolvedReferenceRecord
 	if includeTopologyRecords {
-		packageDependencies = []hotsnapshot.PackageDependencyRecord{{
-			Source: 0, Target: packageDependencyTarget, Kind: facts.CodePackageDependsOn, Confidence: facts.CodeCandidate,
-			Provenance: facts.CodePackageManifest,
-		}}
+		packageDependencies = make([]hotsnapshot.PackageDependencyRecord, relationshipCount)
+		for index := range packageDependencies {
+			packageDependencies[index] = hotsnapshot.PackageDependencyRecord{
+				Source: 0, Target: packageDependencyTarget, Kind: facts.CodePackageDependsOn, Confidence: facts.CodeCandidate,
+				Provenance: facts.CodePackageManifest,
+			}
+			if relationshipCount > 1 {
+				packageDependencies[index].Evidence = packageEvidence[index]
+			}
+		}
+		if relationshipCount > 1 {
+			packageDependencies = append(packageDependencies, packageDependencies[0])
+		}
 		unresolved = []hotsnapshot.UnresolvedReferenceRecord{{
 			Key: evidenceKey, Repository: 0, File: 0, Source: 0, Language: language,
 			RequestedPackage: interned(stringTable, "example"), RequestedSymbol: interned(stringTable, "Missing"),

@@ -115,6 +115,7 @@ type topologyRelationshipView struct {
 	Provenance   string            `json:"provenance"`
 	Evidence     string            `json:"evidence,omitempty"`
 	Reason       string            `json:"reason,omitempty"`
+	Occurrences  uint64            `json:"occurrences,omitempty"`
 }
 
 type topologyCompletenessView struct {
@@ -124,9 +125,10 @@ type topologyCompletenessView struct {
 }
 
 type topologyQuery struct {
-	Profiles       []string
-	GenerationID   string
-	GenerationPins map[string]string
+	Profiles         []string
+	GenerationID     string
+	GenerationPins   map[string]string
+	RelationshipMode string
 }
 
 type topologyStoreSelection struct {
@@ -165,8 +167,13 @@ type topologyAssembler struct {
 	profileGenerations   map[string]string
 	relationships        []topologyRelationshipView
 	relationshipKeys     map[string]struct{}
+	relationshipGroups   map[string]int
+	groupEvidence        map[string]map[string]struct{}
 	truncated            bool
 	truncatedReason      string
+	maxRelationships     int
+	groupRelationships   bool
+	sharedEmitted        bool
 }
 
 type topologySharedInput struct {

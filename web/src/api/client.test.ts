@@ -51,6 +51,7 @@ const topologyPayload = {
       confidence: "STRUCTURAL_CERTAIN",
       provenance: "SOURCE_INVALIDATION",
       reason: "shared content changed after indexing",
+      occurrences: 7,
     },
   ],
   completeness: { complete: true, truncated: false },
@@ -61,6 +62,26 @@ afterEach(() => {
 });
 
 describe("fetchTopology", () => {
+  it("requests every published profile when no selection is supplied", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(topologyPayload), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchTopology();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/topology?profile=*&relationships=grouped",
+      {
+        signal: undefined,
+        headers: { Accept: "application/json" },
+      },
+    );
+  });
+
   it("decodes pinned profiles and preserves the typed topology fields", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify(topologyPayload), {
@@ -76,7 +97,7 @@ describe("fetchTopology", () => {
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/v1/topology?profile=default&profile=other&generation=default%3A000007&generation=other%3A000008",
+      "/api/v1/topology?profile=default&profile=other&generation=default%3A000007&generation=other%3A000008&relationships=grouped",
       {
         signal: undefined,
         headers: { Accept: "application/json" },
@@ -105,6 +126,29 @@ describe("fetchTopology", () => {
         generationId: "000007",
         type: "shared_input_invalidation",
         kind: "invalidates",
+        occurrences: 7,
+      }),
+    );
+  });
+
+  it("rejects a non-positive grouped occurrence count", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ...topologyPayload,
+          relationships: [
+            { ...topologyPayload.relationships[0], occurrences: 0 },
+          ],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchTopology()).rejects.toEqual(
+      expect.objectContaining({
+        code: "INVALID_RESPONSE",
+        message: expect.stringContaining("relationships[0].occurrences"),
       }),
     );
   });
