@@ -673,6 +673,49 @@ test("keeps overlay and shared-input invalidation semantics visible", async ({
   expect(pageErrors).toEqual([]);
 });
 
+test("gives the topology map most of the viewport without clipping controls", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/meta", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ status: "ready", counts: {} }),
+    });
+  });
+  await page.route("**/api/v1/topology**", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify(overlayInvalidationTopologyPayload()),
+    });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "topology" }).click();
+
+  const map = page.getByLabel("Profile topology map");
+  const controls = page.getByLabel("Topology map controls");
+  await expect(map).toBeVisible();
+  await expect(controls).toBeVisible();
+  await expect(
+    page.getByText("profiles isolated", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("cross-profile code relationships are not evaluated", {
+      exact: true,
+    }),
+  ).toHaveCount(0);
+
+  const mapBox = await map.boundingBox();
+  const controlsBox = await controls.boundingBox();
+  expect(mapBox).not.toBeNull();
+  expect(controlsBox).not.toBeNull();
+  expect(mapBox?.height).toBeGreaterThan(750);
+  expect(controlsBox?.y).toBeGreaterThanOrEqual(mapBox?.y ?? 0);
+  expect(
+    (controlsBox?.y ?? 0) + (controlsBox?.height ?? 0),
+  ).toBeLessThanOrEqual((mapBox?.y ?? 0) + (mapBox?.height ?? 0));
+});
+
 test("keeps the current map pinned until the reader loads a newer generation", async ({
   page,
 }) => {

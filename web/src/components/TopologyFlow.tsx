@@ -1307,7 +1307,7 @@ export function TopologyFlow({
   );
 
   return (
-    <div className="relative h-full min-h-[32rem] w-full overflow-hidden rounded-none">
+    <div className="relative h-full min-h-0 w-full overflow-hidden rounded-none">
       <ReactFlow<TopologyFlowNode, TopologyFlowEdge>
         nodes={nodes}
         edges={edges}
@@ -1393,7 +1393,7 @@ export function TopologyFlow({
             </button>
           </div>
         ) : null}
-        <div className="pointer-events-none absolute bottom-3 left-3 z-10 border border-rule-strong bg-panel px-3 py-2 font-mono text-[10px] text-gray-400 shadow-xl">
+        <div className="pointer-events-none absolute right-60 bottom-3 left-16 z-10 w-fit border border-rule-strong bg-panel px-3 py-2 font-mono text-[10px] text-gray-400 shadow-xl">
           {nodes.length} visible nodes · {edges.length}/
           {renderedGraph.edgeGroups.length} visual links ·{" "}
           {representedRelationshipCount}/{totalRelationshipCount} relationships
