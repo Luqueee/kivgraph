@@ -346,7 +346,10 @@ func profileArtifactDigest(root string) ([32]byte, error) {
 		if !info.IsDir() && !info.Mode().IsRegular() {
 			return fmt.Errorf("unexpected recovery artifact %q", path)
 		}
-		fmt.Fprintf(digest, "%q %d\n", relative, info.Mode())
+		// Recovery compares identity and contents, not permissions. Copies use
+		// source permissions, but a different process umask may narrow them on a
+		// resumed migration without changing the artifact being recovered.
+		fmt.Fprintf(digest, "%q %d\n", relative, info.Mode().Type())
 		if info.IsDir() {
 			return nil
 		}

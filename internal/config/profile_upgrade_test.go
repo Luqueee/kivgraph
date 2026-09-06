@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Luqueee/kivgraph/internal/filelock"
@@ -43,8 +44,8 @@ func TestProfileUpgradePreservesRuntimeAndFreshness(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = listener.Close() })
 	listener.(*net.UnixListener).SetUnlinkOnClose(false)
-	if _, err := LoadProfile(path, ""); err == nil {
-		t.Fatal("migrated with live daemon")
+	if _, err := LoadProfile(path, ""); err == nil || !strings.Contains(err.Error(), "running daemon") {
+		t.Fatalf("live daemon refusal = %v", err)
 	}
 	if err := listener.Close(); err != nil {
 		t.Fatal(err)
@@ -105,8 +106,12 @@ func TestProfileUpgradeRefusesActiveWritersAndCanRetry(t *testing.T) {
 				t.Fatalf("lock: %v %v", acquired, err)
 			}
 			t.Cleanup(func() { _ = lock.Release() })
-			if _, err := LoadProfile(path, ""); err == nil {
-				t.Fatalf("migrated while %q was held", name)
+			expected := name
+			if name == "profile-migration.lock" {
+				expected = "profile migration"
+			}
+			if _, err := LoadProfile(path, ""); err == nil || !strings.Contains(err.Error(), expected) {
+				t.Fatalf("refusal while %q was held = %v", name, err)
 			}
 			if _, err := os.Stat(filepath.Join(state, "profiles", "default")); !errors.Is(err, os.ErrNotExist) {
 				t.Fatalf("published on refusal: %v", err)
@@ -130,8 +135,8 @@ func TestProfileUpgradeRejectsPartialDestination(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := ensureDefaultProfile(configuration, configuration.Workspace.RepositoriesFile); err == nil {
-		t.Fatal("accepted incomplete destination")
+	if err := ensureDefaultProfile(configuration, configuration.Workspace.RepositoriesFile); err == nil || !strings.Contains(err.Error(), "repositories.yaml") {
+		t.Fatalf("incomplete destination refusal = %v", err)
 	}
 }
 
@@ -142,8 +147,8 @@ func TestProfileUpgradeRefusesSpecialGraphArtifact(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = listener.Close() })
-	if _, err := LoadProfile(path, ""); err == nil {
-		t.Fatal("accepted special graph file")
+	if _, err := LoadProfile(path, ""); err == nil || !strings.Contains(err.Error(), "unexpected.sock") {
+		t.Fatalf("special graph refusal = %v", err)
 	}
 	if _, err := os.Stat(state + ".pre-profiles"); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("published backup on failure: %v", err)
@@ -187,6 +192,23 @@ func TestProfileUpgradeResumesOnlyAnIdenticalBackup(t *testing.T) {
 	}
 }
 
+func TestProfileUpgradeResumesAcrossPermissionNarrowing(t *testing.T) {
+	path, state := legacyProfileFixture(t)
+	if _, err := LoadProfile(path, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(filepath.Join(state, "profiles")); err != nil {
+		t.Fatal(err)
+	}
+	backupCurrent := filepath.Join(state+".pre-profiles", "CURRENT")
+	if err := os.Chmod(backupCurrent, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadProfile(path, ""); err != nil {
+		t.Fatalf("resume after permission-only backup difference: %v", err)
+	}
+}
+
 func TestReadProfileCannotMigrateLegacyState(t *testing.T) {
 	path, state := legacyProfileFixture(t)
 	if _, err := ReadProfile(path, ""); err == nil {
@@ -204,7 +226,14 @@ func TestReadProfileCannotMigrateLegacyState(t *testing.T) {
 }
 
 func TestProfileUpgradeRejectsUnsafeArtifactsWithoutPublication(t *testing.T) {
-	for _, kind := range []string{"current-parent", "current-file", "graph-symlink", "unexpected-socket", "unreadable-graph"} {
+	expectedErrors := map[string]string{
+		"current-parent":    "invalid generation",
+		"current-file":      "000008",
+		"graph-symlink":     "symbolic link",
+		"unexpected-socket": "unknown.sock",
+		"unreadable-graph":  "unreadable",
+	}
+	for kind, expected := range expectedErrors {
 		t.Run(kind, func(t *testing.T) {
 			path, state := legacyProfileFixture(t)
 			switch kind {
@@ -233,8 +262,8 @@ func TestProfileUpgradeRejectsUnsafeArtifactsWithoutPublication(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if _, err := LoadProfile(path, ""); err == nil {
-				t.Fatalf("accepted unsafe graph %q", kind)
+			if _, err := LoadProfile(path, ""); err == nil || !strings.Contains(err.Error(), expected) {
+				t.Fatalf("unsafe graph refusal for %q = %v", kind, err)
 			}
 			if _, err := os.Stat(filepath.Join(state, "profiles", "default")); !errors.Is(err, os.ErrNotExist) {
 				t.Fatalf("published invalid state: %v", err)

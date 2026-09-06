@@ -281,10 +281,13 @@ derivado del grafo: reescribiría bytes del prompt de sistema de un cliente en c
 reindexado e invalidaría su caché.
 
 La superficie residente de las doce tools mide `1.874` bytes con la fórmula del
-test, bajo un techo de `1.900` bytes. `TestServerSurfaceStaysCheapToLoad` fija el
-techo del esquema en `18.000` bytes y falla si una tool vuelve a publicar
-`outputSchema`; `TestServerSurfaceStaysCheapToKeepResident` guarda el techo
-residente y falla si una descripción contiene un dígito.
+test, bajo un techo de `1.900` bytes. Se reproduce con
+`go test ./internal/mcp -run TestServerSurfaceStaysCheap`, sobre el catálogo
+estático del ejecutable y sin depender de un corpus ni una generación.
+`TestServerSurfaceStaysCheapToLoad` fija el techo del esquema en `18.000` bytes y
+falla si una tool vuelve a publicar `outputSchema`;
+`TestServerSurfaceStaysCheapToKeepResident` guarda el techo residente y falla si
+una descripción contiene un dígito.
 
 ## 9. Códigos de error
 

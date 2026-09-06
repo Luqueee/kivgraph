@@ -5,10 +5,11 @@ Status: accepted for local implementation, 2026-09-05.
 ## Decision
 
 Expose `find_implementations` as a read-only, single-text MCP query. It reads
-`IMPLEMENTS` and `OVERRIDES` edges of one immutable published generation. It does
-not reinterpret calls or name matches as implementations. Go retains its
-existing `go/types` proofs. TypeScript emits declared and structural proofs
-at index time through the installed native compiler's `isTypeAssignableTo`.
+`IMPLEMENTS` and `OVERRIDES` edges from one immutable published generation per
+selected profile. It does not reinterpret calls or name matches as
+implementations. Go retains its existing `go/types` proofs. TypeScript emits
+declared and structural proofs at index time through the installed native
+compiler's `isTypeAssignableTo`.
 
 The worker examines concrete class instance types, interfaces, abstract types,
 object type aliases, and concrete type instances observed in type references,

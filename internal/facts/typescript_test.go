@@ -1414,7 +1414,8 @@ func TestNormalizeTypeScriptImplementationEvidence(t *testing.T) {
 	}
 	payload.Implementations[0].Detection = "guessed"
 	if _, _, err := NormalizeTypeScript(t.Context(), payload, workspace.Repository{RealPath: "/fixtures/implementations"}); err == nil {
-		t.Fatal("unknown implementation evidence accepted")
+		t.Fatalf("unknown implementation evidence accepted: qualified_name=%q relation=%q detection=%q",
+			payload.Implementations[0].QualifiedName, payload.Implementations[0].Relation, payload.Implementations[0].Detection)
 	}
 }
 

@@ -1,12 +1,12 @@
 ---
 title: MCP tools
 description: >-
-  The fourteen tools Kivgraph registers once a generation is published, and
+  The fifteen tools Kivgraph registers once a generation is published, and
   which question each one answers.
 ---
 
-`kivgraph serve` registers fourteen tools *once a generation is published*.
-Twelve are read-only. `index_project` and `start_index_project` mutate only
+`kivgraph serve` registers fifteen tools *once a generation is published*.
+Thirteen are read-only. `index_project` and `start_index_project` mutate only
 after explicit consent. A server with no published generation registers those
 two tools plus `get_index_status`; see
 [Before a generation is published](#before-a-generation-is-published).

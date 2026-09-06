@@ -651,8 +651,8 @@ func TestClaudeDesktopIsDetectedByItsOwnEntry(t *testing.T) {
 }
 
 func TestClaudeDesktopDetectionUsesConfiguredSystemRoot(t *testing.T) {
-	manager, _, _ := testManager(t)
-	systemRoot := manager.systemRoot
+	manager, home, _ := testManager(t)
+	systemRoot := filepath.Join(home, "system")
 	entry := filepath.Join(systemRoot, "Applications", "Claude.app")
 	if err := os.MkdirAll(entry, 0o700); err != nil {
 		t.Fatal(err)

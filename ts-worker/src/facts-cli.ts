@@ -68,16 +68,12 @@
  * provider's configuration, and an inferred project has none. The Go side
  * only passes this when `typescript.include_unclaimed_sources` is on.
  *
- * Regenerate the `ts-facts-v5` goldens, from `ts-worker/`:
+ * The cross-repository v4 goldens are frozen compatibility inputs: this v5
+ * worker must not overwrite them. Regenerate the v5 implementation contract
+ * golden from `ts-worker/` with:
  *
- *   pnpm facts shared-library ../testdata/typescript/cross-repository/shared-library \
- *     ../testdata/protocol/ts-facts-v5/shared-library.json
- *   pnpm facts consumer-a ../testdata/typescript/cross-repository/consumer-a \
- *     ../testdata/protocol/ts-facts-v5/consumer-a.json \
- *     --provider shared-library=../testdata/typescript/cross-repository/shared-library
- *   pnpm facts consumer-b ../testdata/typescript/cross-repository/consumer-b \
- *     ../testdata/protocol/ts-facts-v5/consumer-b.json \
- *     --provider shared-library=../testdata/typescript/cross-repository/shared-library
+ *   pnpm facts implementations ../testdata/typescript/implementations \
+ *     ../testdata/protocol/ts-facts-v5/implementations.json
  */
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";

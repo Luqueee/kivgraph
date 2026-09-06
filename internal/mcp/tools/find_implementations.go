@@ -60,7 +60,7 @@ func findImplementations(ctx context.Context, request *sdkmcp.CallToolRequest, a
 	}
 	paths := slices.Clone(arguments.Paths)
 	for _, prefix := range paths {
-		if prefix == "" || path.IsAbs(prefix) || path.Clean(prefix) != strings.TrimSuffix(prefix, "/") || prefix == ".." || strings.HasPrefix(prefix, "../") {
+		if prefix == "" || prefix == "." || strings.ContainsRune(prefix, '\x00') || path.IsAbs(prefix) || path.Clean(prefix) != strings.TrimSuffix(prefix, "/") || prefix == ".." || strings.HasPrefix(prefix, "../") {
 			return nil, Response[ImplementationResult]{}, NewToolError(CodeInvalidArgument, "paths must be clean repository-relative paths")
 		}
 	}
