@@ -361,16 +361,12 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
 
 ## Warnings del build
 
-- El build imprime **un** warning y sólo uno: `Could not render /404 from route
-  /[...slug] as it conflicts with higher priority route /404`. Es de Starlight y
-  no del código de aquí: su integración inyecta una ruta `404` de prioridad
-  alta, y su `getPaths()` -- `utils/routing/index.ts` -- mapea **todas** las
-  rutas sin excluir la entrada `404` de la colección, así que el catch-all
-  reclama una ruta que el otro ya sirve y Astro se salta la duplicada. La salida
-  es correcta: el `404.html` construido lleva el `title` de
-  `src/content/docs/404.md` y su `noindex`. Quitarlo exigiría `disable404Route`
-  y escribir a mano la página, o borrar `404.md` y perder su copia y sus enlaces.
-  No se persigue.
+- El build no admite warnings. `scripts/build.mjs` conserva toda la salida y
+  falla si Astro imprime uno, aunque el propio comando termine en cero. La ruta
+  404 es el caso que cerró ese gate: Starlight inyectaba una ruta explícita y su
+  catch-all reclamaba también la entrada `404` de la colección. Ahora
+  `disable404Route` retira la inyectada, `src/pages/404.astro` es la única ruta
+  de error y conserva el status, la copia, el chrome y el `noindex` anteriores.
 - Los otros dos que hubo se arreglaron, y uno merece quedar escrito porque
   volverá a morder. Astro decide si avisar de que una ruta dinámica ignora su
   lista de rutas estáticas **buscando el nombre de esa función como subcadena en
@@ -442,8 +438,9 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
   informes de cualificación- y no se publica.
 - **El recuento de tools sale del contrato, no de la memoria.** La lista viva es
   `allowedTools` en `internal/mcp/surface_test.go`, que ese fichero declara
-  contrato y no instantánea, más `index_project`, que sólo se registra en la
-  ruta `serve` configurada. `MCP_TOOLS` en `_seo.ts` tiene que casar con ella:
+  contrato y no instantánea, más los tres controles de indexado que sólo se
+  registran en la ruta `serve` configurada. `MCP_TOOLS` en `_seo.ts` tiene que
+  casar con ella:
   de ahí salen el grupo *Tool reference* de `llms.txt` y de `llms-full.txt`.
   `find_by_intent` llegó en la v0.8.0 y debe permanecer primera porque es la
   puerta de entrada cuando el visitante no conoce un nombre. La sincronización
@@ -452,10 +449,10 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
   contrato runtime se comprueba además en `internal/mcp/surface_test.go` y
   `internal/mcp/server.go`.
 - La referencia de tools documenta la superficie que `internal/mcp/server.go`
-  registra, no el paquete `internal/mcp/tools`: son doce tools, `get_source`
+  registra, no el paquete `internal/mcp/tools`: son catorce tools, `get_source`
   entre ellas, y `get_unresolved_references` no está publicada -- esa pregunta
-  la contesta el CLI. Sin generación publicada sólo se registra
-  `index_project`, y la documentación lo dice donde se instala.
+  la contesta el CLI. Sin generación publicada sólo se registran los tres
+  controles de indexado, y la documentación lo dice donde se instala.
 
 ## La portada
 
@@ -470,7 +467,7 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
   se cambian las cuatro: esta frase, el comentario de cabecera de `index.astro`,
   sus secciones y los enlaces de `TopBar.astro`, que llevan el mismo orden como
   anclajes.
-- Lo que **no** está en la portada es la lista de las doce tools. El visitante
+- Lo que **no** está en la portada es la lista de las catorce tools. El visitante
   pregunta qué va a poder entender su agente, no qué funciones exporta el
   servidor; la referencia de tools es una página y cada banda enlaza a ella donde
   la pregunta aparece. Un componente que las enumeraba desapareció por eso,

@@ -38,12 +38,14 @@ var allowedTools = []string{
 
 // forbiddenTools is the mutation surface excluded from the default server,
 // because it is read-only over repositories it does not own. Query execution
-// and indexing control are included: configured serve adds only the explicit
-// consent-gated index_project tool.
+// and indexing control are included: configured serve adds the synchronous
+// compatibility mutation and the portable asynchronous indexing pair.
 var forbiddenTools = []string{
 	"execute_cypher",
 	"execute_query",
+	"get_index_status",
 	"index_project",
+	"start_index_project",
 	"index",
 	"update",
 	"refresh",
@@ -94,10 +96,12 @@ func TestTheSpecificationNamesEveryToolThatIsServed(t *testing.T) {
 			t.Errorf("%s lists %q, which no server registers", surfaceSpecification, name)
 		}
 	}
-	// The mutation is documented in prose rather than in the block, because a
-	// client that never configures indexing never sees it.
-	if !strings.Contains(string(document), "index_project") {
-		t.Errorf("%s does not mention index_project", surfaceSpecification)
+	// Indexing controls are documented in prose rather than in the block,
+	// because a client that never configures indexing never sees them.
+	for _, name := range []string{"index_project", "start_index_project", "get_index_status"} {
+		if !strings.Contains(string(document), "`"+name+"`") {
+			t.Errorf("%s does not mention %s", surfaceSpecification, name)
+		}
 	}
 }
 
@@ -468,9 +472,9 @@ func TestStaleInstructionsRouteToTheRepair(t *testing.T) {
 	// The healthy card is the budget this one is measured against: the state
 	// with one action available cannot cost more to describe than the state
 	// with eleven tools to route between.
-	if len(instructions) > len(serverInstructions) {
+	if len(instructions) > len(serverInstructions(false)) {
 		t.Fatalf("the stale card is %d bytes against the routing card's %d; it has one action to name",
-			len(instructions), len(serverInstructions))
+			len(instructions), len(serverInstructions(false)))
 	}
 	// `--introspection` is a mode a client is never in. It changes what an
 	// inspector can list and nothing a client can act on, so naming it here
@@ -503,14 +507,15 @@ func toolNames(listed []*sdkmcp.Tool) []string {
 const MaximumResidentSurfaceBytes = 1900
 
 // MaximumIndexingSurfaceBytes bounds the other shape this server has. A client
-// that configures indexing is handed one tool more -- the only one that can
-// change the graph -- and it is budgeted on its own line rather than inside the
-// number above, because a client that never configures it never pays for it.
+// that configures indexing is handed three controls: the synchronous mutation,
+// its portable asynchronous alternative, and status polling. They are budgeted
+// on their own line rather than inside the number above, because a client that
+// never configures it never pays for it.
 //
 // Both lines are guarded, and that is the point: the ceiling above was measured
 // against a server built without an indexer, so the surface that actually ships
 // through `kivgraph serve` was never on any scale.
-const MaximumIndexingSurfaceBytes = 2100
+const MaximumIndexingSurfaceBytes = 2400
 
 func TestServerSurfaceStaysCheapToKeepResident(t *testing.T) {
 	session := connectToServer(t, publishedServer(t))
@@ -591,7 +596,7 @@ func TestASessionMapsNothingUntilItAsksSomething(t *testing.T) {
 }
 
 // TestIndexingSurfaceStaysCheapToKeepResident guards the shape a configured
-// client is handed: every query tool, plus the one that rebuilds the graph.
+// client is handed: every graph query plus the three indexing controls.
 func TestIndexingSurfaceStaysCheapToKeepResident(t *testing.T) {
 	session := connectToServer(t, NewServerWithSnapshotStoreAndIndexer(
 		publishedStore(t), &fakeProjectIndexer{}))
@@ -611,22 +616,23 @@ func TestIndexingSurfaceStaysCheapToKeepResident(t *testing.T) {
 			mutating++
 		}
 	}
-	if mutating != 1 {
-		t.Errorf("mutating tools = %d, want exactly the one that rebuilds the graph", mutating)
+	if mutating != 2 {
+		t.Errorf("mutating tools = %d, want the synchronous and asynchronous rebuild tools", mutating)
 	}
 	if resident > MaximumIndexingSurfaceBytes {
 		t.Errorf("indexing surface = %d bytes over %d tools, above the %d ceiling",
 			resident, len(listed.Tools), MaximumIndexingSurfaceBytes)
 	}
-	// The two shapes differ by one tool and nothing else, so the query ceiling
-	// cannot be met by moving a description into the tool only some clients see.
+	// The two shapes differ by the three indexing controls and nothing else, so
+	// the query ceiling cannot be met by moving a description into the tool only
+	// some clients see.
 	query := connectToServer(t, publishedServer(t))
 	queryTools, err := query.ListTools(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("ListTools() error = %v", err)
 	}
-	if len(listed.Tools) != len(queryTools.Tools)+1 {
-		t.Errorf("indexing surface has %d tools and the query surface %d, want exactly one more",
+	if len(listed.Tools) != len(queryTools.Tools)+3 {
+		t.Errorf("indexing surface has %d tools and the query surface %d, want exactly three more",
 			len(listed.Tools), len(queryTools.Tools))
 	}
 }

@@ -166,8 +166,12 @@ treatment.
 
 ## Indexing from an MCP client
 
-`index_project` registers one or more projects and rebuilds once. Pass every
-project in a single call: a rebuild resolves cross-repository edges over the
-complete set of facts, so it costs the whole corpus whatever is added. Calling
-it once per project pays that cost once per project and keeps only the last
-graph.
+`start_index_project` registers one or more projects and starts one rebuild.
+Pass every project in a single call: a rebuild resolves cross-repository edges
+over the complete set of facts, so it costs the whole corpus whatever is added.
+Poll `get_index_status` until it reports `completed` or `failed`. On failure,
+surface the returned `INDEXING_FAILED` message. Retry only when its cause is
+explicitly temporary, such as contention with another rebuild after that
+rebuild releases the store lock. The synchronous `index_project` remains
+available for compatible clients, but it holds the call open for the whole
+pass.

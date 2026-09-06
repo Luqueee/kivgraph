@@ -1,7 +1,22 @@
 package mcp
 
-// serverInstructions is the one string this server can send that survives every
-// client's schema deferral.
+// toolVisibilityInstructions is shared by both availability states: even a
+// cold server can expose the indexing controls. Keep it aligned with the
+// installed skill; visibility is client/model behavior, not a server-injected
+// chat event.
+const toolVisibilityInstructions = `Before every Kivgraph MCP call, send a brief user-visible preamble in the conversation's language: Kivgraph · <tool> — <target>: <purpose>. Name the exact tool, queried symbol/file/repository/scope, and question it answers. For parallel calls, one preamble may list each call; announce repeats too. State intent, not success; do not dump other arguments or secrets.`
+
+const queryToolVisibilityInstructions = ` For find_by_intent, quote its exact "intent" value as the target, never a summary.`
+
+func freshnessInstructions(hasIndexer bool) string {
+	if hasIndexer {
+		return ` This notice is not approval for index_project or start_index_project. Freshness is a gate: if graph_status does not attest the target checkout and generation, use consent-gated start_index_project, poll get_index_status to completion, reconnect if graph_status was absent, then call graph_status again before using graph evidence. Only the default profile carries content freshness.`
+	}
+	return ` Freshness is a gate: if graph_status does not attest the target checkout and generation, run "kivgraph index --full", reconnect if graph_status was absent, then call graph_status again before using graph evidence. Only the default profile carries content freshness.`
+}
+
+// serverInstructions carries routing and visibility guidance across schema
+// deferral in clients that consume MCP connection instructions.
 //
 // Oh My Pi mounts each MCP tool as a device whose documentation is read on
 // demand; Claude Code defers tool schemas behind its tool search and injects
@@ -18,7 +33,9 @@ package mcp
 // The last paragraph is the part most servers omit: where this one loses. A tool
 // that claims to win everywhere gets called where it does not and spends the
 // call twice.
-const serverInstructions = `Kivgraph answers "what breaks if I change this" from a published code graph over Go, TypeScript, Rust, Python, Dart, Java and C#. Go, TypeScript and Rust edges are type-checked; Dart edges are resolved by Dart Analysis Server; Java and C# edges come from SCIP indexes scip-java and scip-dotnet emit through javac and Roslyn; Python uses exact semantic facts when a configured analyzer provides them and CANDIDATE facts in its bundled AST fallback. Before grepping or reading files to find callers, references or impact, call find_references or get_blast_radius; to read the code they name, call get_source.
+const routingInstructions = `
+
+Kivgraph answers "what breaks if I change this" from a published Go, TypeScript, Rust, Python, Dart, Java and C# graph. Before grepping or reading files to find callers, references or impact, call find_references or get_blast_radius; to read their code, call get_source.
 
 Its edges are resolved by language analyzers or explicitly marked as CANDIDATE/UNRESOLVED; they are never created by matching names. Read confidence and completeness before treating an empty or partial answer as proof of absence. Grep cannot provide that distinction.
 
@@ -27,6 +44,10 @@ Rows are addressable: every one carries a repository, a repository-relative path
 Queries accept one or more profiles and use the configured default when omitted; ["*"] selects all. graph_status and list_repositories discover all profiles when omitted. A stable key must name exactly one profile when the installation has several.
 
 Where it loses: a rare name in a single small repository is cheaper to grep, and one small file is cheaper to read than to outline. It wins on common names, on transitive impact, on cross-repository consumers and on proving an absence.`
+
+func serverInstructions(hasIndexer bool) string {
+	return toolVisibilityInstructions + queryToolVisibilityInstructions + freshnessInstructions(hasIndexer) + routingInstructions
+}
 
 // staleServerInstructions replaces the routing card when there is no published
 // generation to answer from.
@@ -48,4 +69,15 @@ Where it loses: a rare name in a single small repository is cheaper to grep, and
 // spending the budget on it is how a paragraph that routes becomes a paragraph
 // that is skipped. What a client needs here is the one command that repairs
 // this.
-const staleServerInstructions = `Kivgraph has no published graph, so no query tool can answer from one. Run "kivgraph index --full" to build one, then restart this server. Until then, use the host's own search and file tools.`
+const staleRoutingInstructions = `
+
+Kivgraph has no published graph, so no graph query can answer from one. If start_index_project is exposed, use its approval flow and poll get_index_status until completion, then reconnect before calling graph_status. Otherwise, use index_project through its approval flow or run "kivgraph index --full", then reconnect the MCP client. Until then, use the host's own search and file tools.`
+
+func staleServerInstructions(hasIndexer bool) string {
+	if hasIndexer {
+		return toolVisibilityInstructions + ` This notice is not approval for index_project or start_index_project.` + staleRoutingInstructions
+	}
+	return toolVisibilityInstructions + `
+
+Kivgraph has no published graph, so no graph query can answer from one. Run "kivgraph index --full", then reconnect the MCP client. Until then, use the host's own search and file tools.`
+}

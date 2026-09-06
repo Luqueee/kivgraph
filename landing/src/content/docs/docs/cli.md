@@ -1,6 +1,6 @@
 ---
 title: CLI
-description: Every Kivgraph command, in the five groups the help prints them.
+description: Kivgraph help lists every command in six groups.
 ---
 
 `kivgraph --help`, `-h` and `help` write to `stdout` and exit `0`. So does a
@@ -38,6 +38,20 @@ published profile by default and represents every emitted relationship through
 semantic groups with occurrence totals; `--profile` pins the viewer to one
 profile.
 
+## Toolchains
+
+- `toolchain status [--config PATH] [--json]`: Report optional analyzers
+  managed by this installation.
+- `toolchain install pyright [--config PATH] [--version VERSION] [--json]`:
+  Install and activate the pinned Pyright analyzer.
+- `toolchain remove pyright [--config PATH] --yes [--json]`: Remove the managed
+  Pyright analyzer and restore fallback mode when the selected configuration
+  uses the managed analyzer.
+
+The family is explicit: indexing never installs a host dependency. The first
+managed analyzer is Pyright, installed under Kivgraph state and enabled by
+updating only the Python analyzer settings in the selected configuration.
+
 ## Diagnostics
 
 | Invocation | Summary |
@@ -49,7 +63,7 @@ profile.
 | `graph status --root PATH` | Report the active and backup generations |
 | `daemon status` | Report whether the daemon has an owner, and where its unit lives |
 | `stats [--interval D] [--once] [--json]` | Watch what every kivgraph process on this machine costs |
-| `logs [--follow] [--kind K] [--tool NAME] [--since D] [--limit N] [--failures] [--json]` | Read what this machine indexed, served and answered |
+| `logs [OPTIONS]` | Read query history and neutral `NOT_FOUND` results |
 | `tool-stats [--tool NAME] [--since D] [--json]` | Report the cost and the failures of every tool |
 | `version [--json]` | Print the release, with --json for full provenance |
 

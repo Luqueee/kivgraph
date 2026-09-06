@@ -106,6 +106,12 @@ export default defineConfig({
       },
     }),
     starlight({
+      // This project owns `src/pages/404.astro`. Leaving Starlight's injected
+      // route enabled alongside a docs-collection 404 makes its catch-all and
+      // its explicit route both prerender `/404`, so Astro skips one with a
+      // collision warning. One explicit Astro error route preserves the 404
+      // status without the duplicate.
+      disable404Route: true,
       // The name and the sentence come from `src/site.mjs` because this file
       // cannot import `src/pages/_seo.ts` -- that one imports `astro:content`,
       // which does not exist until the build runs. Written here as literals
@@ -224,6 +230,14 @@ export default defineConfig({
                   slug: "docs/tools/list-repositories",
                 },
                 { label: "graph_status", slug: "docs/tools/graph-status" },
+                {
+                  label: "start_index_project",
+                  slug: "docs/tools/start-index-project",
+                },
+                {
+                  label: "get_index_status",
+                  slug: "docs/tools/get-index-status",
+                },
                 {
                   label: "index_project",
                   slug: "docs/tools/index-project",

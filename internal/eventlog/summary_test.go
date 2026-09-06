@@ -155,11 +155,10 @@ func TestErrorCodeReadsTheCodeTheWriterEncoded(t *testing.T) {
 	}
 }
 
-// TestSummarizeSeparatesARefusalFromAFailure is the arithmetic LUQUE-2235 was
-// opened over. The two live in one column until a caller names the codes, and
-// summed they made find_references read 22.2% when its real failure rate was
-// 42% -- a number that invites a hunt for a bug that is not there.
-func TestSummarizeSeparatesARefusalFromAFailure(t *testing.T) {
+// TestSummarizeSeparatesARefusalAndExpectedAbsenceFromAFailure keeps the
+// durable report useful: neither a designed ambiguity nor a missing symbol is
+// an operational failure worth sending an operator to investigate.
+func TestSummarizeSeparatesARefusalAndExpectedAbsenceFromAFailure(t *testing.T) {
 	base := time.Date(2026, 8, 21, 13, 10, 0, 0, time.UTC)
 	failed := func(offset time.Duration, rendered string) Event {
 		return Event{
@@ -173,21 +172,22 @@ func TestSummarizeSeparatesARefusalFromAFailure(t *testing.T) {
 		failed(2*time.Second, `SYMBOL_NOT_FOUND: name "posthog" was not found`),
 	}
 
-	// Without the vocabulary the two are one number, which is what every
-	// caller got before this and what the measurement reported.
-	if summed := Summarize(events); summed.Failed != 2 || summed.Refused != 0 {
-		t.Fatalf("Summarize() without codes = failed %d refused %d, want 2 and 0",
+	// The durable reader recognises the historical missing-symbol shape before
+	// the caller supplies the separate ambiguity vocabulary.
+	if summed := Summarize(events); summed.OK != 2 || summed.Failed != 1 || summed.Refused != 0 {
+		t.Fatalf("Summarize() without codes = ok %d failed %d refused %d, want 2, 1 and 0",
+			summed.OK,
 			summed.Failed, summed.Refused)
 	}
 
 	summary := Summarize(events, "AMBIGUOUS_SYMBOL")
-	if summary.Calls != 3 || summary.OK != 1 || summary.Refused != 1 || summary.Failed != 1 {
-		t.Fatalf("Summarize() = calls %d ok %d refused %d failed %d, want 3, 1, 1 and 1",
+	if summary.Calls != 3 || summary.OK != 2 || summary.Refused != 1 || summary.Failed != 0 {
+		t.Fatalf("Summarize() = calls %d ok %d refused %d failed %d, want 3, 2, 1 and 0",
 			summary.Calls, summary.OK, summary.Refused, summary.Failed)
 	}
 	entry := summary.Tools[0]
-	if entry.OK != 1 || entry.Refused != 1 || entry.Failed != 1 {
-		t.Fatalf("the tool row = ok %d refused %d failed %d, want 1, 1 and 1",
+	if entry.OK != 2 || entry.Refused != 1 || entry.Failed != 0 {
+		t.Fatalf("the tool row = ok %d refused %d failed %d, want 2, 1 and 0",
 			entry.OK, entry.Refused, entry.Failed)
 	}
 	// The three columns still account for every call: a refusal moved out of
@@ -195,10 +195,10 @@ func TestSummarizeSeparatesARefusalFromAFailure(t *testing.T) {
 	if entry.OK+entry.Refused+entry.Failed != entry.Calls {
 		t.Fatalf("the columns do not sum to the calls: %+v", entry)
 	}
-	// LastFail points at what to act on. A refusal there sends a reader
-	// looking for a bug in the answer the tool was designed to give.
-	if entry.LastFail != `SYMBOL_NOT_FOUND: name "posthog" was not found` {
-		t.Fatalf("LastFail = %q, want the failure and not the refusal", entry.LastFail)
+	// LastFail points at what to act on. An expected absence there would send a
+	// reader looking for a bug in the answer the tool was designed to give.
+	if entry.LastFail != "" {
+		t.Fatalf("LastFail = %q, want no operational failure", entry.LastFail)
 	}
 }
 

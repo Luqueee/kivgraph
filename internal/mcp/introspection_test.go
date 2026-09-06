@@ -14,8 +14,8 @@ import (
 )
 
 // introspectionCatalog is the whole surface a configured client is handed: the
-// eleven query tools of allowedTools and the one mutation that builds the
-// graph. It is spelled out rather than derived from allowedTools so that a tool
+// eleven graph-query tools of allowedTools and the three indexing controls.
+// It is spelled out rather than derived from allowedTools so that a tool
 // added to one list and not the other fails here instead of agreeing with
 // itself.
 var introspectionCatalog = []string{
@@ -25,11 +25,13 @@ var introspectionCatalog = []string{
 	"find_symbol",
 	"get_blast_radius",
 	"get_file_outline",
+	"get_index_status",
 	"get_source",
 	"get_symbol",
 	"graph_status",
 	"index_project",
 	"list_repositories",
+	"start_index_project",
 	"trace_dependencies",
 }
 
@@ -58,8 +60,9 @@ func introspectingServer(t *testing.T, store *hotsnapshot.SnapshotStore) *sdkmcp
 // test that fails when it does.
 func TestColdStartStillPublishesOnlyTheRepair(t *testing.T) {
 	names := listToolNames(t, NewServerWithSnapshotStoreAndIndexer(unavailableStore(t), &fakeProjectIndexer{}))
-	if !reflect.DeepEqual(names, []string{"index_project"}) {
-		t.Fatalf("cold-start tools = %v, want only index_project", names)
+	want := []string{"get_index_status", "index_project", "start_index_project"}
+	if !reflect.DeepEqual(names, want) {
+		t.Fatalf("cold-start tools = %v, want indexing controls %v", names, want)
 	}
 }
 
@@ -161,7 +164,7 @@ var smallestValidCall = map[string]map[string]any{
 func TestEveryIntrospectedToolRefusesWithoutAGraph(t *testing.T) {
 	session := connectToServer(t, introspectingServer(t, unavailableStore(t)))
 	for _, name := range introspectionCatalog {
-		if name == "index_project" {
+		if name == "index_project" || name == "start_index_project" || name == "get_index_status" {
 			continue
 		}
 		arguments, known := smallestValidCall[name]
@@ -219,6 +222,25 @@ func TestIntrospectionKeepsIndexProjectGated(t *testing.T) {
 	}
 	if text := contentText(t, result); !strings.Contains(text, "PERMISSION_REQUIRED") {
 		t.Fatalf("index_project unconfirmed = %q, want PERMISSION_REQUIRED", text)
+	}
+}
+
+func TestIntrospectionKeepsStartIndexProjectGated(t *testing.T) {
+	session := connectToServer(t, introspectingServer(t, unavailableStore(t)))
+	result, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name: "start_index_project",
+		Arguments: map[string]any{
+			"name": "repo-a", "path": t.TempDir(), "languages": []any{"go"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("start_index_project CallTool() transport error = %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("start_index_project indexed without approval")
+	}
+	if text := contentText(t, result); !strings.Contains(text, "PERMISSION_REQUIRED") {
+		t.Fatalf("start_index_project unconfirmed = %q, want PERMISSION_REQUIRED", text)
 	}
 }
 

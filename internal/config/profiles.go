@@ -328,11 +328,20 @@ func CreateProfile(configPath, name string) error {
 }
 
 // UseProfile moves the default pointer only after proving the target exists.
-func UseProfile(configPath, name string) error {
+func UseProfile(configPath, name string) (err error) {
 	if err := ValidateProfileName(name); err != nil {
 		return fmt.Errorf("profile name: %w", err)
 	}
-	configuration, err := LoadConfig(configPath)
+	resolved, err := resolveConfigPath(configPath)
+	if err != nil {
+		return err
+	}
+	lock, err := acquireConfigLock(resolved)
+	if err != nil {
+		return err
+	}
+	defer releaseConfigLock(lock, &err)
+	configuration, _, err := loadConfigFile(resolved)
 	if err != nil {
 		return err
 	}
@@ -342,7 +351,7 @@ func UseProfile(configPath, name string) error {
 		}
 		return fmt.Errorf("inspect profile %q: %w", name, err)
 	}
-	return writeDefaultProfile(configPath, name)
+	return writeDefaultProfileLocked(resolved, name)
 }
 
 // RemoveProfile removes one non-default profile and refuses to leave none.
@@ -372,11 +381,7 @@ func RemoveProfile(configPath, name string) error {
 	return fmt.Errorf("profile %q: %w", name, ErrProfileNotFound)
 }
 
-func writeDefaultProfile(configPath, name string) error {
-	resolved, err := resolveConfigPath(configPath)
-	if err != nil {
-		return err
-	}
+func writeDefaultProfileLocked(resolved, name string) error {
 	data, err := os.ReadFile(resolved)
 	if err != nil {
 		return fmt.Errorf("read config %q: %w", resolved, err)

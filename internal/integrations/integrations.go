@@ -97,12 +97,17 @@ func (endpoint Endpoint) validate() error {
 
 // Options identifies the filesystem roots used by a Manager. HomeDir and
 // ProjectDir are injectable to make safety checks testable without touching a
-// real client configuration.
+// real client configuration. Client-specific environment overrides remain
+// effective unless their corresponding explicit option is set.
 type Options struct {
 	HomeDir    string
 	ProjectDir string
 	Executable string
 	GOOS       string
+	// CodexDir and OhMyPiDir override their clients' user configuration roots.
+	// Empty values resolve their documented environment variables once in New.
+	CodexDir  string
+	OhMyPiDir string
 	// Endpoint, when set, makes plans point at a running daemon over HTTP
 	// rather than at this executable over stdio.
 	Endpoint Endpoint
@@ -119,6 +124,8 @@ type Manager struct {
 	projectDir       string
 	executable       string
 	goos             string
+	codexDir         string
+	ohMyPiDir        string
 	endpoint         Endpoint
 	previousEndpoint Endpoint
 }
@@ -291,18 +298,49 @@ func New(options Options) (Manager, error) {
 	if err := options.PreviousEndpoint.validate(); err != nil {
 		return Manager{}, fmt.Errorf("previous endpoint: %w", err)
 	}
+	codexDir, err := clientConfigDir(options.CodexDir, "CODEX_HOME", filepath.Join(homeDir, ".codex"),
+		"Codex configuration directory")
+	if err != nil {
+		return Manager{}, err
+	}
+	ohMyPiDir, err := clientConfigDir(options.OhMyPiDir, "PI_CODING_AGENT_DIR",
+		filepath.Join(homeDir, ".omp", "agent"), "Oh My Pi configuration directory")
+	if err != nil {
+		return Manager{}, err
+	}
 	return Manager{
 		homeDir:          homeDir,
 		projectDir:       projectDir,
 		executable:       executable,
 		goos:             goos,
+		codexDir:         codexDir,
+		ohMyPiDir:        ohMyPiDir,
 		endpoint:         options.Endpoint,
 		previousEndpoint: options.PreviousEndpoint,
 	}, nil
 }
 
-// InstallMCP registers the local MCP server, or returns an idempotent plan if
-// the exact Kivgraph-managed entry already exists.
+func clientConfigDir(option, environment, fallback, label string) (string, error) {
+	configured := strings.TrimSpace(option)
+	source := "option"
+	if configured == "" {
+		configured = strings.TrimSpace(os.Getenv(environment))
+		source = environment
+	}
+	if configured == "" {
+		return fallback, nil
+	}
+	if !filepath.IsAbs(configured) {
+		if source != "option" {
+			return filepath.Abs(configured)
+		}
+		return "", fmt.Errorf("%s from %s must be absolute, got %q", label, source, configured)
+	}
+	return absolutePath(configured, label)
+}
+
+// InstallMCP registers the local MCP server. Exact Kivgraph-managed entries
+// are idempotent unless force explicitly asks to refresh them.
 func (manager Manager) InstallMCP(target Target, scope Scope, dryRun, force bool) (Plan, error) {
 	document, err := manager.mcpDocument(target, scope)
 	if err != nil {
@@ -420,7 +458,11 @@ func (manager Manager) targetDetectionPaths(target Target, scope Scope, skill bo
 	case TargetClaudeDesktop:
 		paths = append(paths, manager.claudeDesktopMarkers()...)
 	case TargetCodex:
-		paths = append(paths, filepath.Join(base, ".codex"))
+		if scope == ScopeUser {
+			paths = append(paths, manager.codexInstructionsDir())
+		} else {
+			paths = append(paths, filepath.Join(base, ".codex"))
+		}
 		if skill {
 			paths = append(paths, filepath.Join(base, ".agents"))
 		}
@@ -430,7 +472,11 @@ func (manager Manager) targetDetectionPaths(target Target, scope Scope, skill bo
 		}
 		paths = append(paths, filepath.Join(base, ".opencode"))
 	case TargetOhMyPi:
-		paths = append(paths, filepath.Join(base, ".omp"))
+		if scope == ScopeUser {
+			paths = append(paths, manager.ohMyPiInstructionsDir())
+		} else {
+			paths = append(paths, filepath.Join(base, ".omp"))
+		}
 	}
 	return paths, nil
 }
@@ -556,7 +602,7 @@ func (manager Manager) mcpPath(target Target, scope Scope) (string, fileFormat, 
 		}
 	case TargetCodex:
 		if scope == ScopeUser {
-			return filepath.Join(manager.homeDir, ".codex", "config.toml"), formatTOML, "mcp_servers", nil
+			return filepath.Join(manager.codexInstructionsDir(), "config.toml"), formatTOML, "mcp_servers", nil
 		}
 		return filepath.Join(manager.projectDir, ".codex", "config.toml"), formatTOML, "mcp_servers", nil
 	case TargetOpenCode:
@@ -566,7 +612,7 @@ func (manager Manager) mcpPath(target Target, scope Scope) (string, fileFormat, 
 		return filepath.Join(manager.projectDir, "opencode.json"), formatJSON, "mcp", nil
 	case TargetOhMyPi:
 		if scope == ScopeUser {
-			return filepath.Join(manager.homeDir, ".omp", "agent", "mcp.json"), formatJSON, "mcpServers", nil
+			return filepath.Join(manager.ohMyPiInstructionsDir(), "mcp.json"), formatJSON, "mcpServers", nil
 		}
 		return filepath.Join(manager.projectDir, ".omp", "mcp.json"), formatJSON, "mcpServers", nil
 	default:
@@ -594,7 +640,7 @@ func (manager Manager) skillPath(target Target, scope Scope) (string, error) {
 		return filepath.Join(base, ".opencode", "skills", "kivgraph", "SKILL.md"), nil
 	case TargetOhMyPi:
 		if scope == ScopeUser {
-			return filepath.Join(base, ".omp", "agent", "skills", "kivgraph", "SKILL.md"), nil
+			return filepath.Join(manager.ohMyPiInstructionsDir(), "skills", "kivgraph", "SKILL.md"), nil
 		}
 		return filepath.Join(base, ".omp", "skills", "kivgraph", "SKILL.md"), nil
 	case TargetClaudeDesktop:
@@ -780,7 +826,7 @@ func (manager Manager) installJSON(document mcpDocument, dryRun, force bool) (Pl
 	if err != nil {
 		return Plan{}, err
 	}
-	if state.status == "managed" {
+	if state.status == "managed" && !force {
 		return Plan{Action: ActionInstall, Target: document.target, Scope: document.scope, Path: document.path, Status: state.status, Detail: "MCP entry already matches Kivgraph"}, nil
 	}
 	if state.status == "incompatible" && !force {
@@ -920,7 +966,7 @@ func (manager Manager) installTOML(document mcpDocument, dryRun, force bool) (Pl
 	if err != nil {
 		return Plan{}, err
 	}
-	if state.status == "managed" {
+	if state.status == "managed" && !force {
 		return Plan{Action: ActionInstall, Target: document.target, Scope: document.scope, Path: document.path, Status: state.status, Detail: "MCP entry already matches Kivgraph"}, nil
 	}
 	if state.status == "incompatible" && !force {
@@ -931,7 +977,8 @@ func (manager Manager) installTOML(document mcpDocument, dryRun, force bool) (Pl
 	// included. Codex picks its transport from the shape, so a `command` left
 	// beside a `url` is two entries under one key and the client reads whichever
 	// it finds first.
-	if state.status == "incompatible" || state.status == statusSuperseded {
+	if state.status == "incompatible" || state.status == statusSuperseded ||
+		(force && state.status == "managed") {
 		data, err = removeTOMLSection(data, "mcp_servers.kivgraph")
 		if err != nil {
 			return Plan{}, fmt.Errorf("replace Kivgraph TOML table: %w", err)
@@ -1206,7 +1253,7 @@ func (manager Manager) installSkillFile(target Target, scope Scope, path string,
 	}
 	status := "absent"
 	if exists {
-		if bytes.Equal(data, embeddedSkill) {
+		if bytes.Equal(data, embeddedSkill) && !force {
 			return Plan{Action: ActionInstall, Target: target, Scope: scope, Path: path, Status: "managed", Detail: "skill already matches Kivgraph"}, nil
 		}
 		status = "incompatible"

@@ -36,6 +36,9 @@ func DiscoverTypeScript(ctx context.Context, repository Repository) (TypeScriptD
 	if err != nil {
 		return TypeScriptDiscovery{}, fmt.Errorf("discover TypeScript root: %w", err)
 	}
+	if err := validateExclusionPatterns(root, repository.Exclusions); err != nil {
+		return TypeScriptDiscovery{}, fmt.Errorf("validate TypeScript exclusions: %w", err)
+	}
 
 	packageManifests := make(map[string]struct{})
 	configPaths := make(map[string]struct{})
@@ -119,7 +122,11 @@ func walkTypeScriptFiles(ctx context.Context, base, current string, exclusions [
 			continue
 		}
 		isDirectory := entry.IsDir()
-		if isDiscoveryExcluded(base, entryPath, entry.Name(), isDirectory, exclusions) {
+		excluded, err := isDiscoveryExcluded(base, entryPath, entry.Name(), isDirectory, exclusions)
+		if err != nil {
+			return fmt.Errorf("check exclusion for %q: %w", entryPath, err)
+		}
+		if excluded {
 			continue
 		}
 		if isDirectory {
@@ -145,40 +152,103 @@ func walkTypeScriptFiles(ctx context.Context, base, current string, exclusions [
 	return nil
 }
 
-func isDiscoveryExcluded(base, candidate, name string, isDirectory bool, exclusions []string) bool {
+func isDiscoveryExcluded(base, candidate, name string, isDirectory bool, exclusions []string) (bool, error) {
+	excluded, err := MatchesExclusion(base, candidate, exclusions)
+	if err != nil {
+		return false, err
+	}
 	if isDirectory {
 		if _, excluded := defaultTypeScriptExcludedDirectories[name]; excluded {
-			return true
+			return true, nil
 		}
 	}
-	relative, err := filepath.Rel(base, candidate)
-	if err != nil {
-		return false
-	}
-	relative = filepath.ToSlash(relative)
-	for _, rawPattern := range exclusions {
-		pattern := strings.TrimSpace(rawPattern)
-		if pattern == "" {
-			continue
-		}
-		if filepath.IsAbs(pattern) {
-			relativePattern, err := filepath.Rel(base, filepath.Clean(pattern))
-			if err != nil {
-				continue
-			}
-			pattern = filepath.ToSlash(relativePattern)
-		} else {
-			pattern = filepath.ToSlash(pattern)
-		}
-		pattern = strings.TrimPrefix(pattern, "./")
-		if discoveryPatternMatch(pattern, relative) {
-			return true
-		}
-	}
-	return false
+	return excluded, nil
 }
 
-func discoveryPatternMatch(pattern, relative string) bool {
+// MatchesExclusion reports whether candidate or one of its path ancestors is
+// excluded by the configured repository patterns. It is the authoritative
+// segment-aware matcher used by workspace discovery, including recursive
+// `**`, absolute in-repository paths and `./` relative paths.
+//
+// Checking ancestors is important for callers that do not prune directories
+// while walking: an exclusion such as `**/benchmarks` excludes the directory
+// and every file below it, not just a path whose final segment is the pattern.
+func MatchesExclusion(base, candidate string, exclusions []string) (bool, error) {
+	base = filepath.Clean(base)
+	relative, err := filepath.Rel(base, filepath.Clean(candidate))
+	if err != nil {
+		return false, fmt.Errorf("resolve candidate %q relative to %q: %w", candidate, base, err)
+	}
+	if relative == "." {
+		return false, nil
+	}
+	if relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || filepath.IsAbs(relative) {
+		return false, fmt.Errorf("candidate %q escapes repository root %q", candidate, base)
+	}
+	parts := splitDiscoveryPath(filepath.ToSlash(relative))
+	for index, rawPattern := range exclusions {
+		pattern, err := normalizeExclusionPattern(base, rawPattern)
+		if err != nil {
+			return false, fmt.Errorf("exclusions[%d]: %w", index, err)
+		}
+		if pattern == "" || pattern == "." {
+			continue
+		}
+		if err := validateDiscoveryPattern(pattern); err != nil {
+			return false, fmt.Errorf("exclusions[%d] %q: %w", index, rawPattern, err)
+		}
+		for end := 1; end <= len(parts); end++ {
+			matched, err := discoveryPatternMatch(pattern, strings.Join(parts[:end], "/"))
+			if err != nil {
+				return false, fmt.Errorf("exclusions[%d] %q: %w", index, rawPattern, err)
+			}
+			if matched {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+func validateExclusionPatterns(base string, exclusions []string) error {
+	for index, rawPattern := range exclusions {
+		pattern, err := normalizeExclusionPattern(base, rawPattern)
+		if err != nil {
+			return fmt.Errorf("exclusions[%d]: %w", index, err)
+		}
+		if pattern == "" || pattern == "." {
+			continue
+		}
+		if err := validateDiscoveryPattern(pattern); err != nil {
+			return fmt.Errorf("exclusions[%d] %q: %w", index, rawPattern, err)
+		}
+	}
+	return nil
+}
+
+func normalizeExclusionPattern(base, rawPattern string) (string, error) {
+	pattern := strings.TrimSpace(rawPattern)
+	if pattern == "" {
+		return "", nil
+	}
+	if filepath.IsAbs(pattern) {
+		relative, err := filepath.Rel(base, filepath.Clean(pattern))
+		if err != nil {
+			return "", fmt.Errorf("resolve %q: %w", rawPattern, err)
+		}
+		if relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || filepath.IsAbs(relative) {
+			return "", fmt.Errorf("path %q escapes repository root %q", rawPattern, base)
+		}
+		pattern = relative
+	}
+	pattern = filepath.ToSlash(filepath.Clean(filepath.FromSlash(pattern)))
+	if pattern == ".." || strings.HasPrefix(pattern, "../") {
+		return "", fmt.Errorf("path %q escapes repository root %q", rawPattern, base)
+	}
+	return strings.TrimPrefix(pattern, "./"), nil
+}
+
+func discoveryPatternMatch(pattern, relative string) (bool, error) {
 	patternParts := splitDiscoveryPath(pattern)
 	relativeParts := splitDiscoveryPath(relative)
 	memo := make(map[[2]int]bool)
@@ -205,7 +275,20 @@ func discoveryPatternMatch(pattern, relative string) bool {
 		memo[key] = err == nil && segmentMatches && match(patternIndex+1, relativeIndex+1)
 		return memo[key]
 	}
-	return match(0, 0)
+	return match(0, 0), nil
+}
+
+func validateDiscoveryPattern(pattern string) error {
+	patternParts := splitDiscoveryPath(pattern)
+	for _, patternPart := range patternParts {
+		if patternPart == "**" {
+			continue
+		}
+		if _, err := path.Match(patternPart, ""); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func splitDiscoveryPath(value string) []string {

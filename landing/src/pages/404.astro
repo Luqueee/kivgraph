@@ -1,0 +1,20 @@
+---
+import StarlightPage from "@astrojs/starlight/components/StarlightPage.astro";
+
+export const prerender = true;
+---
+
+<StarlightPage
+  frontmatter={{
+    title: "Not found",
+    description: "That page does not exist.",
+    template: "splash",
+    editUrl: false,
+  }}
+>
+  <p>
+    That page does not exist. Start from <a href="/install/">Install</a>, the
+    <a href="/quickstart/">Quickstart</a>, or the
+    <a href="/docs/cli/">CLI reference</a>.
+  </p>
+</StarlightPage>

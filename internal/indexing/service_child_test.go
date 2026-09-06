@@ -1,16 +1,23 @@
 package indexing
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Luqueee/kivgraph/internal/config"
+	"github.com/Luqueee/kivgraph/internal/freshness"
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/rebuild"
+	"github.com/Luqueee/kivgraph/internal/storage/generation"
 	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
@@ -117,6 +124,110 @@ func TestReindexWithNothingRegisteredRunsNothing(t *testing.T) {
 	if calls != 0 {
 		t.Fatalf("child ran %d times, want 0", calls)
 	}
+}
+
+func TestReindexMarksFreshnessOnlyAfterOwningPublication(t *testing.T) {
+	for name, test := range map[string]struct {
+		currentID         string
+		currentSnapshotID uint64
+		documentID        string
+		servedID          uint64
+		want              freshness.Status
+	}{
+		"owns publication": {
+			currentID: "000076", currentSnapshotID: 76, documentID: "000076",
+			want: freshness.Status{Generation: 76, State: "fresh"},
+		},
+		"another publisher serves the same generation": {
+			currentID: "000076", currentSnapshotID: 76, documentID: "000076", servedID: 76,
+			want: freshness.Status{
+				Generation: 76,
+				State:      "unverified",
+				Detail:     "cached content freshness belongs to another generation",
+			},
+		},
+		"another publisher changed CURRENT": {
+			currentID: "000077", currentSnapshotID: 77, documentID: "000076", servedID: 77,
+			want: freshness.Status{
+				Generation: 77,
+				State:      "unverified",
+				Detail:     "cached content freshness belongs to another generation",
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			service, _ := childService(t,
+				[]config.Repository{{Name: "one", Path: gitRepository(t), Languages: []string{"go"}}},
+				func(context.Context, DetachedOptions) (FullDocument, error) {
+					return FullDocument{Passed: true, GenerationID: test.documentID}, nil
+				})
+			stateRoot := filepath.Dir(service.loaded.Config.Storage.DatabasePath)
+			snapshot, err := hotsnapshot.BuildGraphSnapshot(
+				hotsnapshot.LadybugSnapshotRows{}, test.currentSnapshotID,
+				time.Unix(int64(test.currentSnapshotID), 0).UTC(), 1,
+			)
+			if err != nil {
+				t.Fatalf("build current generation %s fixture: %v", test.currentID, err)
+			}
+			generations, err := generation.New(stateRoot, generation.DefaultConfig())
+			if err != nil {
+				t.Fatalf("generation.New(root=%q, current=%s) error = %v", stateRoot, test.currentID, err)
+			}
+			_, err = generations.Publish(t.Context(), generation.PublishRequest{
+				ID:                     test.currentID,
+				EstimatedSnapshotBytes: 1,
+				Build: func(_ context.Context, directory string) error {
+					if err := os.WriteFile(filepath.Join(directory, generation.DefaultConfig().DatabaseFile), []byte("graph"), 0o600); err != nil {
+						return err
+					}
+					return writePublishedSnapshotFixture(directory, snapshot)
+				},
+				Validate: func(context.Context, generation.Generation) error { return nil },
+			})
+			if errors.Is(err, generation.ErrInsufficientSpace) {
+				t.Skipf("this filesystem cannot satisfy the publish space policy: %v", err)
+			}
+			if err != nil {
+				t.Fatalf("publish current generation %s fixture: %v", test.currentID, err)
+			}
+			if test.servedID > 0 {
+				served, err := hotsnapshot.BuildGraphSnapshot(
+					hotsnapshot.LadybugSnapshotRows{}, test.servedID,
+					time.Unix(int64(test.servedID), 0).UTC(), 1,
+				)
+				if err != nil {
+					t.Fatalf("build served generation %d fixture: %v", test.servedID, err)
+				}
+				service.snapshotStore = hotsnapshot.NewSnapshotStore(served)
+			} else {
+				service.snapshotStore = hotsnapshot.NewSnapshotStore(nil)
+			}
+			defer service.snapshotStore.Close()
+
+			if err := service.Reindex(t.Context()); err != nil {
+				t.Fatalf("Reindex() current=%s document=%s served=%d: %v", test.currentID, test.documentID, test.servedID, err)
+			}
+			got := service.ContentFreshness(t.Context())
+			if got != test.want {
+				t.Fatalf("Reindex() current=%s document=%s served=%d: freshness = %+v, want %+v", test.currentID, test.documentID, test.servedID, got, test.want)
+			}
+		})
+	}
+}
+
+func writePublishedSnapshotFixture(directory string, snapshot *hotsnapshot.GraphSnapshot) error {
+	contentDigest := sha256.Sum256([]byte("test content"))
+	var data bytes.Buffer
+	if _, err := hotsnapshot.WriteSnapshot(&data, snapshot, contentDigest); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(directory, rebuild.PublishedSnapshotFileName), data.Bytes(), 0o600); err != nil {
+		return err
+	}
+	return os.WriteFile(
+		filepath.Join(directory, rebuild.PublishedSnapshotDigestFileName),
+		[]byte(hex.EncodeToString(contentDigest[:])+"\n"), 0o600,
+	)
 }
 
 // TestIndexProjectsRestoresTheRegistryWhenTheChildFails keeps the registry and

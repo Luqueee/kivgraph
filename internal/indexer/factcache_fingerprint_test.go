@@ -72,6 +72,32 @@ func TestEveryLanguagesManifestsInvalidateAnEntry(t *testing.T) {
 	}
 }
 
+// TestFactCacheMissesWhenAnExplicitOrAnalyzerManifestChanges covers inputs
+// that can change facts without a source edit. The explicit manifest is
+// relative to the repository on purpose: describeInputs has to resolve it the
+// same way as source observation does, or the cache would fingerprint the
+// process's working directory instead.
+func TestFactCacheMissesWhenAnExplicitOrAnalyzerManifestChanges(t *testing.T) {
+	fixture := newCachedFixture(t)
+	fixture.repository.Manifests = []string{"project.settings"}
+	writeFullFixture(t, filepath.Join(fixture.root, "project.settings"), "before\n")
+	writeFullFixture(t, filepath.Join(fixture.root, "build.gradle"), "plugins { id 'java' }\n")
+	fixture.index()
+	if _, report := fixture.index(); report.Cache.Hits == 0 {
+		t.Fatalf("cache = %+v, want a hit when project.settings and build.gradle are unchanged", report.Cache)
+	}
+
+	writeFullFixture(t, filepath.Join(fixture.root, "project.settings"), "after\n")
+	if _, report := fixture.index(); report.Cache.Hits != 0 {
+		t.Fatalf("cache = %+v, want no hit after project.settings changed", report.Cache)
+	}
+
+	writeFullFixture(t, filepath.Join(fixture.root, "build.gradle"), "plugins { id 'java-library' }\n")
+	if _, report := fixture.index(); report.Cache.Hits != 0 {
+		t.Fatalf("cache = %+v, want no hit after build.gradle changed", report.Cache)
+	}
+}
+
 // TestTheFingerprintIgnoresWhatNoLanguageDeclares is the negative: the walk
 // over-approximates on purpose, but not to the point of hashing the world.
 func TestTheFingerprintIgnoresWhatNoLanguageDeclares(t *testing.T) {

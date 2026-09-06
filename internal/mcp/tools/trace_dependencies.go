@@ -498,7 +498,7 @@ func RegisterTraceDependenciesWithObserverAndSnapshotStore(
 		) (*sdkmcp.CallToolResult, Response[DependencyTrace], error) {
 			start := time.Now()
 			result, response, err := underlying(ctx, request, arguments)
-			observe(observer, callObserver, traceDependenciesToolName, start, response, err)
+			observe(observer, callObserver, traceDependenciesToolName, request, start, response, err)
 			return result, response, err
 		}
 	}

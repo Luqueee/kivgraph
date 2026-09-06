@@ -26,6 +26,17 @@ func addQueryTool[In, T any](
 	tool *sdkmcp.Tool,
 	handler func(context.Context, *sdkmcp.CallToolRequest, In) (*sdkmcp.CallToolResult, Response[T], error),
 ) {
+	addTextTool(server, tool, handler)
+}
+
+// addTextTool registers a tool whose typed payload travels in one text block.
+// Query tools use it through addQueryTool; control tools use it directly when
+// their result is not the graph-query Response envelope.
+func addTextTool[In, Out any](
+	server *sdkmcp.Server,
+	tool *sdkmcp.Tool,
+	handler func(context.Context, *sdkmcp.CallToolRequest, In) (*sdkmcp.CallToolResult, Out, error),
+) {
 	if tool.OutputSchema != nil {
 		// A programming error, not a runtime condition: it would resurrect the
 		// duplicate channel this function exists to remove.

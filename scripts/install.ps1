@@ -60,6 +60,7 @@ $binDir = if ($env:KIVGRAPH_BIN_DIR) { $env:KIVGRAPH_BIN_DIR }
 $releaseBase = if ($env:KIVGRAPH_RELEASE_BASE_URL) { $env:KIVGRAPH_RELEASE_BASE_URL.TrimEnd('/') }
                else { 'https://github.com/Luqueee/kivgraph/releases' }
 $requestedVersion = $env:KIVGRAPH_VERSION
+$configureMode = if ($env:KIVGRAPH_CONFIGURE) { $env:KIVGRAPH_CONFIGURE } else { 'ask' }
 
 foreach ($pair in @(@{n = 'KIVGRAPH_INSTALL_ROOT'; v = $installRoot }, @{n = 'KIVGRAPH_BIN_DIR'; v = $binDir })) {
     if (-not [System.IO.Path]::IsPathRooted($pair.v)) { Fail "$($pair.n) must be an absolute path" }
@@ -68,6 +69,9 @@ foreach ($pair in @(@{n = 'KIVGRAPH_INSTALL_ROOT'; v = $installRoot }, @{n = 'KI
 }
 if ($requestedVersion -and $requestedVersion -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$') {
     Fail "invalid KIVGRAPH_VERSION: $requestedVersion"
+}
+if ($configureMode -cnotin @('ask', '1', '0')) {
+    Fail 'KIVGRAPH_CONFIGURE must be ask, 1, or 0'
 }
 
 $downloadBase = if ($requestedVersion) { "$releaseBase/download/$requestedVersion" }
@@ -297,6 +301,38 @@ try {
     if (-not $onPath) {
         Write-Host "install: $binDir is not on PATH. To add it for this account:"
         Write-Host "install:   setx PATH `"%PATH%;$binDir`""
+    }
+    Write-Host 'install: run "kivgraph configure" to set up MCP, skill, hooks, daemon and instructions'
+
+    # Configuration is offered only after the bundle and launchers are safely
+    # installed. A non-interactive host gets the exact command to run later;
+    # configuration failures do not roll back an already successful install.
+    try {
+        if ($configureMode -eq '0') {
+            Write-Host 'install: configuration skipped; run "kivgraph configure" when ready'
+        }
+        elseif ([Console]::IsInputRedirected) {
+            Write-Host 'install: no interactive terminal; run "kivgraph configure" to finish setup'
+        }
+        else {
+            $configure = $true
+            if ($configureMode -eq 'ask') {
+                $answer = Read-Host 'install: configure MCP clients, skill, hooks, daemon and project instructions now? [Y/n]'
+                $configure = [string]::IsNullOrWhiteSpace($answer) -or $answer -match '^(?i:y|yes)$'
+            }
+            if (-not $configure) {
+                Write-Host 'install: configuration skipped; run "kivgraph configure" when ready'
+            }
+            else {
+                & (Join-Path $installRoot 'bin\kivgraph.exe') configure
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Warning 'configuration did not finish; run "kivgraph configure" to retry'
+                }
+            }
+        }
+    }
+    catch {
+        Write-Warning ('configuration did not finish; run "kivgraph configure" to retry: {0}' -f $_.Exception.Message)
     }
 
     # The install is finished above and stays finished whatever happens here.

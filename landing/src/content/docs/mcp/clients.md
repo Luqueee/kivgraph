@@ -60,6 +60,14 @@ Claude Desktop supports the `user` scope only; asking for `--scope project`
 fails. It is also the one target with no local skill target, so it is absent
 from the skill selector.
 
+## Visible tool use
+
+The server's connection instructions ask the agent to announce every Kivgraph
+MCP call in chat, with the tool, target and purpose. The local skill carries
+the same rule where supported. These notices are best effort, not messages
+injected by Kivgraph into the client UI; see [Visible tool use](/mcp/skills/#visible-tool-use)
+for examples, client limitations and upgrade behavior.
+
 ## What gets written
 
 In every case the server is named `kivgraph`, and `command` is the absolute
@@ -114,6 +122,19 @@ appended at the end of the file; the rest of the TOML is untouched.
 command = "/usr/local/bin/kivgraph"
 args = ["serve"]
 ```
+
+The installer writes the server table above. Add the approval policy manually
+if you want Codex to prompt specifically for both mutating tools:
+
+```toml
+[mcp_servers.kivgraph.tools.index_project]
+approval_mode = "prompt"
+
+[mcp_servers.kivgraph.tools.start_index_project]
+approval_mode = "prompt"
+```
+
+The installer preserves these approval settings on later updates.
 
 ### OpenCode
 
@@ -303,9 +324,10 @@ using it. The message names both versions; `kivgraph update` restarts a
 supervised daemon onto the installed release.
 
 With no published generation, `serve` still completes the handshake. It exposes
-only `index_project`, and its `instructions` tell the agent to run
-`kivgraph index --full` and restart the server. Nothing is broken: there is
-simply no graph to answer from yet.
+the three indexing controls, and its `instructions` tell the agent to start and
+poll an index or run `kivgraph index --full`, then reconnect the MCP client.
+Nothing
+is broken: there is simply no graph to answer from yet.
 
 `serve` also writes the default configuration when none exists, and continues,
 because a client spawns the server itself and exiting because nobody ran `init`

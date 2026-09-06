@@ -145,7 +145,7 @@ func RegisterGetSourceWithObserverAndSnapshotStore(
 		) (*sdkmcp.CallToolResult, Response[SourceResult], error) {
 			start := time.Now()
 			result, bodies, err := underlying(ctx, request, arguments)
-			observe(observer, callObserver, getSourceToolName, start, bodies, err)
+			observe(observer, callObserver, getSourceToolName, request, start, bodies, err)
 			return result, bodies, err
 		}
 	}

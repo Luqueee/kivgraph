@@ -117,7 +117,7 @@ func runLogs(args []string, stdout, stderr io.Writer) int {
 		writeInfo(stdout, "logs: nothing recorded yet in %s", path)
 		return 0
 	}
-	writeLogLines(stdout, styles, collapseLogEvents(events))
+	writeLogTable(stdout, styles, collapseLogEvents(events))
 	if !options.Follow {
 		return 0
 	}
@@ -198,6 +198,7 @@ func logIdentity(event eventlog.Event) string {
 		string(event.Kind),
 		event.Message,
 		event.Tool,
+		event.Query,
 		event.Status,
 		strconv.Itoa(event.PID),
 	}, "\x00")
@@ -272,6 +273,7 @@ func logRunIdentity(event eventlog.Event) string {
 		string(event.Kind),
 		event.Message,
 		event.Tool,
+		event.Query,
 		event.Status,
 		event.Stage,
 		event.Repository,
@@ -281,34 +283,99 @@ func logRunIdentity(event eventlog.Event) string {
 	}, "\x00")
 }
 
+func writeLogTable(stdout io.Writer, styles logStyles, lines []logLine) {
+	fmt.Fprintln(stdout, renderLogHeader(styles))
+	writeLogLines(stdout, styles, lines)
+}
+
 func writeLogLines(stdout io.Writer, styles logStyles, lines []logLine) {
 	for _, line := range lines {
 		fmt.Fprintln(stdout, renderLogLine(styles, line))
 	}
 }
 
-func renderLogLine(styles logStyles, line logLine) string {
-	badge := logBadgeFor(line.event)
-	rendered := strings.Builder{}
-	rendered.WriteString(styles.dim(line.event.Time.Format("15:04:05")))
-	rendered.WriteString(" ")
-	rendered.WriteString(styles.badge(badge))
-	rendered.WriteString(" ")
-	rendered.WriteString(styles.message(line.event.Message))
-	if fields := logFields(line); fields != "" {
-		rendered.WriteString(" ")
-		rendered.WriteString(styles.dim(fields))
+const (
+	logTimeColumnWidth     = len("15:04:05")
+	logEventColumnWidth    = 28
+	logQueryColumnWidth    = 56
+	logDurationColumnWidth = 10
+	logResultsColumnWidth  = 8
+	logPIDColumnWidth      = 7
+)
+
+func renderLogHeader(styles logStyles) string {
+	columns := []string{
+		logCell("TIME", logTimeColumnWidth),
+		logCell("STATUS", logBadgeWidth),
+		logCell("EVENT", logEventColumnWidth),
+		logCell("QUERY", logQueryColumnWidth),
+		logCell("TOOK", logDurationColumnWidth),
+		logCell("RESULTS", logResultsColumnWidth),
+		logCell("PID", logPIDColumnWidth),
+		"DETAIL",
 	}
-	if line.repeat > 1 {
-		rendered.WriteString(" ")
-		rendered.WriteString(styles.dim(fmt.Sprintf("(×%d)", line.repeat)))
-	}
-	return rendered.String()
+	return styles.dim(strings.Join(columns, " "))
 }
 
-// logFields renders the attributes of an event in a fixed order, so two runs
-// over the same store produce the same text and a reader learns where to look.
-func logFields(line logLine) string {
+func renderLogLine(styles logStyles, line logLine) string {
+	event := line.event
+	activity := event.Message
+	if event.Tool != "" {
+		activity = event.Tool
+	}
+	columns := []string{
+		styles.dim(logCell(event.Time.Format("15:04:05"), logTimeColumnWidth)),
+		styles.badge(logBadgeFor(event)),
+		styles.message(logCell(activity, logEventColumnWidth)),
+		styles.dim(logCell(orDash(event.Query), logQueryColumnWidth)),
+		styles.dim(logCell(logDuration(line), logDurationColumnWidth)),
+		styles.dim(logCell(logResults(event), logResultsColumnWidth)),
+		styles.dim(logCell(logPID(event), logPIDColumnWidth)),
+	}
+	if detail := logDetail(line); detail != "" {
+		columns = append(columns, styles.dim(detail))
+	}
+	return strings.TrimRight(strings.Join(columns, " "), " ")
+}
+
+func logDuration(line logLine) string {
+	if line.mean == 0 && line.event.DurationMS == nil {
+		return "-"
+	}
+	if line.repeat > 1 {
+		return "mean=" + formatLogDuration(line.mean)
+	}
+	return formatLogDuration(line.mean)
+}
+
+func logResults(event eventlog.Event) string {
+	if event.Results != nil {
+		return strconv.FormatInt(*event.Results, 10)
+	}
+	if event.Symbols != nil {
+		return strconv.FormatInt(*event.Symbols, 10)
+	}
+	return "-"
+}
+
+func logPID(event eventlog.Event) string {
+	if event.PID == 0 {
+		return "-"
+	}
+	return strconv.Itoa(event.PID)
+}
+
+func orDash(value string) string {
+	if value == "" {
+		return "-"
+	}
+	return value
+}
+
+// logDetail renders the attributes that do not deserve a column but still
+// explain an unusual record. Its order is stable so a reader learns where to
+// look, and no query argument may be added here: Query is a dedicated column.
+func logDetail(line logLine) string {
 	event := line.event
 	var fields []string
 	appendField := func(key, value string) {
@@ -316,6 +383,10 @@ func logFields(line logLine) string {
 			return
 		}
 		fields = append(fields, key+"="+oneLine(value))
+	}
+	if activity := oneLine(event.Message); event.Tool == "" &&
+		len([]rune(activity)) > logEventColumnWidth {
+		appendField("message", activity)
 	}
 	// The message of a tool event is the tool name, so repeating it would
 	// spend a column on nothing.
@@ -325,26 +396,26 @@ func logFields(line logLine) string {
 	if event.Stage != "" && !strings.Contains(event.Message, event.Stage) {
 		appendField("stage", event.Stage)
 	}
-	if line.mean > 0 || line.event.DurationMS != nil {
-		key := "took"
-		if line.repeat > 1 {
-			key = "mean"
-		}
-		appendField(key, formatLogDuration(line.mean))
-	}
-	if event.Results != nil {
-		appendField("results", strconv.FormatInt(*event.Results, 10))
-	}
-	if event.Symbols != nil {
-		appendField("symbols", strconv.FormatInt(*event.Symbols, 10))
-	}
 	appendField("repository", event.Repository)
 	appendField("generation", event.Generation)
-	if event.PID != 0 {
-		appendField("pid", strconv.Itoa(event.PID))
-	}
 	appendField("error", event.Error)
+	if line.repeat > 1 {
+		fields = append(fields, fmt.Sprintf("(×%d)", line.repeat))
+	}
 	return strings.Join(fields, " ")
+}
+
+// logCell truncates by runes rather than bytes so an operator sees an aligned
+// table even when an intent has non-ASCII words. Every cell is one physical
+// line; the detail column intentionally remains unbounded so errors stay
+// actionable rather than becoming a second opaque truncation.
+func logCell(value string, width int) string {
+	value = oneLine(value)
+	runes := []rune(value)
+	if len(runes) > width {
+		return string(runes[:width-1]) + "…"
+	}
+	return value + strings.Repeat(" ", width-len(runes))
 }
 
 // maxLogFieldRunes bounds one rendered field. A loader error can carry a whole
@@ -389,22 +460,25 @@ type logBadge struct {
 	background string
 }
 
-const logBadgeWidth = 7
+const logBadgeWidth = len("NOT_FOUND") + 1
 
 // The badge names what happened, not only how badly. A failure is ERROR and a
 // degraded answer is WARN, but a call that answered is TOOL and a pass is
 // INDEX: a store where every routine line said INFO would leave the reader
 // doing the classification the writer already knew.
 var (
-	logBadgeInfo  = logBadge{text: "INFO", foreground: "15", background: "26"}
-	logBadgeWarn  = logBadge{text: "WARN", foreground: "16", background: "214"}
-	logBadgeError = logBadge{text: "ERROR", foreground: "15", background: "160"}
-	logBadgeTool  = logBadge{text: "TOOL", foreground: "16", background: "35"}
-	logBadgeIndex = logBadge{text: "INDEX", foreground: "15", background: "99"}
+	logBadgeInfo     = logBadge{text: "INFO", foreground: "15", background: "26"}
+	logBadgeWarn     = logBadge{text: "WARN", foreground: "16", background: "214"}
+	logBadgeError    = logBadge{text: "ERROR", foreground: "15", background: "160"}
+	logBadgeNotFound = logBadge{text: "NOT_FOUND", foreground: "15", background: "240"}
+	logBadgeTool     = logBadge{text: "TOOL", foreground: "16", background: "35"}
+	logBadgeIndex    = logBadge{text: "INDEX", foreground: "15", background: "99"}
 )
 
 func logBadgeFor(event eventlog.Event) logBadge {
 	switch {
+	case event.Kind == eventlog.KindTool && event.NotFound():
+		return logBadgeNotFound
 	case event.Level == eventlog.LevelError || event.Status == eventlog.StatusError:
 		return logBadgeError
 	case event.Level == eventlog.LevelWarn:

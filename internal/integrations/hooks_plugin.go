@@ -56,8 +56,11 @@ func (manager Manager) installPlugin(document hookDocument, dryRun, force bool) 
 	if exists {
 		switch {
 		case bytes.Equal(data, body):
-			return manager.plan(ActionInstall, document, "managed",
-				"pre-tool-use plugin already matches Kivgraph"), nil
+			if !force {
+				return manager.plan(ActionInstall, document, "managed",
+					"pre-tool-use plugin already matches Kivgraph"), nil
+			}
+			status = "managed"
 		case isKivgraphPlugin(data):
 			// Ours, from another install prefix or an older release.
 			// Replacing it is the whole point of running install again,

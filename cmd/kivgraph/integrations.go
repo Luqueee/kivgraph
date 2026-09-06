@@ -338,7 +338,7 @@ func integrationFlagSet(name string, options *integrationOptions, output io.Writ
 	flags.StringVar(&options.Scope, "scope", integrations.ScopeUser, "configuration scope: user or project")
 	if changes {
 		flags.BoolVar(&options.DryRun, "dry-run", false, "show the change without writing")
-		flags.BoolVar(&options.Force, "force", false, "replace or remove an incompatible entry")
+		flags.BoolVar(&options.Force, "force", false, "replace or remove incompatible entries; refresh matching ones on install")
 	}
 	if endpoint {
 		flags.BoolVar(&options.Daemon, "daemon", false,
@@ -374,6 +374,8 @@ func selectIntegrationTargets(input io.Reader, stdout io.Writer, manager integra
 		detections, err = manager.DetectSkillTargets(scope)
 	case "hook":
 		detections, err = manager.DetectHookTargets(scope)
+	case "instructions":
+		detections, err = manager.DetectInstructionsTargets()
 	default:
 		return nil, fmt.Errorf("unsupported interactive integration %q", kind)
 	}

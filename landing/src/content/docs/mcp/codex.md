@@ -35,3 +35,15 @@ kivgraph index --full
 Codex can then use Kivgraph for semantic code navigation and questions about repository relationships, callers, dependencies and change impact.
 
 Start with [`find_references`](/docs/tools/find-references/) for direct references or [`get_blast_radius`](/docs/tools/get-blast-radius/) before a risky change.
+
+## See when Kivgraph is used
+
+Kivgraph asks Codex to post a short preamble before every MCP call, naming
+the tool, target and question it will answer. For example:
+
+`Kivgraph · find_references — NewServer: check who calls it.`
+
+This is a best-effort instruction to the agent, not a guaranteed UI event.
+Reconnect Codex to the updated server to receive the rule. The optional
+[Agent Skill](/mcp/skills/#visible-tool-use) carries the same instruction and
+explains how to preserve customizations in existing skill installations.

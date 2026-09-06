@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -57,11 +58,30 @@ func shortTempDir(t *testing.T) string {
 
 // stubIndexer stands in for the real indexing service. The daemon tests are
 // about sessions and sockets, so what matters here is only that an indexer
-// exists: index_project is not registered without one.
+// exists: indexing controls are not registered without one.
 type stubIndexer struct{}
 
 func (stubIndexer) IndexProjects(context.Context, []indexing.Project, func(indexing.ProjectProgress)) (indexing.ProjectResult, error) {
 	return indexing.ProjectResult{}, nil
+}
+
+type blockingIndexer struct {
+	started chan struct{}
+	release chan struct{}
+}
+
+func (indexer *blockingIndexer) IndexProjects(
+	ctx context.Context,
+	_ []indexing.Project,
+	_ func(indexing.ProjectProgress),
+) (indexing.ProjectResult, error) {
+	close(indexer.started)
+	select {
+	case <-indexer.release:
+		return indexing.ProjectResult{GenerationID: "9", SnapshotID: 9}, nil
+	case <-ctx.Done():
+		return indexing.ProjectResult{}, ctx.Err()
+	}
 }
 
 // start runs a daemon over a temporary state directory and returns its socket.
@@ -291,11 +311,95 @@ func TestDaemonAnswersManySessionsFromOneProcess(t *testing.T) {
 	}
 }
 
+// A daemon constructs one MCP server per connection, but an asynchronous
+// operation belongs to the process. A reconnect must therefore observe the ID
+// returned on an earlier connection even when the embedding caller leaves the
+// optional registry unset.
+func TestDaemonSharesIndexStatusAcrossSessions(t *testing.T) {
+	indexer := &blockingIndexer{started: make(chan struct{}), release: make(chan struct{})}
+	options := Options{
+		StateDirectory: shortTempDir(t),
+		Registry:       metrics.NewRegistry(),
+		Indexer:        indexer,
+	}
+	listener, err := Listen(options)
+	if err != nil {
+		t.Fatalf("Listen() error = %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	var served sync.WaitGroup
+	served.Add(1)
+	go func() {
+		defer served.Done()
+		if err := Serve(ctx, listener, options); err != nil {
+			t.Errorf("Serve() error = %v", err)
+		}
+	}()
+	t.Cleanup(func() {
+		cancel()
+		served.Wait()
+	})
+
+	startedResult, err := dial(t, listener.Addr().String()).CallTool(
+		context.Background(),
+		&sdkmcp.CallToolParams{
+			Name: "start_index_project",
+			Arguments: map[string]any{
+				"name": "demo", "path": "/tmp/demo",
+				"languages": []any{"go"}, "confirmed": true,
+			},
+		},
+	)
+	if err != nil || startedResult == nil || startedResult.IsError {
+		t.Fatalf("start_index_project = %#v, %v", startedResult, err)
+	}
+	var started struct {
+		OperationID string `json:"operation_id"`
+	}
+	text, ok := startedResult.Content[0].(*sdkmcp.TextContent)
+	if !ok {
+		t.Fatalf("start content = %#v, want text", startedResult.Content)
+	}
+	if err := json.Unmarshal([]byte(text.Text), &started); err != nil {
+		t.Fatalf("decode start response: %v", err)
+	}
+	select {
+	case <-indexer.started:
+	case <-time.After(time.Second):
+		t.Fatal("background index did not start")
+	}
+
+	statusResult, err := dial(t, listener.Addr().String()).CallTool(
+		context.Background(),
+		&sdkmcp.CallToolParams{
+			Name:      "get_index_status",
+			Arguments: map[string]any{"operation_id": started.OperationID},
+		},
+	)
+	if err != nil || statusResult == nil || statusResult.IsError {
+		t.Fatalf("get_index_status from another session = %#v, %v", statusResult, err)
+	}
+	statusText, ok := statusResult.Content[0].(*sdkmcp.TextContent)
+	if !ok {
+		t.Fatalf("status content = %#v, want text", statusResult.Content)
+	}
+	var status struct {
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal([]byte(statusText.Text), &status); err != nil {
+		t.Fatalf("decode status response %q: %v", statusText.Text, err)
+	}
+	if status.Status != "working" {
+		t.Fatalf("status content = %#v, want working", statusResult.Content)
+	}
+	close(indexer.release)
+}
+
 // TestASessionSeesAGenerationPublishedAfterStartup is the reason a server is
 // built per session instead of once at startup. The tool surface is decided when
 // a server is built -- a process with no published generation publishes only
-// index_project -- and a daemon outlives generations. A server built once would
-// keep telling every future client that there is no graph.
+// the indexing controls -- and a daemon outlives generations. A server built
+// once would keep telling every future client that there is no graph.
 func TestASessionSeesAGenerationPublishedAfterStartup(t *testing.T) {
 	store := hotsnapshot.NewSnapshotStore(nil)
 	socket, cancel, served := start(t, store)
@@ -304,8 +408,8 @@ func TestASessionSeesAGenerationPublishedAfterStartup(t *testing.T) {
 		served.Wait()
 	}()
 
-	if names := toolNames(t, socket); len(names) != 1 || names[0] != "index_project" {
-		t.Fatalf("tools before publishing = %v, want only index_project", names)
+	if names := toolNames(t, socket); strings.Join(names, ",") != "get_index_status,index_project,start_index_project" {
+		t.Fatalf("tools before publishing = %v, want only the indexing controls", names)
 	}
 
 	if err := store.Publish(emptySnapshot(t)); err != nil {

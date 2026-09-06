@@ -11,6 +11,18 @@ func candidates(t *testing.T, words ...string) []string {
 	return completionCandidates(words)
 }
 
+func userFacingCandidates(t *testing.T, words ...string) []string {
+	t.Helper()
+	var stdout, stderr bytes.Buffer
+	if code := runComplete(words, &stdout, &stderr); code != 0 {
+		t.Fatalf("runComplete(%v) = %d, stderr=%q", words, code, stderr.String())
+	}
+	if stdout.Len() == 0 {
+		return nil
+	}
+	return strings.Split(strings.TrimSuffix(stdout.String(), "\n"), "\n")
+}
+
 func has(candidates []string, want string) bool {
 	for _, candidate := range candidates {
 		if candidate == want {
@@ -34,9 +46,9 @@ func TestCompleteNamesCommands(t *testing.T) {
 }
 
 func TestCompleteNarrowsToWhatWasTyped(t *testing.T) {
-	got := candidates(t, "too")
+	got := candidates(t, "tool-s")
 	if len(got) != 1 || got[0] != "tool-stats" {
-		t.Fatalf("\"too\" completed to %v, want just tool-stats", got)
+		t.Fatalf("\"tool-s\" completed to %v, want just tool-stats", got)
 	}
 }
 
@@ -130,6 +142,17 @@ func TestCompleteSeparatesWritingOperationsFromReadingOnes(t *testing.T) {
 }
 
 func TestCompleteOffersOperationsAndTargets(t *testing.T) {
+	instructions := userFacingCandidates(t, "instructions", "")
+	if !has(instructions, "install") {
+		t.Fatalf("completion for %v did not offer install: %v", []string{"instructions", ""}, instructions)
+	}
+	instructionInput := []string{"instructions", "install", "--agent", ""}
+	instructionAgents := userFacingCandidates(t, instructionInput...)
+	for _, want := range []string{"claude", "claude-code", "codex", "omp", "oh-my-pi", "opencode"} {
+		if !has(instructionAgents, want) {
+			t.Fatalf("completion for %v = %v, want %q", instructionInput, instructionAgents, want)
+		}
+	}
 	operations := candidates(t, "skill", "")
 	for _, want := range []string{"install", "status", "remove"} {
 		if !has(operations, want) {

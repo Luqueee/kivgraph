@@ -148,7 +148,7 @@ From a checkout, either installer can be run directly:
 To install a specific release instead of the latest one:
 
 ```bash
-KIVGRAPH_VERSION=v0.9.8-dev.1 ./scripts/install.sh
+KIVGRAPH_VERSION=v0.9.10 ./scripts/install.sh
 ```
 
 The script installs the bundle in `~/.local/opt/kivgraph` and puts launchers
@@ -220,31 +220,35 @@ The optional check never blocks the command when the network is unavailable.
 Interactive command output uses semantic ANSI colors when the destination is a
 terminal. Set `NO_COLOR` or redirect output to keep it plain.
 
-### Configure an MCP client, install the skill, and enable the gate
+### Configure Kivgraph and its coding agents
 
-The release installer does not edit client configuration automatically. After
-installing Kivgraph, run the integration commands without `--target` to detect
-the coding agents present on this machine and select one or more of them:
+After an interactive release installation, the installer asks whether it should
+run this same guided setup. Run it later, or run it directly from a checkout:
 
 ```bash
-kivgraph mcp install --scope user
-kivgraph skill install --scope user
-kivgraph hook install --scope user
+kivgraph configure
 ```
 
-Kivgraph checks each client's known local configuration or installation roots
-and marks detected agents. Use `↑`/`↓` (or `j`/`k`) to move, `space` to toggle
-an agent, `a` to select all, `n` to select none, `Enter` to confirm, and `q` or
-`Esc` to cancel. If none is detected, the selector starts with no agents
-selected. Use `--target` only for scripted, non-interactive installation.
+`configure` opens one selector for the coding agents detected on this machine
+and installs each user-scoped surface that the selected agent supports. It
+also adds user-level Kivgraph instructions for every selected agent. It
+initializes the empty Kivgraph configuration when needed, but it does not
+register a repository or run an index. Repeat `--target TARGET` for scripted
+setup; omit it to open the selector.
+
+Use `↑`/`↓` (or `j`/`k`) to move, `space` to toggle an agent, `a` to select all,
+`n` to select none, `Enter` to confirm, and `q` or `Esc` to cancel. The daemon
+is offered once after the selection; `--daemon` requires it without asking and
+`--stdio` keeps one `serve` process per client. `--dry-run` previews every
+surface without writing.
 
 Supported MCP targets are `claude-code`, `claude-desktop`, `codex`, `opencode`,
 and `oh-my-pi`. Supported skill targets are `claude-code`, `codex`, `opencode`,
-and `oh-my-pi`; Claude Desktop has no local skill target. The default scope is
-`user`; use `--scope project` for project-local configuration. Use `--dry-run`
-to inspect a plan without writing. Existing incompatible entries stop with an
-error; `--force` is required to replace or remove one. Existing files are
-written atomically with mode `0600` and receive a
+and `oh-my-pi`; Claude Desktop has no local skill target. The standalone
+commands use `user` by default; use `--scope project` for project-local
+configuration. Use `--dry-run` to inspect a plan without writing. Existing
+incompatible entries stop with an error; `--force` is required to replace or
+remove one. Existing files are written atomically with mode `0600` and receive
 `*.kivgraph.bak` backup before replacement or removal.
 
 The pre-tool-use gate supports `claude-code`, `claude-desktop`, `codex`,
@@ -253,6 +257,37 @@ The pre-tool-use gate supports `claude-code`, `claude-desktop`, `codex`,
 scope. The gate is fail-open when its graph query cannot be answered.
 Searches wrapped as `rtk rg ...` or `rtk proxy rg ...` are classified by their
 inner command, while RTK's own commands are left alone.
+
+### Add Kivgraph to user agent instructions
+
+Add the Kivgraph navigation rules to the user context loaded by a coding
+agent:
+
+```bash
+kivgraph instructions install
+# The selector can install one or more coding-agent destinations.
+kivgraph instructions install --agent codex
+kivgraph instructions install --agent claude
+kivgraph instructions install --agent omp
+```
+
+With no `--agent` or `--file`, the interactive selector lets you choose one or
+more coding agents. Each installation owns a `KIVGRAPH.md` prompt beside the
+client configuration. Codex (`~/.codex/AGENTS.md`), Claude Code/Desktop
+(`~/.claude/CLAUDE.md`), and Oh My Pi (`~/.omp/agent/AGENTS.md`) receive only a
+small managed absolute-path reference to `KIVGRAPH.md`. OpenCode instead adds
+its canonical path to `~/.config/opencode/opencode.json`'s native `instructions` list; it
+does not modify OpenCode's `AGENTS.md`. The selector deduplicates shared
+destinations. Existing instructions are preserved, the managed reference is
+idempotent, and `--dry-run` previews the change. An edited Kivgraph prompt or
+reference requires `--force` to replace. `--file` is retained for compatibility
+and selects every matching global client; prefer `--agent` for new automation.
+The command never changes repository instructions. Use `configure` when you
+want these instructions and the compatible client integrations in one flow; the
+individual commands remain available for explicit changes.
+
+When set, `CODEX_HOME` replaces `~/.codex` and `PI_CODING_AGENT_DIR` replaces
+`~/.omp/agent`, matching the configuration roots those clients use.
 
 Inspect or remove a registration explicitly:
 
@@ -288,8 +323,31 @@ languages, creates or reuses `.kivgraph/`, registers the current project as
 those overrides intentionally select the configuration and registry to update.
 Use `kivgraph index --full` when you want the explicit registered-repositories
 workflow; both forms preserve the full-indexing contract.
-The command does not install language toolchains; `kivgraph doctor` reports any
-prerequisite that is missing on the host.
+The command does not install language toolchains implicitly; `kivgraph doctor`
+reports any prerequisite that is missing on the host. Optional analyzers can be
+managed explicitly by Kivgraph:
+
+```bash
+kivgraph toolchain status
+kivgraph toolchain install pyright
+kivgraph index --full
+```
+
+`toolchain install pyright` pins and installs Pyright under Kivgraph's state,
+then activates exact Python analysis in the selected configuration. For a
+project-local configuration, pass `--config .kivgraph/config.yaml`. Removing
+it requires an explicit confirmation and restores the bundled Python fallback
+when the selected configuration uses the managed analyzer:
+
+```bash
+kivgraph toolchain remove pyright --yes
+```
+
+The first install requires npm and network access. Later status checks and
+reusing an installed version work offline.
+
+The command family is intentionally language-agnostic; more managed analyzers
+can use it without making `index` mutate the host or a repository.
 
 Day to day:
 
@@ -297,7 +355,7 @@ Day to day:
 kivgraph graph status      # what is published, and whether a tree has moved
 kivgraph doctor            # toolchains, storage, and the type-checking ceiling
 kivgraph ui                # read-only 3D viewer, default 0.0.0.0:7777
-kivgraph logs --follow     # what it indexed, served and answered, as it happens
+kivgraph logs --follow     # aligned history of what it indexed, served and queried
 kivgraph tool-stats        # per-tool cost, calls, and failures
 kivgraph stop              # terminate this user's serve and ui, never an index
 kivgraph clean --keep-active
@@ -311,6 +369,13 @@ authentication, so it logs exactly what it exposes and `--addr` restricts it.
 rather than asking a server, which is why they can answer at all: the per-tool
 counters a `serve` keeps are minted when it starts and gone when it stops.
 Reading the file also makes the answer span every server that ever ran.
+
+`logs` renders a fixed-column table. Tool rows include a bounded, allow-listed
+query summary: `find_by_intent` records its exact `intent` and any `keywords`,
+while opaque cursors, consent flags, stable keys, and absolute project paths
+stay out of the record. `--json` preserves the individual append-only records.
+`SYMBOL_NOT_FOUND` renders as the neutral `NOT_FOUND` status with zero results,
+not as an operational failure.
 
 Configure any MCP client to start the server over STDIO:
 

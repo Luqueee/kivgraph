@@ -135,16 +135,16 @@ func hookEntriesEqual(left, right hookEntryValue) bool {
 
 // installHookEntry writes Kivgraph's registration into a hook file.
 //
-// It takes no force flag, and that is not an omission. An array holds every
-// gate the user installed, so there is no foreign value under our key to
-// overwrite: we replace our own entry or append a new one, and every other
-// entry in the file survives untouched.
-func (manager Manager) installHookEntry(document hookDocument, dryRun bool) (Plan, error) {
+// An array holds every gate the user installed, so there is no foreign value
+// under our key to overwrite: we replace our own entry or append a new one,
+// and every other entry in the file survives untouched. Force only refreshes
+// a matching Kivgraph entry.
+func (manager Manager) installHookEntry(document hookDocument, dryRun, force bool) (Plan, error) {
 	state, err := manager.readHooks(document)
 	if err != nil {
 		return Plan{}, err
 	}
-	if state.status == "managed" {
+	if state.status == "managed" && !force {
 		return manager.plan(ActionInstall, document, state.status,
 			"pre-tool-use gate already matches Kivgraph"), nil
 	}

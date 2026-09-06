@@ -37,6 +37,9 @@ func DiscoverGo(ctx context.Context, repository Repository) (GoDiscovery, error)
 	if err != nil {
 		return GoDiscovery{}, fmt.Errorf("discover Go root: %w", err)
 	}
+	if err := validateExclusionPatterns(root, repository.Exclusions); err != nil {
+		return GoDiscovery{}, fmt.Errorf("validate Go exclusions: %w", err)
+	}
 
 	modules := make(map[string]GoModule)
 	workspaces := make(map[string]GoWorkspace)
@@ -109,7 +112,11 @@ func walkGoFiles(ctx context.Context, base, current string, exclusions []string,
 			continue
 		}
 		isDirectory := entry.IsDir()
-		if isGoDiscoveryExcluded(base, entryPath, entry.Name(), isDirectory, exclusions) {
+		excluded, err := isGoDiscoveryExcluded(base, entryPath, entry.Name(), isDirectory, exclusions)
+		if err != nil {
+			return fmt.Errorf("check Go exclusion for %q: %w", entryPath, err)
+		}
+		if excluded {
 			continue
 		}
 		if isDirectory {
@@ -136,13 +143,17 @@ func walkGoFiles(ctx context.Context, base, current string, exclusions []string,
 	return nil
 }
 
-func isGoDiscoveryExcluded(base, candidate, name string, isDirectory bool, exclusions []string) bool {
+func isGoDiscoveryExcluded(base, candidate, name string, isDirectory bool, exclusions []string) (bool, error) {
+	excluded, err := MatchesExclusion(base, candidate, exclusions)
+	if err != nil {
+		return false, err
+	}
 	if isDirectory {
 		if _, excluded := defaultGoExcludedDirectories[name]; excluded {
-			return true
+			return true, nil
 		}
 	}
-	return isDiscoveryExcluded(base, candidate, name, isDirectory, exclusions)
+	return excluded, nil
 }
 
 func addWorkspaceModules(repositoryRoot string, workspaces map[string]GoWorkspace, modules map[string]GoModule, sumFiles map[string]struct{}) error {
@@ -192,7 +203,11 @@ func discoverGoPackages(ctx context.Context, repositoryRoot string, exclusions [
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if isGoDiscoveryExcludedPath(repositoryRoot, directory, exclusions) {
+		excluded, err := isGoDiscoveryExcludedPath(repositoryRoot, directory, exclusions)
+		if err != nil {
+			return nil, fmt.Errorf("check Go package exclusion for %q: %w", directory, err)
+		}
+		if excluded {
 			continue
 		}
 		files := append([]string(nil), filesByDirectory[directory]...)
@@ -224,13 +239,13 @@ func discoverGoPackages(ctx context.Context, repositoryRoot string, exclusions [
 	return packages, nil
 }
 
-func isGoDiscoveryExcludedPath(base, directory string, exclusions []string) bool {
+func isGoDiscoveryExcludedPath(base, directory string, exclusions []string) (bool, error) {
 	relative, err := filepath.Rel(base, directory)
 	if err != nil {
-		return false
+		return false, nil
 	}
 	if relative == "." {
-		return false
+		return false, nil
 	}
 	return isGoDiscoveryExcluded(base, directory, filepath.Base(directory), true, exclusions)
 }

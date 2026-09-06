@@ -508,8 +508,12 @@ func TestALeakyTokenFileIsNamedRatherThanReplaced(t *testing.T) {
 	if err := os.MkdirAll(directory, 0o700); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.WriteFile(TokenPath(directory), []byte("a-token-a-client-already-has\n"), 0o644); err != nil {
+	tokenPath := TokenPath(directory)
+	if err := os.WriteFile(tokenPath, []byte("a-token-a-client-already-has\n"), 0o644); err != nil {
 		t.Fatalf("write the token: %v", err)
+	}
+	if err := os.Chmod(tokenPath, 0o644); err != nil {
+		t.Fatalf("make the token intentionally readable: %v", err)
 	}
 
 	var warned []string

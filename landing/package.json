@@ -9,7 +9,7 @@
     "node": ">=22.12"
   },
   "scripts": {
-    "build": "astro build",
+    "build": "node scripts/build.mjs",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck",
     "dev": "astro dev",
     "format": "biome format --write .",

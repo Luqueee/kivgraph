@@ -51,6 +51,8 @@ El campo `instructions` del servidor dice lo mismo, y Zed no lo lee.
 | qué hay declarado en este paquete | `get_file_outline` |
 | dame el código de estos símbolos -- hasta `20` por llamada | `get_source` |
 | ¿está el grafo al día? | `graph_status` |
+| empieza un índice sin sostener una llamada larga | `start_index_project` |
+| cómo va ese índice | `get_index_status` |
 
 Las aristas las resuelven `go/types`, el checker de TypeScript y
 `rust-analyzer`, no la coincidencia de nombres: una lista de referencias vacía
@@ -192,10 +194,10 @@ respuesta.
 - Una respuesta MCP `tools/list` puede estar paginada: seguir `nextCursor`
   hasta `null` antes de concluir que una herramienta no está montada.
 
-- `kivgraph_1mcp_index_project` es la única herramienta MCP mutante de
-  Kivgraph; solo se registra en la ruta `serve` configurada y exige
-  consentimiento explícito del cliente antes de cambiar el registro de
-  repositorios o publicar una generación.
+- `kivgraph_1mcp_index_project` y `kivgraph_1mcp_start_index_project` son las
+  dos herramientas MCP mutantes de Kivgraph; solo se registran en la ruta
+  `serve` configurada y exigen consentimiento explícito del cliente antes de
+  cambiar el registro de repositorios o publicar una generación.
 
 ## La skill se edita en un solo sitio
 
@@ -619,7 +621,7 @@ pueden reproducir a mano cuando uno de ellos falla:
 |vulnerabilidades|`govulncheck ./...`|cero **alcanzables**; una en un módulo que no se llama no falla|
 |reproducibilidad|`scripts/check-reproducible-bundle.sh`|dos builds del mismo checkout, payload idéntico|
 |cobertura|`make coverage`|la suite Go entera, instrumentada, por encima del suelo de sentencias|
-|humo del bundle|`init` · `doctor` · `index --full` · `--smoke`|que el binario publicado indexe y que las doce tools contesten|
+|humo del bundle|`init` · `doctor` · `index --full` · `--smoke`|que el binario publicado indexe y que las catorce tools contesten|
 
 `make coverage` **es** el `go test ./...` del job `verify`, no un gate aparte:
 mide con `-coverpkg=./...` mientras los tests corren, así que no puede seguir a

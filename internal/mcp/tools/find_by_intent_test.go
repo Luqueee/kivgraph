@@ -573,11 +573,13 @@ func TestFindByIntentSaysWhenATermMatchedTooMuch(t *testing.T) {
 // wrapping the first and nothing else exercises it.
 func TestFindByIntentAnswersThroughItsRegistration(t *testing.T) {
 	store := intentStore(t, 120)
-	observed := 0
+	observedLatency := 0
+	var observedCall CallObservation
 	for name, register := range map[string]func(*sdkmcp.Server){
 		"plain": func(server *sdkmcp.Server) { RegisterFindByIntentWithSnapshotStore(server, store) },
 		"observed": func(server *sdkmcp.Server) {
-			RegisterFindByIntentWithObserverAndSnapshotStore(server, func(string, time.Duration) { observed++ }, store)
+			RegisterFindByIntentWithObserverAndSnapshotStore(server, func(string, time.Duration) { observedLatency++ }, store,
+				func(observation CallObservation) { observedCall = observation })
 		},
 	} {
 		server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test", Version: "0.0.1"}, nil)
@@ -609,8 +611,11 @@ func TestFindByIntentAnswersThroughItsRegistration(t *testing.T) {
 			t.Fatalf("%s: payload does not name the production symbol: %#v", name, result.Content)
 		}
 	}
-	if observed == 0 {
+	if observedLatency == 0 {
 		t.Error("the observer was never called through the registered handler")
+	}
+	if got, want := observedCall.Query, `intent="publish generation"`; got != want {
+		t.Fatalf("observed query = %q, want %q", got, want)
 	}
 }
 

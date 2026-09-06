@@ -21,6 +21,10 @@ func SetHome(t testing.TB, directory string) {
 	t.Helper()
 	t.Setenv("HOME", directory)
 	t.Setenv("USERPROFILE", directory)
+	// Tests that simulate a user home must not inherit the desktop process's
+	// agent-specific configuration roots.
+	t.Setenv("CODEX_HOME", "")
+	t.Setenv("PI_CODING_AGENT_DIR", "")
 	if runtime.GOOS == "windows" {
 		// LocalAppData is where os.UserCacheDir looks, and a test that
 		// redirects home without it leaves the cache pointing at the real

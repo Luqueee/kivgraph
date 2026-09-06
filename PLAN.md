@@ -1699,6 +1699,8 @@ kivgraph index
 kivgraph update
 kivgraph status
 kivgraph doctor
+kivgraph configure
+kivgraph instructions install
 kivgraph benchmark
 kivgraph inspect
 kivgraph export

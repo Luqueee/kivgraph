@@ -69,7 +69,10 @@ func NewRegistryWithRecorder(recorder QueryRecorder) *Registry {
 
 // QueryObservation is the completed result of one MCP query handler.
 type QueryObservation struct {
-	ToolName          string
+	ToolName string
+	// Query is a bounded, allow-listed request summary for a durable recorder.
+	// The process-local metrics report never retains it.
+	Query             string
 	Elapsed           time.Duration
 	Returned          int
 	Truncated         bool
