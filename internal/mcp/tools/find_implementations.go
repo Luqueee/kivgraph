@@ -111,7 +111,7 @@ func RegisterFindImplementationsWithObserverAndSnapshotStore(server *sdkmcp.Serv
 	handler := func(ctx context.Context, request *sdkmcp.CallToolRequest, arguments FindImplementationsInput) (*sdkmcp.CallToolResult, Response[ImplementationResult], error) {
 		start := time.Now()
 		result, response, err := findImplementations(ctx, request, arguments, store)
-		observe(observer, firstCallObserver(callObservers), findImplementationsToolName, start, response, err)
+		observe(observer, firstCallObserver(callObservers), findImplementationsToolName, request, start, response, err)
 		return result, response, err
 	}
 	addQueryTool(server, &sdkmcp.Tool{Name: findImplementationsToolName, Description: "Implementations of types or methods, including structural TypeScript. Paged, with compiler evidence and coverage.", Annotations: readOnlyClosedWorld(), Meta: alwaysLoadMeta()}, handler)

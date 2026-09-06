@@ -341,6 +341,10 @@ func ListProfiles(configPath string) ([]Profile, error) {
 	if err := ensureDefaultProfile(configuration, configuration.Workspace.RepositoriesFile); err != nil {
 		return nil, err
 	}
+	return listProfiles(configuration)
+}
+
+func listProfiles(configuration Config) ([]Profile, error) {
 	entries, err := os.ReadDir(profilesRoot(configuration))
 	if err != nil {
 		return nil, fmt.Errorf("list profiles: %w", err)
@@ -372,6 +376,16 @@ func ListProfiles(configPath string) ([]Profile, error) {
 // its independently published graph. Analyzer targets, the event log and the
 // content-addressed fact cache remain shared at installation scope.
 func LoadProfile(configPath, name string) (Loaded, error) {
+	return loadProfile(configPath, name, true)
+}
+
+// ReadProfile reads an already migrated profile without creating directories,
+// acquiring write locks, or initiating a migration.
+func ReadProfile(configPath, name string) (Loaded, error) {
+	return loadProfile(configPath, name, false)
+}
+
+func loadProfile(configPath, name string, migrate bool) (Loaded, error) {
 	loaded, err := Load(configPath)
 	if err != nil {
 		return Loaded{}, err
@@ -383,7 +397,12 @@ func LoadProfile(configPath, name string) (Loaded, error) {
 		return Loaded{}, fmt.Errorf("profile name: %w", err)
 	}
 	profile := profileAt(loaded.Config, name)
-	profiles, err := ListProfiles(configPath)
+	if migrate {
+		if err := ensureDefaultProfile(loaded.Config, loaded.RepositoriesPath); err != nil {
+			return Loaded{}, err
+		}
+	}
+	profiles, err := listProfiles(loaded.Config)
 	if err != nil {
 		return Loaded{}, err
 	}

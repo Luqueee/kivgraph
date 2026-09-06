@@ -181,6 +181,22 @@ func TestProfileUpgradeResumesOnlyAnIdenticalBackup(t *testing.T) {
 	}
 }
 
+func TestReadProfileCannotMigrateLegacyState(t *testing.T) {
+	path, state := legacyProfileFixture(t)
+	if _, err := ReadProfile(path, ""); err == nil {
+		t.Fatalf("ReadProfile(config=%q) accepted unmigrated state", path)
+	}
+	for _, candidate := range []string{
+		filepath.Join(state, "profiles"),
+		state + ".pre-profiles",
+		state + ".profile-migration.lock",
+	} {
+		if _, err := os.Stat(candidate); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("ReadProfile(config=%q) created %q: %v", path, candidate, err)
+		}
+	}
+}
+
 func TestProfileUpgradeRejectsUnsafeArtifactsWithoutPublication(t *testing.T) {
 	for _, kind := range []string{"current-parent", "current-file", "graph-symlink", "unexpected-socket", "unreadable-graph"} {
 		t.Run(kind, func(t *testing.T) {
