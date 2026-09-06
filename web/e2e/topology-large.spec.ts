@@ -384,6 +384,50 @@ function overlayInvalidationTopologyPayload(): object {
   };
 }
 
+test("keeps the general graph chrome compact and clear of the view switcher", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/meta", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        status: "ready",
+        snapshot_id: 7,
+        counts: {
+          repositories: 0,
+          packages: 0,
+          files: 0,
+          symbols: 0,
+          edges: 0,
+          unresolved: 0,
+        },
+        layout: null,
+      }),
+    });
+  });
+
+  await page.goto("/");
+
+  const chrome = page.getByTestId("viewer-chrome");
+  const status = page.getByTestId("graph-status-bar");
+  const viewSwitcher = page.getByRole("group", { name: "Viewer mode" });
+  const legend = page.getByTestId("graph-legend");
+  await expect(chrome).toBeVisible();
+  await expect(
+    chrome.getByText("Graph explorer", { exact: true }),
+  ).toBeVisible();
+  await expect(chrome).toHaveCSS("border-radius", "0px");
+  await expect(legend).not.toHaveAttribute("open");
+
+  const statusBox = await status.boundingBox();
+  const switcherBox = await viewSwitcher.boundingBox();
+  expect(statusBox).not.toBeNull();
+  expect(switcherBox).not.toBeNull();
+  expect((statusBox?.x ?? 0) + (statusBox?.width ?? 0)).toBeLessThanOrEqual(
+    switcherBox?.x ?? 0,
+  );
+});
+
 test("keeps a large topology explorable", async ({ page }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));

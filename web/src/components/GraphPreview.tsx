@@ -583,110 +583,123 @@ export function GraphPreview() {
           />
         </GraphCanvas>
       ) : null}
-      <div className="pointer-events-none absolute inset-x-4 top-4 flex items-start justify-between gap-4 text-xs font-medium">
-        <span className="flex flex-col items-start gap-1">
-          <span className="rounded-full border border-border/80 bg-background/85 px-3 py-1 text-foreground backdrop-blur">
+      <div
+        className="pointer-events-none absolute top-3 right-40 left-3 flex items-start justify-between gap-3 font-mono text-[10px]"
+        data-testid="graph-status-bar"
+      >
+        <span className="flex min-w-0 items-center border border-rule bg-panel/90 shadow-xl backdrop-blur">
+          <span className="border-r border-rule px-3 py-2 font-semibold text-gray-100">
             {state.error ? `error · ${state.error}` : summary.drawn}
           </span>
           {state.error || summary.detail === "" ? null : (
-            <span className="rounded-full px-3 text-[11px] text-muted-foreground/70">
+            <span className="truncate px-3 py-2 text-gray-400">
               {summary.detail}
             </span>
           )}
         </span>
-        <span className="rounded-full border border-border/80 bg-background/85 px-3 py-1 text-muted-foreground backdrop-blur">
+        <span className="shrink-0 border border-rule bg-panel/90 px-3 py-2 text-gray-400 shadow-xl backdrop-blur">
           <FrameRate /> · {rendererLabel} ·{" "}
           <HoverStatus channel={statusChannel} />
         </span>
       </div>
-      <div className="pointer-events-none absolute bottom-4 left-4 flex flex-col gap-1.5 rounded-2xl border border-border/80 bg-background/85 px-3 py-2 text-[11px] text-muted-foreground backdrop-blur">
-        {NODE_COLORS.map((entry, position) => (
-          <span key={entry.kind} className="flex items-center gap-2">
+      <details
+        className="pointer-events-auto absolute bottom-3 left-3 border border-rule bg-panel/90 font-mono text-[10px] text-gray-400 shadow-xl backdrop-blur"
+        data-testid="graph-legend"
+      >
+        <summary className="cursor-pointer list-none px-3 py-2 font-semibold uppercase tracking-[0.14em] text-gray-300 [&::-webkit-details-marker]:hidden">
+          map legend
+        </summary>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 border-t border-rule px-3 py-2">
+          {NODE_COLORS.map((entry, position) => (
+            <span key={entry.kind} className="flex items-center gap-2">
+              <span
+                className="inline-block rounded-full"
+                style={{
+                  backgroundColor: entry.color,
+                  width: LEGEND_DOT_SIZES[position],
+                  height: LEGEND_DOT_SIZES[position],
+                }}
+              />
+              {LOD_LABELS[position]}
+            </span>
+          ))}
+          <span className="flex items-center gap-2">
             <span
-              className="inline-block rounded-full"
-              style={{
-                backgroundColor: entry.color,
-                width: LEGEND_DOT_SIZES[position],
-                height: LEGEND_DOT_SIZES[position],
-              }}
+              className="inline-block h-px w-4"
+              style={{ backgroundColor: EXACT_DEPENDENCY_COLOR }}
             />
-            {LOD_LABELS[position]}
+            exact dependency
           </span>
-        ))}
-        <span className="mt-1 flex items-center gap-2">
-          <span
-            className="inline-block h-px w-4"
-            style={{ backgroundColor: EXACT_DEPENDENCY_COLOR }}
-          />
-          exact dependency
-        </span>
-        <span className="flex items-center gap-2">
-          <span
-            className="inline-block h-px w-4"
-            style={{ backgroundColor: CROSS_DEPENDENCY_COLOR }}
-          />
-          cross-cluster dependency
-        </span>
-        <span className="flex items-center gap-2">
-          <span
-            className="inline-block h-px w-4"
-            style={{ backgroundColor: LOCAL_DEPENDENCY_COLOR }}
-          />
-          dependency
-        </span>
-        <span className="flex items-center gap-2">
-          <span
-            className="inline-block h-px w-4 opacity-60"
-            style={{ backgroundColor: CONTAINMENT_COLOR }}
-          />
-          contains
-        </span>
-      </div>
-      <div className="pointer-events-auto absolute inset-x-4 bottom-4 flex items-center justify-center gap-2 text-xs">
-        {LOD_LABELS.map((label, level) => (
+          <span className="flex items-center gap-2">
+            <span
+              className="inline-block h-px w-4"
+              style={{ backgroundColor: CROSS_DEPENDENCY_COLOR }}
+            />
+            cross-cluster
+          </span>
+          <span className="flex items-center gap-2">
+            <span
+              className="inline-block h-px w-4"
+              style={{ backgroundColor: LOCAL_DEPENDENCY_COLOR }}
+            />
+            dependency
+          </span>
+          <span className="flex items-center gap-2">
+            <span
+              className="inline-block h-px w-4 opacity-60"
+              style={{ backgroundColor: CONTAINMENT_COLOR }}
+            />
+            contains
+          </span>
+        </div>
+      </details>
+      <div className="pointer-events-auto absolute inset-x-3 bottom-3 flex items-center justify-center font-mono text-[10px]">
+        <div className="flex items-center border border-rule bg-panel/90 shadow-xl backdrop-blur">
+          {LOD_LABELS.map((label, level) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => setLod(level)}
+              className={`border-r border-rule px-3 py-2 transition-colors ${
+                level === lod
+                  ? "bg-graph-package/20 text-gray-100"
+                  : "text-gray-400 hover:bg-raise hover:text-gray-100"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
           <button
-            key={label}
             type="button"
-            onClick={() => setLod(level)}
-            className={`rounded-full border px-3 py-1 backdrop-blur transition-colors ${
-              level === lod
-                ? "border-primary/60 bg-primary/20 text-foreground"
-                : "border-border/80 bg-background/85 text-muted-foreground hover:text-foreground"
-            }`}
+            onClick={() => {
+              setRotate((previous) => {
+                statusChannel.set(previous ? READY_STATUS : ROTATE_STATUS);
+                return !previous;
+              });
+            }}
+            className="border-r border-rule px-3 py-2 text-gray-400 transition-colors hover:bg-raise hover:text-gray-100"
           >
-            {label}
+            {rotate ? "3D" : "2D"}
           </button>
-        ))}
-        <button
-          type="button"
-          onClick={() => {
-            setRotate((previous) => {
-              statusChannel.set(previous ? READY_STATUS : ROTATE_STATUS);
-              return !previous;
-            });
-          }}
-          className="rounded-full border border-border/80 bg-background/85 px-3 py-1 text-muted-foreground backdrop-blur transition-colors hover:text-foreground"
-        >
-          {rotate ? "3D" : "2D"}
-        </button>
-        <label className="ml-2 flex items-center gap-2 rounded-full border border-border/80 bg-background/85 px-3 py-1 text-muted-foreground backdrop-blur">
-          <span>nodes</span>
-          <input
-            type="range"
-            min={MIN_TILE_BUDGET}
-            max={MAX_TILE_BUDGET}
-            step={TILE_BUDGET_STEP}
-            value={requestedBudget}
-            onChange={(event) =>
-              setRequestedBudget(Number(event.currentTarget.value))
-            }
-            className="h-1 w-40 cursor-pointer accent-primary"
-            aria-label="nodes per view"
-          />
-          <span className="w-12 text-right tabular-nums text-foreground">
-            {requestedBudget}
-          </span>
-        </label>
+          <label className="flex items-center gap-2 px-3 py-2 text-gray-400">
+            <span>nodes</span>
+            <input
+              type="range"
+              min={MIN_TILE_BUDGET}
+              max={MAX_TILE_BUDGET}
+              step={TILE_BUDGET_STEP}
+              value={requestedBudget}
+              onChange={(event) =>
+                setRequestedBudget(Number(event.currentTarget.value))
+              }
+              className="h-1 w-40 cursor-pointer accent-primary"
+              aria-label="nodes per view"
+            />
+            <span className="w-10 text-right tabular-nums text-gray-100">
+              {requestedBudget}
+            </span>
+          </label>
+        </div>
       </div>
     </div>
   );
