@@ -1359,14 +1359,14 @@ func TestNormalizeTypeScriptImplementationEvidence(t *testing.T) {
 	}
 	payload, err := DecodeTypeScriptPayload(data)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("decode implementations.json: %v", err)
 	}
 	set, _, err := NormalizeTypeScript(t.Context(), payload, workspace.Repository{RealPath: "/fixtures/implementations"})
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("normalize implementations.json: %v", err)
 	}
 	if err := set.Validate(); err != nil {
-		t.Fatal(err)
+		t.Fatalf("validate implementations.json: %v", err)
 	}
 	names := map[string]string{}
 	for _, symbol := range set.Symbols {

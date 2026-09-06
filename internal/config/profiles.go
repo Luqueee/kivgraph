@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Luqueee/kivgraph/internal/durable"
 	"github.com/Luqueee/kivgraph/internal/filelock"
 	"gopkg.in/yaml.v3"
 )
@@ -140,6 +141,9 @@ func ensureDefaultProfile(configuration Config, repositoriesPath string) (result
 	if err := validateMigratedProfile(temporaryProfile); err != nil {
 		return err
 	}
+	if err := durable.Directory(temporaryProfile); err != nil {
+		return fmt.Errorf("sync temporary default profile: %w", err)
+	}
 	if _, err := os.Lstat(backupRoot); err == nil {
 		candidate, err := profileArtifactDigest(temporaryProfile)
 		if err != nil {
@@ -159,15 +163,27 @@ func ensureDefaultProfile(configuration Config, repositoriesPath string) (result
 		if err := copyProfileArtifact(temporaryProfile, temporaryBackup); err != nil {
 			return fmt.Errorf("prepare legacy profile backup: %w", err)
 		}
+		if err := durable.Directory(temporaryParent); err != nil {
+			return fmt.Errorf("sync temporary profile migration directory: %w", err)
+		}
 		if err := os.Rename(temporaryBackup, backupRoot); err != nil {
 			return fmt.Errorf("retain legacy profile state: %w", err)
+		}
+		if err := durable.Directory(filepath.Dir(backupRoot)); err != nil {
+			return fmt.Errorf("sync legacy profile backup publication: %w", err)
 		}
 	}
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		return fmt.Errorf("create profiles directory: %w", err)
 	}
+	if err := durable.Directory(temporaryParent); err != nil {
+		return fmt.Errorf("sync temporary profile migration directory: %w", err)
+	}
 	if err := os.Rename(temporaryProfile, profile.StateDirectory); err != nil {
 		return fmt.Errorf("publish migrated profile: %w", err)
+	}
+	if err := errors.Join(durable.Directory(root), durable.Directory(temporaryParent)); err != nil {
+		return fmt.Errorf("sync migrated profile publication: %w", err)
 	}
 	// Load remains the compatibility seam for installation-level diagnostics.
 	// Keep its configured directory checks valid without leaving any profile
@@ -274,6 +290,9 @@ func copyProfileArtifact(source, destination string) error {
 				return err
 			}
 		}
+		if err := durable.Directory(destination); err != nil {
+			return fmt.Errorf("sync copied legacy profile directory %q: %w", destination, err)
+		}
 		return nil
 	}
 	if !info.Mode().IsRegular() {
@@ -295,7 +314,8 @@ func copyProfileArtifact(source, destination string) error {
 		return errors.Join(fmt.Errorf("create copied artifact %q: %w", destination, err), input.Close())
 	}
 	_, copyErr := io.Copy(output, input)
-	if err := errors.Join(copyErr, output.Close(), input.Close()); err != nil {
+	syncErr := output.Sync()
+	if err := errors.Join(copyErr, syncErr, output.Close(), input.Close()); err != nil {
 		return fmt.Errorf("copy legacy profile artifact %q: %w", source, err)
 	}
 	return nil

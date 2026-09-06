@@ -87,14 +87,18 @@ export async function resolveImplementations(
   const fileNames = [
     ...new Set(extraction.symbols.map((symbol) => symbol.fileName)),
   ].sort();
+  const symbolsByFile = new Map<string, LocalSymbol[]>();
+  for (const symbol of extraction.symbols) {
+    const group = symbolsByFile.get(symbol.fileName) ?? [];
+    group.push(symbol);
+    symbolsByFile.set(symbol.fileName, group);
+  }
   // Serial native RPC work bounds concurrency. Caches never escape this view.
   for (const fileName of fileNames) {
     const errors = (await view.program.getSemanticDiagnostics(fileName)).filter(
       (diagnostic) => diagnostic.category === DiagnosticCategory.Error,
     );
-    for (const local of extraction.symbols.filter(
-      (symbol) => symbol.fileName === fileName,
-    )) {
+    for (const local of symbolsByFile.get(fileName) ?? []) {
       if (
         errors.some(
           (diagnostic) =>
@@ -319,6 +323,11 @@ export async function resolveImplementations(
         }
         providerMembers.set(target.symbol.id, members);
       }
+    } catch {
+      limitations.add(
+        "A provider project could not be analyzed, so its members contribute no provenance.",
+      );
+      for (const target of group) targets.delete(target.symbol.id);
     } finally {
       await providerService.close();
     }
@@ -378,19 +387,27 @@ export async function resolveImplementations(
   }
 
   const targetIDsByRequiredName = new Map<string, Set<number>>();
+  const targetsWithoutRequiredMembers = new Set<number>();
   for (const target of targets.values()) {
+    let hasRequiredMembers = false;
     for (const targetType of target.types.values()) {
       for (const property of await props(targetType)) {
         if ((property.flags & SymbolFlags.Optional) !== 0) continue;
+        hasRequiredMembers = true;
         const matching =
           targetIDsByRequiredName.get(property.name) ?? new Set();
         matching.add(target.symbol.id);
         targetIDsByRequiredName.set(property.name, matching);
       }
     }
+    if (!hasRequiredMembers)
+      targetsWithoutRequiredMembers.add(target.symbol.id);
   }
   for (const source of sources.values()) {
-    const candidateIDs = new Set(source.declared);
+    const candidateIDs = new Set([
+      ...source.declared,
+      ...targetsWithoutRequiredMembers,
+    ]);
     for (const sourceType of source.types.values()) {
       for (const property of await props(sourceType)) {
         for (const targetID of targetIDsByRequiredName.get(property.name) ??

@@ -85,7 +85,10 @@ import path from "node:path";
 
 import { isEntryPoint } from "./entry-point.js";
 import { type ExtendsEdge, resolveExtends } from "./extends-resolver.js";
-import { resolveImplementations } from "./implements-resolver.js";
+import {
+  type ImplementationEdge,
+  resolveImplementations,
+} from "./implements-resolver.js";
 import type {
   ImportedSymbol,
   ReexportedSymbol,
@@ -394,14 +397,13 @@ export async function collectFacts(
       extendsResolution.extends,
       manifest?.name ?? repositoryName,
     );
-    const implementationNormalization = extendsFactSymbols(
+    const implementationNormalization = implementationFactSymbols(
       root,
       implementationResolution.edges,
       manifest?.name ?? repositoryName,
     );
     if (implementationNormalization.unresolved.length !== 0)
       throw new Error("resolved implementations produced unresolved facts");
-    const implementationFacts = implementationNormalization.extends;
 
     const dependencyEvidenceFiles = dependencyResolution.dependencies
       .map((dependency) => dependency.imports[0]?.fileName)
@@ -530,12 +532,7 @@ export async function collectFacts(
       }),
       exports: exportSymbols.exports,
       extends: extendsFacts.extends,
-      implementations: implementationResolution.edges.map((edge, index) => {
-        const fact = implementationFacts[index];
-        if (fact === undefined)
-          throw new Error("implementation normalization omitted an edge");
-        return { ...fact, detection: edge.detection, relation: edge.relation };
-      }),
+      implementations: implementationNormalization.implementations,
       implementationLimitations: [
         ...implementationResolution.limitations,
         ...(unclaimed.length > 0
@@ -956,48 +953,85 @@ function extendsFactSymbols(
   const unresolved: FactUnresolved[] = [];
 
   for (const edge of edges) {
-    const identity = edge.identity;
-    facts.push({
-      file: relative(root, edge.base.fileName),
-      qualifiedName: edge.base.sourceQualifiedName,
-      start: edge.base.start,
-      end: edge.base.end,
-      startLine: edge.base.startLine,
-      text: edge.base.text,
-      targetQualifiedName: edge.targetQualifiedName ?? null,
-      targetFile:
-        edge.targetFile === undefined ? null : relative(root, edge.targetFile),
-      target:
-        identity === undefined
-          ? null
-          : {
-              repository: identity.repository,
-              package: identity.package,
-              qualifiedName: identity.qualifiedName,
-              kind: identity.kind,
-              signature: identity.signature,
-              file: identity.file,
-              startLine: identity.startLine,
-              source: identity.source,
-            },
-      requestedPackage: edge.packageName ?? null,
-      requestedSymbol: edge.exportedName ?? null,
-      reason: edge.unresolvedReason ?? null,
-      detail: edge.unresolvedDetail ?? null,
-    });
-    if (edge.targetQualifiedName === undefined && identity === undefined) {
-      unresolved.push({
-        file: relative(root, edge.base.fileName),
-        reason: edge.unresolvedReason ?? "PROVIDER_SOURCE_UNAVAILABLE",
-        requestedPackage: edge.packageName ?? localPackage,
-        requestedSymbol: edge.exportedName ?? edge.base.text,
-        detail: edge.unresolvedDetail ?? null,
-        start: edge.base.start,
-      });
-    }
+    const normalized = normalizeExtendsFact(root, edge, localPackage);
+    facts.push(normalized.fact);
+    if (normalized.unresolved !== undefined)
+      unresolved.push(normalized.unresolved);
   }
 
   return { extends: facts, unresolved };
+}
+
+function implementationFactSymbols(
+  root: string,
+  edges: readonly ImplementationEdge[],
+  localPackage: string,
+): {
+  readonly implementations: FactsPayload["implementations"];
+  readonly unresolved: readonly FactUnresolved[];
+} {
+  const implementations: Array<FactsPayload["implementations"][number]> = [];
+  const unresolved: FactUnresolved[] = [];
+  for (const edge of edges) {
+    const normalized = normalizeExtendsFact(root, edge, localPackage);
+    implementations.push({
+      ...normalized.fact,
+      detection: edge.detection,
+      relation: edge.relation,
+    });
+    if (normalized.unresolved !== undefined)
+      unresolved.push(normalized.unresolved);
+  }
+  return { implementations, unresolved };
+}
+
+function normalizeExtendsFact(
+  root: string,
+  edge: ExtendsEdge,
+  localPackage: string,
+): { readonly fact: FactExtends; readonly unresolved?: FactUnresolved } {
+  const identity = edge.identity;
+  const fact: FactExtends = {
+    file: relative(root, edge.base.fileName),
+    qualifiedName: edge.base.sourceQualifiedName,
+    start: edge.base.start,
+    end: edge.base.end,
+    startLine: edge.base.startLine,
+    text: edge.base.text,
+    targetQualifiedName: edge.targetQualifiedName ?? null,
+    targetFile:
+      edge.targetFile === undefined ? null : relative(root, edge.targetFile),
+    target:
+      identity === undefined
+        ? null
+        : {
+            repository: identity.repository,
+            package: identity.package,
+            qualifiedName: identity.qualifiedName,
+            kind: identity.kind,
+            signature: identity.signature,
+            file: identity.file,
+            startLine: identity.startLine,
+            source: identity.source,
+          },
+    requestedPackage: edge.packageName ?? null,
+    requestedSymbol: edge.exportedName ?? null,
+    reason: edge.unresolvedReason ?? null,
+    detail: edge.unresolvedDetail ?? null,
+  };
+  if (edge.targetQualifiedName !== undefined || identity !== undefined)
+    return { fact };
+  return {
+    fact,
+    unresolved: {
+      file: relative(root, edge.base.fileName),
+      reason: edge.unresolvedReason ?? "PROVIDER_SOURCE_UNAVAILABLE",
+      requestedPackage: edge.packageName ?? localPackage,
+      requestedSymbol: edge.exportedName ?? edge.base.text,
+      detail: edge.unresolvedDetail ?? null,
+      start: edge.base.start,
+    },
+  };
 }
 
 function compareUnresolved(

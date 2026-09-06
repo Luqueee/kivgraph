@@ -47,6 +47,8 @@ export abstract class Abstract implements Reader { abstract read(): string; }
 export class Declared implements Reader { read(): string { return 'ok'; } }
 export class Structural { read(): string { return 'ok'; } }
 export class Inherited extends Structural {}
+export abstract class Base { abstract run(): string; }
+export class Concrete extends Base { run(): string { return 'ok'; } }
 `);
   const result = await resolveImplementations(service, view, symbols, []);
   const brute = await resolveImplementations(service, view, symbols, [], {
@@ -73,6 +75,21 @@ export class Inherited extends Structural {}
       edge.base.sourceQualifiedName.startsWith("Broken"),
     ),
   ).toBe(false);
+  expect(
+    result.edges
+      .filter((edge) => edge.base.sourceQualifiedName.startsWith("Concrete"))
+      .map((edge) => [
+        edge.base.sourceQualifiedName,
+        edge.targetQualifiedName,
+        edge.relation,
+      ]),
+  ).toEqual([
+    ["Concrete", "Base", "IMPLEMENTS"],
+    ["Concrete.run", "Base.run", "OVERRIDES"],
+  ]);
+  expect(result.limitations).toContain(
+    "Type declarations with compiler errors are excluded from implementation proofs.",
+  );
 });
 
 it("uses concrete generic instances without replacing unknown parameters with any", async () => {
@@ -102,6 +119,28 @@ export type TextBox = Box<string>;
     ["StringBox", "Box", "declared"],
     ["StringBox", "TextBox", "structural"],
     ["StringBox.get", "Box.get", "declared"],
+  ]);
+});
+
+it("keeps empty and fully optional targets aligned with the exhaustive oracle", async () => {
+  const { service, view, symbols } = await fixture(`
+export interface Empty {}
+export interface Optional { read?(): string; }
+export class Blank {}
+`);
+  const result = await resolveImplementations(service, view, symbols, []);
+  const brute = await resolveImplementations(service, view, symbols, [], {
+    exhaustive: true,
+  });
+  expect(result.edges).toEqual(brute.edges);
+  expect(
+    result.edges.map((edge) => [
+      edge.base.sourceQualifiedName,
+      edge.targetQualifiedName,
+    ]),
+  ).toEqual([
+    ["Blank", "Empty"],
+    ["Blank", "Optional"],
   ]);
 });
 

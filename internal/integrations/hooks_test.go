@@ -668,7 +668,7 @@ func TestClaudeDesktopDetectionUsesConfiguredSystemRoot(t *testing.T) {
 			return
 		}
 	}
-	t.Fatal("claude-desktop is not offered as a hook target")
+	t.Fatalf("claude-desktop is not offered as a hook target with system root %q", manager.systemRoot)
 }
 
 // TestOhMyPiProjectIsDetectedByItsAgentRoot keeps project selection from

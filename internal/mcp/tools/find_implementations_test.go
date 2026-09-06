@@ -39,7 +39,7 @@ func TestImplementationsPageContainsTypedRelationsOnly(t *testing.T) {
 		t.Fatalf("dispatch calls leaked into implementations: %#v %v", concrete, err)
 	}
 	if concrete.Completeness == nil || concrete.Completeness.Verdict != VerdictLowerBound {
-		t.Fatal("legacy generation falsely attested complete coverage")
+		t.Fatalf("legacy generation falsely attested complete coverage for stable_key %q", "impl-sole")
 	}
 	_, filtered, err := findImplementations(context.Background(), nil, FindImplementationsInput{StableKey: "iface-shared", Paths: []string{"disk.go"}}, store)
 	if err != nil || filtered.Total != 1 || filtered.Results.Implementations[0].FilePath != "disk.go" {

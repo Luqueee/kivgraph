@@ -314,6 +314,11 @@ func New(options Options) (Manager, error) {
 	systemRoot := options.SystemRoot
 	if systemRoot == "" {
 		systemRoot = string(filepath.Separator)
+	} else {
+		systemRoot, err = absolutePath(systemRoot, "system application root")
+		if err != nil {
+			return Manager{}, err
+		}
 	}
 	return Manager{
 		systemRoot:       systemRoot,

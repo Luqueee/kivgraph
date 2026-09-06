@@ -29,6 +29,34 @@ func testManager(t *testing.T) (Manager, string, string) {
 	return manager, home, project
 }
 
+func TestSystemApplicationRootIsResolved(t *testing.T) {
+	t.Setenv("CODEX_HOME", "")
+	t.Setenv("PI_CODING_AGENT_DIR", "")
+	working := t.TempDir()
+	previous, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(working); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(previous) })
+	manager, err := New(Options{
+		HomeDir:    t.TempDir(),
+		SystemRoot: "system",
+		ProjectDir: t.TempDir(),
+		Executable: testsupport.InstalledExecutable(),
+		GOOS:       "darwin",
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	want := filepath.Join(working, "system")
+	if manager.systemRoot != want {
+		t.Fatalf("systemRoot = %q, want %q", manager.systemRoot, want)
+	}
+}
+
 func TestInstallJSONIsIdempotentAndBacksUpOnRemoval(t *testing.T) {
 	// The mode is the claim here, and only a platform that keeps one can
 	// answer it. Where it does not, the file is narrowed with an ACL and

@@ -45,9 +45,9 @@ checkout, which is what a reader on a fork or without a network still has.
 | everything about this one symbol | `get_symbol` |
 | what is indexed, and is the graph current | `list_repositories`, `graph_status` |
 
-Twelve read-only tools, plus one consent-gated mutation (`index_project`) that a
-client has to authorize before it can register a repository or publish a
-generation.
+Twelve read-only tools, plus two consent-gated mutations (`index_project` and
+`start_index_project`) that a client has to authorize before either can register
+a repository or publish a generation.
 
 Every row that names a symbol carries its repository, path, qualified name and
 line range, so it can be opened without a second call, and every tool accepts

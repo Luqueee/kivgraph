@@ -298,5 +298,7 @@ leería como «aquí no hay nada declarado», que es una respuesta distinta.
 declarada o estructural de TypeScript. Devuelve `results.subject` e
 `results.implementations`, identidades canónicas, generación, cursor y
 completitud. Los filtros `repo`, `language`, `paths` y `detection` se aplican
-antes de paginar. Una generación anterior al esquema `5` devuelve `LOWER_BOUND`.
+antes de paginar. Una generación anterior al esquema `5` devuelve `LOWER_BOUND`,
+y una del esquema `5` también lo devuelve cuando quedan ámbitos sin resolver
+registrados. Un `COMPLETE` vacío sólo demuestra ausencia dentro de ese corpus.
 Véase ADR `0116` para el ámbito de tipos y la compatibilidad del protocolo.
