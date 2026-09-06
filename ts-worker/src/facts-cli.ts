@@ -405,8 +405,11 @@ export async function collectFacts(
     // Implementation targets come only from local declarations or imports
     // whose provider identity was proven, so an unresolved row contradicts
     // resolveImplementations rather than describing a partial result.
-    if (implementationNormalization.unresolved.length !== 0)
-      throw new Error("resolved implementations produced unresolved facts");
+    const contradiction = implementationNormalization.unresolved[0];
+    if (contradiction !== undefined)
+      throw new Error(
+        `resolved implementations produced unresolved facts: ${contradiction.file} @${contradiction.start} ${contradiction.reason}`,
+      );
 
     const dependencyEvidenceFiles = dependencyResolution.dependencies
       .map((dependency) => dependency.imports[0]?.fileName)

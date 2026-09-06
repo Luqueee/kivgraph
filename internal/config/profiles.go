@@ -70,7 +70,11 @@ func ensureDefaultProfile(configuration Config, repositoriesPath string) (result
 	if !acquired {
 		return errors.New("profile migration is in progress; retry after it completes")
 	}
-	defer func() { resultErr = errors.Join(resultErr, lock.Release()) }()
+	defer func() {
+		if releaseErr := lock.Release(); releaseErr != nil {
+			resultErr = errors.Join(resultErr, fmt.Errorf("release profile migration lock: %w", releaseErr))
+		}
+	}()
 	if _, err := os.Stat(profile.StateDirectory); err == nil {
 		return validateMigratedProfile(profile.StateDirectory)
 	}
@@ -94,7 +98,11 @@ func ensureDefaultProfile(configuration Config, repositoriesPath string) (result
 		if !acquired {
 			return fmt.Errorf("profile migration blocked by active writer (%s); stop writers and retry", name)
 		}
-		defer func() { resultErr = errors.Join(resultErr, lock.Release()) }()
+		defer func(lockName string) {
+			if releaseErr := lock.Release(); releaseErr != nil {
+				resultErr = errors.Join(resultErr, fmt.Errorf("release legacy %s: %w", lockName, releaseErr))
+			}
+		}(name)
 	}
 	if err := inspectLegacyRuntime(stateRoot); err != nil {
 		return err

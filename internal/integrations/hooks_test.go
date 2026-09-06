@@ -658,7 +658,7 @@ func TestClaudeDesktopDetectionUsesConfiguredSystemRoot(t *testing.T) {
 	}
 	detections, err := manager.DetectHookTargets(ScopeUser)
 	if err != nil {
-		t.Fatalf("DetectHookTargets() error = %v", err)
+		t.Fatalf("DetectHookTargets(%q, systemRoot=%q) error = %v", ScopeUser, manager.systemRoot, err)
 	}
 	for _, detection := range detections {
 		if detection.Target == TargetClaudeDesktop {

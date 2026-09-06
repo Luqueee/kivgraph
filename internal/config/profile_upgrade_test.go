@@ -77,7 +77,7 @@ func TestProfileUpgradePreservesRuntimeAndFreshness(t *testing.T) {
 			t.Fatal(err)
 		}
 		if _, err := os.Lstat(filepath.Join(root, "daemon.sock")); !errors.Is(err, os.ErrNotExist) {
-			t.Fatalf("copied runtime socket: %v", err)
+			t.Fatalf("copied runtime socket into %q: %v", root, err)
 		}
 	}
 	socketAfter, err := os.Lstat(filepath.Join(state, "daemon.sock"))

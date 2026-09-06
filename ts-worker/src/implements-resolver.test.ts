@@ -84,8 +84,8 @@ export class Concrete extends Base { run(): string { return 'ok'; } }
         edge.relation,
       ]),
   ).toEqual([
-    ["Concrete", "Base", "IMPLEMENTS"],
     ["Concrete.run", "Base.run", "OVERRIDES"],
+    ["Concrete", "Base", "IMPLEMENTS"],
   ]);
   expect(result.limitations).toContain(
     "Type declarations with compiler errors are excluded from implementation proofs.",
@@ -113,12 +113,12 @@ export type TextBox = Box<string>;
       edge.detection,
     ]),
   ).toEqual([
+    ["Generic.get", "Box.get", "structural"],
     ["Generic", "Box", "structural"],
     ["Generic", "TextBox", "structural"],
-    ["Generic.get", "Box.get", "structural"],
+    ["StringBox.get", "Box.get", "declared"],
     ["StringBox", "Box", "declared"],
     ["StringBox", "TextBox", "structural"],
-    ["StringBox.get", "Box.get", "declared"],
   ]);
 });
 
@@ -244,10 +244,10 @@ it("retains canonical provider identities for imported interfaces and methods", 
       edge.relation,
     ]),
   ).toEqual([
-    ["Declared", "Reader", "declared", "IMPLEMENTS"],
     ["Declared.read", "Reader.read", "declared", "IMPLEMENTS"],
-    ["Structural", "Reader", "structural", "IMPLEMENTS"],
+    ["Declared", "Reader", "declared", "IMPLEMENTS"],
     ["Structural.read", "Reader.read", "structural", "IMPLEMENTS"],
+    ["Structural", "Reader", "structural", "IMPLEMENTS"],
   ]);
   expect(
     result.edges.map((edge) => [
@@ -256,10 +256,10 @@ it("retains canonical provider identities for imported interfaces and methods", 
       edge.identity?.file,
     ]),
   ).toEqual([
-    ["Declared", "provider-repo", "src/contracts.ts"],
     ["Declared.read", "provider-repo", "src/contracts.ts"],
-    ["Structural", "provider-repo", "src/contracts.ts"],
+    ["Declared", "provider-repo", "src/contracts.ts"],
     ["Structural.read", "provider-repo", "src/contracts.ts"],
+    ["Structural", "provider-repo", "src/contracts.ts"],
   ]);
 
   await writeFile(

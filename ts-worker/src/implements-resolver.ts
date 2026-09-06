@@ -526,7 +526,7 @@ export async function resolveImplementations(
   return {
     generation: view.generation,
     edges: [...edges.entries()]
-      .sort(([left], [right]) => left.localeCompare(right))
+      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
       .map(([, edge]) => edge),
     limitations: [...limitations].sort(),
   };

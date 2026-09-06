@@ -1375,10 +1375,11 @@ func TestNormalizeTypeScriptImplementationEvidence(t *testing.T) {
 	edges := map[string]Provenance{}
 	for _, edge := range set.Edges {
 		if edge.Kind == Implements || edge.Kind == Overrides {
+			pair := names[edge.SourceKey] + "->" + names[edge.TargetKey]
 			if !edge.Confidence.Exact() || edge.EvidenceKey == "" {
-				t.Fatalf("unproven relationship: %#v", edge)
+				t.Fatalf("%s: unproven relationship: %#v", pair, edge)
 			}
-			edges[names[edge.SourceKey]+"->"+names[edge.TargetKey]] = edge.Provenance
+			edges[pair] = edge.Provenance
 		}
 	}
 	for pair, provenance := range map[string]Provenance{"Declared->Reader": TypeScriptImplementationDeclared, "Structural->Reader": TypeScriptImplementationStructural, "Declared.read->Reader.read": TypeScriptImplementationDeclared, "Generic->TextBox": TypeScriptImplementationStructural, "Concrete.read->Abstract.read": TypeScriptImplementationDeclared} {

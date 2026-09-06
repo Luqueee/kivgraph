@@ -40,7 +40,15 @@ func TestSystemApplicationRootIsResolved(t *testing.T) {
 	if err := os.Chdir(working); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chdir(previous) })
+	t.Cleanup(func() {
+		if err := os.Chdir(previous); err != nil {
+			t.Errorf("restore working directory %q: %v", previous, err)
+		}
+	})
+	marker := filepath.Join(working, "system", "Applications", "Claude.app")
+	if err := os.MkdirAll(marker, 0o700); err != nil {
+		t.Fatal(err)
+	}
 	manager, err := New(Options{
 		HomeDir:    t.TempDir(),
 		SystemRoot: "system",
@@ -49,12 +57,21 @@ func TestSystemApplicationRootIsResolved(t *testing.T) {
 		GOOS:       "darwin",
 	})
 	if err != nil {
-		t.Fatalf("New() error = %v", err)
+		t.Fatalf("New(SystemRoot=%q) error = %v", "system", err)
 	}
-	want := filepath.Join(working, "system")
-	if manager.systemRoot != want {
-		t.Fatalf("systemRoot for SystemRoot %q = %q, want %q", "system", manager.systemRoot, want)
+	detections, err := manager.DetectHookTargets(ScopeUser)
+	if err != nil {
+		t.Fatalf("DetectHookTargets(%q) error = %v", ScopeUser, err)
 	}
+	for _, detection := range detections {
+		if detection.Target == TargetClaudeDesktop {
+			if !detection.Detected {
+				t.Fatalf("relative SystemRoot %q did not find marker %q", "system", marker)
+			}
+			return
+		}
+	}
+	t.Fatal("claude-desktop is not offered as a hook target")
 }
 
 func TestInstallJSONIsIdempotentAndBacksUpOnRemoval(t *testing.T) {
