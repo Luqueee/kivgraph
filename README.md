@@ -1,6 +1,7 @@
 Kivgraph
 
 [!NOTE]
+
 Kivgraph began as a research project. It explored whether a local semantic code graph could reduce the amount of context coding agents need to inspect.
 
 The resulting tool remains useful for structured code navigation, cross-repository relationships, and impact analysis. However, the research did not demonstrate a reliable net token saving over long, end-to-end agent conversations. While some isolated queries can use substantially fewer tokens than grep plus file reads, those savings did not consistently translate into lower token usage across realistic long-running agent workflows.
