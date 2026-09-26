@@ -15,12 +15,15 @@
 > The benchmark results and their limitations are preserved in
 > [`benchmarks/`](benchmarks/), including the
 > [end-to-end agent benchmark](benchmarks/agent-e2e/report.md).
+
 Kivgraph is a local **cross-repository code intelligence MCP server for AI
 coding agents**. It builds a canonical semantic code graph across multiple
 registered repositories and answers questions about symbols, repository
 relationships, callers, dependencies and change impact.
 
-https://github.com/user-attachments/assets/b8410905-323d-4caf-9d7b-57c50ffca48c
+[![Kivgraph graph viewer preview](docs/assets/kivgraph-viewer.png)](docs/assets/kivgraph-ui-demo.mp4)
+
+[Watch the Kivgraph UI demo video](docs/assets/kivgraph-ui-demo.mp4)
 
 <p align="center">
   <em><code>kivgraph ui</code> — read-only 3D view of the published graph.</em>
