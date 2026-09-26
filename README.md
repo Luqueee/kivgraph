@@ -1,9 +1,14 @@
-# Kivgraph
+Kivgraph
 
-[![kivgraph MCP server](https://glama.ai/mcp/servers/Luqueee/kivgraph/badges/score.svg)](https://glama.ai/mcp/servers/Luqueee/kivgraph)
+[!NOTE]
+Kivgraph began as a research project. It explored whether a local semantic code graph could reduce the amount of context coding agents need to inspect.
 
-Kivgraph is a local **cross-repository code intelligence MCP server for AI
-coding agents**. It builds a canonical semantic code graph across multiple
+The resulting tool remains useful for structured code navigation, cross-repository relationships, and impact analysis. However, the research did not demonstrate a reliable net token saving over long, end-to-end agent conversations. While some isolated queries can use substantially fewer tokens than grep plus file reads, those savings did not consistently translate into lower token usage across realistic long-running agent workflows.
+
+The benchmark results and their limitations are preserved in benchmarks/, including the end-to-end agent benchmark.
+
+Kivgraph is a local cross-repository code intelligence MCP server for AI
+coding agents. It builds a canonical semantic code graph across multiple
 registered repositories and answers questions about symbols, repository
 relationships, callers, dependencies and change impact.
 
@@ -14,167 +19,158 @@ https://github.com/user-attachments/assets/b8410905-323d-4caf-9d7b-57c50ffca48c
 </p>
 
 It indexes a corpus once and serves an immutable graph: the edges are resolved
-by `go/types`, the TypeScript checker and `rust-analyzer`, not by matching
+by go/types, the TypeScript checker and rust-analyzer, not by matching
 names. That is the difference from a search tool, and it is what makes an empty
-answer worth something — an empty reference list means **nobody calls it**, not
-that nothing was found, and `grep` cannot tell those apart.
+answer worth something — an empty reference list means nobody calls it, not
+that nothing was found, and grep cannot tell those apart.
 
 Kivgraph is focused on semantic code relationships, not automatic discovery of
 every HTTP, gRPC, Kafka or database runtime flow between services.
 
-## Documentation
+Documentation
 
-Read the [Kivgraph user documentation](https://kivgraph.dev/) for installation,
+Read the Kivgraph user documentation for installation,
 MCP clients, code intelligence, repository relationships and workspace code
-graphs. The same pages are the source of `landing/src/content/docs` in this
+graphs. The same pages are the source of landing/src/content/docs in this
 checkout, which is what a reader on a fork or without a network still has.
 
-## What each tool answers
+What each tool answers
 
-| the question | the tool |
-| --- | --- |
-| who calls this, what references this | `find_references` |
-| who implements a type or method | `find_implementations` |
-| what breaks if I change it | `get_blast_radius` |
-| what does this reach outward | `trace_dependencies` |
-| who uses it from another repository | `find_cross_repo_consumers` |
-| where is it declared | `find_symbol` |
-| I don't know what it is called, what files to open | `find_by_intent` |
-| what is declared in this package | `get_file_outline` |
-| give me the code of these symbols | `get_source` |
-| everything about this one symbol | `get_symbol` |
-| what is indexed, and is the graph current | `list_repositories`, `graph_status` |
-| how is an asynchronous index progressing | `get_index_status` |
+the question	the tool
+who calls this, what references this	find_references
+who implements a type or method	find_implementations
+what breaks if I change it	get_blast_radius
+what does this reach outward	trace_dependencies
+who uses it from another repository	find_cross_repo_consumers
+where is it declared	find_symbol
+I don’t know what it is called, what files to open	find_by_intent
+what is declared in this package	get_file_outline
+give me the code of these symbols	get_source
+everything about this one symbol	get_symbol
+what is indexed, and is the graph current	list_repositories, graph_status
+how is an asynchronous index progressing	get_index_status
 
-Thirteen read-only tools, plus two consent-gated mutations (`index_project` and
-`start_index_project`) that a client has to authorize before either can register
+Thirteen read-only tools, plus two consent-gated mutations (index_project and
+start_index_project) that a client has to authorize before either can register
 a repository or publish a generation.
 
 Every row that names a symbol carries its repository, path, qualified name and
 line range, so it can be opened without a second call, and every tool accepts
 that triple in place of an opaque key.
 
-**Where it loses.** A rare name in one small repository is cheaper with `grep`,
+Where it loses. A rare name in one small repository is cheaper with grep,
 and indexing a small file costs more than reading it. It wins on common names,
 on transitive impact, on consumers in another repository, and on proving an
 absence. Measured over 29 questions against a 37-repository corpus
-(`benchmarks/graph-tools-comparison/results-all.json`, commit `954b9eb`,
-tokenizer `o200k_base`): `35,961` tokens for Kivgraph against `267,980` for
-`grep` plus reading, both exact on 28 of the 29, median `5.95x` per question in
-Kivgraph's favour. `grep` is cheaper on 5 of those 29, all of them at full
-recall on both sides: `T1_go_trivial` asks for a name the corpus declares
-twice, and there `grep` costs `0.53x` what Kivgraph does.
+(benchmarks/graph-tools-comparison/results-all.json, commit 954b9eb,
+tokenizer o200k_base): 35,961 tokens for Kivgraph against 267,980 for
+grep plus reading, both exact on 28 of the 29, median 5.95x per question in
+Kivgraph’s favour. grep is cheaper on 5 of those 29, all of them at full
+recall on both sides: T1_go_trivial asks for a name the corpus declares
+twice, and there grep costs 0.53x what Kivgraph does.
 
-A second harness, `benchmarks/mcp-token-cost`, compares against the host's own
-tool output captured verbatim, but it runs on Kivgraph's own single repository
-of 13,222 symbols: `7.64x` on the answers themselves and `1.60x` over a whole
-session, against a `2.41x` floor set by the source bodies both arms pay for.
+A second harness, benchmarks/mcp-token-cost, compares against the host’s own
+tool output captured verbatim, but it runs on Kivgraph’s own single repository
+of 13,222 symbols: 7.64x on the answers themselves and 1.60x over a whole
+session, against a 2.41x floor set by the source bodies both arms pay for.
 
-## Status
+These measurements are useful for understanding individual retrieval costs,
+but they should not be interpreted as evidence that Kivgraph reduces the total
+token usage of a long agent conversation. The end-to-end agent benchmark did
+not establish such a saving.
 
-Released and in use. `kivgraph version` reports the published release; the
-backlog and the acceptance gate of every phase are in [`TASKS.md`](TASKS.md).
+Status
 
-- **Languages:** Go, TypeScript, Rust, Python and Dart. Python uses the
-  bundled AST worker in fallback mode; those inferred references are
-  `CANDIDATE`, never `EXACT`. Exact Python mode uses the bundled Pyright LSP
-  adapter with an installed Pyright/BasedPyright server. Dart uses the Dart
-  Analysis Server supplied by the Dart or Flutter SDK.
-- **Semantic dependencies:** Python and Dart imports can publish a package
-  dependency when exactly one registered provider owns the requested package;
-  symbol-level cross-repository edges require an explicit provider identity.
-- **Surface:** thirteen read-only tools over STDIO, plus two consent-gated
-  mutations (`index_project` and `start_index_project`). The contract is
-  [docs/protocol/mcp-surface-v3.md](docs/protocol/mcp-surface-v3.md).
-- **Storage:** LadybugDB is canonical; queries are served from an immutable
-  HotSnapshot published atomically, never from the database.
-- **Platforms:** `linux/amd64`, `darwin/arm64` and `windows/amd64`.
-- **Viewer:** `kivgraph ui` serves a read-only 3D view of the published graph.
+Released and in use. kivgraph version reports the published release; the
+backlog and the acceptance gate of every phase are in TASKS.md.
 
-## Installation
+* Languages: Go, TypeScript, Rust, Python and Dart. Python uses the
+    bundled AST worker in fallback mode; those inferred references are
+    CANDIDATE, never EXACT. Exact Python mode uses the bundled Pyright LSP
+    adapter with an installed Pyright/BasedPyright server. Dart uses the Dart
+    Analysis Server supplied by the Dart or Flutter SDK.
+* Semantic dependencies: Python and Dart imports can publish a package
+    dependency when exactly one registered provider owns the requested package;
+    symbol-level cross-repository edges require an explicit provider identity.
+* Surface: thirteen read-only tools over STDIO, plus two consent-gated
+    mutations (index_project and start_index_project). The contract is
+    docs/protocol/mcp-surface-v3.md.
+* Storage: LadybugDB is canonical; queries are served from an immutable
+    HotSnapshot published atomically, never from the database.
+* Platforms: linux/amd64, darwin/arm64 and windows/amd64.
+* Viewer: kivgraph ui serves a read-only 3D view of the published graph.
 
-### Install the MCP with one script
+Installation
+
+Install the MCP with one script
 
 The installer detects the platform, downloads the latest published MCP release
 for it, verifies both the release archive and the bundle checksums, and
 installs it without requiring Go or pnpm. The release contains the Go server,
 the pinned LadybugDB library, the TypeScript worker, the bundled Python AST
-worker, the pinned `rust-analyzer`, the grammar manifest and the web viewer,
-whose assets are 2.3 MB of the bundle. `scripts/build-bundle.sh --mcp-only`
-produces a bundle without the viewer for anyone who wants one. `--slim` goes
-further for anyone packaging an `.mcpb`: it leaves out the pinned
-`rust-analyzer` and every symbol a debugger would read, which is 46.3 MB
+worker, the pinned rust-analyzer, the grammar manifest and the web viewer,
+whose assets are 2.3 MB of the bundle. scripts/build-bundle.sh --mcp-only
+produces a bundle without the viewer for anyone who wants one. --slim goes
+further for anyone packaging an .mcpb: it leaves out the pinned
+rust-analyzer and every symbol a debugger would read, which is 46.3 MB
 packaged against 24.9 MB. It downloads nothing later, so that bundle reads
-Rust only where the machine already has an analyzer on its `PATH`.
+Rust only where the machine already has an analyzer on its PATH.
 
-Published bundles: Linux `amd64`, macOS `arm64` and Windows `amd64`.
+Published bundles: Linux amd64, macOS arm64 and Windows amd64.
 
-Runtime requirements: Bash on Linux and macOS or PowerShell `5.1` or later on
-Windows, Node.js `22` or later, Python 3.10 or later when indexing Python, and
-on the POSIX platforms `curl`, `tar`, and `sha256sum` or `shasum`. The bundle
-carries its own `rust-analyzer`; indexing Rust repositories additionally needs
-`cargo` on the `PATH`, and indexing Dart needs the Dart or Flutter SDK. On
+Runtime requirements: Bash on Linux and macOS or PowerShell 5.1 or later on
+Windows, Node.js 22 or later, Python 3.10 or later when indexing Python, and
+on the POSIX platforms curl, tar, and sha256sum or shasum. The bundle
+carries its own rust-analyzer; indexing Rust repositories additionally needs
+cargo on the PATH, and indexing Dart needs the Dart or Flutter SDK. On
 Windows the installer also installs the Visual C++ redistributable, without
-which `kivgraph.exe` does not start.
+which kivgraph.exe does not start.
 
-On macOS the binaries are not notarized. A release downloaded with `curl` is
-not quarantined and runs; a copy downloaded with a browser needs `xattr -dr
-com.apple.quarantine`. See
-[docs/development/macos.md](docs/development/macos.md).
+On macOS the binaries are not notarized. A release downloaded with curl is
+not quarantined and runs; a copy downloaded with a browser needs xattr -dr com.apple.quarantine. See
+docs/development/macos.md.
 
 Install the latest release in one command. On Linux and macOS the same line
-covers both, because the installer reads `uname` and picks its own archive:
+covers both, because the installer reads uname and picks its own archive:
 
-```bash
 curl -fsSL https://kivgraph.dev/install.sh | bash
-```
 
-On Windows, where `install.sh` cannot run because there is no POSIX shell:
+On Windows, where install.sh cannot run because there is no POSIX shell:
 
-```powershell
 irm https://kivgraph.dev/install.ps1 | iex
-```
 
-`install.ps1` is a second implementation of the same pre-extraction checks, and
-`internal/release/install_parity_test.go` fails when either script grows a check
-the other lacks. Piping it into `Invoke-Expression` turns its
-`#Requires -Version 5.1` into a comment; download it to a file and run it as one
+install.ps1 is a second implementation of the same pre-extraction checks, and
+internal/release/install_parity_test.go fails when either script grows a check
+the other lacks. Piping it into Invoke-Expression turns its
+#Requires -Version 5.1 into a comment; download it to a file and run it as one
 to keep that guard.
 
 From a checkout, either installer can be run directly:
 
-```bash
 ./scripts/install.sh
-```
 
 To install a specific release instead of the latest one:
 
-```bash
 KIVGRAPH_VERSION=v0.9.10 ./scripts/install.sh
-```
 
-The script installs the bundle in `~/.local/opt/kivgraph` and puts launchers
-in `~/.local/bin`; on Windows it is `%LOCALAPPDATA%\Programs\kivgraph` and
-`%LOCALAPPDATA%\Programs\kivgraph-bin`. It never modifies a registered
+The script installs the bundle in ~/.local/opt/kivgraph and puts launchers
+in ~/.local/bin; on Windows it is %LOCALAPPDATA%\Programs\kivgraph and
+%LOCALAPPDATA%\Programs\kivgraph-bin. It never modifies a registered
 repository, creates an index, or replaces configuration files. To use a
-different location, set `KIVGRAPH_INSTALL_ROOT` and `KIVGRAPH_BIN_DIR`.
+different location, set KIVGRAPH_INSTALL_ROOT and KIVGRAPH_BIN_DIR.
 
 Add the launcher directory to the current shell and verify both runtimes:
 
-```bash
 export PATH="$HOME/.local/bin:$PATH"
 kivgraph version
 kivgraph-ts-worker <<'EOF'
 hello
 EOF
-```
 
 Check for a newer release or update the installed bundle:
 
-```bash
 kivgraph update --check
 kivgraph update
-```
 
 Bundle replacement is atomic, preserves the configuration and graph state,
 verifies the release and bundle checksums, and replaces the installed bundle.
@@ -182,178 +178,162 @@ The post-install runtime refresh may partially complete, fail, and make the
 command exit non-zero. It also restarts an installed supervised daemon and
 refreshes Kivgraph-managed user hooks, skills and MCP registrations. A stale
 supervisor returns an error and is not restarted. Missing, foreign and
-project-scoped
-integrations are left alone. Client-owned `serve` and `ui` processes still
-need a restart, or `--stop`, to use the new binary.
+project-scoped integrations are left alone. Client-owned serve and ui
+processes still need a restart, or --stop, to use the new binary.
 
 Development builds use a separate prerelease channel. Install one explicitly,
 then select that channel for later checks:
 
-```bash
 release=vX.Y.Z-dev.N
 curl -fsSL \
   "https://github.com/Luqueee/kivgraph/releases/download/$release/install.sh" |
   KIVGRAPH_VERSION="$release" bash
 kivgraph update --channel dev
-```
 
-For a prerelease binary, omitting `--channel` already follows `dev`; stable
-installations continue to follow the stable channel. `KIVGRAPH_UPDATE_CHANNEL`
+For a prerelease binary, omitting --channel already follows dev; stable
+installations continue to follow the stable channel. KIVGRAPH_UPDATE_CHANNEL
 can be used instead of the flag, including for the interactive update notice.
 
 To remove the installed bundle and launchers without deleting configuration,
 repository registrations or graph state:
 
-```bash
 uninstall_url=https://github.com/Luqueee/kivgraph/releases/latest/download/uninstall.sh
 curl -fsSL "$uninstall_url" -o /tmp/kivgraph-uninstall.sh
 bash /tmp/kivgraph-uninstall.sh
-```
 
-Use `bash /tmp/kivgraph-uninstall.sh --yes` for a non-interactive removal.
-Windows users can run the corresponding `uninstall.ps1` with PowerShell.
+Use bash /tmp/kivgraph-uninstall.sh --yes for a non-interactive removal.
+Windows users can run the corresponding uninstall.ps1 with PowerShell.
 
-When `kivgraph` is invoked without a command from an interactive terminal, it
+When kivgraph is invoked without a command from an interactive terminal, it
 checks for a newer release with an 800 ms timeout and a 24-hour cache in the
-platform cache directory (`$XDG_CACHE_HOME` on Linux and
-`$HOME/Library/Caches` on macOS), under `kivgraph/update-check.json`.
+platform cache directory ($XDG_CACHE_HOME on Linux and
+$HOME/Library/Caches on macOS), under kivgraph/update-check.json.
 The optional check never blocks the command when the network is unavailable.
 
 Interactive command output uses semantic ANSI colors when the destination is a
-terminal. Set `NO_COLOR` or redirect output to keep it plain.
+terminal. Set NO_COLOR or redirect output to keep it plain.
 
-### Configure Kivgraph and its coding agents
+Configure Kivgraph and its coding agents
 
 After an interactive release installation, the installer asks whether it should
 run this same guided setup. Run it later, or run it directly from a checkout:
 
-```bash
 kivgraph configure
-```
 
-`configure` opens one selector for the coding agents detected on this machine
+configure opens one selector for the coding agents detected on this machine
 and installs each user-scoped surface that the selected agent supports. It
 also adds user-level Kivgraph instructions for every selected agent. It
 initializes the empty Kivgraph configuration when needed, but it does not
-register a repository or run an index. Repeat `--target TARGET` for scripted
+register a repository or run an index. Repeat --target TARGET for scripted
 setup; omit it to open the selector.
 
-Use `↑`/`↓` (or `j`/`k`) to move, `space` to toggle an agent, `a` to select all,
-`n` to select none, `Enter` to confirm, and `q` or `Esc` to cancel. The daemon
-is offered once after the selection; `--daemon` requires it without asking and
-`--stdio` keeps one `serve` process per client. `--dry-run` previews every
+Use ↑/↓ (or j/k) to move, space to toggle an agent, a to select all,
+n to select none, Enter to confirm, and q or Esc to cancel. The daemon
+is offered once after the selection; --daemon requires it without asking and
+--stdio keeps one serve process per client. --dry-run previews every
 surface without writing.
 
-Supported MCP targets are `claude-code`, `claude-desktop`, `codex`, `opencode`,
-and `oh-my-pi`. Supported skill targets are `claude-code`, `codex`, `opencode`,
-and `oh-my-pi`; Claude Desktop has no local skill target. The standalone
-commands use `user` by default; use `--scope project` for project-local
-configuration. Use `--dry-run` to inspect a plan without writing. Existing
-incompatible entries stop with an error; `--force` is required to replace or
-remove one. Existing files are written atomically with mode `0600` and receive
-`*.kivgraph.bak` backup before replacement or removal.
+Supported MCP targets are claude-code, claude-desktop, codex, opencode,
+and oh-my-pi. Supported skill targets are claude-code, codex, opencode,
+and oh-my-pi; Claude Desktop has no local skill target. The standalone
+commands use user by default; use --scope project for project-local
+configuration. Use --dry-run to inspect a plan without writing. Existing
+incompatible entries stop with an error; --force is required to replace or
+remove one. Existing files are written atomically with mode 0600 and receive
+*.kivgraph.bak backup before replacement or removal.
 
-The pre-tool-use gate supports `claude-code`, `claude-desktop`, `codex`,
-`opencode`, and `oh-my-pi`. Oh My Pi receives a native extension under
-`~/.omp/agent/extensions/` for user scope or `.omp/extensions/` for project
+The pre-tool-use gate supports claude-code, claude-desktop, codex,
+opencode, and oh-my-pi. Oh My Pi receives a native extension under
+~/.omp/agent/extensions/ for user scope or .omp/extensions/ for project
 scope. The gate is fail-open when its graph query cannot be answered.
-Searches wrapped as `rtk rg ...` or `rtk proxy rg ...` are classified by their
-inner command, while RTK's own commands are left alone.
+Searches wrapped as rtk rg ... or rtk proxy rg ... are classified by their
+inner command, while RTK’s own commands are left alone.
 
-### Add Kivgraph to user agent instructions
+Add Kivgraph to user agent instructions
 
 Add the Kivgraph navigation rules to the user context loaded by a coding
 agent:
 
-```bash
 kivgraph instructions install
 # The selector can install one or more coding-agent destinations.
 kivgraph instructions install --agent codex
 kivgraph instructions install --agent claude
 kivgraph instructions install --agent omp
-```
 
-With no `--agent` or `--file`, the interactive selector lets you choose one or
-more coding agents. Each installation owns a `KIVGRAPH.md` prompt beside the
-client configuration. Codex (`~/.codex/AGENTS.md`), Claude Code/Desktop
-(`~/.claude/CLAUDE.md`), and Oh My Pi (`~/.omp/agent/AGENTS.md`) receive only a
-small managed absolute-path reference to `KIVGRAPH.md`. OpenCode instead adds
-its canonical path to `~/.config/opencode/opencode.json`'s native `instructions` list; it
-does not modify OpenCode's `AGENTS.md`. The selector deduplicates shared
-destinations. Existing instructions are preserved, the managed reference is
-idempotent, and `--dry-run` previews the change. An edited Kivgraph prompt or
-reference requires `--force` to replace. `--file` is retained for compatibility
-and selects every matching global client; prefer `--agent` for new automation.
-The command never changes repository instructions. Use `configure` when you
-want these instructions and the compatible client integrations in one flow; the
-individual commands remain available for explicit changes.
+With no --agent or --file, the interactive selector lets you choose one or
+more coding agents. Each installation owns a KIVGRAPH.md prompt beside the
+client configuration. Codex (~/.codex/AGENTS.md), Claude Code/Desktop
+(~/.claude/CLAUDE.md), and Oh My Pi (~/.omp/agent/AGENTS.md) receive only a
+small managed absolute-path reference to KIVGRAPH.md. OpenCode instead adds
+its canonical path to ~/.config/opencode/opencode.json‘s native
+instructions list; it does not modify OpenCode’s AGENTS.md. The selector
+deduplicates shared destinations. Existing instructions are preserved, the
+managed reference is idempotent, and --dry-run previews the change. An edited
+Kivgraph prompt or reference requires --force to replace. --file is
+retained for compatibility and selects every matching global client; prefer
+--agent for new automation. The command never changes repository
+instructions. Use configure when you want these instructions and the
+compatible client integrations in one flow; the individual commands remain
+available for explicit changes.
 
-When set, `CODEX_HOME` replaces `~/.codex` and `PI_CODING_AGENT_DIR` replaces
-`~/.omp/agent`, matching the configuration roots those clients use.
+When set, CODEX_HOME replaces ~/.codex and PI_CODING_AGENT_DIR replaces
+~/.omp/agent, matching the configuration roots those clients use.
 
 Inspect or remove a registration explicitly:
 
-```bash
 kivgraph mcp status --target claude-code --scope user
 kivgraph mcp remove --target claude-code --scope user
 kivgraph skill status --target claude-code --scope user
 kivgraph skill remove --target claude-code --scope user
 kivgraph hook status --target claude-code --scope user
 kivgraph hook remove --target claude-code --scope user
-```
 
 Initialize and publish a graph before starting the MCP server:
 
-```bash
 kivgraph init \
   --repository project=/absolute/path/to/project \
   --languages go,typescript,rust
 kivgraph doctor
 kivgraph index --full
-```
 
-`init` writes a self-contained configuration: with `--config` pointing
-elsewhere, its state, cache and registry hang off that directory, so a throwaway
-index never touches the real one. `index --full` republishes atomically — a
-failure at any stage leaves the previous generation serving. A server already
-running follows the new generation on its own.
+init writes a self-contained configuration: with --config pointing
+elsewhere, its state, cache and registry hang off that directory, so a
+throwaway index never touches the real one. index --full republishes
+atomically — a failure at any stage leaves the previous generation serving. A
+server already running follows the new generation on its own.
 
-When you are inside one project, `kivgraph index` detects its supported
-languages, creates or reuses `.kivgraph/`, registers the current project as
-`project` in its local registry, and runs the same full rebuild. With neither
-`--config` nor `--repositories`, it does not alter the shared user registry;
+When you are inside one project, kivgraph index detects its supported
+languages, creates or reuses .kivgraph/, registers the current project as
+project in its local registry, and runs the same full rebuild. With neither
+--config nor --repositories, it does not alter the shared user registry;
 those overrides intentionally select the configuration and registry to update.
-Use `kivgraph index --full` when you want the explicit registered-repositories
+Use kivgraph index --full when you want the explicit registered-repositories
 workflow; both forms preserve the full-indexing contract.
-The command does not install language toolchains implicitly; `kivgraph doctor`
+
+The command does not install language toolchains implicitly; kivgraph doctor
 reports any prerequisite that is missing on the host. Optional analyzers can be
 managed explicitly by Kivgraph:
 
-```bash
 kivgraph toolchain status
 kivgraph toolchain install pyright
 kivgraph index --full
-```
 
-`toolchain install pyright` pins and installs Pyright under Kivgraph's state,
+toolchain install pyright pins and installs Pyright under Kivgraph’s state,
 then activates exact Python analysis in the selected configuration. For a
-project-local configuration, pass `--config .kivgraph/config.yaml`. Removing
+project-local configuration, pass --config .kivgraph/config.yaml. Removing
 it requires an explicit confirmation and restores the bundled Python fallback
 when the selected configuration uses the managed analyzer:
 
-```bash
 kivgraph toolchain remove pyright --yes
-```
 
 The first install requires npm and network access. Later status checks and
 reusing an installed version work offline.
 
 The command family is intentionally language-agnostic; more managed analyzers
-can use it without making `index` mutate the host or a repository.
+can use it without making index mutate the host or a repository.
 
 Day to day:
 
-```bash
 kivgraph graph status      # what is published, and whether a tree has moved
 kivgraph doctor            # toolchains, storage, and the type-checking ceiling
 kivgraph ui                # read-only 3D viewer, default 0.0.0.0:7777
@@ -361,27 +341,25 @@ kivgraph logs --follow     # aligned history of what it indexed, served and quer
 kivgraph tool-stats        # per-tool cost, calls, and failures
 kivgraph stop              # terminate this user's serve and ui, never an index
 kivgraph clean --keep-active
-```
 
-`kivgraph ui` binds a non-loopback address by default, because the graph is
+kivgraph ui binds a non-loopback address by default, because the graph is
 indexed where the repositories are and looked at from elsewhere; there is no
-authentication, so it logs exactly what it exposes and `--addr` restricts it.
+authentication, so it logs exactly what it exposes and --addr restricts it.
 
-`logs` and `tool-stats` read an append-only record in the state directory
+logs and tool-stats read an append-only record in the state directory
 rather than asking a server, which is why they can answer at all: the per-tool
-counters a `serve` keeps are minted when it starts and gone when it stops.
+counters a serve keeps are minted when it starts and gone when it stops.
 Reading the file also makes the answer span every server that ever ran.
 
-`logs` renders a fixed-column table. Tool rows include a bounded, allow-listed
-query summary: `find_by_intent` records its exact `intent` and any `keywords`,
+logs renders a fixed-column table. Tool rows include a bounded, allow-listed
+query summary: find_by_intent records its exact intent and any keywords,
 while opaque cursors, consent flags, stable keys, and absolute project paths
-stay out of the record. `--json` preserves the individual append-only records.
-`SYMBOL_NOT_FOUND` renders as the neutral `NOT_FOUND` status with zero results,
+stay out of the record. --json preserves the individual append-only records.
+SYMBOL_NOT_FOUND renders as the neutral NOT_FOUND status with zero results,
 not as an operational failure.
 
 Configure any MCP client to start the server over STDIO:
 
-```json
 {
   "mcpServers": {
     "kivgraph": {
@@ -394,89 +372,85 @@ Configure any MCP client to start the server over STDIO:
     }
   }
 }
-```
 
-`kivgraph serve` starts before a graph exists: with no published generation it
-completes the handshake, publishes no query tool and puts the rebuild command in
-`instructions`. A client launches the process itself, so exiting would read as a
-crash. It writes MCP framing exclusively to `stdout` and logs to `stderr`.
+kivgraph serve starts before a graph exists: with no published generation it
+completes the handshake, publishes no query tool and puts the rebuild command
+in instructions. A client launches the process itself, so exiting would read
+as a crash. It writes MCP framing exclusively to stdout and logs to stderr.
 
-## Requirements
+Requirements
 
-- Go 1.26 or later to build from source. The indexer type-checks with the
-  `go/types` linked into the binary, so it can only read repositories and
-  dependencies written for its own language version or older; `kivgraph doctor`
-  reports that ceiling.
-- Indexing Rust needs `cargo` and `rust-analyzer`. The release bundle carries
-  the analyzer; it does not carry a Rust toolchain.
-- Indexing TypeScript needs Node.js 22 or later for the worker.
-- Indexing Python needs Python 3.10 or later for the bundled worker. It is a
-  syntax-aware fallback and reports dynamic or unresolved names explicitly;
-  exact mode additionally requires a Pyright-compatible language server.
-- Indexing Dart needs the `dart` executable; a Flutter installation supplies
-  it. The loader uses the Analysis Server protocol and does not modify the
-  Flutter project.
+* Go 1.26 or later to build from source. The indexer type-checks with the
+    go/types linked into the binary, so it can only read repositories and
+    dependencies written for its own language version or older; kivgraph doctor
+    reports that ceiling.
+* Indexing Rust needs cargo and rust-analyzer. The release bundle carries
+    the analyzer; it does not carry a Rust toolchain.
+* Indexing TypeScript needs Node.js 22 or later for the worker.
+* Indexing Python needs Python 3.10 or later for the bundled worker. It is a
+    syntax-aware fallback and reports dynamic or unresolved names explicitly;
+    exact mode additionally requires a Pyright-compatible language server.
+* Indexing Dart needs the dart executable; a Flutter installation supplies
+    it. The loader uses the Analysis Server protocol and does not modify the
+    Flutter project.
 
-## What the graph carries, and what it refuses to
+What the graph carries, and what it refuses to
 
-An edge is `EXACT` only with sufficient evidence and the right provenance. It is
-never created from a name, a path, an alias or a single candidate, and a
-reference that cannot be resolved is published as `UNRESOLVED` with its reason,
-repository and language rather than dropped. `graph_status` reports both, broken
-down.
+An edge is EXACT only with sufficient evidence and the right provenance. It
+is never created from a name, a path, an alias or a single candidate, and a
+reference that cannot be resolved is published as UNRESOLVED with its reason,
+repository and language rather than dropped. graph_status reports both,
+broken down.
 
 That is why some answers are absences rather than edges. With the Rust standard
-library indexed, `impl Add for u32` is generated by a macro and exists in no
-source range, so every use of it is declared `PROVIDER_DEFINITION_NOT_INDEXED`
+library indexed, impl Add for u32 is generated by a macro and exists in no
+source range, so every use of it is declared PROVIDER_DEFINITION_NOT_INDEXED
 once per symbol instead of becoming an edge nobody could open.
 
 The providers Kivgraph derives from the machine — today the Rust standard
-library, named `rust:1.96.1` after the toolchain — are withheld from read
+library, named rust:1.96.1 after the toolchain — are withheld from read
 results by default: one toolchain is around twenty thousand symbols, and a
-search for `Clone` would answer with `core`. `include_derived` asks for them, and
-`graph_status` breaks out what they contribute so the totals stay readable.
+search for Clone would answer with core. include_derived asks for them,
+and graph_status breaks out what they contribute so the totals stay readable.
 
-## Development
+Development
 
-```bash
 make build
 make test
 make semantic-coverage
 make test-ladybug
-```
 
-`make test-ladybug` is the only supported way to run the tag that links the
+make test-ladybug is the only supported way to run the tag that links the
 pinned native library. Contributing conventions are in
-[AGENTS.md](AGENTS.md), which `CLAUDE.md` links to.
+AGENTS.md, which CLAUDE.md links to.
 
-`make semantic-coverage` is the release gate for Go, TypeScript, Python and
+make semantic-coverage is the release gate for Go, TypeScript, Python and
 Dart. It validates the machine-readable matrix in
-`testdata/semantic-coverage/manifest.json`, runs the exact TypeScript, Go and
+testdata/semantic-coverage/manifest.json, runs the exact TypeScript, Go and
 Dart suites, and requires a Pyright-compatible language server for the exact
 Python suite. A language is not considered complete when a capability has a
 fixture but no executable regression test.
 
-### Storage and graph benchmarks
+Storage and graph benchmarks
 
 The LadybugDB qualification, the synthetic corpus generator, the load and query
-benchmarks, and the `doctor`, `rebuild`, `rollback` and `snapshot` commands are
+benchmarks, and the doctor, rebuild, rollback and snapshot commands are
 documented in
-[docs/development/storage-benchmarks.md](docs/development/storage-benchmarks.md).
-It concludes with `ACCEPT_LADYBUGDB_WITH_LIMITS`.
+docs/development/storage-benchmarks.md.
+It concludes with ACCEPT_LADYBUGDB_WITH_LIMITS.
 
-### The public site
+The public site
 
-`landing/` carries the landing page and the user documentation. It ships in no
-release bundle, is verified with `make landing-check` and `make landing-build`,
-and is served on port `6767`. What it publishes, how the MCP reference was
+landing/ carries the landing page and the user documentation. It ships in no
+release bundle, is verified with make landing-check and make landing-build,
+and is served on port 6767. What it publishes, how the MCP reference was
 captured, and what is still open are recorded in
-[docs/development/landing-site.md](docs/development/landing-site.md).
+docs/development/landing-site.md.
 
-## Structure
+Structure
 
-```text
-cmd/kivgraph/   Main executable.
-internal/        Kivgraph internal packages.
+cmd/kivgraph/     Main executable.
+internal/         Kivgraph internal packages.
 ts-worker/        TypeScript worker.
 web/              Graph viewer served by `kivgraph ui`.
 landing/          Landing page and documentation site (not part of any release).
@@ -484,12 +458,13 @@ testdata/         Test fixtures and corpora.
 benchmarks/       Benchmark results.
 docs/             Documentation and ADRs.
 scripts/          Auxiliary automation.
-```
 
-## License
+License
 
-Kivgraph is distributed under the [Apache License 2.0](LICENSE).
+Kivgraph is distributed under the Apache License 2.0.
 
-## Third-party licenses
+Third-party licenses
 
-Notices and licenses for dependencies distributed with Kivgraph are recorded in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). The list is updated whenever a dependency is added to the distributable product.
+Notices and licenses for dependencies distributed with Kivgraph are recorded in
+THIRD_PARTY_NOTICES.md. The list is updated whenever
+a dependency is added to the distributable product.
