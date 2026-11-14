@@ -623,6 +623,20 @@ func TreeDigest(ctx context.Context, root string) (string, error) {
 		if err != nil {
 			return err
 		}
+		// Opening a FIFO or socket named like a source blocks forever; a symlink
+		// is followed, so only its target decides.
+		if mode := info.Mode(); !mode.IsRegular() {
+			if mode&fs.ModeSymlink == 0 {
+				return nil
+			}
+			target, err := os.Stat(path)
+			if err != nil {
+				return err
+			}
+			if !target.Mode().IsRegular() {
+				return nil
+			}
+		}
 		file, err := os.Open(path)
 		if err != nil {
 			return err
