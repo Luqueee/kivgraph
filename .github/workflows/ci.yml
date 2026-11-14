@@ -245,7 +245,9 @@ jobs:
     name: Verify Go, web and landing packages
     needs: classify
     if: needs.classify.outputs.release_only != 'true'
-    runs-on: ubuntu-latest
+    # Pinned, not ubuntu-latest: that label moved to 26.04, where the pinned
+    # Playwright has no Chromium build and the end-to-end step cannot install.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
