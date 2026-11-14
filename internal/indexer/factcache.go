@@ -513,13 +513,37 @@ func (cache *factCache) prune(maximumAge time.Duration) {
 		if err != nil || info.ModTime().After(deadline) {
 			continue
 		}
+		// The directory is whatever the configuration names, and it can hold
+		// somebody else's files: only names this cache writes are its to expire.
 		path := filepath.Join(cache.directory, entry.Name())
-		if entry.IsDir() && strings.HasPrefix(entry.Name(), ".staging-") {
-			_ = os.RemoveAll(path)
-			continue
+		switch {
+		case entry.IsDir():
+			if strings.HasPrefix(entry.Name(), ".staging-") {
+				_ = os.RemoveAll(path)
+			}
+		case isCacheFileName(entry.Name()):
+			_ = os.Remove(path)
 		}
-		_ = os.Remove(path)
 	}
+}
+
+// isCacheFileName reports whether name is an admitted entry, as path spells it,
+// or the temporary file write leaves behind when it is interrupted.
+func isCacheFileName(name string) bool {
+	if strings.HasPrefix(name, ".entry-") && strings.HasSuffix(name, ".tmp") {
+		return true
+	}
+	digest, isJSON := strings.CutSuffix(name, ".json")
+	if !isJSON || len(digest) != hex.EncodedLen(sha256.Size) {
+		return false
+	}
+	for _, character := range []byte(digest) {
+		lowerHex := character >= '0' && character <= '9' || character >= 'a' && character <= 'f'
+		if !lowerHex {
+			return false
+		}
+	}
+	return true
 }
 
 // unitIdentity names what the entry is about, never what it read.

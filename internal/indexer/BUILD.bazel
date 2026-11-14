@@ -35,6 +35,7 @@ go_test(
         "factcache_csharp_test.go",
         "factcache_fingerprint_test.go",
         "factcache_java_test.go",
+        "factcache_prune_test.go",
         "factcache_python_test.go",
         "factcache_test.go",
         "full_repositories_test.go",
