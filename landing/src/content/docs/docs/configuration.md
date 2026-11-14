@@ -58,10 +58,17 @@ answer than the keys were a mistake.
 | Key | Default | Notes |
 | --- | --- | --- |
 | `transport` | `stdio` | The only accepted value, and a decision rather than a gap. The reason to want a shared transport was memory: every client launching its own server used to mean another private copy of the graph. A server now maps the published snapshot, so the largest part of it is one copy however many are running — see [what a second server costs](/guides/indexing/#what-a-second-server-costs). A client launching its own server is not something to negotiate with the user. |
-| `default_limit` | `50` | Must be positive. |
-| `maximum_limit` | `500` | Must be at least `default_limit`. |
-| `maximum_depth` | `5` | Must be between `1` and `5`. |
-| `maximum_visited_nodes` | `25000` | Must be positive. |
+
+### Retired limit keys
+
+`default_limit`, `maximum_limit`, `maximum_depth` and `maximum_visited_nodes`
+no longer exist. Nothing read them: a value set here never limited a call.
+The bounds of a query are fixed and each tool declares them in its schema —
+at most `500` rows a page, a depth of `5` and `25000` visited nodes.
+
+A configuration that still carries them loads normally, as with the retired
+`storage` keys: they are ignored and named by `kivgraph doctor` as
+`config.retired`.
 
 ## `indexing`
 

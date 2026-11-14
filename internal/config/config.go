@@ -38,8 +38,6 @@ const (
 	defaultJavaTargetDir   = "~/.local/state/kivgraph/java-target"
 	defaultCSharpTargetDir = "~/.local/state/kivgraph/csharp-target"
 	defaultEventLogPath    = "~/.local/state/kivgraph/events.jsonl"
-
-	maximumConfiguredDepth = 5
 )
 
 // Duration is a YAML duration such as 10m or 30s.
@@ -169,7 +167,15 @@ var retiredConfigKeys = []retiredKey{
 		Reason: "nothing read it: Prune keeps the current generation and its backup, " +
 			"which is what a rollback needs",
 	},
+	{Section: "mcp", Field: "default_limit", Reason: unreadMCPLimit},
+	{Section: "mcp", Field: "maximum_limit", Reason: unreadMCPLimit},
+	{Section: "mcp", Field: "maximum_depth", Reason: unreadMCPLimit},
+	{Section: "mcp", Field: "maximum_visited_nodes", Reason: unreadMCPLimit},
 }
+
+// unreadMCPLimit is why the four mcp limits are retired. See ADR 0117.
+const unreadMCPLimit = "nothing read it: the bounds of a query are the tool's own, " +
+	"declared in its schema, and a value set here never limited a call"
 
 // Name is the dotted key a report and a doctor line name it by.
 func (key retiredKey) Name() string { return key.Section + "." + key.Field }
@@ -278,13 +284,9 @@ type WebConfig struct {
 	Address string `yaml:"address"`
 }
 
-// MCPConfig controls transport and query limits.
+// MCPConfig controls the transport.
 type MCPConfig struct {
-	Transport           string `yaml:"transport"`
-	DefaultLimit        int    `yaml:"default_limit"`
-	MaximumLimit        int    `yaml:"maximum_limit"`
-	MaximumDepth        int    `yaml:"maximum_depth"`
-	MaximumVisitedNodes int    `yaml:"maximum_visited_nodes"`
+	Transport string `yaml:"transport"`
 }
 
 // IndexingConfig controls which facts and references are retained.
@@ -569,11 +571,7 @@ func DefaultConfig() Config {
 			Address: "0.0.0.0:7777",
 		},
 		MCP: MCPConfig{
-			Transport:           "stdio",
-			DefaultLimit:        50,
-			MaximumLimit:        500,
-			MaximumDepth:        maximumConfiguredDepth,
-			MaximumVisitedNodes: 25_000,
+			Transport: "stdio",
 		},
 		Indexing: IndexingConfig{
 			GeneratedFiles:            "include",
@@ -1338,18 +1336,6 @@ func validateConfig(configuration Config) error {
 	}
 	if configuration.MCP.Transport != "stdio" {
 		return fmt.Errorf("config.mcp.transport: unsupported transport %q", configuration.MCP.Transport)
-	}
-	if configuration.MCP.DefaultLimit < 1 {
-		return fmt.Errorf("config.mcp.default_limit: must be positive, got %d", configuration.MCP.DefaultLimit)
-	}
-	if configuration.MCP.MaximumLimit < configuration.MCP.DefaultLimit {
-		return fmt.Errorf("config.mcp.maximum_limit: must be at least default_limit (%d), got %d", configuration.MCP.DefaultLimit, configuration.MCP.MaximumLimit)
-	}
-	if configuration.MCP.MaximumDepth < 1 || configuration.MCP.MaximumDepth > maximumConfiguredDepth {
-		return fmt.Errorf("config.mcp.maximum_depth: must be between 1 and %d, got %d", maximumConfiguredDepth, configuration.MCP.MaximumDepth)
-	}
-	if configuration.MCP.MaximumVisitedNodes < 1 {
-		return fmt.Errorf("config.mcp.maximum_visited_nodes: must be positive, got %d", configuration.MCP.MaximumVisitedNodes)
 	}
 	// These two name what the pass does, and the pass does exactly one thing
 	// with each: it indexes generated files and it retains every unresolved
