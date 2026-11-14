@@ -4,8 +4,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Luqueee/kivgraph/internal/testsupport"
 	"github.com/Luqueee/kivgraph/internal/workspace"
@@ -178,6 +180,49 @@ func TestMaterialiseRefusesABaseInsideTheRepository(t *testing.T) {
 		filepath.Join(root, "scratch"))
 	if err == nil || !strings.Contains(err.Error(), "inside the repository") {
 		t.Fatalf("err = %v, want a refusal", err)
+	}
+}
+
+// A refused entry stops the reader while git still has most of the archive to
+// write. git then blocks on the full pipe, so waiting for it before letting go
+// of the pipe never returns: the pass hung instead of falling back.
+func TestMaterialiseFallsBackWhenExtractionStopsMidArchive(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fixture needs a colon in a file name")
+	}
+	root := gitRepository(t)
+	// Sorts first, so it is refused with the rest of the archive unread, and
+	// that rest is larger than any pipe buffer.
+	write(t, filepath.Join(root, "a:colon.txt"), "refused\n")
+	write(t, filepath.Join(root, "src", "large.txt"), strings.Repeat("x", 4<<20))
+	run(t, root, "add", "-A")
+	run(t, root, "-c", "user.email=a@b", "-c", "user.name=t", "commit", "-qm", "large")
+
+	type outcome struct {
+		tree *Tree
+		err  error
+	}
+	done := make(chan outcome, 1)
+	base := testsupport.TempDir(t)
+	go func() {
+		tree, err := Materialise(t.Context(),
+			workspace.Repository{Name: "fixture", Path: root, RealPath: root}, base)
+		done <- outcome{tree, err}
+	}()
+	select {
+	case result := <-done:
+		if result.err != nil {
+			t.Fatal(result.err)
+		}
+		defer result.tree.Close()
+		if result.tree.Strategy != StrategyCopy {
+			t.Fatalf("strategy = %q, want the copy fallback", result.tree.Strategy)
+		}
+		if got := read(t, filepath.Join(result.tree.Path, "a:colon.txt")); got != "refused\n" {
+			t.Fatalf("a:colon.txt = %q", got)
+		}
+	case <-time.After(30 * time.Second):
+		t.Fatal("Materialise did not return: git archive is blocked on an unread pipe")
 	}
 }
 
