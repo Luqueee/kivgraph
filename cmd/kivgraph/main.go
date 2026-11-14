@@ -2957,6 +2957,14 @@ func runRollback(args []string, stdout, stderr io.Writer, rollback graphRollback
 		writeCommandError(stderr, "rollback: report did not pass despite no error")
 		return 1
 	}
+	// A running server only ever installs a newer generation, so it keeps
+	// answering from the one this just left until it is restarted. Identifiers
+	// are fixed-width, so they order as text.
+	if report.To.ID < report.From.ID {
+		fmt.Fprintf(stdout,
+			"running serve, daemon and ui processes keep serving %s until they restart: run `kivgraph stop`\n",
+			report.From.ID)
+	}
 	return 0
 }
 
