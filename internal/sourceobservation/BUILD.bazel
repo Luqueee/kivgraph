@@ -14,7 +14,11 @@ go_library(
 
 go_test(
     name = "sourceobservation_test",
-    srcs = ["observation_test.go"],
+    srcs = ["observation_test.go"] + select({
+        "@rules_go//go/platform:darwin": ["observation_nonregular_test.go"],
+        "@rules_go//go/platform:linux": ["observation_nonregular_test.go"],
+        "//conditions:default": [],
+    }),
     embed = [":sourceobservation"],
     deps = [
         "//internal/config",
