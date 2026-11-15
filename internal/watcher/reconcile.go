@@ -185,10 +185,11 @@ func (reconciler *Reconciler) Reconcile(ctx context.Context) (ReconciliationResu
 	}
 
 	hashes, err := reconciler.hasher.Process(ctx, Batch{Events: events})
-	if err != nil {
+	if err != nil && !errors.Is(err, ErrUnreadablePath) {
 		return ReconciliationResult{}, fmt.Errorf("hash reconciliation: %w", err)
 	}
-	return reconciler.resultFromHashes(hashes, known), nil
+	// With ErrUnreadablePath the result is still whole for every other path.
+	return reconciler.resultFromHashes(hashes, known), err
 }
 
 // Process handles notifications from Watcher without scanning the complete
@@ -220,10 +221,10 @@ func (reconciler *Reconciler) Process(ctx context.Context, batch Batch) (Reconci
 		filtered = append(filtered, event)
 	}
 	hashes, err := reconciler.hasher.Process(ctx, Batch{Events: filtered})
-	if err != nil {
+	if err != nil && !errors.Is(err, ErrUnreadablePath) {
 		return ReconciliationResult{}, fmt.Errorf("hash watcher events: %w", err)
 	}
-	return reconciler.resultFromHashes(hashes, known), nil
+	return reconciler.resultFromHashes(hashes, known), err
 }
 
 func (reconciler *Reconciler) resultFromHashes(hashes HashResult, known map[FileKey]string) ReconciliationResult {

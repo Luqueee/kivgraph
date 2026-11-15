@@ -27,7 +27,11 @@ go_test(
         "hash_test.go",
         "reconcile_test.go",
         "watcher_test.go",
-    ],
+    ] + select({
+        "@rules_go//go/platform:darwin": ["hash_unreadable_test.go"],
+        "@rules_go//go/platform:linux": ["hash_unreadable_test.go"],
+        "//conditions:default": [],
+    }),
     embed = [":watcher"],
     deps = [
         "//internal/config",
