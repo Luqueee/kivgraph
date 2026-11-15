@@ -936,8 +936,23 @@ jobs:
       - name: Fetch the pinned LadybugDB library
         run: scripts/fetch-ladybug.sh
 
+      # On a pull request this leaves out one package: the pass that indexes
+      # the Rust standard library. It is a single test, it is what decides how
+      # long this step takes -- 62 to 159 s of it across five measured jobs,
+      # with the rest of the suite done in under 80 -- and both Linux jobs run
+      # it on the same pull request. What only this runner adds is the darwin
+      # sysroot, and that is checked on every push to `main` and on a release,
+      # where this step runs everything.
       - name: Go tests with LadybugDB
-        run: make test-ladybug
+        shell: bash
+        run: |
+          set -euo pipefail
+          packages=./...
+          if [[ "$GITHUB_EVENT_NAME" == pull_request ]]; then
+            packages="$(go list -tags ladybug ./... |
+              grep -v '/internal/indexer/rustsysroot$' | tr '\n' ' ')"
+          fi
+          make test-ladybug PKGS="$packages"
 
   # windows-cross is a compile gate and deliberately nothing more. It cannot
   # run what it builds, and windows/amd64 is not a published target: what it
