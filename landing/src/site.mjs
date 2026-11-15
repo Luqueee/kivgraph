@@ -47,7 +47,7 @@ export const PROJECT_TAGLINE =
 export const PROJECT_SUMMARY =
   "Kivgraph builds a canonical semantic code graph across registered Go, TypeScript, Rust, Python, Dart, Java and C# repositories. It answers questions about symbols, repository relationships, callers, dependencies and change impact locally through MCP. Results carry analyzer evidence or remain CANDIDATE/UNRESOLVED; they are never invented from matching names.";
 
-export const REPOSITORY_URL = "https://github.com/Luqueee/kivgraph";
+export const REPOSITORY_URL = "https://github.com/Tutitoos/kivgraph";
 
 export const LICENSE_NAME = "Apache-2.0";
 

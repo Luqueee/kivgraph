@@ -33,7 +33,7 @@ export const GET: APIRoute = async ({ site }) => {
   lines.push(
     "",
     `Documentation index: ${absoluteUrl(site, "/llms.txt")}`,
-    `Repository: https://github.com/Luqueee/kivgraph`,
+    `Repository: https://github.com/Tutitoos/kivgraph`,
     "",
   );
 

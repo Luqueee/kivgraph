@@ -108,7 +108,7 @@ for entry in "${packages[@]}"; do
 		exit 2
 	fi
 	asset="kivgraph-${target%%/*}-${target##*/}.mcpb"
-	url="https://github.com/Luqueee/kivgraph/releases/download/$tag/$asset"
+	url="https://github.com/Tutitoos/kivgraph/releases/download/$tag/$asset"
 	document="$(jq \
 		--arg identifier "$url" \
 		--arg digest "$digest" \

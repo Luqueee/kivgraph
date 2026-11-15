@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	Repository     = "Luqueee/kivgraph"
+	Repository     = "Tutitoos/kivgraph"
 	DefaultAPIBase = "https://api.github.com"
 	checksumsName  = "SHA256SUMS"
 	// bundleDirName is both the installed bundle directory and the single root

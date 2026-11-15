@@ -16,7 +16,7 @@ set -euo pipefail
 # API allows sixty requests an hour per address, which a paginated release
 # list can spend on its own.
 
-repository="${KIVGRAPH_REPOSITORY:-Luqueee/kivgraph}"
+repository="${KIVGRAPH_REPOSITORY:-Tutitoos/kivgraph}"
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 die() {

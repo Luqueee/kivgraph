@@ -58,7 +58,7 @@ un número recordado de una conversación ni una comparación lexicográfica:
 
 ~~~bash
 git fetch origin --tags
-gh api repos/Luqueee/kivgraph/releases/latest --jq .tag_name
+gh api repos/Tutitoos/kivgraph/releases/latest --jq .tag_name
 git tag --list 'v[0-9]*' --sort=-version:refname | head -1
 ~~~
 
@@ -103,19 +103,12 @@ internal/version/version.go                 var Value = "X.Y.Z"
 landing/src/content/releases/vX.Y.Z.md      nombre de la nota y frontmatter
 ~~~
 
-La página pública de telemetría también forma parte del contrato de una
-release. No lleva una copia manual de «la última versión»: nombra la primera
-release que introdujo cada emisor y describe el collector que está desplegado.
-Si cambian un campo, un emisor, la deduplicación, el almacenamiento, la
-retención o el opt-out, actualizar en el mismo commit:
-
-~~~text
-landing/src/content/docs/telemetry.md
-docs/development/analytics.md
-docs/adr/0083-a-download-is-not-a-person.md o un ADR que lo sustituya
-~~~
-
-Una nota nueva no basta si la página sigue describiendo el pipeline anterior.
+Esta distribución no envía telemetría (ADR 0118): `telemetry.Endpoint` está
+vacío y los instaladores no reportan. La página
+`landing/src/content/docs/telemetry.md` lo dice así y forma parte del contrato
+de una release. Si alguna vez se vuelve a enviar algo, se actualizan en el
+mismo commit esa página y un ADR que sustituya al 0118; una nota nueva no basta
+si la página sigue describiendo otra cosa.
 
 El resto de comandos fijados con KIVGRAPH_VERSION=v... son documentación
 derivada. No hay que mantener una lista manual: el test los descubre en
@@ -316,17 +309,19 @@ gh release view vX.Y.Z --json tagName,isDraft,isPrerelease,isLatest,assets,url
 ~~~
 
 El run sólo está cerrado cuando pasan verify, las tres filas de build, publish y
-las tres filas de post-publish-smoke. En una estable también debe pasar registry
-y la GitHub Release debe ser pública, no draft, no prerelease, estar marcada
-como latest y tener los 11 assets anteriores. En una prerelease no se espera el
-job registry ni la marca latest.
+las tres filas de post-publish-smoke. En una estable la GitHub Release debe ser
+pública, no draft, no prerelease, estar marcada como latest y tener los 11
+assets anteriores. El job registry sólo corre en una estable y sólo si la
+variable de repositorio `PUBLISH_MCP_REGISTRY` vale `true`; hoy no lo vale, así
+que aparece como saltado y eso es lo esperado. En una prerelease no se espera
+ni el job registry ni la marca latest.
 
 Descargar los assets publicados y verificar el manifest completo desde fuera de
 la workspace que los construyó:
 
 ~~~bash
 tmp_dir="$(mktemp -d)"
-gh release download vX.Y.Z --repo Luqueee/kivgraph --dir "$tmp_dir"
+gh release download vX.Y.Z --repo Tutitoos/kivgraph --dir "$tmp_dir"
 (
   cd "$tmp_dir"
   if command -v sha256sum >/dev/null 2>&1; then
@@ -341,31 +336,21 @@ Si falla post-publish-smoke, registry o la verificación externa, la release no
 se da por buena aunque GitHub muestre el tag. Registrar qué asset, job, digest o
 metadata falló antes de decidir la reparación.
 
-La publicación tampoco termina en GitHub. Actualizar la landing desplegada
-desde el `main` que contiene la release, construirla con `make landing-check` y
-`make landing-build`, recargar `kivgraph-landing` y comprobar desde fuera:
+La publicación termina en GitHub. Esta distribución no despliega landing ni
+tiene collector que comprobar; lo que hay que verificar desde fuera es que una
+instalación limpia funciona con lo publicado:
 
 ~~~bash
-curl -fsS https://kivgraph.dev/releases/ | grep -F "vX.Y.Z"
-curl -fsS https://kivgraph.dev/telemetry/ | grep -F "/api/telemetry/first-run"
-test "$(curl -sS -o /dev/null -w '%{http_code} %{redirect_url}' \
-  https://kivgraph.dev/install.sh)" = \
-  "302 https://github.com/Luqueee/kivgraph/releases/latest/download/install.sh"
+tmp_home="$(mktemp -d)"
+curl -fsSL \
+  "https://github.com/Tutitoos/kivgraph/releases/download/vX.Y.Z/install.sh" |
+  HOME="$tmp_home" KIVGRAPH_VERSION=vX.Y.Z KIVGRAPH_CONFIGURE=0 bash
+HOME="$tmp_home" "$tmp_home/.local/bin/kivgraph" version
+HOME="$tmp_home" "$tmp_home/.local/bin/kivgraph" update
 ~~~
 
-El collector de primer arranque y el dashboard D1 son parte del smoke de
-distribución. Comprobar que la ruta exacta responde `204`, que el Worker
-desplegado tiene su binding D1 y su secreto de hash diario, y que la migración
-que agrega la versión está aplicada **antes** de publicar el emisor. No enviar
-un evento sintético para poner una versión en la gráfica: si el smoke ejecuta
-de verdad un instalador o un binario publicado, su fila debe aparecer en el
-dashboard; si no ejecuta ninguno, la ausencia todavía es el resultado honesto.
-Una instalación real observada que no aparece es una release incompleta, no
-algo que se difiere al siguiente cron. Los comandos autoritativos, con los
-criterios de PASS para la versión desplegada, el binding, el secreto, la
-migración, la ruta y el dashboard, están en la sección **1i. The first-run
-Worker and D1** de `docs/development/analytics.md`; ejecutarlos, no sustituirlos
-por una inspección visual del panel.
+`version` debe nombrar la release y `update` debe informar de que no hay nada
+más nuevo en su canal.
 
 ## 7. Fallos y recuperación
 

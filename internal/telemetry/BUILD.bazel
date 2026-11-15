@@ -9,6 +9,9 @@ go_library(
 
 go_test(
     name = "telemetry_test",
-    srcs = ["firstrun_test.go"],
+    srcs = [
+        "endpoint_test.go",
+        "firstrun_test.go",
+    ],
     embed = [":telemetry"],
 )
