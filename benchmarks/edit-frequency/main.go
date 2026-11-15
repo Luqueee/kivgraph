@@ -34,6 +34,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"runtime/pprof"
 	"sort"
 	"strings"
 	"time"
@@ -73,6 +74,7 @@ type flags struct {
 	grepRepeats int
 	output      string
 	keep        bool
+	cpuProfile  string
 }
 
 func parseFlags() flags {
@@ -86,6 +88,7 @@ func parseFlags() flags {
 	flag.StringVar(&options.questions, "questions", "", "newline-separated symbol names for the grep arm; empty uses the built-in set")
 	flag.IntVar(&options.grepRepeats, "grep-repeats", 3, "how many times to time each grep question")
 	flag.StringVar(&options.output, "output", "", "where to write results.json; empty writes to stdout only")
+	flag.StringVar(&options.cpuProfile, "cpuprofile", "", "write a CPU profile of the edit passes only; the warm-up is excluded like it is from every statistic")
 	flag.BoolVar(&options.keep, "keep", false, "keep the scratch copy and the generation root after the run")
 	flag.Parse()
 	return options
@@ -322,6 +325,16 @@ func run(ctx context.Context, options flags) error {
 	out.Warmup = &warmup
 	reportPass(warmup)
 
+	if options.cpuProfile != "" {
+		profile, err := os.Create(options.cpuProfile)
+		if err != nil {
+			return fmt.Errorf("create cpu profile: %w", err)
+		}
+		defer profile.Close()
+		if err := pprof.StartCPUProfile(profile); err != nil {
+			return fmt.Errorf("start cpu profile: %w", err)
+		}
+	}
 	for step := 1; step <= options.edits; step++ {
 		target := targets[(step-1)%len(targets)]
 		if err := applyEdit(target, step); err != nil {
@@ -335,6 +348,9 @@ func run(ctx context.Context, options flags) error {
 		}
 		out.Passes = append(out.Passes, cost)
 		reportPass(cost)
+	}
+	if options.cpuProfile != "" {
+		pprof.StopCPUProfile()
 	}
 
 	tool := resolveSearchTool()
