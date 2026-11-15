@@ -15,6 +15,9 @@ After the changes a green run takes 5.0 minutes at the median, over six runs.
 That sample is small and saw no burst of open pull requests, so the macOS
 queue has not been put to the test since.
 
+A second pass later the same day, described at the end, took one run on
+`main` to 4.2 minutes.
+
 ## Before
 
 Sample: the 54 runs of `ci.yml` between 2026-11-14 23:16Z and 2026-11-15
@@ -227,3 +230,90 @@ back with a real burst of pull requests, and closed otherwise.
   #37 is on `main`.
 - `release.yml`, `download-metrics.yml` and `bazel-benchmark.yml` were read
   only as far as their triggers.
+
+## Second pass
+
+Done after this review was closed, the same day. Everything above describes
+the workflow before it.
+
+The goal was a run under five minutes. `verify` was the job that decided the
+duration, at 4.8 minutes, with `macos` at 4.1.
+
+### What one package cost
+
+`internal/indexer` was the slowest package of every suite, and one test was
+most of it. `TestFullIndexesTheStandardLibraryAsASyntheticProvider` indexes
+the whole Rust standard library and took 84 s of the 138 s the package needed,
+measured locally with `go test -json`. A test binary runs its tests one after
+another, so that test set the length of the package.
+
+#39 moves it, unchanged, to a test-only package of its own,
+`internal/indexer/rustsysroot`, where it runs beside the rest.
+
+| job | before | with #39 |
+|---|---|---|
+| `ladybug` | 169 s | 94 s |
+| `macos` | 250 s | 201 s |
+| `verify` | 299 s | 353 s, then 300 s |
+
+`verify` did not move. There the suite runs instrumented for coverage and is
+bound by CPU, not by its slowest package: the step took 136 s and 93 s in the
+two samples, against 96 s before. Splitting the package was not enough to
+meet the goal.
+
+### What `verify` was
+
+Three unrelated things on one runner, one after another.
+
+| change | pull request |
+|---|---|
+| the worker, web and landing checks run in `packages` | #40 |
+| the linters and the race tests run in `lint` | #41 |
+
+`lint` needs none of the analyzers `verify` installs, and no test in the five
+raced packages skips for a missing one.
+
+### After the second pass
+
+One run on `main` with #39, #40 and #41, and no queue:
+
+| job | duration |
+|---|---|
+| `macos` | 229 s |
+| `verify` | 152 s |
+| `darwin-bundle` | 152 s |
+| `semantic-coverage` | 151 s |
+| `lint` | 143 s |
+| `packages` | 117 s |
+| `ladybug` | 103 s |
+| `linux-bundle` | 101 s |
+
+The run took 252 s, 4.2 minutes. `macos` is the job that decides it now, and
+a queue for its runner adds to it directly: a pull request run the same
+afternoon waited 66 s for one and took 5.2 minutes.
+
+This is a single run. The suite step alone has ranged from 93 s to 136 s.
+
+### #37 again
+
+Rebased on the three changes and run once, still without a Go cache:
+
+| | two jobs, on `main` | one job, #37, cold |
+|---|---|---|
+| longest macOS job | 229 s | 376 s |
+| run duration, no queue | 252 s | 396 s |
+
+With `macos` already the longest job, moving the bundle into it adds its whole
+length to the run: about two and a half minutes. The earlier comparison, made
+while `verify` was longer, understated that. #37 stays open under the same
+condition, and the condition is now harder to meet: the queue it removes has
+to cost more than two minutes per run.
+
+### Open after the second pass
+
+- **#37**, as above.
+- **`macos`.** Its suite step, `make test-ladybug`, is 144 s of it, with
+  `internal/indexer/rustsysroot` at 106 s and `cmd/kivgraph` at 110 s as the
+  two slowest packages.
+- **The suite under coverage.** CPU-bound in `verify`; a larger runner or
+  fewer instrumented packages are the only levers left there.
