@@ -324,6 +324,9 @@ func run(ctx context.Context, options flags) error {
 	}
 	out.Warmup = &warmup
 	reportPass(warmup)
+	if graphLooksHollow(warmup.Files, len(targets)) {
+		return fmt.Errorf("the warm-up indexed %d files of the %d Go files it will edit: the graph is hollow and every number after it would describe nothing; check that the Go module cache is reachable (export GOMODCACHE) and that the corpus type-checks", warmup.Files, len(targets))
+	}
 
 	if options.cpuProfile != "" {
 		profile, err := os.Create(options.cpuProfile)
@@ -1035,4 +1038,14 @@ func maximum(values []float64) float64 {
 	sorted := append([]float64(nil), values...)
 	sort.Float64s(sorted)
 	return sorted[len(sorted)-1]
+}
+
+// graphLooksHollow reports a warm-up that indexed a small fraction of the Go
+// files the run is about to edit. Without the module cache the Go loader cannot
+// type-check the repository and `index --full` still succeeds: it published 63
+// symbols for a repository of 393 files, and the run went on to report a pass
+// that was about 40 % shorter than the real one. A graph that indexes under a
+// quarter of its own files is not a slower graph, it is another corpus.
+func graphLooksHollow(indexedFiles, trackedGoFiles int) bool {
+	return trackedGoFiles > 0 && indexedFiles*4 < trackedGoFiles
 }
