@@ -124,6 +124,12 @@ func LookToolchain(name string) (string, error) {
 	return exec.LookPath(name)
 }
 
+// ToolchainVersion answers the version line of one toolchain executable,
+// asked the way every probe here asks: without letting rustup install.
+func ToolchainVersion(ctx context.Context, binary string) (string, error) {
+	return runToolchainProbe(ctx, binary, "", "--version")
+}
+
 // probeToolchain reads the release and the sysroot root from `rustc`.
 func probeToolchain(ctx context.Context, workingDirectory string) (string, string, SysrootUnavailableReason) {
 	binary, err := LookToolchain("rustc")
@@ -145,11 +151,29 @@ func probeToolchain(ctx context.Context, workingDirectory string) (string, strin
 	return release, root, ""
 }
 
+// ProbeEnvironment is the environment of a process that asks the toolchain a
+// question: this one, with rustup forbidden to answer by installing.
+func ProbeEnvironment() []string {
+	return append(os.Environ(), "RUSTUP_AUTO_INSTALL=0")
+}
+
+// runToolchainProbe asks `rustc` a question and never lets the answer be an
+// installation.
+//
+// The `rustc` on a PATH is usually rustup's proxy, and a proxy that finds its
+// active toolchain missing downloads it before answering. That is what a
+// process with a home of its own looks like -- a test with a temporary HOME,
+// a service -- and what a `rust-toolchain.toml` naming a release nobody
+// installed looks like. Measured on the macOS runner: `rustc --version` under
+// an empty HOME took 15 to 19 s and left a 1.4 GB toolchain behind, every
+// time. `RUSTUP_AUTO_INSTALL=0` is rustup's own switch for it; the probe then
+// fails, which every caller already reads as "no toolchain here".
 func runToolchainProbe(ctx context.Context, binary, workingDirectory string, arguments ...string) (string, error) {
 	command := exec.CommandContext(ctx, binary, arguments...)
 	if strings.TrimSpace(workingDirectory) != "" {
 		command.Dir = workingDirectory
 	}
+	command.Env = ProbeEnvironment()
 	output, err := command.Output()
 	if err != nil {
 		return "", fmt.Errorf("run %s %s: %w", binary, strings.Join(arguments, " "), err)

@@ -518,8 +518,8 @@ func rustAnalysisFingerprint(options FullOptions) string {
 	if len(command) != 0 {
 		if resolved, _, err := rustloader.ResolveAnalyzer(command[0]); err == nil {
 			fmt.Fprintf(hash, "analyzer=%s\x00", fileFingerprint(resolved))
-			if version, err := exec.Command(resolved, "--version").Output(); err == nil {
-				fmt.Fprintf(hash, "version=%s\x00", strings.TrimSpace(string(version)))
+			if version, err := rustloader.ToolchainVersion(context.Background(), resolved); err == nil {
+				fmt.Fprintf(hash, "version=%s\x00", version)
 			}
 		}
 	}
@@ -538,8 +538,8 @@ func rustAnalysisFingerprint(options FullOptions) string {
 	// entry that did not record the release would be served across one. It is
 	// the `rustc` the analyzer runs, which the PATH does not decide.
 	if compiler, err := rustloader.LookToolchain("rustc"); err == nil {
-		if version, err := exec.Command(compiler, "--version").Output(); err == nil {
-			fmt.Fprintf(hash, "rustc=%s\x00", strings.TrimSpace(string(version)))
+		if version, err := rustloader.ToolchainVersion(context.Background(), compiler); err == nil {
+			fmt.Fprintf(hash, "rustc=%s\x00", version)
 		}
 	}
 	// Whether that toolchain carries its library sources is part of the
@@ -549,8 +549,8 @@ func rustAnalysisFingerprint(options FullOptions) string {
 		fmt.Fprintf(hash, "library=%s\x00", reason)
 	}
 	if cargo, err := exec.LookPath("cargo"); err == nil {
-		if version, err := exec.Command(cargo, "--version").Output(); err == nil {
-			fmt.Fprintf(hash, "cargo=%s\x00", strings.TrimSpace(string(version)))
+		if version, err := rustloader.ToolchainVersion(context.Background(), cargo); err == nil {
+			fmt.Fprintf(hash, "cargo=%s\x00", version)
 		}
 	}
 	return hex.EncodeToString(hash.Sum(nil))
