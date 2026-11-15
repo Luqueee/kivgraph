@@ -245,19 +245,17 @@ jobs:
       - name: Run complete semantic coverage gate
         run: make semantic-coverage
 
-  # The Go half of what used to be one job. The worker, the viewer and the
-  # landing were checked after the Go suite on the same runner, which made this
-  # the longest job of the workflow -- 4.8 min at the median -- for no reason
-  # but the order of its steps: nothing below `Build Go` read anything above
-  # it. They run in `packages` now, beside this one, and a Linux runner does
-  # not queue.
-  verify:
-    name: Verify Go
+  # Everything about the Go source that is not the instrumented suite: format,
+  # vet, the linters, the vulnerability scan, the documentation ratchet and the
+  # race tests. None of it needs an analyzer -- no test in the raced packages
+  # skips for one -- so it does not pay the 41 s `verify` spends installing
+  # them, and its steps were about a minute of the job that decides how long
+  # a run takes.
+  lint:
+    name: Lint Go and run the race tests
     needs: classify
     if: needs.classify.outputs.full == 'true'
-    # The image is pinned because the Go cache this job restores was saved on
-    # it; `packages` is the job that needs the pin for its own sake.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 15
 
     steps:
@@ -273,40 +271,6 @@ jobs:
         uses: ./.github/actions/setup-go
         with:
           job: ${{ github.job }}
-
-      # Dart, pyright, scip-java and scip-dotnet are here for the same reason
-      # rust-analyzer is: their suites skip without them, and a skipped suite
-      # hides a whole language path from CI. They arrived with the coverage
-      # floor -- which this job now gates -- and until then the Python
-      # analyzer tests had never run in this workflow at all.
-      - name: Set up the semantic indexers
-        uses: ./.github/actions/setup-semantic-indexers
-
-      - name: Set up Node.js for the analyzers
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version: 22
-
-      - name: Install pyright
-        run: npm install -g pyright@1.1.414
-
-      # The Rust tests skip without a runnable analyzer, and a skipped suite
-      # would hide the whole Rust path from CI. rustup ships a proxy named
-      # rust-analyzer whether or not the component exists, so it has to be
-      # added explicitly.
-      #
-      # `rust-src` is added with it, here and in every other job that runs the
-      # analyzer. The hosted image does not carry it, and an analyzer that
-      # finds it missing runs `rustup component add rust-src` itself. Two test
-      # binaries starting together then race that install: the loser indexes
-      # without a standard library while the probe the test makes afterwards
-      # finds one, and `TestFullIndexesARustRepository` fails. Reproduced at
-      # 7 of 8 concurrent first runs without the component and 0 of 24 with it.
-      - name: Install pinned rust-analyzer
-        run: |
-          rustup component add rust-analyzer rust-src
-          analyzer_dir="$(scripts/fetch-rust-analyzer.sh)"
-          echo "$analyzer_dir" >> "$GITHUB_PATH"
 
       - name: Check Go formatting
         shell: bash
@@ -365,16 +329,6 @@ jobs:
           git fetch --no-tags --depth=100 origin "$base"
           scripts/check-docs.sh "origin/$base"
 
-      # The Go suite runs once, instrumented, and gates the coverage floor in
-      # the same pass. `make coverage` measures with -coverpkg=./... while the
-      # tests execute, so it cannot follow a plain `go test ./...` -- that
-      # would be the same work twice, which is what it replaced. It emits the
-      # same ::error:: annotations on failure, and refuses to run at all when
-      # an analyzer is missing, because the low number that produces reads as
-      # a floor breach and is really a toolchain nobody installed.
-      - name: Go tests and coverage floor
-        run: make coverage
-
       # The packages where a race is a data race and not a flake: the snapshot
       # store publishes by compare-and-swap, the follower installs generations
       # from another goroutine, the daemon serves sessions in parallel, and the
@@ -387,6 +341,76 @@ jobs:
             ./internal/indexing/... \
             ./internal/daemon/... \
             ./internal/storage/generation/...
+
+  # The Go half of what used to be one job. The worker, the viewer and the
+  # landing were checked after the Go suite on the same runner, which made this
+  # the longest job of the workflow -- 4.8 min at the median -- for no reason
+  # but the order of its steps: nothing below `Build Go` read anything above
+  # it. They run in `packages` now, beside this one, and a Linux runner does
+  # not queue.
+  verify:
+    name: Verify Go
+    needs: classify
+    if: needs.classify.outputs.full == 'true'
+    # The image is pinned because the Go cache this job restores was saved on
+    # it; `packages` is the job that needs the pin for its own sake.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: ./.github/actions/setup-go
+        with:
+          job: ${{ github.job }}
+
+      # Dart, pyright, scip-java and scip-dotnet are here for the same reason
+      # rust-analyzer is: their suites skip without them, and a skipped suite
+      # hides a whole language path from CI. They arrived with the coverage
+      # floor -- which this job now gates -- and until then the Python
+      # analyzer tests had never run in this workflow at all.
+      - name: Set up the semantic indexers
+        uses: ./.github/actions/setup-semantic-indexers
+
+      - name: Set up Node.js for the analyzers
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22
+
+      - name: Install pyright
+        run: npm install -g pyright@1.1.414
+
+      # The Rust tests skip without a runnable analyzer, and a skipped suite
+      # would hide the whole Rust path from CI. rustup ships a proxy named
+      # rust-analyzer whether or not the component exists, so it has to be
+      # added explicitly.
+      #
+      # `rust-src` is added with it, here and in every other job that runs the
+      # analyzer. The hosted image does not carry it, and an analyzer that
+      # finds it missing runs `rustup component add rust-src` itself. Two test
+      # binaries starting together then race that install: the loser indexes
+      # without a standard library while the probe the test makes afterwards
+      # finds one, and `TestFullIndexesARustRepository` fails. Reproduced at
+      # 7 of 8 concurrent first runs without the component and 0 of 24 with it.
+      - name: Install pinned rust-analyzer
+        run: |
+          rustup component add rust-analyzer rust-src
+          analyzer_dir="$(scripts/fetch-rust-analyzer.sh)"
+          echo "$analyzer_dir" >> "$GITHUB_PATH"
+
+      # The Go suite runs once, instrumented, and gates the coverage floor in
+      # the same pass. `make coverage` measures with -coverpkg=./... while the
+      # tests execute, so it cannot follow a plain `go test ./...` -- that
+      # would be the same work twice, which is what it replaced. It emits the
+      # same ::error:: annotations on failure, and refuses to run at all when
+      # an analyzer is missing, because the low number that produces reads as
+      # a floor breach and is really a toolchain nobody installed.
+      - name: Go tests and coverage floor
+        run: make coverage
 
       - name: Build Go
         run: go build ./cmd/kivgraph
@@ -992,6 +1016,7 @@ jobs:
       - release_preparation
       - semantic-coverage
       - documentation
+      - lint
       - verify
       - packages
       - linux-bundle
@@ -1010,6 +1035,7 @@ jobs:
           DOCS_ONLY: ${{ needs.classify.outputs.docs_only }}
           DOCUMENTATION_RESULT: ${{ needs.documentation.result }}
           SEMANTIC_COVERAGE_RESULT: ${{ needs['semantic-coverage'].result }}
+          LINT_RESULT: ${{ needs.lint.result }}
           VERIFY_RESULT: ${{ needs.verify.result }}
           PACKAGES_RESULT: ${{ needs.packages.result }}
           LINUX_BUNDLE_RESULT: ${{ needs['linux-bundle'].result }}
@@ -1039,6 +1065,7 @@ jobs:
 
           for result in \
             "$SEMANTIC_COVERAGE_RESULT" \
+            "$LINT_RESULT" \
             "$VERIFY_RESULT" \
             "$PACKAGES_RESULT" \
             "$LINUX_BUNDLE_RESULT" \
