@@ -133,6 +133,12 @@ con forma de código, o cuatro o más identificadores alternativos como
 grafo devuelve candidatos. Tres términos exactos como `error|warning|failed`
 siguen siendo una búsqueda textual.
 
+Ninguna de las dos rutas se cierra cuando la búsqueda dice dónde mira y sólo
+mira archivos que el grafo no cubre: `grep -n version package.json`, un `.log`,
+un glob `*.yaml`. Hace falta una ruta con extensión que no sea de código y
+ninguna que lo sea; un directorio a secas no prueba nada, y un filtro de tipo
+que nombra un lenguaje (`--type rust`) sigue siendo una búsqueda sobre código.
+
 Todo fallo de la puerta es un permiso, y un permiso no escribe nada: en ese
 contrato un `allow` explícito se salta la petición de permiso del agente.
 
