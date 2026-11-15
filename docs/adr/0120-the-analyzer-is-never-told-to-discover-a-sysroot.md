@@ -71,10 +71,35 @@ already running.
 ## Not done
 
 - `cargo` is still found through the `PATH` by `cargo metadata` and by the
-  fingerprint. It installs nothing, so it is outside this decision.
+  fingerprint. This said it "installs nothing"; the amendment below is about
+  why that was wrong.
 - The order in decision 2 is the one rust-analyzer documents. What was
   observed here is the part that matters: with no `rustc` on the `PATH`, the
   pinned analyzer ran the one in `$CARGO_HOME/bin`.
+
+## Amendment, 2026-11-15: a probe does not install a toolchain either
+
+The `rustc` and `cargo` on a `PATH` are usually rustup's proxies, and a proxy
+that finds its active toolchain missing downloads it before answering. A
+process with a home of its own sees exactly that: so does a workspace whose
+`rust-toolchain.toml` names a release nobody installed.
+
+Measured on the macOS runner, `rustc --version` under an empty `HOME` took 15
+to 19 s and left a 1.4 GB toolchain behind, every time. Every test that
+isolates a `HOME` and reached the Rust fingerprint paid it: that was a stall
+of 20 to 110 s in `cmd/kivgraph`, on macOS only.
+
+Every question Kivgraph asks the toolchain now carries
+`RUSTUP_AUTO_INSTALL=0`, rustup's own switch: the sysroot probe, the three
+version lines of the fingerprint, and the two of `doctor`. With it the proxy
+fails in a second, and each caller already reads that as "no toolchain here".
+
+The analyzer and `cargo metadata` are not covered. They run the build, and a
+workspace that pins a toolchain is asking for it; whether an offline pass may
+fetch one is its own decision.
+
+`TestRustFingerprintChangesWhenTheLibrarySourcesArrive` records the variable
+as each stand-in saw it.
 
 ## Verification
 

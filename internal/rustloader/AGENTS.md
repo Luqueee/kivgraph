@@ -47,6 +47,12 @@ Las reglas del motor están en `internal/AGENTS.md`.
   no contesta ninguno se le pasa `none` con un diagnóstico; `discover` sólo le
   llega con `rust.allow_network`. La huella de la caché de hechos registra si
   el toolchain trae `rust-src`. Ver ADR 0120.
+- Preguntar al toolchain tampoco instala. `rustc` y `cargo` suelen ser los
+  proxies de rustup, y un proxy sin su toolchain activo lo descarga antes de
+  contestar: `rustc --version` con un `HOME` vacío tardó de 15 a 19 s en el
+  runner de macOS y dejó 1,4 GB cada vez. Toda pregunta va con
+  `rustloader.ProbeEnvironment()`, que lleva `RUSTUP_AUTO_INSTALL=0`. El
+  analizador y `cargo metadata` no: ejecutan el build.
 - La unidad de análisis es el workspace Cargo, no el crate: el analizador
   carga el workspace entero en cada invocación. El techo de concurrencia es
   bajo por memoria.

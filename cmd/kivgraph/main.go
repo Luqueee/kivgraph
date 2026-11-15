@@ -2386,8 +2386,12 @@ func reportRustToolchain(report func(string, bool, string), configuration config
 		report("toolchain.rust", false, fmt.Sprintf("command %q is unavailable", command[0]))
 		return
 	}
+	// Neither question may be answered by an installation: both commands are
+	// usually rustup's proxies, and a proxy with no toolchain downloads one.
 	arguments := append(append([]string(nil), command[1:]...), "--version")
-	output, err := exec.CommandContext(context.Background(), resolved, arguments...).CombinedOutput()
+	analyzer := exec.CommandContext(context.Background(), resolved, arguments...)
+	analyzer.Env = rustloader.ProbeEnvironment()
+	output, err := analyzer.CombinedOutput()
 	if err != nil {
 		report("toolchain.rust", false, fmt.Sprintf("%s --version failed: %v", resolved, err))
 		return
@@ -2399,7 +2403,9 @@ func reportRustToolchain(report func(string, bool, string), configuration config
 	// The analyzer cannot load a Cargo workspace without cargo, and the bundle
 	// does not ship a Rust toolchain: a missing cargo is a failure even when
 	// the analyzer travels inside the installation.
-	cargoOutput, cargoErr := exec.CommandContext(context.Background(), "cargo", "--version").CombinedOutput()
+	cargo := exec.CommandContext(context.Background(), "cargo", "--version")
+	cargo.Env = rustloader.ProbeEnvironment()
+	cargoOutput, cargoErr := cargo.CombinedOutput()
 	if cargoErr != nil {
 		report("toolchain.cargo", false, "cargo is unavailable, so no workspace can be loaded")
 		return

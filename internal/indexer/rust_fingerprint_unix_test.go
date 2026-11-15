@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Luqueee/kivgraph/internal/testsupport"
@@ -26,13 +27,19 @@ func TestRustFingerprintChangesWhenTheLibrarySourcesArrive(t *testing.T) {
 	if err := os.MkdirAll(bin, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	script := fmt.Sprintf("#!/bin/sh\ncase \"$*\" in *sysroot*) echo '%s';; *) echo 'rustc 1.96.1 (31fca3adb 2026-06-26)';; esac\n", sysroot)
-	if err := os.WriteFile(filepath.Join(bin, "rustc"), []byte(script), 0o700); err != nil {
-		t.Fatal(err)
+	asked := filepath.Join(root, "auto-install")
+	script := fmt.Sprintf("#!/bin/sh\necho \"${0##*/}=${RUSTUP_AUTO_INSTALL-unset}\" >> '%s'\ncase \"$*\" in *sysroot*) echo '%s';; *) echo 'rustc 1.96.1 (31fca3adb 2026-06-26)';; esac\n", asked, sysroot)
+	// `cargo` is found through the PATH and `rustc` through the cargo home;
+	// the same stand-in answers for both and records how it was asked.
+	path := testsupport.TempDir(t)
+	for _, executable := range []string{filepath.Join(bin, "rustc"), filepath.Join(path, "cargo")} {
+		if err := os.WriteFile(executable, []byte(script), 0o700); err != nil {
+			t.Fatal(err)
+		}
 	}
 	t.Setenv("CARGO_HOME", filepath.Join(root, "cargo-home"))
 	t.Setenv("RUSTC", "")
-	t.Setenv("PATH", testsupport.TempDir(t))
+	t.Setenv("PATH", path)
 
 	options := FullOptions{RustAnalyzer: "rust-analyzer", RustSysroot: "discover"}
 	without := rustAnalysisFingerprint(options)
@@ -49,5 +56,20 @@ func TestRustFingerprintChangesWhenTheLibrarySourcesArrive(t *testing.T) {
 	}
 	if rustAnalysisFingerprint(options) == without {
 		t.Fatal("installing the library sources left the fingerprint unchanged")
+	}
+
+	// Every question the fingerprint asked the toolchain forbade rustup to
+	// answer it by installing one: under a HOME of its own the proxy
+	// downloads 1.4 GB before printing a version.
+	recorded, err := os.ReadFile(asked)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := make(map[string]bool)
+	for _, call := range strings.Fields(string(recorded)) {
+		seen[call] = true
+	}
+	if len(seen) != 2 || !seen["rustc=0"] || !seen["cargo=0"] {
+		t.Fatalf("calls and the RUSTUP_AUTO_INSTALL they saw = %v, want rustc=0 and cargo=0 only", seen)
 	}
 }
