@@ -141,20 +141,21 @@ func TestReconcilerReturnsTheReadableChangesBesideAnUnreadablePath(t *testing.T)
 	}
 	t.Cleanup(func() { _ = os.Chmod(locked, 0o600) })
 
-	for name, run := range map[string]func() (ReconciliationResult, error){
-		"Reconcile": func() (ReconciliationResult, error) { return reconciler.Reconcile(context.Background()) },
-		"Process": func() (ReconciliationResult, error) {
-			writeHashTestFile(t, readable, "package p\n\nvar A = 2\n")
-			return reconciler.Process(context.Background(), Batch{Events: []Event{
-				{Repository: "repo", Path: readable, Operations: OperationWrite},
-				{Repository: "repo", Path: locked, Operations: OperationWrite},
-			}})
-		},
-	} {
-		result, err := run()
-		if !errors.Is(err, ErrUnreadablePath) {
-			t.Fatalf("%s() error = %v, want ErrUnreadablePath", name, err)
-		}
-		assertStatePaths(t, name+" modified", result.Modified, readable)
+	// Each call gets an edit of its own, so neither depends on the other
+	// having run first.
+	result, err := reconciler.Reconcile(context.Background())
+	if !errors.Is(err, ErrUnreadablePath) {
+		t.Fatalf("Reconcile() error = %v, want ErrUnreadablePath", err)
 	}
+	assertStatePaths(t, "Reconcile modified", result.Modified, readable)
+
+	writeHashTestFile(t, readable, "package p\n\nvar A = 2\n")
+	result, err = reconciler.Process(context.Background(), Batch{Events: []Event{
+		{Repository: "repo", Path: readable, Operations: OperationWrite},
+		{Repository: "repo", Path: locked, Operations: OperationWrite},
+	}})
+	if !errors.Is(err, ErrUnreadablePath) {
+		t.Fatalf("Process() error = %v, want ErrUnreadablePath", err)
+	}
+	assertStatePaths(t, "Process modified", result.Modified, readable)
 }
