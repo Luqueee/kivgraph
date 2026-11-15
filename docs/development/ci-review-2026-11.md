@@ -15,8 +15,8 @@ After the changes a green run takes 5.0 minutes at the median, over six runs.
 That sample is small and saw no burst of open pull requests, so the macOS
 queue has not been put to the test since.
 
-A second pass later the same day, described at the end, took one run on
-`main` to 4.2 minutes.
+A second pass later the same day took one run on `main` to 4.2 minutes, and a
+third took a pull request run to 3.2. Both are described at the end.
 
 ## Before
 
@@ -321,3 +321,85 @@ than twice that on every run.
   two slowest packages.
 - **The suite under coverage.** CPU-bound in `verify`; a larger runner or
   fewer instrumented packages are the only levers left there.
+
+## Third pass
+
+Also the same day. After the second pass `macos` decided how long a run took,
+and its suite step, `make test-ladybug`, was most of it. The step was timed
+test by test on the `macos-15` runner.
+
+### What was in the step
+
+**A stall in `cmd/kivgraph`, on macOS only.** The package took 4 to 7 s in
+some runs and 49 to 110 s in others. A goroutine dump put it inside
+`rustc --version`, called by the fact-cache fingerprint. On that image `rustc`
+is rustup's proxy, and under the temporary `HOME` those tests set it has no
+toolchain, so it downloads one before answering.
+
+| `rustc --version`, empty `HOME` | time | left behind |
+|---|---|---|
+| before | 15 to 19 s | a 1.4 GB toolchain |
+| with `RUSTUP_AUTO_INSTALL=0` | 1 s, exit 1 | nothing |
+
+It was not only a test problem: a workspace whose `rust-toolchain.toml` names
+a release nobody installed made the same probe download it.
+
+**Eight analyses of one fixture.** Each `TestAnalyze*` in
+`internal/rustloader` ran rust-analyzer over the same recorded workspace to
+read the result, 5 to 7 s apiece.
+
+**The standard library pass.** The test #39 gave a package of its own is
+what decides the step, and how long it takes depends on the runner:
+
+| | suite step | that one test |
+|---|---|---|
+| whole suite, five jobs | 80 to 191 s | 62 to 159 s |
+| without it, two jobs | 57 and 79 s | -- |
+
+The runner has three cores and the analyzer is CPU-bound.
+
+### What was changed
+
+| change | pull request |
+|---|---|
+| no question to the toolchain lets rustup install | #44 |
+| `internal/rustloader` analyses its fixture once | #44 |
+| on a pull request, `macos` skips the standard library pass | #45 |
+
+#44 covers the sysroot probe, the three version lines of the fingerprint and
+the two of `doctor`; ADR 0120 has the amendment. `internal/rustloader` went
+from 68 s to between 12 and 31 s on the runner.
+
+#45 is a trade. Both Linux jobs still run that test on every pull request,
+and `macos` still runs it on every push to `main` and on a release. A
+regression in it that only shows on darwin is found after the merge.
+
+### After the third pass
+
+One run each, no queue:
+
+| | run | `macos` | its suite step |
+|---|---|---|---|
+| `main` after the second pass | 252 s | 229 s | 144 s |
+| pull request, #45 | 194 s | 176 s | 97 s |
+| `main` with #44 and #45 | 237 s | 215 s | 136 s |
+
+The pull request row predates #44 on its branch. No pull request has run
+with both yet.
+
+On `main` the step still carries the standard library pass, so it moves with
+the runner: 136 s here, 193 s on the pull request that carried #44.
+
+`lint`, measured cold at 143 s when it was added, took 51 s on `main` once
+its cache existed.
+
+### Open after the third pass
+
+- **The analyzer and `cargo metadata`.** They can still make rustup install
+  a toolchain during a pass. ADR 0120 leaves that as its own decision.
+- **The standard library pass on `main`.** Still 62 to 160 s of the `macos`
+  job there, by design.
+- **Pull requests.** `macos` at about three minutes and `verify` at about two
+  and a half are close; the next saving is no longer in one place.
+- **The macOS queue** and **the suite under coverage**, as after the second
+  pass.
