@@ -37,7 +37,7 @@ runs:
         gunzip -f cs.gz
         chmod +x cs
         mkdir -p "$HOME/.local/bin"
-        ./cs install --contrib scip-java:0.14.2 --install-dir "$HOME/.local/bin"
+        ./cs install --contrib scip-java:0.12.3 --install-dir "$HOME/.local/bin"
         echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
     # scip-dotnet is a dotnet global tool and needs the SDK, which also runs
