@@ -74,6 +74,7 @@ go_test(
         "profiles_test.go",
         "repositories_test.go",
         "response_test.go",
+        "root_symbol_path_test.go",
         "root_symbol_test.go",
         "status_test.go",
         "text_result_test.go",
