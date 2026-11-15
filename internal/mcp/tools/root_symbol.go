@@ -93,7 +93,7 @@ func resolveSymbolSelector(
 	if !found {
 		return 0, errSelectorNotFound(selector)
 	}
-	filter := hotsnapshot.SymbolFilter{RepositoryName: selector.Repository, PathPrefix: selector.Path}
+	filter := hotsnapshot.SymbolFilter{RepositoryName: selector.Repository, Path: selector.Path}
 	page, err := snapshot.SearchSymbolsByQName(interned, filter, 0, hotsnapshot.MaxExactResults)
 	if err != nil {
 		return 0, WrapToolError(CodeSnapshotUnavailable, "qualified name lookup failed", err)
@@ -198,7 +198,7 @@ func resolveDeclarationByName(
 	if !found {
 		return 0, "", errNameNotFound(name)
 	}
-	filter := hotsnapshot.SymbolFilter{RepositoryName: repository, PathPrefix: path}
+	filter := hotsnapshot.SymbolFilter{RepositoryName: repository, Path: path}
 	page, err := snapshot.SearchSymbolsByName(interned, filter, 0, hotsnapshot.MaxExactResults)
 	if err != nil {
 		return 0, "", WrapToolError(CodeSnapshotUnavailable, "name lookup failed", err)
