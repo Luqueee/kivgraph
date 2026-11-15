@@ -21,10 +21,21 @@ El resultado y su lectura están en `report.md`; el resumen es que **ninguna de 
 dos capas de contexto mejora a un agente sin capa sobre estas tareas**, y las dos
 cuestan más.
 
-Dos condiciones anteriores se conservan aparte porque miden otra cosa:
-`uncapped-pilot/` (sin tope: 54-75 turnos por ejecución, ninguno converge) y
-`starved-1.50/` (tope de `$1,50`: ahoga la tarea Go de 6 archivos en los tres
-brazos).
+Tres condiciones más se conservan aparte porque miden otra cosa:
+
+- `uncapped-pilot/`: sin tope; 54-75 turnos por ejecución, ninguno converge.
+- `starved-1.50/`: tope de `$1,50`; ahoga la tarea Go de 6 archivos en los
+  tres brazos.
+- `pilot-locate-6arm/`: una tarea donde localizar es el trabajo, un trial y
+  seis brazos -- los tres de arriba más `code-review-graph`, `graphify` y
+  `codebase-memory`. Es `n=1` y su propio README dice que no es un resultado
+  sobre ninguna herramienta. El conjunto de tareas es `tasks-locate.json`:
+  seis definidas, una corrida.
+
+El brazo de `graphify` no es simétrico con los demás, y hay que leer su fila
+sabiéndolo: `graphify` no tiene servidor MCP, así que es el único brazo con
+shell (`Shell: true` en `arms.go`) y una directiva que nombra sus comandos. En
+el piloto hizo cero llamadas al grafo.
 
 ```bash
 go run ./benchmarks/agent-e2e --kivgraph /private/tmp/kivgraph-e2e \
