@@ -125,10 +125,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        uses: ./.github/actions/setup-go
         with:
-          go-version-file: go.mod
-          check-latest: true
+          job: ${{ github.job }}
 
       - name: Check release metadata
         run: |
@@ -175,10 +174,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        uses: ./.github/actions/setup-go
         with:
-          go-version-file: go.mod
-          check-latest: true
+          job: ${{ github.job }}
 
       - name: Set up Dart
         uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1
@@ -263,10 +261,9 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        uses: ./.github/actions/setup-go
         with:
-          go-version-file: go.mod
-          check-latest: true
+          job: ${{ github.job }}
 
       # Dart and pyright are here for the same reason rust-analyzer is: their
       # suites skip without them, and a skipped suite hides a whole language
@@ -498,10 +495,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        uses: ./.github/actions/setup-go
         with:
-          go-version-file: go.mod
-          check-latest: true
+          job: ${{ github.job }}
 
       - name: Set up pnpm for distribution
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
@@ -589,10 +585,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        uses: ./.github/actions/setup-go
         with:
-          go-version-file: go.mod
-          check-latest: true
+          job: ${{ github.job }}
 
       - name: Install pinned rust-analyzer
         run: |
@@ -640,10 +635,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        uses: ./.github/actions/setup-go
         with:
-          go-version-file: go.mod
-          check-latest: true
+          job: ${{ github.job }}
 
       - name: Download Linux distribution bundle
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
@@ -779,9 +773,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        uses: ./.github/actions/setup-go
         with:
-          go-version-file: go.mod
+          job: ${{ github.job }}
 
       - name: Install pinned rust-analyzer
         run: |
@@ -864,10 +858,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        uses: ./.github/actions/setup-go
         with:
-          go-version-file: go.mod
-          check-latest: true
+          job: ${{ github.job }}
 
       - name: Install pinned rust-analyzer
         run: |
@@ -892,16 +885,10 @@ jobs:
       - name: Go vet
         run: go vet ./...
 
-      - name: Go tests
-        shell: bash
-        run: |
-          set -o pipefail
-          go test ./... 2>&1 | tee "$RUNNER_TEMP/go-test.log" && exit 0
-          grep -E '^(--- )?FAIL|\.go:[0-9]+:' "$RUNNER_TEMP/go-test.log" |
-            head -20 |
-            while IFS= read -r line; do printf '::error::%s\n' "$line"; done
-          exit 1
-
+      # No untagged `go test ./...` here. `make test-ladybug` below runs the
+      # same packages plus the tagged ones, so the untagged pass only added the
+      # `!ladybug` fallback files -- which are not platform specific and run in
+      # `verify`. It cost 132 s of the job that sets this workflow's duration.
       # The worker suite is platform sensitive: the engine reports paths with
       # the casing of the volume, and this one folds case.
       - name: Install TypeScript worker
@@ -971,10 +958,9 @@ jobs:
           }
 
       - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        uses: ./.github/actions/setup-go
         with:
-          go-version-file: go.mod
-          check-latest: true
+          job: ${{ github.job }}
 
       - name: Install the Windows C cross-compiler
         run: |
