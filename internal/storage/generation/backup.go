@@ -44,12 +44,19 @@ func (store *Store) List(ctx context.Context) ([]Generation, error) {
 // returns the ids it removed, ordered. Without a current generation there is
 // nothing to protect an active or a backup against, so Prune refuses to
 // delete anything rather than guess.
-func (store *Store) Prune(ctx context.Context) ([]string, error) {
+func (store *Store) Prune(ctx context.Context) (removed []string, returnErr error) {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	lock, err := store.lockStore()
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		returnErr = errors.Join(returnErr, lock.release())
+	}()
 	current, err := store.currentGeneration()
 	if err != nil {
 		return nil, err
@@ -63,7 +70,6 @@ func (store *Store) Prune(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	var removed []string
 	for _, candidate := range generations {
 		if candidate.ID == current.ID || (hasBackup && candidate.ID == backup.ID) {
 			continue
@@ -91,12 +97,19 @@ func (store *Store) Prune(ctx context.Context) ([]string, error) {
 // Discard removes what this one did not reach. The space reserve is released
 // too, because it exists to complete a publication and there is none left to
 // complete.
-func (store *Store) Discard(ctx context.Context) ([]string, error) {
+func (store *Store) Discard(ctx context.Context) (removed []string, returnErr error) {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	lock, err := store.lockStore()
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		returnErr = errors.Join(returnErr, lock.release())
+	}()
 	generations, err := store.listGenerations()
 	if err != nil {
 		return nil, err
@@ -106,7 +119,7 @@ func (store *Store) Discard(ctx context.Context) ([]string, error) {
 			return nil, fmt.Errorf("remove %s: %w", filepath.Base(pointer), err)
 		}
 	}
-	removed := make([]string, 0, len(generations))
+	removed = make([]string, 0, len(generations))
 	for _, candidate := range generations {
 		if err := store.before(OperationRemoveGeneration, candidate.Path); err != nil {
 			return removed, err
@@ -143,7 +156,11 @@ func (store *Store) Discard(ctx context.Context) ([]string, error) {
 // pointer that survives its generation is the one state this store refuses to
 // keep. A rollback has nothing to restore afterwards, which is the whole point
 // of asking for one generation.
-func (store *Store) DiscardExcept(ctx context.Context, id string) ([]string, error) {
+//
+// id must still be the active generation when the removal starts. The caller
+// read it before asking, and a publication that landed in between would
+// otherwise have its generation removed with CURRENT still naming it.
+func (store *Store) DiscardExcept(ctx context.Context, id string) (removed []string, returnErr error) {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	if err := ctx.Err(); err != nil {
@@ -152,6 +169,13 @@ func (store *Store) DiscardExcept(ctx context.Context, id string) ([]string, err
 	if err := validateGenerationID(id); err != nil {
 		return nil, err
 	}
+	lock, err := store.lockStore()
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		returnErr = errors.Join(returnErr, lock.release())
+	}()
 	generations, err := store.listGenerations()
 	if err != nil {
 		return nil, err
@@ -165,10 +189,17 @@ func (store *Store) DiscardExcept(ctx context.Context, id string) ([]string, err
 	if !kept {
 		return nil, fmt.Errorf("generation %s: %w", id, os.ErrNotExist)
 	}
+	current, err := store.currentGeneration()
+	if err != nil && !errors.Is(err, ErrNoCurrent) {
+		return nil, err
+	}
+	if err == nil && current.ID != id {
+		return nil, fmt.Errorf("generation %s is no longer active: %s is", id, current.ID)
+	}
 	if err := os.Remove(store.backup); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("remove BACKUP: %w", err)
 	}
-	removed := make([]string, 0, len(generations))
+	removed = make([]string, 0, len(generations))
 	for _, candidate := range generations {
 		if candidate.ID == id {
 			continue
