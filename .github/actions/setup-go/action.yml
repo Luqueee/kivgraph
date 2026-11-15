@@ -1,0 +1,58 @@
+name: Set up Go
+description: Install the toolchain from go.mod and restore a Go cache that belongs to the calling job.
+
+# `setup-go` keys its cache on the runner image and `go.sum` and nothing else,
+# and never rewrites an existing entry. Every job on the same image therefore
+# shared one entry, written by whichever finished first -- the Windows
+# cross-compile, whose build cache is for another GOOS. Measured before this
+# existed: `make lint-ladybug` downloaded and compiled staticcheck on every run
+# (63 s against 23 s in the job that owned its cache), and `go vet` took 40 s on
+# macOS against 8 s on Linux.
+#
+# Only `main` saves. A cache written by a pull request is readable by that pull
+# request alone, and one copy per open branch is what took the repository to
+# 14.5 GB against a 10 GB quota.
+inputs:
+  job:
+    description: The calling job's id; it is what makes the cache this job's own.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install the toolchain
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+      with:
+        go-version-file: go.mod
+        check-latest: true
+        cache: false
+
+    - name: Locate the Go caches
+      id: paths
+      shell: bash
+      run: |
+        echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+        echo "mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+
+    # shortcut: an entry is immutable, so the build cache of this repository's
+    # own packages ages until go.sum changes; add a rotating key part if cold
+    # compiles of first-party code start to show in the step times.
+    - name: Restore and save the Go cache
+      if: github.ref == 'refs/heads/main'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: |
+          ${{ steps.paths.outputs.build }}
+          ${{ steps.paths.outputs.mod }}
+        key: go-${{ inputs.job }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.mod', 'go.sum') }}
+        restore-keys: go-${{ inputs.job }}-${{ runner.os }}-${{ runner.arch }}-
+
+    - name: Restore the Go cache
+      if: github.ref != 'refs/heads/main'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: |
+          ${{ steps.paths.outputs.build }}
+          ${{ steps.paths.outputs.mod }}
+        key: go-${{ inputs.job }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.mod', 'go.sum') }}
+        restore-keys: go-${{ inputs.job }}-${{ runner.os }}-${{ runner.arch }}-
