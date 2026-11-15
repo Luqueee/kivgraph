@@ -51,6 +51,7 @@ go_test(
         "typescript_config_test.go",
         "typescript_graph_test.go",
         "typescript_program_test.go",
+        "typescript_registry_nested_test.go",
         "typescript_registry_test.go",
         "typescript_sources_test.go",
         "typescript_unclaimed_test.go",

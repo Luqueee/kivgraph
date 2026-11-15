@@ -97,6 +97,9 @@ func newTypeScriptPackageRegistry(ctx context.Context, repository Repository, di
 			Manifests: manifests,
 		})
 	}
+	if err := dropEnclosingSourcelessProjects(registry.packages, discovery); err != nil {
+		return nil, err
+	}
 	sort.Slice(registry.packages, func(left, right int) bool {
 		if registry.packages[left].Name != registry.packages[right].Name {
 			return registry.packages[left].Name < registry.packages[right].Name
@@ -111,6 +114,56 @@ func newTypeScriptPackageRegistry(ctx context.Context, repository Repository, di
 		registry.byName[packageValue.Name] = index
 	}
 	return registry, nil
+}
+
+// dropEnclosingSourcelessProjects takes the project away from a package that
+// would claim files another package owns.
+//
+// A tsconfig that lists no source -- no include, no files, no rootDir --
+// takes every file below it. A monorepo root named in its package.json and
+// holding only a base config that the packages extend is that case: its payload
+// claimed the files of every nested package as well, each of those files then
+// sat under two packages, and publishing failed on the second CONTAINS_FILE
+// edge. The deeper package owns a file; the root keeps whatever it names itself,
+// and a root with a sourceless config names nothing.
+//
+// It is narrow on purpose. It applies only when a package below has a project
+// of its own, which is what makes the two claims overlap; a nested package
+// that inherits the root's project shares it and takes nothing from it.
+func dropEnclosingSourcelessProjects(packages []TypeScriptPackage, discovery TypeScriptDiscovery) error {
+	for index := range packages {
+		outer := &packages[index]
+		if outer.ProjectPath == "" || !encloseAPackageWithItsOwnProject(packages, *outer) {
+			continue
+		}
+		var project *TypeScriptProject
+		for candidate := range discovery.Projects {
+			if filepath.Clean(discovery.Projects[candidate].ConfigPath) == filepath.Clean(outer.ProjectPath) {
+				project = &discovery.Projects[candidate]
+				break
+			}
+		}
+		metadata, err := packageTypeScriptConfigMetadata(project)
+		if err != nil {
+			return err
+		}
+		if !typeScriptMetadataHasSources(metadata) {
+			outer.ProjectPath = ""
+		}
+	}
+	return nil
+}
+
+func encloseAPackageWithItsOwnProject(packages []TypeScriptPackage, outer TypeScriptPackage) bool {
+	for _, inner := range packages {
+		if inner.ProjectPath == "" || inner.ProjectPath == outer.ProjectPath ||
+			filepath.Clean(inner.RootPath) == filepath.Clean(outer.RootPath) ||
+			!pathWithin(outer.RootPath, inner.RootPath) {
+			continue
+		}
+		return true
+	}
+	return false
 }
 
 // Conflicts returns the package names this registry refused to resolve.
@@ -469,8 +522,8 @@ func resolveTypeScriptRoots(packageRoot, typesPath string, metadata typeScriptCo
 		}
 	}
 	return sourceRoots, declarationRoots, nil
-
 }
+
 func resolveConfigRelativePath(configDirectory, rawPath, field string) (string, error) {
 	candidate := filepath.FromSlash(strings.TrimSpace(rawPath))
 	if candidate == "" {
