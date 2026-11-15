@@ -211,6 +211,15 @@ func Run(ctx context.Context, options RunOptions) (RunResult, error) {
 	// which is already absolute here. Running from the output directory keeps
 	// a relative default output out of the sources.
 	process.Dir = options.OutputDirectory
+	// An offline pass does not install a toolchain. `cargo` and `rustc` are
+	// rustup's proxies on most machines, and a proxy whose active toolchain is
+	// missing -- a `rust-toolchain.toml` naming a release nobody installed --
+	// downloads it before running. The pinned analyzer already forbids that
+	// on every command it spawns; this makes it true of whichever analyzer
+	// `rust.analyzer_command` names.
+	if !options.AllowNetwork {
+		process.Env = ProbeEnvironment()
+	}
 	var stderr bytes.Buffer
 	process.Stdout = &stderr
 	process.Stderr = &stderr

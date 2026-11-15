@@ -395,8 +395,10 @@ its cache existed.
 
 ### Open after the third pass
 
-- **The analyzer and `cargo metadata`.** They can still make rustup install
-  a toolchain during a pass. ADR 0120 leaves that as its own decision.
+- **The analyzer and `cargo metadata`.** Listed here as able to make rustup
+  install a toolchain during a pass. Measured afterwards: the pinned analyzer
+  never could, `cargo metadata` could, and both are closed. See the second
+  amendment of ADR 0120.
 - **The standard library pass on `main`.** Still 62 to 160 s of the `macos`
   job there, by design.
 - **Pull requests.** `macos` at about three minutes and `verify` at about two

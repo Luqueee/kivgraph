@@ -217,3 +217,74 @@ func TestRunLeavesDiscoveryToTheAnalyzerWhenTheNetworkIsAllowed(t *testing.T) {
 		t.Fatalf("rustup was called with %q (%v), want `component add rust-src`", calls, err)
 	}
 }
+
+// recordingStandIn writes an executable that appends the RUSTUP_AUTO_INSTALL
+// it was started with to a file, and answers the file. The variable is
+// removed from this process first, so "unset" means nobody set it.
+func recordingStandIn(t *testing.T, directory, name string, exit int) string {
+	t.Helper()
+	saw := filepath.Join(directory, name+"-saw")
+	script := fmt.Sprintf("#!/bin/sh\necho \"${RUSTUP_AUTO_INSTALL-unset}\" >> '%s'\nexit %d\n", saw, exit)
+	if err := os.WriteFile(filepath.Join(directory, name), []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("RUSTUP_AUTO_INSTALL", "")
+	if err := os.Unsetenv("RUSTUP_AUTO_INSTALL"); err != nil {
+		t.Fatal(err)
+	}
+	return saw
+}
+
+// sawOnce reads what the stand-in recorded and forgets it.
+func sawOnce(t *testing.T, saw string) string {
+	t.Helper()
+	data, err := os.ReadFile(saw)
+	if err != nil {
+		t.Fatalf("the stand-in was never started: %v", err)
+	}
+	if err := os.Remove(saw); err != nil {
+		t.Fatal(err)
+	}
+	return strings.TrimSpace(string(data))
+}
+
+// TestMetadataForbidsAToolchainInstallUnlessTheNetworkIsAllowed: `cargo` is
+// rustup's proxy on most machines, and `cargo metadata` in a workspace whose
+// toolchain is missing downloads it before it reads a manifest.
+func TestMetadataForbidsAToolchainInstallUnlessTheNetworkIsAllowed(t *testing.T) {
+	root := testsupport.TempDir(t)
+	saw := recordingStandIn(t, root, "cargo", 0)
+	t.Setenv("PATH", root)
+
+	for network, want := range map[bool]string{false: "0", true: "unset"} {
+		if _, err := Metadata(context.Background(), MetadataOptions{Workspace: root, AllowNetwork: network}); err != nil {
+			t.Fatalf("Metadata() error = %v", err)
+		}
+		if got := sawOnce(t, saw); got != want {
+			t.Fatalf("network=%t: cargo saw RUSTUP_AUTO_INSTALL=%q, want %q", network, got, want)
+		}
+	}
+}
+
+// TestRunForbidsAToolchainInstallUnlessTheNetworkIsAllowed: the pinned
+// analyzer forbids the install on every command it spawns, but the analyzer
+// is whatever `rust.analyzer_command` names, and an offline pass cannot rest
+// on a version it did not choose.
+func TestRunForbidsAToolchainInstallUnlessTheNetworkIsAllowed(t *testing.T) {
+	workspace, output := analyzerFixture(t)
+	directory := testsupport.TempDir(t)
+	saw := recordingStandIn(t, directory, "analyzer", 1)
+
+	for network, want := range map[bool]string{false: "0", true: "unset"} {
+		options := defaultRunOptions(workspace, output)
+		options.AnalyzerCommand = filepath.Join(directory, "analyzer")
+		options.AllowNetwork = network
+		var runErr *RunError
+		if _, err := Run(context.Background(), options); !errors.As(err, &runErr) || runErr.Kind != RunErrorWorkspaceNotLoaded {
+			t.Fatalf("Run() error = %v, want the stand-in's exit declared as %s", err, RunErrorWorkspaceNotLoaded)
+		}
+		if got := sawOnce(t, saw); got != want {
+			t.Fatalf("network=%t: the analyzer saw RUSTUP_AUTO_INSTALL=%q, want %q", network, got, want)
+		}
+	}
+}

@@ -65,7 +65,10 @@ func Metadata(ctx context.Context, options MetadataOptions) (MetadataResult, err
 	}
 	if !options.AllowNetwork {
 		arguments = append(arguments, "--offline")
-		environment = append(environment, "CARGO_NET_OFFLINE=true")
+		// The second line is for rustup, not for cargo: this `cargo` is
+		// usually its proxy, and one that finds the workspace's toolchain
+		// missing downloads it before cargo reads a manifest.
+		environment = append(environment, "CARGO_NET_OFFLINE=true", "RUSTUP_AUTO_INSTALL=0")
 	}
 
 	command := exec.CommandContext(ctx, binary, arguments...)

@@ -155,6 +155,10 @@ a missing `rust-src` stays missing unless `allow_network` is on. It looks for
 `PATH`. Run `rustup component add rust-src` to have the standard library
 resolved; the next index notices and re-analyses.
 
+Nor does a pass install a toolchain. A workspace whose `rust-toolchain.toml`
+names a release that is not installed is reported as not loaded; run
+`rustup toolchain install` in that directory.
+
 Read tools withhold it by default. `find_symbol`, `find_references`,
 `trace_dependencies` and `get_blast_radius` accept `include_derived: true` to ask
 for it, and naming the repository in `repo` is a request for it too.

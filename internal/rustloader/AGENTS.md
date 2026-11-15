@@ -52,7 +52,10 @@ Las reglas del motor están en `internal/AGENTS.md`.
   contestar: `rustc --version` con un `HOME` vacío tardó de 15 a 19 s en el
   runner de macOS y dejó 1,4 GB cada vez. Toda pregunta va con
   `rustloader.ProbeEnvironment()`, que lleva `RUSTUP_AUTO_INSTALL=0`. El
-  analizador y `cargo metadata` no: ejecutan el build.
+  analizador y `cargo metadata` la llevan también cuando la red está apagada.
+  El analizador fijado ya se la pone a todo lo que lanza -doce invocaciones
+  distintas de `cargo` y `rustc` sobre el fixture, medido-, pero el analizador
+  es el que nombre `rust.analyzer_command`.
 - La unidad de análisis es el workspace Cargo, no el crate: el analizador
   carga el workspace entero en cada invocación. El techo de concurrencia es
   bajo por memoria.

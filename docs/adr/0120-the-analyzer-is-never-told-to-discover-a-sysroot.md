@@ -94,12 +94,42 @@ Every question Kivgraph asks the toolchain now carries
 version lines of the fingerprint, and the two of `doctor`. With it the proxy
 fails in a second, and each caller already reads that as "no toolchain here".
 
-The analyzer and `cargo metadata` are not covered. They run the build, and a
-workspace that pins a toolchain is asking for it; whether an offline pass may
-fetch one is its own decision.
+The analyzer and `cargo metadata` were left out of this amendment, on the
+assumption that both could still trigger an install. The next one measured
+that and closed what was open.
 
 `TestRustFingerprintChangesWhenTheLibrarySourcesArrive` records the variable
 as each stand-in saw it.
+
+## Amendment, 2026-11-15: an offline pass does not install one
+
+What the two processes that run the build actually did, observed with
+stand-ins for `cargo` and `rustc` that record their environment:
+
+- **The pinned analyzer already forbade it.** Every command it spawned --
+  twelve distinct `cargo` and `rustc` invocations over the fixture -- carried
+  `RUSTUP_AUTO_INSTALL=0`, whatever Kivgraph passed and whether or not the
+  network was allowed. The earlier amendment was wrong to list it as open.
+- **`cargo metadata` did not.** Kivgraph runs it itself, for `audit`, and it
+  inherited the environment unchanged.
+
+Both now carry the variable when the network is off: `cargo metadata` because
+it was the gap, and the analyzer process because the analyzer is whatever
+`rust.analyzer_command` names, and an offline pass cannot rest on a version it
+did not choose.
+
+A workspace whose `rust-toolchain.toml` names a release that is not installed
+is declared, as `WORKSPACE_NOT_LOADED` or as an unresolved `cargo metadata`.
+`rustup toolchain install` in that directory is the remedy.
+`rust.allow_network: true` stops Kivgraph from setting the variable; the
+pinned analyzer still sets it for itself.
+
+Not observed: that path end to end, with a real pinned toolchain missing. The
+tests establish what each process is told, not what rustup then prints.
+
+`TestMetadataForbidsAToolchainInstallUnlessTheNetworkIsAllowed` and
+`TestRunForbidsAToolchainInstallUnlessTheNetworkIsAllowed` each failed before
+the change with the stand-in reporting the variable unset.
 
 ## Verification
 
