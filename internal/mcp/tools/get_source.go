@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
 	"time"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -364,10 +363,13 @@ func sourceBody(
 		return body, nil
 	}
 
-	loaded := cache[location.FilePath]
+	// A relative path names a file only inside its repository: two repositories
+	// both have a main.go.
+	cacheKey := location.RepositoryPath + "\x00" + location.FilePath
+	loaded := cache[cacheKey]
 	if loaded == nil {
 		loaded = loadSourceFile(location.RepositoryPath, location.FilePath, file.ContentDigest)
-		cache[location.FilePath] = loaded
+		cache[cacheKey] = loaded
 	}
 	if loaded.err != nil {
 		body.Unavailable = loaded.err.Error()
