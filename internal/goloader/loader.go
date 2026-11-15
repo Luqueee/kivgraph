@@ -224,7 +224,7 @@ func Load(ctx context.Context, options Options) (Result, error) {
 	if len(roots) == 0 {
 		return Result{}, ErrNoPackages
 	}
-
+	roots = withoutGeneratedTestMains(roots)
 	sort.Slice(roots, func(left, right int) bool {
 		if roots[left].PkgPath != roots[right].PkgPath {
 			return roots[left].PkgPath < roots[right].PkgPath
@@ -237,6 +237,35 @@ func Load(ctx context.Context, options Options) (Result, error) {
 		Modules:  collectModules(roots),
 		Errors:   collectErrors(roots),
 	}, nil
+}
+
+// withoutGeneratedTestMains removes the package `go test` builds to run the
+// tests of another package, which `packages.Config.Tests` adds to the roots.
+//
+// It is named `<path>.test`, is a main package, and its one file is generated
+// into the build cache, so it holds nothing anybody wrote. Left in, each
+// declaration of it reached the facts as a declaration outside the repository
+// and became a scope the index could not read, one per tested package, which
+// made every answer about the repository a lower bound.
+//
+// The package it tests has to be loaded too. That is what separates it from a
+// real main package whose own import path happens to end in `.test`.
+func withoutGeneratedTestMains(roots []*packages.Package) []*packages.Package {
+	loaded := make(map[string]struct{}, len(roots))
+	for _, root := range roots {
+		loaded[root.PkgPath] = struct{}{}
+	}
+	kept := make([]*packages.Package, 0, len(roots))
+	for _, root := range roots {
+		tested, isTestMain := strings.CutSuffix(root.PkgPath, ".test")
+		if isTestMain && root.Name == "main" && root.ID == root.PkgPath {
+			if _, ok := loaded[tested]; ok {
+				continue
+			}
+		}
+		kept = append(kept, root)
+	}
+	return kept
 }
 
 func resolveDirectory(directory string) (string, error) {
