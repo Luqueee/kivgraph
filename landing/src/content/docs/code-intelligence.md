@@ -3,7 +3,7 @@ title: Code Intelligence MCP Server for AI Coding Agents
 description: Build a local semantic code graph that gives AI coding agents symbols, references, callers and change impact instead of raw file scans.
 ---
 
-Kivgraph is a local **code intelligence MCP server** for AI coding agents. It indexes Go, TypeScript, Rust, Python and Dart repositories into a canonical knowledge graph, then answers structural questions about the codebase.
+Kivgraph is a local **code intelligence MCP server** for AI coding agents. It indexes Go, TypeScript, Rust, Python, Dart, Java and C# repositories into a canonical knowledge graph, then answers structural questions about the codebase.
 
 The five languages are not resolved to the same standard, and the graph says which is which: Go, TypeScript and Rust edges are type-checked; Dart edges are resolved by Dart Analysis Server; Python uses exact semantic facts when a configured analyzer provides them and `CANDIDATE` facts in its bundled AST fallback.
 

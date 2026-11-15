@@ -5,11 +5,11 @@ description: Answers about Kivgraph, cross-repository code graphs, MCP clients, 
 
 ## What is Kivgraph?
 
-Kivgraph is a local **cross-repository code intelligence MCP server** for AI coding agents. It indexes Go, TypeScript, Rust, Python and Dart repositories into a canonical semantic code graph and serves that graph to a client over stdio.
+Kivgraph is a local **cross-repository code intelligence MCP server** for AI coding agents. It indexes Go, TypeScript, Rust, Python, Dart, Java and C# repositories into a canonical semantic code graph and serves that graph to a client over stdio.
 
 ## Which languages are supported, and are they equal?
 
-Go, TypeScript, Rust, Python and Dart — and no, they are not equal. Go, TypeScript and Rust edges are type-checked; Dart edges are resolved by Dart Analysis Server; Python uses exact semantic facts when a configured analyzer provides them and `CANDIDATE` facts in its bundled AST fallback. The response carries that distinction, so a Python candidate is never presented as a proven call. `--languages` accepts ten tokens: the five names plus the aliases `javascript`, `ts`, `js`, `rs` and `py`.
+Go, TypeScript, Rust, Python, Dart, Java and C# — and no, they are not equal. Go, TypeScript and Rust edges are type-checked; Dart edges are resolved by Dart Analysis Server; Java and C# edges come from their compilers' own indexers, `scip-java` and `scip-dotnet`; Python uses exact semantic facts when a configured analyzer provides them and `CANDIDATE` facts in its bundled AST fallback. The response carries that distinction, so a Python candidate is never presented as a proven call. `--languages` accepts thirteen tokens: the seven names, with C# spelled `csharp`, plus the aliases `javascript`, `ts`, `js`, `rs`, `py` and `cs`.
 
 ## Does Kivgraph replace `grep`?
 
