@@ -148,7 +148,10 @@ With it on, they become exact edges. It costs one extra analysis unit — around
 afterwards, because the cache fingerprint includes `rustc --version`. A machine
 with no toolchain, or one without the `rust-src` component, indexes its
 repositories and reports why the standard library is absent; it is never a
-failure.
+failure. Kivgraph does not install the component either: with `sysroot` set to
+`discover` it asks `rustc --print sysroot` and hands the analyzer that path, so
+a missing `rust-src` stays missing unless `allow_network` is on. Run
+`rustup component add rust-src` to have the standard library resolved.
 
 Read tools withhold it by default. `find_symbol`, `find_references`,
 `trace_dependencies` and `get_blast_radius` accept `include_derived: true` to ask

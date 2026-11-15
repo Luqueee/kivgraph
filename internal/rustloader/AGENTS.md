@@ -35,6 +35,15 @@ Las reglas del motor están en `internal/AGENTS.md`.
   `--offline --locked`, y una comprobación posterior de que el repositorio no
   ganó `target/` ni un `Cargo.lock` nuevo. `rust.allow_network` es la única
   salida declarada.
+- `sysroot: "discover"` no llega al analizador tal cual. Un analizador que
+  descubre un sysroot sin `rust-src` ejecuta él mismo
+  `rustup component add rust-src`: una descarga y una escritura en el
+  toolchain desde una pasada offline. Dos pasadas simultáneas competían por esa
+  instalación y la que perdía indexaba sin biblioteca estándar. `Run` pregunta
+  `rustc --print sysroot` desde el workspace y le pasa la ruta, con la que el
+  analizador carga lo que haya y no instala nada. Con `rust.allow_network` se
+  le deja descubrir, y sin `rustc` que conteste también, porque no hay ruta que
+  poner en su lugar.
 - La unidad de análisis es el workspace Cargo, no el crate: el analizador
   carga el workspace entero en cada invocación. El techo de concurrencia es
   bajo por memoria.
