@@ -25,6 +25,7 @@ go_test(
         "debounce_test.go",
         "githead_test.go",
         "hash_test.go",
+        "ignore_test.go",
         "reconcile_test.go",
         "watcher_test.go",
     ],
