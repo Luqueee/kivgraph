@@ -1359,6 +1359,11 @@ func TestRunRollbackPrintsTransitionDigestsAndInvariants(t *testing.T) {
 	if !strings.Contains(out, "rollback result: PASS") {
 		t.Fatalf("stdout missing overall verdict: %q", out)
 	}
+	// CURRENT moved back, and a server already running never follows it.
+	notice := "running serve, daemon and ui processes keep serving 000002 until they restart: run `kivgraph stop`"
+	if !strings.Contains(out, notice) {
+		t.Fatalf("stdout does not say running servers were left behind: %q", out)
+	}
 }
 
 func TestRunRollbackReturnsFailureAndExplainsCause(t *testing.T) {
