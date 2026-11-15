@@ -163,6 +163,9 @@ func TestGetBlastRadiusBoundsReachability(t *testing.T) {
 	if shallow.Results.Affected != 2 || shallow.Results.DeepestDepth != 1 {
 		t.Fatalf("depth-1 impact = %#v, want only direct consumers", shallow.Results)
 	}
+	if shallow.Completeness.Verdict != VerdictComplete {
+		t.Fatalf("depth-bounded verdict = %q: depth is the caller's own question, not a cut", shallow.Completeness.Verdict)
+	}
 
 	_, exactOnly, err := getBlastRadius(context.Background(), nil, GetBlastRadiusInput{
 		StableKey: "sym-core", Confidence: string(facts.ExactTypechecked),
@@ -180,6 +183,12 @@ func TestGetBlastRadiusBoundsReachability(t *testing.T) {
 	}
 	if !bounded.Results.TraversalTruncated || bounded.Results.Affected != 1 {
 		t.Fatalf("node-bounded impact = %#v, want one affected symbol and a truncated traversal", bounded.Results)
+	}
+	// The walk never discovered the rest, so calling the list whole would
+	// declare a change safe on the strength of symbols nobody visited.
+	if bounded.Completeness.Verdict != VerdictLowerBound || !strings.Contains(bounded.Guidance, "max_nodes") {
+		t.Fatalf("node-bounded verdict = %q, guidance = %q, want a lower bound that names max_nodes",
+			bounded.Completeness.Verdict, bounded.Guidance)
 	}
 }
 

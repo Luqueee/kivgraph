@@ -377,11 +377,13 @@ There are two different truncations and they mean different things:
   and `null`.
 - `traversal_truncated` is about the walk. It is `true` when the walk hit
   `max_nodes` and stopped discovering new symbols, so rows are missing from the
-  answer itself and no cursor will produce them. Raise `max_nodes`, lower
-  `depth`, or narrow with `edge_kinds` or `confidence`. In the captured answer
-  it is `false`: the walk was complete within its bounds, only the page was
-  short -- which is why the compact payload above does not carry the field at
-  all, while the full one says `false`.
+  answer itself and no cursor will produce them. The answer says so twice
+  more: `completeness.verdict` is `LOWER_BOUND` and `guidance` names
+  `max_nodes`. Raise `max_nodes`, lower `depth`, or narrow with `edge_kinds`
+  or `confidence`. In the captured answer it is `false`: the walk was complete
+  within its bounds, only the page was short -- which is why the compact
+  payload above does not carry the field at all, while the full one says
+  `false`.
 
 To take the next page, repeat the same call and add `cursor` set to the
 `next_cursor` value, unchanged. The token is an opaque base64url wrapper around a
