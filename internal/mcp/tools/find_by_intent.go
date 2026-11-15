@@ -578,13 +578,18 @@ func rankIntentCandidates(
 ) ([]IntentSymbol, []IntentTerm, []string, int, error) {
 	corpus := int(snapshot.Metadata().Counts.Symbols)
 	words := retrieval.QueryWords(options.Intent, options.Keywords)
-	candidates := map[hotsnapshot.SymbolID]*intentCandidate{}
 	// used counts the terms the ranking read, which is no longer the length of
 	// the reported list: a term that discriminated is reported by the rows.
 	used := 0
 	terms := make([]IntentTerm, 0, len(words))
 	unmatched := make([]string, 0, len(words))
 
+	type matchedTerm struct {
+		word      string
+		found     []hotsnapshot.SymbolID
+		frequency int
+	}
+	matched := make([]matchedTerm, 0, len(words))
 	for _, word := range words {
 		// QueryWords only ever returns words that fold to a key, so there is no
 		// guard here: a word it dropped never reaches this loop.
@@ -597,19 +602,57 @@ func rankIntentCandidates(
 		if label := intentFrequencyLabel(frequency, corpus); label != "" {
 			terms = append(terms, IntentTerm{Term: word, Symbols: frequency, Frequency: label})
 		}
-		for _, id := range found {
-			candidate := candidates[id]
-			if candidate == nil {
-				if len(candidates) >= maximumIntentCandidates {
+		matched = append(matched, matchedTerm{word: word, found: found, frequency: frequency})
+	}
+
+	// Who gets a place under the bound is decided before anything is scored,
+	// and by two rules the bound used to ignore. It was spent in the order the
+	// question was written and before the narrowing was applied, so a word
+	// most of the graph carries filled it with whatever sorted first: the
+	// symbols a rarer word named never became candidates, and a repo, kind or
+	// path_prefix that selected symbols past the first few thousand came back
+	// empty, blamed on the narrowing.
+	//
+	// So the rarest term is admitted first, and symbols inside the narrowing
+	// before the ones outside it. Those outside are still admitted while there
+	// is room: they are never rows, but a candidate is credited for the terms
+	// its callees carry, and that credit must not depend on the narrowing.
+	admission := make([]int, len(matched))
+	for index := range admission {
+		admission[index] = index
+	}
+	sort.SliceStable(admission, func(left, right int) bool {
+		return matched[admission[left]].frequency < matched[admission[right]].frequency
+	})
+	narrowed := options.Repo != "" || options.Kind != "" || options.PathPrefix != ""
+	candidates := map[hotsnapshot.SymbolID]*intentCandidate{}
+	for _, inside := range []bool{true, false} {
+		if !inside && !narrowed {
+			break
+		}
+		for _, index := range admission {
+			for _, id := range matched[index].found {
+				if candidates[id] != nil || len(candidates) >= maximumIntentCandidates ||
+					(narrowed && intentInScope(snapshot, id, options) != inside) {
 					continue
 				}
-				candidate = &intentCandidate{symbol: id}
-				candidates[id] = candidate
+				candidates[id] = &intentCandidate{symbol: id}
+			}
+		}
+	}
+
+	// Scored in the order the question was written, so a candidate's signals
+	// are the ones it had before admission was reordered.
+	for termIndex, term := range matched {
+		for _, id := range term.found {
+			candidate := candidates[id]
+			if candidate == nil {
+				continue
 			}
 			candidate.hits++
-			candidate.frequencies = append(candidate.frequencies, frequency)
-			candidate.lengths = append(candidate.lengths, len([]rune(word)))
-			if termIndex := used - 1; termIndex < maximumNeighbourTerms {
+			candidate.frequencies = append(candidate.frequencies, term.frequency)
+			candidate.lengths = append(candidate.lengths, len([]rune(term.word)))
+			if termIndex < maximumNeighbourTerms {
 				candidate.terms |= 1 << uint(termIndex)
 			}
 		}
@@ -695,6 +738,29 @@ func rankIntentCandidates(
 		ordered = append(ordered, row.row)
 	}
 	return ordered, terms, unmatched, used, nil
+}
+
+// intentInScope reports whether a symbol satisfies the narrowing of a question.
+// A symbol whose metadata cannot be read counts as inside: it is then admitted
+// and the scoring loop reports the snapshot, instead of the fault being hidden
+// by leaving the symbol out.
+func intentInScope(snapshot *hotsnapshot.GraphSnapshot, id hotsnapshot.SymbolID, options findByIntentOptions) bool {
+	symbol, file, repository, _, err := symbolReferenceLocation(snapshot, id)
+	if err != nil {
+		return true
+	}
+	if options.Repo != "" && repository.name != options.Repo {
+		return false
+	}
+	if options.PathPrefix != "" && !strings.HasPrefix(file.path, options.PathPrefix) {
+		return false
+	}
+	if options.Kind != "" {
+		if kind, found := snapshot.Strings().String(symbol.Kind); found && kind != options.Kind {
+			return false
+		}
+	}
+	return true
 }
 
 // intentFrequencyLabel says how much of the corpus a term matched, in words
