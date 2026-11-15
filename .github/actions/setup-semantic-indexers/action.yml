@@ -9,10 +9,15 @@ description: Install Dart, the JDK with scip-java, and the .NET SDK with scip-do
 runs:
   using: composite
   steps:
+    # The matcher is off because setup-dart resolves its file against
+    # GITHUB_ACTION_PATH, which inside a composite action is this directory:
+    # the step failed looking for `dart-analyzer.json` here. Nothing in this
+    # workflow runs `dart analyze`, so there is no annotation to lose.
     - name: Set up Dart
       uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1
       with:
         sdk: 3.14.0
+        problem-matcher: false
 
     # scip-java indexes by driving the repository's own build, so it needs
     # both a JDK and a build tool. Maven ships with the runner image; the JDK
