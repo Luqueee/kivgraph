@@ -319,6 +319,13 @@ func (cache *factCache) analyse(
 	entry, found, refusal := cache.load(identity, localAddress)
 	if !found {
 		cache.refuse(refusal)
+	} else {
+		// Serving an entry is using it, and prune expires by this time: left
+		// at the day it was written, a unit that never changes was analysed
+		// again every thirty days. Best effort -- a cache that cannot be
+		// touched still answers.
+		now := time.Now()
+		_ = os.Chtimes(cache.path(identity, localAddress), now, now)
 	}
 	if found && cache.mode == CacheOn {
 		cache.hits.Add(1)
