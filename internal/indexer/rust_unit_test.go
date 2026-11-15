@@ -117,7 +117,10 @@ func TestFullIndexesARustRepository(t *testing.T) {
 			}
 		}
 		if !declared {
-			t.Fatalf("unresolved = %#v, want the sysroot crates declared", set.Unresolved)
+			// The analyzer's own diagnostics are the only place a degraded
+			// load says why the standard library went unresolved.
+			t.Fatalf("unresolved = %#v, want the sysroot crates declared; analyzer diagnostics = %q",
+				set.Unresolved, report.RustDiagnostics)
 		}
 	}
 	// The absence is declared, not implied: a reader cannot tell a machine

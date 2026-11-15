@@ -240,8 +240,10 @@ un enlace absoluto se commitearía roto. Ver ADR 0078.
   Con él, `doctor` termina en `PASS`. Un bundle publicado lo lleva ya enlazado,
   así que para reindexar sirve el binario instalado.
 - El analizador Rust fijado se descarga con `scripts/fetch-rust-analyzer.sh`. La
-  suite de Rust exige además `rustup component add rust-analyzer` y un `cargo`
-  en el `PATH`: sin toolchain el analizador no carga el workspace.
+  suite de Rust exige además `rustup component add rust-analyzer rust-src` y un
+  `cargo` en el `PATH`: sin toolchain el analizador no carga el workspace, y sin
+  `rust-src` lo instala él mismo en mitad de la pasada, que es una carrera
+  cuando dos paquetes de test arrancan a la vez.
 - Los tres proyectos pnpm son independientes y tienen su propio lockfile:
   `pnpm --dir ts-worker install --frozen-lockfile`, y lo mismo para `web` y
   `landing`.
