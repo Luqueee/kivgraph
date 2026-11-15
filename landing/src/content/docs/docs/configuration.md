@@ -150,8 +150,10 @@ with no toolchain, or one without the `rust-src` component, indexes its
 repositories and reports why the standard library is absent; it is never a
 failure. Kivgraph does not install the component either: with `sysroot` set to
 `discover` it asks `rustc --print sysroot` and hands the analyzer that path, so
-a missing `rust-src` stays missing unless `allow_network` is on. Run
-`rustup component add rust-src` to have the standard library resolved.
+a missing `rust-src` stays missing unless `allow_network` is on. It looks for
+`rustc` where the analyzer does: `$RUSTC`, then `$CARGO_HOME/bin`, then the
+`PATH`. Run `rustup component add rust-src` to have the standard library
+resolved; the next index notices and re-analyses.
 
 Read tools withhold it by default. `find_symbol`, `find_references`,
 `trace_dependencies` and `get_blast_radius` accept `include_derived: true` to ask

@@ -15,14 +15,19 @@ import (
 	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
-// toolchainWithoutRustSrc puts a `rustc` on the PATH whose sysroot is the real
-// one minus `lib/rustlib/src`, and a `rustup` that records being called. It
-// answers the file that `rustup` creates.
+// toolchainWithoutRustSrc installs a `rustc` whose sysroot is the real one
+// minus `lib/rustlib/src`, and a `rustup` that records being called. It
+// answers the file that `rustup` appends its arguments to.
+//
+// Both live in `$CARGO_HOME/bin`, which is where the analyzer looks first.
+// With onPath that directory is also put on the PATH; without it the PATH is
+// rebuilt to hold the analyzer, cargo and the system tools and no `rustc` at
+// all, which is the toolchain a rustup install leaves for a process started
+// with a minimal PATH -- a service, a launchd job.
 //
 // The stand-ins are shell scripts, which is why this file does not build on
-// Windows. `CARGO_HOME` moves with them because the analyzer looks for `rustup`
-// in `$CARGO_HOME/bin` before it looks on the PATH.
-func toolchainWithoutRustSrc(t *testing.T) string {
+// Windows.
+func toolchainWithoutRustSrc(t *testing.T, onPath bool) string {
 	t.Helper()
 	rustc, err := exec.LookPath("rustc")
 	if err != nil {
@@ -54,7 +59,33 @@ func toolchainWithoutRustSrc(t *testing.T) string {
 		}
 	}
 	t.Setenv("CARGO_HOME", home)
-	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	// The analyzer reads `$RUSTC` before anything else, and an inherited one
+	// would point it past the stand-in.
+	t.Setenv("RUSTC", "")
+	if err := os.Unsetenv("RUSTC"); err != nil {
+		t.Fatal(err)
+	}
+	if onPath {
+		t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+		return called
+	}
+	tools := filepath.Join(root, "tools")
+	if err := os.MkdirAll(tools, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"rust-analyzer", "cargo"} {
+		resolved, err := exec.LookPath(name)
+		if err != nil {
+			t.Skipf("%s is not on the PATH: %v", name, err)
+		}
+		if err := os.Symlink(resolved, filepath.Join(tools, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", strings.Join([]string{tools, "/usr/bin", "/bin"}, string(os.PathListSeparator)))
+	if found, err := exec.LookPath("rustc"); err == nil {
+		t.Skipf("the system directories carry %s, so no PATH here is without a rustc", found)
+	}
 	return called
 }
 
@@ -82,6 +113,68 @@ func mirrorWithout(t *testing.T, source, destination string, skip []string) {
 	}
 }
 
+// TestLookToolchainReadsWhereTheAnalyzerReads pins the order: the variable
+// named after the tool, then `$CARGO_HOME/bin`, then the PATH.
+func TestLookToolchainReadsWhereTheAnalyzerReads(t *testing.T) {
+	root := testsupport.TempDir(t)
+	place := func(directory string) string {
+		path := filepath.Join(root, directory, "rustc")
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("#!/bin/sh\n"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	onPath, inHome, chosen := place("path"), place(filepath.Join("home", "bin")), place("chosen")
+	withoutToolchain(t)
+	if found, err := LookToolchain("rustc"); err == nil {
+		t.Fatalf("LookToolchain() = %q with no toolchain anywhere", found)
+	}
+
+	t.Setenv("PATH", filepath.Dir(onPath))
+	if found, err := LookToolchain("rustc"); err != nil || found != onPath {
+		t.Fatalf("LookToolchain() = %q, %v, want the PATH's %q", found, err, onPath)
+	}
+	t.Setenv("CARGO_HOME", filepath.Join(root, "home"))
+	if found, err := LookToolchain("rustc"); err != nil || found != inHome {
+		t.Fatalf("LookToolchain() = %q, %v, want the cargo home's %q", found, err, inHome)
+	}
+	t.Setenv("RUSTC", chosen)
+	if found, err := LookToolchain("rustc"); err != nil || found != chosen {
+		t.Fatalf("LookToolchain() = %q, %v, want $RUSTC %q", found, err, chosen)
+	}
+	// A variable that names nothing runnable is an answer, not a reason to
+	// look elsewhere: the analyzer would run it and fail.
+	t.Setenv("RUSTC", filepath.Join(root, "absent"))
+	if found, err := LookToolchain("rustc"); err == nil {
+		t.Fatalf("LookToolchain() = %q for a $RUSTC that does not exist", found)
+	}
+}
+
+// TestRunDoesNotInstallForAToolchainThatIsOffThePath: the analyzer finds
+// `rustc` in `$CARGO_HOME/bin` whether or not the PATH names it, so a probe
+// that only read the PATH found no toolchain, left discovery to the analyzer,
+// and the analyzer installed.
+func TestRunDoesNotInstallForAToolchainThatIsOffThePath(t *testing.T) {
+	requireAnalyzer(t)
+	called := toolchainWithoutRustSrc(t, false)
+	workspace, output := analyzerFixture(t)
+
+	_, runErr := Run(context.Background(), defaultRunOptions(workspace, output))
+	calls, err := os.ReadFile(called)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(calls), "component add") {
+		t.Fatalf("the run asked rustup to install: %q", calls)
+	}
+	if runErr != nil {
+		t.Fatalf("Run() error = %v", runErr)
+	}
+}
+
 // TestRunDoesNotInstallTheStandardLibrarySources: asked to discover a sysroot
 // that has no `rust-src`, the analyzer runs `rustup component add rust-src` on
 // its own -- a download and a write into the toolchain, from a pass that is
@@ -90,7 +183,7 @@ func mirrorWithout(t *testing.T, source, destination string, skip []string) {
 // library that was there a second later.
 func TestRunDoesNotInstallTheStandardLibrarySources(t *testing.T) {
 	requireAnalyzer(t)
-	called := toolchainWithoutRustSrc(t)
+	called := toolchainWithoutRustSrc(t, true)
 	workspace, output := analyzerFixture(t)
 
 	if _, err := Run(context.Background(), defaultRunOptions(workspace, output)); err != nil {
@@ -111,7 +204,7 @@ func TestRunDoesNotInstallTheStandardLibrarySources(t *testing.T) {
 // way out: with `rust.allow_network` the analyzer may fetch what is missing.
 func TestRunLeavesDiscoveryToTheAnalyzerWhenTheNetworkIsAllowed(t *testing.T) {
 	requireAnalyzer(t)
-	called := toolchainWithoutRustSrc(t)
+	called := toolchainWithoutRustSrc(t, true)
 	workspace, output := analyzerFixture(t)
 	options := defaultRunOptions(workspace, output)
 	options.AllowNetwork = true

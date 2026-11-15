@@ -535,11 +535,18 @@ func rustAnalysisFingerprint(options FullOptions) string {
 		options.RustIndexSysroot)
 	// The standard library in the graph is decided by `rustc`, not by cargo:
 	// a toolchain change is what invalidates every fact taken from it, and an
-	// entry that did not record the release would be served across one.
-	if compiler, err := exec.LookPath("rustc"); err == nil {
+	// entry that did not record the release would be served across one. It is
+	// the `rustc` the analyzer runs, which the PATH does not decide.
+	if compiler, err := rustloader.LookToolchain("rustc"); err == nil {
 		if version, err := exec.Command(compiler, "--version").Output(); err == nil {
 			fmt.Fprintf(hash, "rustc=%s\x00", strings.TrimSpace(string(version)))
 		}
+	}
+	// Whether that toolchain carries its library sources is part of the
+	// answer too. A pass never installs them, so a machine that gains
+	// `rust-src` must not be served the facts it produced without it.
+	if _, reason, err := rustloader.DiscoverSysroot(context.Background(), ""); err == nil {
+		fmt.Fprintf(hash, "library=%s\x00", reason)
 	}
 	if cargo, err := exec.LookPath("cargo"); err == nil {
 		if version, err := exec.Command(cargo, "--version").Output(); err == nil {

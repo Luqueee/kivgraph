@@ -41,9 +41,12 @@ Las reglas del motor están en `internal/AGENTS.md`.
   toolchain desde una pasada offline. Dos pasadas simultáneas competían por esa
   instalación y la que perdía indexaba sin biblioteca estándar. `Run` pregunta
   `rustc --print sysroot` desde el workspace y le pasa la ruta, con la que el
-  analizador carga lo que haya y no instala nada. Con `rust.allow_network` se
-  le deja descubrir, y sin `rustc` que conteste también, porque no hay ruta que
-  poner en su lugar.
+  analizador carga lo que haya y no instala nada. El `rustc` se busca donde lo
+  busca el analizador -`$RUSTC`, `$CARGO_HOME/bin`, y sólo después el `PATH`-,
+  porque un proceso con `PATH` mínimo no veía toolchain y el analizador sí. Si
+  no contesta ninguno se le pasa `none` con un diagnóstico; `discover` sólo le
+  llega con `rust.allow_network`. La huella de la caché de hechos registra si
+  el toolchain trae `rust-src`. Ver ADR 0120.
 - La unidad de análisis es el workspace Cargo, no el crate: el analizador
   carga el workspace entero en cada invocación. El techo de concurrencia es
   bajo por memoria.
