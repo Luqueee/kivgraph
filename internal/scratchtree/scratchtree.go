@@ -342,19 +342,38 @@ func contains(root, path string) bool {
 
 // overlayWorkingTree copies over what the working tree changed since HEAD, so
 // the analyzer sees the code the user has rather than the code they committed.
+//
+// Every untracked file is listed, not only the directory that holds it: git
+// collapses a wholly untracked directory into one entry by default, and a new
+// package is exactly that.
 func overlayWorkingTree(ctx context.Context, source, root string) error {
 	status := exec.CommandContext(ctx, "git", "-C", source,
-		"status", "--porcelain", "-z", "--untracked-files=normal")
+		"status", "--porcelain", "-z", "--untracked-files=all")
 	out, err := status.Output()
 	if err != nil {
 		return fmt.Errorf("git status: %w", err)
 	}
-	for _, entry := range strings.Split(string(out), "\x00") {
+	entries := strings.Split(string(out), "\x00")
+	for index := 0; index < len(entries); index++ {
+		entry := entries[index]
 		if len(entry) < 4 {
 			continue
 		}
 		code, path := entry[:2], entry[3:]
-		if excludedPath(path) {
+		// With -z a rename or a copy is two records, the new path and then
+		// the one it came from, which carries no status of its own.
+		if strings.ContainsAny(code, "RC") && index+1 < len(entries) {
+			index++
+			if strings.ContainsRune(code, 'R') {
+				if original, err := securePath(root, entries[index]); err == nil {
+					_ = os.RemoveAll(original)
+				}
+			}
+		}
+		// Only what git does not track is filtered as build output. A tracked
+		// file under a directory named `build` or `bin` is source -- the
+		// archive already extracted it -- and its edit belongs in the tree.
+		if code == "??" && excludedPath(path) {
 			continue
 		}
 		target, err := securePath(root, path)
@@ -374,12 +393,9 @@ func overlayWorkingTree(ctx context.Context, source, root string) error {
 
 func copyIfFile(source, target string) error {
 	info, err := os.Lstat(source)
-	if err != nil || info.IsDir() || !info.Mode().IsRegular() {
-		// A directory reported by `git status` is an untracked directory; its
-		// files are reported with it only when it is empty of tracked
-		// content, and walking it is what the copy fallback is for. Skipping
-		// keeps the archive path cheap; a repository whose untracked
-		// directories matter is one the copy strategy handles.
+	if err != nil || !info.Mode().IsRegular() {
+		// Nothing to carry: the path is gone, or it is a symlink, a submodule
+		// directory or another shape the tree does not reproduce.
 		return nil
 	}
 	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
