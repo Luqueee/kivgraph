@@ -1,0 +1,196 @@
+{
+ "version": 1,
+ "corpus": "/private/tmp/e2e-corpus",
+ "tasks": [
+  {
+   "id": "kivgraph-87a7951",
+   "repo": "kivgraph",
+   "commit": "87a79513f05b3082e065ef83e2ea7563a3575ed1",
+   "short": "87a7951",
+   "parent": "a2e69e66c5af492f827e079141dbeda579e0a890",
+   "language": "go",
+   "subject": "fix(cli): keep the event log whole when several processes rotate it",
+   "prompt_intent": "fix(cli): keep the event log whole when several processes rotate it\n\nA writer kept its descriptor and its own count of the file's size for\nlife, and several processes append to one store. After another process\nrotated twice, a long-lived writer's descriptor named a file with no\npath: its writes succeeded and went nowhere, so a daemon stopped\nappearing in `kivgraph logs` until it restarted. After one rotation by\nsomeone else, a writer's stale count rotated the fresh, nearly empty\nfile over the full rotation, discarding the history one rotation is\nkept for. And writers that each stayed under the limit by their own\ncount passed it together.",
+   "truth_files": [
+    "internal/eventlog/eventlog.go",
+    "internal/eventlog/rotation_test.go"
+   ],
+   "n_truth": 2
+  },
+  {
+   "id": "kivgraph-511901e",
+   "repo": "kivgraph",
+   "commit": "511901e4db154b1b773feef4ef30e2e296b16184",
+   "short": "511901e",
+   "parent": "a2e69e66c5af492f827e079141dbeda579e0a890",
+   "language": "go",
+   "subject": "fix(hook): leave a search over files the graph does not cover",
+   "prompt_intent": "fix(hook): leave a search over files the graph does not cover\n\nThe gate asked the graph about the pattern alone and never read where\nthe search was looking. A bare word that two symbols declare was\nrefused whatever the target: …, a grep of\na log, a glob over YAML. The caller was told to call find_references\nfor a JSON key, and from the native Grep tool the printed escape -- a\nvariable before the command -- cannot be applied at all.",
+   "truth_files": [
+    "internal/agenthook/gate.go",
+    "internal/agenthook/gate_paths_test.go",
+    "internal/agenthook/languages.go"
+   ],
+   "n_truth": 3
+  },
+  {
+   "id": "kivgraph-4eea720",
+   "repo": "kivgraph",
+   "commit": "4eea7201b3f4f25fc3cf5e894dad37ee973bde59",
+   "short": "4eea720",
+   "parent": "d287a3146f7f30af53e256e0029b4ffadb2c5460",
+   "language": "go",
+   "subject": "fix(mcp): spend the find_by_intent candidate bound where it matters",
+   "prompt_intent": "fix(mcp): spend the find_by_intent candidate bound where it matters\n\nThe bound was spent in the order the question was written and before\nrepo, kind and path_prefix applied. A word most of the graph carries\nfilled it with whatever sorted first, so the symbols a rarer word named\nnever became candidates; and a narrowing that selected symbols past the\nfirst few thousand matches came back empty, with guidance that blamed\nthe narrowing for excluding what was never looked at.",
+   "truth_files": [
+    "internal/mcp/tools/find_by_intent.go",
+    "internal/mcp/tools/find_by_intent_cap_test.go"
+   ],
+   "n_truth": 2
+  },
+  {
+   "id": "kivgraph-a013983",
+   "repo": "kivgraph",
+   "commit": "a0139831fd6518b01e0f4bbcf28d48e36ccf3496",
+   "short": "a013983",
+   "parent": "1c5de5aaf19868f5af275409340c97d0af787d29",
+   "language": "go",
+   "subject": "fix(mcp): match a selector's path as a file or a directory",
+   "prompt_intent": "fix(mcp): match a selector's path as a file or a directory\n\nThe `path` of a symbol selector was applied as a string prefix. The\nexact path of one file also matched every file whose name starts the\nsame way -- … beside … -- so naming the file could\nnot separate them and the answer was AMBIGUOUS_SYMBOL with only a\nstable key offered as the way out. A path cut short in the middle of a\nname resolved as if it were whole.",
+   "truth_files": [
+    "internal/hotsnapshot/search.go",
+    "internal/mcp/tools/root_symbol.go",
+    "internal/mcp/tools/root_symbol_path_test.go"
+   ],
+   "n_truth": 3
+  },
+  {
+   "id": "kivgraph-01ffe45",
+   "repo": "kivgraph",
+   "commit": "01ffe45f428e43149dfaacb6615bf0d532c4256b",
+   "short": "01ffe45",
+   "parent": "1c5de5aaf19868f5af275409340c97d0af787d29",
+   "language": "go",
+   "subject": "fix(mcp): leave a root's members out of reached and of max_nodes",
+   "prompt_intent": "fix(mcp): leave a root's members out of reached and of max_nodes\n\ntrace_dependencies starts a container's walk from the root and its own\nmembers, because a member is content and not a dependency. Two counts\nstill treated the members as reached: `reached` was every visit but\none, so a class with nine methods reported nine symbols it does not\nreach, and the seeds counted against max_nodes, so a budget below the\nmember count was refused as INVALID_ARGUMENT.",
+   "truth_files": [
+    "internal/mcp/tools/trace_dependencies.go",
+    "internal/mcp/tools/trace_members_test.go"
+   ],
+   "n_truth": 2
+  },
+  {
+   "id": "kivgraph-02dd835",
+   "repo": "kivgraph",
+   "commit": "02dd83507675a8dcd3f1c50daaf78bacf22b7960",
+   "short": "02dd835",
+   "parent": "1c5de5aaf19868f5af275409340c97d0af787d29",
+   "language": "go",
+   "subject": "fix(indexing): watch around a source file that cannot be read",
+   "prompt_intent": "fix(indexing): watch around a source file that cannot be read\n\nOne path that existed and could not be read failed the whole batch in\nthe content hasher: every other change in it was discarded, the cache\nwas not updated, and each periodic reconciliation failed the same way\nfor as long as the path stayed unreadable. At startup the same failure\nended the source watcher, and with it every later invalidation of the\nprofile.",
+   "truth_files": [
+    "internal/indexing/sourcewatch.go",
+    "internal/indexing/sourcewatch_unreadable_test.go",
+    "internal/watcher/hash.go",
+    "internal/watcher/hash_unreadable_test.go",
+    "internal/watcher/reconcile.go"
+   ],
+   "n_truth": 5
+  },
+  {
+   "id": "kivgraph-ed901b6",
+   "repo": "kivgraph",
+   "commit": "ed901b6a4a50082958d9e539f939b2885296efc2",
+   "short": "ed901b6",
+   "parent": "1c5de5aaf19868f5af275409340c97d0af787d29",
+   "language": "go",
+   "subject": "fix(storage): reclaim candidates a dead rebuild left behind",
+   "prompt_intent": "fix(storage): reclaim candidates a dead rebuild left behind\n\nA rebuild that is killed leaves `<id>.tmp` in the generation store.\nPublish reclaims the one whose id it is about to reuse, and nothing\nelse ever looked: after a `clean` the numbering restarts, the id is\nnever reused, and a partial database stayed on disk while `clean`\nreported everything removed.",
+   "truth_files": [
+    "internal/storage/generation/backup.go",
+    "internal/storage/generation/store_candidates_test.go",
+    "internal/storage/generation/store_test.go"
+   ],
+   "n_truth": 3
+  },
+  {
+   "id": "kivgraph-dbaebf2",
+   "repo": "kivgraph",
+   "commit": "dbaebf2bbe7940521448e4b8cfa1ba0c19b2be27",
+   "short": "dbaebf2",
+   "parent": "1c5de5aaf19868f5af275409340c97d0af787d29",
+   "language": "go",
+   "subject": "fix(indexing): ignore vendor only beside a dependency manifest",
+   "prompt_intent": "fix(indexing): ignore vendor only beside a dependency manifest\n\nThe watcher and its reconciler ignored every directory named `vendor`,\nin every language. A source directory with that name -- … in a\nTypeScript, Python, Java, C# or Dart repository -- fired no event and\nwas never hashed, so its edits never reached the graph, while discovery\nand the tree digest treated the same files as source.",
+   "truth_files": [
+    "internal/watcher/ignore.go",
+    "internal/watcher/ignore_test.go"
+   ],
+   "n_truth": 2
+  },
+  {
+   "id": "kivgraph-6809029",
+   "repo": "kivgraph",
+   "commit": "68090291d3384f3e9691fb7000296247aca79f81",
+   "short": "6809029",
+   "parent": "7ed7dde8375c44bdec3bd2bb7b805563f985a067",
+   "language": "go",
+   "subject": "fix(mcp): bind a cursor to include_derived",
+   "prompt_intent": "fix(mcp): bind a cursor to include_derived\n\nfind_references, find_symbol, get_blast_radius and trace_dependencies\nhashed their query without include_derived on the single-profile path,\nalthough the flag changes which rows the answer holds. A cursor minted\nwith one value was accepted with the other and applied its offset to a\ndifferent set, so rows were skipped or repeated with no error. It is\nnow CURSOR_INVALID, as it is under any other changed filter. The field\nis omitted when false, so cursors minted without the flag still resume.",
+   "truth_files": [
+    "internal/mcp/tools/blast_radius.go",
+    "internal/mcp/tools/cursor_derived_test.go",
+    "internal/mcp/tools/find_references.go",
+    "internal/mcp/tools/find_symbol.go",
+    "internal/mcp/tools/trace_dependencies.go"
+   ],
+   "n_truth": 5
+  },
+  {
+   "id": "kivgraph-ce38264",
+   "repo": "kivgraph",
+   "commit": "ce38264653635d74c69fa51fb0ae25516f436077",
+   "short": "ce38264",
+   "parent": "7ed7dde8375c44bdec3bd2bb7b805563f985a067",
+   "language": "go",
+   "subject": "fix(mcp): fail get_source when no selected profile holds a symbol",
+   "prompt_intent": "fix(mcp): fail get_source when no selected profile holds a symbol\n\nAcross profiles a selector that resolved nowhere was skipped, so a\nmisspelt or unindexed symbol read as one body fewer, and a call where\nnone resolved answered with zero bodies and no error. The single\nprofile path returns SYMBOL_NOT_FOUND, and so does every other\ncross-profile tool. A symbol missing from one profile and present in\nanother is still served.",
+   "truth_files": [
+    "internal/mcp/tools/get_source.go",
+    "internal/mcp/tools/profiles_test.go"
+   ],
+   "n_truth": 2
+  },
+  {
+   "id": "kivgraph-391184b",
+   "repo": "kivgraph",
+   "commit": "391184b12f00315f73da91e8136934b008a3d510",
+   "short": "391184b",
+   "parent": "341e731236139e3ceaf54c3d5e0882ffc7cd4b23",
+   "language": "go",
+   "subject": "fix(storage): hold the publish lock for restore, prune and discard",
+   "prompt_intent": "fix(storage): hold the publish lock for restore, prune and discard\n\nOnly Publish took the cross-process lock. It reads CURRENT, builds for\nminutes and then writes both pointers, so a rollback made meanwhile\nreported PASS and was overwritten when the rebuild finished; a prune or\na clean could remove a generation the publication was about to name.\nRestore, Prune, Discard and DiscardExcept now take the same lock and\nlose with ErrPublishInProgress, changing nothing.",
+   "truth_files": [
+    "internal/storage/generation/backup.go",
+    "internal/storage/generation/store.go",
+    "internal/storage/generation/store_lock_test.go"
+   ],
+   "n_truth": 3
+  },
+  {
+   "id": "kivgraph-b8a44f1",
+   "repo": "kivgraph",
+   "commit": "b8a44f1a3253fd34a95063616ef396f5b3d890ae",
+   "short": "b8a44f1",
+   "parent": "7f07fb9ea5b52f617a77d5908a028fce31d13419",
+   "language": "go",
+   "subject": "fix(mcp): key the get_source file cache by repository",
+   "prompt_intent": "fix(mcp): key the get_source file cache by repository\n\nThe per-call cache was keyed by the repository-relative path, so two\nsymbols in different repositories that share a path -- main.go,\n… -- were both cut from whichever file was read first. The\nanswer named one repository and carried the other's code with\nfresh:true, and a line range past the end of the cached file panicked\nwith a slice out of range.",
+   "truth_files": [
+    "internal/mcp/tools/get_source.go",
+    "internal/mcp/tools/get_source_test.go"
+   ],
+   "n_truth": 2
+  }
+ ]
+}
