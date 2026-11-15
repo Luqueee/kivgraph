@@ -240,6 +240,9 @@ type blastRadiusQuery struct {
 	EdgeKinds     []string `json:"edge_kinds,omitempty"`
 	Confidence    string   `json:"confidence,omitempty"`
 	Kinds         []string `json:"kinds"`
+	// `omitempty`, so every cursor minted without the flag keeps its hash and
+	// only the pages that asked for the derived provider are bound to it.
+	IncludeDerived bool `json:"include_derived,omitempty"`
 }
 
 // blastRadiusDefaultExcludedKinds are the symbol kinds an unasked-for impact
@@ -600,7 +603,7 @@ func getBlastRadius(
 		Tool: blastRadiusToolName, StableKey: options.Selector.StableKey, QualifiedName: options.Selector.QualifiedName,
 		Repository: options.Selector.Repository, Path: options.Selector.Path, Depth: options.Depth,
 		MaxNodes: options.MaxNodes, EdgeKinds: options.EdgeKinds, Confidence: options.Confidence,
-		Kinds: options.Kinds.applied,
+		Kinds: options.Kinds.applied, IncludeDerived: arguments.IncludeDerived,
 	})
 	if err != nil {
 		return nil, Response[BlastRadius]{}, err

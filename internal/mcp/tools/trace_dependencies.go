@@ -443,6 +443,8 @@ type traceDependenciesQuery struct {
 	Language      string   `json:"language,omitempty"`
 	EdgeKinds     []string `json:"edge_kinds,omitempty"`
 	Confidence    string   `json:"confidence,omitempty"`
+	// See blastRadiusQuery for why this one is `omitempty`.
+	IncludeDerived bool `json:"include_derived,omitempty"`
 }
 
 // RegisterTraceDependencies adds the read-only dependency traversal without a
@@ -644,7 +646,7 @@ func traceDependencies(
 		Repository: options.Selector.Repository, Path: options.Selector.Path,
 		To: options.Target, ToPath: options.TargetPath, Depth: options.Depth,
 		MaxNodes: options.MaxNodes, Repo: options.Repo, Language: options.Language,
-		EdgeKinds: options.EdgeKinds, Confidence: options.Confidence,
+		EdgeKinds: options.EdgeKinds, Confidence: options.Confidence, IncludeDerived: arguments.IncludeDerived,
 	})
 	if err != nil {
 		return nil, Response[DependencyTrace]{}, err

@@ -56,6 +56,7 @@ go_test(
         "answer_budget_test.go",
         "blast_radius_test.go",
         "completeness_test.go",
+        "cursor_derived_test.go",
         "cursor_test.go",
         "derived_test.go",
         "errors_test.go",
