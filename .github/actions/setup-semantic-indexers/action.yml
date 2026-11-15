@@ -1,0 +1,50 @@
+name: Set up the semantic indexers
+description: Install Dart, the JDK with scip-java, and the .NET SDK with scip-dotnet at pinned versions.
+
+# The Go suites skip a language whose analyzer is missing, and the semantic
+# coverage gate exits 1 without them, so both jobs that need them install the
+# same set from here. Every version is pinned: the rest of this repository is
+# fixed by digest, and an upstream release must not be able to turn CI red
+# without a commit of ours.
+runs:
+  using: composite
+  steps:
+    - name: Set up Dart
+      uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1
+      with:
+        sdk: 3.14.0
+
+    # scip-java indexes by driving the repository's own build, so it needs
+    # both a JDK and a build tool. Maven ships with the runner image; the JDK
+    # and the indexer do not.
+    - name: Set up the JDK
+      uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6
+      with:
+        distribution: temurin
+        java-version: '21'
+
+    - name: Install scip-java
+      shell: bash
+      run: |
+        set -euo pipefail
+        curl -fsSL --retry 3 -o cs.gz \
+          https://github.com/coursier/coursier/releases/download/v2.1.26/cs-x86_64-pc-linux.gz
+        gunzip -f cs.gz
+        chmod +x cs
+        mkdir -p "$HOME/.local/bin"
+        ./cs install --contrib scip-java:0.14.2 --install-dir "$HOME/.local/bin"
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+    # scip-dotnet is a dotnet global tool and needs the SDK, which also runs
+    # the `dotnet restore` every C# index begins with.
+    - name: Set up the .NET SDK
+      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Install scip-dotnet
+      shell: bash
+      run: |
+        set -euo pipefail
+        dotnet tool install --global scip-dotnet --version 0.2.16
+        echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
