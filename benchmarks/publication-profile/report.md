@@ -160,6 +160,127 @@ have to come from:
   anything is optimised;
 - the snapshot build grows fastest with the corpus (`9,5 %` to `22,2 %`).
 
+## A second corpus: five repositories (phase 6b)
+
+The single-repository corpus is too small to say anything about where a larger
+one spends its time, so the same harness ran over five repositories of the
+maintainer, Go and TypeScript, one of them this repository's clone. They are
+private and are not named here; the run is not reproducible from this
+repository. Raw metrics: `results-workspace.json`.
+
+|field|value|
+|---|---|
+|commit|`79ab9ca3baddfb0c3d28c335288d9e5b304adef7`, clean tree|
+|size|`1.070` files, `35.297` symbols, `149.570` edges (`2,8x` the symbols of the first corpus, `0,20x` those of the 53-repository one)|
+|fact cache|warm-up `34` units missed; each edit pass `30` hits and `4` misses|
+|edits|`10`, appended to a private copy of the Go repository|
+
+Median of ten passes: **`6,913 s`** (`6,540`–`8,539`). One pass, `8,539 s`, ran
+while the native sampler of the next section was attached; without it the
+median is `6,859 s`.
+
+|half|median seconds|share|
+|---|---|---|
+|analysis|`3,249`|`47,0 %`|
+|publication|`3,563`|`51,5 %`|
+
+|stage|median seconds|share of the pass|
+|---|---|---|
+|`staging`|`0,164`|`2,4 %`|
+|`bulk load`|`1,305`|`18,9 %`|
+|`integrity`|`0,532`|`7,7 %`|
+|`snapshot`|`0,631`|`9,1 %`|
+|`golden probes`|`0,026`|`0,4 %`|
+|in `publish`, in no listed stage|`0,843`|`12,2 %`|
+
+The first corpus' ordering holds (`bulk load` is the largest named stage), and
+two things changed with size: analysis is now as large as publication, and the
+unlabelled part of `publish` is larger than `integrity`.
+
+### What the walks cost
+
+The Go profile, ten edit passes, `70,5 s` of wall time. Under `RunFull` and
+outside `rebuild.Run`:
+
+|where|CPU seconds over ten passes|per pass|
+|---|---|---|
+|`os.ReadDir`, inside `filepath.WalkDir`|`10,05`|`1,0`|
+|`freshness.Capture`|`6,14`|`0,6`|
+|`sourceobservation.TreeDigest`|`3,05`|`0,3`|
+|`workspace.DiscoverGo`|`3,12`|`0,3`|
+|`workspace.DiscoverTypeScript`|`1,72`|`0,2`|
+|`goworkspace.BuildPlan`|`1,58`|`0,2`|
+|all of `RunFull` outside publication|`15,35`|`1,5`|
+
+The rows overlap (they are cumulative and the walks nest), so they do not add.
+What the profile does say is that about `1,5 s` of CPU per pass, `22 %` of it,
+is directories being read, and that it is Go code in this repository. If those
+walks are sequential, which I did not check, that is about a fifth of the pass.
+
+A likely cause, read from the code and not instrumented: `freshness.Capture` and
+`TreeDigest` skip only `.git` and `node_modules`. One of the five repositories
+tracks `830` files and holds about `100.000` untracked or ignored entries
+(`47.000` in a Rust `target/` and `49.000` in a test-output directory), which by
+that code both walks enter every pass. I did not count the entries each walk
+visits.
+`TreeDigest` documents that it over-approximates on purpose: skipping a source a
+provider reads could publish a graph that cannot be reproduced. So skipping a
+directory is only safe where **every** provider ignores it, and honouring
+`.gitignore` is not: generated sources are ignored and are read. That is a
+contract question, not a tuning one.
+
+### What the native profile shows
+
+macOS `sample` at `1 ms` for `8 s` during one edit pass. Of the `618` top-of-stack
+samples inside `liblbug`, the largest single function is
+`BaseCSVReader::parseCSV<SerialParsingDriver>` (`134`, `22 %`). The load forces
+`PARALLEL=false` on every table (`canonicalCopyOptions`) because the engine's
+parallel reader rejects a quoted newline, and only some canonical text carries
+one (`Evidence.text`, `Symbol.signature`).
+
+An experiment, **not committed**: `PARALLEL=true` for each table in which no field
+holds `\r` or `\n`, serial for the rest, same harness, four edits, alternating
+with the unchanged build:
+
+|build|bulk load median|pass median|symbols, edges|
+|---|---|---|---|
+|unchanged (two runs)|`1,300`, `1,306`; `1,317`|`7,033`, `7,020`; `7,051`|`35.297`, `149.570`|
+|parallel where there is no newline (two runs)|`1,146`, `1,155`|`6,940`, `7,005`|`35.297`, `149.570`|
+
+It saves about `0,16 s` of the bulk load, `12 %` of the stage and `2,4 %` of the
+pass, with the same counts and with the integrity stage passing. Not checked:
+that the logical content stays identical to a clean rebuild when row order
+changes, which `AGENTS.md` requires before a change to the load is kept.
+
+### What it means for the `8 s` target
+
+On this corpus a pass already takes `6,9 s`. The target is not the question;
+the corpus is `0,20x` the size of the one the number came from, and the `53`
+repository run is the only one that can say. What the two corpora agree on is
+the order of the costs: the bulk load, then the snapshot, with publication
+the larger half. What this one adds is that analysis is no longer the small half:
+it holds the directory walks, which were never visible at `12.465` symbols.
+
+### Problems found while building this corpus
+
+- **One repository could not be published.** A pnpm workspace of five packages
+  with an ordinary `tsconfig` layout, about `300` TypeScript files, analysed
+  fully (`39.641` symbols) and then failed at publish:
+  `copy CONTAINS_FILE: ... has more than one neighbour in table CONTAINS_FILE in
+  the bwd direction, which violates the rel multiplicity constraint`. Running the
+  TypeScript worker project by project found no file claimed by two projects, so
+  the double containment is made somewhere else. It is excluded from the corpus
+  and not investigated.
+- **The TypeScript worker cannot be built here without a flag.** `pnpm install`
+  stops with a corepack version mismatch unless `--pm-on-fail=ignore` is passed.
+- **Without a built worker a TypeScript repository fails the whole index** (P1 in
+  `benchmarks/agent-e2e/self-repo/FINDINGS.md`); here the worker was built in the
+  clone and put on the `PATH` with the launcher `build-bundle.sh` writes.
+- Rust and Java repositories of the maintainer were left out: no
+  `rust-analyzer` on the `PATH`, and no dependencies installed for the
+  TypeScript repositories that lacked them, which would have meant writing into
+  them.
+
 ## Reproduce
 
 Build the harness with the native tag and run the built binary, as in
