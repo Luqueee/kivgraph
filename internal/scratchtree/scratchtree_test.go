@@ -69,6 +69,62 @@ func TestMaterialiseReproducesTheWorkingTreeNotHead(t *testing.T) {
 	}
 }
 
+// Three shapes of a dirty working tree that the overlay used to get wrong, each
+// leaving the analyzer a tree nobody has: a staged rename kept the old file
+// beside the new one, a new directory was skipped whole, and an edit under a
+// source directory that merely shares a build tool's name was ignored.
+func TestMaterialiseFollowsRenamesNewDirectoriesAndBuildNamedPackages(t *testing.T) {
+	root := testsupport.TempDir(t)
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is not installed")
+	}
+	write(t, filepath.Join(root, "src", "old_name.txt"), "renamed\n")
+	write(t, filepath.Join(root, "src", "build", "Tool.txt"), "before\n")
+	write(t, filepath.Join(root, "src", "build", "Gone.txt"), "doomed\n")
+	run(t, root, "init", "-q")
+	run(t, root, "add", "-A")
+	run(t, root, "-c", "user.email=a@b", "-c", "user.name=t", "commit", "-qm", "fixture")
+
+	run(t, root, "mv", "src/old_name.txt", "src/new_name.txt")
+	write(t, filepath.Join(root, "src", "build", "Tool.txt"), "after\n")
+	if err := os.Remove(filepath.Join(root, "src", "build", "Gone.txt")); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(root, "newpkg", "inner", "New.txt"), "untracked\n")
+	// Untracked build output still stays behind.
+	write(t, filepath.Join(root, "target", "classes", "Thing.class"), "binary\n")
+
+	tree, err := Materialise(t.Context(),
+		workspace.Repository{Name: "fixture", Path: root, RealPath: root},
+		testsupport.TempDir(t))
+	if err != nil {
+		t.Fatalf("materialise: %v", err)
+	}
+	defer tree.Close()
+	if tree.Strategy != StrategyArchive {
+		t.Fatalf("strategy = %q, want %q", tree.Strategy, StrategyArchive)
+	}
+
+	if got := read(t, filepath.Join(tree.Path, "src", "new_name.txt")); got != "renamed\n" {
+		t.Errorf("new_name.txt = %q, want the renamed file", got)
+	}
+	if _, err := os.Stat(filepath.Join(tree.Path, "src", "old_name.txt")); !os.IsNotExist(err) {
+		t.Error("the old name of a staged rename survived beside the new one")
+	}
+	if got := read(t, filepath.Join(tree.Path, "newpkg", "inner", "New.txt")); got != "untracked\n" {
+		t.Errorf("newpkg/inner/New.txt = %q, want the file of an untracked directory", got)
+	}
+	if got := read(t, filepath.Join(tree.Path, "src", "build", "Tool.txt")); got != "after\n" {
+		t.Errorf("src/build/Tool.txt = %q, want the edit to a tracked file under a build-named directory", got)
+	}
+	if _, err := os.Stat(filepath.Join(tree.Path, "src", "build", "Gone.txt")); !os.IsNotExist(err) {
+		t.Error("a tracked file deleted under a build-named directory survived")
+	}
+	if _, err := os.Stat(filepath.Join(tree.Path, "target")); !os.IsNotExist(err) {
+		t.Error("untracked build output was carried into the scratch tree")
+	}
+}
+
 func TestMaterialiseLeavesBuildOutputBehind(t *testing.T) {
 	root := gitRepository(t)
 	tree, err := Materialise(t.Context(),
@@ -121,6 +177,34 @@ func TestMaterialiseWritesNothingInsideTheRepository(t *testing.T) {
 	// The specific thing `git worktree add` would have left behind.
 	if _, err := os.Stat(filepath.Join(root, ".git", "worktrees")); !os.IsNotExist(err) {
 		t.Error("a worktree registration was left inside .git")
+	}
+}
+
+// The test above leaves `.git` out because reading a repository with git used
+// to refresh its index. It no longer does: a tracked file whose stat data moved
+// is exactly what made `git status` rewrite `.git/index` under its lock, in a
+// repository this package promises not to modify.
+func TestMaterialiseLeavesTheGitIndexAlone(t *testing.T) {
+	root := gitRepository(t)
+	moved := time.Now().Add(-48 * time.Hour)
+	if err := os.Chtimes(filepath.Join(root, "src", "kept.txt"), moved, moved); err != nil {
+		t.Fatal(err)
+	}
+	index := filepath.Join(root, ".git", "index")
+	before := read(t, index)
+
+	tree, err := Materialise(t.Context(),
+		workspace.Repository{Name: "fixture", Path: root, RealPath: root},
+		testsupport.TempDir(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tree.Close()
+	if tree.Strategy != StrategyArchive {
+		t.Fatalf("strategy = %q, want %q: the copy fallback never asks git", tree.Strategy, StrategyArchive)
+	}
+	if read(t, index) != before {
+		t.Fatal("materialising the tree rewrote .git/index of the repository it read")
 	}
 }
 
