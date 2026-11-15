@@ -145,6 +145,9 @@ func materialiseFromGit(ctx context.Context, source, root string) error {
 		return fmt.Errorf("git archive: %w", err)
 	}
 	if err := extractTar(output, root); err != nil {
+		// git is still writing the entries nobody will read, and blocks once
+		// the pipe is full: Wait alone would never return.
+		_ = archive.Process.Kill()
 		_ = archive.Wait()
 		return fmt.Errorf("git archive: %w", err)
 	}
