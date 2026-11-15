@@ -38,7 +38,7 @@ const questions = [
   {
     question: "Which languages are supported, and are they equal?",
     answer:
-      "Go, TypeScript, Rust, Python and Dart, and no, they are not equal. Go, TypeScript and Rust edges are type-checked. Dart edges are resolved by the Dart Analysis Server. Python publishes exact semantic facts only when a configured Pyright-compatible analyzer provides them; with the bundled AST fallback its inferred references stay CANDIDATE and never become EXACT.",
+      "Go, TypeScript, Rust, Python, Dart, Java and C#, and no, they are not equal. Go, TypeScript and Rust edges are type-checked. Dart edges are resolved by the Dart Analysis Server. Java and C# edges come from their compilers' own indexers, scip-java and scip-dotnet. Python publishes exact semantic facts only when a configured Pyright-compatible analyzer provides them; with the bundled AST fallback its inferred references stay CANDIDATE and never become EXACT.",
   },
   {
     question: "What happens when Kivgraph finds no references?",

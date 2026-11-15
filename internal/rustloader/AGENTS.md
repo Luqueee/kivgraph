@@ -183,7 +183,7 @@ Los tests que ejecutan el analizador se saltan cuando `rust-analyzer` no está
 instalado, así que la verificación exige tenerlo:
 
 ```bash
-rustup component add rust-analyzer
+rustup component add rust-analyzer rust-src
 go test ./internal/rustloader/... ./internal/indexer/ -run Rust
 ```
 
