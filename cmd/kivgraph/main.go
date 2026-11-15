@@ -681,6 +681,7 @@ func watchConfiguredProfiles(
 	var monitorStartsWG sync.WaitGroup
 	monitorStartContext, cancelMonitorStarts := context.WithCancel(ctx)
 	var nextMonitorStart uint64
+	var registryWatchers profileWatchers
 	closed := false
 	indexer.setDefaultProfile(loaded.Config.Profiles.Default)
 	startFreshnessMonitor := func(name string, profileLoaded config.Loaded, profileStore *hotsnapshot.SnapshotStore) {
@@ -745,29 +746,30 @@ func watchConfiguredProfiles(
 		}
 		watchersMu.Unlock()
 		startFreshnessMonitor(name, profileLoaded, profileStore)
+		// The follower reads the store root, which a profile keeps for life.
+		// The other two read the registry, which changes: see profileWatchers.
+		registryWatchers.replace(name, func() func() {
+			resyncStop := resyncOnBranchChange(ctx, profileLoaded, profileStore, namedProfileReindexer{indexer, name}, command)
+			if !profileLoaded.Config.Watcher.Enabled {
+				return resyncStop
+			}
+			sourceStop := watchProfileSources(ctx, profileLoaded, manager, scheduler, command)
+			return func() {
+				sourceStop()
+				resyncStop()
+			}
+		})
 		if found {
 			return
 		}
 		followStop := followPublishedGeneration(ctx, profileLoaded, profileStore, command, indexing.FollowOptions{})
-		resyncStop := resyncOnBranchChange(ctx, profileLoaded, profileStore, namedProfileReindexer{indexer, name}, command)
-		var sourceStop func()
-		if profileLoaded.Config.Watcher.Enabled {
-			sourceStop = watchProfileSources(ctx, profileLoaded, manager, scheduler, command)
-		}
 		watchersMu.Lock()
 		if closed {
 			watchersMu.Unlock()
-			if sourceStop != nil {
-				sourceStop()
-			}
-			resyncStop()
 			followStop()
 			return
 		}
-		stops = append(stops, followStop, resyncStop)
-		if sourceStop != nil {
-			stops = append(stops, sourceStop)
-		}
+		stops = append(stops, followStop)
 		watchersMu.Unlock()
 	}
 	cleanup := func() {
@@ -785,6 +787,9 @@ func watchConfiguredProfiles(
 			delete(monitorStops, name)
 		}
 		watchersMu.Unlock()
+		// Before the scheduler, which is the first entry of current: no
+		// callback may enqueue work while the queue is shutting down.
+		registryWatchers.close()
 		for index := len(current) - 1; index >= 0; index-- {
 			current[index]()
 		}
