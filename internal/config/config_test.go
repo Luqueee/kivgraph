@@ -168,14 +168,6 @@ storage:
 			wantError: "snapshot_path",
 		},
 		{
-			name: "invalid limit relationship",
-			contents: `version: 1
-mcp:
-  maximum_limit: 10
-`,
-			wantError: "maximum_limit: must be at least default_limit",
-		},
-		{
 			name: "unsupported transport",
 			contents: `version: 1
 mcp:
@@ -308,6 +300,12 @@ storage:
   snapshots_path: /tmp/nowhere
   retain_snapshots: 7
   backups_path: `+filepath.Join(directory, "backups")+`
+mcp:
+  default_limit: 0
+  maximum_limit: -1
+  maximum_depth: 99
+  maximum_visited_nodes: 0
+  transport: stdio
 `)
 	writeConfigFixture(t, repositoriesPath, "version: 1\nrepositories: []\n")
 
@@ -315,7 +313,12 @@ storage:
 	if err != nil {
 		t.Fatalf("Load() error = %v, want a configuration with retired keys to load", err)
 	}
-	want := []string{"storage.snapshots_path", "storage.retain_snapshots"}
+	// The mcp values would each have failed validation while the keys lived:
+	// ignored means not validated either.
+	want := []string{
+		"storage.snapshots_path", "storage.retain_snapshots",
+		"mcp.default_limit", "mcp.maximum_limit", "mcp.maximum_depth", "mcp.maximum_visited_nodes",
+	}
 	if !slices.Equal(loaded.RetiredKeys, want) {
 		t.Fatalf("RetiredKeys = %v, want %v", loaded.RetiredKeys, want)
 	}
