@@ -689,6 +689,10 @@ func traceDependencies(
 	// seed is skipped from the rows by dependencyNodes, which drops a visit
 	// whose Source is InvalidSymbolID. ADR 0059.
 	seeds := append([]hotsnapshot.SymbolID{rootID}, containedMembers(snapshot, rootID, root)...)
+	// For the same reason a member does not spend the node budget: the bound
+	// the caller set is on the root and what it reaches. Counted against it,
+	// the members of a large type refused a small budget outright.
+	traversalOptions.MaxNodes = min(traversalOptions.MaxNodes+len(seeds)-1, hotsnapshot.MaxTraversalNodes)
 	if options.Target != "" {
 		return traceWitness(snapshot, options, traversalOptions, seeds, rootID, root, rootRepository.name)
 	}
@@ -757,7 +761,7 @@ func traceDependencies(
 		Results: DependencyTrace{
 			RootKey: symbolStableKey(snapshot, root), RootRepository: rootRepository.name,
 			Depth: options.Depth, MaxNodes: options.MaxNodes,
-			Reached: len(traversal.Visits) - 1, DeepestDepth: deepest,
+			Reached: reachedBeyondSeeds(traversal.Visits), DeepestDepth: deepest,
 			TraversalTruncated: traversal.Truncated, Nodes: page,
 			View: options.View,
 		},
@@ -963,6 +967,19 @@ func classifyTraversalError(err error) error {
 	default:
 		return WrapToolError(CodeSnapshotUnavailable, "dependency traversal could not run", err)
 	}
+}
+
+// reachedBeyondSeeds counts the visits a walk arrived at, leaving out the ones
+// it started from. A seed is the root or one of its own members, and a member
+// is not something the root reaches.
+func reachedBeyondSeeds(visits []hotsnapshot.TraversalVisit) int {
+	reached := 0
+	for _, visit := range visits {
+		if visit.Source != hotsnapshot.InvalidSymbolID {
+			reached++
+		}
+	}
+	return reached
 }
 
 // containedMembers returns the declarations a root contains, so a traversal can
