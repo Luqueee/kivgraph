@@ -563,12 +563,11 @@ func DefaultConfig() Config {
 			BackupsPath:  defaultBackupsPath,
 		},
 		Web: WebConfig{
-			// The viewer listens on every interface. It is unauthenticated
-			// and its responses carry source paths, symbol names and
-			// signatures, so `kivgraph ui` warns on every bind that is not
-			// loopback -- which, with this default, is every bind. Restrict
-			// it with `web.address` or `--addr`.
-			Address: "0.0.0.0:7777",
+			// Loopback. The viewer is unauthenticated and its responses carry
+			// source paths, symbol names and signatures, so reaching it from
+			// the network is a choice: `web.address` or `--addr`, and every
+			// such bind logs what it exposes. See ADR 0119.
+			Address: "127.0.0.1:7777",
 		},
 		MCP: MCPConfig{
 			Transport: "stdio",

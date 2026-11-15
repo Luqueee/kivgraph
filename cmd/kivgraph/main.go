@@ -100,11 +100,12 @@ func main() {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		if err := runConfiguredUI(ctx, os.Args[2:], func(ctx context.Context, address string, handler http.Handler) error {
-			// The default bind is every interface, so this warning is
-			// the only thing standing between an unauthenticated
-			// viewer and the network it is on. It names what travels
-			// in a response and how to close it, because a warning
-			// that only says "unauthenticated" is one nobody acts on.
+			// A non-loopback bind is a choice -- or a configuration an
+			// older `init` wrote with 0.0.0.0 -- and this warning is the
+			// only thing standing between an unauthenticated viewer and
+			// the network it is on. It names what travels in a response
+			// and how to close it, because a warning that only says
+			// "unauthenticated" is one nobody acts on.
 			if !isLoopbackListenAddress(address) {
 				logger.Warn("web viewer is unauthenticated and reachable from the network",
 					"command", "ui", "address", address,
@@ -236,8 +237,10 @@ type graphRebuilder func(context.Context, rebuild.Options) (rebuild.Report, erro
 // It receives the loaded configuration because a runner that binds a socket has
 // to know which state directory it belongs to: that directory is the key that
 // keeps two configurations from sharing one daemon.
-type configuredMCPRunner func(context.Context, config.Loaded, *hotsnapshot.SnapshotStore, indexing.ProjectIndexer, *eventlog.Writer) error
-type configuredWebRunner func(context.Context, string, http.Handler) error
+type (
+	configuredMCPRunner func(context.Context, config.Loaded, *hotsnapshot.SnapshotStore, indexing.ProjectIndexer, *eventlog.Writer) error
+	configuredWebRunner func(context.Context, string, http.Handler) error
+)
 
 // ensureConfiguration writes the default configuration when there is none.
 //
@@ -425,7 +428,8 @@ func runConfiguredUI(
 	if !assetsAvailable {
 		return errors.New(
 			"ui: this binary carries no web bundle; build one with scripts/build-bundle.sh " +
-				"(without --mcp-only), or run the viewer from a source checkout with the webassets build tag")
+				"(without --mcp-only), or run the viewer from a source checkout with the webassets build tag",
+		)
 	}
 	if err := ensureConfiguration(configPath); err != nil {
 		return err
@@ -1177,8 +1181,10 @@ func runUpdateWithRunnerAndPostInstall(
 		signal, restart, graceful, executable, postInstallWithResult)
 }
 
-type updatePostInstall func(executable string, stdout, stderr io.Writer) error
-type updatePostInstallWithResult func(executable string, stdout, stderr io.Writer) updatePostInstallResult
+type (
+	updatePostInstall           func(executable string, stdout, stderr io.Writer) error
+	updatePostInstallWithResult func(executable string, stdout, stderr io.Writer) updatePostInstallResult
+)
 
 type updatePostInstallResult struct {
 	RefreshedDaemonPID  int
@@ -1588,7 +1594,8 @@ func indexFullFlagSet(options *indexFullOptions) *flag.FlagSet {
 // counted before they were printed, and a count nobody prints is a warning
 // nobody has.
 func writeIndexSummary(stdout io.Writer, indexReport indexer.FullReport) {
-	writeInfo(stdout, "index.go: repositories=%d modules=%d not_loaded=%d workspaces=%d loads=%d definitions=%d references=%d unresolved=%d diagnostics=%d",
+	writeInfo(
+		stdout, "index.go: repositories=%d modules=%d not_loaded=%d workspaces=%d loads=%d definitions=%d references=%d unresolved=%d diagnostics=%d",
 		indexReport.GoRepositories,
 		indexReport.GoModules,
 		indexReport.GoModulesNotLoaded,
@@ -1599,13 +1606,15 @@ func writeIndexSummary(stdout io.Writer, indexReport indexer.FullReport) {
 		indexReport.GoUnresolved,
 		indexReport.GoLoadDiagnostics,
 	)
-	writeInfo(stdout, "index.typescript: repositories=%d symbols=%d references=%d unresolved=%d",
+	writeInfo(
+		stdout, "index.typescript: repositories=%d symbols=%d references=%d unresolved=%d",
 		indexReport.TypeScriptRepositories,
 		indexReport.TypeScriptSymbols,
 		indexReport.TypeScriptReferences,
 		indexReport.TypeScriptUnresolved,
 	)
-	writeInfo(stdout, "index.rust: repositories=%d workspaces=%d crates=%d not_loaded=%d symbols=%d references=%d unresolved=%d",
+	writeInfo(
+		stdout, "index.rust: repositories=%d workspaces=%d crates=%d not_loaded=%d symbols=%d references=%d unresolved=%d",
 		indexReport.RustRepositories,
 		indexReport.RustWorkspaces,
 		indexReport.RustCrates,
@@ -1614,28 +1623,32 @@ func writeIndexSummary(stdout io.Writer, indexReport indexer.FullReport) {
 		indexReport.RustReferences,
 		indexReport.RustUnresolved,
 	)
-	writeInfo(stdout, "index.python: repositories=%d not_loaded=%d symbols=%d references=%d unresolved=%d",
+	writeInfo(
+		stdout, "index.python: repositories=%d not_loaded=%d symbols=%d references=%d unresolved=%d",
 		indexReport.PythonRepositories,
 		indexReport.PythonRepositoriesNotLoaded,
 		indexReport.PythonSymbols,
 		indexReport.PythonReferences,
 		indexReport.PythonUnresolved,
 	)
-	writeInfo(stdout, "index.dart: repositories=%d not_loaded=%d symbols=%d references=%d unresolved=%d",
+	writeInfo(
+		stdout, "index.dart: repositories=%d not_loaded=%d symbols=%d references=%d unresolved=%d",
 		indexReport.DartRepositories,
 		indexReport.DartRepositoriesNotLoaded,
 		indexReport.DartSymbols,
 		indexReport.DartReferences,
 		indexReport.DartUnresolved,
 	)
-	writeInfo(stdout, "index.java: repositories=%d not_loaded=%d symbols=%d references=%d unresolved=%d",
+	writeInfo(
+		stdout, "index.java: repositories=%d not_loaded=%d symbols=%d references=%d unresolved=%d",
 		indexReport.JavaRepositories,
 		indexReport.JavaRepositoriesNotLoaded,
 		indexReport.JavaSymbols,
 		indexReport.JavaReferences,
 		indexReport.JavaUnresolved,
 	)
-	writeInfo(stdout, "index.csharp: repositories=%d not_loaded=%d symbols=%d references=%d unresolved=%d",
+	writeInfo(
+		stdout, "index.csharp: repositories=%d not_loaded=%d symbols=%d references=%d unresolved=%d",
 		indexReport.CSharpRepositories,
 		indexReport.CSharpRepositoriesNotLoaded,
 		indexReport.CSharpSymbols,
@@ -2125,7 +2138,8 @@ func runDoctor(args []string, stdout, stderr io.Writer) int {
 	// so is what lets someone delete it; silence would leave it there forever.
 	if len(loaded.RetiredKeys) > 0 {
 		doctorResult("config.retired", true, fmt.Sprintf(
-			"%s: accepted and ignored, safe to delete", strings.Join(loaded.RetiredKeys, ", ")))
+			"%s: accepted and ignored, safe to delete", strings.Join(loaded.RetiredKeys, ", "),
+		))
 	}
 
 	for _, stateDirectory := range []struct {
@@ -2642,7 +2656,8 @@ func runGenerateGraph(args []string, stdout, stderr io.Writer) int {
 		writeCommandError(stderr, "generate-graph: %v", err)
 		return 1
 	}
-	writeSuccess(stdout, "generated %d repositories, %d files, %d symbols, %d edges at %s (seed %d)",
+	writeSuccess(
+		stdout, "generated %d repositories, %d files, %d symbols, %d edges at %s (seed %d)",
 		manifest.Repositories,
 		manifest.Files,
 		manifest.Symbols,

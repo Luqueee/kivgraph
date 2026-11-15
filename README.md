@@ -373,16 +373,17 @@ Day to day:
 ```bash
 kivgraph graph status      # what is published, and whether a tree has moved
 kivgraph doctor            # toolchains, storage, and the type-checking ceiling
-kivgraph ui                # read-only 3D viewer, default 0.0.0.0:7777
+kivgraph ui                # read-only 3D viewer, default 127.0.0.1:7777
 kivgraph logs --follow     # aligned history of what it indexed, served and queried
 kivgraph tool-stats        # per-tool cost, calls, and failures
 kivgraph stop              # terminate this user's serve and ui, never an index
 kivgraph clean --keep-active
 ```
 
-`kivgraph ui` binds a non-loopback address by default, because the graph is
-indexed where the repositories are and looked at from elsewhere; there is no
-authentication, so it logs exactly what it exposes and `--addr` restricts it.
+`kivgraph ui` binds loopback by default and refuses a request whose `Host` is
+not this machine. To look at the graph from another machine, pass
+`--addr 0.0.0.0:7777` or set `web.address`: there is no authentication, so that
+bind logs exactly what it exposes.
 
 `logs` and `tool-stats` read an append-only record in the state directory
 rather than asking a server, which is why they can answer at all: the per-tool

@@ -338,7 +338,7 @@ func commandTable() []commandSpec {
 			words:   []string{"ui"},
 			group:   "Getting started",
 			usage:   "ui [--addr HOST:PORT] [--profile NAME]",
-			summary: "Serve the read-only graph viewer, every interface by default",
+			summary: "Serve the read-only graph viewer, on this machine only by default",
 			absence: webBundleAbsence,
 			flags: func() *flag.FlagSet {
 				var path, address, profile string

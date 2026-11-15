@@ -356,10 +356,12 @@ superficie MCP el suyo en `internal/mcp/AGENTS.md`.
 ## Servidores HTTP, assets y procesos
 
 - `kivgraph ui` es opt-in y sirve solo el `HotSnapshot` publicado por HTTP
-  read-only. Su bind por defecto es `0.0.0.0:7777`: el grafo se indexa donde
-  están los repositorios y el visor se mira desde otra máquina, así que un
-  default loopback obligaba a editar la configuración en el caso normal. La
-  guarda es entonces la advertencia, y por eso no es decorativa: todo bind que
+  read-only. Su bind por defecto es `127.0.0.1:7777` (ADR 0119, que revisa el 0032) y un
+  bind loopback rechaza con `403` un `Host` que no sea esta máquina, contra el
+  DNS rebinding. Mirarlo desde otra máquina es una decisión (`--addr` o
+  `web.address`); una configuración que un `init` anterior escribió con
+  `0.0.0.0:7777` lo conserva. La guarda de un bind expuesto es la
+  advertencia, y por eso no es decorativa: todo bind que
   no sea loopback registra qué se expone -rutas de repositorio y de fichero,
   nombres y firmas de símbolos- y con qué se cierra. El endpoint no lleva
   autenticación; restringirlo es `--addr` o `web.address`.

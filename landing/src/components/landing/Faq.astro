@@ -18,7 +18,7 @@ const questions = [
   {
     question: "Does my code leave my machine?",
     answer:
-      "No. The server is a local process that speaks MCP over stdio, and no query path makes a network call. One thing to know: kivgraph ui, the optional viewer, opens a local HTTP listener that binds 0.0.0.0:7777 with no authentication and exposes repository paths, file paths, symbol names and signatures. On a shared network, start it as kivgraph ui --addr 127.0.0.1:7777.",
+      "No. The server is a local process that speaks MCP over stdio, and no query path makes a network call. One thing to know: kivgraph ui, the optional viewer, opens a local HTTP listener that binds 127.0.0.1:7777 with no authentication. If you bind it to another address, it exposes repository paths, file paths, symbol names and signatures to whoever can reach it.",
   },
   {
     question: "Does Kivgraph need an LLM, an API key or an embedding step?",

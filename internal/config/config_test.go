@@ -58,8 +58,8 @@ repositories:
 	if !filepath.IsAbs(loaded.Config.Storage.BackupsPath) || !filepath.IsAbs(loaded.Config.Go.SyntheticWorkFile) {
 		t.Fatalf("default paths were not expanded: backups=%q work=%q", loaded.Config.Storage.BackupsPath, loaded.Config.Go.SyntheticWorkFile)
 	}
-	if loaded.Config.Web.Address != "0.0.0.0:7777" {
-		t.Fatalf("web address default = %q, want 0.0.0.0:7777", loaded.Config.Web.Address)
+	if loaded.Config.Web.Address != "127.0.0.1:7777" {
+		t.Fatalf("web address default = %q, want 127.0.0.1:7777", loaded.Config.Web.Address)
 	}
 	if loaded.Config.Python.IndexerCommand != "kivgraph-python-worker" || loaded.Config.Python.AnalyzerCommand != "kivgraph-python-pyright" || loaded.Config.Python.AnalyzerMode != "fallback" || loaded.Config.Python.PythonPath != "python3" || loaded.Config.Python.MaximumWorkers != 3 || loaded.Config.Python.IncludeTests || loaded.Config.Python.IncludeGenerated || loaded.Config.Python.IncludeExternal {
 		t.Fatalf("Python defaults = %#v", loaded.Config.Python)
