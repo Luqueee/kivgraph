@@ -46,6 +46,7 @@ go_test(
         "paths_test.go",
         "paths_windows_test.go",
         "provider_conflicts_test.go",
+        "registry_locks_test.go",
         "registry_test.go",
         "typescript_config_test.go",
         "typescript_graph_test.go",
