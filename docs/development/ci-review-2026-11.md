@@ -148,7 +148,7 @@ open pull request red for something none of them changed.
 | analyzer versions pinned; one setup action | #25 |
 | one concurrency group per commit on `main` | #25 |
 | `govulncheck` reports without blocking a PR | #25 |
-| `darwin-bundle` inside `macos` | #37, open |
+| `darwin-bundle` inside `macos` | #37, closed unmerged |
 
 The old `setup-go-*` cache entries, 7.4 GB, were deleted by hand.
 
@@ -305,13 +305,17 @@ Rebased on the three changes and run once, still without a Go cache:
 
 With `macos` already the longest job, moving the bundle into it adds its whole
 length to the run: about two and a half minutes. The earlier comparison, made
-while `verify` was longer, understated that. #37 stays open under the same
-condition, and the condition is now harder to meet: the queue it removes has
-to cost more than two minutes per run.
+while `verify` was longer, understated that.
+
+#37 was closed without merging after this measurement. The queue it would
+have relieved showed up once that afternoon, for 66 s; the change cost more
+than twice that on every run.
 
 ### Open after the second pass
 
-- **#37**, as above.
+- **The macOS queue.** Two macOS jobs per run remain. If the queue comes back
+  at more than about two and a half minutes per run, #37 is the change to
+  bring back.
 - **`macos`.** Its suite step, `make test-ladybug`, is 144 s of it, with
   `internal/indexer/rustsysroot` at 106 s and `cmd/kivgraph` at 110 s as the
   two slowest packages.
