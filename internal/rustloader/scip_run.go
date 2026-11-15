@@ -181,6 +181,7 @@ func Run(ctx context.Context, options RunOptions) (RunResult, error) {
 	}
 	command[0] = resolved
 
+	options.Sysroot = hermeticSysroot(ctx, options)
 	configPath := filepath.Join(options.OutputDirectory, "rust-analyzer.json")
 	if err := writeAnalyzerConfig(configPath, options); err != nil {
 		return RunResult{}, newRunError(RunErrorInvalidOptions, workspace, "write analyzer configuration", err)
@@ -354,6 +355,33 @@ func sysrootValue(sysroot string) *string {
 		return nil
 	}
 	return &value
+}
+
+// hermeticSysroot answers the sysroot the analyzer is told to load.
+//
+// `discover` is not a read. An analyzer that discovers a sysroot without
+// `rust-src` runs `rustup component add rust-src` itself: a download and a
+// write into the toolchain, from a pass that is offline unless the caller
+// allowed the network. Two passes starting together raced that install, and
+// the loser indexed without a standard library that was there a second later.
+//
+// Given a path instead, the analyzer loads what is under it and installs
+// nothing, so the question it would have asked -- `rustc --print sysroot`,
+// from the workspace, which is what honours a `rust-toolchain.toml` -- is
+// asked here and the answer passed on.
+//
+// shortcut: when no `rustc` answers, `discover` is passed through, because the
+// analyzer may still find a toolchain by means this probe does not have;
+// answer `none` there if that path is ever seen to install.
+func hermeticSysroot(ctx context.Context, options RunOptions) string {
+	if options.AllowNetwork || !strings.EqualFold(strings.TrimSpace(options.Sysroot), "discover") {
+		return options.Sysroot
+	}
+	_, root, reason := probeToolchain(ctx, strings.TrimSpace(options.Workspace))
+	if reason != "" {
+		return options.Sysroot
+	}
+	return root
 }
 
 // validateIndex refuses an index this build cannot place in a file or

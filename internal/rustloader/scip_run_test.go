@@ -48,6 +48,19 @@ func requireAnalyzer(t *testing.T) {
 	testsupport.RequireRustAnalyzer(t)
 }
 
+// TestHermeticSysrootPassesThroughWhatItCannotResolve covers the answers that
+// are not a discovered path: a value the caller chose is the caller's, and
+// without a `rustc` there is no path to substitute.
+func TestHermeticSysrootPassesThroughWhatItCannotResolve(t *testing.T) {
+	t.Setenv("PATH", "")
+	for _, sysroot := range []string{"discover", "none", "", "/opt/toolchain"} {
+		got := hermeticSysroot(context.Background(), RunOptions{Workspace: t.TempDir(), Sysroot: sysroot})
+		if got != sysroot {
+			t.Fatalf("hermeticSysroot(%q) = %q", sysroot, got)
+		}
+	}
+}
+
 // TestRunIndexesAWorkspaceWithoutWritingToIt is the contract the whole Rust
 // path stands on: the analyzer runs build scripts, so the run must leave the
 // sources exactly as it found them.
