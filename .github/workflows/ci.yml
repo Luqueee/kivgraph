@@ -245,12 +245,18 @@ jobs:
       - name: Run complete semantic coverage gate
         run: make semantic-coverage
 
+  # The Go half of what used to be one job. The worker, the viewer and the
+  # landing were checked after the Go suite on the same runner, which made this
+  # the longest job of the workflow -- 4.8 min at the median -- for no reason
+  # but the order of its steps: nothing below `Build Go` read anything above
+  # it. They run in `packages` now, beside this one, and a Linux runner does
+  # not queue.
   verify:
-    name: Verify Go, web and landing packages
+    name: Verify Go
     needs: classify
     if: needs.classify.outputs.full == 'true'
-    # Pinned, not ubuntu-latest: that label moved to 26.04, where the pinned
-    # Playwright has no Chromium build and the end-to-end step cannot install.
+    # The image is pinned because the Go cache this job restores was saved on
+    # it; `packages` is the job that needs the pin for its own sake.
     runs-on: ubuntu-24.04
     timeout-minutes: 15
 
@@ -259,11 +265,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-          # The landing's sitemap dates every URL from the commit that last
-          # touched its source, and refuses to publish a date it cannot
-          # establish. At the default depth of 1 every file collapses onto the
-          # tip commit, so this job would build -- and pass -- a sitemap with no
-          # `lastmod` at all, which is not the artifact the deploy serves.
+          # The documentation ratchet compares against the merge base, which a
+          # checkout of depth 1 does not hold.
           fetch-depth: 0
 
       - name: Set up Go
@@ -387,6 +390,27 @@ jobs:
 
       - name: Build Go
         run: go build ./cmd/kivgraph
+
+  packages:
+    name: Verify the worker, web and landing packages
+    needs: classify
+    if: needs.classify.outputs.full == 'true'
+    # Pinned, not ubuntu-latest: that label moved to 26.04, where the pinned
+    # Playwright has no Chromium build and the end-to-end step cannot install.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          # The landing's sitemap dates every URL from the commit that last
+          # touched its source, and refuses to publish a date it cannot
+          # establish. At the default depth of 1 every file collapses onto the
+          # tip commit, so this job would build -- and pass -- a sitemap with no
+          # `lastmod` at all, which is not the artifact the deploy serves.
+          fetch-depth: 0
 
       - name: Set up pnpm
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
@@ -969,6 +993,7 @@ jobs:
       - semantic-coverage
       - documentation
       - verify
+      - packages
       - linux-bundle
       - ladybug
       - smoke
@@ -986,6 +1011,7 @@ jobs:
           DOCUMENTATION_RESULT: ${{ needs.documentation.result }}
           SEMANTIC_COVERAGE_RESULT: ${{ needs['semantic-coverage'].result }}
           VERIFY_RESULT: ${{ needs.verify.result }}
+          PACKAGES_RESULT: ${{ needs.packages.result }}
           LINUX_BUNDLE_RESULT: ${{ needs['linux-bundle'].result }}
           LADYBUG_RESULT: ${{ needs.ladybug.result }}
           SMOKE_RESULT: ${{ needs.smoke.result }}
@@ -1014,6 +1040,7 @@ jobs:
           for result in \
             "$SEMANTIC_COVERAGE_RESULT" \
             "$VERIFY_RESULT" \
+            "$PACKAGES_RESULT" \
             "$LINUX_BUNDLE_RESULT" \
             "$LADYBUG_RESULT" \
             "$SMOKE_RESULT" \
