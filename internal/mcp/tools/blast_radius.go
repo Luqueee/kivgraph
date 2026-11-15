@@ -555,7 +555,7 @@ func getBlastRadiusAcrossProfiles(
 		Profiles: profiles, CrossProfileEdges: "not_resolved",
 		Total: len(rows), Returned: end - offset, Truncated: end < len(rows), NextCursor: next,
 		Coverage: coverage, Completeness: &mergedCompleteness,
-		Guidance: traversalGuidance(blastRadiusToolName, len(rows), end-offset, end < len(rows), mergedCompleteness.Verdict),
+		Guidance: traversalGuidance(blastRadiusToolName, len(rows), end-offset, end < len(rows), radius.TraversalTruncated, mergedCompleteness.Verdict),
 		Results:  radius, View: options.View,
 	}, nil
 }
@@ -705,6 +705,11 @@ func getBlastRadius(
 		)
 	}
 	coverage.UnresolvedRelated += unresolvedRelated
+	// A walk cut by max_nodes never discovered part of the impact. Nothing the
+	// resolver recorded says so, and the list is a minimum all the same.
+	if traversal.Truncated {
+		completeness.Verdict = VerdictLowerBound
+	}
 
 	snapshotID := metadata.ID
 	snapshotAgeMS := snapshotAgeMilliseconds(metadata.CreatedAt)
@@ -712,7 +717,7 @@ func getBlastRadius(
 		SnapshotID: &snapshotID, SnapshotAgeMS: &snapshotAgeMS,
 		Total: total, Returned: len(radius.Symbols), Truncated: hasMore, NextCursor: nextCursor,
 		Coverage: coverage, Completeness: &completeness,
-		Guidance: traversalGuidance(blastRadiusToolName, total, len(radius.Symbols), hasMore, completeness.Verdict),
+		Guidance: traversalGuidance(blastRadiusToolName, total, len(radius.Symbols), hasMore, traversal.Truncated, completeness.Verdict),
 		Results:  radius, View: options.View,
 	}, nil
 }

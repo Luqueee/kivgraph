@@ -624,7 +624,7 @@ func traceDependenciesAcrossProfiles(
 		Profiles: profiles, CrossProfileEdges: "not_resolved",
 		Total: len(rows), Returned: end - offset, Truncated: end < len(rows), NextCursor: next,
 		Coverage: coverage, Completeness: &mergedCompleteness,
-		Guidance: traversalGuidance(traceDependenciesToolName, len(rows), end-offset, end < len(rows), mergedCompleteness.Verdict),
+		Guidance: traversalGuidance(traceDependenciesToolName, len(rows), end-offset, end < len(rows), trace.TraversalTruncated, mergedCompleteness.Verdict),
 		Results:  trace, View: options.View,
 	}, nil
 }
@@ -734,9 +734,15 @@ func traceDependencies(
 	completeness, unresolvedRelated, err := completenessOutwardFor(snapshot, rootID, rootName, rootRepositoryID)
 	if err != nil {
 		return nil, Response[DependencyTrace]{}, WrapToolError(
-			CodeSnapshotUnavailable, "active snapshot contains invalid unresolved metadata", err)
+			CodeSnapshotUnavailable, "active snapshot contains invalid unresolved metadata", err,
+		)
 	}
 	coverage.UnresolvedRelated += unresolvedRelated
+	// A walk cut by max_nodes never discovered part of what this reaches. See
+	// the same downgrade in get_blast_radius.
+	if traversal.Truncated {
+		completeness.Verdict = VerdictLowerBound
+	}
 
 	snapshotID := metadata.ID
 	snapshotAgeMS := snapshotAgeMilliseconds(metadata.CreatedAt)
@@ -745,7 +751,7 @@ func traceDependencies(
 		Total: total, Returned: len(page), Truncated: hasMore, NextCursor: nextCursor,
 		Coverage:     coverage,
 		Completeness: &completeness,
-		Guidance:     traversalGuidance(traceDependenciesToolName, total, len(page), hasMore, completeness.Verdict),
+		Guidance:     traversalGuidance(traceDependenciesToolName, total, len(page), hasMore, traversal.Truncated, completeness.Verdict),
 		Results: DependencyTrace{
 			RootKey: symbolStableKey(snapshot, root), RootRepository: rootRepository.name,
 			Depth: options.Depth, MaxNodes: options.MaxNodes,

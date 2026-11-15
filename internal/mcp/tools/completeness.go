@@ -13,8 +13,9 @@ const (
 	// VerdictComplete means nothing the index recorded could add to this
 	// answer: the list is the whole list.
 	VerdictComplete = "COMPLETE"
-	// VerdictLowerBound means the answer is a minimum. The index recorded
-	// places it could not read that this query reaches, and they are listed.
+	// VerdictLowerBound means the answer is a minimum: the index recorded
+	// places it could not read that this query reaches, and they are listed,
+	// or a traversal stopped at its node budget before it finished.
 	VerdictLowerBound = "LOWER_BOUND"
 )
 
