@@ -291,6 +291,14 @@ func ListenHTTP(options Options, httpOptions HTTPOptions) (*HTTPServer, error) {
 	if err := os.MkdirAll(options.StateDirectory, 0o700); err != nil {
 		return nil, fmt.Errorf("create the state directory: %w", err)
 	}
+	// Before anything is written. A second start for the same state directory
+	// used to find the port busy, fall back to a fresh one, persist it and
+	// rewrite the endpoint, and only then be refused at the socket -- leaving
+	// the daemon that was running undiscoverable and on a different port after
+	// its next restart.
+	if err := refuseLiveDaemon(options.StateDirectory); err != nil {
+		return nil, err
+	}
 	token, err := loadOrCreateToken(options.StateDirectory, httpOptions.OnWarning)
 	if err != nil {
 		return nil, err
