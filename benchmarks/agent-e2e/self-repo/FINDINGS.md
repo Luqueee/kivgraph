@@ -138,3 +138,74 @@ from 2026-10 onward, Go only; arms `cold` and `kivgraph`; model
 
 ### T3 and T1 still open
 - Not opened: why every pair misses one of two files, and the 12 prompts.
+
+## Phase 5 analysis of the 24 `kivgraph` transcripts
+
+### P3. With `include_tests: true`, every Go answer is `LOWER_BOUND` and carries a constant 5.4 KB block
+- **Observed.** All 28 responses that carry a verdict (21 `find_symbol`, 7
+  `find_references`) say `LOWER_BOUND`. `completeness.invisible_scopes` is the
+  same 20 rows on every call (`more_invisible_scopes: 57`, so 77 in the
+  repository) and is 5,455 bytes of a 5.6 KB response. Of the 20 listed, 19 are
+  `<package>.test` with reason `DECLARATION_OUTSIDE_REPOSITORY` ("declared in a
+  Go build cache entry"), the other one is a test fixture
+  (`testdata/.../twin-a`, `AMBIGUOUS_MODULE_PROVIDER`).
+- Total across the 24 runs: 152,780 of 215,792 bytes of graph responses (71 %).
+- `[INFERENCE]` the `.test` rows are the synthetic test main that `go test`
+  generates, not code anyone can read, so listing them as unreadable scopes says
+  nothing about the user's code. Not confirmed in the loader; the benchmark
+  forces `include_tests: true`, so with the default (`false`) this may not occur.
+  Not checked.
+- Effect: the verdict cannot discriminate (it is always `LOWER_BOUND`), and an
+  empty `find_symbol` answer gets guidance pointing at these rows.
+
+### S5. What the graph changed in the agent's behaviour
+- Tool-result bytes per run, `cold` against `kivgraph`: `Read` 1,637 KB against
+  1,377 KB; `Grep` 328 KB against 182 KB; graph tools 236 KB. First call of the
+  `kivgraph` arm was always a graph call (24 of 24).
+- Reads of files that are later edited are 852 KB of the 1,377 KB; those are
+  required (Edit needs a prior Read). Reads of files never edited are 525 KB
+  against 490 KB for `cold`: the graph did not reduce exploration reads.
+- Whole-file `Read`s are 888 KB of the 1,377 KB; 8 of them (over 20 KB) are
+  273 KB. The graph rows carry a line range, and `get_source` was called once.
+- 10 of 52 graph calls returned nothing (`returned: 0`, 56 KB), mostly
+  `find_symbol` on a name that is a string (a tool name) rather than a Go
+  symbol; the agent then ran `Grep` for the same name.
+
+### S6. Size of the two levers, against the noise
+- Both are about 2 to 3 % of the 1.47 M tokens a `kivgraph` run uses (cache
+  reads are 94 % of them): 6.4 KB per run of repeated scope rows, and 11 KB per
+  run of whole-file reads over 20 KB, each re-read on later turns
+  `[INFERENCE: about 15 turns]`.
+- Run-to-run cost noise is 21 to 27 %. A change worth 2 to 3 % cannot be shown
+  with this benchmark; only the byte counts are measurable.
+
+### P3 resolved in `internal/goloader` (phase 5)
+- **Confirmed.** `packages.Config.Tests` adds, for each tested package, a
+  generated main named `<path>.test` whose single file is in the build cache.
+  `ExtractDefinitions` read its declarations, the facts marked them
+  `DECLARATION_OUTSIDE_REPOSITORY`, and each one became an invisible scope.
+- **Fix.** `Load` drops that package from the roots when the package it tests
+  is also loaded. A real main whose own path ends in `.test` is kept
+  (`TestLoadWithTestsKeepsAPackageWhoseImportPathEndsInTest`). Test files stay
+  indexed. The fact cache is keyed by the executable, so no stale entry is served.
+- **Smoke, two-package module with tests, `include_tests: true`, real binaries.**
+  Before: `unresolved: 12`, `LOWER_BOUND`, two `.test` scopes, 710 bytes for
+  `find_symbol`. After: `unresolved: 0`, no completeness block, 173 bytes.
+- **On this corpus it does not shrink the response.** Same repository, same
+  query: invisible scopes 77 to 13, `unresolved` 3,448 to 3,064, but
+  `find_symbol` goes from 5,647 to 5,716 bytes and the verdict stays
+  `LOWER_BOUND`. The 13 left are real: 7 `PACKAGE_NOT_BUILDABLE` and the
+  ambiguous and conflicting modules of this repository's own `testdata`
+  fixtures. My estimate in S6 (about 4 KB saved per call) was wrong for this
+  corpus; the benchmark was not rerun because it would measure no difference.
+- The fix helps repositories with `include_tests: true` and no fixtures like
+  these; here the fixtures keep the verdict at `LOWER_BOUND` anyway.
+
+### H7. The harness does not pass `GOMODCACHE`
+- **Observed.** `kivgraph index --full` under `HOME=<isolated>` with no
+  `GOMODCACHE` indexes 97 packages and 15,597 symbols only if the module cache
+  is found; without it the same command gave 9 packages and 63 symbols
+  (`MODULE_NOT_LOADED`), with `passed: true`. The sweep's graph was complete
+  (3,448 unresolved, 15,597 symbols), so its results stand. A rerun from a shell
+  that lacks the variable would silently index a hollow graph.
+- Not fixed in the harness.
