@@ -104,12 +104,49 @@ func (gate Gate) Decide(ctx context.Context, question Question) Decision {
 	case KindFiles:
 		return gate.decideFiles(question)
 	case KindSymbol:
+		if gate.searchesOnlyUncoveredFiles(question) {
+			return Allow
+		}
 		return gate.decideSymbol(ctx, question)
 	case KindIntent:
+		if gate.searchesOnlyUncoveredFiles(question) {
+			return Allow
+		}
 		return gate.decideIntent(ctx, question)
 	default:
 		return Allow
 	}
+}
+
+// searchesOnlyUncoveredFiles reports whether a search says where it looks and
+// looks only at files the graph does not cover: a manifest, a log, a glob over
+// configuration.
+//
+// The pattern alone cannot tell. `version` is declared by a dozen symbols and
+// is also a key in every package.json; refusing the second search because of
+// the first sent the caller to find_references for a JSON key.
+//
+// It needs one path that names a file type and is not source, and no path that
+// is. A path with no extension is a directory and can hold anything, so on its
+// own it proves nothing -- but beside a glob it is only where the glob looks.
+// A gate that was not told what the repository indexes cannot call any path
+// uncovered.
+func (gate Gate) searchesOnlyUncoveredFiles(question Question) bool {
+	if gate.Indexed == nil {
+		return false
+	}
+	uncovered := false
+	for _, name := range question.Paths {
+		extension := strings.ToLower(path.Ext(strings.TrimSpace(name)))
+		if extension == "" {
+			continue
+		}
+		if gate.Indexed(name) || namesLanguageType(extension) {
+			return false
+		}
+		uncovered = true
+	}
+	return uncovered
 }
 
 // briefSession attaches the briefing to the first Kivgraph tool call of a
