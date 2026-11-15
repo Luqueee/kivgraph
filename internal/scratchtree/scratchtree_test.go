@@ -180,6 +180,34 @@ func TestMaterialiseWritesNothingInsideTheRepository(t *testing.T) {
 	}
 }
 
+// The test above leaves `.git` out because reading a repository with git used
+// to refresh its index. It no longer does: a tracked file whose stat data moved
+// is exactly what made `git status` rewrite `.git/index` under its lock, in a
+// repository this package promises not to modify.
+func TestMaterialiseLeavesTheGitIndexAlone(t *testing.T) {
+	root := gitRepository(t)
+	moved := time.Now().Add(-48 * time.Hour)
+	if err := os.Chtimes(filepath.Join(root, "src", "kept.txt"), moved, moved); err != nil {
+		t.Fatal(err)
+	}
+	index := filepath.Join(root, ".git", "index")
+	before := read(t, index)
+
+	tree, err := Materialise(t.Context(),
+		workspace.Repository{Name: "fixture", Path: root, RealPath: root},
+		testsupport.TempDir(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tree.Close()
+	if tree.Strategy != StrategyArchive {
+		t.Fatalf("strategy = %q, want %q: the copy fallback never asks git", tree.Strategy, StrategyArchive)
+	}
+	if read(t, index) != before {
+		t.Fatal("materialising the tree rewrote .git/index of the repository it read")
+	}
+}
+
 func TestCloseRemovesEverythingTheAnalyzerWrote(t *testing.T) {
 	root := gitRepository(t)
 	tree, err := Materialise(t.Context(),

@@ -349,6 +349,9 @@ func contains(root, path string) bool {
 func overlayWorkingTree(ctx context.Context, source, root string) error {
 	status := exec.CommandContext(ctx, "git", "-C", source,
 		"status", "--porcelain", "-z", "--untracked-files=all")
+	// An observation of somebody else's repository: without this, the
+	// status refreshes the index and rewrites .git/index under its lock.
+	status.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0")
 	out, err := status.Output()
 	if err != nil {
 		return fmt.Errorf("git status: %w", err)
