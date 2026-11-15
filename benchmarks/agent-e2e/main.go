@@ -55,6 +55,7 @@ type config struct {
 	Trials       int
 	Only         string
 	Arms         string
+	Languages    string
 	Tasks        string
 	Setup        bool
 	BudgetUSD    float64
@@ -86,6 +87,7 @@ func main() {
 	flag.StringVar(&cfg.Arms, "arms", "cold,kivgraph,graft,code-review-graph,codebase-memory,graphify", "comma-separated arms to run")
 	flag.Float64Var(&cfg.BudgetUSD, "budget-usd", 1.5, "per-run spend cap, identical for every arm; 0 disables it")
 	flag.BoolVar(&cfg.Setup, "setup", true, "rebuild the private copy and register both indexes first")
+	flag.StringVar(&cfg.Languages, "languages", "go,typescript,rust", "languages kivgraph indexes in the copy; a corpus without installed dependencies cannot run the TypeScript worker")
 	flag.Parse()
 
 	if err := run(cfg); err != nil {
@@ -178,7 +180,7 @@ func run(cfg config) error {
 		Kivgraph: cfg.Kivgraph, Graft: cfg.Graft, CRG: cfg.CRG, CMM: cfg.CMM,
 		Graphify: cfg.Graphify, Home: cfg.Home, GraftContext: cfg.GraftContext,
 		CRGData: cfg.CRGData, CMMHome: cfg.CMMHome, Root: cfg.Root,
-		Repos: taskRepositories(selected),
+		Repos: taskRepositories(selected), Arms: cfg.Arms, Languages: cfg.Languages,
 	}
 	out := results{
 		Benchmark: benchmarkName, GeneratedAt: time.Now().UTC(), Model: cfg.Model,
@@ -216,8 +218,12 @@ func run(cfg config) error {
 		}
 		line := "  indexed:"
 		for _, name := range []string{"kivgraph", "graft", "code-review-graph", "graphify", "codebase-memory"} {
-			out.Setup.IndexMS[name] = append(out.Setup.IndexMS[name], indexed[name])
-			line += fmt.Sprintf(" %s %.1fs", name, indexed[name]/1000)
+			ms, built := indexed[name]
+			if !built {
+				continue
+			}
+			out.Setup.IndexMS[name] = append(out.Setup.IndexMS[name], ms)
+			line += fmt.Sprintf(" %s %.1fs", name, ms/1000)
 		}
 		fmt.Println(line)
 		out.Tasks = append(out.Tasks, taskRecord{
