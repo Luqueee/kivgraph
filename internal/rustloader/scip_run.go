@@ -181,14 +181,16 @@ func Run(ctx context.Context, options RunOptions) (RunResult, error) {
 	}
 	command[0] = resolved
 
-	options.Sysroot = hermeticSysroot(ctx, options)
+	sysroot, sysrootDiagnostic := hermeticSysroot(ctx, options)
+	options.Sysroot = sysroot
 	configPath := filepath.Join(options.OutputDirectory, "rust-analyzer.json")
 	if err := writeAnalyzerConfig(configPath, options); err != nil {
 		return RunResult{}, newRunError(RunErrorInvalidOptions, workspace, "write analyzer configuration", err)
 	}
 	indexPath := filepath.Join(options.OutputDirectory, "index.scip")
 
-	arguments := append(append([]string(nil), command[1:]...),
+	arguments := append(
+		append([]string(nil), command[1:]...),
 		"scip", workspace,
 		"--output", indexPath,
 		"--config-path", configPath,
@@ -240,10 +242,14 @@ func Run(ctx context.Context, options RunOptions) (RunResult, error) {
 	if err := validateIndex(index); err != nil {
 		return RunResult{}, newRunError(RunErrorAnalyzerUnsupported, workspace, err.Error(), nil)
 	}
+	diagnostics := classifyDiagnostics(stderr.String())
+	if sysrootDiagnostic != "" {
+		diagnostics = append(diagnostics, sysrootDiagnostic)
+	}
 	return RunResult{
 		Index:       index,
 		ToolVersion: index.ToolVersion,
-		Diagnostics: classifyDiagnostics(stderr.String()),
+		Diagnostics: diagnostics,
 		Duration:    duration,
 	}, nil
 }
@@ -370,18 +376,20 @@ func sysrootValue(sysroot string) *string {
 // from the workspace, which is what honours a `rust-toolchain.toml` -- is
 // asked here and the answer passed on.
 //
-// shortcut: when no `rustc` answers, `discover` is passed through, because the
-// analyzer may still find a toolchain by means this probe does not have;
-// answer `none` there if that path is ever seen to install.
-func hermeticSysroot(ctx context.Context, options RunOptions) string {
+// When no `rustc` answers there is no path to pass, and `discover` is still
+// not passed: the answer is `none`, with a diagnostic, so the pass says the
+// standard library was not loaded instead of leaving the analyzer to look for
+// a toolchain and install into it.
+func hermeticSysroot(ctx context.Context, options RunOptions) (string, string) {
 	if options.AllowNetwork || !strings.EqualFold(strings.TrimSpace(options.Sysroot), "discover") {
-		return options.Sysroot
+		return options.Sysroot, ""
 	}
 	_, root, reason := probeToolchain(ctx, strings.TrimSpace(options.Workspace))
 	if reason != "" {
-		return options.Sysroot
+		return "none", "WARN no rustc answered `--print sysroot` (" + string(reason) +
+			"), so the standard library was not loaded"
 	}
-	return root
+	return root, ""
 }
 
 // validateIndex refuses an index this build cannot place in a file or

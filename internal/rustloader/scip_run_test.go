@@ -48,16 +48,25 @@ func requireAnalyzer(t *testing.T) {
 	testsupport.RequireRustAnalyzer(t)
 }
 
-// TestHermeticSysrootPassesThroughWhatItCannotResolve covers the answers that
-// are not a discovered path: a value the caller chose is the caller's, and
-// without a `rustc` there is no path to substitute.
-func TestHermeticSysrootPassesThroughWhatItCannotResolve(t *testing.T) {
-	t.Setenv("PATH", "")
-	for _, sysroot := range []string{"discover", "none", "", "/opt/toolchain"} {
-		got := hermeticSysroot(context.Background(), RunOptions{Workspace: t.TempDir(), Sysroot: sysroot})
-		if got != sysroot {
-			t.Fatalf("hermeticSysroot(%q) = %q", sysroot, got)
+// TestHermeticSysrootNeverPassesDiscoveryOn: without a `rustc` there is no path
+// to substitute, and the answer is still not `discover` -- it is `none`, said
+// out loud. A value the caller chose is the caller's.
+func TestHermeticSysrootNeverPassesDiscoveryOn(t *testing.T) {
+	withoutToolchain(t)
+	sysroot, diagnostic := hermeticSysroot(context.Background(), RunOptions{Workspace: t.TempDir(), Sysroot: "discover"})
+	if sysroot != "none" || !strings.Contains(diagnostic, string(SysrootToolchainNotFound)) {
+		t.Fatalf("hermeticSysroot(discover) = %q, %q", sysroot, diagnostic)
+	}
+	for _, chosen := range []string{"none", "", "/opt/toolchain"} {
+		sysroot, diagnostic := hermeticSysroot(context.Background(), RunOptions{Workspace: t.TempDir(), Sysroot: chosen})
+		if sysroot != chosen || diagnostic != "" {
+			t.Fatalf("hermeticSysroot(%q) = %q, %q", chosen, sysroot, diagnostic)
 		}
+	}
+	sysroot, diagnostic = hermeticSysroot(context.Background(),
+		RunOptions{Workspace: t.TempDir(), Sysroot: "discover", AllowNetwork: true})
+	if sysroot != "discover" || diagnostic != "" {
+		t.Fatalf("hermeticSysroot(discover, network) = %q, %q", sysroot, diagnostic)
 	}
 }
 

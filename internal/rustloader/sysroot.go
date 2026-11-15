@@ -98,9 +98,35 @@ func DiscoverSysroot(ctx context.Context, workingDirectory string) (SysrootProvi
 	return SysrootProvider{Repository: repository, Toolchain: toolchain, LibraryPath: repository.RealPath}, "", nil
 }
 
+// LookToolchain answers the executable of the Rust toolchain that the analyzer
+// itself would run, which is not the one the PATH names.
+//
+// rust-analyzer reads `$RUSTC` (the variable named after the tool), then
+// `$CARGO_HOME/bin`, which defaults to `~/.cargo/bin`, and only then the PATH.
+// A probe that read the PATH alone found no toolchain in a process started
+// with a minimal one -- a service, a launchd job -- while the analyzer it then
+// started found `~/.cargo/bin/rustc` and discovered a sysroot on its own.
+func LookToolchain(name string) (string, error) {
+	if chosen := strings.TrimSpace(os.Getenv(strings.ToUpper(name))); chosen != "" {
+		return exec.LookPath(chosen)
+	}
+	home := strings.TrimSpace(os.Getenv("CARGO_HOME"))
+	if home == "" {
+		if user, err := os.UserHomeDir(); err == nil {
+			home = filepath.Join(user, ".cargo")
+		}
+	}
+	if home != "" {
+		if resolved, err := exec.LookPath(filepath.Join(home, "bin", name)); err == nil {
+			return resolved, nil
+		}
+	}
+	return exec.LookPath(name)
+}
+
 // probeToolchain reads the release and the sysroot root from `rustc`.
 func probeToolchain(ctx context.Context, workingDirectory string) (string, string, SysrootUnavailableReason) {
-	binary, err := exec.LookPath("rustc")
+	binary, err := LookToolchain("rustc")
 	if err != nil {
 		return "", "", SysrootToolchainNotFound
 	}
