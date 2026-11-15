@@ -157,6 +157,18 @@ func (store *Store) Publish(ctx context.Context, request PublishRequest) (public
 	}, nil
 }
 
+// lockStore takes the cross-process publish lock for an operation that moves
+// a pointer or removes a generation.
+//
+// Publish reads CURRENT, builds for minutes and only then writes the
+// pointers. Anything that changed them in between was overwritten without a
+// word: a rollback reported success and the rebuild in flight undid it.
+// Holding the same lock makes the two exclude each other, and the loser is
+// told with ErrPublishInProgress instead of being undone.
+func (store *Store) lockStore() (*publishLock, error) {
+	return acquirePublishLock(filepath.Join(store.root, "publish.lock"))
+}
+
 func (store *Store) Restore(ctx context.Context, id string, validate ValidateFunc) (returnErr error) {
 	store.mu.Lock()
 	defer store.mu.Unlock()
@@ -169,6 +181,13 @@ func (store *Store) Restore(ctx context.Context, id string, validate ValidateFun
 	if err := store.prepare(ctx); err != nil {
 		return err
 	}
+	lock, err := store.lockStore()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		returnErr = errors.Join(returnErr, lock.release())
+	}()
 	previous, err := store.currentGeneration()
 	if err != nil {
 		return err

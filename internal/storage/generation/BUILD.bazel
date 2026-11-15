@@ -61,6 +61,9 @@ go_library(
 
 go_test(
     name = "generation_test",
-    srcs = ["store_test.go"],
+    srcs = [
+        "store_lock_test.go",
+        "store_test.go",
+    ],
     embed = [":generation"],
 )
