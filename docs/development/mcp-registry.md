@@ -1,9 +1,13 @@
 # Publishing to the official MCP Registry
 
-Kivgraph is listed at `io.github.Luqueee/kivgraph` in the registry at
-`registry.modelcontextprotocol.io`. This document is what the release workflow
-does on a tag and, more usefully, **why the shape is what it is** -- most of it
-is forced by constraints that are not obvious and that cost a release to
+This distribution is **not listed** in the registry at
+`registry.modelcontextprotocol.io`, and the release job that would publish it
+is off until the repository variable `PUBLISH_MCP_REGISTRY` is `true` (ADR
+0118). The name it would publish as is `io.github.Tutitoos/kivgraph`; the
+project this repository began as is listed separately, under its own
+namespace. This document is what the release workflow does on a tag when the
+job is on and, more usefully, **why the shape is what it is** -- most of it is
+forced by constraints that are not obvious and that cost a release to
 discover.
 
 The registry stores metadata only. The artifact stays on the GitHub release.
@@ -108,7 +112,7 @@ sidestep it would be worse. This is a limitation to carry, not to hide.
 
 The release job authenticates with `mcp-publisher login github-oidc`, which
 proves the identity of the repository itself -- the same repository that owns
-the `io.github.Luqueee/` namespace being published to.
+the `io.github.Tutitoos/` namespace being published to.
 
 The alternative, `mcp-publisher login github`, opens an interactive device flow
 that no unattended run can complete, and a personal access token in the

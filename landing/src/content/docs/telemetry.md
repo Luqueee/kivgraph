@@ -1,132 +1,59 @@
 ---
 title: Telemetry
-description: What Kivgraph reports, what it never reports, and the one variable that turns it off.
+description: This distribution of Kivgraph reports nothing. What that covers, and how to check it.
 ---
 
-Releases from `v0.9.3` onward report one event when `serve` or the daemon runs
-for the first time on a machine, and the installers report a second,
-independent event when they finish. Builds that include supervisor telemetry
-send a third when `kivgraph daemon install` successfully registers a supervisor
-entry. The contract is tied to the first release that shipped it rather than a
-hand-maintained "latest release" label that can go stale.
+**This distribution reports nothing.** No event is sent when Kivgraph is
+installed, when it first runs, or when the daemon is registered with the
+platform. There is no collector to send one to.
 
-## The one thing it reports
+## What changed, and from when
 
-A single event: **this version arrived here, and what it just did**. For one
-address, version and UTC day, the collector accepts at most one row per
-emitter, so up to three emitter types can be present. The installer has no
-local marker and can report again on another day. The rows are never added
-together: a bundle can be installed and never launched, and a daemon can be
-run once without ever being installed as a service.
+Kivgraph began as another project, whose releases `v0.9.3` to `v0.9.10`
+reported three events to a collector that project operates: one from the
+installers, one when `serve` or the daemon first ran, and one when
+`kivgraph daemon install` registered a supervisor entry.
 
-It carries up to five fields and nothing else:
+Releases published from this repository, from `v0.10.0-dev.1` onward, send
+none of them:
 
-| field | values | what it says |
-| --- | --- | --- |
-| `emitter` | `installer`, `binary`, `supervisor` | which of the three just happened |
-| `version` | `MAJOR.MINOR.PATCH`, as in `0.9.5` | which version |
-| `platform` | `linux-amd64`, `darwin-arm64`, `windows-amd64` | which build |
-| `channel` | `installer`, `mcpb`, `archive` | how it got there |
-| `transport` | `stdio`, `daemon` | which arrangement served, on `binary` rows only; absent otherwise |
+- the installers no longer make the request, and no longer print the notice
+  that announced it;
+- the binary is built with no endpoint, so the first-run and supervisor events
+  are never sent, no marker is written for them, and nothing is printed.
 
-That is the entire payload. There is no field for anything else, so there is
-no version of it that carries more.
+A release installed from the original project keeps the behaviour that
+project documents. This page describes only what is published here.
 
-## What is never reported
+## What never leaves your machine
 
-- **Nothing about your code.** No repository name, no path, no file name, no
-  symbol, no query, no result. The graph never leaves your machine, and this
-  ping is not a channel that could carry part of it.
-- **No identifier minted by us.** Kivgraph does not generate a machine id, an
-  install id or a user id, and does not store one.
-- **No hostname, no user name, no environment.**
-- **No address stored by us.** The Cloudflare edge sees an address, as it does
-  for every HTTP request. It combines that address with a secret salt, the UTC
-  day, version and emitter, stores only the SHA-256 result, and rotates the
-  result every day. For one emitter and version on one UTC day, everyone behind
-  one NAT counts as one machine.
-- **A country code, and only that rough location, is stored.** Cloudflare
-  derives it before the event reaches the database. No city, street,
-  coordinates or address are kept.
+Nothing about your code, in any release: no repository name, path, file name,
+symbol, query or result. The graph is built and served locally.
 
-## Why the ping exists at all
+## Checking it
 
-Download counts cannot answer it. GitHub counts a download when a URL is
-fetched, and some of every release's downloads are our own: the release job
-publishes three bundles to a package registry, which fetches each one back to
-verify the checksum it was given. A directory mirroring a
-registry looks exactly like a person installing, and a bundle can be
-downloaded and never run.
+`KIVGRAPH_TELEMETRY=0` is still accepted, so a configuration that sets it
+keeps working. It is no longer needed.
 
-*How many machines ran it* is a different question from *how many files were
-fetched*, and only the binary can answer it.
+To see for yourself that a binary sends nothing, the endpoint is a constant
+you can read: `Endpoint` in `internal/telemetry/firstrun.go` is the empty
+string, and `TestABuildWithNoCollectorReportsNothing` fails if a build with no
+endpoint makes any request at all.
 
-## What never reports at all
+## Requests Kivgraph does make
 
-A binary that is not sitting in the layout a release unpacks into does not
-report -- it looks for that layout around itself, and the output of `go build`
-or `go install` is not in one. That is a check on the surroundings and not on
-who compiled the binary: your own build, dropped into an unpacked release,
-would report. It also keeps our own continuous integration, which builds and
-runs Kivgraph on every push, out of a number that is supposed to be about you.
+Three, all of them to GitHub and none carrying anything about you or your
+code:
 
-The binary reports only when it starts serving: `kivgraph serve` and the
-daemon. Running `kivgraph index` in a terminal sends nothing, and neither does
-`kivgraph daemon status` or `kivgraph daemon remove` -- only `install`
-registers the entry that the third fact reports.
+- an installer fetches the release archive and its `SHA256SUMS`;
+- `kivgraph update` asks the GitHub API for the latest release and downloads
+  it;
+- running `kivgraph` with no command asks the same API, at most once a day,
+  whether a newer release exists, so it can say so.
 
-## Turning it off
-
-Fetching an installer from `kivgraph.dev` records one delivery request before
-the shell starts: timestamp, the observed `User-Agent`, its parsed client
-family and version, whether it names a known CI runner, and the country code
-Cloudflare supplies. It stores no address, cookie or query string. The request
-then redirects to the unmodified installer asset on GitHub, and a storage
-failure never blocks that redirect.
-
-That delivery fact cannot read `KIVGRAPH_TELEMETRY`, because the environment
-belongs to the shell that has not started yet. To avoid it, fetch the same
-published asset directly:
-
-```sh
-curl -fsSL https://github.com/Luqueee/kivgraph/releases/latest/download/install.sh | KIVGRAPH_TELEMETRY=0 bash
-```
-
-Kivgraph's published release assets are public, and this fallback is an
-unauthenticated public-release download. A private GitHub release would require
-an authenticated download before starting the installer.
-
-The switch below controls the installer-completed, first-run and supervisor
-events.
-
-```sh
-export KIVGRAPH_TELEMETRY=0
-```
-
-Set anywhere the process can see it -- your shell, the MCP client's `env`
-block, the systemd unit -- and nothing is sent. There is no second switch on
-your side and no partial mode.
-
-The installers take the same variable. It has to reach the **shell**, not the
-download:
-
-```sh
-curl -fsSL https://kivgraph.dev/install.sh | KIVGRAPH_TELEMETRY=0 bash
-```
-
-Turning it off costs you nothing: no feature checks it, and no behaviour
-changes.
-
-## Where it goes
-
-The exact `/api/telemetry/first-run` route terminates in a Cloudflare Worker.
-The Worker validates the closed payload, replaces the address with the daily
-hash described above and writes the event to the project's Cloudflare D1
-database. The internal dashboard reads daily aggregates from that database.
-It does not go to the website's Umami property, a third-party analytics vendor
-or an ad network.
+GitHub records those as it records any request.
 
 ## When it changes
 
 This page changes in the same commit as the code, or the change does not ship.
-If a field is ever added, it is described here first.
+If anything is ever reported again, it is described here first.

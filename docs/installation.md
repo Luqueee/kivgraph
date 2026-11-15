@@ -102,7 +102,7 @@ reciente para ella, verifica el checksum del archivo y después los checksums
 internos del bundle:
 
 ```bash
-curl -fsSL https://kivgraph.dev/install.sh | bash
+curl -fsSL https://github.com/Tutitoos/kivgraph/releases/latest/download/install.sh | bash
 ```
 
 El instalador no requiere Go, pnpm ni un compilador C. Para fijar una versión:
@@ -159,7 +159,7 @@ Para desinstalar el bundle y los launchers sin borrar la configuración, los
 registros de repositorios ni el estado del grafo:
 
 ```bash
-uninstall_url=https://github.com/Luqueee/kivgraph/releases/latest/download/uninstall.sh
+uninstall_url=https://github.com/Tutitoos/kivgraph/releases/latest/download/uninstall.sh
 curl -fsSL "$uninstall_url" -o /tmp/kivgraph-uninstall.sh
 bash /tmp/kivgraph-uninstall.sh
 ```
@@ -263,7 +263,7 @@ Este flujo es útil para desarrollo o para una plataforma para la que no exista
 un bundle de distribución:
 
 ```bash
-git clone https://github.com/Luqueee/kivgraph.git
+git clone https://github.com/Tutitoos/kivgraph.git
 cd kivgraph
 
 scripts/fetch-ladybug.sh

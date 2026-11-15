@@ -1,5 +1,11 @@
 # Analytics: Umami for SEO
 
+> **This describes the original project's site, not this distribution.** The
+> landing, the Umami property, the installer delivery log and the first-run
+> collector below are deployed and operated by the project this repository
+> began as. Releases published here deploy no site and send no telemetry
+> (ADR 0118). The document is kept as the record of how that system works.
+
 This document describes how the landing site's analytics are wired, what they
 record, what they do **not** record, and how to use them to answer SEO
 questions. It is not user documentation: `docs/` is internal material and is
