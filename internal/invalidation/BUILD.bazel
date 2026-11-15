@@ -15,7 +15,10 @@ go_library(
 
 go_test(
     name = "invalidation_test",
-    srcs = ["state_test.go"],
+    srcs = [
+        "published_test.go",
+        "state_test.go",
+    ],
     embed = [":invalidation"],
     deps = [
         "//internal/sourceobservation",
