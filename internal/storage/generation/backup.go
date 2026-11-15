@@ -70,6 +70,9 @@ func (store *Store) Prune(ctx context.Context) (removed []string, returnErr erro
 	if err != nil {
 		return nil, err
 	}
+	if err := store.removeAbandonedCandidates(); err != nil {
+		return nil, err
+	}
 	for _, candidate := range generations {
 		if candidate.ID == current.ID || (hasBackup && candidate.ID == backup.ID) {
 			continue
@@ -112,6 +115,9 @@ func (store *Store) Discard(ctx context.Context) (removed []string, returnErr er
 	}()
 	generations, err := store.listGenerations()
 	if err != nil {
+		return nil, err
+	}
+	if err := store.removeAbandonedCandidates(); err != nil {
 		return nil, err
 	}
 	for _, pointer := range []string{store.current, store.backup} {
@@ -195,6 +201,9 @@ func (store *Store) DiscardExcept(ctx context.Context, id string) (removed []str
 	}
 	if err == nil && current.ID != id {
 		return nil, fmt.Errorf("generation %s is no longer active: %s is", id, current.ID)
+	}
+	if err := store.removeAbandonedCandidates(); err != nil {
+		return nil, err
 	}
 	if err := os.Remove(store.backup); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("remove BACKUP: %w", err)
@@ -310,6 +319,33 @@ func (store *Store) listGenerations() ([]Generation, error) {
 		generations[i] = store.generation(id, filepath.Join(store.generations, id))
 	}
 	return generations, nil
+}
+
+// removeAbandonedCandidates deletes every "<id>.tmp" directory. The caller
+// holds the publish lock, and that is what makes it safe: a candidate exists
+// only while its writer holds the same lock, so one found now was left by a
+// rebuild that died -- an OOM, a closed terminal. Publish reclaims the one
+// whose id it is about to reuse; after a `clean` the numbering starts over
+// and the others would never be reused, so a partial database of several
+// gigabytes stayed on disk for good while `clean` reported the store empty.
+func (store *Store) removeAbandonedCandidates() error {
+	entries, err := os.ReadDir(store.generations)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("list abandoned candidates: %w", err)
+	}
+	for _, entry := range entries {
+		id, isCandidate := strings.CutSuffix(entry.Name(), ".tmp")
+		if !isCandidate || !entry.IsDir() || validateGenerationID(id) != nil {
+			continue
+		}
+		if err := os.RemoveAll(filepath.Join(store.generations, entry.Name())); err != nil {
+			return fmt.Errorf("remove abandoned candidate %s: %w", entry.Name(), err)
+		}
+	}
+	return nil
 }
 
 // writeCurrent atomically repoints CURRENT at id.

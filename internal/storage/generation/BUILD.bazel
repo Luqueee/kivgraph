@@ -62,6 +62,7 @@ go_library(
 go_test(
     name = "generation_test",
     srcs = [
+        "store_candidates_test.go",
         "store_lock_test.go",
         "store_test.go",
     ],
