@@ -78,6 +78,7 @@ go_test(
         "status_test.go",
         "text_result_test.go",
         "trace_dependencies_test.go",
+        "trace_members_test.go",
         "trace_witness_test.go",
         "unresolved_test.go",
         "view_test.go",
