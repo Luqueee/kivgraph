@@ -81,12 +81,11 @@ const READOUT =
 <div class="mt-10">
   <p class="max-w-[68ch] text-xs leading-5 text-gray-400">
     <code>kivgraph ui</code> serves that view. It binds <code
-      >0.0.0.0:7777</code
+      >127.0.0.1:7777</code
     > by default and carries <strong class="text-graph-symbol"
       >no authentication</strong
-    >, so on a shared network restrict it with <code>--addr 127.0.0.1:7777</code
-    >; what it exposes is repository paths, file paths, symbol names and
-    signatures. Its palette is the one the transcripts on this page borrow: one
+    >, so exposing it with <code>--addr</code> shows repository paths, file
+    paths, symbol names and signatures to whoever can reach it. Its palette is the one the transcripts on this page borrow: one
     colour per node kind, plus one for an exact, type-checked edge.
   </p>
   <ul class="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-xs text-gray-400">

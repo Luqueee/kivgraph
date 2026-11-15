@@ -6,8 +6,8 @@ incluye el binario Go, la biblioteca nativa fijada de LadybugDB, el worker
 TypeScript, las grammars, los avisos de licencia y el visor web bajo `web/`.
 
 El visor viene en la release: tras instalar, `kivgraph ui` sirve el grafo
-publicado en `0.0.0.0:7777` sin construir nada, porque lo normal es indexar
-donde están los repositorios y mirar el grafo desde otra máquina. Un bundle
+publicado en `127.0.0.1:7777` sin construir nada; para mirarlo desde otra máquina
+hay que pedir otra dirección con `--addr` o `web.address`. Un bundle
 generado con `--mcp-only` no lo lleva, y en ese caso la ayuda marca `ui` como
 no disponible en lugar de ofrecer un comando que termina en error.
 

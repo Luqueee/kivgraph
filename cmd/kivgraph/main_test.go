@@ -623,8 +623,8 @@ func TestRunConfiguredUIListensOnEveryInterfaceByDefault(t *testing.T) {
 	}
 
 	err := runConfiguredUI(context.Background(), []string{"--config", configPath}, func(_ context.Context, address string, _ http.Handler) error {
-		if address != "0.0.0.0:7777" {
-			t.Fatalf("address = %q, want 0.0.0.0:7777", address)
+		if address != "127.0.0.1:7777" {
+			t.Fatalf("address = %q, want 127.0.0.1:7777", address)
 		}
 		return nil
 	}, true)

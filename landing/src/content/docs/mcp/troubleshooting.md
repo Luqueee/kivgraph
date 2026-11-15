@@ -471,7 +471,7 @@ ui: this binary carries no web bundle; build one with scripts/build-bundle.sh (w
 
 The published release carries the viewer: the release workflow builds without `--mcp-only` and verifies both halves, that `web/index.html` is in the payload and that the help does not mark `ui` unavailable. If your binary refuses, it was built with `--mcp-only` or from a source checkout without the tag. Install the published release, or rebuild the bundle without `--mcp-only`.
 
-The viewer is opt-in and serves only the published `HotSnapshot` over read-only HTTP. Its default bind is `0.0.0.0:7777`, and it logs the address it bound, including the one a port `0` resolves to.
+The viewer is opt-in and serves only the published `HotSnapshot` over read-only HTTP. Its default bind is `127.0.0.1:7777`, and it logs the address it bound, including the one a port `0` resolves to.
 
 ## Where to look next
 

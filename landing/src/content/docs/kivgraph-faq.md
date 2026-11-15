@@ -21,7 +21,7 @@ On the current run it does: 35,961 tokens over 36 tool calls against 267,980 tok
 
 ## Does my code leave my machine?
 
-No. The indexer, the canonical store, the published snapshot and the MCP server all run locally, and the server speaks stdio to a client on the same machine. One caveat deserves to be stated plainly: `kivgraph ui` is a local HTTP listener that binds `0.0.0.0:7777` by default and carries **no authentication**, so anything that can reach that port reads your repository paths, file paths, symbol names and signatures. Bind it to loopback with `--addr 127.0.0.1:7777`, or set `web.address`, unless you intend it to be reachable — see [limits](/limits/) and the [viewer guide](/guides/viewer/).
+No. The indexer, the canonical store, the published snapshot and the MCP server all run locally, and the server speaks stdio to a client on the same machine. One caveat deserves to be stated plainly: `kivgraph ui` is a local HTTP listener that binds `127.0.0.1:7777` by default and carries **no authentication**. If you bind it to another address with `--addr` or `web.address`, anything that can reach that port reads your repository paths, file paths, symbol names and signatures, so do that only if you intend it to be reachable. A configuration written by an earlier `init` carries `0.0.0.0:7777`; change it — see [limits](/limits/) and the [viewer guide](/guides/viewer/).
 
 ## Does Kivgraph require an LLM or an API key?
 

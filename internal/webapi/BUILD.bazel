@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "binary.go",
         "handler.go",
+        "host.go",
         "server.go",
         "topology.go",
         "topology_types.go",
@@ -29,6 +30,7 @@ go_test(
     srcs = [
         "binary_test.go",
         "handler_test.go",
+        "host_test.go",
         "server_test.go",
     ],
     embed = [":webapi"],

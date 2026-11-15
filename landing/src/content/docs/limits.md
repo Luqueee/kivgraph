@@ -109,9 +109,9 @@ database against `ENOSPC`; the qualification is recorded as
 
 ## The viewer is unauthenticated
 
-`kivgraph ui` binds `0.0.0.0:7777` by default and carries no authentication.
-Its responses contain repository and file paths, symbol names and signatures.
-The bind is a deliberate default — the graph is built where the repositories
-are and the viewer is usually opened from another machine — but it is not a
-safe one on a shared network. Restrict it with `--addr 127.0.0.1:7777` or
-`web.address`. See the [viewer guide](/guides/viewer/).
+`kivgraph ui` carries no authentication. Its responses contain repository and
+file paths, symbol names and signatures. It binds `127.0.0.1:7777` by default,
+so only this machine reaches it; exposing it on a network is a choice
+(`--addr` or `web.address`) and is not safe on a shared one. A configuration
+written by an earlier `init` carries `0.0.0.0:7777` and keeps it. See the
+[viewer guide](/guides/viewer/).

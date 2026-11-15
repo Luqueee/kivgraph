@@ -51,7 +51,7 @@ answer than the keys were a mistake.
 
 | Key | Default | Notes |
 | --- | --- | --- |
-| `address` | `0.0.0.0:7777` | Bind of `kivgraph ui`. Must be a valid `host:port`. Every non-loopback bind logs what it exposes; there is no authentication. |
+| `address` | `127.0.0.1:7777` | Bind of `kivgraph ui`. Must be a valid `host:port`. A loopback bind refuses a request whose `Host` is not this machine. Every non-loopback bind logs what it exposes; there is no authentication. A configuration written by an earlier `init` carries `0.0.0.0:7777` and keeps it. |
 
 ## `mcp`
 

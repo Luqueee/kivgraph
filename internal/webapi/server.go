@@ -53,6 +53,9 @@ func Run(ctx context.Context, address string, handler http.Handler, options ...O
 	if resolved.onListen != nil {
 		resolved.onListen(listener.Addr())
 	}
+	if loopbackListener(listener.Addr()) {
+		handler = requireLoopbackHost(handler)
+	}
 	return serve(ctx, listener, handler)
 }
 
