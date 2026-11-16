@@ -78,24 +78,61 @@ func DiscoverSysroot(ctx context.Context, workingDirectory string) (SysrootProvi
 	if err := ctx.Err(); err != nil {
 		return SysrootProvider{}, "", err
 	}
-	toolchain, root, reason := probeToolchain(ctx, workingDirectory)
-	if reason != "" {
-		return SysrootProvider{}, reason, nil
+	provider, reason := sysrootFrom(askToolchain(ctx, workingDirectory))
+	return provider, reason, nil
+}
+
+// ToolchainIdentity is what one `rustc` says about itself, asked once: the
+// version line and whether its library sources are installed.
+type ToolchainIdentity struct {
+	// Version is the line `rustc --version` printed, empty when it did not
+	// answer.
+	Version string
+	// Answered is whether `rustc --version` answered at all, so that an empty
+	// line is not mistaken for no answer.
+	Answered bool
+	// Library is why the standard library is not available, empty when its
+	// sources are installed. It is the answer DiscoverSysroot gives.
+	Library SysrootUnavailableReason
+}
+
+// ProbeToolchainIdentity asks `rustc` for its version and its sysroot with one
+// `--version` and one `--print sysroot`. A caller that needs both -- the
+// fingerprint of the analyzer does -- would otherwise start `rustc --version`
+// twice, once for the line and once inside DiscoverSysroot.
+func ProbeToolchainIdentity(ctx context.Context, workingDirectory string) (ToolchainIdentity, error) {
+	if ctx == nil {
+		ctx = context.Background()
 	}
+	if err := ctx.Err(); err != nil {
+		return ToolchainIdentity{}, err
+	}
+	probe := askToolchain(ctx, workingDirectory)
+	_, reason := sysrootFrom(probe)
+	return ToolchainIdentity{Version: probe.version, Answered: probe.answered, Library: reason}, nil
+}
+
+// sysrootFrom turns what `rustc` answered into the standard library, or says why
+// there is none.
+func sysrootFrom(probe toolchainProbe) (SysrootProvider, SysrootUnavailableReason) {
+	if probe.reason != "" {
+		return SysrootProvider{}, probe.reason
+	}
+	toolchain, root := probe.release, probe.root
 	library := filepath.Join(root, "lib", "rustlib", "src", "rust", "library")
 	repository, err := workspace.NewSyntheticRepository(SyntheticRepositoryName(toolchain), library, []string{RustLanguage})
 	if err != nil {
 		// The library directory of a toolchain is not something a user
 		// chose, so a path this policy rejects is a machine this build
 		// cannot index hermetically, not a mistake to correct.
-		return SysrootProvider{}, SysrootSourceMissing, nil
+		return SysrootProvider{}, SysrootSourceMissing
 	}
 	if _, err := os.Stat(filepath.Join(repository.RealPath, "Cargo.toml")); err != nil {
 		// A toolchain without library sources carries only artifacts.
 		// `rustup component add rust-src` installs them.
-		return SysrootProvider{}, SysrootSourceMissing, nil
+		return SysrootProvider{}, SysrootSourceMissing
 	}
-	return SysrootProvider{Repository: repository, Toolchain: toolchain, LibraryPath: repository.RealPath}, "", nil
+	return SysrootProvider{Repository: repository, Toolchain: toolchain, LibraryPath: repository.RealPath}, ""
 }
 
 // LookToolchain answers the executable of the Rust toolchain that the analyzer
@@ -134,25 +171,49 @@ func ToolchainVersion(ctx context.Context, binary, workingDirectory string) (str
 	return runToolchainProbe(ctx, binary, workingDirectory, "--version")
 }
 
-// probeToolchain reads the release and the sysroot root from `rustc`.
-func probeToolchain(ctx context.Context, workingDirectory string) (string, string, SysrootUnavailableReason) {
+// toolchainProbe is everything one pair of questions to `rustc` answered. The
+// version line is kept when the release in it could not be read, because a
+// toolchain that answers is not the same fact as one that does not.
+type toolchainProbe struct {
+	version  string
+	answered bool
+	release  string
+	root     string
+	reason   SysrootUnavailableReason
+}
+
+// askToolchain asks `rustc` for its version and then, if the release can be read
+// from it, for its sysroot.
+func askToolchain(ctx context.Context, workingDirectory string) toolchainProbe {
+	notFound := toolchainProbe{reason: SysrootToolchainNotFound}
 	binary, err := LookToolchain("rustc")
 	if err != nil {
-		return "", "", SysrootToolchainNotFound
+		return notFound
 	}
 	version, err := runToolchainProbe(ctx, binary, workingDirectory, "--version")
 	if err != nil {
-		return "", "", SysrootToolchainNotFound
+		return notFound
 	}
-	release := toolchainRelease(version)
-	if release == "" {
-		return "", "", SysrootToolchainNotFound
+	probe := toolchainProbe{version: version, answered: true, reason: SysrootToolchainNotFound}
+	probe.release = toolchainRelease(version)
+	if probe.release == "" {
+		return probe
 	}
 	root, err := runToolchainProbe(ctx, binary, workingDirectory, "--print", "sysroot")
 	if err != nil || root == "" {
-		return "", "", SysrootToolchainNotFound
+		return probe
 	}
-	return release, root, ""
+	probe.root, probe.reason = root, ""
+	return probe
+}
+
+// probeToolchain reads the release and the sysroot root from `rustc`.
+func probeToolchain(ctx context.Context, workingDirectory string) (string, string, SysrootUnavailableReason) {
+	probe := askToolchain(ctx, workingDirectory)
+	if probe.reason != "" {
+		return "", "", probe.reason
+	}
+	return probe.release, probe.root, ""
 }
 
 // ProbeEnvironment is the environment of a process that asks the toolchain a

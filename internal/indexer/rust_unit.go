@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/rustloader"
@@ -518,15 +519,53 @@ func rustAnalysisFingerprint(options FullOptions) string {
 	hash := sha256.New()
 	probes := probeDirectory()
 	command := strings.Fields(strings.TrimSpace(options.RustAnalyzer))
-	fmt.Fprintf(hash, "command=%s\x00", strings.Join(command, " "))
-	if len(command) != 0 {
+
+	// The three questions are independent and each starts processes, so they are
+	// asked together and their answers written in the order they always were: the
+	// value does not depend on which one finished first.
+	var (
+		analyzer      string
+		identity      rustloader.ToolchainIdentity
+		identityError error
+		cargo         string
+		wait          sync.WaitGroup
+	)
+	wait.Add(3)
+	go func() {
+		defer wait.Done()
+		if len(command) == 0 {
+			return
+		}
 		if resolved, _, err := rustloader.ResolveAnalyzer(command[0]); err == nil {
-			fmt.Fprintf(hash, "analyzer=%s\x00", fileFingerprint(resolved))
+			analyzer = fmt.Sprintf("analyzer=%s\x00", fileFingerprint(resolved))
 			if version, err := rustloader.ToolchainVersion(context.Background(), resolved, probes); err == nil {
-				fmt.Fprintf(hash, "version=%s\x00", version)
+				analyzer += fmt.Sprintf("version=%s\x00", version)
 			}
 		}
-	}
+	}()
+	go func() {
+		defer wait.Done()
+		// The standard library in the graph is decided by `rustc`, not by cargo:
+		// a toolchain change is what invalidates every fact taken from it, and an
+		// entry that did not record the release would be served across one. It is
+		// the `rustc` the analyzer runs, which the PATH does not decide. Whether
+		// that toolchain carries its library sources is part of the answer too: a
+		// pass never installs them, so a machine that gains `rust-src` must not be
+		// served the facts it produced without it. One probe answers both.
+		identity, identityError = rustloader.ProbeToolchainIdentity(context.Background(), probes)
+	}()
+	go func() {
+		defer wait.Done()
+		if path, err := exec.LookPath("cargo"); err == nil {
+			if version, err := rustloader.ToolchainVersion(context.Background(), path, probes); err == nil {
+				cargo = fmt.Sprintf("cargo=%s\x00", version)
+			}
+		}
+	}()
+	wait.Wait()
+
+	fmt.Fprintf(hash, "command=%s\x00", strings.Join(command, " "))
+	fmt.Fprint(hash, analyzer)
 	features := append([]string(nil), options.RustFeatures...)
 	sort.Strings(features)
 	cfgs := append([]string(nil), options.RustCfgs...)
@@ -537,25 +576,12 @@ func rustAnalysisFingerprint(options FullOptions) string {
 		strings.Join(cfgs, ","), options.RustBuildScripts, options.RustProcMacros,
 		options.RustIncludeTests, options.RustAllowNetwork, strings.TrimSpace(options.RustSysroot),
 		options.RustIndexSysroot)
-	// The standard library in the graph is decided by `rustc`, not by cargo:
-	// a toolchain change is what invalidates every fact taken from it, and an
-	// entry that did not record the release would be served across one. It is
-	// the `rustc` the analyzer runs, which the PATH does not decide.
-	if compiler, err := rustloader.LookToolchain("rustc"); err == nil {
-		if version, err := rustloader.ToolchainVersion(context.Background(), compiler, probes); err == nil {
-			fmt.Fprintf(hash, "rustc=%s\x00", version)
-		}
+	if identity.Answered {
+		fmt.Fprintf(hash, "rustc=%s\x00", identity.Version)
 	}
-	// Whether that toolchain carries its library sources is part of the
-	// answer too. A pass never installs them, so a machine that gains
-	// `rust-src` must not be served the facts it produced without it.
-	if _, reason, err := rustloader.DiscoverSysroot(context.Background(), probes); err == nil {
-		fmt.Fprintf(hash, "library=%s\x00", reason)
+	if identityError == nil {
+		fmt.Fprintf(hash, "library=%s\x00", identity.Library)
 	}
-	if cargo, err := exec.LookPath("cargo"); err == nil {
-		if version, err := rustloader.ToolchainVersion(context.Background(), cargo, probes); err == nil {
-			fmt.Fprintf(hash, "cargo=%s\x00", version)
-		}
-	}
+	fmt.Fprint(hash, cargo)
 	return hex.EncodeToString(hash.Sum(nil))
 }
