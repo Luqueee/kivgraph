@@ -111,6 +111,11 @@ func walkTypeScriptFiles(ctx context.Context, base, current string, exclusions [
 	}
 	entries, err := os.ReadDir(current)
 	if err != nil {
+		// See walkGoFiles: a directory that vanished mid-walk holds nothing to
+		// discover, and the root going away stays an error.
+		if os.IsNotExist(err) && current != base {
+			return nil
+		}
 		return fmt.Errorf("read directory %q: %w", current, err)
 	}
 	for _, entry := range entries {
@@ -139,6 +144,9 @@ func walkTypeScriptFiles(ctx context.Context, base, current string, exclusions [
 			continue
 		}
 		info, err := entry.Info()
+		if os.IsNotExist(err) {
+			continue
+		}
 		if err != nil {
 			return fmt.Errorf("inspect file %q: %w", entryPath, err)
 		}

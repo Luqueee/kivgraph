@@ -56,6 +56,7 @@ go_test(
         "typescript_sources_test.go",
         "typescript_unclaimed_test.go",
         "typescript_versions_test.go",
+        "walk_vanish_test.go",
     ],
     data = ["//:testdata"],
     embed = [":workspace"],
