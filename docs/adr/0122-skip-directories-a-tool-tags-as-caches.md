@@ -26,7 +26,10 @@ None of the digests or the Go walk skips a build-output directory, and the
 Cargo walk skips `target` by name. The unclaimed walk prunes a list of
 conventional output names, which is the one precedent for names, and it is
 limited to files nobody claims. So a Rust workspace's `target/` is entered by
-five of the six.
+five of the six. `benchmarks/walk-entries` counted them in a pass: `803.626`
+entries examined without the rule and `446.857` with it, seven examinations per
+entry in the tree either way, and one more walk than the table lists
+(`indexer.countSourceFiles`, unaffected by the rule).
 
 `benchmarks/publication-profile` measured what that costs. Six repositories,
 `113.525` entries by the digest's own rule (`.git` and `node_modules` skipped),
@@ -182,8 +185,9 @@ not isolate it.
 
 Not established by this record:
 
-- the number of entries each of the five walks visits per pass; the report counts
-  them with a throwaway walk and not from the walks themselves;
+- the entries each walk looks at is now counted in `benchmarks/walk-entries`, but
+  only for walks inside the kivgraph process: `go list`, the TypeScript worker and
+  `rust-analyzer` read directories too;
 - the saving on a repository whose `target/` is small, with several tagged
   directories, or on Linux;
 - whether another tool's tag, such as a Python cache, is worth the same walk
