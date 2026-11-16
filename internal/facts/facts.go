@@ -540,6 +540,28 @@ func (set Set) Validate() error {
 		definers[edge.TargetKey] = edge.SourceKey
 	}
 
+	// One file has one container. Two payloads that both claim it merge into a
+	// single File and two CONTAINS_FILE edges, which LadybugDB refuses at the
+	// end of the analysis with a node offset and no name. The error names the
+	// file by its path and both packages by name: the keys are not things a
+	// reader can open.
+	containers := make(map[string]string, len(set.Files))
+	for _, edge := range set.Edges {
+		if edge.Kind != ContainsFile {
+			continue
+		}
+		first, seen := containers[edge.TargetKey]
+		if !seen {
+			containers[edge.TargetKey] = edge.SourceKey
+			continue
+		}
+		if first == edge.SourceKey {
+			continue
+		}
+		return fmt.Errorf("%w: file %q is claimed by two packages, %q and %q, so it would sit under both",
+			ErrInvalidFacts, set.filePath(edge.TargetKey), set.packageName(first), set.packageName(edge.SourceKey))
+	}
+
 	for _, entry := range set.Unresolved {
 		if entry.Reason == "" {
 			return fmt.Errorf("%w: unresolved reference without reason", ErrInvalidFacts)
@@ -565,6 +587,26 @@ func (set Set) Validate() error {
 		}
 	}
 	return nil
+}
+
+// filePath and packageName turn a key into what a reader can open. They run
+// only on the way to an error, so they scan instead of indexing.
+func (set Set) filePath(key string) string {
+	for _, file := range set.Files {
+		if file.Key == key {
+			return file.Path
+		}
+	}
+	return key
+}
+
+func (set Set) packageName(key string) string {
+	for _, entry := range set.Packages {
+		if entry.Key == key {
+			return entry.Name
+		}
+	}
+	return key
 }
 
 func known(key string, indexes ...map[string]struct{}) bool {
