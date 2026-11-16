@@ -57,11 +57,11 @@ func discoverers() []discoverer {
 	}
 }
 
-func discoverAround(t *testing.T, d discoverer, root string, at int, act func()) (any, error, *vanishingContext) {
+func discoverAround(t *testing.T, d discoverer, root string, at int, act func()) (any, *vanishingContext, error) {
 	t.Helper()
 	ctx := &vanishingContext{Context: t.Context(), at: at, act: act}
 	got, err := d.discover(ctx, root)
-	return got, err, ctx
+	return got, ctx, err
 }
 
 // TestDiscoveryIgnoresAnEntryThatVanishesMidWalk is the failure of a pass that
@@ -75,7 +75,7 @@ func TestDiscoveryIgnoresAnEntryThatVanishesMidWalk(t *testing.T) {
 			root := testsupport.TempDir(t)
 			writeDiscoveryFile(t, filepath.Join(root, "gone", d.manifest), "x")
 
-			got, err, ctx := discoverAround(t, d, root, entryCall, func() { _ = os.RemoveAll(filepath.Join(root, "gone")) })
+			got, ctx, err := discoverAround(t, d, root, entryCall, func() { _ = os.RemoveAll(filepath.Join(root, "gone")) })
 			if ctx.calls < entryCall {
 				t.Fatalf("the walk asked its context %d times, so nothing vanished: the call count this test relies on moved", ctx.calls)
 			}
@@ -94,7 +94,7 @@ func TestDiscoveryIgnoresAnEntryThatVanishesMidWalk(t *testing.T) {
 			root := testsupport.TempDir(t)
 			writeDiscoveryFile(t, filepath.Join(root, d.manifest), "x")
 
-			got, err, ctx := discoverAround(t, d, root, entryCall, func() { _ = os.Remove(filepath.Join(root, d.manifest)) })
+			got, ctx, err := discoverAround(t, d, root, entryCall, func() { _ = os.Remove(filepath.Join(root, d.manifest)) })
 			if ctx.calls < entryCall {
 				t.Fatalf("the walk asked its context %d times, so nothing vanished: the call count this test relies on moved", ctx.calls)
 			}
@@ -121,7 +121,7 @@ func TestDiscoveryStillFailsWhenTheRootVanishes(t *testing.T) {
 			if err := os.MkdirAll(root, 0o755); err != nil {
 				t.Fatal(err)
 			}
-			if _, err, _ := discoverAround(t, d, root, rootCall, func() { _ = os.RemoveAll(root) }); err == nil {
+			if _, _, err := discoverAround(t, d, root, rootCall, func() { _ = os.RemoveAll(root) }); err == nil {
 				t.Fatal("discovery error = nil, want a repository that vanished to fail")
 			}
 		})
