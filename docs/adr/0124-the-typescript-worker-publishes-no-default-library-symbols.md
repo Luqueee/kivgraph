@@ -92,7 +92,7 @@ is every repository but this one, is unaffected.
   library included, until the unit's sources change or the cache is cleared.
   Measured: with the fixed build swapped into the corpus in place, the next pass
   served `33` of `39` units from the cache and still reported `72.723` symbols.
-  That gap is older than this decision and this decision does not close it.
+  That gap was closed afterwards for a checkout; see the amendment of ADR 0100.
 
 ## Verification
 

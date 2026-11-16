@@ -115,3 +115,30 @@ go test ./internal/indexer ./internal/config
 go vet ./...
 go test ./...
 ```
+
+## Amendment: the worker's identity covers its whole build
+
+The analyzer fingerprint hashed the TypeScript worker's entry script. The worker is
+a directory of modules that script imports, and a rebuild that changes only those
+leaves the entry's bytes alone, so facts produced by the old worker kept being
+served. Measured on the six-repository corpus with a fixed build swapped in place:
+the next pass answered `72.723` symbols, the old count, from the cache for `33` of
+`39` units.
+
+When the worker is a script in a directory named `dist`, its identity is now the
+entry script plus every JavaScript module below that directory, by relative path
+and content. Declarations, source maps and compiled tests are left out because the
+analysis never loads them. A worker configured as a script elsewhere keeps being
+identified by its own bytes: its directory can be anything, and walking it on every
+observation would cost more than the cache saves. A worker started through a shim
+is identified by the shim and by the executable; a bundle ships both together, so a
+release replaces them at once.
+
+Measured with the real binary run from the checkout, so that the worker is
+`node ts-worker/dist/facts-cli.js`: swapping the fixed build in place served
+`33` of `39` units from the cache before the change and `0` after it, and the
+symbol count moved from `72.723` to `44.468`. The next pass with the same build hit
+`34` again.
+
+Not covered: what the worker loads from outside its build, the TypeScript engine
+among it. A new engine version under the same `package.json` range is not seen.

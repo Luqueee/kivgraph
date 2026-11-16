@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -1146,9 +1147,73 @@ func typeScriptWorkerFingerprint(options FullOptions) string {
 	for _, argument := range arguments {
 		if strings.HasSuffix(argument, ".js") || strings.HasSuffix(argument, ".mjs") {
 			fingerprint += "\x00" + fileFingerprint(argument)
+			// The script imports the rest of the worker, and a build that
+			// changes only those leaves its own bytes alone.
+			fingerprint += "\x00" + workerModulesFingerprint(filepath.Dir(argument))
 		}
 	}
 	return fingerprint
+}
+
+// workerBuildDirectory is where `tsc` writes the worker, in a checkout and in a
+// bundle alike.
+const workerBuildDirectory = "dist"
+
+// workerModulesFingerprint hashes every module of a worker build by relative path
+// and content, so that a change to any of them is a different analyser.
+//
+// Only a build output directory is a module tree. The script of a worker
+// configured somewhere else keeps being identified by its own bytes: its
+// directory can be anything, a home directory included, and walking it on every
+// observation would cost more than the cache saves.
+//
+// Declarations, source maps and compiled tests are left out: the analysis never
+// loads them, and being wrong in that direction costs one analysis on every
+// rebuild of someone who edits a test.
+func workerModulesFingerprint(directory string) string {
+	if filepath.Base(directory) != workerBuildDirectory {
+		return "entry-only"
+	}
+	hash := sha256.New()
+	err := filepath.WalkDir(directory, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || !entry.Type().IsRegular() || !isWorkerModule(entry.Name()) {
+			return nil
+		}
+		relative, err := filepath.Rel(directory, path)
+		if err != nil {
+			return err
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(hash, "%s\x00%d\x00", filepath.ToSlash(relative), len(content)); err != nil {
+			return err
+		}
+		_, err = hash.Write(content)
+		return err
+	})
+	if errors.Is(err, fs.ErrNotExist) {
+		return "absent"
+	}
+	if err != nil {
+		return "unreadable"
+	}
+	return hex.EncodeToString(hash.Sum(nil))
+}
+
+// isWorkerModule reports whether a file of a worker build is JavaScript the
+// worker can load, and not a compiled test.
+func isWorkerModule(name string) bool {
+	for _, extension := range []string{".js", ".mjs", ".cjs"} {
+		if strings.HasSuffix(name, extension) {
+			return !strings.HasSuffix(strings.TrimSuffix(name, extension), ".test")
+		}
+	}
+	return false
 }
 
 // fingerprintMemo computes each directory tree and file once per pass. Units
