@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "analyzer_parts.go",
         "factcache.go",
+        "factcache_retain.go",
         "full.go",
         "rust_unit.go",
         "semantic.go",
@@ -39,6 +40,7 @@ go_test(
         "factcache_java_test.go",
         "factcache_prune_test.go",
         "factcache_python_test.go",
+        "factcache_retain_test.go",
         "factcache_retention_test.go",
         "factcache_test.go",
         "factcache_worker_engine_test.go",

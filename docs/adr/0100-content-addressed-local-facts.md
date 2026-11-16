@@ -231,3 +231,31 @@ that has `rustc` and `cargo` and then one that has neither, the pass reports
 cost of the switch, `19.8` to `20.8 s` against `7.0 s` warm, is what a
 per-language fingerprint or an analyzer-addressed entry would have to remove; the
 line is what tells which of them is worth building.
+
+## Amendment: the cache keeps the newest entries of each unit
+
+The address of an entry holds the content of its unit, so every edit writes a new
+entry and leaves the one it supersedes, and only age, thirty days after it was
+last used, expired it. Measured on the six-repository corpus, editing one
+TypeScript source file added two entries and `105` to `115 MB` each time: `213 MB`
+became `757 MB` after five edits.
+
+After a pass admits entries, the cache now keeps the newest three entries of each
+unit and removes the rest. Newest is the last time an entry was written or served,
+which a hit sets, so an old entry that was just served outranks a newer one that
+nobody asked for. A unit is its identity including the resolution it was analysed
+in, so profiles that share a directory do not spend each other's entries. The
+unit is read from the first `4 KiB` of an entry, which holds the version and the
+unit before the facts; an entry whose unit is not there is neither counted nor
+removed and is left to the age rule, as is anything the cache did not write. The
+entries a pass has just admitted are never removed by it, and a pass that admitted
+nothing reads no headers. Three is the one in use, the one before it and one more,
+which is what going back to another branch or reverting an edit needs. It is a
+constant and not a configuration key.
+
+With the change the same five edits leave `38` entries and `442 MB`, where they
+left `44` and `757 MB`, and the passes take the same time. Reverting the file to
+the content it had before the five edits is now a miss, where it was a hit, because
+that entry is beyond the three kept: `14.1 s` instead of `9.2 s` on this corpus.
+Reading the headers of `5000` entries took `191 ms`, and of the corpus' `44` large
+ones `6 ms`.

@@ -497,10 +497,18 @@ func (cache *factCache) commit() {
 		pending := append([]pendingCacheEntry(nil), cache.pending...)
 		cache.pending = nil
 		cache.pendingMutex.Unlock()
+		admitted := make(map[string]struct{}, len(pending))
 		for _, entry := range pending {
 			if err := os.Rename(entry.staged, entry.path); err != nil {
 				_ = os.Remove(entry.staged)
+				continue
 			}
+			admitted[entry.path] = struct{}{}
+		}
+		// Only a pass that wrote something can have left a unit with more entries
+		// than it keeps, and reading the headers of every entry is not free.
+		if len(admitted) != 0 {
+			cache.retain(cacheEntriesKept, admitted)
 		}
 	})
 }
