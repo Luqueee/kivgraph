@@ -116,7 +116,7 @@ func Capture(ctx context.Context, repositories []workspace.Repository) (string, 
 				return err
 			}
 			if entry.IsDir() {
-				if relative != "." && (excluded || entry.Name() == ".git" || entry.Name() == "node_modules") {
+				if relative != "." && (excluded || entry.Name() == ".git" || entry.Name() == "node_modules" || workspace.IsCacheDirectory(filename)) {
 					return fs.SkipDir
 				}
 				return nil

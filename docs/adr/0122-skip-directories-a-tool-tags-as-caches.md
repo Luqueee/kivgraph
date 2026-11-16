@@ -1,6 +1,7 @@
 # ADR 0122: Skip the directories a tool tags as caches, in every walk
 
-Status: proposed, 2026-11-16. Refines ADR 0097 (what the source digest covers).
+Status: accepted, 2026-11-16, implemented. Refines ADR 0097 (what the source
+digest covers).
 
 Changes the configuration: no.
 
@@ -108,45 +109,81 @@ land outside the tree.
 
 - A repository that contains a tagged directory (every built Rust workspace)
   produces a different digest from the one an earlier version stored, because the
-  tagged files stop being hashed. [INFERENCE] the pass that follows an upgrade
-  reads such a repository as changed and rebuilds once. A repository without a
-  tagged directory keeps its digest. The implementation must test the upgrade
-  path: a generation published before the change must be reported stale, not
-  corrupt, by `graph_status` and `doctor`.
+  tagged files stop being hashed. The pass that follows an upgrade reads such a
+  repository as changed and rebuilds once: `freshness.Check` reports the earlier
+  generation `stale`, tested below. A repository without a tagged directory keeps
+  its digest.
 - Analysis loses the entries under tagged directories, and nothing else. A file
   under a tagged directory is no longer an input, so it can no longer reject a
   pass because a build rewrote it between the two observations, which is the
   failure the walk-vanish fix (#54) papered over for a missing entry.
-- ADR 0121's stat signature is recorded inside `TreeDigest`, so a skipped
-  directory is not stamped either.
+- ADR 0121's stat signature is recorded inside `TreeDigest`. A skipped directory
+  is still stamped, so a tag that appears or goes is a change the signature sees.
 - Misuse is possible and has a limit: a tool or a person who tags a directory of
   real sources makes them invisible to the graph. That is the same class as an
-  `exclusions` entry, but implicit; `doctor` should say which directories were
-  skipped for a tag so that it is never silent.
+  `exclusions` entry, but implicit, and it is not reported at run time yet.
+
+## Implementation
+
+`workspace.IsCacheDirectory` is the one predicate. It is asked by the inventory
+walk (`freshness.Capture`), `TreeDigest`, and the Go, TypeScript and unclaimed
+TypeScript discovery walks, through their existing `isDiscoveryExcluded` helpers.
+Two deviations from the decision as proposed, both on purpose:
+
+- **`DiscoverCargo` is unchanged.** It already skips `target` by name, which is
+  what a Cargo tag marks, and its path-only companion `CargoExcludes` cannot ask
+  the filesystem. Tagging another directory inside a Rust tree is not covered.
+- **The TypeScript glob expansion is unchanged.** `walkTypeScriptGlobDirectory`
+  implements a project's own `include` semantics, the compiler's. A project whose
+  `include` reaches into a tagged directory still claims it while the digest does
+  not hash it. That needs a TypeScript source inside a directory a tool tagged as
+  a cache, which no tool the corpus holds produces; it is the same limit as
+  tagging a directory of sources.
+
+`TreeDigest` stamps a tagged directory before it skips it, so ADR 0121's
+signature notices a tag that appears or goes and stops vouching for a digest taken
+under the other answer. `doctor` does **not** yet list the directories skipped for
+a tag; the skip is documented in the configuration page and not silent in
+the code, but it is not reported at run time.
 
 ## Verification
 
-Required before this moves to accepted:
+Done, with the tests in `internal/workspace/cachedir_test.go`,
+`internal/freshness/freshness_cachetag_test.go` and
+`internal/sourceobservation/cachetag_test.go` and `cachetag_signature_test.go`,
+over the fixture `testsupport.WriteCacheTagTree`:
 
-- for each walk, a test that a tagged directory containing a source file is not
-  entered, and that the file does not reach the digest or the discovery;
-- a test that the walks agree: over a generated tree with tagged, untagged,
-  symlinked-tag, wrong-signature and nested tagged directories, the set of source
-  files each walk reports is the same, and equals a brute-force walk that applies
-  the rule by hand;
-- negatives first: no tag, tag as a symlink, signature one byte off, empty tag
-  file, unreadable tag, a tag at the repository root, a tag in a directory named
-  like source (`src`, `target`);
-- the upgrade test above, against a generation written by the previous digest;
-- an interleaved pass measurement with the rule on and off and `exclusions` empty,
-  on the six-repository corpus, reporting the entries each walk visited. Until
-  then the saving is the `0,9`-`1,1 s` of the exclusion measurement, which is the
-  upper bound for one directory, not a result of this change.
+- the predicate against no tag, a tag a byte off or a byte short, an empty tag, a
+  directory named like a tag, an absent directory, a file, a tag as a symlink, an
+  unreadable tag, and a tag with text after the signature;
+- for each walk, the result over a tree with tagged directories equals the result
+  after deleting those directories by hand, and directories without a valid tag
+  are all still walked. Each of those tests fails when the rule is switched off;
+- the control: with the tags removed the same directories are reached;
+- a tag at the root of a walk does not hide the tree;
+- the upgrade: a generation stored with the digest of the tree before it was
+  tagged is reported `stale` with the ordinary changed-inventory detail by
+  `freshness.Check`, never `unavailable` or `unverified`, and `fresh` before the
+  tag appears. The inference in Consequences holds at that level; `graph_status`
+  and `doctor` were not run against a published generation;
+- a tag that appears or goes after the capture makes the stat signature refuse to
+  vouch. Moving the skip before the stamping makes that test fail.
+
+Measured, in `benchmarks/cache-tag-walks/report.md`: six repositories, one
+tagged `target/` of `49.976` entries, three arms interleaved, `24` passes each. The
+pass after an edit is `14,12 s` with the rule and `16,91 s` without (`-2,79 s`,
+`-16,5 %`), against `15,14 s` with the manual `exclusions: [target]`. The saving
+is larger than the `0,9`-`1,1 s` of the exclusion measurement, and the rule beats
+the exclusion itself by about a second. `TreeDigest` takes no exclusions, so
+that is consistent with the exclusion leaving it to walk `target/`; the run does
+not isolate it.
 
 Not established by this record:
 
-- the number of entries each of the five walks visits per pass (the profile
-  counted CPU, not entries);
-- the saving on a repository whose `target/` is small, and on Linux;
+- the number of entries each of the five walks visits per pass; the report counts
+  them with a throwaway walk and not from the walks themselves;
+- the saving on a repository whose `target/` is small, with several tagged
+  directories, or on Linux;
 - whether another tool's tag, such as a Python cache, is worth the same walk
-  change. The rule applies to them by construction and has not been measured.
+  change. The rule applies to them by construction and has not been measured;
+- `doctor` reporting the skipped directories.

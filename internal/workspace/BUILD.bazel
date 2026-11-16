@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "workspace",
     srcs = [
+        "cachedir.go",
         "cargo_discovery.go",
         "cargo_manifests.go",
         "composition.go",
@@ -37,6 +38,7 @@ go_library(
 go_test(
     name = "workspace_test",
     srcs = [
+        "cachedir_test.go",
         "cargo_discovery_test.go",
         "composition_test.go",
         "discovery_test.go",

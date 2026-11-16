@@ -740,6 +740,12 @@ func treeDigest(ctx context.Context, root string, record bool) (string, *TreeSig
 					signature.distrust()
 				}
 			}
+			// Stamped above even when skipped: a tag added to or removed from
+			// this directory later changes its stamp, so the signature cannot
+			// vouch for a digest that was taken under the other answer.
+			if path != root && workspace.IsCacheDirectory(path) {
+				return fs.SkipDir
+			}
 			return nil
 		}
 		relative, err := filepath.Rel(root, path)

@@ -214,3 +214,12 @@ repositories:
     languages: [go, typescript, rust]
     exclusions: [vendor, third_party]
 ```
+
+Independently of `exclusions`, a directory that holds a valid `CACHEDIR.TAG` is
+never walked: it is the build tool's own statement that the directory is a
+reproducible cache (Cargo writes one in every `target/`). The tag must be a
+regular file, not a symlink, and start with the signature of the
+[Cache Directory Tagging Specification](https://bford.info/cachedir/). A
+directory with no tag, or a malformed one, is walked as before, and so is the
+repository root. A directory of real sources that carries such a tag is not
+indexed; remove the tag to index it. See ADR 0122.

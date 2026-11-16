@@ -2,7 +2,14 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "sourceobservation",
-    srcs = ["observation.go"],
+    srcs = [
+        "observation.go",
+        "signature.go",
+    ] + select({
+        "@rules_go//go/platform:darwin": ["signature_stat_darwin.go"],
+        "@rules_go//go/platform:linux": ["signature_stat_linux.go"],
+        "//conditions:default": ["signature_stat_other.go"],
+    }),
     importpath = "github.com/Luqueee/kivgraph/internal/sourceobservation",
     visibility = ["//:__subpackages__"],
     deps = [
@@ -15,11 +22,20 @@ go_library(
 go_test(
     name = "sourceobservation_test",
     srcs = [
+        "cachetag_test.go",
         "observation_test.go",
         "observation_vanish_test.go",
     ] + select({
-        "@rules_go//go/platform:darwin": ["observation_nonregular_test.go"],
-        "@rules_go//go/platform:linux": ["observation_nonregular_test.go"],
+        "@rules_go//go/platform:darwin": [
+            "cachetag_signature_test.go",
+            "observation_nonregular_test.go",
+            "signature_test.go",
+        ],
+        "@rules_go//go/platform:linux": [
+            "cachetag_signature_test.go",
+            "observation_nonregular_test.go",
+            "signature_test.go",
+        ],
         "//conditions:default": [],
     }),
     embed = [":sourceobservation"],

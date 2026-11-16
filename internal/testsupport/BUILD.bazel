@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "alive_unix.go",
         "alive_windows.go",
+        "cachetag.go",
         "clock.go",
         "executable.go",
         "home.go",
