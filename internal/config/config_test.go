@@ -192,6 +192,14 @@ web:
 			wantError: "config.web.address: invalid listen address",
 		},
 		{
+			name: "unknown source verification mode",
+			contents: `version: 1
+indexing:
+  source_verification: stat
+`,
+			wantError: `config.indexing.source_verification: must be full or signature, got "stat"`,
+		},
+		{
 			name: "invalid web port",
 			contents: `version: 1
 web:
@@ -340,6 +348,31 @@ workspace:
 	}
 	if len(quiet.RetiredKeys) != 0 {
 		t.Fatalf("RetiredKeys = %v, want none", quiet.RetiredKeys)
+	}
+}
+
+// A configuration written before `indexing.source_verification` existed carries
+// an `indexing` section without it. It has to keep verifying the way it always did,
+// and the one value that changes it has to be honoured.
+func TestSourceVerificationDefaultsToFullAndHonoursSignature(t *testing.T) {
+	directory := t.TempDir()
+	repositoriesPath := filepath.Join(directory, "repositories.yaml")
+	writeConfigFixture(t, repositoriesPath, "version: 1\nrepositories: []\n")
+	load := func(name, indexing string) string {
+		t.Helper()
+		path := filepath.Join(directory, name)
+		writeConfigFixture(t, path, "version: 1\nworkspace:\n  repositories_file: "+repositoriesPath+"\nindexing:\n"+indexing)
+		loaded, err := Load(path)
+		if err != nil {
+			t.Fatalf("Load(%s) error = %v", name, err)
+		}
+		return loaded.Config.Indexing.SourceVerification
+	}
+	if got := load("older.yaml", "  fact_cache: \"on\"\n"); got != "full" {
+		t.Fatalf("a configuration without the key verifies with %q, want full", got)
+	}
+	if got := load("opted-in.yaml", "  source_verification: signature\n"); got != "signature" {
+		t.Fatalf("source_verification: signature loaded as %q", got)
 	}
 }
 

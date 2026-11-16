@@ -1,6 +1,7 @@
 # ADR 0120: Verify the sources with a stat signature before reading them again
 
-Status: proposed, 2026-11-16. Narrows one rejected alternative of ADR 0097.
+Status: accepted, 2026-11-16, implemented behind an opt-in. Narrows one rejected
+alternative of ADR 0097.
 
 Changes the configuration: a new key, `indexing.source_verification`, whose
 default keeps today's behaviour.
@@ -89,9 +90,13 @@ one at a time:
 
 ## Consequences
 
-- With `signature` on, a pass whose trees are quiet saves most of `10`-`11 %` of
-  its length on a corpus like the measured one: about `1 s` of a `13,8 s` pass,
-  extrapolated from the warm ratio and not measured on a pass.
+- With `signature` on, the verification inside a pass measured `1,40 s` with
+  `full` and `0,71 s` with `signature`, `-49 %`, and the pass `0,7 s` shorter,
+  about `6 %`, in the two undisturbed rounds of an interleaved run (six
+  repositories, five of them not read). The first figure of this ADR, `75 %` of an
+  observation, was the digest and the git state; a pass's observation also
+  computes the analyzer fingerprint, `148`-`483 ms` in a temporary trace, so
+  the saving is about half of the step, not three quarters of it.
 - A pass whose trees move while it runs costs what it costs today, plus the
   signature comparison, which is `25 ms` on the measured corpus.
 - The git state, `173 ms` and almost all of it process start, is unaffected. It
@@ -138,15 +143,52 @@ full read; a lost event fails towards publishing.
 The saving is `10`-`11 %` of a pass and the residual risk is not zero. That is
 not a trade to make on one filesystem.
 
+## Implementation
+
+- `sourceobservation.TreeDigestSigned` records the signature during the walk the
+  digest already makes; `TreeDigest` is unchanged. The stamp of a directory is
+  taken before it is listed and the stamp of a file before it is opened.
+- `CaptureWithSignatures` is the first observation of a pass and
+  `CaptureReusing` the one inside the validation. `CaptureReusing` returns the
+  manifest `Capture` would return: only the content digest of a tree comes from
+  the signature, and the git state, the policy and the composition are observed
+  again as before.
+- **The fallback is per repository, not per pass.** Decision 4 says a doubt makes
+  the verifier run the full observation. Implemented, a repository whose
+  signature does not hold is read and a repository whose signature holds beside
+  it is not. The answer for each repository is the one a full observation gives
+  it, which is what decision 4 protects.
+- A signature is also refused for a different root than the one it was taken
+  from, and never vouches for a tree with a symlinked source, one that had an entry
+  vanish while it was captured, or a platform whose stat carries no change time
+  (everything that is not Linux or macOS).
+- `indexing.source_verification` is `full` by default. A configuration written
+  before the key exists loads and verifies as it always did.
+- `kivgraph index --full` prints `index.source_verification` with how many trees
+  the verification observed and how many it did not read, only when the option is
+  on.
+
 ## Verification
 
-What accepting this decision would require, none of it done:
+Done:
 
-- the change matrix of the harness as unit tests of the verifier, with the
-  `ctime` ablation kept as the test that shows why the change time is compared;
+- the change matrix of the harness, as unit tests of the verifier, with eleven
+  modifications and the `ctime` ablation kept as the test that shows why the
+  change time is compared. Five mutations of the implementation (no `ctime`, no
+  racy rule, no directory stamps, no root check, a symlink that does not distrust)
+  each fail a test;
 - tests that every doubtful outcome (differing stamp, missing entry, racy entry,
-  stat error, untrusted filesystem) reaches the full observation and returns its
-  answer;
-- a pass-level measurement, with the option on and off, interleaved in one window
-  as `publication-profile` does, because this ADR's figure is an observation's;
-- a run on a network filesystem, to decide the trusted set.
+  stat error, symlinked source) is not reported unchanged, and that the manifest
+  the signature path returns equals a full capture's after every modification;
+- a test that a quiet tree is not read at all (the walk's per-entry checks drop
+  from one per entry to a handful);
+- a pass-level measurement with the option on and off, interleaved in one window:
+  see `benchmarks/source-verification/report.md`. A repository edited within two
+  seconds of the capture is read as before, so the saving is in the repositories
+  that were not.
+
+Not done, and why it stays opt-in:
+
+- a run on a network filesystem or a coarse-timestamp one, to decide the trusted
+  set;
+- the fingerprint and the git state, which the signature does not touch.

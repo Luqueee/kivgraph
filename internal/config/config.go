@@ -304,6 +304,12 @@ type IndexingConfig struct {
 	// FactCachePath holds one entry per analysis unit, outside every
 	// indexed repository.
 	FactCachePath string `yaml:"fact_cache_path"`
+	// SourceVerification decides how a pass proves that its sources did not change
+	// while it ran. `full` observes the whole tree again, as it always did.
+	// `signature` first compares the stat of every directory and analysed file with
+	// the stat taken at the first observation and reads a tree again only when it
+	// cannot prove it would read the same. See ADR 0120.
+	SourceVerification string `yaml:"source_verification"`
 }
 
 // WatcherConfig controls incremental file watching.
@@ -579,6 +585,7 @@ func DefaultConfig() Config {
 			FullRebuildOnSchemaChange: true,
 			FactCache:                 "on",
 			FactCachePath:             defaultFactCachePath,
+			SourceVerification:        "full",
 		},
 		Watcher: WatcherConfig{
 			Enabled:                  true,
@@ -1358,6 +1365,11 @@ func validateConfig(configuration Config) error {
 	}
 	if configuration.Indexing.FactCache != "off" && strings.TrimSpace(configuration.Indexing.FactCachePath) == "" {
 		return errors.New("config.indexing.fact_cache_path: must not be empty when the fact cache is enabled")
+	}
+	switch configuration.Indexing.SourceVerification {
+	case "full", "signature":
+	default:
+		return fmt.Errorf("config.indexing.source_verification: must be full or signature, got %q", configuration.Indexing.SourceVerification)
 	}
 	if configuration.Watcher.DebounceMilliseconds < 1 {
 		return fmt.Errorf("config.watcher.debounce_ms: must be positive, got %d", configuration.Watcher.DebounceMilliseconds)

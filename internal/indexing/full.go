@@ -105,6 +105,11 @@ type FullOptions struct {
 	// those entries live.
 	CacheMode      indexer.CacheMode
 	CacheDirectory string
+	// SourceVerification is how the pass proves its sources did not change while
+	// it ran: SourceVerificationFull observes the whole tree again, and
+	// SourceVerificationSignature compares stat signatures first and reads a tree
+	// again only when it cannot prove it would read the same. Empty means full.
+	SourceVerification string
 	// SharedTargetsLockPath serializes profiles and processes that write the
 	// installation-level Rust, Java and C# analyzer target directories.
 	SharedTargetsLockPath string
@@ -193,6 +198,7 @@ func OptionsFromConfig(configuration config.Config) FullOptions {
 		CSharpMaximumIndexTime:            time.Duration(configuration.CSharp.MaximumIndexTime),
 		CacheMode:                         indexer.CacheMode(configuration.Indexing.FactCache),
 		CacheDirectory:                    configuration.Indexing.FactCachePath,
+		SourceVerification:                configuration.Indexing.SourceVerification,
 		Root:                              filepath.Dir(configuration.Storage.DatabasePath),
 		Store:                             generation.DefaultConfig(),
 	}
@@ -267,11 +273,62 @@ func (options FullOptions) indexerOptions() indexer.FullOptions {
 	}
 }
 
+// The two values of FullOptions.SourceVerification. See ADR 0120.
+const (
+	SourceVerificationFull      = "full"
+	SourceVerificationSignature = "signature"
+)
+
 // ObserveSources resolves the providers a full pass will read and captures
 // their current mutable state. Watchers use the same route as RunFull so a
 // stale registry or analyzer fingerprint cannot make invalidation disagree
 // with the manifest that a subsequent rebuild publishes.
 func ObserveSources(ctx context.Context, options FullOptions) (sourceobservation.Manifest, []workspace.Repository, error) {
+	return observeSources(ctx, options, sourceobservation.CaptureWithRepositories)
+}
+
+// capture is how one observation reads the content of the trees: all of them, or
+// all but the ones whose signature holds.
+type capture func(
+	ctx context.Context,
+	profile, resolverVersion, analyzerFingerprint string,
+	repositories []workspace.Repository,
+) (sourceobservation.Manifest, []workspace.Repository, error)
+
+// observeSourcesSigned is ObserveSources that also keeps the signature of every tree
+// it reads, for observeSourcesAgain to compare against.
+func observeSourcesSigned(ctx context.Context, options FullOptions) (sourceobservation.Manifest, []workspace.Repository, sourceobservation.Signatures, error) {
+	var signatures sourceobservation.Signatures
+	manifest, repositories, err := observeSources(ctx, options, func(
+		ctx context.Context,
+		profile, resolverVersion, analyzerFingerprint string,
+		repositories []workspace.Repository,
+	) (sourceobservation.Manifest, []workspace.Repository, error) {
+		manifest, observed, taken, err := sourceobservation.CaptureWithSignatures(ctx, profile, resolverVersion, analyzerFingerprint, repositories)
+		signatures = taken
+		return manifest, observed, err
+	})
+	return manifest, repositories, signatures, err
+}
+
+// observeSourcesAgain is the observation inside the validation of the candidate. It
+// takes the digest of a tree from its signature when the signature can prove a read
+// would give the same one, and says how many it spared.
+func observeSourcesAgain(ctx context.Context, options FullOptions, signatures sourceobservation.Signatures) (sourceobservation.Manifest, sourceobservation.Reuse, error) {
+	var reuse sourceobservation.Reuse
+	manifest, _, err := observeSources(ctx, options, func(
+		ctx context.Context,
+		profile, resolverVersion, analyzerFingerprint string,
+		repositories []workspace.Repository,
+	) (sourceobservation.Manifest, []workspace.Repository, error) {
+		manifest, observed, spared, err := sourceobservation.CaptureReusing(ctx, profile, resolverVersion, analyzerFingerprint, repositories, signatures)
+		reuse = spared
+		return manifest, observed, err
+	})
+	return manifest, reuse, err
+}
+
+func observeSources(ctx context.Context, options FullOptions, observe capture) (sourceobservation.Manifest, []workspace.Repository, error) {
 	indexOptions := options.indexerOptions()
 	effectiveRepositories, err := indexer.ResolveRepositories(indexOptions)
 	if err != nil {
@@ -281,7 +338,7 @@ func ObserveSources(ctx context.Context, options FullOptions) (sourceobservation
 	if err != nil {
 		return sourceobservation.Manifest{}, nil, fmt.Errorf("observe index analyzer configuration: %w", err)
 	}
-	manifest, observedRepositories, err := sourceobservation.CaptureWithRepositories(
+	manifest, observedRepositories, err := observe(
 		ctx,
 		options.Profile,
 		options.ResolverVersion,
@@ -452,6 +509,17 @@ type FullResult struct {
 	// invalidation state could not be persisted. It must not turn a valid
 	// generation into a failed rebuild.
 	RecordingError error
+	// SourceVerification says how the pass proved its sources did not change.
+	SourceVerification SourceVerificationReport
+}
+
+// SourceVerificationReport is how a pass verified its sources. Repositories is how
+// many trees the verification observed and Reused how many of them it did not read
+// because their signature held; both are zero under SourceVerificationFull.
+type SourceVerificationReport struct {
+	Mode         string
+	Repositories int
+	Reused       int
 }
 
 // RunFull indexes all repositories, validates the facts, and publishes one
@@ -484,7 +552,18 @@ func RunFull(ctx context.Context, options FullOptions) (result FullResult, resul
 	}
 
 	indexOptions := options.indexerOptions()
-	manifest, observedRepositories, err := ObserveSources(ctx, options)
+	var (
+		manifest             sourceobservation.Manifest
+		observedRepositories []workspace.Repository
+		signatures           sourceobservation.Signatures
+		err                  error
+	)
+	useSignatures := options.SourceVerification == SourceVerificationSignature
+	if useSignatures {
+		manifest, observedRepositories, signatures, err = observeSourcesSigned(ctx, options)
+	} else {
+		manifest, observedRepositories, err = ObserveSources(ctx, options)
+	}
 	if err != nil {
 		return FullResult{}, err
 	}
@@ -531,9 +610,21 @@ func RunFull(ctx context.Context, options FullOptions) (result FullResult, resul
 		Progress:        options.RebuildProgress,
 		SourceManifest:  &manifest,
 		VerifySources: func(verifyCtx context.Context) error {
-			current, _, observeErr := ObserveSources(verifyCtx, options)
-			if observeErr != nil {
-				return observeErr
+			var (
+				current sourceobservation.Manifest
+				reuse   sourceobservation.Reuse
+				verr    error
+			)
+			if useSignatures {
+				current, reuse, verr = observeSourcesAgain(verifyCtx, options, signatures)
+				result.SourceVerification = SourceVerificationReport{
+					Mode: SourceVerificationSignature, Repositories: reuse.Repositories, Reused: reuse.Reused,
+				}
+			} else {
+				current, _, verr = ObserveSources(verifyCtx, options)
+			}
+			if verr != nil {
+				return verr
 			}
 			return sourceobservation.Compare(manifest, current)
 		},

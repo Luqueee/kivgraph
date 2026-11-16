@@ -125,6 +125,47 @@ uses today and the signature each say whether the tree changed.
   restores a file's own modification time after a same-size edit is missed. A
   program can set a modification time; it cannot set a change time.
 
+## In a pass, with the option on and off
+
+ADR 0120 is accepted and implemented behind `indexing.source_verification`
+(commit `6bfc84c`, clean tree). The `edit-frequency` harness ran the six
+repositories of this report with `full` and with `signature`, interleaved in one
+window: three rounds of eight edits per arm, `24` passes each. `pass-level/` holds
+the six result files. The load average was `7`.
+
+|round|`verify sources`, full|`verify sources`, signature|pass, full|pass, signature|
+|---|---|---|---|---|
+|1|`1,436 s`|`0,727 s`|`12,03 s`|`11,31 s`|
+|2|`1,373 s`|`0,701 s`|`11,74 s`|`11,05 s`|
+|3|`3,327 s`|`0,726 s`|`27,62 s`|`12,44 s`|
+
+- **The verification halves: `1,40` to `0,71 s` (`-49 %`) in the two rounds that were
+  not disturbed**, and the pass is `0,7 s` shorter in each of them, about `6 %`,
+  which is what the step accounts for.
+- **Round 3 was disturbed on the full arm** (every pass of it about twice as slow,
+  verification included) by something that did not touch the signature arm. It is
+  kept in the files and left out of the figure above. Over all `24` passes the
+  medians are `1,429` against `0,725 s` for the step and `12,85` against `11,41 s`
+  for the pass; the pass difference is larger than the step explains and should
+  not be cited as caused by the option.
+- **Five of the six trees were not read in every pass.** The sixth is the one
+  the harness edits a moment before each pass, which is within the two-second racy
+  window, so its signature never vouches for it. That is the intended behaviour and
+  it is also what an agent does: edit, then index. A repository edited seconds before
+  a pass keeps the full read; the saving is in the repositories that were not.
+
+### What the first measurement left out
+
+The `786 ms` of the first section is the digest plus the git state. An observation
+in a pass also computes the analyzer fingerprint, which the harness above does
+not call. A temporary trace (not committed) of `observeSources` in three passes
+put it at `148`–`483 ms` of an observation, and the git state is a subprocess per
+repository whose wall time is not CPU: the CPU profile of a verification under
+`signature` shows `0,11 s` per pass while the step takes `0,7`. So the signature
+removes the part of the observation that is reading files, about half of it, and
+leaves the fingerprint and the git state, which are the rest. Both are separate
+costs and this change does not touch them.
+
 ## Limitations
 
 - **The matrix ran on a local APFS volume**, where timestamps have nanosecond

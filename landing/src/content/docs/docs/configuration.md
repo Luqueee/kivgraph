@@ -80,6 +80,7 @@ A configuration that still carries them loads normally, as with the retired
 | `full_rebuild_on_schema_change` | `true` | |
 | `fact_cache` | `on` | `off`, `on` or `verify`. `verify` analyses everything and fails the pass when a servable entry disagrees with the analysis. |
 | `fact_cache_path` | `~/.local/state/kivgraph/factcache` | One entry per analysis unit, outside every indexed repository. Must not be empty unless the cache is `off`. |
+| `source_verification` | `full` | `full` or `signature`. A pass proves its sources did not change while it ran by observing the tree again before `CURRENT` moves. `full` hashes every analysed file again. `signature` first compares the stat of every directory it read and every analysed file with the stat taken at the first observation, and reads a tree again only when it cannot prove it would read the same: a differing stat, a missing entry, an entry modified within two seconds of the capture, a symlinked source, a platform without an inode change time. It is opt-in because the proof rests on the filesystem's timestamps: it was measured on a local APFS volume only, and a filesystem with coarse timestamps or stale attribute caches (FAT, NFS, SMB) gives it no guarantee. `index --full` prints `index.source_verification` with how many trees it did not read. See ADR 0120. |
 
 The two words are not decoration. `generated_files` and
 `unresolved_references` accept exactly one value each because that is exactly

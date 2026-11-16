@@ -136,6 +136,11 @@ type passCost struct {
 	// and add up to it, which the stage list above cannot: `publish` encloses the
 	// other rows, and what it holds that they do not was a cost with no name.
 	PublishSteps []stageCost `json:"publish_steps,omitempty"`
+	// SourceVerification is how the pass verified its sources, when it did so with
+	// signatures: the trees it observed and how many it did not read.
+	SourceVerification string `json:"source_verification,omitempty"`
+	VerifiedTrees      int    `json:"verified_trees,omitempty"`
+	ReusedTrees        int    `json:"reused_trees,omitempty"`
 }
 
 type grepQuestion struct {
@@ -474,6 +479,11 @@ func measurePass(ctx context.Context, base indexing.FullOptions, step int, label
 	for _, step := range result.RebuildReport.PublishSteps {
 		cost.PublishSteps = append(cost.PublishSteps, stageCost{Name: step.Name, Seconds: step.DurationMS / 1000})
 	}
+	if verification := result.SourceVerification; verification.Mode != "" {
+		cost.SourceVerification = verification.Mode
+		cost.VerifiedTrees = verification.Repositories
+		cost.ReusedTrees = verification.Reused
+	}
 	return cost, nil
 }
 
@@ -759,6 +769,10 @@ func reportPass(cost passCost) {
 	}
 	for _, step := range cost.PublishSteps {
 		fmt.Fprintf(os.Stderr, "        publish/%-16s %6.3f s\n", step.Name, step.Seconds)
+	}
+	if cost.SourceVerification != "" {
+		fmt.Fprintf(os.Stderr, "        source verification: %s, %d trees observed, %d not read\n",
+			cost.SourceVerification, cost.VerifiedTrees, cost.ReusedTrees)
 	}
 }
 

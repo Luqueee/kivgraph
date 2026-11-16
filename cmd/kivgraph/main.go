@@ -1755,6 +1755,10 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 		writeInfo(stdout, "index.cache: mode=%s hits=%d misses=%d verified=%d",
 			cache.Mode, cache.Hits, cache.Misses, cache.Verified)
 	}
+	if verification := fullResult.SourceVerification; verification.Mode == indexing.SourceVerificationSignature {
+		writeInfo(stdout, "index.source_verification: mode=%s trees=%d reused=%d",
+			verification.Mode, verification.Repositories, verification.Reused)
+	}
 	rebuildReport := fullResult.RebuildReport
 	writeResult(stdout, err == nil && rebuildReport.Passed, "rebuild: %s generation=%s", passFail(err == nil && rebuildReport.Passed), rebuildReport.GenerationID)
 	for _, stage := range rebuildReport.Stages {
