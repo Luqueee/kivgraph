@@ -25,6 +25,7 @@ import type {
   Symbol as TypeScriptSymbol,
 } from "typescript/unstable/async";
 import { SymbolFlags } from "typescript/unstable/async";
+import { isDependencySourceFile } from "./dependency-source-file.js";
 import { enginePath } from "./engine-path.js";
 import type { LanguageService, ProjectView } from "./language-service.js";
 
@@ -163,7 +164,7 @@ export async function resolvePackageImports(
     const sourceFile = await view.program.getSourceFile(fileName);
     if (
       sourceFile === undefined ||
-      (await view.program.isSourceFileFromExternalLibrary(sourceFile))
+      (await isDependencySourceFile(view.program, sourceFile))
     ) {
       continue;
     }
