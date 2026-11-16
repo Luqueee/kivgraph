@@ -126,8 +126,12 @@ func LookToolchain(name string) (string, error) {
 
 // ToolchainVersion answers the version line of one toolchain executable,
 // asked the way every probe here asks: without letting rustup install.
-func ToolchainVersion(ctx context.Context, binary string) (string, error) {
-	return runToolchainProbe(ctx, binary, "", "--version")
+//
+// The executable is usually rustup's proxy, which answers with the toolchain
+// the working directory selects, so the directory is part of the question: an
+// empty one is the process's own.
+func ToolchainVersion(ctx context.Context, binary, workingDirectory string) (string, error) {
+	return runToolchainProbe(ctx, binary, workingDirectory, "--version")
 }
 
 // probeToolchain reads the release and the sysroot root from `rustc`.

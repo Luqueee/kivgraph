@@ -1103,6 +1103,29 @@ func analyzerFingerprint(options FullOptions) string {
 	return fingerprint
 }
 
+// probeDirectory is where the fingerprint asks a toolchain what it is. The go
+// command switches to the toolchain a go.mod or go.work names, and rustup's
+// proxies to the one a rust-toolchain.toml names, both from the working
+// directory: asked from wherever the process happens to have started, the
+// answer described that directory's pin and not the machine's toolchain, and
+// `go env` in a directory that wants a newer Go downloaded it. A directory that
+// pins nothing gives the default one, whatever started the process. Each
+// repository's own pin is not asked: a change of it is a change of go.mod,
+// go.work or rust-toolchain, which the tree of the unit already records.
+//
+// When the temporary directory is not usable the answer falls back to the
+// process's own, which is what every probe did before.
+func probeDirectory() string {
+	directory := os.TempDir()
+	if !filepath.IsAbs(directory) {
+		return ""
+	}
+	if info, err := os.Stat(directory); err != nil || !info.IsDir() {
+		return ""
+	}
+	return directory
+}
+
 // goEnvironmentFingerprint identifies the go command this pass will run.
 //
 // go/types travels linked inside this binary, but the standard library it
@@ -1122,8 +1145,10 @@ func goEnvironmentFingerprint() (string, error) {
 	if _, err := exec.LookPath("go"); err != nil {
 		return "absent", nil
 	}
-	output, err := exec.Command("go", "env",
-		"GOVERSION", "GOROOT", "GOFLAGS", "GOMODCACHE", "GOPATH", "GOPRIVATE").Output()
+	command := exec.Command("go", "env",
+		"GOVERSION", "GOROOT", "GOFLAGS", "GOMODCACHE", "GOPATH", "GOPRIVATE")
+	command.Dir = probeDirectory()
+	output, err := command.Output()
 	if err != nil {
 		return "", fmt.Errorf("read Go environment: %w", err)
 	}

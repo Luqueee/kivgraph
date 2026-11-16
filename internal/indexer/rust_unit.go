@@ -511,14 +511,18 @@ func rustAnalysisUnits(units []rustWorkspaceUnit) []analysisUnit {
 // index contains: the analyzer that produced it and the build configuration it
 // was given. A feature turned on changes which code exists, so an entry taken
 // without it describes a graph this pass would not produce.
+//
+// Every question put to a toolchain is asked from probeDirectory, so that the
+// answer does not depend on where the process was started.
 func rustAnalysisFingerprint(options FullOptions) string {
 	hash := sha256.New()
+	probes := probeDirectory()
 	command := strings.Fields(strings.TrimSpace(options.RustAnalyzer))
 	fmt.Fprintf(hash, "command=%s\x00", strings.Join(command, " "))
 	if len(command) != 0 {
 		if resolved, _, err := rustloader.ResolveAnalyzer(command[0]); err == nil {
 			fmt.Fprintf(hash, "analyzer=%s\x00", fileFingerprint(resolved))
-			if version, err := rustloader.ToolchainVersion(context.Background(), resolved); err == nil {
+			if version, err := rustloader.ToolchainVersion(context.Background(), resolved, probes); err == nil {
 				fmt.Fprintf(hash, "version=%s\x00", version)
 			}
 		}
@@ -538,18 +542,18 @@ func rustAnalysisFingerprint(options FullOptions) string {
 	// entry that did not record the release would be served across one. It is
 	// the `rustc` the analyzer runs, which the PATH does not decide.
 	if compiler, err := rustloader.LookToolchain("rustc"); err == nil {
-		if version, err := rustloader.ToolchainVersion(context.Background(), compiler); err == nil {
+		if version, err := rustloader.ToolchainVersion(context.Background(), compiler, probes); err == nil {
 			fmt.Fprintf(hash, "rustc=%s\x00", version)
 		}
 	}
 	// Whether that toolchain carries its library sources is part of the
 	// answer too. A pass never installs them, so a machine that gains
 	// `rust-src` must not be served the facts it produced without it.
-	if _, reason, err := rustloader.DiscoverSysroot(context.Background(), ""); err == nil {
+	if _, reason, err := rustloader.DiscoverSysroot(context.Background(), probes); err == nil {
 		fmt.Fprintf(hash, "library=%s\x00", reason)
 	}
 	if cargo, err := exec.LookPath("cargo"); err == nil {
-		if version, err := rustloader.ToolchainVersion(context.Background(), cargo); err == nil {
+		if version, err := rustloader.ToolchainVersion(context.Background(), cargo, probes); err == nil {
 			fmt.Fprintf(hash, "cargo=%s\x00", version)
 		}
 	}

@@ -178,3 +178,30 @@ and left the profile stale after every publication.
 
 Not covered: a worker outside a `dist` directory, and one started through a shim
 that hides its `dist`.
+
+## Amendment: the toolchain probes do not depend on the working directory
+
+`go env` and the `rustc`, `cargo` and sysroot probes of the fingerprint ran in
+the directory the process started in. The go command switches to the toolchain a
+`go.mod` or `go.work` names, and rustup's proxies to the one a
+`rust-toolchain.toml` names, both from the working directory, so the fingerprint
+described that directory's pin and not the machine's toolchain. Measured with a
+`go1.26.11` base: `go env GOVERSION GOROOT` from a module that requires
+`go 1.27.4` answered `go1.27.4` with another `GOROOT`, and downloaded the
+toolchain to answer. A `rustc` that answers by directory, as the proxy does, gave
+a different Rust fingerprint from a directory with a pin; rustup itself was not
+available to measure. Two processes started in different places gave one machine
+two identities.
+
+The probes now run from the temporary directory, which pins nothing, so they
+answer with the default toolchain whatever started the process. When that
+directory is not absolute or not usable the probes keep the process directory, as
+before. A repository's own pin is not asked: the toolchain a repository selects
+is a change of `go.mod`, `go.work` or `rust-toolchain`, which the tree of its unit
+records. `rust-toolchain` and `rust-toolchain.toml` were not analyzed sources, so
+editing the pin of a repository changed no digest; they are now, and the units of
+a repository that has one are rebuilt once.
+
+Not covered: an update of the toolchain a repository selects without touching
+its files, such as `rustup update` on a pinned `stable` channel, when the default
+toolchain of the machine is another one.

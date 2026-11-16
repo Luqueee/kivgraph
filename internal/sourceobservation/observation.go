@@ -892,7 +892,7 @@ var analyzedManifests = map[string]struct{}{
 	"go.mod": {}, "go.sum": {}, "go.work": {}, "go.work.sum": {},
 	"package.json": {}, "pnpm-lock.yaml": {}, "pnpm-workspace.yaml": {}, "pnpm-workspace.yml": {},
 	"package-lock.json": {}, "npm-shrinkwrap.json": {}, "yarn.lock": {},
-	"cargo.toml": {}, "cargo.lock": {},
+	"cargo.toml": {}, "cargo.lock": {}, "rust-toolchain": {}, "rust-toolchain.toml": {},
 	"pyproject.toml": {}, "setup.py": {}, "setup.cfg": {}, "requirements.txt": {},
 	"pipfile": {}, "pipfile.lock": {}, "poetry.lock": {}, "uv.lock": {},
 	"pubspec.yaml": {}, "pubspec.lock": {}, "analysis_options.yaml": {},

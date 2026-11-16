@@ -65,6 +65,7 @@ func TestEveryLanguagesManifestsInvalidateAnEntry(t *testing.T) {
 		"requirements-dev.txt", "pubspec.yaml", "analysis_options.yaml", "pom.xml",
 		"build.gradle", "build.gradle.kts", "app.csproj", "pnpm-lock.yaml",
 		"tsconfig.build.json", filepath.Join(".dart_tool", "package_config.json"),
+		"rust-toolchain.toml", "rust-toolchain",
 	} {
 		if !isFingerprintedSource(manifest) {
 			t.Fatalf("%s does not invalidate a cache entry", manifest)
@@ -95,6 +96,22 @@ func TestFactCacheMissesWhenAnExplicitOrAnalyzerManifestChanges(t *testing.T) {
 	writeFullFixture(t, filepath.Join(fixture.root, "build.gradle"), "plugins { id 'java-library' }\n")
 	if _, report := fixture.index(); report.Cache.Hits != 0 {
 		t.Fatalf("cache = %+v, want no hit after build.gradle changed", report.Cache)
+	}
+}
+
+// A repository's pinned Rust toolchain decides which compiler and which standard
+// library its facts come from, and editing the file that pins it changes neither
+// a source nor a manifest of the unit.
+func TestFactCacheMissesWhenTheRustToolchainPinChanges(t *testing.T) {
+	fixture := newCachedFixture(t)
+	writeFullFixture(t, filepath.Join(fixture.root, "rust-toolchain.toml"), "[toolchain]\nchannel = \"1.80.0\"\n")
+	fixture.index()
+	if _, report := fixture.index(); report.Cache.Hits == 0 {
+		t.Fatalf("cache = %+v, want a hit when the pin is unchanged", report.Cache)
+	}
+	writeFullFixture(t, filepath.Join(fixture.root, "rust-toolchain.toml"), "[toolchain]\nchannel = \"1.90.0\"\n")
+	if _, report := fixture.index(); report.Cache.Hits != 0 {
+		t.Fatalf("cache = %+v, want no hit after the pinned channel changed", report.Cache)
 	}
 }
 
