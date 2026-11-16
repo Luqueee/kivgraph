@@ -101,6 +101,12 @@ func walkGoFiles(ctx context.Context, base, current string, exclusions []string,
 	}
 	entries, err := os.ReadDir(current)
 	if err != nil {
+		// A directory below the root that vanished between being listed and being
+		// read -- a build's temporary directory -- holds nothing to discover. The
+		// root going away is not that, and stays an error.
+		if os.IsNotExist(err) && current != base {
+			return nil
+		}
 		return fmt.Errorf("read directory %q: %w", current, err)
 	}
 	for _, entry := range entries {
@@ -130,6 +136,9 @@ func walkGoFiles(ctx context.Context, base, current string, exclusions []string,
 			continue
 		}
 		info, err := entry.Info()
+		if os.IsNotExist(err) {
+			continue
+		}
 		if err != nil {
 			return fmt.Errorf("inspect file %q: %w", entryPath, err)
 		}

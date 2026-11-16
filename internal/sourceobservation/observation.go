@@ -603,6 +603,12 @@ func TreeDigest(ctx context.Context, root string) (string, error) {
 			return err
 		}
 		if walkErr != nil {
+			// An entry below the root that vanished between being listed and
+			// being read is not there to hash. The root going away is not that,
+			// and stays an error: a digest of nothing reads as an empty tree.
+			if errors.Is(walkErr, fs.ErrNotExist) && path != root {
+				return nil
+			}
 			return walkErr
 		}
 		if entry.IsDir() {
@@ -620,6 +626,9 @@ func TreeDigest(ctx context.Context, root string) (string, error) {
 			return nil
 		}
 		info, err := entry.Info()
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
 		if err != nil {
 			return err
 		}
@@ -638,6 +647,9 @@ func TreeDigest(ctx context.Context, root string) (string, error) {
 			}
 		}
 		file, err := os.Open(path)
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
 		if err != nil {
 			return err
 		}
