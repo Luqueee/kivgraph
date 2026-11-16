@@ -139,6 +139,10 @@ type cacheEntry struct {
 	Version  int    `json:"version"`
 	Unit     string `json:"unit"`
 	Analyzer string `json:"analyzer"`
+	// AnalyzerParts is what each part of the analyzer looked like when the entry was
+	// written. It says which part moved when the entry is refused, and decides
+	// nothing: Analyzer does.
+	AnalyzerParts map[string]string `json:"analyzer_parts,omitempty"`
 	// LocalAddress is the content address of source and configuration inputs.
 	// Provider and registry inputs are deliberately excluded: they belong to
 	// the resolution context in Unit and must not turn a local fact into a
@@ -192,6 +196,11 @@ type CacheReport struct {
 	// no_entry; the other values describe an entry found at that address but
 	// rejected during validation.
 	Refusals map[CacheRefusalReason]int
+	// AnalyzerChanged counts, by part of the analyzer, the entries refused because
+	// the analyzer changed: `binary`, `go`, `rust`, `typescript`... An entry that
+	// differs in several parts counts in each. `unrecorded` is an entry that kept no
+	// parts. See CacheReport.AnalyzerChangedNote.
+	AnalyzerChanged map[string]int
 }
 
 // factCache reads and writes one entry per analysis unit.
@@ -203,6 +212,9 @@ type factCache struct {
 	staging   string
 	mode      CacheMode
 	analyzer  string
+	// analyzerParts are the parts of analyzer when this process computed it, nil
+	// when the value came from elsewhere.
+	analyzerParts map[string]string
 
 	trees *fingerprintMemo
 	// goRegistry and rustRegistry are this pass's answer to "who provides
@@ -212,14 +224,15 @@ type factCache struct {
 	semanticRegistry   string
 	typeScriptRegistry string
 
-	hits         atomic.Int64
-	misses       atomic.Int64
-	verified     atomic.Int64
-	refusalMutex sync.Mutex
-	refusals     map[CacheRefusalReason]int
-	pendingMutex sync.Mutex
-	pending      []pendingCacheEntry
-	commitOnce   sync.Once
+	hits            atomic.Int64
+	misses          atomic.Int64
+	verified        atomic.Int64
+	refusalMutex    sync.Mutex
+	refusals        map[CacheRefusalReason]int
+	analyzerChanges map[string]int
+	pendingMutex    sync.Mutex
+	pending         []pendingCacheEntry
+	commitOnce      sync.Once
 }
 
 type pendingCacheEntry struct {
@@ -268,6 +281,9 @@ func newFactCache(options FullOptions) (*factCache, error) {
 		analyzer:  analyzer,
 		trees:     newFingerprintMemo(),
 		refusals:  make(map[CacheRefusalReason]int),
+
+		analyzerParts:   analyzerPartsOf(analyzer),
+		analyzerChanges: make(map[string]int),
 	}, nil
 }
 
@@ -284,14 +300,32 @@ func (cache *factCache) report() CacheReport {
 	for reason, count := range cache.refusals {
 		refusals[reason] = count
 	}
+	var analyzerChanged map[string]int
+	if len(cache.analyzerChanges) != 0 {
+		analyzerChanged = make(map[string]int, len(cache.analyzerChanges))
+		for part, count := range cache.analyzerChanges {
+			analyzerChanged[part] = count
+		}
+	}
 	cache.refusalMutex.Unlock()
 	return CacheReport{
-		Mode:     cache.mode,
-		Hits:     int(cache.hits.Load()),
-		Misses:   int(cache.misses.Load()),
-		Verified: int(cache.verified.Load()),
-		Refusals: refusals,
+		Mode:            cache.mode,
+		Hits:            int(cache.hits.Load()),
+		Misses:          int(cache.misses.Load()),
+		Verified:        int(cache.verified.Load()),
+		Refusals:        refusals,
+		AnalyzerChanged: analyzerChanged,
 	}
+}
+
+// noteAnalyzerChange records which parts of the analyzer a refused entry differs in.
+func (cache *factCache) noteAnalyzerChange(entry cacheEntry) {
+	changed := changedAnalyzerParts(entry.AnalyzerParts, cache.analyzerParts)
+	cache.refusalMutex.Lock()
+	for _, part := range changed {
+		cache.analyzerChanges[part]++
+	}
+	cache.refusalMutex.Unlock()
 }
 
 func (cache *factCache) refuse(reason CacheRefusalReason) {
@@ -378,6 +412,7 @@ func (cache *factCache) load(identity, localAddress string) (cacheEntry, bool, C
 		return cacheEntry{}, false, CacheRefusalIncompatible
 	}
 	if entry.Analyzer != cache.analyzer {
+		cache.noteAnalyzerChange(entry)
 		return cacheEntry{}, false, CacheRefusalAnalyzer
 	}
 	if entry.LocalAddress != localAddress {
@@ -417,6 +452,7 @@ func (cache *factCache) store(
 		Version:         cacheEntryVersion,
 		Unit:            identity,
 		Analyzer:        cache.analyzer,
+		AnalyzerParts:   cache.analyzerParts,
 		LocalAddress:    localAddress,
 		Inputs:          cache.describeInputs(unit, options, inputs, result),
 		Set:             result.set,
@@ -1032,24 +1068,37 @@ func lockfilePaths(root string) []string {
 // not produce. An unavailable identity fails closed instead of being replaced
 // with a timestamp: a full pass observes it before and after analysis.
 func AnalyzerFingerprint(options FullOptions) (string, error) {
-	hash := sha256.New()
-	fmt.Fprintf(hash, "entry=%d\x00", cacheEntryVersion)
-	fmt.Fprintf(hash, "resolver=%s\x00", strings.TrimSpace(options.ResolverVersion))
+	fingerprint, _, err := observeAnalyzer(options)
+	return fingerprint, err
+}
+
+// observeAnalyzer is AnalyzerFingerprint that also answers the parts the value is
+// made of, and remembers them for the fact cache that is handed the value.
+func observeAnalyzer(options FullOptions) (string, map[string]string, error) {
+	hash := newAnalyzerBuilder()
+	hash.part(analyzerPartResolver)
+	hash.printf("entry=%d\x00", cacheEntryVersion)
+	hash.printf("resolver=%s\x00", strings.TrimSpace(options.ResolverVersion))
+	hash.part(analyzerPartGo)
 	cgo := "default"
 	if options.GoCGOEnabled != nil {
 		cgo = fmt.Sprintf("%t", *options.GoCGOEnabled)
 	}
-	fmt.Fprintf(hash, "tests=%t\x00network=%t\x00goos=%s\x00goarch=%s\x00cgo=%s\x00", options.IncludeTests, options.GoAllowNetwork, strings.TrimSpace(options.GoOS), strings.TrimSpace(options.GoARCH), cgo)
+	hash.printf("tests=%t\x00network=%t\x00goos=%s\x00goarch=%s\x00cgo=%s\x00", options.IncludeTests, options.GoAllowNetwork, strings.TrimSpace(options.GoOS), strings.TrimSpace(options.GoARCH), cgo)
 	tags := append([]string(nil), options.GoBuildTags...)
 	sort.Strings(tags)
-	fmt.Fprintf(hash, "tags=%s\x00", strings.Join(tags, ","))
+	hash.printf("tags=%s\x00", strings.Join(tags, ","))
+	hash.part(analyzerPartTypeScript)
 	// A pass with unclaimed sources on reads files a pass with it off never
 	// looked at, so an entry from one analyser is not the other's.
-	fmt.Fprintf(hash, "worker=%s\x00ts-unclaimed=%t\x00",
+	hash.printf("worker=%s\x00ts-unclaimed=%t\x00",
 		strings.TrimSpace(options.TypeScriptWorker), options.TypeScriptIncludeUnclaimedSources)
-	fmt.Fprintf(hash, "python=%s\x00python-analyzer=%s\x00python-mode=%s\x00python-path=%s\x00python-tests=%t\x00python-generated=%t\x00python-external=%t\x00", strings.TrimSpace(options.PythonIndexer), strings.TrimSpace(options.PythonAnalyzer), strings.TrimSpace(options.PythonAnalyzerMode), strings.TrimSpace(options.PythonPath), options.PythonIncludeTests, options.PythonIncludeGenerated, options.PythonIncludeExternal)
-	fmt.Fprintf(hash, "dart=%s\x00dart-sdk=%s\x00dart-generated=%t\x00dart-tests=%t\x00dart-external=%t\x00dart-sdk-index=%t\x00dart-package-config=%s\x00dart-wait=%t\x00dart-time=%s\x00", strings.TrimSpace(options.DartAnalyzer), strings.TrimSpace(options.DartSDKPath), options.DartIncludeGenerated, options.DartIncludeTests, options.DartIncludeExternal, options.DartIncludeSDK, strings.TrimSpace(options.DartPackageConfig), options.DartWaitForAnalysis, options.DartMaximumAnalysisTime)
-	fmt.Fprintf(hash, "java=%s\x00java-build-tool=%s\x00java-tests=%t\x00java-generated=%t\x00java-target=%s\x00",
+	hash.part(analyzerPartPython)
+	hash.printf("python=%s\x00python-analyzer=%s\x00python-mode=%s\x00python-path=%s\x00python-tests=%t\x00python-generated=%t\x00python-external=%t\x00", strings.TrimSpace(options.PythonIndexer), strings.TrimSpace(options.PythonAnalyzer), strings.TrimSpace(options.PythonAnalyzerMode), strings.TrimSpace(options.PythonPath), options.PythonIncludeTests, options.PythonIncludeGenerated, options.PythonIncludeExternal)
+	hash.part(analyzerPartDart)
+	hash.printf("dart=%s\x00dart-sdk=%s\x00dart-generated=%t\x00dart-tests=%t\x00dart-external=%t\x00dart-sdk-index=%t\x00dart-package-config=%s\x00dart-wait=%t\x00dart-time=%s\x00", strings.TrimSpace(options.DartAnalyzer), strings.TrimSpace(options.DartSDKPath), options.DartIncludeGenerated, options.DartIncludeTests, options.DartIncludeExternal, options.DartIncludeSDK, strings.TrimSpace(options.DartPackageConfig), options.DartWaitForAnalysis, options.DartMaximumAnalysisTime)
+	hash.part(analyzerPartJava)
+	hash.printf("java=%s\x00java-build-tool=%s\x00java-tests=%t\x00java-generated=%t\x00java-target=%s\x00",
 		strings.TrimSpace(options.JavaIndexerCommand), strings.TrimSpace(options.JavaBuildTool),
 		options.JavaIncludeTests, options.JavaIncludeGenerated,
 		strings.TrimSpace(options.JavaTargetDirectory))
@@ -1069,30 +1118,38 @@ func AnalyzerFingerprint(options FullOptions) (string, error) {
 	// the fact cache was off, silently, on every machine without scip-java.
 	// A Java repository on such a machine is isolated by analyzerNotInstalled
 	// and its facts are never stored, so there is nothing to serve wrongly.
-	fmt.Fprintf(hash, "java-indexer=%s\x00", javaIndexerFingerprint(options))
-	fmt.Fprintf(hash, "csharp=%s\x00csharp-project=%s\x00csharp-tests=%t\x00csharp-generated=%t\x00csharp-restore=%t\x00csharp-target=%s\x00",
+	hash.printf("java-indexer=%s\x00", javaIndexerFingerprint(options))
+	hash.part(analyzerPartCSharp)
+	hash.printf("csharp=%s\x00csharp-project=%s\x00csharp-tests=%t\x00csharp-generated=%t\x00csharp-restore=%t\x00csharp-target=%s\x00",
 		strings.TrimSpace(options.CSharpIndexerCommand), strings.TrimSpace(options.CSharpProject),
 		options.CSharpIncludeTests, options.CSharpIncludeGenerated, options.CSharpSkipRestore,
 		strings.TrimSpace(options.CSharpTargetDirectory))
-	fmt.Fprintf(hash, "csharp-indexer=%s\x00", cSharpIndexerFingerprint(options))
-	fmt.Fprintf(hash, "python-worker=%s\x00", pythonProducerFingerprint(options))
+	hash.printf("csharp-indexer=%s\x00", cSharpIndexerFingerprint(options))
+	hash.part(analyzerPartPython)
+	hash.printf("python-worker=%s\x00", pythonProducerFingerprint(options))
+	hash.part(analyzerPartBinary)
 	executable, err := os.Executable()
 	if err != nil {
-		return "", fmt.Errorf("resolve Kivgraph executable: %w", err)
+		return "", nil, fmt.Errorf("resolve Kivgraph executable: %w", err)
 	}
 	binaryDigest, err := sourceobservation.FileDigest(context.Background(), executable)
 	if err != nil {
-		return "", fmt.Errorf("digest Kivgraph executable: %w", err)
+		return "", nil, fmt.Errorf("digest Kivgraph executable: %w", err)
 	}
-	fmt.Fprintf(hash, "binary=%s\x00", binaryDigest)
+	hash.printf("binary=%s\x00", binaryDigest)
+	hash.part(analyzerPartGo)
 	goEnvironment, err := goEnvironmentFingerprint()
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
-	fmt.Fprintf(hash, "goenv=%s\x00", goEnvironment)
-	fmt.Fprintf(hash, "rust=%s\x00", rustAnalysisFingerprint(options))
-	fmt.Fprintf(hash, "tsworker=%s\x00", typeScriptWorkerFingerprint(options))
-	return hex.EncodeToString(hash.Sum(nil)), nil
+	hash.printf("goenv=%s\x00", goEnvironment)
+	hash.part(analyzerPartRust)
+	hash.printf("rust=%s\x00", rustAnalysisFingerprint(options))
+	hash.part(analyzerPartTypeScript)
+	hash.printf("tsworker=%s\x00", typeScriptWorkerFingerprint(options))
+	fingerprint, parts := hash.fingerprint(), hash.summary()
+	rememberAnalyzerParts(fingerprint, parts)
+	return fingerprint, parts, nil
 }
 
 // analyzerFingerprint keeps the fact-cache test helpers compact. Production

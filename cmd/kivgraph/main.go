@@ -1752,8 +1752,12 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 		writeWarning(stdout, "index.rust.no_workspace: %s declares no Cargo manifest, so it contributes nothing", repository)
 	}
 	if cache := indexReport.Cache; cache.Mode != "" && cache.Mode != indexer.CacheOff {
-		writeInfo(stdout, "index.cache: mode=%s hits=%d misses=%d verified=%d",
-			cache.Mode, cache.Hits, cache.Misses, cache.Verified)
+		note := ""
+		if changed := cache.AnalyzerChangedNote(); changed != "" {
+			note = " analyzer_changed=" + changed
+		}
+		writeInfo(stdout, "index.cache: mode=%s hits=%d misses=%d verified=%d%s",
+			cache.Mode, cache.Hits, cache.Misses, cache.Verified, note)
 	}
 	if verification := fullResult.SourceVerification; verification.Mode == indexing.SourceVerificationSignature {
 		writeInfo(stdout, "index.source_verification: mode=%s trees=%d reused=%d",

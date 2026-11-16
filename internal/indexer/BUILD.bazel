@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "indexer",
     srcs = [
+        "analyzer_parts.go",
         "factcache.go",
         "full.go",
         "rust_unit.go",
@@ -31,6 +32,7 @@ go_library(
 go_test(
     name = "indexer_test",
     srcs = [
+        "analyzer_parts_test.go",
         "factcache_absent_test.go",
         "factcache_csharp_test.go",
         "factcache_fingerprint_test.go",

@@ -205,3 +205,29 @@ a repository that has one are rebuilt once.
 Not covered: an update of the toolchain a repository selects without touching
 its files, such as `rustup update` on a pinned `stable` channel, when the default
 toolchain of the machine is another one.
+
+## Amendment: a refused entry says which part of the analyzer moved
+
+A difference in the analyzer fingerprint refused every entry and said nothing
+about where it was. The fingerprint is now built in parts -- `resolver`, `binary`,
+`go`, `typescript`, `python`, `dart`, `java`, `csharp` and `rust` -- and each
+entry records the hash of each part, truncated to `16` digits, as
+`analyzer_parts`. The value is the hash of the same bytes in the same order it
+always was, so no entry is invalidated and the entry version stays. The parts are
+a diagnosis: an entry is served or refused by the value alone.
+
+When an entry is refused because the analyzer changed, the pass counts the parts
+that differ between what the entry recorded and what the pass has, and
+`index --full` appends them to the `index.cache` line, as in
+`analyzer_changed=rust:34`. An entry that differs in several parts counts in each.
+An entry written before the parts were kept, or a value that this process did not
+compute, counts as `unrecorded`. A process remembers the parts of the last eight
+fingerprints it computed, by value, so the cache can name them without computing
+the fingerprint again.
+
+Measured on the six-repository corpus, which has no Rust repository: with a `PATH`
+that has `rustc` and `cargo` and then one that has neither, the pass reports
+`hits=0 misses=39` and `analyzer_changed=rust:34`, and again on the way back. The
+cost of the switch, `19.8` to `20.8 s` against `7.0 s` warm, is what a
+per-language fingerprint or an analyzer-addressed entry would have to remove; the
+line is what tells which of them is worth building.
