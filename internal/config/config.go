@@ -308,7 +308,7 @@ type IndexingConfig struct {
 	// while it ran. `full` observes the whole tree again, as it always did.
 	// `signature` first compares the stat of every directory and analysed file with
 	// the stat taken at the first observation and reads a tree again only when it
-	// cannot prove it would read the same. See ADR 0120.
+	// cannot prove it would read the same. See ADR 0121.
 	SourceVerification string `yaml:"source_verification"`
 }
 

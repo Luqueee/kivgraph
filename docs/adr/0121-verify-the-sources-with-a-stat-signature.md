@@ -1,4 +1,4 @@
-# ADR 0120: Verify the sources with a stat signature before reading them again
+# ADR 0121: Verify the sources with a stat signature before reading them again
 
 Status: accepted, 2026-11-16, implemented behind an opt-in. Narrows one rejected
 alternative of ADR 0097.

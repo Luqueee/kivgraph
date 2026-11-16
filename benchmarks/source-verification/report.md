@@ -7,7 +7,7 @@
 > `14` scenarios on a local APFS volume the signature reported nothing for a
 > changed tree **zero** times; the same signature without the inode change time
 > misses the one scenario that restores a file's modification time. This
-> supports [ADR 0120](../../docs/adr/0120-verify-the-sources-with-a-stat-signature.md)
+> supports [ADR 0121](../../docs/adr/0121-verify-the-sources-with-a-stat-signature.md)
 > as a proposal. It is not a measurement of a pass: nothing here is wired into one.
 
 [`benchmarks/publication-profile`](../publication-profile/report.md) found that
@@ -127,7 +127,7 @@ uses today and the signature each say whether the tree changed.
 
 ## In a pass, with the option on and off
 
-ADR 0120 is accepted and implemented behind `indexing.source_verification`
+ADR 0121 is accepted and implemented behind `indexing.source_verification`
 (commit `6bfc84c`, clean tree). The `edit-frequency` harness ran the six
 repositories of this report with `full` and with `signature`, interleaved in one
 window: three rounds of eight edits per arm, `24` passes each. `pass-level/` holds

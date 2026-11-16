@@ -273,7 +273,7 @@ func (options FullOptions) indexerOptions() indexer.FullOptions {
 	}
 }
 
-// The two values of FullOptions.SourceVerification. See ADR 0120.
+// The two values of FullOptions.SourceVerification. See ADR 0121.
 const (
 	SourceVerificationFull      = "full"
 	SourceVerificationSignature = "signature"
