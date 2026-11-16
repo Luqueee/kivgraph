@@ -132,6 +132,10 @@ type passCost struct {
 	Symbols            int         `json:"symbols"`
 	Edges              int         `json:"edges"`
 	GenerationID       string      `json:"generation_id"`
+	// PublishSteps splits the `publish` stage into steps that follow one another
+	// and add up to it, which the stage list above cannot: `publish` encloses the
+	// other rows, and what it holds that they do not was a cost with no name.
+	PublishSteps []stageCost `json:"publish_steps,omitempty"`
 }
 
 type grepQuestion struct {
@@ -467,6 +471,9 @@ func measurePass(ctx context.Context, base indexing.FullOptions, step int, label
 	for _, stage := range result.RebuildReport.Stages {
 		cost.Stages = append(cost.Stages, stageCost{Name: string(stage.Name), Seconds: stage.DurationMS / 1000})
 	}
+	for _, step := range result.RebuildReport.PublishSteps {
+		cost.PublishSteps = append(cost.PublishSteps, stageCost{Name: step.Name, Seconds: step.DurationMS / 1000})
+	}
 	return cost, nil
 }
 
@@ -749,6 +756,9 @@ func reportPass(cost passCost) {
 		if stage.Seconds > 0 {
 			fmt.Fprintf(os.Stderr, "      %-14s %6.3f s\n", stage.Name, stage.Seconds)
 		}
+	}
+	for _, step := range cost.PublishSteps {
+		fmt.Fprintf(os.Stderr, "        publish/%-16s %6.3f s\n", step.Name, step.Seconds)
 	}
 }
 

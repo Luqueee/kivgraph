@@ -316,6 +316,69 @@ One ten-edit run is not a controlled comparison with another taken minutes
 apart; the range of the six-repository run (`12,9`–`17,9 s`) shows the machine
 moving under it.
 
+### The unlabelled cost of `publish` has a name (phase 6b, step b)
+
+The previous section ended on a cost inside `publish` that no stage owns and that
+did not grow with the graph (`1,46` to `1,54 s`). The generation store and
+`rebuild.Run` now time the steps of `publish` one after another
+(`Report.PublishSteps`, #55); the harness records them per pass
+(`publish_steps`). Commit `fce9afd25b81d716dc9c6977c6c24a0bed918536`, clean tree,
+ten edits each, `target/` of one repository excluded as in the full runs above.
+Raw metrics: `results-publish-steps-6repos.json` and `...-5repos.json`.
+
+|step|six repositories|share of the pass|five repositories|share of the pass|
+|---|---|---|---|---|
+|`setup`|`0,000 s`|`0,0 %`|`0,000 s`|`0,0 %`|
+|`build`|`4,913 s`|`35,6 %`|`3,742 s`|`32,1 %`|
+|`sync candidate`|`0,017 s`|`0,1 %`|`0,016 s`|`0,1 %`|
+|`validate`|`1,624 s`|`11,8 %`|`1,088 s`|`9,3 %`|
+|**`verify sources`**|**`1,387 s`**|**`10,0 %`**|**`1,250 s`**|**`10,7 %`**|
+|`sync validated`|`0,006 s`|`0,0 %`|`0,005 s`|`0,0 %`|
+|`commit`|`0,017 s`|`0,1 %`|`0,016 s`|`0,1 %`|
+|`prune`|`0,008 s`|`0,1 %`|`0,007 s`|`0,1 %`|
+|steps added up / the `publish` stage|`7,972` / `7,992 s`||`6,126` / `6,143 s`||
+|pass, median|`13,801 s`||`11,656 s`||
+
+The steps add up to the stage within `0,02 s`, so nothing is left unnamed.
+
+What was unlabelled, then, is **the verification of the sources**: `1,25`–`1,39 s`
+per pass, `10`–`11 %` of it. It runs inside `validate`, immediately before
+`CURRENT` can move, and re-observes the source tree to prove it did not change
+during the pass. It is `ObserveSources` called a second time, the function that
+produced the manifest at the start of the pass (`internal/indexing/full.go`), and a
+pass already runs `freshness.Capture` twice and the discovery walks besides, so
+the tree is read from the root at least four times before the discovery walks
+are counted. It grows `11 %` for `+52 %`
+symbols, which is what a walk of the tree (the same repositories, mostly the same
+files) predicts and what a cost of the graph does not.
+
+The rest of the old unlabelled cost is smaller: `0,20`–`0,22 s` is in `build`
+outside its own stages (the published snapshot file and the source manifest are
+written there), and every filesystem step together -- both `fsync` passes over the
+candidate, the rename, the pointers, the pruning -- is under `0,06 s`. **The
+`fsync` cost I expected on macOS is not there.**
+
+This changes what 6b can attack, ordered by what was measured:
+
+|candidate|per pass, six repositories|
+|---|---|
+|`bulk load`|`2,57 s`, native, serial CSV reader (above)|
+|`snapshot` build|`1,72 s`|
+|`integrity`|`1,58 s`|
+|**`verify sources`**|**`1,39 s`**|
+|the walks inside analysis|about `1 s` (above)|
+
+`verify sources` and the walks of analysis are the same kind of work: both are
+directory walks that read every analysed file to hash it, so one design decision
+covers both -- whether the verification may use something cheaper than a second
+full read of the tree (a stat signature to find the files that changed, hashing
+only those). That weakens a fail-closed check and is a contract question, so it
+needs an ADR, not a patch.
+
+The load at the start of this run was `16` (average over one minute, `10` CPUs); the pass
+medians are `13,8` and `11,7 s`, so the shares above are the result and the
+seconds are not comparable with another window.
+
 ### Problems found while building this corpus
 
 - **One repository could not be published** (fixed in #52, which is why it is in

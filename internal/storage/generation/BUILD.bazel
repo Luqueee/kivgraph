@@ -64,6 +64,7 @@ go_test(
     srcs = [
         "store_candidates_test.go",
         "store_lock_test.go",
+        "store_steps_test.go",
         "store_test.go",
     ],
     embed = [":generation"],
