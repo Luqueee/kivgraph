@@ -2177,6 +2177,9 @@ func runDoctor(args []string, stdout, stderr io.Writer) int {
 	} else {
 		doctorResult("toolchains", false, "repository metadata unavailable")
 	}
+	if registryErr == nil {
+		reportDoctorCacheDirectories(context.Background(), doctorResult, registry.List())
+	}
 
 	root := filepath.Dir(loaded.Config.Storage.DatabasePath)
 	layout, layoutErr := rebuild.Roles(context.Background(), rebuild.LayoutOptions{

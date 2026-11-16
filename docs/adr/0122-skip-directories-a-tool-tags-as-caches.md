@@ -121,7 +121,7 @@ land outside the tree.
   is still stamped, so a tag that appears or goes is a change the signature sees.
 - Misuse is possible and has a limit: a tool or a person who tags a directory of
   real sources makes them invisible to the graph. That is the same class as an
-  `exclusions` entry, but implicit, and it is not reported at run time yet.
+  `exclusions` entry, but implicit; `doctor` names every skipped directory.
 
 ## Implementation
 
@@ -142,9 +142,11 @@ Two deviations from the decision as proposed, both on purpose:
 
 `TreeDigest` stamps a tagged directory before it skips it, so ADR 0121's
 signature notices a tag that appears or goes and stops vouching for a digest taken
-under the other answer. `doctor` does **not** yet list the directories skipped for
-a tag; the skip is documented in the configuration page and not silent in
-the code, but it is not reported at run time.
+under the other answer. `doctor` lists the skipped directories as `walk.cache_tag`:
+per repository, relative to its root, at most five each with the count of the rest,
+and `no directory carries a cache tag` when there are none. It walks each
+registered tree once, which took under a second for the six-repository corpus in
+a whole `doctor` run. A tree it cannot walk is a failure, not an empty list.
 
 ## Verification
 
@@ -185,5 +187,4 @@ Not established by this record:
 - the saving on a repository whose `target/` is small, with several tagged
   directories, or on Linux;
 - whether another tool's tag, such as a Python cache, is worth the same walk
-  change. The rule applies to them by construction and has not been measured;
-- `doctor` reporting the skipped directories.
+  change. The rule applies to them by construction and has not been measured.

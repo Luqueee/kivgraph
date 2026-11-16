@@ -1,9 +1,14 @@
 package workspace
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // cacheDirectoryTag and cacheDirectorySignature are the Cache Directory Tagging
@@ -39,4 +44,68 @@ func IsCacheDirectory(directory string) bool {
 		return false
 	}
 	return string(prefix) == cacheDirectorySignature
+}
+
+// CacheDirectories lists, as absolute sorted paths, the directories below the
+// repository's root that the walks skip because they hold a cache directory tag.
+// A tagged directory below another one is not listed: it is skipped with
+// everything under it. Directories no walk reaches anyway -- `.git`,
+// `node_modules`, and what the repository's exclusions name -- are not listed
+// either, so the list is what the tag changed and nothing else.
+//
+// It exists so that a skip that decides what the graph holds is never silent.
+func CacheDirectories(ctx context.Context, repository Repository) ([]string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	rootInput := repository.RealPath
+	if strings.TrimSpace(rootInput) == "" {
+		rootInput = repository.Path
+	}
+	_, root, err := inspectRepositoryPath(rootInput)
+	if err != nil {
+		return nil, fmt.Errorf("list cache directories root: %w", err)
+	}
+	if err := validateExclusionPatterns(root, repository.Exclusions); err != nil {
+		return nil, fmt.Errorf("validate exclusions: %w", err)
+	}
+	var found []string
+	err = filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			// A directory that vanished mid-walk holds no tag; the root going
+			// away is not that.
+			if errors.Is(walkErr, fs.ErrNotExist) && path != root {
+				return nil
+			}
+			return walkErr
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if !entry.IsDir() || path == root {
+			return nil
+		}
+		if name := entry.Name(); name == ".git" || name == "node_modules" {
+			return fs.SkipDir
+		}
+		excluded, err := MatchesExclusion(root, path, repository.Exclusions)
+		if err != nil {
+			return err
+		}
+		if excluded {
+			return fs.SkipDir
+		}
+		if IsCacheDirectory(path) {
+			found = append(found, path)
+			return fs.SkipDir
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list cache directories below %q: %w", root, err)
+	}
+	return found, nil
 }

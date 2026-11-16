@@ -222,4 +222,5 @@ regular file, not a symlink, and start with the signature of the
 [Cache Directory Tagging Specification](https://bford.info/cachedir/). A
 directory with no tag, or a malformed one, is walked as before, and so is the
 repository root. A directory of real sources that carries such a tag is not
-indexed; remove the tag to index it. See ADR 0122.
+indexed; remove the tag to index it. `kivgraph doctor` lists the skipped
+directories on its `walk.cache_tag` line. See ADR 0122.
