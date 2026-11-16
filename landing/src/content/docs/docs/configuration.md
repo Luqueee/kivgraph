@@ -224,3 +224,9 @@ directory with no tag, or a malformed one, is walked as before, and so is the
 repository root. A directory of real sources that carries such a tag is not
 indexed; remove the tag to index it. `kivgraph doctor` lists the skipped
 directories on its `walk.cache_tag` line. See ADR 0122.
+
+For Go, discovery reads the packages the `go` tool would. A directory named
+`testdata`, or beginning with `_` or `.`, is not a package of the module it sits
+in and is not parsed, so a fixture that is not valid Go cannot stop the index. A
+module that lives inside one (a `go.mod` there, or a `replace` pointing at it) is
+still a module. See ADR 0123.

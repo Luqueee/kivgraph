@@ -222,13 +222,24 @@ func discoverGoPackages(ctx context.Context, repositoryRoot string, exclusions [
 		if excluded {
 			continue
 		}
+		module := moduleForDirectory(directory, moduleRoots)
+		packageRoot := module.RootPath
+		if module.ModulePath == "" {
+			packageRoot = repositoryRoot
+		}
+		// The go tool never matches testdata, nor a name beginning with "_" or
+		// ".", as a package of the module it sits in, and its files need not even
+		// parse. A module whose own root lies inside one is still a module and is
+		// judged from that root.
+		if isOutsideModulePackages(packageRoot, directory) {
+			continue
+		}
 		files := append([]string(nil), filesByDirectory[directory]...)
 		sort.Strings(files)
 		name, packageFiles, err := parseGoPackage(directory, files)
 		if err != nil {
 			return nil, err
 		}
-		module := moduleForDirectory(directory, moduleRoots)
 		goPackage := GoPackage{
 			Directory: directory,
 			Name:      name,
@@ -328,4 +339,21 @@ func sortedGoWorkspaces(workspaces map[string]GoWorkspace) []GoWorkspace {
 		return result[left].Path < result[right].Path
 	})
 	return result
+}
+
+// isOutsideModulePackages reports whether the go tool would leave directory out
+// of the packages of the module rooted at moduleRoot: a path component below the
+// root that is testdata or begins with "_" or ".". The root itself is never
+// judged, so a repository checked out under a directory called testdata works.
+func isOutsideModulePackages(moduleRoot, directory string) bool {
+	relative, err := filepath.Rel(moduleRoot, directory)
+	if err != nil || relative == "." {
+		return false
+	}
+	for _, component := range strings.Split(filepath.ToSlash(relative), "/") {
+		if component == "testdata" || strings.HasPrefix(component, "_") || strings.HasPrefix(component, ".") {
+			return true
+		}
+	}
+	return false
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -219,5 +220,119 @@ func writeGoDiscoveryFile(t *testing.T, path, contents string) {
 	}
 	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
 		t.Fatalf("WriteFile(%q) error = %v", path, err)
+	}
+}
+
+// DiscoverGo reads the packages a "..." pattern of the go tool would match, so a
+// directory the tool never enters must neither be reported nor be able to fail
+// discovery: testdata holds files that are fixtures on purpose, many of them
+// not valid Go.
+func TestDiscoverGoIgnoresPackagesTheGoToolIgnores(t *testing.T) {
+	root := testsupport.TempDir(t)
+	writeGoDiscoveryFile(t, filepath.Join(root, "go.mod"), "module example.com/root\n\ngo 1.24\n")
+	writeGoDiscoveryFile(t, filepath.Join(root, "main.go"), "package main\n")
+	writeGoDiscoveryFile(t, filepath.Join(root, "kept", "kept.go"), "package kept\n")
+	for name, contents := range map[string]string{
+		"testdata/not_go.go":              "this is not go code\n",
+		"testdata/multi/a.go":             "package a\n",
+		"testdata/multi/b.go":             "package b\n",
+		"testdata/ok/ok.go":               "package ok\n",
+		"kept/testdata/inner.go":          "not go either\n",
+		"_scratch/scratch.go":             "package scratch\n",
+		"kept/_generated/generated.go":    "package generated\n",
+		".hidden/hidden.go":               "package hidden\n",
+		"kept/.cache/cache.go":            "package cache\n",
+		"testdata/deep/er/still/inner.go": "package inner\n",
+	} {
+		writeGoDiscoveryFile(t, filepath.Join(root, filepath.FromSlash(name)), contents)
+	}
+
+	discovery, err := DiscoverGo(context.Background(), Repository{RealPath: root})
+	if err != nil {
+		t.Fatalf("DiscoverGo() error = %v, want the ignored directories left alone", err)
+	}
+	var got []string
+	for _, pkg := range discovery.Packages {
+		got = append(got, pkg.ImportPath)
+	}
+	want := []string{"example.com/root", "example.com/root/kept"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("Packages = %v, want %v", got, want)
+	}
+}
+
+// Control for the test above: the rule is about the name and not about the
+// content, so the same files in directories the go tool does enter are packages
+// and are held to the same checks.
+func TestDiscoverGoStillReadsTheSameFilesUnderOtherNames(t *testing.T) {
+	for _, name := range []string{"fixtures", "testdata2", "my_testdata", "a_b", "test.data"} {
+		root := testsupport.TempDir(t)
+		writeGoDiscoveryFile(t, filepath.Join(root, "go.mod"), "module example.com/root\n\ngo 1.24\n")
+		writeGoDiscoveryFile(t, filepath.Join(root, name, "ok.go"), "package ok\n")
+		discovery, err := DiscoverGo(context.Background(), Repository{RealPath: root})
+		if err != nil || len(discovery.Packages) != 1 || discovery.Packages[0].ImportPath != "example.com/root/"+name {
+			t.Errorf("%s: DiscoverGo() = %#v, %v, want the package reported", name, discovery.Packages, err)
+		}
+		writeGoDiscoveryFile(t, filepath.Join(root, name, "bad.go"), "this is not go code\n")
+		if _, err := DiscoverGo(context.Background(), Repository{RealPath: root}); err == nil {
+			t.Errorf("%s: a file that does not parse was accepted outside testdata", name)
+		}
+	}
+}
+
+// The directory the repository is checked out in is not part of the module's
+// packages, so a name above the root must not hide it.
+func TestDiscoverGoDoesNotJudgeTheNamesAboveTheModuleRoot(t *testing.T) {
+	root := filepath.Join(testsupport.TempDir(t), "testdata", "_work", ".repo")
+	writeGoDiscoveryFile(t, filepath.Join(root, "go.mod"), "module example.com/root\n\ngo 1.24\n")
+	writeGoDiscoveryFile(t, filepath.Join(root, "main.go"), "package main\n")
+	discovery, err := DiscoverGo(context.Background(), Repository{RealPath: root})
+	if err != nil || len(discovery.Packages) != 1 || discovery.Packages[0].Directory != root {
+		t.Fatalf("DiscoverGo() = %#v, %v, want the root package", discovery.Packages, err)
+	}
+}
+
+// A module inside testdata is still a module, judged from its own root: its
+// packages are reported, and testdata below that root is ignored again. This is
+// what lets a go.mod replace a dependency with a fixture in testdata.
+func TestDiscoverGoKeepsModulesThatLiveInsideTestdata(t *testing.T) {
+	root := testsupport.TempDir(t)
+	writeGoDiscoveryFile(t, filepath.Join(root, "go.mod"), "module example.com/root\n\ngo 1.24\n\nrequire example.com/fixture v0.0.0\n\nreplace example.com/fixture => ./testdata/fixture\n")
+	writeGoDiscoveryFile(t, filepath.Join(root, "main.go"), "package main\n")
+	writeGoDiscoveryFile(t, filepath.Join(root, "testdata", "fixture", "go.mod"), "module example.com/fixture\n\ngo 1.24\n")
+	writeGoDiscoveryFile(t, filepath.Join(root, "testdata", "fixture", "fixture.go"), "package fixture\n")
+	writeGoDiscoveryFile(t, filepath.Join(root, "testdata", "fixture", "sub", "sub.go"), "package sub\n")
+	writeGoDiscoveryFile(t, filepath.Join(root, "testdata", "fixture", "testdata", "inner.go"), "not go\n")
+
+	discovery, err := DiscoverGo(context.Background(), Repository{RealPath: root})
+	if err != nil {
+		t.Fatalf("DiscoverGo() error = %v", err)
+	}
+	var modules, packages []string
+	for _, module := range discovery.Modules {
+		modules = append(modules, module.ModulePath)
+	}
+	for _, pkg := range discovery.Packages {
+		packages = append(packages, pkg.ImportPath)
+	}
+	slices.Sort(modules)
+	slices.Sort(packages)
+	if want := []string{"example.com/fixture", "example.com/root"}; !slices.Equal(modules, want) {
+		t.Fatalf("Modules = %v, want %v", modules, want)
+	}
+	if want := []string{"example.com/fixture", "example.com/fixture/sub", "example.com/root"}; !slices.Equal(packages, want) {
+		t.Fatalf("Packages = %v, want %v", packages, want)
+	}
+}
+
+// Packages outside any module are judged from the repository root, the only
+// root there is.
+func TestDiscoverGoIgnoresTestdataInATreeWithoutAModule(t *testing.T) {
+	root := testsupport.TempDir(t)
+	writeGoDiscoveryFile(t, filepath.Join(root, "main.go"), "package main\n")
+	writeGoDiscoveryFile(t, filepath.Join(root, "testdata", "bad.go"), "this is not go code\n")
+	discovery, err := DiscoverGo(context.Background(), Repository{RealPath: root})
+	if err != nil || len(discovery.Packages) != 1 || discovery.Packages[0].Directory != root {
+		t.Fatalf("DiscoverGo() = %#v, %v, want only the root package", discovery.Packages, err)
 	}
 }
