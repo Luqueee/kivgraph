@@ -1150,6 +1150,8 @@ func typeScriptWorkerFingerprint(options FullOptions) string {
 			// The script imports the rest of the worker, and a build that
 			// changes only those leaves its own bytes alone.
 			fingerprint += "\x00" + workerModulesFingerprint(filepath.Dir(argument))
+			// And the engine the modules import, which lives outside the build.
+			fingerprint += "\x00" + workerEngineFingerprint(filepath.Dir(argument))
 		}
 	}
 	return fingerprint
@@ -1174,12 +1176,90 @@ func workerModulesFingerprint(directory string) string {
 	if filepath.Base(directory) != workerBuildDirectory {
 		return "entry-only"
 	}
+	return hashTree(directory, isWorkerModule)
+}
+
+// workerEngineFingerprint identifies the TypeScript engine a worker build loads.
+// It is not part of the build: the modules import the `typescript` package, which
+// starts the native executable of the platform package that sits beside it, and
+// a `pnpm install` that changes either leaves every byte of dist alone. Measured:
+// the engine swapped in place under the same command answered the next pass from
+// the cache, for a repository the new engine fails to load.
+//
+// The package is found the way node finds it, by walking up from the build
+// directory. Every package under the sibling `@typescript` directory is hashed,
+// whole: the executable reads the default library files beside it, and which
+// platform node runs on is not something this side should guess. Declarations
+// and source maps of the `typescript` package itself are left out, as they are
+// for the build.
+//
+// As for the build, only a `dist` directory has an engine to look for.
+func workerEngineFingerprint(directory string) string {
+	if filepath.Base(directory) != workerBuildDirectory {
+		return "entry-only"
+	}
+	engine, found := resolveEnginePackage(filepath.Dir(directory))
+	if !found {
+		return "absent"
+	}
+	parts := []string{hashTree(engine, isEngineModule)}
+	platforms := filepath.Join(filepath.Dir(engine), "@typescript")
+	entries, err := os.ReadDir(platforms)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		parts = append(parts, "absent")
+	case err != nil:
+		parts = append(parts, "unreadable")
+	}
+	for _, entry := range entries {
+		// pnpm links each platform package; the content is what counts.
+		real, err := filepath.EvalSymlinks(filepath.Join(platforms, entry.Name()))
+		if err != nil {
+			parts = append(parts, entry.Name()+"\x00unreadable")
+			continue
+		}
+		parts = append(parts, entry.Name()+"\x00"+hashTree(real, nil))
+	}
+	return strings.Join(parts, "\x00")
+}
+
+// resolveEnginePackage finds the `typescript` package a module under directory
+// imports, with links resolved: a pnpm checkout links it into a store whose
+// sibling directories are what the platform package lives in.
+func resolveEnginePackage(directory string) (string, bool) {
+	for {
+		candidate, err := filepath.EvalSymlinks(filepath.Join(directory, "node_modules", "typescript"))
+		if err == nil {
+			if info, statErr := os.Stat(candidate); statErr == nil && info.IsDir() {
+				return candidate, true
+			}
+		}
+		parent := filepath.Dir(directory)
+		if parent == directory {
+			return "", false
+		}
+		directory = parent
+	}
+}
+
+// isEngineModule reports whether a file of the `typescript` package is something
+// the worker can run, as opposed to a declaration or a source map.
+func isEngineModule(name string) bool {
+	return !strings.HasSuffix(name, ".map") && !strings.HasSuffix(name, ".d.ts") &&
+		!strings.HasSuffix(name, ".d.cts") && !strings.HasSuffix(name, ".d.mts")
+}
+
+// hashTree hashes the regular files below directory that include accepts, or all
+// of them when it is nil, by relative path and content. A directory that is not
+// there is `absent` and one that cannot be read is `unreadable`: each is a fact
+// of its own and neither is the hash of nothing.
+func hashTree(directory string, include func(name string) bool) string {
 	hash := sha256.New()
 	err := filepath.WalkDir(directory, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
-		if entry.IsDir() || !entry.Type().IsRegular() || !isWorkerModule(entry.Name()) {
+		if entry.IsDir() || !entry.Type().IsRegular() || (include != nil && !include(entry.Name())) {
 			return nil
 		}
 		relative, err := filepath.Rel(directory, path)

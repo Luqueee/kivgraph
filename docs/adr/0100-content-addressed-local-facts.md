@@ -140,5 +140,35 @@ Measured with the real binary run from the checkout, so that the worker is
 symbol count moved from `72.723` to `44.468`. The next pass with the same build hit
 `34` again.
 
-Not covered: what the worker loads from outside its build, the TypeScript engine
-among it. A new engine version under the same `package.json` range is not seen.
+Not covered by that change: what the worker loads from outside its build, the
+TypeScript engine among it.
+
+## Amendment: the worker's identity covers its TypeScript engine
+
+The modules of the build import the `typescript` package, which starts the native
+executable of the platform package that sits beside it. A `pnpm install` that
+changes either leaves every byte of `dist` alone. Measured on a fixture with the
+worker copied into a bundle layout and the same command throughout: with the engine
+replaced in place by `typescript@7.0.1-rc`, the next pass reported `hits=1` and
+`27` symbols from the cache, for a repository the new engine fails to load with
+`project ... is not part of snapshot 1`.
+
+When the worker is a script in a directory named `dist`, its identity now also
+covers the engine. The `typescript` package is found the way node finds it, by
+walking up from the directory that holds `dist`, with links resolved; it is hashed
+by relative path and content, leaving out declarations and source maps. Every
+package under the `@typescript` directory beside it is hashed whole, because the
+executable reads the default library files next to it and this side does not know
+which platform node runs on. No `typescript` package, no `@typescript` directory
+and an unreadable one are three different values, and none of them is the value of
+a worker that has no engine to look for. The hash is of content, so a pnpm checkout
+and the copy a bundle carries agree.
+
+With the change, the same swap ran the worker, which failed visibly, and putting the
+first engine back hit the cache again. The calculation takes about `15 ms` with a
+warm page cache (`26 MB`), three times per pass. A bundle was already covered, as
+the engine travels with the executable the fingerprint already hashes; the change
+matters for a checkout, where `pnpm install` replaces it independently.
+
+Not covered: a worker outside a `dist` directory, and one started through a shim
+that hides its `dist`.
