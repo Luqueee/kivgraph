@@ -261,16 +261,76 @@ the order of the costs: the bulk load, then the snapshot, with publication
 the larger half. What this one adds is that analysis is no longer the small half:
 it holds the directory walks, which were never visible at `12.465` symbols.
 
+### Six repositories, after the fix (phase 6b, repeated)
+
+The repository above joins the corpus: `1.290` files, `53.711` symbols, `219.891`
+edges (`1,52x` the five-repository corpus). Raw metrics:
+`results-workspace-6repos.json`; the interleaved runs below are in
+`interleaved/`. Commit `9ae5efdf8dea36902e24969ed34c90b6942acd68`, clean tree.
+
+**The absolute seconds of the previous section do not reproduce.** The same five
+repositories, same configuration, took `6,913 s` there and `12,3`–`12,5 s` here,
+on code that differs only by #52. The grep arm moved from `0,043` to `0,062 s`
+per question and the load average was `4`–`7` on `10` CPUs, from a `cargo
+clippy` of the maintainer's running in the background. Only comparisons made
+inside one window mean anything, so these were interleaved: four
+configurations, run in turn, twice, five edits each.
+
+|configuration|symbols|pass, two runs|analysis|publication|
+|---|---|---|---|---|
+|five repositories|`35.297`|`12,28`, `12,53`|`6,15`, `6,30`|`6,12`, `6,33`|
+|five, `target/` of one excluded|`35.297`|`11,37`, `11,43`|`5,29`, `5,26`|`6,08`, `6,17`|
+|six repositories|`53.711`|`14,87`, `14,58`|`6,50`, `6,52`|`8,12`, `8,03`|
+|six, `target/` of one excluded|`53.711`|`13,53`, `13,70`|`5,56`, `5,78`|`8,01`, `8,07`|
+
+- **Excluding one `target/` of about `47.000` entries saves `0,9`–`1,1 s` of the
+  pass, all of it in analysis**, and publication does not move. That is the
+  first direct measurement of what the walks cost, for one directory: about `8 %`
+  of the pass under this load. The exclusion is a repository setting the product
+  already has; the full ten-edit runs below use it.
+- **The sixth repository adds `2,3 s` (`+19 %`) for `+52 %` symbols**, and
+  `2,0 s` of that is publication (`+33 %`); analysis hardly moves, because the
+  fact cache serves `35` of `39` units.
+
+Full run, ten edits, `target/` excluded (`results-workspace-6repos.json`):
+
+|measure|six repositories|five repositories (same window)|
+|---|---|---|
+|pass, median (range)|`14,122 s` (`12,945`–`17,937`)|`11,419 s` (`11,342`–`11,533`)|
+|analysis|`5,864 s`, `41,5 %`|`5,291 s`, `46,3 %`|
+|publication|`8,224 s`, `58,2 %`|`6,149 s`, `53,9 %`|
+|`bulk load`|`2,641 s`, `18,7 %`|`2,052 s`, `18,0 %`|
+|`snapshot`|`1,790 s`, `12,7 %`|`1,160 s`, `10,2 %`|
+|`integrity`|`1,592 s`, `11,3 %`|`1,020 s`, `8,9 %`|
+|`staging`|`0,427 s`|`0,288 s`|
+|in `publish`, in no listed stage|`1,541 s`, `10,9 %`|`1,459 s`, `12,8 %`|
+
+`integrity` (`+56 %`) and `snapshot` (`+54 %`) grow with the symbols; `bulk load`
+grows less (`+29 %`); **the unlabelled part of `publish` does not grow at all**
+(`1,46` to `1,54 s` for `+52 %` symbols). A cost that does not follow the size of
+the graph is a fixed cost of every pass, which makes it the cheapest thing to
+find: it needs a name and a timer, not an optimisation. It was `0,843 s` in the
+lighter window of the previous section, so it also moves with load.
+
+One ten-edit run is not a controlled comparison with another taken minutes
+apart; the range of the six-repository run (`12,9`–`17,9 s`) shows the machine
+moving under it.
+
 ### Problems found while building this corpus
 
-- **One repository could not be published.** A pnpm workspace of five packages
-  with an ordinary `tsconfig` layout, about `300` TypeScript files, analysed
-  fully (`39.641` symbols) and then failed at publish:
-  `copy CONTAINS_FILE: ... has more than one neighbour in table CONTAINS_FILE in
-  the bwd direction, which violates the rel multiplicity constraint`. Running the
-  TypeScript worker project by project found no file claimed by two projects, so
-  the double containment is made somewhere else. It is excluded from the corpus
-  and not investigated.
+- **One repository could not be published** (fixed in #52, which is why it is in
+  the corpus of the section above). A pnpm workspace of five packages analysed fully
+  and then failed at publish with `copy CONTAINS_FILE: ... more than one
+  neighbour ... bwd direction`. Its named root package took a `tsconfig.base.json`
+  without `include` as its project, which claims every file below it, so 220 of
+  its files sat under two packages.
+- **A pass can fail because a build is running in a registered repository.** The
+  first six-repository run stopped at edit 9 with `verify source inventory:
+  inventory <repository>: walk ".../target/debug/deps/rustc...": open ...: no
+  such file or directory`. A `cargo check` of the maintainer's was writing in that
+  repository's `target/`, a temporary directory existed when the walk listed it
+  and not when it opened it, and `freshness.Capture` returns the error of any
+  entry it fails to open. It also shows that the walk enters `target/`. Not fixed.
 - **The TypeScript worker cannot be built here without a flag.** `pnpm install`
   stops with a corepack version mismatch unless `--pm-on-fail=ignore` is passed.
 - **Without a built worker a TypeScript repository fails the whole index** (P1 in
