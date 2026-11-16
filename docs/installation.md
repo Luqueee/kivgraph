@@ -301,7 +301,11 @@ chmod 0755 "$HOME/.local/bin/kivgraph-ts-worker"
 
 Alternativamente, configura `typescript.worker_command` con un comando
 ejecutable que acepte la forma
-`facts REPOSITORY PATH OUTPUT [--provider NAME=PATH]...`.
+`facts REPOSITORY PATH OUTPUT [--provider NAME=PATH]...`, o con el punto de
+entrada del worker sin launcher, como
+`node /ruta/al/checkout/ts-worker/dist/facts-cli.js`: el indexador quita
+entonces la palabra `facts`, que ese fichero no espera, y la huella de la
+caché de hechos sigue los módulos de su directorio `dist`.
 
 Comprueba el binario compilado con:
 

@@ -42,6 +42,7 @@ go_test(
         "factcache_worker_modules_test.go",
         "full_repositories_test.go",
         "full_test.go",
+        "full_worker_command_test.go",
         "rust_unit_test.go",
         "semantic_test.go",
     ],
