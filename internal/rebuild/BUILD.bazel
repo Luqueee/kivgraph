@@ -28,6 +28,7 @@ go_test(
     name = "rebuild_test",
     srcs = [
         "failure_test.go",
+        "publish_steps_test.go",
         "rebuild_test.go",
         "rollback_test.go",
         "snapshot_corruption_test.go",
