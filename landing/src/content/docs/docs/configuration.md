@@ -229,4 +229,8 @@ For Go, discovery reads the packages the `go` tool would. A directory named
 `testdata`, or beginning with `_` or `.`, is not a package of the module it sits
 in and is not parsed, so a fixture that is not valid Go cannot stop the index. A
 module that lives inside one (a `go.mod` there, or a `replace` pointing at it) is
-still a module. See ADR 0123.
+still a module. A file marked `//go:build ignore` is not part of its package. A
+directory that is not one valid package, two package names or a file that is not
+Go, does not stop the index either: `go` reports it and the module that holds it
+is declared not loaded, with go's reason, while every other repository is
+indexed. See ADR 0123.

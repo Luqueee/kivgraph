@@ -3,6 +3,7 @@ package workspace
 import (
 	"context"
 	"fmt"
+	"go/ast"
 	"go/parser"
 	"go/token"
 	"os"
@@ -236,10 +237,7 @@ func discoverGoPackages(ctx context.Context, repositoryRoot string, exclusions [
 		}
 		files := append([]string(nil), filesByDirectory[directory]...)
 		sort.Strings(files)
-		name, packageFiles, err := parseGoPackage(directory, files)
-		if err != nil {
-			return nil, err
-		}
+		name, packageFiles := parseGoPackage(files)
 		goPackage := GoPackage{
 			Directory: directory,
 			Name:      name,
@@ -273,38 +271,91 @@ func isGoDiscoveryExcludedPath(base, directory string, exclusions []string) (boo
 	return isGoDiscoveryExcluded(base, directory, filepath.Base(directory), true, exclusions)
 }
 
-func parseGoPackage(directory string, files []string) (string, []string, error) {
-	filesByName := make(map[string][]string)
-	for _, filePath := range files {
-		file, err := parser.ParseFile(token.NewFileSet(), filePath, nil, parser.PackageClauseOnly)
-		if err != nil {
-			return "", nil, fmt.Errorf("parse Go package file %q: %w", filePath, err)
-		}
-		filesByName[file.Name.Name] = append(filesByName[file.Name.Name], filePath)
+// parseGoPackage names the package a directory holds and lists its files. It
+// never fails: the go command is what decides whether a directory is a valid
+// package, and it reports each one that is not, so refusing here would stop the
+// whole index for one directory and hide that answer. A file that does not parse
+// is kept in the list so that the error go reports can be attributed to it.
+//
+// A file excluded by an `ignore` build constraint -- the generator idiom, a
+// `package main` beside a library -- is not part of the package and does not
+// name it. When the files that remain still name several packages, the one with
+// the most files is reported, ties to the first by name, and go reports the
+// conflict.
+func parseGoPackage(files []string) (string, []string) {
+	type declared struct {
+		name    string
+		ignored bool
+		path    string
 	}
-	candidateNames := make([]string, 0, len(filesByName))
+	var (
+		parsed     []declared
+		unparsable []string
+	)
+	for _, filePath := range files {
+		file, err := parser.ParseFile(token.NewFileSet(), filePath, nil, parser.PackageClauseOnly|parser.ParseComments)
+		if err != nil || file.Name == nil {
+			unparsable = append(unparsable, filePath)
+			continue
+		}
+		parsed = append(parsed, declared{name: file.Name.Name, ignored: hasIgnoreConstraint(file), path: filePath})
+	}
+	live := make([]declared, 0, len(parsed))
+	for _, entry := range parsed {
+		if !entry.ignored {
+			live = append(live, entry)
+		}
+	}
+	if len(live) == 0 {
+		live = parsed
+	}
+	filesByName := make(map[string][]string)
+	for _, entry := range live {
+		filesByName[entry.name] = append(filesByName[entry.name], entry.path)
+	}
+	candidates := make([]string, 0, len(filesByName))
 	for name := range filesByName {
 		if strings.HasSuffix(name, "_test") {
-			baseName := strings.TrimSuffix(name, "_test")
-			if _, exists := filesByName[baseName]; exists {
+			if _, exists := filesByName[strings.TrimSuffix(name, "_test")]; exists {
 				continue
 			}
 		}
-		candidateNames = append(candidateNames, name)
+		candidates = append(candidates, name)
 	}
-	if len(candidateNames) == 0 {
+	if len(candidates) == 0 {
 		for name := range filesByName {
-			candidateNames = append(candidateNames, name)
+			candidates = append(candidates, name)
 		}
 	}
-	if len(candidateNames) != 1 {
-		sort.Strings(candidateNames)
-		return "", nil, fmt.Errorf("directory %q contains multiple Go packages: %s", directory, strings.Join(candidateNames, ", "))
+	sort.Strings(candidates)
+	name := ""
+	for _, candidate := range candidates {
+		if name == "" || len(filesByName[candidate]) > len(filesByName[name]) {
+			name = candidate
+		}
 	}
-	name := candidateNames[0]
 	packageFiles := append([]string(nil), filesByName[name]...)
+	packageFiles = append(packageFiles, unparsable...)
 	sort.Strings(packageFiles)
-	return name, packageFiles, nil
+	return name, packageFiles
+}
+
+// hasIgnoreConstraint reports whether a file opts out of every build with
+// `//go:build ignore` or the older `// +build ignore`, written before the
+// package clause.
+func hasIgnoreConstraint(file *ast.File) bool {
+	for _, group := range file.Comments {
+		if group.Pos() >= file.Package {
+			break
+		}
+		for _, comment := range group.List {
+			text := strings.TrimSpace(comment.Text)
+			if text == "//go:build ignore" || text == "// +build ignore" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func moduleForDirectory(directory string, modules []GoModule) GoModule {

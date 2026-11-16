@@ -95,5 +95,45 @@ repository root is the root.
   graph of the control. `go test ./...` passes.
 
 Not established: other languages (TypeScript discovery has no equivalent
-convention), and `x/tools` itself, which stops further on for an unrelated
-reason, a `//go:build ignore` file beside a package.
+convention).
+
+## Amendment: a directory that is not one package does not stop the index
+
+Skipping `testdata` left the other way a directory can stop the index. A
+directory whose files name several packages, or include one that does not parse,
+made `parseGoPackage` return an error and the whole pass failed with it. The
+`x/tools` checkout showed it once `testdata` was out of the way: `go/analysis/
+passes/copylock` holds `copylock.go` and a `main.go` marked `//go:build ignore`,
+the generator idiom, and stopped the index at `package main`. In the Go module
+cache `10` of `60` modules have such a directory, `8` of them with an `ignore`
+file.
+
+Decision, added to the one above:
+
+- **Discovery never fails on a directory.** `parseGoPackage` names the package
+  and lists its files, and the go command, which `go list -e` already runs on
+  the package pattern, is what says whether it is valid.
+- **A file with `//go:build ignore` or `// +build ignore` before the package
+  clause is not part of the package** and does not name it, even when it sorts
+  first. If every file is ignored, the directory is reported with what it has.
+  Any other constraint is left to go, which evaluates it with the build's tags.
+- **When several names remain, the one with most files is reported**, ties to the
+  first by name; a file that does not parse stays in the list so that the error
+  go gives can be attributed to it.
+- **The module is declared not loaded.** For a directory go does reject, the
+  module that holds it is `MODULE_NOT_LOADED` with go's own reason (`found
+  packages a (a.go) and b (b.go) in …`, `expected 'package'`), as every module
+  go cannot load already is, and every other repository in the pass is indexed.
+
+Reproduced with the real binary, one repository each: before, `index --full`
+exits `1` in all three; after, `ignore` beside a package indexes both
+definitions of the control, and two package names or a file that is not Go
+exit `0` with `not_loaded=1` and the reason on the `index.go.not_read` line.
+
+Limit: a module go rejects loses all its packages, not only the broken one,
+because the loader treats a list error as a module that did not load. Leaving
+the broken directory out of the patterns and declaring only it would keep the
+rest; it needs a new field from discovery to the unresolved facts and is not
+done. `x/tools` itself now gets past discovery and stops at a dependency its
+offline module cache does not hold (`module lookup disabled by GOPROXY=off`),
+which is environmental.
