@@ -1,0 +1,403 @@
+{
+  "benchmark": "edit-frequency",
+  "schema": "edit-frequency-v2",
+  "command": "/private/tmp/edit-frequency -config /private/tmp/p6b/home/.config/kivgraph/config.yaml -edits 5 -grep-repeats 3 -root /private/tmp/p6b/root -fact-cache /private/tmp/p6b/factcache -scratch /private/tmp/p6b/scratch -output /private/tmp/p6b/ab-six-no-1.json",
+  "commit": "9ae5efdf8dea36902e24969ed34c90b6942acd68",
+  "generated_at": "2026-11-16T06:54:48Z",
+  "environment": {
+    "os": "darwin",
+    "arch": "arm64",
+    "cpus": 10,
+    "go": "go1.27.4"
+  },
+  "corpus": {
+    "repositories": 6,
+    "languages": [
+      "go",
+      "typescript"
+    ],
+    "scratch_repository": "kivgraph",
+    "scratch_path": "/private/tmp/p6b/scratch",
+    "scratch_commit": "19dd1068cb5edea47d7720f789085c61e77707c7",
+    "scratch_go_files": 393
+  },
+  "search_tool": "ripgrep",
+  "warmup": {
+    "step": 0,
+    "label": "warm-up",
+    "total_seconds": 29.987494958,
+    "analysis_seconds": 21.166166083,
+    "publication_seconds": 8.821328874999999,
+    "publication_stages": [
+      {
+        "name": "facts",
+        "seconds": 0.041691665999999995
+      },
+      {
+        "name": "staging",
+        "seconds": 0.48180137500000003
+      },
+      {
+        "name": "graph.next",
+        "seconds": 3.75e-7
+      },
+      {
+        "name": "bulk load",
+        "seconds": 2.5683010829999997
+      },
+      {
+        "name": "integrity",
+        "seconds": 1.653919416
+      },
+      {
+        "name": "snapshot",
+        "seconds": 1.721353042
+      },
+      {
+        "name": "golden probes",
+        "seconds": 0.049683708
+      },
+      {
+        "name": "publish",
+        "seconds": 8.688130292
+      }
+    ],
+    "cache_mode": "on",
+    "cache_hits": 0,
+    "cache_misses": 39,
+    "cache_verified": 0,
+    "files": 1290,
+    "symbols": 53710,
+    "edges": 219890,
+    "generation_id": "000001"
+  },
+  "edit_passes": [
+    {
+      "step": 1,
+      "label": "edit",
+      "edited_file": "benchmarks/agent-e2e/arms.go",
+      "total_seconds": 15.109862583,
+      "analysis_seconds": 6.496047,
+      "publication_seconds": 8.613815583000001,
+      "publication_stages": [
+        {
+          "name": "facts",
+          "seconds": 0.047891208
+        },
+        {
+          "name": "staging",
+          "seconds": 0.434379083
+        },
+        {
+          "name": "graph.next",
+          "seconds": 2.5e-7
+        },
+        {
+          "name": "bulk load",
+          "seconds": 2.542466375
+        },
+        {
+          "name": "integrity",
+          "seconds": 1.841999667
+        },
+        {
+          "name": "snapshot",
+          "seconds": 1.800559625
+        },
+        {
+          "name": "golden probes",
+          "seconds": 0.049209708
+        },
+        {
+          "name": "publish",
+          "seconds": 8.490149625
+        }
+      ],
+      "cache_mode": "on",
+      "cache_hits": 35,
+      "cache_misses": 4,
+      "cache_verified": 0,
+      "files": 1290,
+      "symbols": 53711,
+      "edges": 219891,
+      "generation_id": "000002"
+    },
+    {
+      "step": 2,
+      "label": "edit",
+      "edited_file": "benchmarks/agent-e2e/main.go",
+      "total_seconds": 14.536510458,
+      "analysis_seconds": 6.595577083,
+      "publication_seconds": 7.940933375,
+      "publication_stages": [
+        {
+          "name": "facts",
+          "seconds": 0.041817791
+        },
+        {
+          "name": "staging",
+          "seconds": 0.4394045
+        },
+        {
+          "name": "graph.next",
+          "seconds": 2.5e-7
+        },
+        {
+          "name": "bulk load",
+          "seconds": 2.528761625
+        },
+        {
+          "name": "integrity",
+          "seconds": 1.552541
+        },
+        {
+          "name": "snapshot",
+          "seconds": 1.6879581250000002
+        },
+        {
+          "name": "golden probes",
+          "seconds": 0.048347333
+        },
+        {
+          "name": "publish",
+          "seconds": 7.828489375
+        }
+      ],
+      "cache_mode": "on",
+      "cache_hits": 35,
+      "cache_misses": 4,
+      "cache_verified": 0,
+      "files": 1290,
+      "symbols": 53712,
+      "edges": 219892,
+      "generation_id": "000003"
+    },
+    {
+      "step": 3,
+      "label": "edit",
+      "edited_file": "benchmarks/agent-e2e/workspace.go",
+      "total_seconds": 14.871973792,
+      "analysis_seconds": 6.755514875,
+      "publication_seconds": 8.116458917,
+      "publication_stages": [
+        {
+          "name": "facts",
+          "seconds": 0.043508000000000005
+        },
+        {
+          "name": "staging",
+          "seconds": 0.44029037499999996
+        },
+        {
+          "name": "graph.next",
+          "seconds": 4.2e-8
+        },
+        {
+          "name": "bulk load",
+          "seconds": 2.587730084
+        },
+        {
+          "name": "integrity",
+          "seconds": 1.5712557090000001
+        },
+        {
+          "name": "snapshot",
+          "seconds": 1.7376096669999999
+        },
+        {
+          "name": "golden probes",
+          "seconds": 0.049755541
+        },
+        {
+          "name": "publish",
+          "seconds": 7.9982915000000006
+        }
+      ],
+      "cache_mode": "on",
+      "cache_hits": 35,
+      "cache_misses": 4,
+      "cache_verified": 0,
+      "files": 1290,
+      "symbols": 53713,
+      "edges": 219893,
+      "generation_id": "000004"
+    },
+    {
+      "step": 4,
+      "label": "edit",
+      "edited_file": "benchmarks/build-system-cost/main.go",
+      "total_seconds": 14.414358917,
+      "analysis_seconds": 6.436395667,
+      "publication_seconds": 7.977963249999999,
+      "publication_stages": [
+        {
+          "name": "facts",
+          "seconds": 0.047527124999999996
+        },
+        {
+          "name": "staging",
+          "seconds": 0.435004167
+        },
+        {
+          "name": "graph.next",
+          "seconds": 8.3e-8
+        },
+        {
+          "name": "bulk load",
+          "seconds": 2.557474042
+        },
+        {
+          "name": "integrity",
+          "seconds": 1.5107787499999998
+        },
+        {
+          "name": "snapshot",
+          "seconds": 1.7214221669999998
+        },
+        {
+          "name": "golden probes",
+          "seconds": 0.048773917
+        },
+        {
+          "name": "publish",
+          "seconds": 7.847764959
+        }
+      ],
+      "cache_mode": "on",
+      "cache_hits": 35,
+      "cache_misses": 4,
+      "cache_verified": 0,
+      "files": 1290,
+      "symbols": 53714,
+      "edges": 219894,
+      "generation_id": "000005"
+    },
+    {
+      "step": 5,
+      "label": "edit",
+      "edited_file": "benchmarks/daemon-cost/main.go",
+      "total_seconds": 15.16323025,
+      "analysis_seconds": 6.365838958,
+      "publication_seconds": 8.797391292,
+      "publication_stages": [
+        {
+          "name": "facts",
+          "seconds": 0.046835583
+        },
+        {
+          "name": "staging",
+          "seconds": 0.433070375
+        },
+        {
+          "name": "graph.next",
+          "seconds": 2.5e-7
+        },
+        {
+          "name": "bulk load",
+          "seconds": 2.570388458
+        },
+        {
+          "name": "integrity",
+          "seconds": 1.7248645409999999
+        },
+        {
+          "name": "snapshot",
+          "seconds": 2.1224522080000003
+        },
+        {
+          "name": "golden probes",
+          "seconds": 0.049656624999999996
+        },
+        {
+          "name": "publish",
+          "seconds": 8.673667209
+        }
+      ],
+      "cache_mode": "on",
+      "cache_hits": 35,
+      "cache_misses": 4,
+      "cache_verified": 0,
+      "files": 1290,
+      "symbols": 53715,
+      "edges": 219895,
+      "generation_id": "000006"
+    }
+  ],
+  "grep_arm": [
+    {
+      "symbol": "NewServer",
+      "matches": 154,
+      "matched_files": 56,
+      "file_bytes": 1628802,
+      "search_seconds": 0.065498875,
+      "read_seconds": 0.001576625,
+      "seconds": 0.0670755
+    },
+    {
+      "symbol": "Run",
+      "matches": 683,
+      "matched_files": 282,
+      "file_bytes": 4183270,
+      "search_seconds": 0.065808083,
+      "read_seconds": 0.006437167,
+      "seconds": 0.07224525
+    },
+    {
+      "symbol": "Load",
+      "matches": 420,
+      "matched_files": 128,
+      "file_bytes": 3279121,
+      "search_seconds": 0.063981125,
+      "read_seconds": 0.003293042,
+      "seconds": 0.067274167
+    },
+    {
+      "symbol": "Close",
+      "matches": 875,
+      "matched_files": 217,
+      "file_bytes": 4220297,
+      "search_seconds": 0.065568541,
+      "read_seconds": 0.008811167,
+      "seconds": 0.07437970799999999
+    },
+    {
+      "symbol": "Options",
+      "matches": 441,
+      "matched_files": 118,
+      "file_bytes": 2596973,
+      "search_seconds": 0.065538667,
+      "read_seconds": 0.004135125,
+      "seconds": 0.069673792
+    },
+    {
+      "symbol": "Report",
+      "matches": 284,
+      "matched_files": 56,
+      "file_bytes": 2072272,
+      "search_seconds": 0.071538542,
+      "read_seconds": 0.002620708,
+      "seconds": 0.07415925
+    }
+  ],
+  "summary": {
+    "passes": 5,
+    "median_total_seconds": 14.871973792,
+    "fastest_total_seconds": 14.414358917,
+    "slowest_total_seconds": 15.16323025,
+    "passes_with_boundary": 5,
+    "median_analysis_seconds": 6.496047,
+    "median_publication_seconds": 8.116458917,
+    "publication_share": 0.5457553267990589,
+    "analysis_share": 0.4367979052985141,
+    "grep_seconds_per_question": 0.070959521,
+    "questions_paid_for_by_one_rebuild": 209.58390900073863
+  },
+  "limitations": [
+    "The edits land in a private copy of \"kivgraph\" only. The other repositories of the corpus are read where they are and are never written to, so this measures the edit rate of an agent working inside one repository -- which is the workload issue 106 names, and not a corpus-wide pull.",
+    "Every step is one appended declaration in one file, 5 of them. A larger edit changes what the analysis half costs and cannot change what the publication half costs, because publication rewrites the whole graph either way.",
+    "The warm-up pass fills a private fact cache, so the machine's own cache is neither read nor written. A run against a cache warmed by other work would see fewer misses in the warm-up and the same misses in every edit pass.",
+    "The search arm times the real searcher plus reading every file it matched. It does not price the tokens either arm spends; those are measured in benchmarks/mcp-token-cost and benchmarks/graph-tools-comparison, and the report reads the crossover in both currencies.",
+    "The fact cache is keyed on the fingerprint of the indexing binary, so a run driven by `go run` recompiles to a new path and can never hit it. Every pass here is driven by one built binary, and the reproduce command says so.",
+    "Wall clock on a shared machine is not an SLO. No gate is asserted and no acceptance verdict is emitted."
+  ]
+}
