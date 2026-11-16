@@ -1198,7 +1198,14 @@ func workerEngineFingerprint(directory string) string {
 	if filepath.Base(directory) != workerBuildDirectory {
 		return "entry-only"
 	}
-	engine, found := resolveEnginePackage(filepath.Dir(directory))
+	// A relative path stops the walk at the current directory, and the same
+	// worker found through an absolute one reaches an engine above it: the
+	// watchers observe with a relative path and a pass with an absolute one.
+	absolute, err := filepath.Abs(directory)
+	if err != nil {
+		return "unreadable"
+	}
+	engine, found := resolveEnginePackage(filepath.Dir(absolute))
 	if !found {
 		return "absent"
 	}

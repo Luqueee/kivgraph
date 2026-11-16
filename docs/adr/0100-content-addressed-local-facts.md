@@ -170,5 +170,11 @@ warm page cache (`26 MB`), three times per pass. A bundle was already covered, a
 the engine travels with the executable the fingerprint already hashes; the change
 matters for a checkout, where `pnpm install` replaces it independently.
 
+The walk starts from an absolute path. The source watchers observe a worker through
+the relative path the configuration or the checkout rule gives them and a pass
+through an absolute one; a relative walk stops at the working directory, so an
+engine above it, in a monorepo root, gave the two observations different identities
+and left the profile stale after every publication.
+
 Not covered: a worker outside a `dist` directory, and one started through a shim
 that hides its `dist`.

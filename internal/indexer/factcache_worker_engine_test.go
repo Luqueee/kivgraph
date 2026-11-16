@@ -4,6 +4,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/Luqueee/kivgraph/internal/executable"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
 // The modules of a worker build import the `typescript` package, which starts the
@@ -207,5 +210,38 @@ func TestWorkerIdentityTakesTheClosestEngine(t *testing.T) {
 	writeFullFixture(t, filepath.Join(fixture.root, "node_modules", "typescript", "dist", "api.js"), "export const far = 1\n")
 	if fixture.fingerprint() != before {
 		t.Fatal("an engine further up the tree changed the identity of the closer one")
+	}
+}
+
+// The watchers observe the worker through the path the configuration or the
+// checkout rule gives them, which is relative to the working directory, and a
+// pass through an absolute one. The engine of a monorepo can live above the
+// working directory, and a walk that stops at it for one of them and not the other
+// gives two identities to one worker: the profile is stale after every
+// publication and is rebuilt until the attempts run out.
+func TestWorkerIdentityOfAnEngineAboveTheWorkingDirectoryIsTheSameForARelativePath(t *testing.T) {
+	root := testsupport.TempDir(t)
+	program := filepath.Join(root, executable.Name("node"))
+	writeFullFixture(t, program, "#!/bin/sh\necho node\n")
+	if err := os.Chmod(program, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	checkout := filepath.Join(root, "packages", "worker")
+	writeFullFixture(t, filepath.Join(checkout, "ts-worker", "dist", "facts-cli.js"), "import 'typescript'\n")
+	engine := filepath.Join(root, "node_modules", "typescript", "dist", "api.js")
+	writeFullFixture(t, engine, "export const api = 1\n")
+	t.Chdir(checkout)
+
+	relative := FullOptions{TypeScriptWorker: program + " " + filepath.Join("ts-worker", "dist", "facts-cli.js")}
+	absolute := FullOptions{TypeScriptWorker: program + " " + filepath.Join(checkout, "ts-worker", "dist", "facts-cli.js")}
+	before := typeScriptWorkerFingerprint(relative)
+	if got, want := before, typeScriptWorkerFingerprint(absolute); got != want {
+		t.Fatalf("one worker has two identities:\nrelative %q\nabsolute %q", got, want)
+	}
+
+	// The engine is what made the two agree, and not an absence both report.
+	writeFullFixture(t, engine, "export const api = 2\n")
+	if typeScriptWorkerFingerprint(relative) == before {
+		t.Fatal("the engine above the working directory was not part of the identity")
 	}
 }
