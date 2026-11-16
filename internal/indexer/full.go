@@ -194,6 +194,12 @@ type FullOptions struct {
 	// CacheDirectory holds content-addressed entries for analysis units. It
 	// lives outside every indexed repository and may be shared by profiles.
 	CacheDirectory string
+	// AnalyzerFingerprint is the AnalyzerFingerprint a caller has just observed
+	// for these options. The fact cache keys its entries with it instead of
+	// computing the value again, which hashes the executable and the worker and
+	// starts every toolchain it asks. Blank computes it, as a caller that did not
+	// observe one needs.
+	AnalyzerFingerprint string
 
 	// Progress, when set, is called synchronously as each unit of work
 	// starts and finishes. It must not block: a slow callback slows the

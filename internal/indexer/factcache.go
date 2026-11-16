@@ -250,9 +250,12 @@ func newFactCache(options FullOptions) (*factCache, error) {
 	if err := os.MkdirAll(directory, 0o755); err != nil {
 		return nil, fmt.Errorf("fact cache: prepare %q: %w", directory, err)
 	}
-	analyzer, err := AnalyzerFingerprint(options)
-	if err != nil {
-		return nil, fmt.Errorf("fact cache: observe analyzer configuration: %w", err)
+	analyzer := strings.TrimSpace(options.AnalyzerFingerprint)
+	if analyzer == "" {
+		var err error
+		if analyzer, err = AnalyzerFingerprint(options); err != nil {
+			return nil, fmt.Errorf("fact cache: observe analyzer configuration: %w", err)
+		}
 	}
 	staging, err := os.MkdirTemp(directory, ".staging-*")
 	if err != nil {

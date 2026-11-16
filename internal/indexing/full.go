@@ -572,6 +572,10 @@ func RunFull(ctx context.Context, options FullOptions) (result FullResult, resul
 		return FullResult{}, fmt.Errorf("capture source inventory: %w", err)
 	}
 
+	// The cache keys its entries with the fingerprint this pass observed, so a
+	// change of analyzer between the observation and the pass is caught once, by
+	// the verification of the sources, and not by a second observation.
+	indexOptions.AnalyzerFingerprint = manifest.AnalyzerFingerprint
 	factSet, indexReport, err := indexer.FullWithRepositories(ctx, indexOptions, observedRepositories)
 	result = FullResult{IndexReport: indexReport}
 	if err != nil {
