@@ -349,7 +349,9 @@ jobs:
   # it. They run in `packages` now, beside this one, and a Linux runner does
   # not queue.
   verify:
-    name: Verify Go
+    # The branch protection of main still requires this name, from when one job
+    # ran the Go suite and the packages; `packages` now does the second half.
+    name: Verify Go, web and landing packages
     needs: classify
     if: needs.classify.outputs.full == 'true'
     # The image is pinned because the Go cache this job restores was saved on
