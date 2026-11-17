@@ -1015,9 +1015,15 @@ func TestInstallInstructionsPreservesOpenCodeJSONCCommentsAndTrailingCommas(t *t
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The path is written into a JSON string, so a Windows path appears with
+	// its backslashes doubled.
+	escaped, err := json.Marshal(plan.SourcePath)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !bytes.Contains(updated, []byte("// Keep this comment.")) ||
 		!bytes.Contains(updated, []byte("\"model\": \"openai/gpt-5\",")) ||
-		!bytes.Contains(updated, []byte(plan.SourcePath)) {
+		!bytes.Contains(updated, escaped) {
 		t.Fatalf("JSONC update did not preserve unrelated content: %q", updated)
 	}
 	if _, err := hujson.Standardize(updated); err != nil {

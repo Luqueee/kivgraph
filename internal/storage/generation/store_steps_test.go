@@ -54,7 +54,9 @@ func TestPublishNamesEveryStepAndTheirSumStaysInsideTheCall(t *testing.T) {
 	if got, least := durations["validate"], float64(validatePause/time.Millisecond); got < least {
 		t.Errorf("validate step = %v ms, want at least the %v ms its closure slept", got, least)
 	}
-	if limit := float64(call) / float64(time.Millisecond); total > limit {
+	// A nanosecond of slack: the steps and the call are read from the clock at
+	// different instants, and summing floats can land one ulp above the total.
+	if limit := float64(call) / float64(time.Millisecond); total > limit+1e-6 {
 		t.Errorf("steps add up to %v ms, more than the %v ms the call took: something is counted twice", total, limit)
 	}
 }

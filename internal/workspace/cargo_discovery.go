@@ -347,7 +347,7 @@ func walkCargoFiles(ctx context.Context, base, current string, exclusions []stri
 		if !info.Mode().IsRegular() {
 			continue
 		}
-		if err := visit(entryPath); err != nil {
+		if err := visitUnlessVanished(entryPath, visit); err != nil {
 			return err
 		}
 	}

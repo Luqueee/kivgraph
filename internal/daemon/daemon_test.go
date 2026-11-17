@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -48,7 +49,13 @@ func dial(t *testing.T, socket string) *sdkmcp.ClientSession {
 // is `~/.local/state/kivgraph`, well inside the limit.
 func shortTempDir(t *testing.T) string {
 	t.Helper()
-	directory, err := os.MkdirTemp("/tmp", "kivd")
+	// `/tmp` is a Unix path. Windows has no such directory, and its temporary
+	// directory is short enough for a socket path.
+	base := "/tmp"
+	if runtime.GOOS == "windows" {
+		base = ""
+	}
+	directory, err := os.MkdirTemp(base, "kivd")
 	if err != nil {
 		t.Fatalf("create a short temporary directory: %v", err)
 	}
