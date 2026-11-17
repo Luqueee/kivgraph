@@ -68,8 +68,8 @@ kivgraph stop --dry-run
 kivgraph stop
 ```
 
-`stop` terminates this user's long-running `serve` and `ui` processes and
-nothing else. It selects by invocation, not by executable: an indexing pass is
+`stop` terminates this user's long-running `serve`, `daemon` and `ui` processes
+and nothing else. It selects by invocation, not by executable: an indexing pass is
 minutes of analysis and is never killed, and `stop` does not kill itself. It
 sends `SIGTERM`, waits for the bounded graceful shutdown, re-checks that the
 pid is still the same invocation, and only then escalates to `SIGKILL`.

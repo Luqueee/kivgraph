@@ -4,7 +4,7 @@ description: Route a question to the right Kivgraph tool, address a symbol witho
 ---
 
 `kivgraph serve` speaks MCP over stdio and, once a generation is published,
-registers fourteen tools, including the three indexing controls.
+registers fifteen tools, including the three indexing controls.
 This page is about using them: which tool answers which question, how to name a
 symbol, and how to read what comes back. Per-tool arguments live under
 [`/docs/mcp-tools/`](/docs/mcp-tools/) and on each tool's own page.
@@ -62,6 +62,7 @@ model at the moment it decides whether to call anything.
 | --- | --- |
 | I can describe the behavior but do not know its name; which files do I open | [`find_by_intent`](/docs/tools/find-by-intent/) |
 | Who calls this, what references this | [`find_references`](/docs/tools/find-references/) |
+| Who implements or overrides this type or method | [`find_implementations`](/docs/tools/find-implementations/) |
 | What breaks if I change this | [`get_blast_radius`](/docs/tools/get-blast-radius/) |
 | What does this reach outward | [`trace_dependencies`](/docs/tools/trace-dependencies/) |
 | Who uses this from another repository | [`find_cross_repo_consumers`](/docs/tools/find-cross-repo-consumers/) |
@@ -303,9 +304,10 @@ capture:
 
 ## Read the answer
 
-Every query tool returns the same envelope around its `results`. No tool
+Every query tool returns the same envelope around its `results`. No query tool
 publishes an `outputSchema`, so the answer arrives once, in the text block, and
-is not repeated as structured content.
+is not repeated as structured content. `index_project` is the one tool that
+does publish one.
 
 | Field | What it says | In a compact envelope |
 | --- | --- | --- |

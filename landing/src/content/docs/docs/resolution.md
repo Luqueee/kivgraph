@@ -81,8 +81,7 @@ The command returns `0` only if all six rules pass, and never modifies the
 database it inspects. A candidate generation that fails these checks never
 becomes `CURRENT`.
 
-## Incremental deltas
+## There are no incremental deltas
 
-Every fact asserted by a file is withdrawn and re-asserted together with that
-file. Package edges are withdrawn by their evidence too, even when both of
-their endpoints survive.
+A rebuild is a full pass over every registered repository: every generation is
+built from all of its facts, and none is patched from the one before it.

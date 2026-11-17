@@ -5,7 +5,7 @@ description: Build a local semantic code graph that gives AI coding agents symbo
 
 Kivgraph is a local **code intelligence MCP server** for AI coding agents. It indexes Go, TypeScript, Rust, Python, Dart, Java and C# repositories into a canonical knowledge graph, then answers structural questions about the codebase.
 
-The five languages are not resolved to the same standard, and the graph says which is which: Go, TypeScript and Rust edges are type-checked; Dart edges are resolved by Dart Analysis Server; Python uses exact semantic facts when a configured analyzer provides them and `CANDIDATE` facts in its bundled AST fallback.
+The seven languages are not resolved to the same standard, and the graph says which is which: Go, TypeScript and Rust edges are type-checked; Dart edges are resolved by Dart Analysis Server; Java and C# edges come from their compilers' own indexers, `scip-java` and `scip-dotnet`; Python uses exact semantic facts when a configured analyzer provides them and `CANDIDATE` facts in its bundled AST fallback.
 
 This is **semantic code navigation**, not a text search wrapper. Kivgraph preserves declarations, symbols, callers, callees, repository relationships and unresolved facts with the evidence that produced them.
 

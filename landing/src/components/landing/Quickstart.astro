@@ -59,8 +59,9 @@ const consent: Line[] = [
 <p class="max-w-[68ch] text-sm leading-6 text-gray-300">
   The installer puts the bundle in <code>~/.local/opt/kivgraph</code> with
   launchers in <code>~/.local/bin</code>, verifies the release checksum and
-  then the bundle's own, and stops there: it configures no client, writes no
-  configuration and indexes nothing. These four commands are the rest.
+  then the bundle's own, and asks whether to run
+  <code>kivgraph configure</code>. Answer no and it stops there: no client
+  configured, nothing indexed. These four commands are the rest.
 </p>
 <p class="mt-5 max-w-[68ch] text-sm leading-6 text-gray-300">
   Register, check, index, connect. Nothing answers until a generation exists,

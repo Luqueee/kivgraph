@@ -39,7 +39,7 @@ With none, it registers `start_index_project`, `get_index_status`, and the
 synchronous compatibility tool `index_project`. They need no graph to run.
 
 The handshake still completes. The client spawns this process itself, so exiting
-reads as a crash and says nothing; publishing eleven graph tools that would
+reads as a crash and says nothing; publishing twelve graph tools that would
 answer `INDEX_NOT_READY` to everything teaches the agent that they do not work.
 
 **Fix**
@@ -63,7 +63,7 @@ unresolved: PASS (no published generation)
 **Symptom**
 
 ```text
-INDEX_NOT_READY: no graph is published yet: index a project with index_project, or run "kivgraph index --full"
+INDEX_NOT_READY: no graph is published yet: start a project index with start_index_project, or run "kivgraph index --full"
 ```
 
 **Cause**
@@ -294,7 +294,7 @@ kivgraph stop
 kivgraph index --full
 ```
 
-`kivgraph stop --dry-run` lists what it would stop and stops nothing. It matches `serve` and `ui` only: an index in flight is left alone, because killing one throws away minutes of analysis. A client launches `serve` itself, so restarting the server means restarting that client, or reloading its MCP connection.
+`kivgraph stop --dry-run` lists what it would stop and stops nothing. It matches `serve`, `daemon` and `ui` only: an index in flight is left alone, because killing one throws away minutes of analysis. A client launches `serve` itself, so restarting the server means restarting that client, or reloading its MCP connection.
 
 `clean` never removes registered repositories, only published generations, so rebuilding what is registered is `kivgraph index --full` and nothing has to be registered again. Without `--yes` it lists and changes nothing; with `--keep-active` it keeps exactly the generation currently published, and then `rollback` has nothing to restore.
 

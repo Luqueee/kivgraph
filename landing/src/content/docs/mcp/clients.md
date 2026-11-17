@@ -3,9 +3,11 @@ title: Register with a client
 description: Register the Kivgraph MCP server with a coding agent, and see exactly what Kivgraph writes into each client configuration file.
 ---
 
-The release installer does not edit client configuration automatically. After
-installing Kivgraph, run the integration commands without `--target` to detect
-the coding agents present on this machine and select one or more of them:
+The release installer changes no client configuration on its own: it asks
+whether to run `kivgraph configure`, and `KIVGRAPH_CONFIGURE=0` skips the
+question. To set up the clients yourself, run the integration commands without
+`--target` to detect the coding agents present on this machine and select one
+or more of them:
 
 ```bash
 kivgraph mcp install --scope user

@@ -18,12 +18,14 @@ kivgraph init \
 exactly — two repositories differing only in case are two repositories — and it
 travels inside the stable keys of everything the repository declares.
 
-`--languages` accepts ten tokens: `go`, `typescript`, `javascript`, `ts`, `js`,
-`rust`, `rs`, `python`, `py` and `dart`. The five languages are not resolved to
-the same standard. Go, TypeScript and Rust edges are type-checked; Dart edges
-are resolved by Dart Analysis Server; Python uses exact semantic facts when a
-configured analyzer provides them and `CANDIDATE` facts in its bundled AST
-fallback.
+`--languages` accepts thirteen tokens: the seven names — `go`, `typescript`,
+`rust`, `python`, `dart`, `java` and `csharp` — plus the aliases `javascript`,
+`ts`, `js`, `rs`, `py` and `cs`. The seven languages are not resolved to the
+same standard. Go, TypeScript and Rust edges are type-checked; Dart edges are
+resolved by Dart Analysis Server; Java and C# edges come from their compilers'
+own indexers, `scip-java` and `scip-dotnet`; Python uses exact semantic facts
+when a configured analyzer provides them and `CANDIDATE` facts in its bundled
+AST fallback.
 
 ## 2. Check the machine
 

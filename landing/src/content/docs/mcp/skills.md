@@ -10,7 +10,7 @@ tools. Kivgraph ships one to route a question to the right tool before the agent
 reaches for grep or starts opening files, and to request visible notices of
 tool use. It is not required in order to use the MCP server. Install it to
 change which tool the agent picks; skip it and the server keeps its normal
-surface: three indexing controls before publication and fourteen tools after.
+surface: three indexing controls before publication and fifteen tools after.
 
 ## Install
 
