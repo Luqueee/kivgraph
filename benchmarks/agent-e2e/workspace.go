@@ -279,6 +279,40 @@ type indexer struct {
 	// their indexes are not built: they cost minutes and no arm would read them.
 	Arms      string
 	Languages string
+	// GoModCache is where the Go modules this machine downloaded live. kivgraph
+	// runs under an isolated HOME, and Go looks for its module cache under
+	// $HOME/go, so without it the Go loader finds no dependency and indexes a
+	// hollow graph while reporting success.
+	GoModCache string
+}
+
+// kivgraphEnvironment is the environment kivgraph runs under: the isolated HOME
+// and the module cache the real one has.
+func (i indexer) kivgraphEnvironment() []string {
+	environment := append(os.Environ(), "HOME="+i.Home)
+	if i.GoModCache != "" {
+		environment = append(environment, "GOMODCACHE="+i.GoModCache)
+	}
+	return environment
+}
+
+// resolveGoModCache answers the module cache of the environment this process
+// runs in, before any HOME is swapped. A cache that is not there is an error:
+// the alternative is an index that is complete in no way and says so nowhere.
+func resolveGoModCache() (string, error) {
+	cache := os.Getenv("GOMODCACHE")
+	if cache == "" {
+		out, err := exec.Command("go", "env", "GOMODCACHE").Output()
+		if err != nil {
+			return "", fmt.Errorf("go env GOMODCACHE: %w", err)
+		}
+		cache = strings.TrimSpace(string(out))
+	}
+	info, err := os.Stat(cache)
+	if err != nil || !info.IsDir() {
+		return "", fmt.Errorf("the Go module cache %q is not a directory: the isolated HOME would hide the real one and kivgraph would index a graph with no dependencies", cache)
+	}
+	return cache, nil
 }
 
 func (i indexer) reindex() (map[string]float64, error) {
@@ -287,7 +321,7 @@ func (i indexer) reindex() (map[string]float64, error) {
 	started := time.Now()
 	command := exec.Command(i.Kivgraph, "index", "--full", "--json")
 	command.Dir = i.Root
-	command.Env = append(os.Environ(), "HOME="+i.Home)
+	command.Env = i.kivgraphEnvironment()
 	if out, runErr := command.CombinedOutput(); runErr != nil {
 		return nil, fmt.Errorf("kivgraph index: %w (%s)", runErr, lastLines(string(out), 2))
 	}
@@ -356,7 +390,7 @@ func (i indexer) register() error {
 		arguments = append(arguments, "--repository", filepath.Base(repo)+"="+filepath.Join(i.Root, repo))
 	}
 	command := exec.Command(i.Kivgraph, arguments...)
-	command.Env = append(os.Environ(), "HOME="+i.Home)
+	command.Env = i.kivgraphEnvironment()
 	if out, err := command.CombinedOutput(); err != nil {
 		return fmt.Errorf("kivgraph init: %w (%s)", err, lastLines(string(out), 3))
 	}

@@ -20,9 +20,12 @@ from 2026-10 onward, Go only; arms `cold` and `kivgraph`; model
   Corepack wants to fetch pnpm. No network prompt can be answered headless.
 - Open question: a Go-only graph is still useful. Today a TypeScript package
   that cannot load aborts the entire index instead of surfacing one failing
-  package. `[INFERENCE]` not checked whether this is by design (ADR on
-  all-or-nothing publication) or a gap.
-- Not fixed. Worked around in the harness with `--languages go`.
+  package.
+- **By design, checked.** `indexer.Full` documents it: "A loader diagnostic
+  aborts the pass instead of publishing a graph that is known to be
+  incomplete", and the all-or-nothing publication of the generation store
+  depends on it. Not a gap, so not changed. Worked around in the harness with
+  `--languages go`.
 
 ### P2. Native build prints a linker warning on every build
 - **Observed.** `go build -tags ladybug` ends with
@@ -136,8 +139,14 @@ from 2026-10 onward, Go only; arms `cold` and `kivgraph`; model
   `get_blast_radius` or `trace_dependencies`. The cost saving comes from this
   small use; the agent mostly still reads and greps.
 
-### T3 and T1 still open
-- Not opened: why every pair misses one of two files, and the 12 prompts.
+### T3 and T1: not fixable from this repository
+- **T1.** The 12 prompts are the input of the published sweep: `results.json`
+  was measured with exactly these texts, and AGENTS.md forbids editing a
+  benchmark's input artifacts. Repairing the broken ones would describe a
+  different experiment, so it needs a new task set and a rerun (about `$37`),
+  not an edit. Left as read: `511901e` is the one with visible fragments.
+- **T3.** Needs the transcripts, and `self-repo/raw/` is not committed (it is
+  ignored now); this machine no longer has them. A rerun regenerates them.
 
 ## Phase 5 analysis of the 24 `kivgraph` transcripts
 
@@ -201,11 +210,13 @@ from 2026-10 onward, Go only; arms `cold` and `kivgraph`; model
 - The fix helps repositories with `include_tests: true` and no fixtures like
   these; here the fixtures keep the verdict at `LOWER_BOUND` anyway.
 
-### H7. The harness does not pass `GOMODCACHE`
+### H7. The harness does not pass `GOMODCACHE` (fixed)
 - **Observed.** `kivgraph index --full` under `HOME=<isolated>` with no
   `GOMODCACHE` indexes 97 packages and 15,597 symbols only if the module cache
   is found; without it the same command gave 9 packages and 63 symbols
   (`MODULE_NOT_LOADED`), with `passed: true`. The sweep's graph was complete
   (3,448 unresolved, 15,597 symbols), so its results stand. A rerun from a shell
   that lacks the variable would silently index a hollow graph.
-- Not fixed in the harness.
+- **Fixed.** The harness resolves the module cache of its own environment
+  before swapping `HOME`, passes it as `GOMODCACHE` to `kivgraph init` and
+  `index --full`, and refuses to start when that directory does not exist.

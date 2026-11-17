@@ -176,11 +176,16 @@ func run(cfg config) error {
 	}
 
 	space := workspace{Root: cfg.Root, Corpus: cfg.Corpus}
+	goModCache, err := resolveGoModCache()
+	if err != nil {
+		return err
+	}
 	index := indexer{
 		Kivgraph: cfg.Kivgraph, Graft: cfg.Graft, CRG: cfg.CRG, CMM: cfg.CMM,
 		Graphify: cfg.Graphify, Home: cfg.Home, GraftContext: cfg.GraftContext,
 		CRGData: cfg.CRGData, CMMHome: cfg.CMMHome, Root: cfg.Root,
 		Repos: taskRepositories(selected), Arms: cfg.Arms, Languages: cfg.Languages,
+		GoModCache: goModCache,
 	}
 	out := results{
 		Benchmark: benchmarkName, GeneratedAt: time.Now().UTC(), Model: cfg.Model,
