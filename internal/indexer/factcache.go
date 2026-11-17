@@ -1113,6 +1113,9 @@ func AnalyzerFingerprint(options FullOptions) (string, error) {
 // observeAnalyzer is AnalyzerFingerprint that also answers the parts the value is
 // made of, and remembers them for the fact cache that is handed the value.
 func observeAnalyzer(options FullOptions) (string, map[string]string, error) {
+	// Asked while everything else is hashed: it starts a process, and is read last.
+	dartAnalyzer := make(chan string, 1)
+	go func() { dartAnalyzer <- dartAnalyzerFingerprint(options) }()
 	hash := newAnalyzerBuilder()
 	hash.part(analyzerPartResolver)
 	hash.printf("entry=%d\x00", cacheEntryVersion)
@@ -1185,6 +1188,8 @@ func observeAnalyzer(options FullOptions) (string, map[string]string, error) {
 	hash.printf("rust=%s\x00", rustAnalysisFingerprint(options))
 	hash.part(analyzerPartTypeScript)
 	hash.printf("tsworker=%s\x00", typeScriptWorkerFingerprint(options))
+	hash.part(analyzerPartDart)
+	hash.printf("dart-analyzer=%s\x00", <-dartAnalyzer)
 	fingerprint, parts := hash.fingerprint(), hash.summary()
 	rememberAnalyzerParts(fingerprint, parts)
 	return fingerprint, parts, nil

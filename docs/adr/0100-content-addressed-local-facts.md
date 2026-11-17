@@ -323,3 +323,27 @@ can see. For Dart alone, the registry could name only the repositories and
 leave their content to these inputs, which on a consumer, its provider and an
 unrelated Dart repository left the unrelated edit analysing one unit instead
 of three; that is not done here.
+
+## Amendment: the fingerprint identifies the Dart SDK
+
+The `dart` part of the analyzer fingerprint hashed only the option strings.
+The default command is `dart`, so the SDK is whichever one the `PATH` names:
+a terminal and an agent host with different `PATH`s, or an upgrade in place,
+changed the SDK without changing the fingerprint, and entries written under
+one were served under the other. The facts do carry the SDK: unresolved
+references name the file of its core library they were looked up in, and
+`dart.include_sdk` publishes the SDK itself.
+
+The part now adds the identity of the analyzer the pass would start. A
+command resolving to a program called `dart` is identified by its resolved
+path (symbolic links followed) and what `dart --version` prints, asked once,
+concurrently with the rest of the fingerprint, from the neutral directory of
+the other probes. The version is needed because Flutter's `dart` is a script
+that starts an SDK it keeps elsewhere, so the digest of the file would not
+cover it. Any other command is a program of the user's and its content is its
+identity. A command that is not found is `absent`, one that does not answer
+is `failed`, and no command at all is `unconfigured`; all repeat, so the
+fingerprint stays stable. A change shows as `analyzer_changed=dart:N`.
+
+The cost is one process of about 50 ms per observation, run concurrently.
+The `dart` part only moves for the SDK; the other parts keep their value.

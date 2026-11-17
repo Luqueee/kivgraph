@@ -1,11 +1,15 @@
 package indexer
 
 import (
+	"context"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/Luqueee/kivgraph/internal/dartloader"
+	"github.com/Luqueee/kivgraph/internal/executable"
 )
 
 // dartProviderRoots are the roots of the registered repositories whose files a Dart
@@ -66,4 +70,53 @@ func holdsAnyOf(root string, paths []string) bool {
 		}
 	}
 	return false
+}
+
+// dartVersionTimeout bounds the question put to the Dart SDK. A `dart` that is a
+// wrapper script may have to fetch its SDK before it answers.
+const dartVersionTimeout = 30 * time.Second
+
+// dartAnalyzerFingerprint identifies the Dart analyzer this pass would start, which
+// the options alone cannot: the default command is `dart`, so the SDK is whichever
+// one the PATH names, and an upgrade, or a PATH that puts another first, changes
+// it without changing a character of the configuration. The facts carry what the
+// SDK answers -- the unresolved ones name the file of its core library they were
+// looked up in -- so an entry written under one SDK is not the answer under another.
+//
+// It resolves the command the way the loader does. A `dart` is identified by the
+// path it resolves to and what `--version` says, asked from a directory that pins
+// nothing: the file of the command is not enough, because Flutter's is a script
+// that starts an SDK it keeps elsewhere. Any other command is a program of the
+// user's, and its content is its identity. A command that is not there is `absent`,
+// and one that does not answer `failed`: determinate facts that repeat, since a
+// timestamp here would turn the whole fingerprint into one that never repeats and
+// switch the fact cache off for every language.
+func dartAnalyzerFingerprint(options FullOptions) string {
+	fields := strings.Fields(strings.TrimSpace(options.DartAnalyzer))
+	if len(fields) == 0 {
+		fields = strings.Fields(strings.TrimSpace(options.DartSDKPath))
+	}
+	if len(fields) == 0 {
+		return "unconfigured"
+	}
+	resolved, err := exec.LookPath(fields[0])
+	if err != nil {
+		return "absent"
+	}
+	location := resolved
+	if real, err := filepath.EvalSymlinks(resolved); err == nil {
+		location = real
+	}
+	if executable.BaseName(resolved) != "dart" {
+		return "program\x00" + fileFingerprint(location)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), dartVersionTimeout)
+	defer cancel()
+	command := exec.CommandContext(ctx, resolved, "--version")
+	command.Dir = probeDirectory()
+	output, err := command.CombinedOutput()
+	if err != nil {
+		return location + "\x00failed"
+	}
+	return location + "\x00" + strings.Join(strings.Fields(string(output)), " ")
 }
