@@ -164,7 +164,7 @@ func measure(cfg config) (results, error) {
 		return results{}, err
 	}
 	defer release()
-	snapshot, err := hotsnapshot.MapSnapshot(data, digest)
+	snapshot, err := hotsnapshot.MapSnapshot(data, digest, func() {})
 	if err != nil {
 		return results{}, fmt.Errorf("map the snapshot: %w", err)
 	}

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 	"github.com/Luqueee/kivgraph/internal/storage/ladybug"
@@ -395,7 +396,7 @@ func TestStringsSurviveTheMappingTheyWereReadFrom(t *testing.T) {
 	if err != nil {
 		t.Fatalf("map the published snapshot: %v", err)
 	}
-	snapshot, err := hotsnapshot.MapSnapshot(data, digest)
+	snapshot, err := hotsnapshot.MapSnapshot(data, digest, func() {})
 	if err != nil {
 		release()
 		t.Fatalf("MapSnapshot() error = %v", err)
@@ -455,6 +456,57 @@ func TestStringsSurviveTheMappingTheyWereReadFrom(t *testing.T) {
 	if built.Metadata().Counts.Symbols != counts.Symbols {
 		t.Fatalf("the mapped snapshot holds %d symbols, the built one %d",
 			counts.Symbols, built.Metadata().Counts.Symbols)
+	}
+}
+
+// TestATableKeepsTheMappingAliveAfterItsSnapshotIsGone is the case the test above
+// cannot reach, because it releases the mapping by hand: a reader takes
+// snapshot.Strings() -- a value, which is what every tool does -- and the
+// snapshot it came from is replaced by a publish while the reader is still
+// answering. The cleanup used to hang off the snapshot, so the mapping was given
+// back under that reader, and the table went on answering from pages nobody
+// owned: "Helper" read back as zero bytes.
+//
+// Whether the cleanup ran is observable after all, through the answer: read from
+// freed pages, a name is not the name it was before.
+func TestATableKeepsTheMappingAliveAfterItsSnapshotIsGone(t *testing.T) {
+	// Each table alone: holding both would let either one keep the mapping alive
+	// for the other, and a table without the anchor would go unnoticed.
+	for _, name := range []string{"strings", "stable keys"} {
+		t.Run(name, func(t *testing.T) {
+			directory := t.TempDir()
+			databasePath := filepath.Join(directory, "graph.lbdb")
+			seedPublishedGeneration(t, directory, databasePath)
+			snapshot, err := loadPublishedSnapshot(directory)
+			if err != nil {
+				t.Fatalf("loadPublishedSnapshot() error = %v", err)
+			}
+			record, ok := snapshot.Symbol(0)
+			if !ok {
+				t.Fatal("the fixture carries no symbols, so nothing here is exercised")
+			}
+			var read func() string
+			if name == "strings" {
+				table := snapshot.Strings()
+				read = func() string { value, _ := table.String(record.Name); return value }
+			} else {
+				keys := snapshot.StableKeys()
+				read = func() string { key, _ := keys.Key(record.StableKey); return string(key) }
+			}
+			want := strings.Clone(read())
+			if want == "" {
+				t.Fatal("the value is empty, so the comparison below proves nothing")
+			}
+
+			snapshot = nil
+			for range 50 {
+				runtime.GC()
+				time.Sleep(2 * time.Millisecond)
+			}
+			if got := read(); got != want {
+				t.Fatalf("read after its snapshot was collected\n got %q\nwant %q", got, want)
+			}
+		})
 	}
 }
 

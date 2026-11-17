@@ -299,10 +299,14 @@ superficie MCP el suyo en `internal/mcp/AGENTS.md`.
 - El fichero publicado se **mapea y el mapeo se conserva**, porque la tabla de
   cadenas lee sus valores en sitio en vez de copiarlos -- unos cincuenta megas
   sobre el corpus real. Las demás tablas se decodifican a structs y sí se copian.
-  Eso hace que el mapeo tenga que vivir tanto como el snapshot, y su liberación
-  va atada a la **inalcanzabilidad** del `*GraphSnapshot` con `runtime.AddCleanup`,
-  nunca a un `Close` público: `Publish` deja el snapshot anterior como basura
-  mientras alguien lo lee, y desmapear ahí no da un error, da un `SIGSEGV`.
+  Eso hace que el mapeo tenga que vivir tanto como el snapshot **y como cualquier
+  tabla tomada de él**: `Strings()` y `StableKeys()` entregan la tabla por valor y
+  un lector la sostiene sin sostener el snapshot. Su liberación va atada a la
+  **inalcanzabilidad** de un ancla (`mapping`) a la que apuntan el snapshot y sus
+  dos tablas, con `runtime.AddCleanup` dentro de `hotsnapshot.MapSnapshot`, nunca
+  a un `Close` público: `Publish` deja el snapshot anterior como basura mientras
+  alguien lo lee, y desmapear ahí no da un error, da un `SIGSEGV` o cadenas leídas
+  de páginas ajenas.
   Lo que hace todo esto seguro y **tiene que seguir siendo verdad**: una tabla
   con arena prestada **copia toda cadena que entrega**, así que ninguna respuesta
   puede sobrevivir a las páginas de donde se leyó. Hay dos guardias, y los dos
