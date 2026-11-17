@@ -1,12 +1,12 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.Tutitoos/kivgraph",
+  "name": "io.github.Luqueee/kivgraph",
   "title": "Kivgraph",
   "description": "Cross-repository semantic code intelligence for AI coding agents, from a local code graph.",
   "version": "0.9.3",
   "repository": {
-    "url": "https://github.com/Tutitoos/kivgraph_official",
+    "url": "https://github.com/Luqueee/kivgraph",
     "source": "github"
   },
-  "websiteUrl": "https://github.com/Tutitoos/kivgraph_official"
+  "websiteUrl": "https://kivgraph.dev"
 }

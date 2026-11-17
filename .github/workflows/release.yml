@@ -518,7 +518,7 @@ jobs:
   # github` opens a device flow, which no unattended run can complete, and the
   # alternative is a long-lived token in the repository secrets. The identity
   # proven here is the repository itself, which is also the namespace being
-  # published to -- `io.github.Tutitoos/kivgraph`.
+  # published to -- `io.github.Luqueee/kivgraph`.
   registry:
     name: Publish to the MCP Registry
     needs:
@@ -527,12 +527,7 @@ jobs:
     # Development releases are GitHub prereleases for opt-in testing. The
     # public MCP Registry is the stable distribution channel and must not make
     # a prerelease discoverable to clients that did not opt into it.
-    #
-    # And it is off until someone turns it on: this distribution is not
-    # listed in the registry, and publishing is a decision, not a side effect
-    # of a tag. Set the repository variable to `true` to make it one. See
-    # ADR 0118.
-    if: ${{ needs.publish.outputs.prerelease != 'true' && vars.PUBLISH_MCP_REGISTRY == 'true' }}
+    if: ${{ needs.publish.outputs.prerelease != 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

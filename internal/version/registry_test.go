@@ -42,7 +42,7 @@ func TestPublishedServerMetadata(t *testing.T) {
 
 	// GitHub authentication only grants the namespace of the repository doing
 	// the publishing, so a name that does not match is rejected outright.
-	const wantName = "io.github.Tutitoos/kivgraph"
+	const wantName = "io.github.Luqueee/kivgraph"
 	if document.Name != wantName {
 		t.Errorf("name = %q, want %q: the namespace must match the publishing repository", document.Name, wantName)
 	}
@@ -70,11 +70,10 @@ func TestPublishedServerMetadata(t *testing.T) {
 	if document.Schema == "" {
 		t.Error("$schema is required so the file validates without the publisher")
 	}
-	if document.Repository.URL != "https://github.com/Tutitoos/kivgraph_official" || document.Repository.Source != "github" {
+	if document.Repository.URL != "https://github.com/Luqueee/kivgraph" || document.Repository.Source != "github" {
 		t.Errorf("repository = %+v, want the GitHub repository this publishes from", document.Repository)
 	}
-	// This distribution has no website; the repository is where a reader lands.
-	if document.WebsiteURL != "https://github.com/Tutitoos/kivgraph_official" {
-		t.Errorf("websiteUrl = %q, want the repository", document.WebsiteURL)
+	if document.WebsiteURL != "https://kivgraph.dev" {
+		t.Errorf("websiteUrl = %q, want https://kivgraph.dev", document.WebsiteURL)
 	}
 }

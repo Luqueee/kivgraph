@@ -59,7 +59,7 @@ $binDir = if ($env:KIVGRAPH_BIN_DIR) { $env:KIVGRAPH_BIN_DIR }
           else { Join-Path $env:LOCALAPPDATA 'Programs\kivgraph-bin' }
 $installedExecutable = Join-Path $installRoot 'bin\kivgraph.exe'
 $releaseBase = if ($env:KIVGRAPH_RELEASE_BASE_URL) { $env:KIVGRAPH_RELEASE_BASE_URL.TrimEnd('/') }
-               else { 'https://github.com/Tutitoos/kivgraph_official/releases' }
+               else { 'https://github.com/Luqueee/kivgraph/releases' }
 $requestedVersion = $env:KIVGRAPH_VERSION
 $configureMode = if ($env:KIVGRAPH_CONFIGURE) { $env:KIVGRAPH_CONFIGURE } else { 'ask' }
 
@@ -334,6 +334,37 @@ try {
     }
     catch {
         Write-Warning ('configuration did not finish; run "{0}" configure to retry: {1}' -f $installedExecutable, $_.Exception.Message)
+    }
+
+    # The install is finished above and stays finished whatever happens here.
+    #
+    # The same row `install.sh` sends, with the same fields, because two
+    # installers reporting two shapes would be two datasets. `emitter` is
+    # `installer` and never `binary`: a bundle can be installed and never
+    # launched, and ADR 0083 keeps those two facts apart.
+    #
+    # The timeout and the swallowed error are the whole policy. A machine
+    # behind a proxy installs Kivgraph exactly the same.
+    if ($env:KIVGRAPH_TELEMETRY -ne '0') {
+        Write-Host "install: reporting one install of $installedVersion on windows-amd64, and nothing else:"
+        Write-Host "install:   nothing about your code, and no identifier of ours. Your address"
+        Write-Host "install:   reaches the analytics collector, which hashes it and keeps a country."
+        Write-Host "install:   https://kivgraph.dev/telemetry/"
+        Write-Host "install:   set KIVGRAPH_TELEMETRY=0 to turn it off"
+        try {
+            $body = @{
+                emitter  = 'installer'
+                version  = $installedVersion
+                platform = 'windows-amd64'
+                channel  = 'installer'
+            } | ConvertTo-Json -Compress
+            Invoke-RestMethod -Method Post -TimeoutSec 3 -ContentType 'application/json' `
+                -Uri 'https://kivgraph.dev/api/telemetry/first-run' -Body $body | Out-Null
+        }
+        catch {
+            # An install is not a report, and a report that failed is not an
+            # install that did.
+        }
     }
 }
 catch {

@@ -288,10 +288,6 @@ superficie observable.
 
 ## El aviso de primer arranque
 
-- **En esta distribución no se envía nada.** `telemetry.Endpoint` está vacío
-  y, sin destino, `announce` vuelve antes de crear el marcador o imprimir el
-  aviso (ADR 0118). Lo que sigue describe el comportamiento con un destino
-  configurado, que es lo que prueban los tests del paquete.
 - La primera vez que una versión sirve MCP en una máquina, `serve` y `daemon`
   escriben tres líneas en `stderr` diciendo qué se reporta y cómo apagarlo, y
   mandan un ping. **Nunca a `stdout`**: `serve` habla MCP por ese descriptor y

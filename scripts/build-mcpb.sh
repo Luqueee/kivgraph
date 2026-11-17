@@ -166,14 +166,14 @@ cat >"$staging/manifest.json" <<MANIFEST
   "version": "$version",
   "description": "Cross-repository semantic code intelligence for AI coding agents, answered locally from a published code graph.",
   "author": {
-    "name": "Tutitoos",
-    "url": "https://github.com/Tutitoos"
+    "name": "Luqueee",
+    "url": "https://github.com/Luqueee"
   },
-  "homepage": "https://github.com/Tutitoos/kivgraph_official",
-  "documentation": "https://github.com/Tutitoos/kivgraph_official/tree/main/docs",
+  "homepage": "https://kivgraph.dev",
+  "documentation": "https://kivgraph.dev/docs/",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Tutitoos/kivgraph_official"
+    "url": "https://github.com/Luqueee/kivgraph"
   },
   "license": "Apache-2.0",
   "keywords": ["code-intelligence", "code-graph", "static-analysis", "mcp"],

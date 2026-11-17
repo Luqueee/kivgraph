@@ -39,15 +39,8 @@ import (
 	"time"
 )
 
-// Endpoint is where a ping goes, and it is empty: this distribution has no
-// collector, so a build of it reports nothing.
-//
-// The upstream project this repository began as sent these facts to a
-// collector of its own. A release cut from here must not report its installs
-// to somebody else's dashboard, and there is none of ours to report to. With
-// no endpoint the package claims no marker and prints no notice -- the same
-// trace an opted-out machine leaves. See ADR 0118.
-const Endpoint = ""
+// Endpoint is where a ping goes.
+const Endpoint = "https://kivgraph.dev/api/telemetry/first-run"
 
 // DisableEnv turns the whole package off when it is set to "0".
 //
@@ -142,11 +135,7 @@ func announce(ctx context.Context, options Options, emitter, markerNamespace str
 	if getenv(DisableEnv) == "0" {
 		return false
 	}
-	endpoint := options.Endpoint
-	if endpoint == "" {
-		endpoint = Endpoint
-	}
-	if endpoint == "" || options.StateDirectory == "" || options.Version == "" {
+	if options.StateDirectory == "" || options.Version == "" {
 		return false
 	}
 	// A binary that is not part of a release does not report, and the marker
@@ -177,7 +166,7 @@ func announce(ctx context.Context, options Options, emitter, markerNamespace str
 		body.Transport = options.Transport
 	}
 	notice(options.Notice, body)
-	return send(ctx, options, endpoint, body)
+	return send(ctx, options, body)
 }
 
 // claimTheVersion creates the marker and reports whether this call created it.
@@ -304,7 +293,11 @@ func notice(writer io.Writer, body ping) {
 }
 
 // send posts the ping and drops every failure.
-func send(ctx context.Context, options Options, endpoint string, body ping) bool {
+func send(ctx context.Context, options Options, body ping) bool {
+	endpoint := options.Endpoint
+	if endpoint == "" {
+		endpoint = Endpoint
+	}
 	client := options.Client
 	if client == nil {
 		client = &http.Client{Timeout: sendTimeout}
