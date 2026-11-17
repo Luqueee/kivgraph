@@ -206,7 +206,7 @@ To remove the installed bundle and launchers without deleting configuration,
 repository registrations or graph state:
 
 ```bash
-uninstall_url=https://github.com/Tutitoos/kivgraph_official/releases/latest/download/uninstall.sh
+uninstall_url=https://github.com/Luqueee/kivgraph/releases/latest/download/uninstall.sh
 curl -fsSL "$uninstall_url" -o /tmp/kivgraph-uninstall.sh
 bash /tmp/kivgraph-uninstall.sh
 ```
