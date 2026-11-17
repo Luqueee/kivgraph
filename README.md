@@ -143,13 +143,13 @@ Install the latest release in one command. On Linux and macOS the same line
 covers both, because the installer reads `uname` and picks its own archive:
 
 ```bash
-curl -fsSL https://github.com/Tutitoos/kivgraph/releases/latest/download/install.sh | bash
+curl -fsSL https://github.com/Tutitoos/kivgraph_official/releases/latest/download/install.sh | bash
 ```
 
 On Windows, where `install.sh` cannot run because there is no POSIX shell:
 
 ```powershell
-irm https://github.com/Tutitoos/kivgraph/releases/latest/download/install.ps1 | iex
+irm https://github.com/Tutitoos/kivgraph_official/releases/latest/download/install.ps1 | iex
 ```
 
 `install.ps1` is a second implementation of the same pre-extraction checks, and
@@ -209,7 +209,7 @@ then select that channel for later checks:
 ```bash
 release=vX.Y.Z-dev.N
 curl -fsSL \
-  "https://github.com/Tutitoos/kivgraph/releases/download/$release/install.sh" |
+  "https://github.com/Tutitoos/kivgraph_official/releases/download/$release/install.sh" |
   KIVGRAPH_VERSION="$release" bash
 kivgraph update --channel dev
 ```
@@ -222,7 +222,7 @@ To remove the installed bundle and launchers without deleting configuration,
 repository registrations or graph state:
 
 ```bash
-uninstall_url=https://github.com/Tutitoos/kivgraph/releases/latest/download/uninstall.sh
+uninstall_url=https://github.com/Tutitoos/kivgraph_official/releases/latest/download/uninstall.sh
 curl -fsSL "$uninstall_url" -o /tmp/kivgraph-uninstall.sh
 bash /tmp/kivgraph-uninstall.sh
 ```

@@ -59,7 +59,7 @@ $binDir = if ($env:KIVGRAPH_BIN_DIR) { $env:KIVGRAPH_BIN_DIR }
           else { Join-Path $env:LOCALAPPDATA 'Programs\kivgraph-bin' }
 $installedExecutable = Join-Path $installRoot 'bin\kivgraph.exe'
 $releaseBase = if ($env:KIVGRAPH_RELEASE_BASE_URL) { $env:KIVGRAPH_RELEASE_BASE_URL.TrimEnd('/') }
-               else { 'https://github.com/Tutitoos/kivgraph/releases' }
+               else { 'https://github.com/Tutitoos/kivgraph_official/releases' }
 $requestedVersion = $env:KIVGRAPH_VERSION
 $configureMode = if ($env:KIVGRAPH_CONFIGURE) { $env:KIVGRAPH_CONFIGURE } else { 'ask' }
 

@@ -70,11 +70,11 @@ func TestPublishedServerMetadata(t *testing.T) {
 	if document.Schema == "" {
 		t.Error("$schema is required so the file validates without the publisher")
 	}
-	if document.Repository.URL != "https://github.com/Tutitoos/kivgraph" || document.Repository.Source != "github" {
+	if document.Repository.URL != "https://github.com/Tutitoos/kivgraph_official" || document.Repository.Source != "github" {
 		t.Errorf("repository = %+v, want the GitHub repository this publishes from", document.Repository)
 	}
 	// This distribution has no website; the repository is where a reader lands.
-	if document.WebsiteURL != "https://github.com/Tutitoos/kivgraph" {
+	if document.WebsiteURL != "https://github.com/Tutitoos/kivgraph_official" {
 		t.Errorf("websiteUrl = %q, want the repository", document.WebsiteURL)
 	}
 }

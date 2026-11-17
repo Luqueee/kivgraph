@@ -38,7 +38,7 @@ export type Platform = {
  * by `bash` and not `sh`: it uses arrays and `BASH_REMATCH`.
  */
 export const POSIX_COMMAND =
-  "curl -fsSL https://github.com/Tutitoos/kivgraph/releases/latest/download/install.sh | bash";
+  "curl -fsSL https://github.com/Tutitoos/kivgraph_official/releases/latest/download/install.sh | bash";
 
 /**
  * `irm | iex` is the PowerShell shape of `curl | bash`, and it is symmetric
@@ -51,7 +51,7 @@ export const POSIX_COMMAND =
  * the guard back.
  */
 const WINDOWS_COMMAND =
-  "irm https://github.com/Tutitoos/kivgraph/releases/latest/download/install.ps1 | iex";
+  "irm https://github.com/Tutitoos/kivgraph_official/releases/latest/download/install.ps1 | iex";
 
 export const PLATFORMS: readonly Platform[] = [
   {

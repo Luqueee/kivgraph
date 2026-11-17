@@ -58,7 +58,7 @@ un número recordado de una conversación ni una comparación lexicográfica:
 
 ~~~bash
 git fetch origin --tags
-gh api repos/Tutitoos/kivgraph/releases/latest --jq .tag_name
+gh api repos/Tutitoos/kivgraph_official/releases/latest --jq .tag_name
 git tag --list 'v[0-9]*' --sort=-version:refname | head -1
 ~~~
 
@@ -321,7 +321,7 @@ la workspace que los construyó:
 
 ~~~bash
 tmp_dir="$(mktemp -d)"
-gh release download vX.Y.Z --repo Tutitoos/kivgraph --dir "$tmp_dir"
+gh release download vX.Y.Z --repo Tutitoos/kivgraph_official --dir "$tmp_dir"
 (
   cd "$tmp_dir"
   if command -v sha256sum >/dev/null 2>&1; then
@@ -343,7 +343,7 @@ instalación limpia funciona con lo publicado:
 ~~~bash
 tmp_home="$(mktemp -d)"
 curl -fsSL \
-  "https://github.com/Tutitoos/kivgraph/releases/download/vX.Y.Z/install.sh" |
+  "https://github.com/Tutitoos/kivgraph_official/releases/download/vX.Y.Z/install.sh" |
   HOME="$tmp_home" KIVGRAPH_VERSION=vX.Y.Z KIVGRAPH_CONFIGURE=0 bash
 HOME="$tmp_home" "$tmp_home/.local/bin/kivgraph" version
 HOME="$tmp_home" "$tmp_home/.local/bin/kivgraph" update

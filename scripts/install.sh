@@ -14,7 +14,7 @@ hosts are Linux/x86_64 and Darwin/arm64; no Go, Node.js, or pnpm is required.
 Environment:
   KIVGRAPH_INSTALL_ROOT  Bundle directory (default: ~/.local/opt/kivgraph)
   KIVGRAPH_BIN_DIR        Launcher directory (default: ~/.local/bin)
-  KIVGRAPH_RELEASE_BASE_URL  Releases URL (default: GitHub Tutitoos/kivgraph)
+  KIVGRAPH_RELEASE_BASE_URL  Releases URL (default: GitHub Tutitoos/kivgraph_official)
   KIVGRAPH_VERSION        Pin a release tag such as vX.Y.Z-dev.1 instead of latest
   KIVGRAPH_GITHUB_TOKEN   Optional token for a private GitHub repository
   KIVGRAPH_CONFIGURE      Configure after install: ask (default), 1, or 0
@@ -54,7 +54,7 @@ bundle_name="kivgraph-$platform"
 
 install_root=${KIVGRAPH_INSTALL_ROOT:-"$HOME/.local/opt/kivgraph"}
 bin_dir=${KIVGRAPH_BIN_DIR:-"$HOME/.local/bin"}
-release_base=${KIVGRAPH_RELEASE_BASE_URL:-"https://github.com/Tutitoos/kivgraph/releases"}
+release_base=${KIVGRAPH_RELEASE_BASE_URL:-"https://github.com/Tutitoos/kivgraph_official/releases"}
 requested_version=${KIVGRAPH_VERSION:-}
 configure_mode=${KIVGRAPH_CONFIGURE:-ask}
 release_base=${release_base%/}
