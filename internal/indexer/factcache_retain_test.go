@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/goworkspace"
 	"github.com/Luqueee/kivgraph/internal/testsupport"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
@@ -373,5 +375,77 @@ func TestRetainNeverRemovesAnAdmittedEntryToHonourTheCap(t *testing.T) {
 	}
 	if got := len(d.names()); got < cacheEntriesPerUnitKept || got > cacheEntriesPerUnitKept+1 {
 		t.Fatalf("%d entries of the unit survive, want the cap of %d and at most the admitted one besides", got, cacheEntriesPerUnitKept)
+	}
+}
+
+// The cap on the entries of a unit across its resolutions rests on one thing: the
+// identity of every unit ends in the separator and the resolution, whatever kind of
+// unit it is. A kind whose identity did not would grow with every change of its
+// registry, which is every edit for the semantic languages, and nothing else would
+// say so. The registry of each kind is a different string here, so that a kind
+// that read another's would be seen to.
+func TestEveryUnitKindCarriesItsResolutionInItsIdentity(t *testing.T) {
+	repository := workspace.Repository{Name: "repo", RealPath: "/work/repo"}
+	units := map[string]analysisUnit{
+		"go": {kind: unitGo, repository: repository, module: goworkspace.Module{ModulePath: "example.com/repo", RootPath: "/work/repo"}},
+		"typescript": {kind: unitTypeScript, repository: repository, pkg: typeScriptPackageUnit{
+			repository: repository, packageValue: workspace.TypeScriptPackage{Name: "pkg", ManifestPath: "/work/repo/package.json"},
+		}},
+		"rust":    {kind: unitRust, repository: repository, rust: rustWorkspaceUnit{workspace: workspace.CargoWorkspace{RootPath: "/work/repo"}}},
+		"python":  {kind: unitSemantic, repository: repository, language: facts.LanguagePython},
+		"dart":    {kind: unitSemantic, repository: repository, language: facts.LanguageDart},
+		"no kind": {kind: unitUnspecified, repository: repository},
+	}
+	registries := func(suffix string) *factCache {
+		return &factCache{
+			goRegistry: "go-" + suffix, rustRegistry: "rust-" + suffix,
+			semanticRegistry: "semantic-" + suffix, typeScriptRegistry: "typescript-" + suffix,
+		}
+	}
+	before, after := registries("before"), registries("after")
+
+	// What each kind reads as its resolution: its own registry, and nobody else's.
+	own := map[string]string{
+		"go": "go-before", "typescript": "typescript-before", "rust": "rust-before",
+		"python": "semantic-before", "dart": "semantic-before", "no kind": "none",
+	}
+	logical := make(map[string]string, len(units))
+	for name, unit := range units {
+		identity := before.identity(unit)
+		if strings.Count(identity, cacheResolutionSeparator) != 1 {
+			t.Errorf("%s: identity %q does not carry its resolution once", name, identity)
+		}
+		if !strings.HasSuffix(identity, cacheResolutionSeparator+own[name]) {
+			t.Errorf("%s: identity %q does not end in its own resolution %q", name, identity, own[name])
+		}
+		if got, want := logicalUnit(identity), unitIdentity(unit); got != want {
+			t.Errorf("%s: the unit of %q is %q, want %q", name, identity, got, want)
+		}
+		// A change of registry is another identity of the same unit: that is what the
+		// cap counts together.
+		changed := after.identity(unit)
+		// The kind that is no kind has no registry: analyseUnit refuses it, and its
+		// resolution is a constant.
+		if unit.kind == unitUnspecified {
+			if !strings.HasSuffix(identity, cacheResolutionSeparator+"none") {
+				t.Errorf("%s: identity %q does not end in the constant resolution", name, identity)
+			}
+		} else if changed == identity {
+			t.Errorf("%s: another registry left the identity as it was", name)
+		}
+		if logicalUnit(changed) != logicalUnit(identity) {
+			t.Errorf("%s: another registry made another unit of %q and %q", name, identity, changed)
+		}
+		logical[name] = logicalUnit(identity)
+	}
+
+	// And two units are not one: the languages that share the semantic kind are
+	// capped apart.
+	seen := make(map[string]string, len(logical))
+	for name, unit := range logical {
+		if other, clash := seen[unit]; clash {
+			t.Errorf("%s and %s are the same unit %q, so they would share one cap", name, other, unit)
+		}
+		seen[unit] = name
 	}
 }
