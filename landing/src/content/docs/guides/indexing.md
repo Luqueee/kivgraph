@@ -48,10 +48,17 @@ a live heap that stayed flat at 173 MB — a memory measurement on that corpus,
 not one of the token figures the [benchmark](/comparison/) reports.
 
 So when a server indexes — because a client called
-[`index_project`](/docs/tools/index-project/), or because `HEAD` moved in a
-registered repository — it runs `index --full --json` as a child process and
-reads the result. The peak dies with the child, and the server pays only for the
-snapshot it then loads.
+[`index_project`](/docs/tools/index-project/), because `HEAD` moved in a
+registered repository, or because a source file changed while `watcher.enabled`
+is on, which is the default — it runs `index --full --json` as a child process
+and reads the result. The peak dies with the child, and the server pays only for
+the snapshot it then loads. A `HEAD` move that leaves every indexed file as the
+graph recorded it, such as a plain commit, rebuilds nothing. The last two
+triggers belong to a `serve` that answers from its own graph and to the
+`daemon`; a `serve` that relays to the daemon holds no graph and watches
+nothing. The source watcher reconciles the whole tree every
+`watcher.reconciliation_interval`, so a filesystem event the platform dropped
+still reaches a rebuild.
 
 That flag is public. With `--json`, `stdout` carries only newline-delimited JSON
 events — any number of `progress`, then exactly one `result` — and the report a

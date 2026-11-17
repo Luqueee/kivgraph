@@ -45,7 +45,7 @@ export const GET: APIRoute = async ({ site }) => {
     "- Every link below is the markdown source of one documentation page. Its HTML page is the same path without the `/raw/` prefix and with `.md` replaced by a trailing slash, so `/raw/install.md` is served as HTML at `/install/`.",
     `- The whole documentation in a single fetch: ${absoluteUrl(site, "/llms-full.txt")}`,
     `- Licensed ${LICENSE_NAME} (${LICENSE_URL}). Source: ${REPOSITORY_URL}`,
-    `- The server registers ${MCP_TOOLS.length} tools over stdio: ${MCP_TOOLS.join(", ")}.`,
+    `- Once a generation is published the server registers ${MCP_TOOLS.length} tools, over stdio or through the local daemon: ${MCP_TOOLS.join(", ")}. Before that it registers only the three indexing controls.`,
     `- Blog articles for agents: ${absoluteUrl(site, "/llms-blog.txt")}.`,
     "",
   ];

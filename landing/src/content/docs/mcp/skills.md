@@ -35,21 +35,27 @@ kivgraph skill install --target claude-code --scope user
 | `--target` | empty | Client to write: `claude-code`, `claude-desktop`, `codex`, `opencode`, `oh-my-pi`. Omit it on `install` to open the selector. Required for `status` and `remove`. |
 | `--scope` | `user` | `user` or `project`. `project` resolves against the current working directory. Any other value is rejected. |
 | `--dry-run` | off | Report the plan as `would-install` and write nothing. Not accepted by `skill status`. |
-| `--force` | off | Replace a file at the skill path that is not the canonical skill. Without it, that case is an error. |
+| `--force` | off | Replace what is at the skill path when it is not Kivgraph's skill: an edited copy or a link that points elsewhere. Without it, that case is an error. In user scope it also makes the install take the shipped version back into the canonical file. |
 
 Without a terminal and without `--target`, the selector cannot run and the
 command fails with `interactive selection requires a terminal; pass --target`.
-Client integrations are supported on Linux and macOS only.
+Client integrations are supported on Linux, macOS and Windows.
 
-`skill install` copies one file. It does not initialise Kivgraph, does not
-register the MCP server, and does not index anything. Register the server
+`skill install` does not initialise Kivgraph, does not register the MCP server,
+and does not index anything. In user scope it writes one canonical file,
+`~/.config/kivgraph/skills/kivgraph/SKILL.md`, and makes each client path a
+symlink to it, so one edit reaches every linked client. In project scope it
+copies the file instead: that path is committed with the repository, and a
+link to an absolute path under your home directory would arrive broken on every
+other clone. Register the server
 separately: see [MCP clients](/mcp/clients/). Build a graph with
 [indexing](/guides/indexing/).
 
 ## Where it lands
 
-The installed file is always named `SKILL.md` and always sits in a
-`skills/kivgraph/` directory. `<project>` is the current working directory.
+The installed entry is always named `SKILL.md` and always sits in a
+`skills/kivgraph/` directory: a symlink in user scope, a copy in project scope.
+`<project>` is the current working directory.
 
 | Client | `--target` value | Scope | Path |
 | --- | --- | --- | --- |
@@ -195,39 +201,53 @@ kivgraph skill remove --target claude-code --scope user
 ```
 
 Both require `--target`; neither opens the selector. `skill status` reads the
-path and reports one of three states:
+path without following a link and reports one of these states:
 
 | Status | Meaning |
 | --- | --- |
 | `absent` | Nothing at the path. |
-| `managed` | The file is byte-identical to the canonical Kivgraph skill. |
-| `incompatible` | A file exists at the path and is not the canonical skill. |
+| `managed` | User scope: a link to the canonical skill file. Project scope: a copy byte-identical to the skill this build ships. |
+| `broken` | User scope: a link to the canonical path with no file on the other end. `skill install` restores the file. |
+| `superseded` | User scope: a copy byte-identical to the skill this build ships, left by an install that copied. `skill install` replaces it with a link and needs no `--force`. |
+| `incompatible` | Something else is at the path: an edited copy, a link that points elsewhere, or, in project scope, a file that is not the shipped skill. |
 
-`skill remove` deletes only a file that is byte-identical to the canonical
-skill. Anything else at that path is left alone and reported as an error unless
-you pass `--force`. Nothing else in the client's skills directory is touched:
+When the canonical file carries local edits, the status of a linked path says
+so. `skill install` keeps an edited canonical file and links to it; `--force`
+takes the shipped version back.
+
+`skill remove` in user scope deletes the link and leaves the canonical file,
+`~/.config/kivgraph/skills/kivgraph/SKILL.md`, in place: it is the file you were
+invited to edit, and removing one client does not discard the edits. In project
+scope it deletes only a copy that is byte-identical to the shipped skill.
+Anything else at the path is left alone and reported as an error unless you
+pass `--force`. Nothing else in the client's skills directory is touched:
 removal withdraws Kivgraph's own skill and nothing more. `--dry-run` reports
 `would-remove` and deletes nothing.
 
 ## Safety
 
-- The destination is inspected with a symlink-aware stat. A symlink at the skill
-  path is refused (`refusing symlink integration path`), and so is anything that
-  is not a regular file.
+- The destination is inspected with a symlink-aware stat. In user scope a
+  symlink at the skill path is the expected state: a link to the canonical file
+  is `managed`, and a link that points anywhere else is `incompatible` and needs
+  `--force` to replace. In project scope a symlink is refused (`refusing symlink
+  integration path`), and so is anything that is not a regular file.
 - Missing parent directories are created with mode `0700`.
 - Writes are atomic: the content goes to a temporary file in the destination
   directory, is set to mode `0600`, is synced, is renamed over the destination,
-  and the directory itself is synced afterwards. Removal uses the same
-  rename-then-delete path.
-- Before an existing file is overwritten or removed, its previous content is
-  copied to `<path>.kivgraph.bak`. An existing backup is kept as it is and
-  never overwritten, so the first backup survives later runs. A backup path that
-  is a symlink or not a regular file aborts the operation.
+  and the directory itself is synced afterwards. Removal of a copy uses the
+  same rename-then-delete path; removal of a link deletes the link.
+- Before a copy is overwritten or removed, and before an edited copy is
+  replaced by a link, its previous content is copied to
+  `<path>.kivgraph.bak`. Replacing or removing a link, or replacing a copy of
+  the shipped skill with a link, creates no backup. An existing backup is kept
+  as it is and never overwritten, so the first backup survives later runs. A
+  backup path that is a symlink or not a regular file aborts the operation.
 - Replacing a file that is not the canonical skill requires `--force`. Without
   it the command fails with `integration path "<path>" contains an incompatible
   Kivgraph entry; use --force to replace or remove it`.
-- An install whose destination already matches the canonical skill reports
-  `managed` and writes nothing. No backup is created and no timestamp changes.
+- An install whose destination already matches reports `managed` and writes
+  nothing: a link to the canonical file in user scope, a copy of the shipped
+  skill in project scope. No backup is created and no timestamp changes.
 
 ## In a release bundle
 

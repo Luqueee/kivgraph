@@ -212,6 +212,15 @@ Publishing a generation takes a `flock` on the store. One state directory is sha
 
 The lock does not wait. A rebuild takes minutes and blocking would look like a hang, so the loser is told instead.
 
+The same lock guards every operation that moves a pointer or removes a generation: `rollback`, `clean` (with or without `--keep-active`) and the pruning of old generations after a rebuild. They do not wait either. Run while a rebuild is publishing, they are refused, because a rollback or a clean that landed in the middle would be overwritten by the rebuild:
+
+```text
+rollback: rollback failed: another process is publishing into this generation store
+clean: discard generations: another process is publishing into this generation store
+```
+
+A rebuild whose own pruning meets the lock still publishes: the failure is appended to the detail of its publish stage as `; prune failed: <message>`. `clean --keep-active` can also fail with `generation <id> is no longer active: <id> is`, which means another process published a new generation after `clean` read the active one; run it again.
+
 **Fix**
 
 Let the winner finish, then call `start_index_project` again with the same
@@ -300,7 +309,7 @@ kivgraph index --full
 
 ## Rust is not indexed
 
-Rust is the one language Kivgraph does not analyse itself. `rust-analyzer scip` is the authority, invoked as an external process once per Cargo workspace, and it is a prerequisite like the Node runtime of the TypeScript worker.
+Kivgraph does not analyse Rust itself. `rust-analyzer scip` is the authority, invoked as an external process once per Cargo workspace, and it is a prerequisite like the Node runtime of the TypeScript worker. It is not the only external analyzer: Java (`scip-java`), C# (`scip-dotnet`) and Dart (`dart`) are also commands run outside the binary, and `doctor` reports each one; see [another external analyzer is missing](#another-external-analyzer-is-missing).
 
 ### The analyzer is not there, or is the wrong one
 
@@ -371,9 +380,29 @@ rust:
   index_sysroot: true
 ```
 
-With it, all four become exact edges. It costs an order of magnitude in graph size — one toolchain is around 350.000 monikers and half a minute of indexing — and one cold pass per toolchain, since the fact-cache fingerprint includes `rustc --version` and a toolchain change invalidates every fact taken from it.
+With it, all four become exact edges. It costs an order of magnitude in graph size and one cold pass per toolchain, since the fact-cache fingerprint includes `rustc --version` and a toolchain change invalidates every fact taken from it. The standard library of the toolchain measured in `benchmarks/rust-engine/report.md` is `19.533` symbols; on that three-crate corpus, on darwin/arm64 with 10 CPUs, the cold pass with the standard library took about `15` seconds and the warm one under one second, against about `1.2` seconds and `52` milliseconds without it. Another toolchain version publishes another number.
 
 This is a declared limitation, never a failure: a machine with no toolchain, or without `rust-src`, indexes its own repositories and says why it did not index the library. `rust.sysroot` is `discover`, `none`, or a path; it says where the standard library is, not whether it enters the graph.
+
+### Another external analyzer is missing
+
+**Symptom**
+
+`doctor` fails the line of a language the registry uses, for example:
+
+```text
+toolchain.java: FAIL (command "scip-java" is unavailable)
+```
+
+`toolchain.csharp` and `toolchain.dart` fail the same way, and also with `command is empty` when the configured command is blank. `toolchain.python` fails with `command "<command>" and Python fallback are unavailable`, or with `indexer command is empty and Python fallback is unavailable`. A language the registry does not use reports `not configured` and passes.
+
+**Cause**
+
+The command named by `java.indexer_command`, `csharp.indexer_command`, `dart.analyzer_command` or `python.indexer_command` is not on the `PATH`. The bundle does not carry these tools. Python is the one case with a fallback: without its worker command, a `python3` on the `PATH` is enough and `doctor` reports `bundled AST fallback`.
+
+**Fix**
+
+Install the tool, or point the configuration key at it. [Install](/install/) lists what each language needs.
 
 ## A Go package or module is missing
 
@@ -460,7 +489,7 @@ ui: this binary carries no web bundle; build one with scripts/build-bundle.sh (w
 `kivgraph --help` marks the command in the same build:
 
 ```text
-  ui [--addr HOST:PORT]  Serve the read-only graph viewer, every interface by default (unavailable: this build carries no web bundle)
+  ui [--addr HOST:PORT] [--profile NAME]  Serve the read-only graph viewer, on this machine only by default (unavailable: this build carries no web bundle)
 ```
 
 **Cause**
@@ -475,7 +504,7 @@ The viewer is opt-in and serves only the published `HotSnapshot` over read-only 
 
 ## Where to look next
 
-**`kivgraph doctor`** answers the machine questions in one pass, one line per check: `config`, the `state.*` directories, `repositories`, the `toolchain.*` checks, `graph.store`, `snapshot.digest`, `snapshot` and `unresolved`, then `doctor: PASS` or `doctor: FAIL`. It is where the Go type-checking ceiling is stated and where you find out which `rust-analyzer` answered.
+**`kivgraph doctor`** answers the machine questions in one pass, one line per check: `config`, `profiles` (only when the profiles cannot be read), `config.retired` (only when the configuration carries retired keys; it passes), the `state.*` directories, `daemon.supervisor` (it always passes and reports `absent`, `installed`, `stale` or `unsupported`), `repositories`, the `toolchain.*` checks (`go`, `typecheck`, `typescript`, `rust`, `cargo`, `python`, `dart`, `java` and `csharp`), `walk.cache_tag` (the directories every walk skips because they carry a `CACHEDIR.TAG`), `graph.store`, `snapshot.digest`, `snapshot.published`, `snapshot` and `unresolved`, then `doctor: PASS` or `doctor: FAIL`. It is where the Go type-checking ceiling is stated and where you find out which `rust-analyzer` answered.
 
 **`graph_status`, through the client**, answers the graph questions: `status`, which is `ready` or `empty`; `snapshot_id`, `snapshot_built_at` and `snapshot_age_ms`; the counts; `edges_by_kind` and `unresolved_by_reason`; and `repository_freshness` with `repositories_moved`. It reports nothing this process did not use or measure: `serve` answers from the published `HotSnapshot`, so it never opens the database and never runs the TypeScript worker, and declares them `not_applicable` saying why. Metrics nobody observed are omitted rather than reported as zero.
 

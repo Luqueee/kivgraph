@@ -34,7 +34,7 @@ state, its cache and its registry hang from its own directory. A `--config` in
 
 | Key | Default | Notes |
 | --- | --- | --- |
-| `database_path` | `~/.local/state/kivgraph/graph.lbdb` | The canonical LadybugDB database. A published generation lives in its own directory beside it, and carries the graph, the snapshot and the digests that prove they belong together. |
+| `database_path` | `~/.local/state/kivgraph/graph.lbdb` | The canonical LadybugDB database. A published generation lives at `generations/<id>/graph.db` in the directory that holds this path, beside the `CURRENT` and `BACKUP` pointer files, and carries the graph, the snapshot and the digests that prove they belong together. With profiles each profile derives its own `graph.lbdb` path under `<state>/profiles/<name>/`, and its generations live there, not beside this key. |
 | `backups_path` | `~/.local/state/kivgraph/backups` | What `rollback` restores from. |
 
 ### Retired keys

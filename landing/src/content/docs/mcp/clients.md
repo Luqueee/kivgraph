@@ -17,8 +17,8 @@ kivgraph skill install --scope user
 Neither command initialises Kivgraph nor indexes any repository. The skill
 command is documented separately in [Agent Skill](/mcp/skills/).
 
-Client integrations run on Linux and macOS only. On any other operating system
-the command fails instead of guessing a path.
+Client integrations run on Linux, macOS and Windows. On any other operating
+system the command fails instead of guessing a path.
 
 ## The selector
 
@@ -50,7 +50,7 @@ resolves against the current working directory.
 | --- | --- | --- | --- | --- |
 | Claude Code | `claude-code` | `~/.claude.json` (user scope) | JSON | `mcpServers.kivgraph` |
 | Claude Code | `claude-code` | `.mcp.json` in the project directory (project scope) | JSON | `mcpServers.kivgraph` |
-| Claude Desktop | `claude-desktop` | `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS, `~/.config/Claude/claude_desktop_config.json` on Linux; user scope only | JSON | `mcpServers.kivgraph` |
+| Claude Desktop | `claude-desktop` | `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS, `~/.config/Claude/claude_desktop_config.json` on Linux, `%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\claude_desktop_config.json` on Windows when the packaged application is installed and `%APPDATA%\Claude\claude_desktop_config.json` otherwise; user scope only | JSON | `mcpServers.kivgraph` |
 | Codex | `codex` | `~/.codex/config.toml` (user scope) | TOML | `[mcp_servers.kivgraph]` |
 | Codex | `codex` | `.codex/config.toml` in the project directory (project scope) | TOML | `[mcp_servers.kivgraph]` |
 | OpenCode | `opencode` | `~/.config/opencode/opencode.json` (user scope) | JSON | `mcp.kivgraph` |
@@ -61,6 +61,10 @@ resolves against the current working directory.
 Claude Desktop supports the `user` scope only; asking for `--scope project`
 fails. It is also the one target with no local skill target, so it is absent
 from the skill selector.
+
+The Codex and Oh My Pi user-scope directories are defaults: `CODEX_HOME`
+replaces `~/.codex` and `PI_CODING_AGENT_DIR` replaces `~/.omp/agent` when
+set.
 
 ## Visible tool use
 
@@ -100,7 +104,11 @@ directory in the project scope.
 
 Same shape as Claude Code. The file lives at
 `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS and
-`~/.config/Claude/claude_desktop_config.json` on Linux.
+`~/.config/Claude/claude_desktop_config.json` on Linux. On Windows it lives
+inside the application's package directory,
+`%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\claude_desktop_config.json`,
+when a packaged Claude Desktop is installed, and at
+`%APPDATA%\Claude\claude_desktop_config.json` otherwise.
 
 ```json
 {
@@ -183,8 +191,11 @@ of spawning a `serve` of its own.
 kivgraph mcp install --target claude-code
 ```
 
-That installs the daemon's supervisor if it is missing, waits for the endpoint,
-and reports both. What it saves, measured on a workspace of `108.737` symbols in
+When a daemon already answers, nothing is installed. Otherwise an interactive
+run asks first -- `No supervised daemon is installed; install it now?`, or
+`The installed daemon is stale; reinstall its supervisor now?` -- and on `y`
+installs the daemon's supervisor, waits for the endpoint, and reports both.
+What it saves, measured on a workspace of `108.737` symbols in
 `benchmarks/daemon-cost`: at eight clients, `61 MB` against `328` when they are
 asking questions, and `11` against `80` when they are not. The crossover is
 around one client, so with a single editor open it is a coin flip; from the
@@ -196,32 +207,52 @@ second it is not close.
 kivgraph mcp install --target claude-code --stdio
 ```
 
-Three conditions write the stdio entry on their own, and each says so:
+Five conditions write the stdio entry on their own, and each says so:
 `--scope project`, because a url entry carries a token and that file gets
 committed; a platform with no supported supervisor, because the daemon would
-have no owner there; and a machine with no configuration yet, because there is
-no state directory to point at. Passing `--daemon` explicitly refuses instead of
-falling back, which is the point of passing it.
+have no owner there; a machine with no configuration yet, because there is
+no state directory to point at; a question that was declined, which includes
+every run without a terminal, because nobody was there to answer it
+(`mcp: stdio: daemon installation declined`); and a supervisor whose status
+cannot be read (`mcp: stdio: could not inspect daemon supervisor`). Passing
+`--daemon` explicitly is the consent, so it skips the question, and it refuses
+instead of falling back, which is the point of passing it.
 
 Reinstalling replaces the entry it finds, so switching transports leaves one
 registration and not two. An entry naming a **different** kivgraph install still
 needs `--force`: that one belongs to another installation.
 
 `daemon install` gives the daemon an owner: a launchd agent on macOS, a systemd
-user unit on Linux. Both start it with your session and bring it back if it dies,
+user unit on Linux, a Task Scheduler logon task on Windows. Each starts it with
+your session and brings it back if it dies,
 which is what makes a `url` entry safe to depend on -- a `command` entry is owned
 by the client that spawns it, but a url pointing at a daemon nobody restarts
 takes every client down at once. `kivgraph daemon status` says whether one is
 installed and where its unit lives, and `kivgraph daemon remove` takes it out.
 
+Bringing it back has limits, and they are deliberate. On Linux the unit is
+`Restart=on-failure` with `RestartSec=2`, and on macOS the agent is `KeepAlive`
+with `SuccessfulExit` false, so a daemon that exits cleanly -- the one
+`kivgraph stop` asked to stop -- stays down. The Linux unit also declares
+`StartLimitIntervalSec=30` and `StartLimitBurst=5`: a daemon that fails to
+start five times in half a minute lands in `failed` instead of retrying
+forever. The Windows task declares `RestartOnFailure` with a one-minute
+interval and a count of three.
+
 The unit is keyed by the state directory and not by the configuration file, so
 two configurations that keep their graph in different places get two units and
 neither replaces the other -- but two that share a state directory share one
 unit, and installing the second overwrites the first with its own `--config`.
-The **address** is keyed by nothing at all: the daemon binds `127.0.0.1:7788`
-unless you tell it otherwise, so the second one to start cannot bind and gives
-up. Two supervised daemons on one machine need a free address given to at
-least one of them, as in `kivgraph daemon install --addr 127.0.0.1:7789`. Nothing supervises a
+The **address** is not part of that key, and it is a preference rather than an
+identity: the daemon binds `127.0.0.1:7788`, and when that port is busy and no
+`--addr` was given it binds a free loopback port instead, records it in
+`daemon.port` in the state directory, and comes back on the same port after
+every restart. Two supervised daemons with different state directories
+therefore coexist without being told anything. An explicit `--addr`, as in
+`kivgraph daemon install --addr 127.0.0.1:7789`, is taken literally and does
+not fall back: if that address is busy, the daemon does not start. A second
+daemon for a state directory that already has one listening is refused.
+Nothing supervises a
 daemon you start by hand with `kivgraph daemon &`; it dies with the shell that
 launched it.
 
@@ -274,6 +305,9 @@ Desktop has no project-scoped configuration file and rejects this scope.
 - An entry named `kivgraph` that does not match what Kivgraph writes is
   reported as `incompatible` and stops the command with an error. `--force` is
   required to replace or remove it.
+- An entry Kivgraph itself wrote for the other transport, or for a previous
+  daemon endpoint, is reported as `superseded`. `install` replaces it without
+  `--force`.
 - An entry that already matches is reported as `managed` and the file is not
   rewritten.
 - `--dry-run` reports the plan as `would-install` or `would-remove` and writes
@@ -288,8 +322,10 @@ kivgraph mcp status --target claude-code --scope user
 kivgraph mcp remove --target claude-code --scope user
 ```
 
-`status` reads the file and reports `absent`, `managed` or `incompatible`
-together with the path it inspected, and changes nothing.
+`status` reads the file and reports `absent`, `managed`, `superseded` or
+`incompatible` together with the path it inspected, and changes nothing.
+`superseded` is an entry that is Kivgraph's, from the other transport: install
+replaces it.
 
 `remove` withdraws only Kivgraph's own entry; every other server and setting in
 the client configuration is left as it was. The file itself is never deleted. If
@@ -297,8 +333,9 @@ the entry is not there, the command reports `absent` and does nothing.
 
 ## After registering
 
-The client launches `kivgraph serve` itself and speaks MCP over stdio. `serve`
-listens on no port; the graph viewer is a separate opt-in command.
+With a stdio entry, the client launches `kivgraph serve` itself and speaks MCP
+over stdio. `serve` listens on no port; the graph viewer is a separate opt-in
+command.
 
 **`serve` is usually not the server.** It forwards the session to the daemon
 and holds no graph of its own, which is what makes a stdio registration cost

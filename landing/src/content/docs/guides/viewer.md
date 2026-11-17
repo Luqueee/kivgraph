@@ -11,6 +11,9 @@ The viewer is opt-in and serves only the published HotSnapshot over read-only
 HTTP. It never mutates the snapshot and never opens the canonical database for
 writing.
 
+With profiles, `ui` serves every configured profile by default. `--profile NAME`
+pins the viewer to that one profile.
+
 ## The default bind is this machine
 
 `web.address` defaults to `127.0.0.1:7777`, and a loopback bind refuses any
@@ -71,6 +74,10 @@ kivgraph stop
 `stop` terminates this user's long-running `serve`, `daemon` and `ui` processes
 and nothing else. It selects by invocation, not by executable: an indexing pass is
 minutes of analysis and is never killed, and `stop` does not kill itself. It
-sends `SIGTERM`, waits for the bounded graceful shutdown, re-checks that the
-pid is still the same invocation, and only then escalates to `SIGKILL`.
+sends `SIGTERM` on Linux and macOS, waits up to five seconds for the bounded
+graceful shutdown, re-checks that the pid is still the same invocation, and only
+then escalates to `SIGKILL`. Windows has no polite stage: it cannot ask a
+process it did not start to exit, so after the same re-check `stop` ends the
+process at once and says `stop.terminated: pid=<pid> was ended without being
+asked, which is all this platform offers`.
 `--dry-run` enumerates without signalling.

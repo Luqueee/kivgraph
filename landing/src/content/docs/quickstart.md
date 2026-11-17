@@ -84,6 +84,10 @@ Configure any MCP client to start the server over stdio:
 Most clients can be wired automatically. `kivgraph mcp install` has five
 targets — `claude-code`, `claude-desktop`, `codex`, `opencode` and `oh-my-pi` —
 and takes `--scope user|project` (default `user`), `--dry-run` and `--force`.
+By default it writes a `url` entry for the machine's one daemon rather than the
+`command` entry above, and in a terminal it asks before installing the daemon's
+supervisor; a declined question, a run without a terminal or `--stdio` writes the
+stdio entry instead.
 Claude Desktop is user-scope only and is the one target that installs no local
 skill. See [Clients](/mcp/clients/).
 
@@ -96,7 +100,9 @@ with no graph builds its first one — and puts the rebuild path in its
 exiting reads as a crash.
 
 The process writes MCP framing exclusively to `stdout` and logs to `stderr`. It
-follows the published generation: it loads the HotSnapshot at start and
+follows the published generation: at start it resolves which generation is
+published, the first query that needs the graph loads the HotSnapshot, and it
 republishes when the `CURRENT` pointer advances, so an `index --full` in
 another terminal cannot leave a server answering from a graph that no longer
-exists on disk.
+exists on disk. When a daemon of the same configuration is answering, `serve`
+forwards the session to it and holds no graph of its own.

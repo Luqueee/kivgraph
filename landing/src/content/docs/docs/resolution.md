@@ -53,7 +53,7 @@ rule with its status and violation count, and up to twenty samples beneath each
 failure with the table, key and row detail that breaks it.
 
 ```bash
-kivgraph doctor graph --database /var/lib/kivgraph/graph/CURRENT/graph.db
+kivgraph doctor graph --database <state>/generations/000123/graph.db
 ```
 
 - **`exact_edge_without_source`** — a semantic edge with exact `confidence`
