@@ -455,6 +455,19 @@ func commandTable() []commandSpec {
 			},
 		},
 		{
+			words:   []string{"impact"},
+			group:   "Diagnostics",
+			usage:   "impact --base REF [--depth N] [--limit N] [--json]",
+			summary: "Show what a diff reaches: the symbols it touches, what depends on them, and the tests",
+			flags:   func() *flag.FlagSet { var o impactOptions; return impactFlagSet(&o) },
+			hints: map[string]flagHint{
+				"config": {paths: true},
+			},
+			run: func(_ dependencies, args []string, stdout, stderr io.Writer) int {
+				return runImpact(args, stdout, stderr)
+			},
+		},
+		{
 			words:   []string{"version"},
 			group:   "Diagnostics",
 			usage:   "version [--json]",

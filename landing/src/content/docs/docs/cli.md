@@ -65,6 +65,7 @@ updating only the Python analyzer settings in the selected configuration.
 | `stats [--interval D] [--once] [--json]` | Watch what every kivgraph process on this machine costs |
 | `logs [OPTIONS]` | Read query history and neutral `NOT_FOUND` results |
 | `tool-stats [--tool NAME] [--since D] [--json]` | Report the cost and the failures of every tool |
+| `impact --base REF [--depth N] [--limit N] [--json]` | Show what a diff reaches: the symbols it touches, what depends on them, and the tests |
 | `version [--json]` | Print the release, with --json for full provenance |
 
 ## Maintenance

@@ -376,6 +376,7 @@ kivgraph doctor            # toolchains, storage, and the type-checking ceiling
 kivgraph ui                # read-only 3D viewer, default 127.0.0.1:7777
 kivgraph logs --follow     # aligned history of what it indexed, served and queried
 kivgraph tool-stats        # per-tool cost, calls, and failures
+kivgraph impact --base origin/main   # what this diff reaches, and which tests
 kivgraph stop              # terminate this user's serve and ui, never an index
 kivgraph clean --keep-active
 ```
@@ -384,6 +385,12 @@ kivgraph clean --keep-active
 not this machine. To look at the graph from another machine, pass
 `--addr 0.0.0.0:7777` or set `web.address`: there is no authentication, so that
 bind logs exactly what it exposes.
+
+`impact` maps the lines that differ from a ref onto the symbols that hold them,
+follows who depends on those, and lists the affected tests apart (`by_test_file`
+with `--json`). It reads the last published graph and refuses to answer when the
+graph is older than the working tree, because the changed lines would land on
+the wrong symbols; `kivgraph index` first, or `--allow-stale`.
 
 `logs` and `tool-stats` read an append-only record in the state directory
 rather than asking a server, which is why they can answer at all: the per-tool
