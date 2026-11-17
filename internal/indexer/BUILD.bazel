@@ -36,6 +36,7 @@ go_test(
         "analyzer_parts_test.go",
         "factcache_absent_test.go",
         "factcache_csharp_test.go",
+        "factcache_dart_provider_test.go",
         "factcache_fingerprint_test.go",
         "factcache_java_test.go",
         "factcache_prune_test.go",

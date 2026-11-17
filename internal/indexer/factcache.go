@@ -953,6 +953,30 @@ var semanticRegistryLanguages = map[string]bool{
 	string(facts.LanguageCSharp): true, "cs": true,
 }
 
+// semanticRegistryName names which semantic repositories are registered and what is
+// in them: each one by name, root and the digest of its tree.
+//
+// The digest is what stops a consumer from being served facts that its provider has
+// outgrown, and it is not an over-approximation that can be trimmed. The Dart loader
+// is handed every registered repository as a provider and reads the files of the one
+// a reference lands in, so the facts of a consumer name symbols of the provider: when
+// the provider renames one, the consumer's entry, whose own sources did not change,
+// is wrong. Without the digest it was served, measured: `references=8` and the old
+// symbol after the rename, where the analysis gives `7` and the new one. A consumer
+// whose reference was unresolved when its entry was taken depends on the provider
+// too, though no composed target names it.
+//
+// The Python worker, the Java and the C# loaders are given no provider and the
+// Python AST worker reads nothing outside its root, so their units do not need the
+// other repositories; but the Python with pyright, Java and C# builds can read a
+// sibling through the environment -- an editable install, a project reference, an
+// included build -- which nothing here can see. Which is why one registry stands for
+// all of them, at the cost of analysing every semantic repository again when any of
+// them changes.
+//
+// Known gap: only repositories that declare a semantic language are in it, and the
+// Dart loader looks at all of them. A provider registered under no semantic language
+// can change without its consumers being analysed again.
 func semanticRegistryName(trees *fingerprintMemo, repositories []workspace.Repository) string {
 	entries := make([]string, 0)
 	for _, repository := range repositories {
