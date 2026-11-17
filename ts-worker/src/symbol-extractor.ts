@@ -21,6 +21,7 @@ import {
 } from "typescript/unstable/ast/is";
 import type { Symbol as TypeScriptSymbol } from "typescript/unstable/async";
 
+import { isDependencySourceFile } from "./dependency-source-file.js";
 import {
   bindingIdentifiers,
   compactSignature,
@@ -148,7 +149,7 @@ export async function extractLocalSymbols(
     if (sourceFile === undefined) {
       continue;
     }
-    if (await view.program.isSourceFileFromExternalLibrary(sourceFile)) {
+    if (await isDependencySourceFile(view.program, sourceFile)) {
       continue;
     }
     collected.push(collectFile(sourceFile));

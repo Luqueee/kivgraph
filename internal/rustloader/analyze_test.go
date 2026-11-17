@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/Luqueee/kivgraph/internal/syntax"
@@ -12,11 +13,37 @@ import (
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
-// analyzeFixture runs the whole Rust path over the recorded workspace: the
-// external analyzer, the decoder, the grammar and the crate registry.
+// fixtureAnalysis holds the one analysis of the recorded workspace that every
+// test here reads. Each of them used to run the analyzer over the same
+// fixture for itself: eight runs of five to seven seconds on the macOS
+// runner, and most of what this package cost. Nothing mutates the result.
+var fixtureAnalysis struct {
+	once     sync.Once
+	analysis Analysis
+	ready    bool
+}
+
+// analyzeFixture answers the analysis of the recorded workspace, running the
+// analyzer the first time it is asked.
 func analyzeFixture(t *testing.T) Analysis {
 	t.Helper()
 	requireAnalyzer(t)
+	// A failure inside ends the first caller through t.Fatalf and leaves
+	// ready unset, so the tests after it fail here instead of reading zero.
+	fixtureAnalysis.once.Do(func() {
+		fixtureAnalysis.analysis = runFixtureAnalysis(t)
+		fixtureAnalysis.ready = true
+	})
+	if !fixtureAnalysis.ready {
+		t.Fatal("the analysis of the fixture failed in an earlier test")
+	}
+	return fixtureAnalysis.analysis
+}
+
+// runFixtureAnalysis runs the whole Rust path over the recorded workspace: the
+// external analyzer, the decoder, the grammar and the crate registry.
+func runFixtureAnalysis(t *testing.T) Analysis {
+	t.Helper()
 	root, output := analyzerFixture(t)
 	repository := workspace.Repository{Name: "fixture", Path: root, RealPath: root}
 

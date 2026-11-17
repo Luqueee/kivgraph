@@ -35,6 +35,7 @@ import {
   isClassDeclaration,
   isInterfaceDeclaration,
 } from "typescript/unstable/ast/is";
+import { isDependencySourceFile } from "./dependency-source-file.js";
 import type {
   ImportedSymbol,
   ImportedSymbolIdentity,
@@ -139,7 +140,7 @@ export async function resolveExtends(
     const sourceFile = await view.program.getSourceFile(fileName);
     if (
       sourceFile === undefined ||
-      (await view.program.isSourceFileFromExternalLibrary(sourceFile))
+      (await isDependencySourceFile(view.program, sourceFile))
     ) {
       continue;
     }

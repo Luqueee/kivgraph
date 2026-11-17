@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	Repository     = "Luqueee/kivgraph"
+	Repository     = "Tutitoos/kivgraph"
 	DefaultAPIBase = "https://api.github.com"
 	checksumsName  = "SHA256SUMS"
 	// bundleDirName is both the installed bundle directory and the single root
@@ -817,9 +817,17 @@ func replaceBundle(currentRoot, stagedRoot string) error {
 		return fmt.Errorf("move staged bundle into place: %w", err)
 	}
 	installed = true
-	if err := removeReplacedBundle(backupRoot); err != nil {
-		return fmt.Errorf("remove previous bundle: %w", err)
-	}
+	// The new bundle is in place under the real name, so the update has
+	// happened whatever becomes of the old one. Returning a failure to delete
+	// it would report the opposite, at the point where a reader can least
+	// check, and would skip everything the caller does after an install.
+	//
+	// On Windows the removal fails every time: the directory holds the binary
+	// running this code, and an executing image cannot be unlinked. Elsewhere
+	// it fails when something in the old bundle refuses to go. Either way the
+	// directory is left for the next update, which clears a stale backup
+	// before it starts and says so if it cannot.
+	_ = os.RemoveAll(backupRoot)
 	return nil
 }
 

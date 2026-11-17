@@ -585,9 +585,11 @@ There are two different truncations:
   fields rather than writing `false` and `null`.
 - `traversal_truncated` is about the walk. It is `true` when the walk hit
   `max_nodes` and stopped discovering symbols, so the impact itself is
-  understated and no cursor will recover it. Raise `max_nodes`, lower `depth`,
-  or narrow with `edge_kinds` or `confidence`. In the captured answer both are
-  `false`, which is why the compact payload carries neither.
+  understated and no cursor will recover it. The answer says so twice more:
+  `completeness.verdict` is `LOWER_BOUND` and `guidance` names `max_nodes`.
+  Raise `max_nodes`, lower `depth`, or narrow with `edge_kinds` or
+  `confidence`. In the captured answer both are `false`, which is why the
+  compact payload carries neither.
 
 To take the next page, repeat the same call and add `cursor` set to the
 `next_cursor` value, unchanged. The token is an opaque base64url wrapper around a

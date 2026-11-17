@@ -237,6 +237,12 @@ says otherwise:
 That is the finding worth carrying out of this issue, and it is not a cost
 problem.
 
+> **Superseded on 2026-09-02.** This section describes the code at the commit
+> the measurement ran on. ADR 0099 gave the watcher its production caller:
+> a `serve` or daemon now watches each profile's sources when
+> `watcher.enabled` is set, marks the profile stale on an uncommitted edit and
+> schedules a full rebuild. The measured costs above are unchanged by that.
+
 ## The three questions the issue asked
 
 - [x] **Define an edit-frequency workload.** `N` appended declarations across `N`

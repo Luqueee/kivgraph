@@ -387,6 +387,8 @@ type findReferencesQuery struct {
 	Language      string   `json:"language,omitempty"`
 	EdgeKinds     []string `json:"edge_kinds,omitempty"`
 	Confidence    string   `json:"confidence,omitempty"`
+	// See blastRadiusQuery for why this one is `omitempty`.
+	IncludeDerived bool `json:"include_derived,omitempty"`
 }
 
 type decodedReferenceEdge struct {
@@ -650,7 +652,7 @@ func findReferences(
 		QualifiedName: options.Selector.QualifiedName, Repository: options.Selector.Repository,
 		Path: options.Selector.Path, Direction: options.Direction,
 		Repo: options.Repo, Language: options.Language, EdgeKinds: options.EdgeKinds.applied,
-		Confidence: options.Confidence,
+		Confidence: options.Confidence, IncludeDerived: arguments.IncludeDerived,
 	})
 	if err != nil {
 		return nil, Response[ReferenceResult]{}, err

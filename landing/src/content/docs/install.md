@@ -49,13 +49,13 @@ On Linux and macOS, where the same line covers both because the installer reads
 `uname` and picks its own archive:
 
 ```bash
-curl -fsSL https://kivgraph.dev/install.sh | bash
+curl -fsSL https://github.com/Tutitoos/kivgraph/releases/latest/download/install.sh | bash
 ```
 
 On Windows:
 
 ```powershell
-irm https://kivgraph.dev/install.ps1 | iex
+irm https://github.com/Tutitoos/kivgraph/releases/latest/download/install.ps1 | iex
 ```
 
 That is the PowerShell shape of the line above it, and it gives up one thing in
@@ -67,7 +67,7 @@ would have failed anyway. Download it and run it as a file to keep the guard:
 
 ```powershell
 $installer = "$env:TEMP\kivgraph-install.ps1"
-irm https://kivgraph.dev/install.ps1 -OutFile $installer
+irm https://github.com/Tutitoos/kivgraph/releases/latest/download/install.ps1 -OutFile $installer
 & $installer
 ```
 
@@ -80,7 +80,7 @@ From a checkout, either installer runs directly:
 To install a specific release instead of the latest one:
 
 ```bash
-KIVGRAPH_VERSION=v0.9.10 ./scripts/install.sh
+KIVGRAPH_VERSION=v0.10.0 ./scripts/install.sh
 ```
 
 `KIVGRAPH_VERSION` is read by both installers, and so are
@@ -149,7 +149,7 @@ then select that channel for later checks:
 ```bash
 release=vX.Y.Z-dev.N
 curl -fsSL \
-  "https://github.com/Luqueee/kivgraph/releases/download/$release/install.sh" |
+  "https://github.com/Tutitoos/kivgraph/releases/download/$release/install.sh" |
   KIVGRAPH_VERSION="$release" bash
 kivgraph update --channel dev
 ```

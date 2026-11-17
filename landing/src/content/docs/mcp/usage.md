@@ -35,21 +35,17 @@ the default graph; naming a missing profile creates it before the full rebuild.
 
 ## What the server tells your agent
 
-The `initialize` result carries an `instructions` string. This is it, literally:
+The `initialize` result carries an `instructions` string. Its routing part is
+this, literally:
 
 ```text
-Kivgraph answers "what breaks if I change this" from a published code graph over
-Go, TypeScript, Rust, Python and Dart. If you can describe what the code does
-but do not know a symbol name, call find_by_intent first; then use the file or
-symbol it returns with the exact graph tools. Before grepping or reading files
-to find callers, references or impact, call find_references or get_blast_radius;
-to read the code they name, call get_source. Check confidence and completeness:
-Python fallback facts can be CANDIDATE and external Dart packages can be
-UNRESOLVED.
+Kivgraph answers "what breaks if I change this" from a published Go, TypeScript, Rust, Python, Dart, Java and C# graph. Before grepping or reading files to find callers, references or impact, call find_references or get_blast_radius; to read their code, call get_source.
 
-Its edges are resolved by go/types, the TypeScript checker and rust-analyzer, not by matching names, so a reference list is complete for those languages and an empty one means nobody calls it. Grep cannot tell you that.
+Its edges are resolved by language analyzers or explicitly marked as CANDIDATE/UNRESOLVED; they are never created by matching names. Read confidence and completeness before treating an empty or partial answer as proof of absence. Grep cannot provide that distinction.
 
 Rows are addressable: every one carries a repository, a repository-relative path, a qualified name and a line range, and every tool accepts that triple instead of a stable key.
+
+Queries accept one or more profiles and use the configured default when omitted; ["*"] selects all. graph_status and list_repositories discover all profiles when omitted. A stable key must name exactly one profile when the installation has several.
 
 Where it loses: a rare name in a single small repository is cheaper to grep, and one small file is cheaper to read than to outline. It wins on common names, on transitive impact, on cross-repository consumers and on proving an absence.
 ```
@@ -605,26 +601,26 @@ and its numbers say the same thing. It compares two arms on the question "who
 calls this symbol, and what do those callers look like": the host's own captured
 answer, grep plus the file reads that follow it, against the MCP calls a session
 needs against the published generation plus the same reads. Tokens are counted
-with `cl100k_base`, over the `kivgraph` corpus at generation `000026`, 14424
-symbols across 363 files.
+with `cl100k_base`, over the `kivgraph` corpus at generation `000206`, 32441
+symbols across 759 files.
 
-Measured on the answer alone, the part a graph server owns. These factors were
-taken against the previous output shape, before the compact view became the
-default, so they are a ceiling on what a session pays today:
+Measured on the answer alone, the part a graph server owns:
 
 | Symbol | Class | Factor against the native arm |
 | --- | --- | ---: |
-| `MergeAll` | rare name | 1.20x |
-| `CanonicalColumns` | rare name | 2.24x |
-| `DiscoverGo` | rare name | 1.74x |
-| `BuildPlan` | shared name | 4.35x |
-| `NewServer` | common name | 6.00x |
-| `Publish` | common name | 5.52x |
-| Total | | 3.46x |
+| `MergeAll` | rare name | 0.85x |
+| `CanonicalColumns` | rare name | 0.91x |
+| `DiscoverGo` | rare name | 0.83x |
+| `BuildPlan` | shared name | 1.92x |
+| `NewServer` | common name | 1.68x |
+| `Publish` | common name | 6.42x |
+| Total | | 1.76x |
+
+On the three rare names the factor is below one: grep is the cheaper arm.
 
 Counting the whole session, the answer plus the bodies the agent then opens,
-which both arms pay identically, the total factor is 1.42x, and 15102 of the
-25768 native tokens are source bodies. The report publishes both figures on
+which both arms pay identically, the total factor is 1.24x, and 15833 of the
+28648 native tokens are source bodies. The report publishes both figures on
 purpose: the answer factor flatters the graph and the session factor flatters
 grep.
 

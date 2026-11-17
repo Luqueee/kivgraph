@@ -48,6 +48,28 @@ func requireAnalyzer(t *testing.T) {
 	testsupport.RequireRustAnalyzer(t)
 }
 
+// TestHermeticSysrootNeverPassesDiscoveryOn: without a `rustc` there is no path
+// to substitute, and the answer is still not `discover` -- it is `none`, said
+// out loud. A value the caller chose is the caller's.
+func TestHermeticSysrootNeverPassesDiscoveryOn(t *testing.T) {
+	withoutToolchain(t)
+	sysroot, diagnostic := hermeticSysroot(context.Background(), RunOptions{Workspace: t.TempDir(), Sysroot: "discover"})
+	if sysroot != "none" || !strings.Contains(diagnostic, string(SysrootToolchainNotFound)) {
+		t.Fatalf("hermeticSysroot(discover) = %q, %q", sysroot, diagnostic)
+	}
+	for _, chosen := range []string{"none", "", "/opt/toolchain"} {
+		sysroot, diagnostic := hermeticSysroot(context.Background(), RunOptions{Workspace: t.TempDir(), Sysroot: chosen})
+		if sysroot != chosen || diagnostic != "" {
+			t.Fatalf("hermeticSysroot(%q) = %q, %q", chosen, sysroot, diagnostic)
+		}
+	}
+	sysroot, diagnostic = hermeticSysroot(context.Background(),
+		RunOptions{Workspace: t.TempDir(), Sysroot: "discover", AllowNetwork: true})
+	if sysroot != "discover" || diagnostic != "" {
+		t.Fatalf("hermeticSysroot(discover, network) = %q, %q", sysroot, diagnostic)
+	}
+}
+
 // TestRunIndexesAWorkspaceWithoutWritingToIt is the contract the whole Rust
 // path stands on: the analyzer runs build scripts, so the run must leave the
 // sources exactly as it found them.

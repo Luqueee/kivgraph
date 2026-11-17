@@ -37,8 +37,13 @@ env:
 # account, so those are slots taken from the run that matters. The protected
 # branches keep their own verdicts: release tags are cut from `main`, while
 # `development` is the opt-in prerelease stream.
+#
+# That is why their group is the commit and not the branch. A group holds one
+# running and one pending run, and a newer pending run replaces the older one
+# whatever `cancel-in-progress` says: four merges in a row left the middle two
+# cancelled in the queue, measured at eight cancelled pushes in fifteen hours.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/development') && github.sha || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/development' }}
 
 jobs:
@@ -48,6 +53,8 @@ jobs:
     timeout-minutes: 5
     outputs:
       release_only: ${{ steps.classify.outputs.release_only }}
+      docs_only: ${{ steps.classify.outputs.docs_only }}
+      full: ${{ steps.classify.outputs.release_only != 'true' && steps.classify.outputs.docs_only != 'true' }}
       base_sha: ${{ steps.classify.outputs.base_sha }}
     steps:
       - name: Checkout complete history
@@ -84,10 +91,28 @@ jobs:
               ;;
           esac
 
+          # A later line with the same name wins, so this is the answer of
+          # every path below that does not reach the documentation check.
+          echo "docs_only=false" >> "$GITHUB_OUTPUT"
+
           if [[ -z "$base_sha" || "$base_sha" =~ ^0+$ ]]; then
             echo "release_only=false" >> "$GITHUB_OUTPUT"
             echo "base_sha=" >> "$GITHUB_OUTPUT"
             exit 0
+          fi
+          echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
+
+          # A change that touches only documentation nothing reads skips the
+          # build and test jobs: they would spend 24 runner-minutes, two of
+          # the jobs on macOS, re-verifying code the change cannot reach.
+          # `--no-renames` keeps the old name of a file renamed into
+          # documentation in the list. A diff that cannot be computed is not
+          # evidence, so it leaves the complete CI selected.
+          scripts/classify-docs-change.sh selftest
+          if paths="$(git diff --name-only --no-renames "$base_sha...$head_sha")"; then
+            docs_only="$(scripts/classify-docs-change.sh <<<"$paths")"
+            echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
+            printf 'documentation-only change: %s\n' "$docs_only"
           fi
 
           if [[ "$release_only_event" != true ]]; then
@@ -96,7 +121,6 @@ jobs:
             exit 0
           fi
 
-          echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
           classifier="$RUNNER_TEMP/classify-release-change.sh"
           release_only=false
           if git show "$base_sha:scripts/classify-release-change.sh" >"$classifier" 2>/dev/null; then
@@ -125,10 +149,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        uses: ./.github/actions/setup-go
         with:
-          go-version-file: go.mod
-          check-latest: true
+          job: ${{ github.job }}
 
       - name: Check release metadata
         run: |
@@ -161,10 +184,29 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm check
 
+  documentation:
+    name: Validate documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: classify
+    if: needs.classify.outputs.docs_only == 'true'
+    steps:
+      - name: Checkout complete history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check documentation invariants
+        shell: bash
+        env:
+          BASE_SHA: ${{ needs.classify.outputs.base_sha }}
+        run: scripts/check-docs.sh "$BASE_SHA"
+
   semantic-coverage:
     name: Verify semantic coverage gates
     needs: classify
-    if: needs.classify.outputs.release_only != 'true'
+    if: needs.classify.outputs.full == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -175,15 +217,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        uses: ./.github/actions/setup-go
         with:
-          go-version-file: go.mod
-          check-latest: true
-
-      - name: Set up Dart
-        uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1
-        with:
-          sdk: stable
+          job: ${{ github.job }}
 
       - name: Set up pnpm
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
@@ -201,50 +237,24 @@ jobs:
         working-directory: ts-worker
         run: pnpm install --frozen-lockfile
 
-      # The semantic coverage gate refuses to run without these: scip-java
-      # indexes by driving the repository's own build, so the JDK and Maven are
-      # both required, and `verify-semantic-coverage.sh` exits 1 rather than
-      # skipping. Maven ships with the runner image; the JDK and the indexer do
-      # not.
-      - name: Set up the JDK
-        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6
-        with:
-          distribution: temurin
-          java-version: '21'
-
-      - name: Install scip-java
-        run: |
-          set -euo pipefail
-          curl -fsSL --retry 3 -o cs.gz \
-            https://github.com/coursier/coursier/releases/latest/download/cs-x86_64-pc-linux.gz
-          gunzip -f cs.gz
-          chmod +x cs
-          mkdir -p "$HOME/.local/bin"
-          ./cs install --contrib scip-java --install-dir "$HOME/.local/bin"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
-      # Same reason as scip-java: the coverage gate exits 1 without scip-dotnet
-      # rather than skipping, and the tool is a dotnet global tool, so it needs
-      # the SDK -- which also runs the `dotnet restore` every C# index begins
-      # with.
-      - name: Set up the .NET SDK
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
-        with:
-          dotnet-version: '8.0.x'
-
-      - name: Install scip-dotnet
-        run: |
-          set -euo pipefail
-          dotnet tool install --global scip-dotnet
-          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+      # The gate refuses to run without these: `verify-semantic-coverage.sh`
+      # exits 1 on a missing indexer rather than skipping the language.
+      - name: Set up the semantic indexers
+        uses: ./.github/actions/setup-semantic-indexers
 
       - name: Run complete semantic coverage gate
         run: make semantic-coverage
 
-  verify:
-    name: Verify Go, web and landing packages
+  # Everything about the Go source that is not the instrumented suite: format,
+  # vet, the linters, the vulnerability scan, the documentation ratchet and the
+  # race tests. None of it needs an analyzer -- no test in the raced packages
+  # skips for one -- so it does not pay the 41 s `verify` spends installing
+  # them, and its steps were about a minute of the job that decides how long
+  # a run takes.
+  lint:
+    name: Lint Go and run the race tests
     needs: classify
-    if: needs.classify.outputs.release_only != 'true'
+    if: needs.classify.outputs.full == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -253,82 +263,14 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-          # The landing's sitemap dates every URL from the commit that last
-          # touched its source, and refuses to publish a date it cannot
-          # establish. At the default depth of 1 every file collapses onto the
-          # tip commit, so this job would build -- and pass -- a sitemap with no
-          # `lastmod` at all, which is not the artifact the deploy serves.
+          # The documentation ratchet compares against the merge base, which a
+          # checkout of depth 1 does not hold.
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        uses: ./.github/actions/setup-go
         with:
-          go-version-file: go.mod
-          check-latest: true
-
-      # Dart and pyright are here for the same reason rust-analyzer is: their
-      # suites skip without them, and a skipped suite hides a whole language
-      # path from CI. They arrived with the coverage floor -- which this job
-      # now gates -- and until then the Python analyzer tests had never run in
-      # this workflow at all.
-      - name: Set up Dart
-        uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1
-        with:
-          sdk: stable
-
-      - name: Set up Node.js for the analyzers
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version: 22
-
-      - name: Install pyright
-        run: npm install -g pyright
-
-      # scip-java needs both a JDK and a build tool: it indexes by running the
-      # repository's own build. Without either, the Java suite skips, and a
-      # skipped suite hides the whole Java path -- which is now a gated language
-      # in the coverage manifest. Maven ships with the runner image; the JDK and
-      # the indexer do not.
-      - name: Set up the JDK
-        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6
-        with:
-          distribution: temurin
-          java-version: '21'
-
-      - name: Install scip-java
-        run: |
-          set -euo pipefail
-          curl -fsSL --retry 3 -o cs.gz \
-            https://github.com/coursier/coursier/releases/latest/download/cs-x86_64-pc-linux.gz
-          gunzip -f cs.gz
-          chmod +x cs
-          mkdir -p "$HOME/.local/bin"
-          ./cs install --contrib scip-java --install-dir "$HOME/.local/bin"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
-      # scip-dotnet is a dotnet global tool and needs the SDK, which also runs
-      # the `dotnet restore` every C# index begins with. Without it the C#
-      # suite skips, and a skipped suite hides a gated language.
-      - name: Set up the .NET SDK
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
-        with:
-          dotnet-version: '8.0.x'
-
-      - name: Install scip-dotnet
-        run: |
-          set -euo pipefail
-          dotnet tool install --global scip-dotnet
-          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
-
-      # The Rust tests skip without a runnable analyzer, and a skipped suite
-      # would hide the whole Rust path from CI. rustup ships a proxy named
-      # rust-analyzer whether or not the component exists, so it has to be
-      # added explicitly.
-      - name: Install pinned rust-analyzer
-        run: |
-          rustup component add rust-analyzer
-          analyzer_dir="$(scripts/fetch-rust-analyzer.sh)"
-          echo "$analyzer_dir" >> "$GITHUB_PATH"
+          job: ${{ github.job }}
 
       - name: Check Go formatting
         shell: bash
@@ -367,7 +309,13 @@ jobs:
       # non-zero only for what this code calls. It is what found the five
       # standard-library advisories the toolchain bump closed, and the four in
       # the MCP transport that the SDK upgrade closed with it.
+      #
+      # On a pull request it reports and does not block. A published advisory
+      # is about the toolchain or a dependency, not about the diff, and it
+      # turned five open pull requests red in the same hour for something
+      # none of them changed. `main` and a release still fail on it.
       - name: Vulnerability scan
+        continue-on-error: ${{ github.event_name == 'pull_request' }}
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
 
       # The documentation invariants: every CLAUDE.md stays a symlink to the
@@ -380,16 +328,6 @@ jobs:
           base="${{ github.base_ref || 'main' }}"
           git fetch --no-tags --depth=100 origin "$base"
           scripts/check-docs.sh "origin/$base"
-
-      # The Go suite runs once, instrumented, and gates the coverage floor in
-      # the same pass. `make coverage` measures with -coverpkg=./... while the
-      # tests execute, so it cannot follow a plain `go test ./...` -- that
-      # would be the same work twice, which is what it replaced. It emits the
-      # same ::error:: annotations on failure, and refuses to run at all when
-      # an analyzer is missing, because the low number that produces reads as
-      # a floor breach and is really a toolchain nobody installed.
-      - name: Go tests and coverage floor
-        run: make coverage
 
       # The packages where a race is a data race and not a flake: the snapshot
       # store publishes by compare-and-swap, the follower installs generations
@@ -404,8 +342,99 @@ jobs:
             ./internal/daemon/... \
             ./internal/storage/generation/...
 
+  # The Go half of what used to be one job. The worker, the viewer and the
+  # landing were checked after the Go suite on the same runner, which made this
+  # the longest job of the workflow -- 4.8 min at the median -- for no reason
+  # but the order of its steps: nothing below `Build Go` read anything above
+  # it. They run in `packages` now, beside this one, and a Linux runner does
+  # not queue.
+  verify:
+    name: Verify Go
+    needs: classify
+    if: needs.classify.outputs.full == 'true'
+    # The image is pinned because the Go cache this job restores was saved on
+    # it; `packages` is the job that needs the pin for its own sake.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: ./.github/actions/setup-go
+        with:
+          job: ${{ github.job }}
+
+      # Dart, pyright, scip-java and scip-dotnet are here for the same reason
+      # rust-analyzer is: their suites skip without them, and a skipped suite
+      # hides a whole language path from CI. They arrived with the coverage
+      # floor -- which this job now gates -- and until then the Python
+      # analyzer tests had never run in this workflow at all.
+      - name: Set up the semantic indexers
+        uses: ./.github/actions/setup-semantic-indexers
+
+      - name: Set up Node.js for the analyzers
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22
+
+      - name: Install pyright
+        run: npm install -g pyright@1.1.414
+
+      # The Rust tests skip without a runnable analyzer, and a skipped suite
+      # would hide the whole Rust path from CI. rustup ships a proxy named
+      # rust-analyzer whether or not the component exists, so it has to be
+      # added explicitly.
+      #
+      # `rust-src` is added with it, here and in every other job that runs the
+      # analyzer. The hosted image does not carry it, and an analyzer that
+      # finds it missing runs `rustup component add rust-src` itself. Two test
+      # binaries starting together then race that install: the loser indexes
+      # without a standard library while the probe the test makes afterwards
+      # finds one, and `TestFullIndexesARustRepository` fails. Reproduced at
+      # 7 of 8 concurrent first runs without the component and 0 of 24 with it.
+      - name: Install pinned rust-analyzer
+        run: |
+          rustup component add rust-analyzer rust-src
+          analyzer_dir="$(scripts/fetch-rust-analyzer.sh)"
+          echo "$analyzer_dir" >> "$GITHUB_PATH"
+
+      # The Go suite runs once, instrumented, and gates the coverage floor in
+      # the same pass. `make coverage` measures with -coverpkg=./... while the
+      # tests execute, so it cannot follow a plain `go test ./...` -- that
+      # would be the same work twice, which is what it replaced. It emits the
+      # same ::error:: annotations on failure, and refuses to run at all when
+      # an analyzer is missing, because the low number that produces reads as
+      # a floor breach and is really a toolchain nobody installed.
+      - name: Go tests and coverage floor
+        run: make coverage
+
       - name: Build Go
         run: go build ./cmd/kivgraph
+
+  packages:
+    name: Verify the worker, web and landing packages
+    needs: classify
+    if: needs.classify.outputs.full == 'true'
+    # Pinned, not ubuntu-latest: that label moved to 26.04, where the pinned
+    # Playwright has no Chromium build and the end-to-end step cannot install.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          # The landing's sitemap dates every URL from the commit that last
+          # touched its source, and refuses to publish a date it cannot
+          # establish. At the default depth of 1 every file collapses onto the
+          # tip commit, so this job would build -- and pass -- a sitemap with no
+          # `lastmod` at all, which is not the artifact the deploy serves.
+          fetch-depth: 0
 
       - name: Set up pnpm
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
@@ -485,7 +514,7 @@ jobs:
   linux-bundle:
     name: Build and verify the Linux distribution bundle
     needs: classify
-    if: needs.classify.outputs.release_only != 'true'
+    if: needs.classify.outputs.full == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -496,10 +525,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        uses: ./.github/actions/setup-go
         with:
-          go-version-file: go.mod
-          check-latest: true
+          job: ${{ github.job }}
 
       - name: Set up pnpm for distribution
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
@@ -576,7 +604,7 @@ jobs:
   ladybug:
     name: Verify against a real LadybugDB
     needs: classify
-    if: needs.classify.outputs.release_only != 'true'
+    if: needs.classify.outputs.full == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -587,14 +615,13 @@ jobs:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        uses: ./.github/actions/setup-go
         with:
-          go-version-file: go.mod
-          check-latest: true
+          job: ${{ github.job }}
 
       - name: Install pinned rust-analyzer
         run: |
-          rustup component add rust-analyzer
+          rustup component add rust-analyzer rust-src
           analyzer_dir="$(scripts/fetch-rust-analyzer.sh)"
           echo "$analyzer_dir" >> "$GITHUB_PATH"
 
@@ -621,7 +648,7 @@ jobs:
     needs:
       - classify
       - linux-bundle
-    if: needs.classify.outputs.release_only != 'true'
+    if: needs.classify.outputs.full == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -638,10 +665,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        uses: ./.github/actions/setup-go
         with:
-          go-version-file: go.mod
-          check-latest: true
+          job: ${{ github.job }}
 
       - name: Download Linux distribution bundle
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
@@ -767,7 +793,7 @@ jobs:
   darwin-bundle:
     name: Build the macOS bundle a release publishes
     needs: classify
-    if: needs.classify.outputs.release_only != 'true'
+    if: needs.classify.outputs.full == 'true'
     runs-on: macos-15
     timeout-minutes: 30
     steps:
@@ -777,13 +803,13 @@ jobs:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        uses: ./.github/actions/setup-go
         with:
-          go-version-file: go.mod
+          job: ${{ github.job }}
 
       - name: Install pinned rust-analyzer
         run: |
-          rustup component add rust-analyzer
+          rustup component add rust-analyzer rust-src
           analyzer_dir="$(scripts/fetch-rust-analyzer.sh)"
           echo "$analyzer_dir" >> "$GITHUB_PATH"
 
@@ -851,7 +877,7 @@ jobs:
   macos:
     name: Verify Go on macOS arm64
     needs: classify
-    if: needs.classify.outputs.release_only != 'true'
+    if: needs.classify.outputs.full == 'true'
     runs-on: macos-15
     timeout-minutes: 20
 
@@ -862,14 +888,13 @@ jobs:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        uses: ./.github/actions/setup-go
         with:
-          go-version-file: go.mod
-          check-latest: true
+          job: ${{ github.job }}
 
       - name: Install pinned rust-analyzer
         run: |
-          rustup component add rust-analyzer
+          rustup component add rust-analyzer rust-src
           analyzer_dir="$(scripts/fetch-rust-analyzer.sh)"
           echo "$analyzer_dir" >> "$GITHUB_PATH"
 
@@ -890,16 +915,10 @@ jobs:
       - name: Go vet
         run: go vet ./...
 
-      - name: Go tests
-        shell: bash
-        run: |
-          set -o pipefail
-          go test ./... 2>&1 | tee "$RUNNER_TEMP/go-test.log" && exit 0
-          grep -E '^(--- )?FAIL|\.go:[0-9]+:' "$RUNNER_TEMP/go-test.log" |
-            head -20 |
-            while IFS= read -r line; do printf '::error::%s\n' "$line"; done
-          exit 1
-
+      # No untagged `go test ./...` here. `make test-ladybug` below runs the
+      # same packages plus the tagged ones, so the untagged pass only added the
+      # `!ladybug` fallback files -- which are not platform specific and run in
+      # `verify`. It cost 132 s of the job that sets this workflow's duration.
       # The worker suite is platform sensitive: the engine reports paths with
       # the casing of the volume, and this one folds case.
       - name: Install TypeScript worker
@@ -917,8 +936,23 @@ jobs:
       - name: Fetch the pinned LadybugDB library
         run: scripts/fetch-ladybug.sh
 
+      # On a pull request this leaves out one package: the pass that indexes
+      # the Rust standard library. It is a single test, it is what decides how
+      # long this step takes -- 62 to 159 s of it across five measured jobs,
+      # with the rest of the suite done in under 80 -- and both Linux jobs run
+      # it on the same pull request. What only this runner adds is the darwin
+      # sysroot, and that is checked on every push to `main` and on a release,
+      # where this step runs everything.
       - name: Go tests with LadybugDB
-        run: make test-ladybug
+        shell: bash
+        run: |
+          set -euo pipefail
+          packages=./...
+          if [[ "$GITHUB_EVENT_NAME" == pull_request ]]; then
+            packages="$(go list -tags ladybug ./... |
+              grep -v '/internal/indexer/rustsysroot$' | tr '\n' ' ')"
+          fi
+          make test-ladybug PKGS="$packages"
 
   # windows-cross is a compile gate and deliberately nothing more. It cannot
   # run what it builds, and windows/amd64 is not a published target: what it
@@ -934,7 +968,7 @@ jobs:
   windows-cross:
     name: Cross-compile for windows/amd64
     needs: classify
-    if: needs.classify.outputs.release_only != 'true'
+    if: needs.classify.outputs.full == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -969,10 +1003,9 @@ jobs:
           }
 
       - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        uses: ./.github/actions/setup-go
         with:
-          go-version-file: go.mod
-          check-latest: true
+          job: ${{ github.job }}
 
       - name: Install the Windows C cross-compiler
         run: |
@@ -997,7 +1030,10 @@ jobs:
       - classify
       - release_preparation
       - semantic-coverage
+      - documentation
+      - lint
       - verify
+      - packages
       - linux-bundle
       - ladybug
       - smoke
@@ -1011,8 +1047,12 @@ jobs:
           CLASSIFY_RESULT: ${{ needs.classify.result }}
           RELEASE_ONLY: ${{ needs.classify.outputs.release_only }}
           RELEASE_PREPARATION_RESULT: ${{ needs.release_preparation.result }}
+          DOCS_ONLY: ${{ needs.classify.outputs.docs_only }}
+          DOCUMENTATION_RESULT: ${{ needs.documentation.result }}
           SEMANTIC_COVERAGE_RESULT: ${{ needs['semantic-coverage'].result }}
+          LINT_RESULT: ${{ needs.lint.result }}
           VERIFY_RESULT: ${{ needs.verify.result }}
+          PACKAGES_RESULT: ${{ needs.packages.result }}
           LINUX_BUNDLE_RESULT: ${{ needs['linux-bundle'].result }}
           LADYBUG_RESULT: ${{ needs.ladybug.result }}
           SMOKE_RESULT: ${{ needs.smoke.result }}
@@ -1031,9 +1071,18 @@ jobs:
             exit 0
           fi
 
+          if [[ "$DOCS_ONLY" == true ]]; then
+            [[ "$DOCUMENTATION_RESULT" == success ]] ||
+              { echo "documentation validation failed" >&2; exit 1; }
+            echo "documentation path passed"
+            exit 0
+          fi
+
           for result in \
             "$SEMANTIC_COVERAGE_RESULT" \
+            "$LINT_RESULT" \
             "$VERIFY_RESULT" \
+            "$PACKAGES_RESULT" \
             "$LINUX_BUNDLE_RESULT" \
             "$LADYBUG_RESULT" \
             "$SMOKE_RESULT" \

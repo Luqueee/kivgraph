@@ -79,6 +79,11 @@ function refusalFor(payload) {
       }
     })
 
+    // A gate that exits before it has read everything -- disabled, or handed a
+    // payload larger than the pipe -- breaks the pipe, and that arrives as an
+    // 'error' event on stdin, not as an exception the try below can catch. Left
+    // unhandled it takes the host process down with it.
+    child.stdin.on("error", () => finish(null))
     try {
       child.stdin.end(JSON.stringify(payload))
     } catch {

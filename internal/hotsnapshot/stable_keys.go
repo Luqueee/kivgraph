@@ -47,6 +47,9 @@ type StableKeyTable struct {
 	// borrowed says the arena is memory this table does not own -- a mapped
 	// file. It changes exactly one thing, and it has to: what Key copies.
 	borrowed bool
+	// anchor is what releases the mapped file once nothing can reach it; see
+	// StringTable.anchor.
+	anchor *mapping
 }
 
 // value answers one key without copying it.

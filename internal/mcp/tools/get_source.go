@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
 	"time"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -171,6 +170,11 @@ func getSourceAcrossProfiles(
 	rows := make([]SourceBody, 0, len(arguments.Symbols)*len(selected))
 	variants := make(map[string]int)
 	coverage := Coverage{}
+	// A symbol one profile does not hold is expected: profiles index different
+	// repositories. One that no profile holds is the caller's mistake, and
+	// leaving it out of the answer would read as a body that was served.
+	missing := make([]error, len(selectors))
+	resolved := make([]bool, len(selectors))
 	for _, profile := range selected {
 		snapshot := profile.Store.Load()
 		if snapshot == nil {
@@ -178,14 +182,16 @@ func getSourceAcrossProfiles(
 		}
 		profiles = append(profiles, ProfileSnapshot{Name: profile.Name, SnapshotID: snapshot.Metadata().ID})
 		cache := map[string]*sourceFile{}
-		for _, selector := range selectors {
+		for index, selector := range selectors {
 			symbolID, resolveErr := resolveSymbolSelector(snapshot, selector)
 			if resolveErr != nil {
 				if code := ErrorCode(resolveErr); code == CodeSymbolNotFound || code == CodeRepositoryNotFound {
+					missing[index] = resolveErr
 					continue
 				}
 				return nil, Response[SourceResult]{}, resolveErr
 			}
+			resolved[index] = true
 			symbol, found := snapshot.Symbol(symbolID)
 			if !found {
 				return nil, Response[SourceResult]{}, WrapToolError(CodeSnapshotUnavailable,
@@ -215,6 +221,11 @@ func getSourceAcrossProfiles(
 			if row.Unavailable == "" {
 				coverage.Exact++
 			}
+		}
+	}
+	for index, found := range resolved {
+		if !found && missing[index] != nil {
+			return nil, Response[SourceResult]{}, missing[index]
 		}
 	}
 	budget := MaximumSourceBytes
@@ -364,10 +375,13 @@ func sourceBody(
 		return body, nil
 	}
 
-	loaded := cache[location.FilePath]
+	// A relative path names a file only inside its repository: two repositories
+	// both have a main.go.
+	cacheKey := location.RepositoryPath + "\x00" + location.FilePath
+	loaded := cache[cacheKey]
 	if loaded == nil {
 		loaded = loadSourceFile(location.RepositoryPath, location.FilePath, file.ContentDigest)
-		cache[location.FilePath] = loaded
+		cache[cacheKey] = loaded
 	}
 	if loaded.err != nil {
 		body.Unavailable = loaded.err.Error()

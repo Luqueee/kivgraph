@@ -240,6 +240,9 @@ type blastRadiusQuery struct {
 	EdgeKinds     []string `json:"edge_kinds,omitempty"`
 	Confidence    string   `json:"confidence,omitempty"`
 	Kinds         []string `json:"kinds"`
+	// `omitempty`, so every cursor minted without the flag keeps its hash and
+	// only the pages that asked for the derived provider are bound to it.
+	IncludeDerived bool `json:"include_derived,omitempty"`
 }
 
 // blastRadiusDefaultExcludedKinds are the symbol kinds an unasked-for impact
@@ -555,7 +558,7 @@ func getBlastRadiusAcrossProfiles(
 		Profiles: profiles, CrossProfileEdges: "not_resolved",
 		Total: len(rows), Returned: end - offset, Truncated: end < len(rows), NextCursor: next,
 		Coverage: coverage, Completeness: &mergedCompleteness,
-		Guidance: traversalGuidance(blastRadiusToolName, len(rows), end-offset, end < len(rows), mergedCompleteness.Verdict),
+		Guidance: traversalGuidance(blastRadiusToolName, len(rows), end-offset, end < len(rows), radius.TraversalTruncated, mergedCompleteness.Verdict),
 		Results:  radius, View: options.View,
 	}, nil
 }
@@ -600,7 +603,7 @@ func getBlastRadius(
 		Tool: blastRadiusToolName, StableKey: options.Selector.StableKey, QualifiedName: options.Selector.QualifiedName,
 		Repository: options.Selector.Repository, Path: options.Selector.Path, Depth: options.Depth,
 		MaxNodes: options.MaxNodes, EdgeKinds: options.EdgeKinds, Confidence: options.Confidence,
-		Kinds: options.Kinds.applied,
+		Kinds: options.Kinds.applied, IncludeDerived: arguments.IncludeDerived,
 	})
 	if err != nil {
 		return nil, Response[BlastRadius]{}, err
@@ -705,6 +708,11 @@ func getBlastRadius(
 		)
 	}
 	coverage.UnresolvedRelated += unresolvedRelated
+	// A walk cut by max_nodes never discovered part of the impact. Nothing the
+	// resolver recorded says so, and the list is a minimum all the same.
+	if traversal.Truncated {
+		completeness.Verdict = VerdictLowerBound
+	}
 
 	snapshotID := metadata.ID
 	snapshotAgeMS := snapshotAgeMilliseconds(metadata.CreatedAt)
@@ -712,7 +720,7 @@ func getBlastRadius(
 		SnapshotID: &snapshotID, SnapshotAgeMS: &snapshotAgeMS,
 		Total: total, Returned: len(radius.Symbols), Truncated: hasMore, NextCursor: nextCursor,
 		Coverage: coverage, Completeness: &completeness,
-		Guidance: traversalGuidance(blastRadiusToolName, total, len(radius.Symbols), hasMore, completeness.Verdict),
+		Guidance: traversalGuidance(blastRadiusToolName, total, len(radius.Symbols), hasMore, traversal.Truncated, completeness.Verdict),
 		Results:  radius, View: options.View,
 	}, nil
 }

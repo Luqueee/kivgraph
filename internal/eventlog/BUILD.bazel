@@ -14,6 +14,7 @@ go_test(
     name = "eventlog_test",
     srcs = [
         "eventlog_test.go",
+        "rotation_test.go",
         "summary_test.go",
     ],
     embed = [":eventlog"],

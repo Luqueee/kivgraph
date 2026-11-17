@@ -179,9 +179,12 @@ func (manager *Manager) Refresh(ctx context.Context) error {
 	return nil
 }
 
-// RecordPublished records a successful generation and clears stale state for
-// that profile. It does not clear stale markers belonging to other profiles
-// that depend on the same worktree.
+// RecordPublished records a successful generation and clears the stale state
+// that generation accounts for. It does not clear stale markers belonging to
+// other profiles that depend on the same worktree.
+//
+// A change observed after the pass last verified its sources is not in the
+// generation, and the record of it survives: see unpublishedChanges.
 func (manager *Manager) RecordPublished(ctx context.Context, record ProfileRecord) error {
 	if manager == nil {
 		return errors.New("source invalidation manager is nil")
@@ -193,6 +196,9 @@ func (manager *Manager) RecordPublished(ctx context.Context, record ProfileRecor
 	return manager.mutate(ctx, func(state *State) error {
 		for index := range state.Profiles {
 			if state.Profiles[index].Profile == profile.Profile {
+				profile.Changes = unpublishedChanges(state.Profiles[index].Changes, profile.Manifest)
+				profile.Stale = len(profile.Changes) != 0
+				profile.Reason = staleReason(profile.Changes)
 				state.Profiles[index] = profile
 				return nil
 			}
@@ -200,6 +206,43 @@ func (manager *Manager) RecordPublished(ctx context.Context, record ProfileRecor
 		state.Profiles = append(state.Profiles, profile)
 		return nil
 	})
+}
+
+// unpublishedChanges returns the recorded changes a newly published manifest
+// does not contain, restated against that manifest.
+//
+// A pass captures its manifest, analyses for minutes, verifies the sources
+// once more and publishes. A file saved after that verification is observed
+// by the watcher, which marks the profile stale, and is not in the generation.
+// Clearing the mark on publication then left a graph without the edit and a
+// state that called it fresh; the watcher had already seen the edit, so
+// nothing reported it again.
+//
+// What tells the two apart is what the watcher saw. A change whose observed
+// state is the one just published was covered by the pass. One that differs
+// from it was not. A change with nothing observed -- a source that was
+// unreadable, a resolver that moved -- is cleared as before: the pass could
+// read every source and ran with the current resolver, or it would not have
+// published.
+func unpublishedChanges(recorded []SourceChange, published sourceobservation.Manifest) []SourceChange {
+	var remaining []SourceChange
+	for _, change := range recorded {
+		if change.After == nil {
+			continue
+		}
+		for _, source := range published.Sources {
+			if source.Observation.Worktree != change.Worktree {
+				continue
+			}
+			observed := source
+			observed.Observation = *change.After
+			if restated, differs := compareSource(source, observed); differs {
+				remaining = append(remaining, restated)
+			}
+			break
+		}
+	}
+	return remaining
 }
 
 // ProfilesForSource returns the profiles that use worktree in canonical name

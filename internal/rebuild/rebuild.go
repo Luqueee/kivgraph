@@ -88,7 +88,12 @@ type Report struct {
 	Snapshot       SnapshotReport
 	Publication    generation.Publication
 	Pruned         []string
-	Passed         bool
+	// PublishSteps splits the `publish` stage into steps that follow one another
+	// and add up to it: what the generation store does around the Build and
+	// Validate closures, the verification of the sources inside Validate, and the
+	// pruning after it. Empty when Publish failed.
+	PublishSteps []generation.PublishStep
+	Passed       bool
 }
 
 // Options configures one full rebuild run.
@@ -242,6 +247,7 @@ func Run(ctx context.Context, options Options) (Report, error) {
 		probeResults     []ladybug.CanonicalProbeResult
 		snapshotDigest   string
 		snapshotReport   SnapshotReport
+		verifySourcesMS  float64
 	)
 
 	build := func(buildCtx context.Context, candidatePath string) error {
@@ -455,7 +461,10 @@ func Run(ctx context.Context, options Options) (Report, error) {
 			}
 		}
 		if options.VerifySources != nil {
-			if err := options.VerifySources(validateCtx); err != nil {
+			verifyStart := time.Now()
+			err := options.VerifySources(validateCtx)
+			verifySourcesMS = elapsedMS(verifyStart)
+			if err != nil {
 				return fmt.Errorf("verify source observations: %w", err)
 			}
 		}
@@ -499,8 +508,11 @@ func Run(ctx context.Context, options Options) (Report, error) {
 	// one — the next successful rebuild's own prune retries it. So the
 	// failure is folded into this stage's Detail, for an operator to see,
 	// instead of into Passed.
+	pruneStart := time.Now()
 	pruned, pruneErr := store.Prune(ctx)
+	pruneMS := elapsedMS(pruneStart)
 	report.Pruned = pruned
+	report.PublishSteps = publishSteps(publication.Steps, verifySourcesMS, pruneMS)
 	if pruneErr != nil {
 		detail += fmt.Sprintf("; prune failed: %v", pruneErr)
 	} else if len(pruned) != 0 {
@@ -515,6 +527,22 @@ func Run(ctx context.Context, options Options) (Report, error) {
 	})
 	report.Passed = allStagesPassed(report.Stages)
 	return report, nil
+}
+
+// publishSteps carves the verification of the sources out of the step that
+// contains it, so the list stays additive, and appends the pruning.
+func publishSteps(stored []generation.PublishStep, verifySourcesMS, pruneMS float64) []generation.PublishStep {
+	steps := make([]generation.PublishStep, 0, len(stored)+2)
+	for _, step := range stored {
+		if step.Name == "validate" {
+			steps = append(steps,
+				generation.PublishStep{Name: step.Name, DurationMS: step.DurationMS - verifySourcesMS},
+				generation.PublishStep{Name: "verify sources", DurationMS: verifySourcesMS})
+			continue
+		}
+		steps = append(steps, step)
+	}
+	return append(steps, generation.PublishStep{Name: "prune", DurationMS: pruneMS})
 }
 
 func elapsedMS(start time.Time) float64 {

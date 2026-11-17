@@ -18,7 +18,7 @@ const questions = [
   {
     question: "Does my code leave my machine?",
     answer:
-      "No. The server is a local process that speaks MCP over stdio, and no query path makes a network call. One thing to know: kivgraph ui, the optional viewer, opens a local HTTP listener that binds 0.0.0.0:7777 with no authentication and exposes repository paths, file paths, symbol names and signatures. On a shared network, start it as kivgraph ui --addr 127.0.0.1:7777.",
+      "No. The server is a local process that speaks MCP over stdio, and no query path makes a network call. One thing to know: kivgraph ui, the optional viewer, opens a local HTTP listener that binds 127.0.0.1:7777 with no authentication. If you bind it to another address, it exposes repository paths, file paths, symbol names and signatures to whoever can reach it.",
   },
   {
     question: "Does Kivgraph need an LLM, an API key or an embedding step?",
@@ -38,7 +38,7 @@ const questions = [
   {
     question: "Which languages are supported, and are they equal?",
     answer:
-      "Go, TypeScript, Rust, Python and Dart, and no, they are not equal. Go, TypeScript and Rust edges are type-checked. Dart edges are resolved by the Dart Analysis Server. Python publishes exact semantic facts only when a configured Pyright-compatible analyzer provides them; with the bundled AST fallback its inferred references stay CANDIDATE and never become EXACT.",
+      "Go, TypeScript, Rust, Python, Dart, Java and C#, and no, they are not equal. Go, TypeScript and Rust edges are type-checked. Dart edges are resolved by the Dart Analysis Server. Java and C# edges come from their compilers' own indexers, scip-java and scip-dotnet. Python publishes exact semantic facts only when a configured Pyright-compatible analyzer provides them; with the bundled AST fallback its inferred references stay CANDIDATE and never become EXACT.",
   },
   {
     question: "What happens when Kivgraph finds no references?",

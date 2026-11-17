@@ -348,6 +348,11 @@ accumulating, and both example pages above sit exactly on it. A `total` of
 rank well" -- narrow it with `keywords`, `repo`, `kind` or `path_prefix`, or ask
 with `view: "files"` first, which is what the `guidance` on those pages says.
 
+What the bound keeps is not arbitrary. Symbols inside the `repo`, `kind` and
+`path_prefix` you gave are admitted before any outside them, and the rarest
+term of the question before the commonest, so what falls off is what a word
+most of the graph carries would have added.
+
 `limit` is capped at 50, well under the 500 of the traversal tools. Ranked text
 candidates past the first page are rarely the answer; the fix for a page that
 did not contain what you wanted is a better question, not a longer page.

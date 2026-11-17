@@ -80,6 +80,11 @@ the generation was published — and requires all six invariants to pass. A
 generation without `snapshot.sha256` is never reactivated blindly. If either
 check fails, `CURRENT` does not change.
 
+A server that is already running does not follow a rollback: it only ever
+installs a newer generation, so it keeps answering from the one you left.
+`rollback` says so when it succeeds. Run `kivgraph stop` and let your clients
+start their servers again.
+
 ## Rebuild the hot snapshot
 
 ```bash

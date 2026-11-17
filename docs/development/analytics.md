@@ -1,5 +1,11 @@
 # Analytics: Umami for SEO
 
+> **This describes the original project's site, not this distribution.** The
+> landing, the Umami property, the installer delivery log and the first-run
+> collector below are deployed and operated by the project this repository
+> began as. Releases published here deploy no site and send no telemetry
+> (ADR 0118). The document is kept as the record of how that system works.
+
 This document describes how the landing site's analytics are wired, what they
 record, what they do **not** record, and how to use them to answer SEO
 questions. It is not user documentation: `docs/` is internal material and is
@@ -629,7 +635,7 @@ together.
 **A binary that is not running from a release layout reports nothing**, and
 that is the declared hole in this number. Nothing distinguishes a developer's
 `go build` from a CI job's, and this repository's own CI builds and runs the
-binary on every push -- `ci.yml` has `verify`, `ladybug`, `smoke`,
+binary on every push -- `ci.yml` has `lint`, `verify`, `ladybug`, `smoke`,
 `darwin-bundle`, `macos` and `windows-cross`, and the `smoke` one serves a
 bundle it built -- so counting those would make the number mostly us. The cost
 is that somebody who ran `go install` is invisible.

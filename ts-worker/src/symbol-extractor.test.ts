@@ -1,9 +1,10 @@
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { LanguageService } from "./language-service.js";
+import { LanguageService, type ProjectView } from "./language-service.js";
 import { extractLocalSymbols } from "./symbol-extractor.js";
 import { temporaryRoot } from "./temporary-root.js";
 
@@ -61,6 +62,41 @@ function openService(workspace: Workspace): LanguageService {
   const service = LanguageService.create({ cwd: workspace.root });
   services.push(service);
   return service;
+}
+
+// The worker's own project is the case that matters: the native engine, and so
+// its lib.*.d.ts files, are installed under it. The engine's answer to "is this
+// file from an external library" for those files changes from one load to the
+// next, so one load proves nothing and every test below that depends on it loads
+// the project several times.
+const workerRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+);
+const loadsPerCheck = 6;
+// Each load opens the worker's own project; a shared runner is several times
+// slower than a laptop, and the default test timeout is five seconds.
+const loadsTimeoutMs = 60_000;
+
+async function defaultLibraryFilesUnder(
+  view: ProjectView,
+  root: string,
+): Promise<string[]> {
+  const found: string[] = [];
+  for (const name of await view.program.getSourceFileNames()) {
+    const relative = path.relative(root, name);
+    if (relative.startsWith("..") || path.isAbsolute(relative)) {
+      continue;
+    }
+    const file = await view.program.getSourceFile(name);
+    if (
+      file !== undefined &&
+      (await view.program.isSourceFileDefaultLibrary(file))
+    ) {
+      found.push(name);
+    }
+  }
+  return found;
 }
 
 describe("local TypeScript symbols", () => {
@@ -397,4 +433,27 @@ export * from "./lib.js";
     expect(aliased?.text).toBe("helper as aliasedHelper");
     expect(starred?.text).toBe('export * from "./lib.js";');
   });
+  it(
+    "publishes no symbol of the default library, whatever the engine says about it",
+    async () => {
+      const configFileName = path.join(workerRoot, "tsconfig.json");
+      for (let load = 0; load < loadsPerCheck; load += 1) {
+        const service = LanguageService.create({ cwd: workerRoot });
+        services.push(service);
+        await service.openProject(configFileName);
+        const view = service.project(configFileName);
+        const libraries = await defaultLibraryFilesUnder(view, workerRoot);
+        expect(
+          libraries.length,
+          "the engine's default library should be installed under the worker",
+        ).toBeGreaterThan(0);
+
+        const extraction = await extractLocalSymbols(service, view, {
+          files: libraries,
+        });
+        expect(extraction.symbols).toEqual([]);
+      }
+    },
+    loadsTimeoutMs,
+  );
 });

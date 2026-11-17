@@ -94,6 +94,13 @@ func Capture(ctx context.Context, repositories []workspace.Repository) (string, 
 		extensions := config.SourceExtensionSet(languages)
 		err = filepath.WalkDir(root, func(filename string, entry fs.DirEntry, walkErr error) error {
 			if walkErr != nil {
+				// An entry below the root that vanished between being listed and
+				// being read -- a build's temporary directory -- is not there to
+				// hash: it contributes what an entry that never existed does. The
+				// repository itself going away is not that, and stays an error.
+				if errors.Is(walkErr, fs.ErrNotExist) && filename != root {
+					return nil
+				}
 				return fmt.Errorf("walk %q: %w", filename, walkErr)
 			}
 			if err := ctx.Err(); err != nil {
@@ -109,7 +116,7 @@ func Capture(ctx context.Context, repositories []workspace.Repository) (string, 
 				return err
 			}
 			if entry.IsDir() {
-				if relative != "." && (excluded || entry.Name() == ".git" || entry.Name() == "node_modules") {
+				if relative != "." && (excluded || entry.Name() == ".git" || entry.Name() == "node_modules" || workspace.IsCacheDirectory(filename)) {
 					return fs.SkipDir
 				}
 				return nil
@@ -129,6 +136,9 @@ func Capture(ctx context.Context, repositories []workspace.Repository) (string, 
 				return fmt.Errorf("inventory %q: refuses non-regular file", filename)
 			}
 			file, err := os.Open(filename)
+			if errors.Is(err, fs.ErrNotExist) {
+				return nil
+			}
 			if err != nil {
 				return fmt.Errorf("open inventory file %q: %w", filename, err)
 			}

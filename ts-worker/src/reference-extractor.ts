@@ -49,6 +49,7 @@ import {
   isTypeParameterDeclaration,
   isVariableDeclaration,
 } from "typescript/unstable/ast/is";
+import { isDependencySourceFile } from "./dependency-source-file.js";
 import {
   type LanguageService,
   LanguageServiceError,
@@ -172,7 +173,7 @@ export async function extractLocalReferences(
     const sourceFile = await view.program.getSourceFile(fileName);
     if (
       sourceFile === undefined ||
-      (await view.program.isSourceFileFromExternalLibrary(sourceFile))
+      (await isDependencySourceFile(view.program, sourceFile))
     ) {
       continue;
     }

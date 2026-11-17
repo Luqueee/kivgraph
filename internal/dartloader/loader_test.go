@@ -2,10 +2,12 @@ package dartloader
 
 import (
 	"context"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -385,13 +387,57 @@ func TestDartPackageRootsReadsPubPackageConfig(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(configDir, "package_config.json"), []byte(config), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	roots := dartPackageRoots(root, "auto", true)
-	if len(roots) != 1 || roots[0] != external {
-		t.Fatalf("package roots = %#v, want [%q]", roots, external)
-	}
 	providers := ExternalPackageRepositories(root, "auto")
 	if len(providers) != 1 || providers[0].Path != external || !strings.HasPrefix(providers[0].Name, "dart-package:external:") {
 		t.Fatalf("external providers = %#v", providers)
+	}
+}
+
+// `dart.include_external_packages` used to send the analysis server `packageRoots` as
+// a list; the protocol defines a map, so every SDK refused the request and the whole
+// pass failed. The server finds the packages through the package config on its own.
+func TestRunResolvesAPackageDependencyWhenExternalPackagesAreIncluded(t *testing.T) {
+	if _, err := exec.LookPath("dart"); err != nil {
+		t.Skip("dart SDK is not installed")
+	}
+	base := t.TempDir()
+	write := func(path, content string) {
+		t.Helper()
+		path = filepath.Join(base, path)
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("provider/pubspec.yaml", "name: provider_pkg\nenvironment:\n  sdk: ^3.0.0\n")
+	write("provider/lib/provider.dart", "int addOne(int value) => value + 1;\n")
+	write("consumer/pubspec.yaml", "name: consumer_pkg\nenvironment:\n  sdk: ^3.0.0\n")
+	write("consumer/lib/consumer.dart", "import 'package:provider_pkg/provider.dart';\n\nint run() => addOne(1);\n")
+	write("consumer/.dart_tool/package_config.json", `{"configVersion": 2, "packages": [
+		{"name": "provider_pkg", "rootUri": "../../provider", "packageUri": "lib/"},
+		{"name": "consumer_pkg", "rootUri": "../", "packageUri": "lib/"}
+	]}`)
+	root := filepath.Join(base, "consumer")
+	repository := workspace.Repository{Name: "consumer", Path: root, RealPath: root}
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	for _, includeExternal := range []bool{false, true} {
+		payload, err := RunWithOptions(ctx, Options{
+			Command: "dart", SDKPath: "dart", Repository: repository, IncludeExternal: includeExternal,
+			Providers: ExternalPackageRepositories(root, "auto"),
+		})
+		if err != nil {
+			t.Fatalf("include_external_packages=%v: %v", includeExternal, err)
+		}
+		var calls bool
+		for _, reference := range payload.References {
+			calls = calls || (reference.Kind == "CALLS_DIRECT" && reference.Target != nil)
+		}
+		if !calls {
+			t.Fatalf("include_external_packages=%v: the call into the package has no target: %#v", includeExternal, payload.References)
+		}
 	}
 }
 
@@ -405,5 +451,55 @@ func TestSDKRootResolvesConfiguredDart(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(root, "lib")); err != nil {
 		t.Fatalf("SDK root %q has no lib directory: %v", root, err)
+	}
+}
+
+// The roots of the packages a repository reads besides itself, from its package
+// config: what the analysis server can open, so what a repository can depend on.
+func TestPackageRootsListsTheOtherPackagesThatExist(t *testing.T) {
+	base := t.TempDir()
+	for _, directory := range []string{"consumer", "provider", "other"} {
+		if err := os.MkdirAll(filepath.Join(base, directory), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	consumer := filepath.Join(base, "consumer")
+	writeConfig := func(path, content string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Itself, one that exists twice, one that does not exist and one by file URI.
+	automatic := `{"configVersion": 2, "packages": [
+		{"name": "consumer", "rootUri": "../"},
+		{"name": "provider", "rootUri": "../../provider"},
+		{"name": "provider_again", "rootUri": "../../provider/"},
+		{"name": "missing", "rootUri": "../../missing"},
+		{"name": "other", "rootUri": "` + (&url.URL{Scheme: "file", Path: filepath.Join(base, "other")}).String() + `"}
+	]}`
+	writeConfig(filepath.Join(consumer, ".dart_tool", "package_config.json"), automatic)
+
+	want := []string{filepath.Join(base, "other"), filepath.Join(base, "provider")}
+	for _, configured := range []string{"", "auto"} {
+		if got := PackageRoots(consumer, configured); !slices.Equal(got, want) {
+			t.Errorf("PackageRoots(configured=%q) = %q, want %q", configured, got, want)
+		}
+	}
+
+	// A configured path is relative to the repository, and one that is not a package
+	// config names no packages.
+	writeConfig(filepath.Join(consumer, "custom", "config.json"), `{"packages": [{"name": "provider", "rootUri": "../../provider"}]}`)
+	if got, want := PackageRoots(consumer, filepath.Join("custom", "config.json")), []string{filepath.Join(base, "provider")}; !slices.Equal(got, want) {
+		t.Errorf("PackageRoots(custom config) = %q, want %q", got, want)
+	}
+	writeConfig(filepath.Join(consumer, "broken.json"), "not json")
+	for name, configured := range map[string]string{"malformed": "broken.json", "absent": "nothing.json"} {
+		if got := PackageRoots(consumer, configured); len(got) != 0 {
+			t.Errorf("PackageRoots(%s config) = %q, want none", name, got)
+		}
 	}
 }

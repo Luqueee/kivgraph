@@ -48,6 +48,10 @@ type StringTable struct {
 	// borrowed says the arena is memory this table does not own -- a mapped
 	// file. It changes exactly one thing, and it has to: String copies.
 	borrowed bool
+	// anchor is what releases that file once nothing can reach it. A table is
+	// handed out by value and outlives the snapshot variable it came from, so
+	// it has to keep the mapping alive on its own.
+	anchor *mapping
 }
 
 // value answers one interned value without copying it.

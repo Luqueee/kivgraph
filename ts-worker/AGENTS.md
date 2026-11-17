@@ -67,6 +67,14 @@ El orquestador Go que invoca este worker está en `internal/`.
   La pertenencia es la raíz registrada más larga que contiene el fichero, y
   nadie posee lo que está bajo un `node_modules` -la copia instalada de un
   paquete cuelga de la raíz de quien lo instaló-.
+- El worker no publica como símbolos de un repositorio las declaraciones de la
+  biblioteca por defecto (`lib.es5.d.ts` y las demás). El motor contesta
+  «externa» para esos ficheros según la ruta por la que los alcanzó primero al
+  cargar el programa en paralelo, y cambia entre cargas del mismo programa; lo
+  que no cambia es que sean la biblioteca por defecto, y eso decide
+  (`isDependencySourceFile`). Sólo importa cuando el motor está bajo la raíz del
+  proyecto, que es el caso de este repositorio: indexarse a sí mismo daba `72.723`
+  o `68.298` símbolos TypeScript según la pasada. Ver ADR 0124.
 - El worker que ejecuta una pasada es el del checkout cuando existe
   `ts-worker/dist` y nadie configuró otro: un shim instalado de una release
   anterior ocupa el mismo nombre en el `PATH` y ganaba, de modo que `pnpm

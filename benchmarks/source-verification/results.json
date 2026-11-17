@@ -1,0 +1,213 @@
+{
+ "benchmark": "source-verification",
+ "commit": "af6dec2aa1588e7aeb66b0ed7627195e0b8652cd",
+ "schema": "source-verification-v1",
+ "generated_at": "2026-11-16T07:56:10.025991Z",
+ "command": "/var/folders/sr/6wjnf7m90n5_cw20t7xh39600000gn/T/go-build134967222/b001/exe/source-verification -config /private/tmp/p6b/home/.config/kivgraph/config.yaml -repeats 7 -output benchmarks/source-verification/results.json",
+ "environment": {
+  "arch": "arm64",
+  "cpus": "10",
+  "go": "go1.27.4",
+  "os": "darwin"
+ },
+ "repeats": 7,
+ "repositories": [
+  {
+   "label": "repository-1",
+   "directories_read": 358,
+   "entries_listed": 2524,
+   "analysed_files": 1168,
+   "analysed_bytes": 10249729,
+   "racy_entries_at_capture": 0,
+   "tree_digest_ms": 46.106208,
+   "traversal_only_ms": 10.382791,
+   "git_state_ms": 36.345917,
+   "signature_capture_ms": 13.192833,
+   "signature_verify_ms": 2.062,
+   "signature_stat_calls": 1526
+  },
+  {
+   "label": "repository-2",
+   "directories_read": 6189,
+   "entries_listed": 105029,
+   "analysed_files": 497,
+   "analysed_bytes": 5540440,
+   "racy_entries_at_capture": 0,
+   "tree_digest_ms": 368.078542,
+   "traversal_only_ms": 347.508417,
+   "git_state_ms": 33.315625,
+   "signature_capture_ms": 360.100792,
+   "signature_verify_ms": 17.153375,
+   "signature_stat_calls": 6686
+  },
+  {
+   "label": "repository-3",
+   "directories_read": 90,
+   "entries_listed": 577,
+   "analysed_files": 348,
+   "analysed_bytes": 4937786,
+   "racy_entries_at_capture": 0,
+   "tree_digest_ms": 17.581167,
+   "traversal_only_ms": 2.9155,
+   "git_state_ms": 27,
+   "signature_capture_ms": 3.899625,
+   "signature_verify_ms": 0.8115,
+   "signature_stat_calls": 438
+  },
+  {
+   "label": "repository-4",
+   "directories_read": 319,
+   "entries_listed": 5031,
+   "analysed_files": 1874,
+   "analysed_bytes": 128262388,
+   "racy_entries_at_capture": 0,
+   "tree_digest_ms": 171.824333,
+   "traversal_only_ms": 15.626083,
+   "git_state_ms": 27.446875,
+   "signature_capture_ms": 21.568375,
+   "signature_verify_ms": 4.634584,
+   "signature_stat_calls": 2193
+  },
+  {
+   "label": "repository-5",
+   "directories_read": 52,
+   "entries_listed": 358,
+   "analysed_files": 281,
+   "analysed_bytes": 1605942,
+   "racy_entries_at_capture": 0,
+   "tree_digest_ms": 9.286959,
+   "traversal_only_ms": 1.532416,
+   "git_state_ms": 25.376625,
+   "signature_capture_ms": 2.3445,
+   "signature_verify_ms": 0.597667,
+   "signature_stat_calls": 333
+  },
+  {
+   "label": "repository-6",
+   "directories_read": 9,
+   "entries_listed": 36,
+   "analysed_files": 17,
+   "analysed_bytes": 56522,
+   "racy_entries_at_capture": 0,
+   "tree_digest_ms": 0.63925,
+   "traversal_only_ms": 0.230084,
+   "git_state_ms": 23.293292,
+   "signature_capture_ms": 0.291042,
+   "signature_verify_ms": 0.037,
+   "signature_stat_calls": 26
+  }
+ ],
+ "totals": {
+  "label": "all repositories",
+  "directories_read": 7017,
+  "entries_listed": 113555,
+  "analysed_files": 4185,
+  "analysed_bytes": 150652807,
+  "racy_entries_at_capture": 0,
+  "tree_digest_ms": 613.5164589999999,
+  "traversal_only_ms": 378.195291,
+  "git_state_ms": 172.778334,
+  "signature_capture_ms": 401.397167,
+  "signature_verify_ms": 25.296126,
+  "signature_stat_calls": 11202
+ },
+ "change_matrix": [
+  {
+   "name": "edit an analysed file, new size",
+   "digest_changed": true,
+   "signature_changed": true,
+   "outcome": "agree"
+  },
+  {
+   "name": "edit an analysed file, same size, new mtime",
+   "digest_changed": true,
+   "signature_changed": true,
+   "outcome": "agree"
+  },
+  {
+   "name": "same-size edit, then the file's own mtime restored",
+   "digest_changed": true,
+   "signature_changed": true,
+   "outcome": "agree"
+  },
+  {
+   "name": "replace an analysed file by rename over it",
+   "digest_changed": true,
+   "signature_changed": true,
+   "outcome": "agree"
+  },
+  {
+   "name": "add an analysed file",
+   "digest_changed": true,
+   "signature_changed": true,
+   "outcome": "agree"
+  },
+  {
+   "name": "delete an analysed file",
+   "digest_changed": true,
+   "signature_changed": true,
+   "outcome": "agree"
+  },
+  {
+   "name": "rename an analysed file",
+   "digest_changed": true,
+   "signature_changed": true,
+   "outcome": "agree"
+  },
+  {
+   "name": "add a file in a new analysed directory",
+   "digest_changed": true,
+   "signature_changed": true,
+   "outcome": "agree"
+  },
+  {
+   "name": "edit a file that is not analysed, in place",
+   "digest_changed": false,
+   "signature_changed": false,
+   "outcome": "agree"
+  },
+  {
+   "name": "add a file that is not analysed",
+   "digest_changed": false,
+   "signature_changed": true,
+   "outcome": "false positive"
+  },
+  {
+   "name": "build output churn in an ignored directory",
+   "digest_changed": false,
+   "signature_changed": true,
+   "outcome": "false positive"
+  },
+  {
+   "name": "touch an analysed file, content unchanged",
+   "digest_changed": false,
+   "signature_changed": true,
+   "outcome": "false positive"
+  },
+  {
+   "name": "chmod an analysed file",
+   "digest_changed": false,
+   "signature_changed": true,
+   "outcome": "false positive"
+  },
+  {
+   "name": "nothing at all",
+   "digest_changed": false,
+   "signature_changed": false,
+   "outcome": "agree"
+  },
+  {
+   "name": "ablation: the old mtime restored, ctime not compared",
+   "digest_changed": true,
+   "signature_changed": false,
+   "outcome": "ablation: missed"
+  }
+ ],
+ "missed_changes": 0,
+ "limitations": [
+  "The matrix runs on a local APFS or ext4 volume, where the modification time has nanosecond granularity. It says nothing about a filesystem with coarse timestamps or stale attribute caches (NFS, SMB, FAT): there the signature has no guarantee, and that is the reason an ADR has to make it an opt-in or fall back, not something this run can show.",
+  "Timings are medians of a warm run: the pass that verifies has just analysed the tree, so its directories are in the page cache. A cold tree costs more for both methods.",
+  "The signature is a prototype in this harness. It is not wired into the pass and nothing here changes what a pass publishes.",
+  "A file written during the capture tick can be written again in that tick without its stat changing. The racy window (two seconds) makes the signature re-read such entries; the matrix cannot reproduce a hardware clock tick, so this rule is argued, not measured."
+ ]
+}

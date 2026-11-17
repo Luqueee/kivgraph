@@ -46,12 +46,19 @@ func TestDiscoverSysrootNamesTheToolchainItFound(t *testing.T) {
 	}
 }
 
+// withoutToolchain leaves no `rustc` in any of the places the analyzer looks.
+func withoutToolchain(t *testing.T) {
+	t.Helper()
+	t.Setenv("PATH", testsupport.TempDir(t))
+	t.Setenv("CARGO_HOME", testsupport.TempDir(t))
+	t.Setenv("RUSTC", "")
+}
+
 // TestDiscoverSysrootDeclaresWhatItCannotFind covers the acceptance criterion
 // that the absence of a sysroot is not a failure. A machine without a toolchain
 // still indexes its repositories.
 func TestDiscoverSysrootDeclaresWhatItCannotFind(t *testing.T) {
-	directory := testsupport.TempDir(t)
-	t.Setenv("PATH", directory)
+	withoutToolchain(t)
 	provider, reason, err := DiscoverSysroot(context.Background(), "")
 	if err != nil {
 		t.Fatalf("DiscoverSysroot() error = %v", err)

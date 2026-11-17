@@ -23,7 +23,11 @@ go_test(
         "replace_test.go",
         "update_test.go",
         "zip_test.go",
-    ],
+    ] + select({
+        "@rules_go//go/platform:darwin": ["replace_unremovable_test.go"],
+        "@rules_go//go/platform:linux": ["replace_unremovable_test.go"],
+        "//conditions:default": [],
+    }),
     embed = [":update"],
     deps = ["//internal/executable"],
 )

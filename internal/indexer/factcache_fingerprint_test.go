@@ -1,11 +1,13 @@
 package indexer
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/Luqueee/kivgraph/internal/config"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 // TestATreeFingerprintChangesWithEverySupportedLanguage is the regression, and
@@ -65,6 +67,7 @@ func TestEveryLanguagesManifestsInvalidateAnEntry(t *testing.T) {
 		"requirements-dev.txt", "pubspec.yaml", "analysis_options.yaml", "pom.xml",
 		"build.gradle", "build.gradle.kts", "app.csproj", "pnpm-lock.yaml",
 		"tsconfig.build.json", filepath.Join(".dart_tool", "package_config.json"),
+		"rust-toolchain.toml", "rust-toolchain",
 	} {
 		if !isFingerprintedSource(manifest) {
 			t.Fatalf("%s does not invalidate a cache entry", manifest)
@@ -98,6 +101,22 @@ func TestFactCacheMissesWhenAnExplicitOrAnalyzerManifestChanges(t *testing.T) {
 	}
 }
 
+// A repository's pinned Rust toolchain decides which compiler and which standard
+// library its facts come from, and editing the file that pins it changes neither
+// a source nor a manifest of the unit.
+func TestFactCacheMissesWhenTheRustToolchainPinChanges(t *testing.T) {
+	fixture := newCachedFixture(t)
+	writeFullFixture(t, filepath.Join(fixture.root, "rust-toolchain.toml"), "[toolchain]\nchannel = \"1.80.0\"\n")
+	fixture.index()
+	if _, report := fixture.index(); report.Cache.Hits == 0 {
+		t.Fatalf("cache = %+v, want a hit when the pin is unchanged", report.Cache)
+	}
+	writeFullFixture(t, filepath.Join(fixture.root, "rust-toolchain.toml"), "[toolchain]\nchannel = \"1.90.0\"\n")
+	if _, report := fixture.index(); report.Cache.Hits != 0 {
+		t.Fatalf("cache = %+v, want no hit after the pinned channel changed", report.Cache)
+	}
+}
+
 // TestTheFingerprintIgnoresWhatNoLanguageDeclares is the negative: the walk
 // over-approximates on purpose, but not to the point of hashing the world.
 func TestTheFingerprintIgnoresWhatNoLanguageDeclares(t *testing.T) {
@@ -119,5 +138,56 @@ func TestFingerprintedExtensionsFollowTheSupportedLanguages(t *testing.T) {
 					language, extension, extension)
 			}
 		}
+	}
+}
+
+// A caller that has just observed the analyzer fingerprint hands it over, and the
+// cache keys its entries with that value: computing it again hashes the
+// executable and the worker and starts every toolchain, for a result the caller
+// already holds. The resolver version is what tells the two apart, because it is
+// part of the value a computation would produce.
+func TestFactCacheKeysEntriesWithTheFingerprintTheCallerObserved(t *testing.T) {
+	fixture := newCachedFixture(t)
+	index := func(resolver, observed string) FullReport {
+		t.Helper()
+		_, report, err := Full(context.Background(), FullOptions{
+			ResolverVersion:     resolver,
+			AnalyzerFingerprint: observed,
+			Repositories:        []workspace.Repository{fixture.repository},
+			SyntheticWorkFile:   fixture.workFile,
+			CacheMode:           fixture.mode,
+			CacheDirectory:      fixture.cache,
+		})
+		if err != nil {
+			t.Fatalf("Full(resolver=%q observed=%q) error = %v", resolver, observed, err)
+		}
+		return report
+	}
+
+	if report := index("one", ""); report.Cache.Hits != 0 {
+		t.Fatalf("cold pass cache = %+v, want no hit", report.Cache)
+	}
+	// Without the observed value the resolver version is part of what the pass
+	// computes, so another one is another analyzer. This is what makes the next
+	// assertion say something.
+	if report := index("two", ""); report.Cache.Hits != 0 {
+		t.Fatalf("pass with another resolver cache = %+v, want no hit when the fingerprint is computed", report.Cache)
+	}
+	// A blank value is no observation.
+	if report := index("three", "  \t"); report.Cache.Hits != 0 {
+		t.Fatalf("pass with a blank observed fingerprint cache = %+v, want it computed and no hit", report.Cache)
+	}
+	if report := index("five", "  \t"); report.Cache.Hits != 0 {
+		t.Fatalf("second pass with a blank observed fingerprint cache = %+v, want it computed again and no hit: blank was used as the key", report.Cache)
+	}
+
+	if report := index("one", "observed"); report.Cache.Hits != 0 {
+		t.Fatalf("first pass under an observed fingerprint cache = %+v, want no hit", report.Cache)
+	}
+	if report := index("four", "observed"); report.Cache.Hits == 0 {
+		t.Fatalf("pass under the same observed fingerprint cache = %+v, want a hit: the value was computed again", report.Cache)
+	}
+	if report := index("four", "another"); report.Cache.Hits != 0 {
+		t.Fatalf("pass under another observed fingerprint cache = %+v, want no hit", report.Cache)
 	}
 }

@@ -189,9 +189,18 @@ func install(spec Spec) (Report, error) {
 		return Report{State: StateStale, Label: label, Path: path},
 			fmt.Errorf("supervisor: systemctl daemon-reload: %w", err)
 	}
-	if err := run("systemctl", "--user", "enable", "--now", label+".service"); err != nil {
+	if err := run("systemctl", "--user", "enable", label+".service"); err != nil {
 		return Report{State: StateStale, Label: label, Path: path},
 			fmt.Errorf("supervisor: systemctl enable: %w", err)
+	}
+	// restart and not `enable --now`: that starts a unit that is stopped and leaves
+	// one that is running alone, so a reinstall over a live daemon went on serving
+	// with the previous binary, arguments and PATH. restart starts a stopped unit
+	// as well, which is all `--now` was for, and is what launchd's bootout then
+	// bootstrap already does.
+	if err := run("systemctl", "--user", "restart", label+".service"); err != nil {
+		return Report{State: StateStale, Label: label, Path: path},
+			fmt.Errorf("supervisor: systemctl restart: %w", err)
 	}
 	return Report{
 		State:  StateInstalled,

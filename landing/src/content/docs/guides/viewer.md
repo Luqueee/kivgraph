@@ -11,24 +11,27 @@ The viewer is opt-in and serves only the published HotSnapshot over read-only
 HTTP. It never mutates the snapshot and never opens the canonical database for
 writing.
 
-## The default bind is every interface
+## The default bind is this machine
 
-`web.address` defaults to `0.0.0.0:7777`. The graph is indexed where the
-repositories are and the viewer is looked at from another machine, so a
-loopback default would mean editing the configuration in the normal case.
+`web.address` defaults to `127.0.0.1:7777`, and a loopback bind refuses any
+request whose `Host` header is not this machine, which is what stops a web page
+from reaching it through DNS rebinding.
 
-That makes the warning the guard, and the warning is not decoration. Every bind
-that is not loopback logs exactly what is being exposed:
+To look at the graph from another machine, ask for it:
+
+```bash
+kivgraph ui --addr 0.0.0.0:7777
+```
+
+**There is no authentication.** Every bind that is not loopback logs exactly
+what is being exposed, and that warning is the only guard:
 
 - repository and file paths
 - symbol names and signatures
 
-**There is no authentication.** Restricting the endpoint is `--addr` or
-`web.address`:
-
-```bash
-kivgraph ui --addr 127.0.0.1:7777
-```
+A configuration written by an earlier `kivgraph init` carries
+`web.address: 0.0.0.0:7777` and keeps binding every interface; edit it to
+`127.0.0.1:7777` to close it.
 
 The command logs the address it actually bound, including the one a port `0`
 resolves to.

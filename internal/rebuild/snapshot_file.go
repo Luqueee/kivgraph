@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -120,7 +119,7 @@ func loadPublishedSnapshot(directory string) (*hotsnapshot.GraphSnapshot, error)
 	if err != nil {
 		return nil, fmt.Errorf("read published snapshot: %w", err)
 	}
-	snapshot, err := hotsnapshot.MapSnapshot(data, contentDigest)
+	snapshot, err := hotsnapshot.MapSnapshot(data, contentDigest, release)
 	if err != nil {
 		release()
 		return nil, err
@@ -129,13 +128,11 @@ func loadPublishedSnapshot(directory string) (*hotsnapshot.GraphSnapshot, error)
 	// values out of it instead of copying them: some fifty megabytes on a real
 	// corpus, and two processes reading the same generation share those pages.
 	//
-	// It is released when the snapshot becomes unreachable, which is the only
-	// moment nothing can name those bytes. A query holding a snapshot keeps it
-	// reachable, and every string the snapshot hands out of a borrowed arena is a
-	// copy, so no answer can outlive the pages it was read from. The cleanup
-	// closes over the release function and never over the snapshot, which would
-	// keep it alive forever.
-	runtime.AddCleanup(snapshot, func(release func()) { release() }, release)
+	// It is released when nothing can reach the snapshot or a table taken from
+	// it -- a reader holds the table, not the snapshot, so the snapshot alone
+	// becoming unreachable is too early -- which MapSnapshot arranges. Every
+	// string a table hands out of a borrowed arena is a copy, so no answer can
+	// outlive the pages it was read from.
 	return snapshot, nil
 }
 

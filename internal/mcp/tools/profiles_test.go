@@ -314,6 +314,20 @@ func TestRemainingQueryToolsAcceptAMultiProfileUnion(t *testing.T) {
 		}
 		assertUnion(t, response.Profiles, response.CrossProfileEdges, response.Total)
 	})
+	// A selector no profile resolves used to be left out of the answer without
+	// a word, so a misspelt name read as one body fewer -- or as none at all.
+	t.Run("get_source names a symbol no profile holds", func(t *testing.T) {
+		for _, symbols := range [][]SourceRequest{
+			{{QualifiedName: "pkg.Alpha", Repository: "repo-a", Path: "alpha.go"}, {QualifiedName: "pkg.Missing", Repository: "repo-a", Path: "alpha.go"}},
+			{{QualifiedName: "pkg.Missing", Repository: "repo-a", Path: "alpha.go"}},
+		} {
+			_, response, err := getSourceAcrossProfiles(context.Background(), nil, GetSourceInput{Symbols: symbols}, symbolProfiles())
+			if got := ErrorCode(err); got != CodeSymbolNotFound {
+				t.Fatalf("%d symbol(s), one unknown: error code = %q (err=%v, bodies=%d), want %q",
+					len(symbols), got, err, len(response.Results.Bodies), CodeSymbolNotFound)
+			}
+		}
+	})
 	t.Run("get_file_outline", func(t *testing.T) {
 		_, response, err := getFileOutlineAcrossProfiles(context.Background(), nil, GetFileOutlineInput{
 			Repository: "repo-a", Path: "alpha.go", Limit: 20, View: ViewFull,

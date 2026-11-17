@@ -1,0 +1,929 @@
+{
+ "benchmark": "walk-entries",
+ "schema": "walk-entries-v1",
+ "command": "python3 benchmarks/walk-entries/instrument.py <worktree of main>; build benchmarks/edit-frequency there with -tags ladybug; run it with -edits 3 -grep-repeats 1, once per arm, twice (KIVGRAPH_NO_CACHETAG=1 for the rule-off arm)",
+ "commit": "e6b2c93 (instrumented: filepath.WalkDir and os.ReadDir replaced by counting versions; not the published code)",
+ "environment": {
+  "os": "Darwin 27.2.0",
+  "arch": "arm64",
+  "go": "go version go1.27.4 darwin/arm64"
+ },
+ "dataset": "six repositories (Go and TypeScript, one holding a Rust target/ with a CACHEDIR.TAG), 114516 entries by the digest skip rule (.git and node_modules skipped), 63548 of them outside tagged directories. Edit passes edit a file of a scratch copy of one repository.",
+ "seed": null,
+ "metrics": "entries handed to a walk callback (filepath.WalkDir) or listed (os.ReadDir) per pass, by the function that called the walk; edit passes only; identical in all six edit passes of each arm (min = max)",
+ "per_walk_edit_pass": {
+  "read internal/indexer.(*factCache).prune": {
+   "rule-on": {
+    "entries_min": 35,
+    "entries_median": 36,
+    "entries_max": 37,
+    "directories": 1,
+    "calls": 1
+   },
+   "rule-off": {
+    "entries_min": 35,
+    "entries_median": 36,
+    "entries_max": 37,
+    "directories": 1,
+    "calls": 1
+   }
+  },
+  "read internal/storage/generation.(*Store).listGenerations": {
+   "rule-on": {
+    "entries_min": 4,
+    "entries_median": 7,
+    "entries_max": 7,
+    "directories": 7,
+    "calls": 3
+   },
+   "rule-off": {
+    "entries_min": 4,
+    "entries_median": 7,
+    "entries_max": 7,
+    "directories": 7,
+    "calls": 3
+   }
+  },
+  "read internal/storage/generation.(*Store).removeAbandonedCandidates": {
+   "rule-on": {
+    "entries_min": 2,
+    "entries_median": 3,
+    "entries_max": 3,
+    "directories": 3,
+    "calls": 1
+   },
+   "rule-off": {
+    "entries_min": 2,
+    "entries_median": 3,
+    "entries_max": 3,
+    "directories": 3,
+    "calls": 1
+   }
+  },
+  "read internal/workspace.walkGoFiles": {
+   "rule-on": {
+    "entries_min": 114372,
+    "entries_median": 114372,
+    "entries_max": 114372,
+    "directories": 1932,
+    "calls": 1910
+   },
+   "rule-off": {
+    "entries_min": 216306,
+    "entries_median": 216306,
+    "entries_max": 216306,
+    "directories": 13226,
+    "calls": 13206
+   }
+  },
+  "read internal/workspace.walkTypeScriptFiles": {
+   "rule-on": {
+    "entries_min": 63118,
+    "entries_median": 63118,
+    "entries_max": 63118,
+    "directories": 1427,
+    "calls": 1410
+   },
+   "rule-off": {
+    "entries_min": 114085,
+    "entries_median": 114085,
+    "entries_max": 114085,
+    "directories": 7074,
+    "calls": 7058
+   }
+  },
+  "walk internal/freshness.Capture": {
+   "rule-on": {
+    "entries_min": 126318,
+    "entries_median": 126318,
+    "entries_max": 126318,
+    "directories": 2884,
+    "calls": 12
+   },
+   "rule-off": {
+    "entries_min": 228252,
+    "entries_median": 228252,
+    "entries_max": 228252,
+    "directories": 14178,
+    "calls": 12
+   }
+  },
+  "walk internal/indexer.countSourceFiles": {
+   "rule-on": {
+    "entries_min": 6185,
+    "entries_median": 6185,
+    "entries_max": 6185,
+    "directories": 508,
+    "calls": 36
+   },
+   "rule-off": {
+    "entries_min": 6185,
+    "entries_median": 6185,
+    "entries_max": 6185,
+    "directories": 508,
+    "calls": 36
+   }
+  },
+  "walk internal/sourceobservation.treeDigest": {
+   "rule-on": {
+    "entries_min": 136864,
+    "entries_median": 136864,
+    "entries_max": 136864,
+    "directories": 4018,
+    "calls": 73
+   },
+   "rule-off": {
+    "entries_min": 238798,
+    "entries_median": 238798,
+    "entries_max": 238798,
+    "directories": 15312,
+    "calls": 73
+   }
+  },
+  "walk internal/storage/generation.(*Store).syncTree": {
+   "rule-on": {
+    "entries_min": 12,
+    "entries_median": 12,
+    "entries_max": 12,
+    "directories": 2,
+    "calls": 2
+   },
+   "rule-off": {
+    "entries_min": 12,
+    "entries_median": 12,
+    "entries_max": 12,
+    "directories": 2,
+    "calls": 2
+   }
+  }
+ },
+ "raw_by_run_and_pass": {
+  "rule-on-1": {
+   "warm-up 0": {
+    "read internal/indexer.(*factCache).prune": {
+     "entries": 1,
+     "directories": 1,
+     "calls": 1
+    },
+    "read internal/storage/generation.(*Store).listGenerations": {
+     "entries": 1,
+     "directories": 1,
+     "calls": 3
+    },
+    "read internal/storage/generation.(*Store).removeAbandonedCandidates": {
+     "entries": 1,
+     "directories": 1,
+     "calls": 1
+    },
+    "read internal/workspace.walkGoFiles": {
+     "entries": 114372,
+     "directories": 1932,
+     "calls": 1910
+    },
+    "read internal/workspace.walkTypeScriptFiles": {
+     "entries": 63118,
+     "directories": 1427,
+     "calls": 1410
+    },
+    "walk internal/freshness.Capture": {
+     "entries": 126318,
+     "directories": 2884,
+     "calls": 12
+    },
+    "walk internal/indexer.countSourceFiles": {
+     "entries": 6185,
+     "directories": 508,
+     "calls": 36
+    },
+    "walk internal/sourceobservation.treeDigest": {
+     "entries": 136864,
+     "directories": 4018,
+     "calls": 73
+    },
+    "walk internal/storage/generation.(*Store).syncTree": {
+     "entries": 12,
+     "directories": 2,
+     "calls": 2
+    }
+   },
+   "edit 1": {
+    "read internal/indexer.(*factCache).prune": {
+     "entries": 35,
+     "directories": 1,
+     "calls": 1
+    },
+    "read internal/storage/generation.(*Store).listGenerations": {
+     "entries": 4,
+     "directories": 4,
+     "calls": 3
+    },
+    "read internal/storage/generation.(*Store).removeAbandonedCandidates": {
+     "entries": 2,
+     "directories": 2,
+     "calls": 1
+    },
+    "read internal/workspace.walkGoFiles": {
+     "entries": 114372,
+     "directories": 1932,
+     "calls": 1910
+    },
+    "read internal/workspace.walkTypeScriptFiles": {
+     "entries": 63118,
+     "directories": 1427,
+     "calls": 1410
+    },
+    "walk internal/freshness.Capture": {
+     "entries": 126318,
+     "directories": 2884,
+     "calls": 12
+    },
+    "walk internal/indexer.countSourceFiles": {
+     "entries": 6185,
+     "directories": 508,
+     "calls": 36
+    },
+    "walk internal/sourceobservation.treeDigest": {
+     "entries": 136864,
+     "directories": 4018,
+     "calls": 73
+    },
+    "walk internal/storage/generation.(*Store).syncTree": {
+     "entries": 12,
+     "directories": 2,
+     "calls": 2
+    }
+   },
+   "edit 2": {
+    "read internal/indexer.(*factCache).prune": {
+     "entries": 36,
+     "directories": 1,
+     "calls": 1
+    },
+    "read internal/storage/generation.(*Store).listGenerations": {
+     "entries": 7,
+     "directories": 7,
+     "calls": 3
+    },
+    "read internal/storage/generation.(*Store).removeAbandonedCandidates": {
+     "entries": 3,
+     "directories": 3,
+     "calls": 1
+    },
+    "read internal/workspace.walkGoFiles": {
+     "entries": 114372,
+     "directories": 1932,
+     "calls": 1910
+    },
+    "read internal/workspace.walkTypeScriptFiles": {
+     "entries": 63118,
+     "directories": 1427,
+     "calls": 1410
+    },
+    "walk internal/freshness.Capture": {
+     "entries": 126318,
+     "directories": 2884,
+     "calls": 12
+    },
+    "walk internal/indexer.countSourceFiles": {
+     "entries": 6185,
+     "directories": 508,
+     "calls": 36
+    },
+    "walk internal/sourceobservation.treeDigest": {
+     "entries": 136864,
+     "directories": 4018,
+     "calls": 73
+    },
+    "walk internal/storage/generation.(*Store).syncTree": {
+     "entries": 12,
+     "directories": 2,
+     "calls": 2
+    }
+   },
+   "edit 3": {
+    "read internal/indexer.(*factCache).prune": {
+     "entries": 37,
+     "directories": 1,
+     "calls": 1
+    },
+    "read internal/storage/generation.(*Store).listGenerations": {
+     "entries": 7,
+     "directories": 7,
+     "calls": 3
+    },
+    "read internal/storage/generation.(*Store).removeAbandonedCandidates": {
+     "entries": 3,
+     "directories": 3,
+     "calls": 1
+    },
+    "read internal/workspace.walkGoFiles": {
+     "entries": 114372,
+     "directories": 1932,
+     "calls": 1910
+    },
+    "read internal/workspace.walkTypeScriptFiles": {
+     "entries": 63118,
+     "directories": 1427,
+     "calls": 1410
+    },
+    "walk internal/freshness.Capture": {
+     "entries": 126318,
+     "directories": 2884,
+     "calls": 12
+    },
+    "walk internal/indexer.countSourceFiles": {
+     "entries": 6185,
+     "directories": 508,
+     "calls": 36
+    },
+    "walk internal/sourceobservation.treeDigest": {
+     "entries": 136864,
+     "directories": 4018,
+     "calls": 73
+    },
+    "walk internal/storage/generation.(*Store).syncTree": {
+     "entries": 12,
+     "directories": 2,
+     "calls": 2
+    }
+   }
+  },
+  "rule-on-2": {
+   "warm-up 0": {
+    "read internal/indexer.(*factCache).prune": {
+     "entries": 1,
+     "directories": 1,
+     "calls": 1
+    },
+    "read internal/storage/generation.(*Store).listGenerations": {
+     "entries": 1,
+     "directories": 1,
+     "calls": 3
+    },
+    "read internal/storage/generation.(*Store).removeAbandonedCandidates": {
+     "entries": 1,
+     "directories": 1,
+     "calls": 1
+    },
+    "read internal/workspace.walkGoFiles": {
+     "entries": 114372,
+     "directories": 1932,
+     "calls": 1910
+    },
+    "read internal/workspace.walkTypeScriptFiles": {
+     "entries": 63118,
+     "directories": 1427,
+     "calls": 1410
+    },
+    "walk internal/freshness.Capture": {
+     "entries": 126318,
+     "directories": 2884,
+     "calls": 12
+    },
+    "walk internal/indexer.countSourceFiles": {
+     "entries": 6185,
+     "directories": 508,
+     "calls": 36
+    },
+    "walk internal/sourceobservation.treeDigest": {
+     "entries": 136864,
+     "directories": 4018,
+     "calls": 73
+    },
+    "walk internal/storage/generation.(*Store).syncTree": {
+     "entries": 12,
+     "directories": 2,
+     "calls": 2
+    }
+   },
+   "edit 1": {
+    "read internal/indexer.(*factCache).prune": {
+     "entries": 35,
+     "directories": 1,
+     "calls": 1
+    },
+    "read internal/storage/generation.(*Store).listGenerations": {
+     "entries": 4,
+     "directories": 4,
+     "calls": 3
+    },
+    "read internal/storage/generation.(*Store).removeAbandonedCandidates": {
+     "entries": 2,
+     "directories": 2,
+     "calls": 1
+    },
+    "read internal/workspace.walkGoFiles": {
+     "entries": 114372,
+     "directories": 1932,
+     "calls": 1910
+    },
+    "read internal/workspace.walkTypeScriptFiles": {
+     "entries": 63118,
+     "directories": 1427,
+     "calls": 1410
+    },
+    "walk internal/freshness.Capture": {
+     "entries": 126318,
+     "directories": 2884,
+     "calls": 12
+    },
+    "walk internal/indexer.countSourceFiles": {
+     "entries": 6185,
+     "directories": 508,
+     "calls": 36
+    },
+    "walk internal/sourceobservation.treeDigest": {
+     "entries": 136864,
+     "directories": 4018,
+     "calls": 73
+    },
+    "walk internal/storage/generation.(*Store).syncTree": {
+     "entries": 12,
+     "directories": 2,
+     "calls": 2
+    }
+   },
+   "edit 2": {
+    "read internal/indexer.(*factCache).prune": {
+     "entries": 36,
+     "directories": 1,
+     "calls": 1
+    },
+    "read internal/storage/generation.(*Store).listGenerations": {
+     "entries": 7,
+     "directories": 7,
+     "calls": 3
+    },
+    "read internal/storage/generation.(*Store).removeAbandonedCandidates": {
+     "entries": 3,
+     "directories": 3,
+     "calls": 1
+    },
+    "read internal/workspace.walkGoFiles": {
+     "entries": 114372,
+     "directories": 1932,
+     "calls": 1910
+    },
+    "read internal/workspace.walkTypeScriptFiles": {
+     "entries": 63118,
+     "directories": 1427,
+     "calls": 1410
+    },
+    "walk internal/freshness.Capture": {
+     "entries": 126318,
+     "directories": 2884,
+     "calls": 12
+    },
+    "walk internal/indexer.countSourceFiles": {
+     "entries": 6185,
+     "directories": 508,
+     "calls": 36
+    },
+    "walk internal/sourceobservation.treeDigest": {
+     "entries": 136864,
+     "directories": 4018,
+     "calls": 73
+    },
+    "walk internal/storage/generation.(*Store).syncTree": {
+     "entries": 12,
+     "directories": 2,
+     "calls": 2
+    }
+   },
+   "edit 3": {
+    "read internal/indexer.(*factCache).prune": {
+     "entries": 37,
+     "directories": 1,
+     "calls": 1
+    },
+    "read internal/storage/generation.(*Store).listGenerations": {
+     "entries": 7,
+     "directories": 7,
+     "calls": 3
+    },
+    "read internal/storage/generation.(*Store).removeAbandonedCandidates": {
+     "entries": 3,
+     "directories": 3,
+     "calls": 1
+    },
+    "read internal/workspace.walkGoFiles": {
+     "entries": 114372,
+     "directories": 1932,
+     "calls": 1910
+    },
+    "read internal/workspace.walkTypeScriptFiles": {
+     "entries": 63118,
+     "directories": 1427,
+     "calls": 1410
+    },
+    "walk internal/freshness.Capture": {
+     "entries": 126318,
+     "directories": 2884,
+     "calls": 12
+    },
+    "walk internal/indexer.countSourceFiles": {
+     "entries": 6185,
+     "directories": 508,
+     "calls": 36
+    },
+    "walk internal/sourceobservation.treeDigest": {
+     "entries": 136864,
+     "directories": 4018,
+     "calls": 73
+    },
+    "walk internal/storage/generation.(*Store).syncTree": {
+     "entries": 12,
+     "directories": 2,
+     "calls": 2
+    }
+   }
+  },
+  "rule-off-1": {
+   "warm-up 0": {
+    "read internal/indexer.(*factCache).prune": {
+     "entries": 1,
+     "directories": 1,
+     "calls": 1
+    },
+    "read internal/storage/generation.(*Store).listGenerations": {
+     "entries": 1,
+     "directories": 1,
+     "calls": 3
+    },
+    "read internal/storage/generation.(*Store).removeAbandonedCandidates": {
+     "entries": 1,
+     "directories": 1,
+     "calls": 1
+    },
+    "read internal/workspace.walkGoFiles": {
+     "entries": 216306,
+     "directories": 13226,
+     "calls": 13206
+    },
+    "read internal/workspace.walkTypeScriptFiles": {
+     "entries": 114085,
+     "directories": 7074,
+     "calls": 7058
+    },
+    "walk internal/freshness.Capture": {
+     "entries": 228252,
+     "directories": 14178,
+     "calls": 12
+    },
+    "walk internal/indexer.countSourceFiles": {
+     "entries": 6185,
+     "directories": 508,
+     "calls": 36
+    },
+    "walk internal/sourceobservation.treeDigest": {
+     "entries": 238798,
+     "directories": 15312,
+     "calls": 73
+    },
+    "walk internal/storage/generation.(*Store).syncTree": {
+     "entries": 12,
+     "directories": 2,
+     "calls": 2
+    }
+   },
+   "edit 1": {
+    "read internal/indexer.(*factCache).prune": {
+     "entries": 35,
+     "directories": 1,
+     "calls": 1
+    },
+    "read internal/storage/generation.(*Store).listGenerations": {
+     "entries": 4,
+     "directories": 4,
+     "calls": 3
+    },
+    "read internal/storage/generation.(*Store).removeAbandonedCandidates": {
+     "entries": 2,
+     "directories": 2,
+     "calls": 1
+    },
+    "read internal/workspace.walkGoFiles": {
+     "entries": 216306,
+     "directories": 13226,
+     "calls": 13206
+    },
+    "read internal/workspace.walkTypeScriptFiles": {
+     "entries": 114085,
+     "directories": 7074,
+     "calls": 7058
+    },
+    "walk internal/freshness.Capture": {
+     "entries": 228252,
+     "directories": 14178,
+     "calls": 12
+    },
+    "walk internal/indexer.countSourceFiles": {
+     "entries": 6185,
+     "directories": 508,
+     "calls": 36
+    },
+    "walk internal/sourceobservation.treeDigest": {
+     "entries": 238798,
+     "directories": 15312,
+     "calls": 73
+    },
+    "walk internal/storage/generation.(*Store).syncTree": {
+     "entries": 12,
+     "directories": 2,
+     "calls": 2
+    }
+   },
+   "edit 2": {
+    "read internal/indexer.(*factCache).prune": {
+     "entries": 36,
+     "directories": 1,
+     "calls": 1
+    },
+    "read internal/storage/generation.(*Store).listGenerations": {
+     "entries": 7,
+     "directories": 7,
+     "calls": 3
+    },
+    "read internal/storage/generation.(*Store).removeAbandonedCandidates": {
+     "entries": 3,
+     "directories": 3,
+     "calls": 1
+    },
+    "read internal/workspace.walkGoFiles": {
+     "entries": 216306,
+     "directories": 13226,
+     "calls": 13206
+    },
+    "read internal/workspace.walkTypeScriptFiles": {
+     "entries": 114085,
+     "directories": 7074,
+     "calls": 7058
+    },
+    "walk internal/freshness.Capture": {
+     "entries": 228252,
+     "directories": 14178,
+     "calls": 12
+    },
+    "walk internal/indexer.countSourceFiles": {
+     "entries": 6185,
+     "directories": 508,
+     "calls": 36
+    },
+    "walk internal/sourceobservation.treeDigest": {
+     "entries": 238798,
+     "directories": 15312,
+     "calls": 73
+    },
+    "walk internal/storage/generation.(*Store).syncTree": {
+     "entries": 12,
+     "directories": 2,
+     "calls": 2
+    }
+   },
+   "edit 3": {
+    "read internal/indexer.(*factCache).prune": {
+     "entries": 37,
+     "directories": 1,
+     "calls": 1
+    },
+    "read internal/storage/generation.(*Store).listGenerations": {
+     "entries": 7,
+     "directories": 7,
+     "calls": 3
+    },
+    "read internal/storage/generation.(*Store).removeAbandonedCandidates": {
+     "entries": 3,
+     "directories": 3,
+     "calls": 1
+    },
+    "read internal/workspace.walkGoFiles": {
+     "entries": 216306,
+     "directories": 13226,
+     "calls": 13206
+    },
+    "read internal/workspace.walkTypeScriptFiles": {
+     "entries": 114085,
+     "directories": 7074,
+     "calls": 7058
+    },
+    "walk internal/freshness.Capture": {
+     "entries": 228252,
+     "directories": 14178,
+     "calls": 12
+    },
+    "walk internal/indexer.countSourceFiles": {
+     "entries": 6185,
+     "directories": 508,
+     "calls": 36
+    },
+    "walk internal/sourceobservation.treeDigest": {
+     "entries": 238798,
+     "directories": 15312,
+     "calls": 73
+    },
+    "walk internal/storage/generation.(*Store).syncTree": {
+     "entries": 12,
+     "directories": 2,
+     "calls": 2
+    }
+   }
+  },
+  "rule-off-2": {
+   "warm-up 0": {
+    "read internal/indexer.(*factCache).prune": {
+     "entries": 1,
+     "directories": 1,
+     "calls": 1
+    },
+    "read internal/storage/generation.(*Store).listGenerations": {
+     "entries": 1,
+     "directories": 1,
+     "calls": 3
+    },
+    "read internal/storage/generation.(*Store).removeAbandonedCandidates": {
+     "entries": 1,
+     "directories": 1,
+     "calls": 1
+    },
+    "read internal/workspace.walkGoFiles": {
+     "entries": 216306,
+     "directories": 13226,
+     "calls": 13206
+    },
+    "read internal/workspace.walkTypeScriptFiles": {
+     "entries": 114085,
+     "directories": 7074,
+     "calls": 7058
+    },
+    "walk internal/freshness.Capture": {
+     "entries": 228252,
+     "directories": 14178,
+     "calls": 12
+    },
+    "walk internal/indexer.countSourceFiles": {
+     "entries": 6185,
+     "directories": 508,
+     "calls": 36
+    },
+    "walk internal/sourceobservation.treeDigest": {
+     "entries": 238798,
+     "directories": 15312,
+     "calls": 73
+    },
+    "walk internal/storage/generation.(*Store).syncTree": {
+     "entries": 12,
+     "directories": 2,
+     "calls": 2
+    }
+   },
+   "edit 1": {
+    "read internal/indexer.(*factCache).prune": {
+     "entries": 35,
+     "directories": 1,
+     "calls": 1
+    },
+    "read internal/storage/generation.(*Store).listGenerations": {
+     "entries": 4,
+     "directories": 4,
+     "calls": 3
+    },
+    "read internal/storage/generation.(*Store).removeAbandonedCandidates": {
+     "entries": 2,
+     "directories": 2,
+     "calls": 1
+    },
+    "read internal/workspace.walkGoFiles": {
+     "entries": 216306,
+     "directories": 13226,
+     "calls": 13206
+    },
+    "read internal/workspace.walkTypeScriptFiles": {
+     "entries": 114085,
+     "directories": 7074,
+     "calls": 7058
+    },
+    "walk internal/freshness.Capture": {
+     "entries": 228252,
+     "directories": 14178,
+     "calls": 12
+    },
+    "walk internal/indexer.countSourceFiles": {
+     "entries": 6185,
+     "directories": 508,
+     "calls": 36
+    },
+    "walk internal/sourceobservation.treeDigest": {
+     "entries": 238798,
+     "directories": 15312,
+     "calls": 73
+    },
+    "walk internal/storage/generation.(*Store).syncTree": {
+     "entries": 12,
+     "directories": 2,
+     "calls": 2
+    }
+   },
+   "edit 2": {
+    "read internal/indexer.(*factCache).prune": {
+     "entries": 36,
+     "directories": 1,
+     "calls": 1
+    },
+    "read internal/storage/generation.(*Store).listGenerations": {
+     "entries": 7,
+     "directories": 7,
+     "calls": 3
+    },
+    "read internal/storage/generation.(*Store).removeAbandonedCandidates": {
+     "entries": 3,
+     "directories": 3,
+     "calls": 1
+    },
+    "read internal/workspace.walkGoFiles": {
+     "entries": 216306,
+     "directories": 13226,
+     "calls": 13206
+    },
+    "read internal/workspace.walkTypeScriptFiles": {
+     "entries": 114085,
+     "directories": 7074,
+     "calls": 7058
+    },
+    "walk internal/freshness.Capture": {
+     "entries": 228252,
+     "directories": 14178,
+     "calls": 12
+    },
+    "walk internal/indexer.countSourceFiles": {
+     "entries": 6185,
+     "directories": 508,
+     "calls": 36
+    },
+    "walk internal/sourceobservation.treeDigest": {
+     "entries": 238798,
+     "directories": 15312,
+     "calls": 73
+    },
+    "walk internal/storage/generation.(*Store).syncTree": {
+     "entries": 12,
+     "directories": 2,
+     "calls": 2
+    }
+   },
+   "edit 3": {
+    "read internal/indexer.(*factCache).prune": {
+     "entries": 37,
+     "directories": 1,
+     "calls": 1
+    },
+    "read internal/storage/generation.(*Store).listGenerations": {
+     "entries": 7,
+     "directories": 7,
+     "calls": 3
+    },
+    "read internal/storage/generation.(*Store).removeAbandonedCandidates": {
+     "entries": 3,
+     "directories": 3,
+     "calls": 1
+    },
+    "read internal/workspace.walkGoFiles": {
+     "entries": 216306,
+     "directories": 13226,
+     "calls": 13206
+    },
+    "read internal/workspace.walkTypeScriptFiles": {
+     "entries": 114085,
+     "directories": 7074,
+     "calls": 7058
+    },
+    "walk internal/freshness.Capture": {
+     "entries": 228252,
+     "directories": 14178,
+     "calls": 12
+    },
+    "walk internal/indexer.countSourceFiles": {
+     "entries": 6185,
+     "directories": 508,
+     "calls": 36
+    },
+    "walk internal/sourceobservation.treeDigest": {
+     "entries": 238798,
+     "directories": 15312,
+     "calls": 73
+    },
+    "walk internal/storage/generation.(*Store).syncTree": {
+     "entries": 12,
+     "directories": 2,
+     "calls": 2
+    }
+   }
+  }
+ },
+ "limitations": [
+  "Counts entries examined, not time. The instrumented binary was not timed.",
+  "Only walks in the kivgraph process: the Go loader (go list), the TypeScript worker and rust-analyzer read directories too and are not counted.",
+  "DiscoverCargo, the TypeScript glob expansion and the unclaimed TypeScript walk made no call in this corpus and are not measured.",
+  "The tree of the repository holding the tagged directory changes with its owner builds: that directory held 49976 entries when first counted and 50967 here.",
+  "The call that reads os.ReadDir counts entries listed in each directory it enters; a WalkDir counts every callback, including a pruned directory itself. Both are entries examined and are comparable, not identical."
+ ]
+}

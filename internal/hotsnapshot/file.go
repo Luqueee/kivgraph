@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"runtime"
 	"slices"
 	"sort"
 	"strings"
@@ -285,26 +286,44 @@ func WriteSnapshot(writer io.Writer, snapshot *GraphSnapshot, contentDigest [sha
 // contentDigest, when not zero, is required to match the header. That is how a
 // caller asserts that this file belongs to the generation it was found beside.
 func ReadSnapshot(data []byte, contentDigest [sha256.Size]byte) (*GraphSnapshot, error) {
-	return readSnapshot(data, contentDigest, false)
+	return readSnapshot(data, contentDigest, nil)
 }
 
 // MapSnapshot restores a snapshot that reads its string values in place, out of
 // data, instead of copying them.
 //
-// The caller owns keeping data valid for as long as anything can reach the
-// snapshot: on a mapped file that means not unmapping it, and the collector
-// cannot help, because it does not see that memory. In exchange, the largest
+// release is called once, when nothing can reach the snapshot or any table taken
+// from it: on a mapped file it unmaps data, which the collector cannot do
+// because it does not see that memory. It is not called when MapSnapshot fails,
+// and the caller releases data itself then. In exchange, the largest
 // single part of a snapshot -- some fifty megabytes of string bytes on a real
 // corpus -- is read rather than allocated, and two processes reading the same
 // generation share those pages.
 //
 // Everything else is copied either way, so the arena is the only thing this
 // contract is about. See ADR 0045.
-func MapSnapshot(data []byte, contentDigest [sha256.Size]byte) (*GraphSnapshot, error) {
-	return readSnapshot(data, contentDigest, true)
+func MapSnapshot(data []byte, contentDigest [sha256.Size]byte, release func()) (*GraphSnapshot, error) {
+	anchor := &mapping{release: release}
+	snapshot, err := readSnapshot(data, contentDigest, anchor)
+	if err != nil {
+		return nil, err
+	}
+	runtime.AddCleanup(anchor, func(release func()) { release() }, release)
+	return snapshot, nil
 }
 
-func readSnapshot(data []byte, contentDigest [sha256.Size]byte, borrowed bool) (*GraphSnapshot, error) {
+// mapping is the lifetime of the memory a mapped snapshot reads in place. The
+// snapshot and every table handed out of it point at it, so the mapping is
+// released when the last of them is unreachable -- and not when the snapshot
+// alone is, which is earlier: a reader holds a table, not the snapshot it came
+// from. It holds the release function so the object has a pointer and is not
+// batched with unrelated tiny allocations, which would delay its cleanup.
+type mapping struct{ release func() }
+
+// readSnapshot decodes a snapshot file. A non-nil anchor says the bytes are a
+// mapping that outlives this call, and the tables then read them in place.
+func readSnapshot(data []byte, contentDigest [sha256.Size]byte, anchor *mapping) (*GraphSnapshot, error) {
+	borrowed := anchor != nil
 	header, sections, payload, err := parseSnapshotFile(data)
 	if err != nil {
 		return nil, err
@@ -377,11 +396,13 @@ func readSnapshot(data []byte, contentDigest [sha256.Size]byte, borrowed bool) (
 	if err != nil {
 		return nil, err
 	}
+	table.anchor = anchor
 	input.Strings = table
 	keys, err := restoreSymbolKeys(len(input.Symbols), symbolKeyOffsets, symbolKeyBytes, borrowed)
 	if err != nil {
 		return nil, err
 	}
+	keys.anchor = anchor
 	input.StableKeys = keys
 	// The lookup indexes are not built here any more: newGraphSnapshot derives
 	// them from these same tables, which is also where a repository holding two

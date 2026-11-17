@@ -131,14 +131,11 @@ func Listen(options Options) (net.Listener, error) {
 	if err := os.MkdirAll(options.StateDirectory, 0o700); err != nil {
 		return nil, fmt.Errorf("create the state directory: %w", err)
 	}
-	if _, err := os.Stat(path); err == nil {
-		if connection, dialErr := net.Dial("unix", path); dialErr == nil {
-			_ = connection.Close()
-			return nil, fmt.Errorf("a daemon is already listening on %s", path)
-		}
-		if err := os.Remove(path); err != nil {
-			return nil, fmt.Errorf("remove the stale socket %s: %w", path, err)
-		}
+	if err := refuseLiveDaemon(options.StateDirectory); err != nil {
+		return nil, err
+	}
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("remove the stale socket %s: %w", path, err)
 	}
 	// The socket carries the whole graph, so it is the owner's alone whatever
 	// umask the caller happened to have.
@@ -160,6 +157,25 @@ func Listen(options Options) (net.Listener, error) {
 		return nil, err
 	}
 	return listener, nil
+}
+
+// refuseLiveDaemon reports a daemon already answering for this state directory.
+//
+// It dials the socket rather than reading the endpoint file: the file can be
+// left behind by a dead daemon, and a port it names can since belong to
+// something else. A socket that accepts is a daemon that is there.
+func refuseLiveDaemon(stateDirectory string) error {
+	path, err := SocketPath(stateDirectory)
+	if err != nil {
+		// No socket path means no socket to ask; the bind decides.
+		return nil
+	}
+	connection, err := net.Dial("unix", path)
+	if err != nil {
+		return nil
+	}
+	_ = connection.Close()
+	return fmt.Errorf("a daemon is already listening on %s", path)
 }
 
 // Serve accepts connections until ctx is cancelled or the listener fails.

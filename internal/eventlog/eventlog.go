@@ -195,11 +195,14 @@ const rotatedSuffix = ".1"
 
 // Writer appends events to the store. A nil *Writer is a working sink that
 // discards, so a caller that could not open the file needs no branch.
+//
+// It holds no size and no opinion about which file is live. Several processes
+// append to one store and any of them may rotate it, so both are asked of the
+// filesystem before every write: see followLocked.
 type Writer struct {
 	mutex    sync.Mutex
 	path     string
 	file     *os.File
-	size     int64
 	maxBytes int64
 	pid      int
 }
@@ -221,24 +224,19 @@ func OpenWithLimit(path string, maxBytes int64) (*Writer, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, fmt.Errorf("eventlog: create the directory of %s: %w", path, err)
 	}
-	file, size, err := openAppend(path)
+	file, err := openAppend(path)
 	if err != nil {
 		return nil, err
 	}
-	return &Writer{path: path, file: file, size: size, maxBytes: maxBytes, pid: os.Getpid()}, nil
+	return &Writer{path: path, file: file, maxBytes: maxBytes, pid: os.Getpid()}, nil
 }
 
-func openAppend(path string) (*os.File, int64, error) {
+func openAppend(path string) (*os.File, error) {
 	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
-		return nil, 0, fmt.Errorf("eventlog: open %s: %w", path, err)
+		return nil, fmt.Errorf("eventlog: open %s: %w", path, err)
 	}
-	info, err := file.Stat()
-	if err != nil {
-		file.Close()
-		return nil, 0, fmt.Errorf("eventlog: stat %s: %w", path, err)
-	}
-	return file, info.Size(), nil
+	return file, nil
 }
 
 // Path answers the file the Writer appends to, or the empty string when it
@@ -278,18 +276,57 @@ func (writer *Writer) Append(event Event) {
 	if writer.file == nil {
 		return
 	}
-	if writer.size+int64(len(line)) > writer.maxBytes {
-		writer.rotateLocked()
+	size, ok := writer.followLocked()
+	if !ok {
+		return
 	}
-	written, err := writer.file.Write(line)
-	if err != nil {
+	if size+int64(len(line)) > writer.maxBytes {
+		writer.rotateLocked()
+		if writer.file == nil {
+			return
+		}
+	}
+	if _, err := writer.file.Write(line); err != nil {
 		// The destination is gone or full. Stop writing rather than emit a
 		// half line that would break every later read.
 		writer.file.Close()
 		writer.file = nil
-		return
 	}
-	writer.size += int64(written)
+}
+
+// followLocked makes sure the descriptor is the live file and answers that
+// file's size.
+//
+// Another process may have rotated the store since the last write. The
+// descriptor then names the rotation, and after a second rotation it names
+// nothing at all: writes kept succeeding into a file with no path, and a
+// long-lived daemon vanished from `kivgraph logs` until it restarted. So the
+// path is compared with the descriptor each time and reopened when they have
+// parted.
+//
+// The size is the file's for the same reason. A count kept here knew only what
+// this writer had written: it let several writers pass the limit together, and
+// after someone else's rotation it described a file that was no longer live,
+// so the next append rotated a nearly empty file over the full rotation.
+func (writer *Writer) followLocked() (int64, bool) {
+	held, heldErr := writer.file.Stat()
+	live, liveErr := os.Stat(writer.path)
+	if heldErr == nil && liveErr == nil && os.SameFile(held, live) {
+		return live.Size(), true
+	}
+	writer.file.Close()
+	writer.file = nil
+	file, err := openAppend(writer.path)
+	if err != nil {
+		return 0, false
+	}
+	info, err := file.Stat()
+	if err != nil {
+		file.Close()
+		return 0, false
+	}
+	writer.file = file
+	return info.Size(), true
 }
 
 // rotateLocked moves the live file aside and starts a new one. A second
@@ -306,12 +343,11 @@ func (writer *Writer) rotateLocked() {
 			return
 		}
 	}
-	file, size, err := openAppend(writer.path)
+	file, err := openAppend(writer.path)
 	if err != nil {
 		return
 	}
 	writer.file = file
-	writer.size = size
 }
 
 // Close releases the file.

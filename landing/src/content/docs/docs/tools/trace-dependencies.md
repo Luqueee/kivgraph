@@ -17,7 +17,7 @@ description: Bounded outgoing traversal from one symbol, with the edge each reac
 | `include_derived` | boolean | `false` | Includes rows from providers Kivgraph derives from the machine, which take the `rust:` namespace, such as a Rust toolchain's standard library. Naming one of them in `repo` has the same effect. |
 | `language` | string | none | Selects which reached symbols are returned: `go`, `typescript` or `rust`. It filters rows after reachability and never changes the walk. |
 | `limit` | integer | `50` | Rows in this page. Must be between 1 and 500. |
-| `max_nodes` | integer | `5000` | Ceiling on how many symbols the walk may discover, the root included. Must be between 1 and 25000. Hitting it sets `traversal_truncated`. |
+| `max_nodes` | integer | `5000` | Ceiling on how many symbols the walk may discover, the root included. The root's own members start the walk with it and do not count. Must be between 1 and 25000. Hitting it sets `traversal_truncated`. |
 | `path` | string | none | Repository-relative path narrowing `qualified_name`. Requires `repository`. Rejected together with `stable_key`. |
 | `qualified_name` | string | none | Names the symbol to start from. Either this or `stable_key` is required, never both. A name matching more than one symbol is rejected with `AMBIGUOUS_SYMBOL` instead of being resolved silently. |
 | `repo` | string | none | Selects which reached symbols are returned, by repository name, compared exactly. A dependency found through a symbol in another repository is still reported. |
@@ -208,7 +208,8 @@ stored answer still says what it was about. `depth` and `max_nodes` echo the
 bounds that produced it, including the defaults you did not pass: the request
 above set `depth` to `1` and left `max_nodes` at `5000`.
 
-`reached` is how many symbols the traversal visited, root excluded.
+`reached` is how many symbols the traversal visited, the root and its own
+members excluded: a method is content of its class, not something it reaches.
 `deepest_depth` is the deepest level among the rows that survived the filters,
 not only the ones on this page; here the walk was bounded at one hop, so it is
 `1`. `total` is how many rows survived the `repo`, `language` and
@@ -377,11 +378,13 @@ There are two different truncations and they mean different things:
   and `null`.
 - `traversal_truncated` is about the walk. It is `true` when the walk hit
   `max_nodes` and stopped discovering new symbols, so rows are missing from the
-  answer itself and no cursor will produce them. Raise `max_nodes`, lower
-  `depth`, or narrow with `edge_kinds` or `confidence`. In the captured answer
-  it is `false`: the walk was complete within its bounds, only the page was
-  short -- which is why the compact payload above does not carry the field at
-  all, while the full one says `false`.
+  answer itself and no cursor will produce them. The answer says so twice
+  more: `completeness.verdict` is `LOWER_BOUND` and `guidance` names
+  `max_nodes`. Raise `max_nodes`, lower `depth`, or narrow with `edge_kinds`
+  or `confidence`. In the captured answer it is `false`: the walk was complete
+  within its bounds, only the page was short -- which is why the compact
+  payload above does not carry the field at all, while the full one says
+  `false`.
 
 To take the next page, repeat the same call and add `cursor` set to the
 `next_cursor` value, unchanged. The token is an opaque base64url wrapper around a

@@ -28,6 +28,10 @@ type SymbolFilter struct {
 	Kind           string
 	RepositoryName string
 	PathPrefix     string
+	// Path keeps the symbols of one file, or of every file under one
+	// directory. Unlike PathPrefix it is not a string prefix: `src/util.ts`
+	// does not match `src/util.tsx`, and `src/ut` matches nothing.
+	Path string
 	// ExcludeRepositoryPrefix drops symbols of every repository whose name
 	// starts with it. It exists for the providers Kivgraph derives from the
 	// machine, which live in a reserved namespace: a search for `Clone` or
@@ -38,7 +42,7 @@ type SymbolFilter struct {
 // Empty reports whether the filter would keep every symbol.
 func (filter SymbolFilter) Empty() bool {
 	return filter.Kind == "" && filter.RepositoryName == "" &&
-		filter.PathPrefix == "" && filter.ExcludeRepositoryPrefix == ""
+		filter.PathPrefix == "" && filter.Path == "" && filter.ExcludeRepositoryPrefix == ""
 }
 
 // SearchSymbolsByName returns one exact interned-name page. It never performs
@@ -127,16 +131,19 @@ func (snapshot *GraphSnapshot) symbolPassesFilter(id SymbolID, filter SymbolFilt
 			return false
 		}
 	}
-	if filter.RepositoryName == "" && filter.PathPrefix == "" && filter.ExcludeRepositoryPrefix == "" {
+	if filter.RepositoryName == "" && filter.PathPrefix == "" && filter.Path == "" && filter.ExcludeRepositoryPrefix == "" {
 		return true
 	}
 	file, fileFound := snapshot.File(symbol.File)
 	if !fileFound {
 		return false
 	}
-	if filter.PathPrefix != "" {
+	if filter.PathPrefix != "" || filter.Path != "" {
 		path, pathFound := snapshot.strings.String(file.Path)
 		if !pathFound || !strings.HasPrefix(path, filter.PathPrefix) {
+			return false
+		}
+		if filter.Path != "" && path != filter.Path && !strings.HasPrefix(path, filter.Path+"/") {
 			return false
 		}
 	}

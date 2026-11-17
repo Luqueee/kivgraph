@@ -127,6 +127,9 @@ func (w workspace) prepare(t task) error {
 	if err := extract.Wait(); err != nil {
 		return fmt.Errorf("extract %s: %w", t.Repo, err)
 	}
+	if err := stripAgentInstructions(target); err != nil {
+		return err
+	}
 	for _, arguments := range [][]string{
 		{"init", "-q", "-b", "bench"},
 		{"-c", "user.email=bench@local", "-c", "user.name=bench", "add", "-A"},
@@ -142,6 +145,20 @@ func (w workspace) prepare(t task) error {
 		}
 	}
 	return w.assertNoLeak(t)
+}
+
+// stripAgentInstructions removes the files that tell an agent how to work in a
+// repository. When the corpus is a project that ships them (this one does,
+// and they name the kivgraph tools), Claude Code loads the nested ones on
+// demand, so the cold arm would read instructions for tools it was never
+// given and the other arm would be told twice. Both arms see the same bytes.
+func stripAgentInstructions(target string) error {
+	out, err := exec.Command("find", target, "(", "-name", "AGENTS.md", "-o", "-name", "CLAUDE.md",
+		"-o", "-name", ".mcp.json", "-o", "-name", "GEMINI.md", ")", "-not", "-path", "*/node_modules/*", "-delete").CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("strip agent instructions in %s: %w (%s)", target, err, lastLines(string(out), 2))
+	}
+	return nil
 }
 
 // assertNoLeak refuses to run a task whose answer is reachable from the state the
@@ -258,6 +275,44 @@ type indexer struct {
 	// is given, so each needs its own; building all 37 would price an index no
 	// task reads.
 	Repos []string
+	// Arms is the --arms list. When it names none of the other four surfaces
+	// their indexes are not built: they cost minutes and no arm would read them.
+	Arms      string
+	Languages string
+	// GoModCache is where the Go modules this machine downloaded live. kivgraph
+	// runs under an isolated HOME, and Go looks for its module cache under
+	// $HOME/go, so without it the Go loader finds no dependency and indexes a
+	// hollow graph while reporting success.
+	GoModCache string
+}
+
+// kivgraphEnvironment is the environment kivgraph runs under: the isolated HOME
+// and the module cache the real one has.
+func (i indexer) kivgraphEnvironment() []string {
+	environment := append(os.Environ(), "HOME="+i.Home)
+	if i.GoModCache != "" {
+		environment = append(environment, "GOMODCACHE="+i.GoModCache)
+	}
+	return environment
+}
+
+// resolveGoModCache answers the module cache of the environment this process
+// runs in, before any HOME is swapped. A cache that is not there is an error:
+// the alternative is an index that is complete in no way and says so nowhere.
+func resolveGoModCache() (string, error) {
+	cache := os.Getenv("GOMODCACHE")
+	if cache == "" {
+		out, err := exec.Command("go", "env", "GOMODCACHE").Output()
+		if err != nil {
+			return "", fmt.Errorf("go env GOMODCACHE: %w", err)
+		}
+		cache = strings.TrimSpace(string(out))
+	}
+	info, err := os.Stat(cache)
+	if err != nil || !info.IsDir() {
+		return "", fmt.Errorf("the Go module cache %q is not a directory: the isolated HOME would hide the real one and kivgraph would index a graph with no dependencies", cache)
+	}
+	return cache, nil
 }
 
 func (i indexer) reindex() (map[string]float64, error) {
@@ -266,11 +321,15 @@ func (i indexer) reindex() (map[string]float64, error) {
 	started := time.Now()
 	command := exec.Command(i.Kivgraph, "index", "--full", "--json")
 	command.Dir = i.Root
-	command.Env = append(os.Environ(), "HOME="+i.Home)
+	command.Env = i.kivgraphEnvironment()
 	if out, runErr := command.CombinedOutput(); runErr != nil {
 		return nil, fmt.Errorf("kivgraph index: %w (%s)", runErr, lastLines(string(out), 2))
 	}
 	elapsed["kivgraph"] = float64(time.Since(started).Milliseconds())
+	if !strings.Contains(i.Arms, "graft") && !strings.Contains(i.Arms, "code-review-graph") &&
+		!strings.Contains(i.Arms, "codebase-memory") && !strings.Contains(i.Arms, "graphify") {
+		return elapsed, nil
+	}
 
 	started = time.Now()
 	build := exec.Command(i.Graft, "--dir", i.GraftContext, "build", i.Root)
@@ -326,12 +385,12 @@ func (i indexer) register() error {
 	if err != nil {
 		return fmt.Errorf("discover repositories: %w", err)
 	}
-	arguments := []string{"init", "--languages", "go,typescript,rust"}
+	arguments := []string{"init", "--languages", i.Languages}
 	for _, repo := range repos {
 		arguments = append(arguments, "--repository", filepath.Base(repo)+"="+filepath.Join(i.Root, repo))
 	}
 	command := exec.Command(i.Kivgraph, arguments...)
-	command.Env = append(os.Environ(), "HOME="+i.Home)
+	command.Env = i.kivgraphEnvironment()
 	if out, err := command.CombinedOutput(); err != nil {
 		return fmt.Errorf("kivgraph init: %w (%s)", err, lastLines(string(out), 3))
 	}

@@ -338,7 +338,7 @@ func commandTable() []commandSpec {
 			words:   []string{"ui"},
 			group:   "Getting started",
 			usage:   "ui [--addr HOST:PORT] [--profile NAME]",
-			summary: "Serve the read-only graph viewer, every interface by default",
+			summary: "Serve the read-only graph viewer, on this machine only by default",
 			absence: webBundleAbsence,
 			flags: func() *flag.FlagSet {
 				var path, address, profile string
@@ -452,6 +452,19 @@ func commandTable() []commandSpec {
 			},
 			run: func(_ dependencies, args []string, stdout, stderr io.Writer) int {
 				return runToolStats(args, stdout, stderr)
+			},
+		},
+		{
+			words:   []string{"impact"},
+			group:   "Diagnostics",
+			usage:   "impact --base REF [--depth N] [--limit N] [--json]",
+			summary: "Show what a diff reaches: the symbols it touches, what depends on them, and the tests",
+			flags:   func() *flag.FlagSet { var o impactOptions; return impactFlagSet(&o) },
+			hints: map[string]flagHint{
+				"config": {paths: true},
+			},
+			run: func(_ dependencies, args []string, stdout, stderr io.Writer) int {
+				return runImpact(args, stdout, stderr)
 			},
 		},
 		{

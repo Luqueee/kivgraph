@@ -168,8 +168,7 @@ func RunWithOptions(ctx context.Context, options Options) (facts.SemanticPayload
 	}
 	sort.Slice(payload.Symbols, func(i, j int) bool { return payload.Symbols[i].ID < payload.Symbols[j].ID })
 
-	packageRoots := dartPackageRoots(root, options.PackageConfig, options.IncludeExternal)
-	if err := appendNavigationReferences(ctx, client, options.Command, options.SDKPath, root, files, contents, byURI, payload.Symbols, selectionOffsets, options.Providers, packageRoots, options.WaitForAnalysis, &payload); err != nil {
+	if err := appendNavigationReferences(ctx, client, options.Command, options.SDKPath, root, files, contents, byURI, payload.Symbols, selectionOffsets, options.Providers, options.WaitForAnalysis, &payload); err != nil {
 		return facts.SemanticPayload{}, err
 	}
 
@@ -571,7 +570,7 @@ func deliverBeforeShutdown[T any](output chan<- T, value T, done <-chan struct{}
 	}
 }
 
-func appendNavigationReferences(ctx context.Context, lsp *client, command, sdkPath, root string, files []string, contents map[string][]byte, byURI map[string][]facts.SemanticSymbol, symbols []facts.SemanticSymbol, selectionOffsets map[string]int, providers []workspace.Repository, packageRoots []string, waitForAnalysis bool, payload *facts.SemanticPayload) error {
+func appendNavigationReferences(ctx context.Context, lsp *client, command, sdkPath, root string, files []string, contents map[string][]byte, byURI map[string][]facts.SemanticSymbol, symbols []facts.SemanticSymbol, selectionOffsets map[string]int, providers []workspace.Repository, waitForAnalysis bool, payload *facts.SemanticPayload) error {
 	server, err := startAnalyzer(ctx, command, sdkPath, root)
 	if err != nil {
 		return err
@@ -593,9 +592,6 @@ func appendNavigationReferences(ctx context.Context, lsp *client, command, sdkPa
 		return err
 	}
 	analysisRoots := map[string]any{"included": []string{root}, "excluded": []string{filepath.Join(root, ".dart_tool"), filepath.Join(root, "build")}}
-	if len(packageRoots) > 0 {
-		analysisRoots["packageRoots"] = packageRoots
-	}
 	if _, err := server.call(ctx, "analysis.setAnalysisRoots", analysisRoots); err != nil {
 		return err
 	}
@@ -1924,29 +1920,18 @@ func dartLibraryName(data []byte) string {
 	return string(match[1])
 }
 
-// dartPackageRoots reads pub's package configuration when external package
-// analysis is enabled. The Analysis Server can then resolve package: URIs
-// against the same package roots as `dart analyze`, while Kivgraph still
-// publishes only the registered repository's files.
-func dartPackageRoots(root, configured string, includeExternal bool) []string {
-	if !includeExternal {
-		return nil
-	}
-	seen := map[string]struct{}{filepath.Clean(root): {}}
-	entries := dartPackageEntries(root, configured)
-	roots := make([]string, 0, len(entries))
-	for _, pkg := range entries {
-		path := pkg.Root
-		if _, exists := seen[path]; exists {
-			continue
+// PackageRoots lists the roots of the packages a repository's package config names,
+// other than the repository itself, that exist on disk. The analysis server reads
+// the files of every one of them whether or not the loader publishes their symbols,
+// so they are what a repository can depend on besides its own sources.
+func PackageRoots(root, configured string) []string {
+	own := filepath.Clean(root)
+	roots := make([]string, 0)
+	for _, entry := range dartPackageEntries(root, configured) {
+		if entry.Root != own {
+			roots = append(roots, entry.Root)
 		}
-		if info, statErr := os.Stat(path); statErr != nil || !info.IsDir() {
-			continue
-		}
-		seen[path] = struct{}{}
-		roots = append(roots, path)
 	}
-	sort.Strings(roots)
 	return roots
 }
 
