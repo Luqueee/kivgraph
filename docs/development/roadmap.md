@@ -1990,6 +1990,14 @@ Done:
   removed from the working clone.
 - Branches inherited from upstream deleted from the fork (14, all on the same
   commit as their namesake in `Luqueee/kivgraph`); only `main` remains.
+- PR #3 of the fork: this document, translated from the Spanish working note,
+  which no longer exists; from here on it is updated in the repository.
+- PR #4 of the fork: the moderate `minimatch` alert left open by #84 is closed
+  with a scoped override in `web/pnpm-workspace.yaml`
+  (`@ts-morph/common>minimatch` to `^11.0.1`); `shadcn` `4.23.0` is still the
+  latest and still pins `ts-morph` `26`. `pnpm audit` in `web` is clean.
+- The Bazel launcher installed for #90 was removed from the development
+  machine; the other gate tooling had been removed after the release.
 
 Remaining (maintainer's decision):
 
