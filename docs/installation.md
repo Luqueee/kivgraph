@@ -108,7 +108,7 @@ curl -fsSL https://github.com/Tutitoos/kivgraph/releases/latest/download/install
 El instalador no requiere Go, pnpm ni un compilador C. Para fijar una versión:
 
 ```bash
-KIVGRAPH_VERSION=v0.10.0-dev.1 ./scripts/install.sh
+KIVGRAPH_VERSION=v0.10.0 ./scripts/install.sh
 ```
 
 Si el repositorio de releases es privado, proporciona
