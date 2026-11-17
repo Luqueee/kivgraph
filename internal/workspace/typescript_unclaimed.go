@@ -55,11 +55,22 @@ func UnclaimedTypeScriptSources(
 		return nil, fmt.Errorf("validate TypeScript exclusions: %w", err)
 	}
 
+	// The registry takes a sourceless project away from the package that would
+	// own it when a package below has a project of its own, and nothing is
+	// analysed through it then: its claim on the whole tree would only hide the
+	// files the packages below leave out.
+	dropped, err := droppedSourcelessProjects(ctx, repository, discovery)
+	if err != nil {
+		return nil, err
+	}
 	claimed := make(map[string]struct{})
 	excludePatternSegments := make([][]string, 0, len(discovery.Projects)*4)
 	for _, project := range discovery.Projects {
 		if err := ctx.Err(); err != nil {
 			return nil, err
+		}
+		if _, notAnalysed := dropped[filepath.Clean(project.ConfigPath)]; notAnalysed {
+			continue
 		}
 		parsed, err := resolveTypeScriptConfig(project.ConfigPath, root)
 		if err != nil {

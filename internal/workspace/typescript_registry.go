@@ -154,6 +154,52 @@ func dropEnclosingSourcelessProjects(packages []TypeScriptPackage, discovery Typ
 	return nil
 }
 
+// droppedSourcelessProjects answers the config paths dropEnclosingSourcelessProjects
+// takes away from every package that would have owned them: projects nothing is
+// analysed through. A path another package still owns -- a nested package that
+// inherits the project -- is not among them.
+//
+// UnclaimedTypeScriptSources needs it to read the configuration the way the
+// registry does. A base config that lists no source takes every file below it, and
+// so would hide, from the files nobody claims, the ones the packages below it leave
+// out of their own `include`, although no package analyses them through it.
+func droppedSourcelessProjects(ctx context.Context, repository Repository, discovery TypeScriptDiscovery) (map[string]struct{}, error) {
+	packages := make([]TypeScriptPackage, 0, len(discovery.PackageManifests))
+	for _, manifestPath := range discovery.PackageManifests {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		packageValue, named, err := buildTypeScriptPackage(repository, discovery, manifestPath)
+		if err != nil {
+			return nil, fmt.Errorf("build package provider %q: %w", manifestPath, err)
+		}
+		if named {
+			packages = append(packages, packageValue)
+		}
+	}
+	owned := func() map[string]struct{} {
+		paths := make(map[string]struct{}, len(packages))
+		for _, packageValue := range packages {
+			if packageValue.ProjectPath != "" {
+				paths[filepath.Clean(packageValue.ProjectPath)] = struct{}{}
+			}
+		}
+		return paths
+	}
+	before := owned()
+	if err := dropEnclosingSourcelessProjects(packages, discovery); err != nil {
+		return nil, err
+	}
+	after := owned()
+	dropped := make(map[string]struct{})
+	for path := range before {
+		if _, kept := after[path]; !kept {
+			dropped[path] = struct{}{}
+		}
+	}
+	return dropped, nil
+}
+
 func encloseAPackageWithItsOwnProject(packages []TypeScriptPackage, outer TypeScriptPackage) bool {
 	for _, inner := range packages {
 		if inner.ProjectPath == "" || inner.ProjectPath == outer.ProjectPath ||

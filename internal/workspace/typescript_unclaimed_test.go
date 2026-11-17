@@ -127,6 +127,94 @@ func TestUnclaimedTypeScriptSourcesCoversMtsAndCtsButNotJavaScript(t *testing.T)
 	}
 }
 
+func unclaimedOf(t *testing.T, files map[string]string) []string {
+	t.Helper()
+	root := testsupport.TempDir(t)
+	for name, content := range files {
+		writeDiscoveryFile(t, filepath.Join(root, filepath.FromSlash(name)), content)
+	}
+	repository := Repository{Name: "base", Path: root, RealPath: root}
+	discovery, err := DiscoverTypeScript(context.Background(), repository)
+	if err != nil {
+		t.Fatalf("DiscoverTypeScript() error = %v", err)
+	}
+	unclaimed, err := UnclaimedTypeScriptSources(context.Background(), repository, discovery)
+	if err != nil {
+		t.Fatalf("UnclaimedTypeScriptSources() error = %v", err)
+	}
+	relative := make([]string, 0, len(unclaimed))
+	for _, file := range unclaimed {
+		path, err := filepath.Rel(root, file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		relative = append(relative, filepath.ToSlash(path))
+	}
+	return relative
+}
+
+// A monorepo's base config lists no source, so by itself it would claim every file
+// below it -- including the ones its packages leave out of their own `include`.
+// Those files belong to no program the packages build, and it is the base config,
+// which nothing loads on its own, that used to hide them: with the option on the
+// repository indexed no more than with it off.
+func TestAConfigThatListsNoSourceDoesNotHideWhatTheProjectsBelowLeaveOut(t *testing.T) {
+	base := `{"compilerOptions":{"strict":true}}`
+	for name, files := range map[string]map[string]string{
+		"base config beside the root manifest": {
+			"package.json":                    `{"name":"root","version":"1.0.0"}`,
+			"tsconfig.base.json":              base,
+			"packages/a/package.json":         `{"name":"a","version":"1.0.0"}`,
+			"packages/a/tsconfig.json":        `{"extends":"../../tsconfig.base.json","include":["src"]}`,
+			"packages/a/src/index.ts":         "export const a = 1\n",
+			"packages/a/test/outside.test.ts": "export const x = 1\n",
+		},
+		"root tsconfig without sources": {
+			"package.json":                    `{"name":"root","version":"1.0.0"}`,
+			"tsconfig.json":                   base,
+			"packages/a/package.json":         `{"name":"a","version":"1.0.0"}`,
+			"packages/a/tsconfig.json":        `{"include":["src"]}`,
+			"packages/a/src/index.ts":         "export const a = 1\n",
+			"packages/a/test/outside.test.ts": "export const x = 1\n",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := unclaimedOf(t, files)
+			if want := []string{"packages/a/test/outside.test.ts"}; !slices.Equal(got, want) {
+				t.Fatalf("unclaimed = %v, want %v", got, want)
+			}
+		})
+	}
+}
+
+// The narrow side of the same rule: a config without sources that has no project
+// below it is the whole repository's project and owns every file, and one that
+// does list a source owns exactly that.
+func TestAConfigThatListsNoSourceStillOwnsTheTreeWhenNoProjectIsBelowIt(t *testing.T) {
+	got := unclaimedOf(t, map[string]string{
+		"package.json":        `{"name":"whole","version":"1.0.0"}`,
+		"tsconfig.base.json":  `{"compilerOptions":{"strict":true}}`,
+		"src/index.ts":        "export const index = 1\n",
+		"scripts/release.ts":  "export const release = 1\n",
+		"tests/index.test.ts": "export const test = 1\n",
+	})
+	if len(got) != 0 {
+		t.Fatalf("unclaimed = %v, want none: nothing below the config has a project of its own", got)
+	}
+
+	got = unclaimedOf(t, map[string]string{
+		"package.json":             `{"name":"root","version":"1.0.0"}`,
+		"tsconfig.base.json":       `{"compilerOptions":{"strict":true}}`,
+		"packages/a/package.json":  `{"name":"a","version":"1.0.0"}`,
+		"packages/a/tsconfig.json": `{"include":["src"]}`,
+		"packages/a/src/index.ts":  "export const a = 1\n",
+		"packages/a/src/more.ts":   "export const more = 1\n",
+	})
+	if len(got) != 0 {
+		t.Fatalf("unclaimed = %v, want none: the package's own include claims both files", got)
+	}
+}
+
 func TestUnclaimedTypeScriptSourcesHonorsCancellation(t *testing.T) {
 	repository, discovery := unclaimedFixture(t)
 	ctx, cancel := context.WithCancel(context.Background())
