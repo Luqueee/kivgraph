@@ -11,6 +11,7 @@ go_library(
         "publish_lock_other.go",
         "publish_lock_unix.go",
         "publish_lock_windows.go",
+        "reserve_fill.go",
         "store.go",
         "types.go",
     ],
@@ -62,6 +63,7 @@ go_library(
 go_test(
     name = "generation_test",
     srcs = [
+        "reserve_fill_test.go",
         "store_candidates_test.go",
         "store_lock_test.go",
         "store_steps_test.go",

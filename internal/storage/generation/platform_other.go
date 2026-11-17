@@ -23,16 +23,8 @@ func preallocate(path string, size int64) error {
 			_ = os.Remove(path)
 		}
 	}()
-	buffer := make([]byte, 1<<20)
-	for remaining := size; remaining > 0; {
-		chunk := int64(len(buffer))
-		if remaining < chunk {
-			chunk = remaining
-		}
-		if _, err := file.Write(buffer[:chunk]); err != nil {
-			return err
-		}
-		remaining -= chunk
+	if err := writeZeros(file, size); err != nil {
+		return err
 	}
 	if err := file.Sync(); err != nil {
 		return err
