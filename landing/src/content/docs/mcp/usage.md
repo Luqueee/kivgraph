@@ -101,7 +101,7 @@ requires `repository`.
 A stable key is exact and durable, and it is also about thirty-five tokens of
 opaque base32 that nothing outside the server can read. You never need one,
 because every row a tool returns already carries the triple -- which is why the
-default view of every query tool leaves the key out. Find the symbol, then feed
+`compact` view leaves the key off its rows. Find the symbol, then feed
 the answer straight into the next call.
 
 Step one, locate it:
@@ -195,15 +195,17 @@ SYMBOL_NOT_FOUND: qualified name "NoSuchThing" was not found under kivgraph; cal
 
 ## Choose a view
 
-Every query tool takes a `view`, and it changes the granularity of an answer,
+Seven tools take a `view` -- `find_by_intent`, `find_symbol`, `find_references`,
+`find_cross_repo_consumers`, `trace_dependencies`, `get_blast_radius` and
+`get_file_outline` -- and it changes the granularity of an answer,
 never the answer. The same edges, with the same confidence and the same
 provenance, spelled with or without the parts a row shares with every other row.
 
 | `view` | What you get | Where |
 | --- | --- | --- |
-| `compact` | The default. Whatever every row of the page shares is stated once in a header, and a row carries only what the header could not state for it. | Every query tool |
-| `full` | The field-per-row shape: every field on every row, including the stable keys and the `language` the compact view drops. Ask for it when a client was written against that shape. | Every query tool |
-| `files` | Only which files hold the facts, with a count each. The answer to "which files do I open". | [`find_references`](/docs/tools/find-references/) and [`get_file_outline`](/docs/tools/get-file-outline/) |
+| `compact` | The default. Whatever every row of the page shares is stated once in a header, and a row carries only what the header could not state for it. | The seven tools with a `view` |
+| `full` | The field-per-row shape: every field on every row, including the stable keys and the `language` the compact view drops. Ask for it when a client was written against that shape. | The seven tools with a `view` |
+| `files` | Only which files hold the facts, with a count each. The answer to "which files do I open". | [`find_by_intent`](/docs/tools/find-by-intent/), [`find_references`](/docs/tools/find-references/) and [`get_file_outline`](/docs/tools/get-file-outline/) |
 
 An unsupported value is `INVALID_ARGUMENT`, and so is `files` on a tool whose
 answer is not a set of files -- it fails rather than quietly returning something
@@ -252,7 +254,7 @@ A header only states a column when **every** row of the page agrees on it. One
 dissenting row is enough to knock a column back down to the rows -- a `65`-row
 page sharing `kind` and `edge_kind` pays for both on every row if row `66` is a
 re-export the other `65` are not. `groups` is the second tier that catches this:
-the six query tools that carry a `compact` view -- `find_symbol`,
+the six of the seven tools with a `compact` view that can group -- `find_symbol`,
 `find_references`, `trace_dependencies`, `get_blast_radius`,
 `get_file_outline` and `find_cross_repo_consumers` -- also try grouping the page
 by whatever exact tuple of the remaining columns each row still shares, instead
@@ -369,7 +371,11 @@ interchangeable: the first is a claim about the code, the second about the index
 Without either sentence, treat a zero only as far as the tool's own description
 takes you.
 
-**`guidance` stays silent when there are rows and no truncation.** It costs
+**`guidance` is silent when there are rows and no truncation, with three
+exceptions.** `find_implementations` sends one constant sentence on every answer,
+`find_by_intent` says when some words of the question matched nothing, and
+`list_repositories` says when a profile without a published generation was
+skipped. It costs
 about fifteen tokens, and fifteen tokens of advice on every call is how a saving
 becomes a cost. Its absence is not a warning that something is wrong; it means
 the numbers speak for themselves.
@@ -380,18 +386,25 @@ the index recorded places it could not read that this query reaches, and it
 names them: `invisible_scopes` for whole packages or modules that could not be
 read, `blind_spots` for individual references the resolver could not follow, and
 `fallback` for the recovery action, a regular expression and the paths to run it
-over. Absence of the whole block means the tool did not check, which is not the
-same as checking and finding nothing.
+over. Two things make an answer a floor beyond the places the resolver failed to read: a walk
+(`trace_dependencies`, `get_blast_radius`) that stopped at `max_nodes` before it
+finished, and `find_implementations` on a generation older than schema 5, which
+never ran implementation analysis and says so with the invisible scope
+`IMPLEMENTATIONS_NOT_ANALYZED`. Absence of the whole block means the tool did not
+check, which is not the same as checking and finding nothing -- except that
+`find_symbol` and `get_file_outline` leave a `COMPLETE` verdict off a full page
+of declarations, which claims no absence.
 
-Six tools check, and **what bounds an answer is not the same question for all of
+Seven tools check, and **what bounds an answer is not the same question for all of
 them**, so each one looks at a different set of recorded failures:
 
 | Tool | What can bound its answer |
 | --- | --- |
 | `find_references` | Failures that asked for this name, plus unreadable scopes of the subject's repository. `direction` does not change the verdict: it is charged with the naming question either way. |
+| `find_implementations` | The same pair as `find_references`, except that the scope half is **global** rather than the subject's repository. A generation older than schema 5 is always `LOWER_BOUND`. |
 | `get_blast_radius` | The same pair, taken from the repository the walk starts in. |
 | `trace_dependencies` | Failures **this symbol itself** made, plus unreadable scopes of its repository. "What does this reach" is never bounded by who asked for its name -- somebody else's unreadable call hides a caller, not a dependency. |
-| `find_symbol` | Unreadable scopes. Narrowed with `repo`, only that repository's; unnarrowed, every one in the graph. |
+| `find_symbol` | Failures that asked for this name, plus unreadable scopes. Narrowed with `repo`, only that repository's; unnarrowed, every one in the graph. |
 | `get_file_outline` | Unreadable scopes of the repository asked for. There is no symbol name here, so nothing else can bound it. |
 | `find_cross_repo_consumers` | Unreadable scopes **anywhere in the graph**, deliberately. A package nobody could read in any repository is exactly where an outside consumer hides. |
 
@@ -399,10 +412,11 @@ The scope follows the question for a reason: a verdict charged for every blind
 spot in the graph would read `LOWER_BOUND` on every answer of a corpus with one
 bad package, and a verdict that never says `COMPLETE` carries no information.
 
-The other five tools do not check, and none of them claims an absence.
-`get_symbol` and `get_source` refuse a symbol they cannot find instead of
-answering an empty list; `graph_status`, `list_repositories` and `index_project`
-answer about the index itself.
+The other eight tools do not check, and none of them claims an absence.
+`find_by_intent` ranks text matches and labels them with `match`; `get_symbol`
+and `get_source` refuse a symbol they cannot find instead of
+answering an empty list; `graph_status`, `list_repositories`, `index_project`,
+`start_index_project` and `get_index_status` answer about the index itself.
 
 This is the `completeness` block captured from `get_blast_radius` on `MergeAll`
 at depth 2:
@@ -541,7 +555,9 @@ spells the row as `["mergeSets@681-712", "func"]`:
 `EXACT_PACKAGE_MAPPED`, `STRUCTURAL_CERTAIN`, `CANDIDATE` or `UNRESOLVED`.
 `provenance` says which analysis observed it: `GO_AST_CALL` and `GO_TYPES_USE`
 come from the Go analysis, `TYPESCRIPT_CHECKER` from the TypeScript checker,
-`TYPESCRIPT_PROJECT_REFERENCE` from a provider's own build configuration.
+`TYPESCRIPT_PROJECT_REFERENCE` from a provider's own build configuration, and
+the `RUST_ANALYZER_*`, `PYTHON_INDEXER_*`, `DART_ANALYZER_*`, `JAVA_SCIP_*` and
+`CSHARP_SCIP_*` families from the analyzer of that language.
 
 An `EXACT` edge requires sufficient evidence and the correct provenance. It is
 never created by a coincidence of name, text, path or alias, and never because
@@ -565,23 +581,27 @@ so no registered repository can take the name, and the name is the only
 authority needed to tell a derived row from yours. It has no commit, no branch
 and no dirty flag: nothing clones it and nothing can move it.
 
-It is withheld by default from the four served tools that could return one of
+It is withheld by default from the five served tools that could return one of
 its rows:
 
 - [`find_symbol`](/docs/tools/find-symbol/)
 - [`find_references`](/docs/tools/find-references/)
 - [`trace_dependencies`](/docs/tools/trace-dependencies/)
 - [`get_blast_radius`](/docs/tools/get-blast-radius/)
+- [`find_implementations`](/docs/tools/find-implementations/)
 
 The default is the difference between a usable answer and an unusable one: with
 the standard library in the graph, `find_references` on `Clone` or `Debug`
 reaches most of the corpus, and a page of `core` is not what someone asking
 about their own code wants.
 
-Two things override it. `include_derived: true`, on any of the four. And naming
-the derived provider in `repo`, on the three that take a `repo` filter, because
-an explicit filter is a request and not an accident. `get_blast_radius` has no
-`repo` argument, so there `include_derived` is the only way.
+Two things override it. `include_derived: true`, on any of the first four. And
+naming the derived provider in `repo`, on the four that take a `repo` filter,
+because an explicit filter is a request and not an accident.
+`get_blast_radius` has no `repo` argument and `find_implementations` has no
+`include_derived`, so for each of them the other one is the only way.
+`find_by_intent`, `find_cross_repo_consumers` and `get_file_outline` apply no
+derived filter at all.
 
 Withholding a row is a page decision and never a claim about what was observed.
 The edge stays published with its exact confidence; it was simply not put on

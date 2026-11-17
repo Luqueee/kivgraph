@@ -40,14 +40,33 @@ generation, incoming to the subject.
 
 ## Answers
 
-The result contains `subject` and `implementations`. Each row carries its
-canonical location, stable key, relationship kind, confidence, provenance and
-detection. The envelope includes generation, totals, completeness and a
+The answer is always the `full` view with the detailed identifiers: the tool has
+no `view`, `response_format` or `include_derived` argument. `results` holds
+`subject`, `implementations` and `scope`, a constant sentence naming what was
+searched: `Typed IMPLEMENTS and OVERRIDES relations in the selected published
+generation(s).` Each row carries its canonical location, `language`, `edge_kind`,
+`confidence`, `provenance`, `evidence_kind`, `stable_key`, `file_key`,
+`repository_key` and `detection`, and `via` when the row was reached through an
+interface method. Only edges with an exact confidence are returned. `detection`
+is `declared` for a TypeScript declared relationship, `structural` for a
+TypeScript structural match or a Go `go/types` relation, and `typed` for every
+other typed mechanism. The `detection` argument filters on the first two.
+The envelope includes generation, totals, completeness and a
 `next_cursor`. Keep filters unchanged on the next page. A changed generation
 requires a fresh first page.
 
+`guidance` is present on every answer, rows or not, and is a constant sentence:
+`Absence is established only for COMPLETE coverage within the analyzed corpus.
+Concrete classes and observed type instances; no unknown generic arguments are
+replaced with any.` Rows of the provider Kivgraph derives from the machine, in
+the `rust:` namespace, are withheld unless `repo` names it.
+
 Read `completeness` before interpreting zero rows. `LOWER_BOUND` identifies an
-incomplete analysis or a legacy generation; it cannot establish absence.
+incomplete analysis or a legacy generation; it cannot establish absence. On a
+generation older than schema 5 the verdict is `LOWER_BOUND` with an invisible
+scope whose reason is `IMPLEMENTATIONS_NOT_ANALYZED`, because that generation
+never ran implementation analysis. The scope half of the check is global, not
+limited to the subject's repository.
 `COMPLETE` applies only to the analyzed corpus and observed type instances.
 Unknown generic arguments are never replaced with `any`. Inferred sources and
 provider members without canonical source identity carry explicit limitations.

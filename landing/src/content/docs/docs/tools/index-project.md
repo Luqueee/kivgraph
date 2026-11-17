@@ -5,7 +5,7 @@ description: >-
   approval.
 ---
 
-> Registers projects and rebuilds the graph once, after explicit user approval. Pass every project in one call: a rebuild costs the whole corpus. It never writes inside the source projects.
+> Registers projects and rebuilds after approval. Pass all projects together; never writes to them.
 
 ## Arguments
 
@@ -36,8 +36,20 @@ a word outside the list is rejected before anything is written.
 
 Nothing, in the sense the read-only tools do. It registers the projects it is
 given in the repository registry, rebuilds the complete canonical graph once, and
-publishes the result as a new generation. On success it reports the generation
-and snapshot it published together with the per-language counters of the pass. It
+publishes the result as a new generation. On success it returns `project`, the
+first project of the batch read back as `name`, `path` and `languages`;
+`projects`, the whole batch in the same shape; `generation_id`; `snapshot_id`;
+`counts`, what the published graph holds as `repositories`, `packages`,
+`files`, `symbols`, `evidence`, `edges` and `unresolved`; and `index`, what each
+language pass observed. For each of `go_`, `typescript_`, `rust_`, `python_`,
+`dart_`, `java_` and `csharp_` it has `_repositories`, `_references` and
+`_unresolved` counters and a symbol counter, `go_definitions` for Go and
+`_symbols` for the rest, plus `go_modules` and `rust_workspaces`. Six
+`*_not_loaded` counters -- `rust_workspaces_not_loaded`, `go_modules_not_loaded`
+and `python_`, `dart_`, `java_` and `csharp_repositories_not_loaded` -- count
+what this machine could not read, so a language with zero symbols can be told
+from one that never loaded. `index` and `counts` differ on purpose: the first
+counts what each pass observed and the second what the graph stores. It
 is the synchronous mutating tool on the surface. New integrations should prefer
 [`start_index_project`](/docs/tools/start-index-project/) and poll
 [`get_index_status`](/docs/tools/get-index-status/) so no call remains open for

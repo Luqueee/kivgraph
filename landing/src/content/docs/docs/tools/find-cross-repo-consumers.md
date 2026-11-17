@@ -236,7 +236,7 @@ the tool with no native `grep` competitor and its empty answer gets read as a
 finding -- "nobody outside uses this" -- so on `LOWER_BOUND` the zero-row
 `guidance` refuses that reading and sends you to those two lists first. See
 [the completeness verdict](/mcp/usage/#read-the-answer) for the shape shared by
-the six tools that check.
+the seven tools that check.
 
 ## Limits
 

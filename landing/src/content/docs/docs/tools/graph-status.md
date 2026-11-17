@@ -5,7 +5,7 @@ description: >-
   repository identity or registered content has changed.
 ---
 
-> The published generation: counts, provenance, and whether a repository moved since it was indexed. Call it when an answer looks stale.
+> Published generation, counts, provenance and repository freshness. Use to diagnose stale answers.
 
 ## Arguments
 
@@ -141,7 +141,7 @@ Corpus: snapshot `30` of two repositories, `kivgraph` and `go-svc-e`.
 | `snapshot_built_at` | When that generation was built. |
 | `snapshot_age_ms` | How long ago, in milliseconds. This is the number that says whether an answer is minutes or days old. |
 | `schema_version` | The canonical graph schema the generation was written with. |
-| `schema_version_expected` | The canonical schema this binary builds. Present only when it differs. |
+| `schema_version_expected` | The canonical schema this binary builds. Present whenever a generation is published, whether or not it equals `schema_version`. |
 | `schema_outdated` | The comparison between the two above, stated rather than left for the reader to make. |
 | `resolver_version` | The resolver that produced its edges. |
 | `snapshot_row_format_version` | The format version of the hot snapshot itself, as distinct from the graph schema it was derived from. |
@@ -214,8 +214,7 @@ about to be told is stale.
 | `indexed_commit` equals `current_commit` | The graph describes the tree on disk. Paths and line ranges are current. |
 | `indexed_commit` differs from `current_commit` | The graph is behind the working tree. `moved` is `true` and `moved_detail` names both commits. Line numbers may be wrong and symbols may be gone. |
 | `indexed_dirty` is `true` | The tree had uncommitted changes when it was indexed, so the commit alone does not identify what was read. |
-| `moved` is `true` and `path` no longer exists | The registered directory is gone. Nothing under it can be read. |
-| `current_commit` absent | HEAD could not be read. `moved_detail` carries the reason. |
+| `current_commit` absent | HEAD could not be read. `moved` stays `false` and `moved_detail` carries the reason. |
 
 `repositories_moved` counts the rows that left their indexed commit. A
 repository whose HEAD could not be read is not one of them and is not counted as
