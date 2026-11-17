@@ -753,6 +753,11 @@ func (cache *factCache) describeInputs(
 			}
 			add(inputFile, packageConfig)
 		}
+		if unit.language == facts.LanguageDart {
+			for _, provider := range dartProviderRoots(unit, options, result.composed) {
+				add(inputTree, provider)
+			}
+		}
 		add(inputRegistry, semanticRegistryInput)
 		return described
 	}
@@ -974,9 +979,10 @@ var semanticRegistryLanguages = map[string]bool{
 // all of them, at the cost of analysing every semantic repository again when any of
 // them changes.
 //
-// Known gap: only repositories that declare a semantic language are in it, and the
-// Dart loader looks at all of them. A provider registered under no semantic language
-// can change without its consumers being analysed again.
+// Only repositories that declare a semantic language are in it, and the Dart loader
+// looks at all of them: a Dart unit also takes the trees of the registered
+// repositories its package config reaches among its own inputs, whatever language
+// they were registered under (dartProviderRoots).
 func semanticRegistryName(trees *fingerprintMemo, repositories []workspace.Repository) string {
 	entries := make([]string, 0)
 	for _, repository := range repositories {

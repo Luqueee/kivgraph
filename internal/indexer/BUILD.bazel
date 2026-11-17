@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "analyzer_parts.go",
         "factcache.go",
+        "factcache_dart.go",
         "factcache_retain.go",
         "full.go",
         "rust_unit.go",

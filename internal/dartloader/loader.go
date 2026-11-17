@@ -1950,6 +1950,21 @@ func dartPackageRoots(root, configured string, includeExternal bool) []string {
 	return roots
 }
 
+// PackageRoots lists the roots of the packages a repository's package config names,
+// other than the repository itself, that exist on disk. The analysis server reads
+// the files of every one of them whether or not the loader publishes their symbols,
+// so they are what a repository can depend on besides its own sources.
+func PackageRoots(root, configured string) []string {
+	own := filepath.Clean(root)
+	roots := make([]string, 0)
+	for _, entry := range dartPackageEntries(root, configured) {
+		if entry.Root != own {
+			roots = append(roots, entry.Root)
+		}
+	}
+	return roots
+}
+
 type dartPackageEntry struct {
 	Name string
 	Root string

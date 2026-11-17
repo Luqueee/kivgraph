@@ -2,10 +2,12 @@ package dartloader
 
 import (
 	"context"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -405,5 +407,55 @@ func TestSDKRootResolvesConfiguredDart(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(root, "lib")); err != nil {
 		t.Fatalf("SDK root %q has no lib directory: %v", root, err)
+	}
+}
+
+// The roots of the packages a repository reads besides itself, from its package
+// config: what the analysis server can open, so what a repository can depend on.
+func TestPackageRootsListsTheOtherPackagesThatExist(t *testing.T) {
+	base := t.TempDir()
+	for _, directory := range []string{"consumer", "provider", "other"} {
+		if err := os.MkdirAll(filepath.Join(base, directory), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	consumer := filepath.Join(base, "consumer")
+	writeConfig := func(path, content string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Itself, one that exists twice, one that does not exist and one by file URI.
+	automatic := `{"configVersion": 2, "packages": [
+		{"name": "consumer", "rootUri": "../"},
+		{"name": "provider", "rootUri": "../../provider"},
+		{"name": "provider_again", "rootUri": "../../provider/"},
+		{"name": "missing", "rootUri": "../../missing"},
+		{"name": "other", "rootUri": "` + (&url.URL{Scheme: "file", Path: filepath.Join(base, "other")}).String() + `"}
+	]}`
+	writeConfig(filepath.Join(consumer, ".dart_tool", "package_config.json"), automatic)
+
+	want := []string{filepath.Join(base, "other"), filepath.Join(base, "provider")}
+	for _, configured := range []string{"", "auto"} {
+		if got := PackageRoots(consumer, configured); !slices.Equal(got, want) {
+			t.Errorf("PackageRoots(configured=%q) = %q, want %q", configured, got, want)
+		}
+	}
+
+	// A configured path is relative to the repository, and one that is not a package
+	// config names no packages.
+	writeConfig(filepath.Join(consumer, "custom", "config.json"), `{"packages": [{"name": "provider", "rootUri": "../../provider"}]}`)
+	if got, want := PackageRoots(consumer, filepath.Join("custom", "config.json")), []string{filepath.Join(base, "provider")}; !slices.Equal(got, want) {
+		t.Errorf("PackageRoots(custom config) = %q, want %q", got, want)
+	}
+	writeConfig(filepath.Join(consumer, "broken.json"), "not json")
+	for name, configured := range map[string]string{"malformed": "broken.json", "absent": "nothing.json"} {
+		if got := PackageRoots(consumer, configured); len(got) != 0 {
+			t.Errorf("PackageRoots(%s config) = %q, want none", name, got)
+		}
 	}
 }

@@ -283,3 +283,43 @@ growth was `25` entries and `164 MB` per bump. The price is that going back to a
 version older than the six most recent resolutions is a miss: restoring the
 original version after eight bumps took `20.4 s` where, after three bumps and
 without the cap, it was a hit at `7.8 s`.
+
+## Amendment: a Dart unit takes the trees its package config reaches
+
+The semantic registry digests the tree of every repository that declares a semantic
+language, which is what stops a Dart consumer from being served facts its provider
+has outgrown: the loader is handed every registered repository as a provider, reads
+the file a reference lands in, and the facts of the consumer name its symbols. The
+registry knows only the repositories of a semantic language, so a provider
+registered under another one could change, or be registered after the consumer was
+analysed, without the consumer's entry noticing. Measured with the provider
+registered as Rust, after it renamed `addOne` to `addTwo` the consumer was served
+with `addOne`; and with the provider registered after the consumer, the consumer
+kept no destination into it.
+
+A Dart unit now also takes among its inputs the tree of every registered repository
+that holds a package its package config names, which is all the analysis server can
+open besides the repository itself, whatever language it was registered under, and
+that of every repository its facts name a target in. The first are known before the
+unit is analysed and are part of its address, so a provider that is registered is
+another address; the second are recorded with the entry and checked when it is
+served. A directory that only shares its first characters with a repository's root
+is not inside it, and a package reached through a link is the repository it points
+into.
+
+Measured on a consumer, a provider registered as Rust and an unrelated Go
+repository: editing the Go repository still serves the consumer (`hits=2 misses=1`),
+renaming the symbol analyses it again and it sees `addTwo` (`hits=2 misses=1`), and
+registering the provider afterwards analyses it again and it sees `addOne`.
+Registering a digest of every repository in the registry instead closes the gap too,
+and analyses the three units again on the edit of the unrelated one (`hits=0
+misses=3`). A consumer that imports a file of another repository by a relative path
+that leaves its package got no resolved reference from the analysis server
+(`references=0`), so nothing depends on it; that may change with another SDK.
+
+The digest of the registry is not removed. A Python unit with pyright, a Java
+and a C# unit can read a sibling through the environment, which nothing here
+can see. For Dart alone, the registry could name only the repositories and
+leave their content to these inputs, which on a consumer, its provider and an
+unrelated Dart repository left the unrelated edit analysing one unit instead
+of three; that is not done here.
