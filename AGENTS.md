@@ -142,7 +142,9 @@ que nombra un lenguaje (`--type rust`) sigue siendo una búsqueda sobre código.
 Todo fallo de la puerta es un permiso, y un permiso no escribe nada: en ese
 contrato un `allow` explícito se salta la petición de permiso del agente.
 
-Para saltársela una vez: `KIVGRAPH_DISABLE_HOOK=1` delante del comando.
+Para saltársela una vez: `KIVGRAPH_DISABLE_HOOK=1` delante del comando. Una
+llamada de las tools nativas (`Grep`, `Glob`, un subagente) no tiene comando, y
+para ellas la negativa dice que el usuario arranque la sesión con la variable.
 
 Los envoltorios de salida `rtk rg ...` y `rtk proxy rg ...` se clasifican por
 el comando interior. `rtk gain` y los demás comandos propios de RTK no se

@@ -181,7 +181,7 @@ func (gate Gate) denyResearchAgent(question Question) Decision {
 		"  find_by_intent(intent=" + quote(intent) + ")   which symbols that names",
 		"  find_references(name=\"…\")                    who calls one of them",
 		"Dispatch the subagent only after the graph could not answer.",
-		escapeLine,
+		escapeFor(question),
 	}, "\n")}
 }
 
@@ -194,7 +194,7 @@ func (gate Gate) decideFiles(question Question) Decision {
 		fmt.Sprintf("STOP: %q lists indexed source files one path at a time.", question.Pattern),
 		"  find_by_intent(intent=\"…\")        which files answer the question you have",
 		"  get_file_outline(path=\"…\")        what one of them declares, without reading it",
-		escapeLine,
+		escapeFor(question),
 	}, "\n")}
 }
 
@@ -215,14 +215,15 @@ func (gate Gate) decideSymbol(ctx context.Context, question Question) Decision {
 	if facts.Declarations < ambiguousAt {
 		return Allow
 	}
-	return denySymbol(question.Pattern, facts, fmt.Sprintf(
+	return denySymbol(question, facts, fmt.Sprintf(
 		"has %d declarations in %d %s, and a text search cannot tell them apart",
 		facts.Declarations, facts.Repositories,
 		plural(facts.Repositories, "repository", "repositories")))
 }
 
 // denySymbol builds the refusal for a name the graph answers better.
-func denySymbol(name string, facts Facts, because string) Decision {
+func denySymbol(question Question, facts Facts, because string) Decision {
+	name := question.Pattern
 	lines := []string{
 		fmt.Sprintf("STOP: %s %s.", quote(name), because),
 		"  find_references(name=" + quote(name) + ")      who calls it",
@@ -234,7 +235,7 @@ func denySymbol(name string, facts Facts, because string) Decision {
 			lines = append(lines, "  "+row)
 		}
 	}
-	return Decision{Deny: true, Reason: strings.Join(append(lines, escapeLine), "\n")}
+	return Decision{Deny: true, Reason: strings.Join(append(lines, escapeFor(question)), "\n")}
 }
 
 // decideIntent answers a pattern that gropes for a name.
@@ -262,7 +263,7 @@ func (gate Gate) decideIntent(ctx context.Context, question Question) Decision {
 			lines = append(lines, "  "+row)
 		}
 	}
-	return Decision{Deny: true, Reason: strings.Join(append(lines, escapeLine), "\n")}
+	return Decision{Deny: true, Reason: strings.Join(append(lines, escapeFor(question)), "\n")}
 }
 
 // ask puts one question to the graph, and reports whether it answered.
@@ -285,6 +286,20 @@ func (gate Gate) ask(ctx context.Context, subject string,
 
 // escapeLine tells the caller how to insist.
 const escapeLine = "To run this one anyway: " + DisableVariable + "=1 before the command."
+
+// nativeEscapeLine is the same for a call that has no command to put a variable
+// before. The hook process reads the variable from its own environment, so the
+// only way to insist is the one that environment allows: the session has to have
+// been started with it, which is the user's to do and not the agent's.
+const nativeEscapeLine = "To run this one anyway there is no command to prefix: ask the user to start the session with " + DisableVariable + "=1."
+
+// escapeFor picks the line that tells the caller how to insist.
+func escapeFor(question Question) string {
+	if question.Native {
+		return nativeEscapeLine
+	}
+	return escapeLine
+}
 
 // IndexedExtensions builds an Indexed function from the languages a
 // configuration names.

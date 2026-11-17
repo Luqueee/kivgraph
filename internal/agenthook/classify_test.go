@@ -111,12 +111,12 @@ func TestClassifyReadsTheQuestionOutOfTheCall(t *testing.T) {
 			Question{Kind: KindSymbol, Pattern: "Indexer_new", Paths: []string{}, Tool: "rg"}},
 		{"a qualified name", "Grep",
 			grepInput{Pattern: "graph.NewServer"},
-			Question{Kind: KindSymbol, Pattern: "graph.NewServer", Tool: "grep"}},
+			Question{Kind: KindSymbol, Pattern: "graph.NewServer", Tool: "grep", Native: true}},
 		{"a name the caller cannot spell", "Grep",
 			grepInput{Pattern: "New.*Server", Glob: "*.go"},
-			Question{Kind: KindIntent, Pattern: "New.*Server", Paths: []string{"*.go"}, Tool: "grep"}},
+			Question{Kind: KindIntent, Pattern: "New.*Server", Paths: []string{"*.go"}, Tool: "grep", Native: true}},
 		{"four lowercase concepts", "Grep", grepInput{Pattern: "http|route|handler|serve"},
-			Question{Kind: KindIntent, Pattern: "http|route|handler|serve", Tool: "grep"}},
+			Question{Kind: KindIntent, Pattern: "http|route|handler|serve", Tool: "grep", Native: true}},
 		{"broad lowercase concepts from a natural-language task", "Bash",
 			bashInput{Command: `rg -l -i 'http|route|handler|listen|serve' --glob '*.go' --glob '*.md'`},
 			Question{Kind: KindIntent, Pattern: "http|route|handler|listen|serve", Paths: []string{}, Tool: "rg"}},
@@ -130,7 +130,7 @@ func TestClassifyReadsTheQuestionOutOfTheCall(t *testing.T) {
 			Question{Kind: KindSymbol, Pattern: "NewServer", Paths: []string{"internal"}, Tool: "rg"}},
 		{"a glob over sources", "Glob",
 			globInput{Pattern: "**/*.go"},
-			Question{Kind: KindFiles, Pattern: "**/*.go", Paths: []string{"**/*.go"}, Tool: "glob"}},
+			Question{Kind: KindFiles, Pattern: "**/*.go", Paths: []string{"**/*.go"}, Tool: "glob", Native: true}},
 		{"rg file listing with a source glob", "Bash",
 			bashInput{Command: `rg --files -g '*.go' internal | sort`},
 			Question{Kind: KindFiles, Pattern: "*.go", Paths: []string{"internal", "*.go"}, Tool: "rg"}},
@@ -148,7 +148,7 @@ func TestClassifyReadsTheQuestionOutOfTheCall(t *testing.T) {
 			Question{Kind: KindFiles, Pattern: "*.go", Paths: []string{".", "*.go"}, Tool: "find"}},
 		{"a research subagent", "Task",
 			agentInput{SubagentType: "Explore", Description: "find where indexing happens"},
-			Question{Kind: KindResearchAgent, Pattern: "find where indexing happens", Tool: "agent"}},
+			Question{Kind: KindResearchAgent, Pattern: "find where indexing happens", Tool: "agent", Native: true}},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			got := Classify(payloadOf(t, testCase.tool, testCase.input))
@@ -185,7 +185,7 @@ func TestClassifyReadsEveryDialectsSpelling(t *testing.T) {
 	}
 	for _, tool := range []string{"Task", "Agent", "task"} {
 		input := agentInput{SubagentType: "explore", Description: "map the indexer"}
-		want := Question{Kind: KindResearchAgent, Pattern: "map the indexer", Tool: "agent"}
+		want := Question{Kind: KindResearchAgent, Pattern: "map the indexer", Tool: "agent", Native: true}
 		got := Classify(payloadOf(t, tool, input))
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("tool=%q input=%#v classified as %#v, want %#v", tool, input, got, want)
