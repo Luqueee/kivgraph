@@ -16,7 +16,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	sdkauth "github.com/modelcontextprotocol/go-sdk/auth"
@@ -284,7 +283,8 @@ func ListenHTTP(options Options, httpOptions HTTPOptions) (*HTTPServer, error) {
 		}
 		if httpOptions.OnWarning != nil {
 			httpOptions.OnWarning(fmt.Sprintf(
-				"serving the graph on %s, which is not loopback: names, paths and source metadata leave this host", address))
+				"serving the graph on %s, which is not loopback: names, paths and source metadata leave this host", address,
+			))
 		}
 	}
 
@@ -316,7 +316,7 @@ func ListenHTTP(options Options, httpOptions HTTPOptions) (*HTTPServer, error) {
 		})
 	}
 	err = bind()
-	if err != nil && automaticPort && errors.Is(err, syscall.EADDRINUSE) {
+	if err != nil && automaticPort && isAddressInUse(err) {
 		// The historical port is a preference, not an identity. Bind port zero
 		// only after the preferred port is unavailable, then persist the result
 		// so the URL remains stable for every later supervisor restart.
@@ -463,7 +463,8 @@ func mcpHandler(options Options, token string) http.Handler {
 	handler := sdkmcp.NewStreamableHTTPHandler(func(*http.Request) *sdkmcp.Server {
 		return kivmcp.NewServerWithMetricsAndSnapshotStoreAndIndexerOptions(
 			options.Registry, options.SnapshotStore, options.Indexer,
-			kivmcp.ServerOptions{IndexJobs: options.IndexJobs})
+			kivmcp.ServerOptions{IndexJobs: options.IndexJobs},
+		)
 	}, &sdkmcp.StreamableHTTPOptions{CrossOriginProtection: crossOrigin})
 
 	// The comparison is constant-time, and no test in this package proves it:
