@@ -316,6 +316,36 @@ func TestDiscoverGoKeepsModulesThatLiveInsideTestdata(t *testing.T) {
 	}
 }
 
+// A go.mod the go tool is never going to read -- one below testdata, or below a
+// directory that begins with "_" or "." -- may be a fixture that is malformed on
+// purpose, and it must not stop the index of the repository around it. The same
+// manifest anywhere else is the repository's own, and is still an error.
+func TestDiscoverGoSkipsAManifestThatIsMalformedWhereTheGoToolNeverLooks(t *testing.T) {
+	for _, hidden := range []string{"testdata/broken", "kept/testdata/broken", "_scratch/broken", ".cache/broken"} {
+		root := testsupport.TempDir(t)
+		writeGoDiscoveryFile(t, filepath.Join(root, "go.mod"), "module example.com/root\n\ngo 1.24\n")
+		writeGoDiscoveryFile(t, filepath.Join(root, "main.go"), "package main\n")
+		writeGoDiscoveryFile(t, filepath.Join(root, filepath.FromSlash(hidden), "go.mod"), "module\n")
+		discovery, err := DiscoverGo(context.Background(), Repository{RealPath: root})
+		if err != nil {
+			t.Errorf("%s: DiscoverGo() error = %v, want the fixture left alone", hidden, err)
+			continue
+		}
+		if len(discovery.Modules) != 1 || discovery.Modules[0].ModulePath != "example.com/root" {
+			t.Errorf("%s: Modules = %#v, want only the root module", hidden, discovery.Modules)
+		}
+	}
+
+	for _, visible := range []string{"broken", "kept/broken", "testdata2/broken"} {
+		root := testsupport.TempDir(t)
+		writeGoDiscoveryFile(t, filepath.Join(root, "go.mod"), "module example.com/root\n\ngo 1.24\n")
+		writeGoDiscoveryFile(t, filepath.Join(root, filepath.FromSlash(visible), "go.mod"), "module\n")
+		if _, err := DiscoverGo(context.Background(), Repository{RealPath: root}); err == nil || !strings.Contains(err.Error(), "parse go.mod") {
+			t.Errorf("%s: DiscoverGo() error = %v, want the repository's own malformed manifest reported", visible, err)
+		}
+	}
+}
+
 // Packages outside any module are judged from the repository root, the only
 // root there is.
 func TestDiscoverGoIgnoresTestdataInATreeWithoutAModule(t *testing.T) {

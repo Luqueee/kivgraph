@@ -54,6 +54,14 @@ func DiscoverGo(ctx context.Context, repository Repository) (GoDiscovery, error)
 		case "go.mod":
 			parsed, err := parseGoModule(filePath, root)
 			if err != nil {
+				// Below testdata, or a directory the go tool skips by name, a
+				// manifest is a fixture and may be malformed on purpose. It is
+				// still a module when it parses, which is what lets a go.mod
+				// replace a dependency with one; when it does not, nothing
+				// the go tool builds can reach it.
+				if isOutsideModulePackages(root, filepath.Dir(filePath)) {
+					return nil
+				}
 				return fmt.Errorf("parse module manifest %q: %w", filePath, err)
 			}
 			modules[parsed.module.ManifestPath] = parsed.module
