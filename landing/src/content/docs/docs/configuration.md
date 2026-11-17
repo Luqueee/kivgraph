@@ -110,10 +110,66 @@ reference. Accepting another word would promise behaviour no code implements.
 | Key | Default | Notes |
 | --- | --- | --- |
 | `synthetic_work_file` | `~/.local/state/kivgraph/go.work` | The synthetic workspace, outside every indexed repository. |
-| `include_tests` | `false` | |
+| `include_tests` | `false` | Whether the Go tests are indexed. Tests are recognised by path (`_test.go`), so `kivgraph impact` lists a Go test among the affected symbols only when this is `true`. |
+| `goos` | *(empty)* | The build platform's operating system, passed to every Go load as `GOOS`. Empty uses the platform of the configured Go toolchain. |
+| `goarch` | *(empty)* | The build platform's architecture, passed to every Go load as `GOARCH`. Empty uses the platform of the configured Go toolchain. |
+| `cgo_enabled` | *(unset)* | When set, passed to every Go load as `CGO_ENABLED`: `true` is `1` and `false` is `0`. Unset leaves the variable as the process environment has it. |
 | `build_tags` | *(empty)* | The constraints every Go load satisfies. No tag may be empty or contain a comma or whitespace. Indexing the Kivgraph repository itself requires `ladybug`. |
 | `allow_network` | `false` | The one declared escape from a hermetic pass: lets the go command reach a module proxy. |
 | `maximum_loads` | `0` | Bounds concurrent Go loads; each holds a complete type universe. `0` uses the processor count, capped. Must not be negative. |
+
+## `python`
+
+| Key | Default | Notes |
+| --- | --- | --- |
+| `indexer_command` | `kivgraph-python-worker` | Must not be empty. |
+| `analyzer_command` | `kivgraph-python-pyright` | Must not be empty. An optional type-aware producer that must emit the versioned semantic payload Kivgraph understands. |
+| `analyzer_mode` | `fallback` | `fallback` or `exact`. In `fallback` the bundled AST worker is the fallback. |
+| `maximum_workers` | `3` | Must be positive. |
+| `python_path` | `python3` | Must not be empty. |
+| `include_tests` | `false` | |
+| `include_generated` | `false` | |
+| `include_external_packages` | `false` | |
+
+## `dart`
+
+| Key | Default | Notes |
+| --- | --- | --- |
+| `analyzer_command` | `dart` | Must not be empty. The default resolves through the `PATH`, so the fact cache fingerprint identifies the SDK it finds. |
+| `maximum_workers` | `2` | Must be positive. |
+| `sdk_path` | `dart` | Must not be empty. |
+| `include_tests` | `false` | |
+| `include_generated` | `false` | |
+| `include_external_packages` | `false` | Adds the packages the package config resolves as provider repositories of their own, so references into them have a target. Off, the registered repository is the only unit and package-cache source never enters the graph. |
+| `include_sdk` | `false` | Publishes the Dart SDK itself. |
+| `package_config` | `auto` | Must not be empty. `auto` uses `.dart_tool/package_config.json`. |
+| `wait_for_analysis` | `true` | |
+| `maximum_analysis_time` | `5m` | A Go duration string; must be positive. |
+
+## `java`
+
+| Key | Default | Notes |
+| --- | --- | --- |
+| `indexer_command` | `scip-java` | Must not be empty. Java is indexed by building it: `scip-java` drives the repository's own build tool. |
+| `build_tool` | *(empty)* | Empty lets `scip-java` detect Maven, Gradle, sbt and mill on its own; name one for a repository that carries two. Accepts `maven`, `gradle`, `sbt`, `mill` or `bazel`. |
+| `maximum_workers` | `1` | Must be positive. |
+| `include_tests` | `false` | |
+| `include_generated` | `false` | |
+| `target_directory` | `~/.local/state/kivgraph/java-target` | Where the indexer writes its SemanticDB output and its index, outside every indexed repository. Must be absolute after expansion. |
+| `maximum_index_time` | `20m` | A Go duration string; must be positive. |
+
+## `csharp`
+
+| Key | Default | Notes |
+| --- | --- | --- |
+| `indexer_command` | `scip-dotnet` | Must not be empty. C# is indexed by building it: `scip-dotnet` runs `dotnet restore` and drives Roslyn. |
+| `project` | *(empty)* | The `.sln` or `.csproj` to index. Empty discovers one, and a solution wins over a project. |
+| `maximum_workers` | `1` | Must be positive. |
+| `include_tests` | `false` | |
+| `include_generated` | `false` | |
+| `skip_restore` | `false` | An index built without a restore loses every symbol that comes from a package. |
+| `target_directory` | `~/.local/state/kivgraph/csharp-target` | Where the indexer writes its output, outside every indexed repository. Must be absolute after expansion. |
+| `maximum_index_time` | `20m` | A Go duration string; must be positive. |
 
 ## `rust`
 
@@ -201,7 +257,7 @@ isolated configuration write into the real installation.
 | --- | --- |
 | `name` | The identifier. Compared exactly, case included, and carried inside stable keys. |
 | `path` | Absolute path to the checkout. |
-| `languages` | Any of `go`, `typescript`, `rust`. Validated when the registry is written, not only when a pass runs. |
+| `languages` | At least one of `go`, `typescript`, `javascript`, `ts`, `js`, `rust`, `rs`, `python`, `py`, `dart`, `java`, `csharp`, `cs`. Compared without regard to case or surrounding space; a duplicate is refused. Validated when the registry is written, not only when a pass runs. |
 | `manifests` | Optional. Explicit manifest paths. |
 | `roots` | Optional. Explicit analysis roots. |
 | `exclusions` | Optional. Directories the discovery never walks, and therefore never analyses. |

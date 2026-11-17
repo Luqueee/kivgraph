@@ -14,6 +14,7 @@ someone who mistyped one word.
 | Invocation | Summary |
 | --- | --- |
 | `init [--repository NAME=PATH] [--languages LIST]` | Write the configuration and register repositories |
+| `index [--config PATH] [--repositories PATH] [--json]` | Detect the current project languages and publish a local full index |
 | `index --full [--profile NAME] [--json]` | Index every repository in one profile and publish a generation |
 | `serve [--introspection]` | Run the MCP server over stdio |
 | `daemon [--addr HOST:PORT] [--allow-remote]` | Serve MCP to many clients from one process, over HTTP and a unix socket |
@@ -21,6 +22,18 @@ someone who mistyped one word.
 | `daemon remove` | Stop the daemon and take its supervisor entry out |
 | `ui [--addr HOST:PORT] [--profile NAME]` | Serve every profile in the read-only graph viewer, or pin one by name |
 | `stop [--dry-run]` | Stop every running serve, daemon and ui of this user |
+
+`index` without `--full` indexes the project the shell is standing in. It
+resolves the nearest containing Git repository as the project root, or uses the
+current directory when there is none, detects the supported languages from
+source extensions and project manifests, creates or reuses
+`.kivgraph/config.yaml` and `.kivgraph/repositories.yaml` in that project, adds
+or updates a repository named `project` there, and runs the same complete
+rebuild as `index --full`. The shared user registry is not touched. An entry
+that already exists keeps its manifests, roots and exclusions; only its
+languages are updated. A project in which no supported language is detected is
+an error and publishes nothing. With `--json`, `stdout` carries only the event
+stream and the detection messages go to `stderr`. See ADR 0086.
 
 ## Profiles
 
@@ -37,6 +50,10 @@ its repository registry, fact cache, canonical database and generations.
 published profile by default and represents every emitted relationship through
 semantic groups with occurrence totals; `--profile` pins the viewer to one
 profile.
+
+The help has no group of its own for these commands: it lists `profile create`,
+`profile list` and `profile use` under Getting started and `profile remove`
+under Maintenance.
 
 ## Toolchains
 
@@ -63,10 +80,55 @@ updating only the Python analyzer settings in the selected configuration.
 | `graph status --root PATH` | Report the active and backup generations |
 | `daemon status` | Report whether the daemon has an owner, and where its unit lives |
 | `stats [--interval D] [--once] [--json]` | Watch what every kivgraph process on this machine costs |
-| `logs [OPTIONS]` | Read query history and neutral `NOT_FOUND` results |
+| `logs [--follow] [--kind K] [--since D] [--json]` | Read what this machine indexed, served and answered |
 | `tool-stats [--tool NAME] [--since D] [--json]` | Report the cost and the failures of every tool |
-| `impact --base REF [--depth N] [--limit N] [--json]` | Show what a diff reaches: the symbols it touches, what depends on them, and the tests |
+| `impact --base REF [--depth N] [--max-nodes N] [--limit N] [--allow-stale] [--json]` | Show what a diff reaches: the symbols it touches, what depends on them, and the tests |
 | `version [--json]` | Print the release, with --json for full provenance |
+
+`logs` shows the newest `200` records by default. Beyond the flags in its row
+it takes `--limit N`, `--tool NAME`, `--failures` to keep only what did not
+answer, and `--config PATH`. `--kind` accepts a comma-separated list of
+`serve`, `tool` and `index`.
+
+### What a diff reaches
+
+`impact --base REF` reads `git diff --unified=0 REF` against the working tree,
+plus the untracked files git does not ignore, and maps each run of changed
+lines onto the innermost symbol that holds it: a hunk inside a method touches
+the method, not its type, and a hunk across two methods touches both. It then
+runs one traversal from all the touched symbols with the bounds, edge kinds and
+withheld kinds of [`get_blast_radius`](/docs/tools/get-blast-radius/):
+`--depth` defaults to `3` and accepts `1` to `5`, `--max-nodes` defaults to
+`5000` and accepts `1` to `25000`, and `field` and `variable` symbols are left
+out. A symbol that depends on several touched ones is counted once, and a
+touched symbol is never reported as affected.
+
+The affected symbols are split in two. Tests are listed apart, grouped by file
+(`by_test_file` with `--json`); the rest is `production`, capped by `--limit`
+(default `50`) with the whole count kept. `--json` writes the report together
+with `base`, `base_commit` and `freshness`. `--config PATH` reads that
+configuration instead of the project's `.kivgraph/config.yaml` or the default
+one.
+
+It reads the graph the last index published and does not index. Its limits:
+
+- A graph older than the working tree refuses to answer, because the changed
+  lines would land on the wrong symbols. Run `kivgraph index` first, or pass
+  `--allow-stale` to answer anyway with a warning. A graph whose freshness
+  could not be established answers with a warning.
+- Tests are recognised by path convention, because the graph carries no test
+  flag: `_test.go`, `_test.py`, `_test.dart`, `test_*.py`, `conftest.py`,
+  `*.test.*` and `*.spec.*`, Java and C# files whose name ends in `Test` or
+  `Tests`, and a `test`, `tests`, `__tests__`, `spec` or `specs` directory. Go
+  tests therefore appear only with `go.include_tests: true`, and a Rust test
+  module inside a source file is not seen.
+- A removed symbol is not in a graph built from the new tree, so a deleted
+  file is reported under `not_indexed` and not mapped.
+- `not_indexed` also lists the changed tracked files the graph holds no record
+  of, and `no_symbol` the changed lines no symbol holds, such as a comment or
+  an import. Untracked files that are not in the graph are not reported.
+- A ref that names no commit is refused, and so is a checkout that is not a
+  registered repository.
 
 ## Maintenance
 
@@ -76,19 +138,44 @@ updating only the Python analyzer settings in the selected configuration.
 | `clean [--keep-active] [--yes]` | Remove published graph generations |
 | `rollback --root PATH [--generation ID]` | Return to the previous generation |
 | `snapshot --root PATH [--generation ID]` | Rebuild the hot snapshot of a generation |
-| `update [--check] [--stop]` | Install the latest release and refresh managed runtime integrations |
+| `update [--check] [--channel stable\|dev] [--stop]` | Install the latest release from a selected channel |
+
+`update --channel` selects the release stream, `stable` or `dev`. Without the
+flag it reads `KIVGRAPH_UPDATE_CHANNEL`, and with neither it follows the
+installed version: a prerelease binary stays on `dev` and a stable one on
+`stable`. The development channel offers only prereleases, so going back from
+a development build to stable releases is `kivgraph update --channel stable`.
 
 ## Integrations
 
 | Invocation | Summary |
 | --- | --- |
+| `configure [--target TARGET]... [--daemon] [--stdio] [--dry-run] [--force]` | Configure MCP, skills, hooks, daemon and user instructions |
 | `mcp install [--scope user\|project] [--stdio]` | Detect and register one or more MCP clients, against the daemon by default |
 | `mcp status --target TARGET [--scope user\|project] [--stdio]` | Inspect a client MCP registration |
 | `mcp remove --target TARGET [--scope user\|project] [--stdio]` | Remove only Kivgraph's MCP registration |
 | `skill install [--scope user\|project]` | Detect and install the Agent Skill in one or more clients |
 | `skill status --target TARGET [--scope user\|project]` | Inspect the installed Agent Skill |
 | `skill remove --target TARGET [--scope user\|project]` | Remove only Kivgraph's Agent Skill |
+| `hook install [--scope user\|project]` | Detect and install the pre-tool-use gate in one or more clients |
+| `hook status --target TARGET [--scope user\|project]` | Inspect the installed pre-tool-use gate |
+| `hook remove --target TARGET [--scope user\|project]` | Remove only Kivgraph's pre-tool-use gate |
+| `instructions install [--agent AGENT] [--file AGENTS.md\|CLAUDE.md\|.omp/AGENTS.md] [--dry-run] [--force]` | Add Kivgraph instructions to a user agent context file |
 | `completion bash\|zsh\|fish` | Print the shell completion script for one shell |
+
+`configure` is the guided setup the installer offers. For each selected client
+it registers the MCP server, installs the Agent Skill and the pre-tool-use gate
+where the client supports them, and adds the user instructions, all in user
+scope. It writes the empty Kivgraph configuration when there is none, and it
+neither registers a repository nor indexes. `--target` is repeatable and skips
+the selector, `--stdio` writes per-client `serve` entries instead of using the
+daemon, `--daemon` requires and installs the supervised daemon without asking,
+`--dry-run` shows the changes without writing and `--force` replaces all
+Kivgraph-owned entries. `--stdio` and `--daemon` cannot be combined.
+
+`instructions install` writes a managed block into a user context file. Without
+`--agent` it asks which clients to write for. `--file` is the deprecated
+selector and cannot be combined with `--agent`.
 
 ### Shell completion
 

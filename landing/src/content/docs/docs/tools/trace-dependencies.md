@@ -15,7 +15,7 @@ description: Bounded outgoing traversal from one symbol, with the edge each reac
 | `depth` | integer | `3` | How many hops the walk may take. Must be between 1 and 5. |
 | `edge_kinds` | array of string | none, meaning every reference kind | Gates which relations the traversal may follow, so it also changes what is reachable. Accepted: `IMPORTS_SYMBOL`, `EXPORTS`, `REEXPORTS`, `REFERENCES`, `CALLS_DIRECT`, `PASSES_AS_CALLBACK`, `ASSIGNS_FUNCTION`, `RETURNS_FUNCTION`, `TYPE_USES`, `IMPLEMENTS`, `EXTENDS`, `EMBEDS`, `OVERRIDES`. Containment and package kinds are rejected. Duplicates collapse; an empty or space-padded entry is rejected. |
 | `include_derived` | boolean | `false` | Includes rows from providers Kivgraph derives from the machine, which take the `rust:` namespace, such as a Rust toolchain's standard library. Naming one of them in `repo` has the same effect. |
-| `language` | string | none | Selects which reached symbols are returned: `go`, `typescript` or `rust`. It filters rows after reachability and never changes the walk. |
+| `language` | string | none | Selects which reached symbols are returned, by the language stored for the symbol: `go`, `typescript`, `rust`, `python`, `dart`, `java` or `csharp`. It is compared exactly, so the registry aliases such as `ts`, `rs`, `py` and `cs` match nothing. It filters rows after reachability and never changes the walk. Refused with `to`. |
 | `limit` | integer | `50` | Rows in this page. Must be between 1 and 500. |
 | `max_nodes` | integer | `5000` | Ceiling on how many symbols the walk may discover, the root included. The root's own members start the walk with it and do not count. Must be between 1 and 25000. Hitting it sets `traversal_truncated`. |
 | `path` | string | none | Repository-relative path narrowing `qualified_name`. Requires `repository`. Rejected together with `stable_key`. |
@@ -24,6 +24,8 @@ description: Bounded outgoing traversal from one symbol, with the edge each reac
 | `repository` | string | none | Repository of the symbol being asked about. Narrows `qualified_name`. |
 | `response_format` | string | `concise` | `concise` or `detailed`. Detailed adds the derived identifiers: `stable_key`, `file_key` and `reached_from_key` in the `full` view, and the stable key alone in the compact one, which is the only way a key reaches a compact row. Anything else is rejected with `INVALID_ARGUMENT`. |
 | `stable_key` | string | none | Names the starting symbol directly. Cannot be combined with `qualified_name`, `repository` or `path`. |
+| `to` | string | none | Qualified name of the symbol to reach. It changes the question: the answer is the route itself, one row per hop in order, in the `full` view. Cannot be combined with `repo`, `language`, `include_derived`, `limit`, `cursor` or `view: "compact"`, and requires exactly one named profile. |
+| `to_path` | string | none | Repository-relative file of the `to` symbol, to separate an ambiguous name. Requires `to`. |
 | `view` | string | `compact` | The granularity of the answer, never a different answer. `compact` lifts into a header what every reached symbol shares and groups the rows by file. `full` is the field-per-row shape. The answer is a set of reached symbols and not a set of files, so `files` is rejected with `INVALID_ARGUMENT`, as is any other value. |
 
 ## Answers

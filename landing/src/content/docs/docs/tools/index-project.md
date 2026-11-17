@@ -26,7 +26,7 @@ The accepted `languages` values are the supported language vocabulary, and
 nothing else:
 
 ```text
-go, typescript, javascript, ts, js, rust, rs
+go, typescript, javascript, ts, js, rust, rs, python, py, dart, java, csharp, cs
 ```
 
 Values are lowercased and trimmed. A duplicate in one entry, an empty string, or
