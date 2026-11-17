@@ -57,7 +57,16 @@ func (d *retainedDirectory) retain(keep int, admitted ...string) {
 	for _, path := range admitted {
 		protected[path] = struct{}{}
 	}
-	(&factCache{directory: d.directory, mode: CacheOn}).retain(keep, protected)
+	(&factCache{directory: d.directory, mode: CacheOn}).retain(keep, cacheEntriesPerUnitKept, protected)
+}
+
+func (d *retainedDirectory) retainCapped(keep, perUnit int, admitted ...string) {
+	d.t.Helper()
+	protected := make(map[string]struct{}, len(admitted))
+	for _, path := range admitted {
+		protected[path] = struct{}{}
+	}
+	(&factCache{directory: d.directory, mode: CacheOn}).retain(keep, perUnit, protected)
 }
 
 func (d *retainedDirectory) names() []string {
@@ -282,5 +291,87 @@ func TestFactCacheDoesNotGrowWithEveryEdit(t *testing.T) {
 	writeFullFixture(t, source, contents(1))
 	if report := index(); report.Hits != 0 || report.Misses != 1 {
 		t.Fatalf("going back to a version beyond what is kept cache = %+v, want a miss", report)
+	}
+}
+
+// Raising the version of a package changed the resolution of every unit that reads
+// the registry, and each old resolution kept its entries for thirty days: the
+// identity rule counts a resolution apart, so only a cap on the unit bounds how
+// many it can leave behind.
+func TestRetainCapsAUnitAcrossItsResolutions(t *testing.T) {
+	d := newRetainedDirectory(t)
+	type kept struct {
+		path string
+		want bool
+	}
+	var entries []kept
+	age := 8 // hours, so that the oldest of the eight is the first written
+	for _, resolution := range []string{"one", "two", "three", "four"} {
+		for range 2 {
+			path := d.write("typescript\x00pkg\x00resolution\x00"+resolution, time.Duration(age)*time.Hour)
+			entries = append(entries, kept{path: path, want: age <= cacheEntriesPerUnitKept})
+			age--
+		}
+	}
+	other := d.write("typescript\x00another\x00resolution\x00one", 100*time.Hour)
+	d.retain(cacheEntriesKept)
+	for index, entry := range entries {
+		if exists(entry.path) != entry.want {
+			t.Errorf("entry %d of eight of one unit: exists = %t, want %t", index, exists(entry.path), entry.want)
+		}
+	}
+	if !exists(other) {
+		t.Error("the cap on one unit removed an entry of another")
+	}
+}
+
+func TestRetainAppliesTheRuleOfAnIdentityBeforeTheCapOfTheUnit(t *testing.T) {
+	d := newRetainedDirectory(t)
+	var first, second []string
+	for index := range 5 {
+		first = append(first, d.write("typescript\x00pkg\x00resolution\x00a", time.Duration(10-index)*time.Hour))
+		second = append(second, d.write("typescript\x00pkg\x00resolution\x00b", time.Duration(10-index)*time.Hour))
+	}
+	d.retain(cacheEntriesKept)
+	for _, group := range [][]string{first, second} {
+		survivors := 0
+		for _, path := range group {
+			if exists(path) {
+				survivors++
+			}
+		}
+		if survivors != cacheEntriesKept {
+			t.Errorf("%d entries of one resolution survive, want the %d its identity keeps", survivors, cacheEntriesKept)
+		}
+	}
+}
+
+// A cap below what one identity keeps would undo that rule.
+func TestRetainNeverCapsAUnitBelowWhatOneIdentityKeeps(t *testing.T) {
+	d := newRetainedDirectory(t)
+	for index := range 4 {
+		d.write("typescript\x00pkg\x00resolution\x00a", time.Duration(4-index)*time.Hour)
+	}
+	d.retainCapped(3, 1)
+	if got := len(d.names()); got != 3 {
+		t.Fatalf("a cap of one left %d entries of one identity, want the 3 it keeps", got)
+	}
+}
+
+func TestRetainNeverRemovesAnAdmittedEntryToHonourTheCap(t *testing.T) {
+	d := newRetainedDirectory(t)
+	var paths []string
+	for index, resolution := range []string{"a", "b", "c", "d"} {
+		for range 2 {
+			paths = append(paths, d.write("typescript\x00pkg\x00resolution\x00"+resolution, time.Duration(100-index)*time.Hour))
+		}
+	}
+	// The pass admitted the oldest, whatever the clock says.
+	d.retain(cacheEntriesKept, paths[0])
+	if !exists(paths[0]) {
+		t.Fatal("an entry the pass admitted was removed by the cap of its unit")
+	}
+	if got := len(d.names()); got < cacheEntriesPerUnitKept || got > cacheEntriesPerUnitKept+1 {
+		t.Fatalf("%d entries of the unit survive, want the cap of %d and at most the admitted one besides", got, cacheEntriesPerUnitKept)
 	}
 }

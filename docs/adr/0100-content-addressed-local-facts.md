@@ -259,3 +259,27 @@ the content it had before the five edits is now a miss, where it was a hit, beca
 that entry is beyond the three kept: `14.1 s` instead of `9.2 s` on this corpus.
 Reading the headers of `5000` entries took `191 ms`, and of the corpus' `44` large
 ones `6 ms`.
+
+## Amendment: the cache caps the entries of a unit across resolutions
+
+The identity of a unit includes its resolution, the map of providers it was
+analysed against, and the TypeScript registry includes the version of every
+package. Raising the version of one package gave every TypeScript unit a new
+identity, and the rule of the previous amendment counts an identity apart, so each
+old identity kept its entries until age expired them. On the six-repository corpus
+each version bump added `25` entries and about `164 MB`: `433 MB` became `923 MB`
+after three bumps, with the same `34` units.
+
+After a pass admits entries, the cache now also keeps at most six entries of each
+unit, the unit being the identity without its resolution, counted across all of
+its resolutions and newest first. The rule of three per identity applies first.
+Six are two or three resolutions that are in use together, as the profiles that
+share a directory are, with two contents each. The cap is never below what one
+identity keeps, and the entries a pass has just admitted are not removed by it.
+
+With the change eight version bumps of the same package leave `161` entries and
+`1.11 GB`, a level the cache reached after the fifth bump, where the unbounded
+growth was `25` entries and `164 MB` per bump. The price is that going back to a
+version older than the six most recent resolutions is a miss: restoring the
+original version after eight bumps took `20.4 s` where, after three bumps and
+without the cap, it was a hit at `7.8 s`.

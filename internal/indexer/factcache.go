@@ -508,7 +508,7 @@ func (cache *factCache) commit() {
 		// Only a pass that wrote something can have left a unit with more entries
 		// than it keeps, and reading the headers of every entry is not free.
 		if len(admitted) != 0 {
-			cache.retain(cacheEntriesKept, admitted)
+			cache.retain(cacheEntriesKept, cacheEntriesPerUnitKept, admitted)
 		}
 	})
 }
@@ -637,7 +637,7 @@ func sourceIdentity(repository workspace.Repository) string {
 }
 
 func (cache *factCache) identity(unit analysisUnit) string {
-	return unitIdentity(unit) + "\x00resolution\x00" + cache.registryContext(unit)
+	return unitIdentity(unit) + cacheResolutionSeparator + cache.registryContext(unit)
 }
 
 func (cache *factCache) registryContext(unit analysisUnit) string {
