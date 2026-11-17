@@ -307,6 +307,25 @@ entrada del worker sin launcher, como
 entonces la palabra `facts`, que ese fichero no espera, y la huella de la
 caché de hechos sigue los módulos de su directorio `dist`.
 
+Límites de la huella de la caché de hechos con un worker propio, que no son
+fallos sino lo que no se mira:
+
+- Sin `dist/facts-cli.js` bajo el directorio de trabajo, el fallback usa
+  `pnpm --dir ts-worker facts`, que construye `dist` durante la pasada. La
+  primera pasada de un checkout sin `dist` falla una vez con
+  `analyzer configuration changed` y la segunda funciona: nunca sirve hechos
+  viejos, pero el mensaje no apunta a la causa. Ejecuta `pnpm --dir ts-worker
+  build` antes.
+- Un worker cuyo script no está en un directorio `dist`, o un launcher que
+  oculta su `dist`, se identifica sólo por sus propios bytes; un script `.cjs`,
+  `.cts`, `.mts` o `.ts` (también con `tsx`) no aporta ni sus bytes, ni `dist`,
+  ni el motor, y el contenido de un `--require` o `--import` no se mira. Con un
+  bundle basta: el binario cambia con el worker.
+- Si el binario de un demonio vivo se borra (gestor de paquetes, `rm`), el
+  demonio falla cinco veces al observar y al reindexar y desiste
+  (`gave up rebuilding a stale profile`) hasta que se reinicia; sustituirlo
+  converge solo.
+
 Comprueba el binario compilado con:
 
 ```bash

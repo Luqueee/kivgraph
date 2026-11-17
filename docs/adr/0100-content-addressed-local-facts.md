@@ -347,3 +347,34 @@ fingerprint stays stable. A change shows as `analyzer_changed=dart:N`.
 
 The cost is one process of about 50 ms per observation, run concurrently.
 The `dart` part only moves for the SDK; the other parts keep their value.
+
+## Amendment: what the analyzer fingerprint does not look at
+
+Each of these was investigated and left as it is on purpose. The user-visible
+ones are also written in `docs/installation.md`.
+
+- **A worker launched through a shim that hides its `dist`.** The fingerprint
+  covers the shim and the executable only. In a bundle that is enough, because
+  the binary changes with the worker.
+- **A worker script outside a `dist` directory.** It is identified by its own
+  bytes. Walking an arbitrary directory on every observation would cost more
+  than the cache saves.
+- **`.cjs`, `.cts`, `.mts` and `.ts` entries**, with or without a loader such
+  as `tsx`, contribute neither their bytes, nor a `dist`, nor the engine; the
+  content of a `--require` or `--import` argument is not hashed either. Only
+  `.js` and `.mjs` scripts are followed.
+- **The pnpm fallback.** With no `ts-worker/dist/facts-cli.js` and no worker on
+  the `PATH`, the pass runs `pnpm --dir ts-worker facts`, whose fingerprint is
+  the `pnpm` binary alone; `pnpm` builds `dist` during the pass, so publication
+  recomputes a different fingerprint and refuses with `analyzer configuration
+  changed`. The next pass uses the `node` path and works. No stale entry can be
+  served, because entries are admitted only after publication.
+- **A live daemon whose binary is deleted** fails five times while observing and
+  reindexing and gives up (`gave up rebuilding a stale profile`) until it is
+  restarted. A replaced binary converges on its own.
+- **File digests are not cached by signature.** The fingerprint digests the
+  executable, `node` and the TypeScript engine on every observation: about 74
+  ms of 113 ms, twice per pass. That is roughly 0.3% of a warm pass with the
+  binary alone and 2% with a direct `node` worker, so an in-process memo keyed
+  by path, size, mtime, ctime and inode, or a persisted one, is not worth its
+  state. It becomes worth it if daemon event latency is measured to matter.
