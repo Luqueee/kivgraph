@@ -169,11 +169,11 @@ cat >"$staging/manifest.json" <<MANIFEST
     "name": "Tutitoos",
     "url": "https://github.com/Tutitoos"
   },
-  "homepage": "https://github.com/Tutitoos/kivgraph",
-  "documentation": "https://github.com/Tutitoos/kivgraph/tree/main/docs",
+  "homepage": "https://github.com/Tutitoos/kivgraph_official",
+  "documentation": "https://github.com/Tutitoos/kivgraph_official/tree/main/docs",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Tutitoos/kivgraph"
+    "url": "https://github.com/Tutitoos/kivgraph_official"
   },
   "license": "Apache-2.0",
   "keywords": ["code-intelligence", "code-graph", "static-analysis", "mcp"],

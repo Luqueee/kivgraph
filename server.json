@@ -5,8 +5,8 @@
   "description": "Cross-repository semantic code intelligence for AI coding agents, from a local code graph.",
   "version": "0.9.3",
   "repository": {
-    "url": "https://github.com/Tutitoos/kivgraph",
+    "url": "https://github.com/Tutitoos/kivgraph_official",
     "source": "github"
   },
-  "websiteUrl": "https://github.com/Tutitoos/kivgraph"
+  "websiteUrl": "https://github.com/Tutitoos/kivgraph_official"
 }
