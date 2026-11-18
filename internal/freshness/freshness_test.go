@@ -435,13 +435,79 @@ func TestCancelledInitialAttestationDoesNotReplaceCache(t *testing.T) {
 	}
 }
 
-func TestSourceSymlinksAreNotFollowed(t *testing.T) {
+// A source file that is a symlink -- etcd links its integration examples into
+// the package that documents them -- is not followed and is not a failure. It
+// is the link that belongs to the repository, so the digest covers the link's
+// text: a retargeted link invalidates the attestation, and the file it points
+// at is hashed where it lives, or not at all when it is outside the repository.
+func TestSourceSymlinksAreNotFollowedAndNotFatal(t *testing.T) {
 	root := t.TempDir()
-	if err := os.Symlink(filepath.Join(t.TempDir(), "outside.go"), filepath.Join(root, "link.go")); err != nil {
+	outside := filepath.Join(t.TempDir(), "outside.go")
+	if err := os.WriteFile(outside, []byte("package outside\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(root, "link.go")
+	if err := os.Symlink(outside, link); err != nil {
 		t.Skip(err)
 	}
-	if _, err := Capture(t.Context(), []workspace.Repository{{Name: "test", Path: root}}); err == nil {
-		t.Fatal("source symlink accepted")
+	repositories := []workspace.Repository{{Name: "test", Path: root}}
+	first, err := Capture(t.Context(), repositories)
+	if err != nil {
+		t.Fatalf("Capture() with a source symlink = %v, want it recorded", err)
+	}
+
+	if err := os.WriteFile(outside, []byte("package changed\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	followed, err := Capture(t.Context(), repositories)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if followed != first {
+		t.Fatal("the digest changed with the content of the file a symlink points at: it was followed")
+	}
+
+	if err := os.Remove(link); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(t.TempDir(), "elsewhere.go"), link); err != nil {
+		t.Fatal(err)
+	}
+	retargeted, err := Capture(t.Context(), repositories)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if retargeted == first {
+		t.Fatal("retargeting a source symlink left the digest unchanged")
+	}
+
+	if err := os.Remove(link); err != nil {
+		t.Fatal(err)
+	}
+	removed, err := Capture(t.Context(), repositories)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if removed == first || removed == retargeted {
+		t.Fatal("removing a source symlink left the digest unchanged")
+	}
+}
+
+// An explicit manifest is a path the user named, so a symlink there is still an
+// error worth surfacing rather than a file to skip past.
+func TestExplicitManifestSymlinksAreRefused(t *testing.T) {
+	root := t.TempDir()
+	target := filepath.Join(root, "real.toml")
+	if err := os.WriteFile(target, []byte("a = 1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(root, "linked.toml")
+	if err := os.Symlink(target, link); err != nil {
+		t.Skip(err)
+	}
+	repositories := []workspace.Repository{{Name: "test", Path: root, Manifests: []string{link}}}
+	if _, err := Capture(t.Context(), repositories); err == nil || !strings.Contains(err.Error(), "refuses symlink") {
+		t.Fatalf("Capture() with a symlinked explicit manifest = %v, want it refused", err)
 	}
 }
 

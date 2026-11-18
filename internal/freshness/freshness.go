@@ -130,7 +130,24 @@ func Capture(ctx context.Context, repositories []workspace.Repository) (string, 
 				return nil
 			}
 			if entry.Type()&os.ModeSymlink != 0 {
-				return fmt.Errorf("inventory %q: refuses symlink", filename)
+				if _, explicit := explicitManifests[filepath.Clean(filename)]; explicit {
+					return fmt.Errorf("inventory %q: refuses symlink", filename)
+				}
+				// The link belongs to the repository and what it points at is
+				// not followed: a source file reached only through a link is
+				// read where it lives, or is outside the tree. The digest
+				// covers the link's text, so retargeting it still changes it.
+				target, err := os.Readlink(filename)
+				if errors.Is(err, fs.ErrNotExist) {
+					return nil
+				}
+				if err != nil {
+					return fmt.Errorf("read inventory symlink %q: %w", filename, err)
+				}
+				if _, err := fmt.Fprintf(digest, "%s\x00symlink\x00%x\x00", relative, sha256.Sum256([]byte(target))); err != nil {
+					return fmt.Errorf("write inventory digest for %q: %w", filename, err)
+				}
+				return nil
 			}
 			if !entry.Type().IsRegular() {
 				return fmt.Errorf("inventory %q: refuses non-regular file", filename)
@@ -268,7 +285,7 @@ func Save(ctx context.Context, root string, generation uint64, digest string) (e
 		return err
 	}
 	filename := recordPath(root, generation)
-	if err := os.MkdirAll(filepath.Dir(filename), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(filename), 0o700); err != nil {
 		return fmt.Errorf("create freshness directory %q: %w", filepath.Dir(filename), err)
 	}
 	if err := ctx.Err(); err != nil {
