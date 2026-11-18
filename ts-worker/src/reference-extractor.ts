@@ -9,6 +9,7 @@
 import path from "node:path";
 import type {
   BindingName,
+  Expression,
   Identifier,
   Node,
   PrivateIdentifier,
@@ -39,18 +40,25 @@ import {
   isModuleDeclaration,
   isNewExpression,
   isObjectBindingPattern,
+  isObjectLiteralExpression,
   isParameterDeclaration,
   isPrivateIdentifier,
   isPropertyAccessExpression,
+  isPropertyAssignment,
   isPropertyDeclaration,
   isPropertySignatureDeclaration,
   isReturnStatement,
   isSetAccessorDeclaration,
+  isShorthandPropertyAssignment,
   isTypeAliasDeclaration,
   isTypeNode,
   isTypeParameterDeclaration,
   isVariableDeclaration,
 } from "typescript/unstable/ast/is";
+import type {
+  Symbol as TypeScriptSymbol,
+  Type,
+} from "typescript/unstable/async";
 import { isDependencySourceFile } from "./dependency-source-file.js";
 import {
   type LanguageService,
@@ -129,6 +137,20 @@ interface ReferenceRequest {
   kind: LocalReferenceKind;
 }
 
+/**
+ * A property name written where the checker does not point it at the property:
+ * the key of an object literal, or a destructured binding with no explicit
+ * property name. `getSymbolAtLocation` answers with the literal's own member or
+ * the new local variable, so these are resolved through the type the literal
+ * is checked against or the value being destructured.
+ */
+interface PropertyKeyRequest {
+  file: SourceFile;
+  node: Identifier;
+  container: Node;
+  source: "literal" | "pattern";
+}
+
 const KIND_PRIORITY: Record<LocalReferenceKind, number> = {
   REFERENCES: 1,
   TYPE_USES: 2,
@@ -168,6 +190,13 @@ export async function extractLocalReferences(
   const localFiles = await selectLocalFiles(view, options.files);
   const allLocalFiles = await selectLocalFiles(view, undefined);
   const requests = new Map<string, ReferenceRequest>();
+  const propertyKeys = new Map<string, PropertyKeyRequest>();
+  // A key is only worth a type query if some local declaration has that name.
+  const propertyNames = new Set(
+    symbols.symbols
+      .filter((local) => local.kind === "property" || local.kind === "method")
+      .map((local) => local.name),
+  );
   const functionValueNodes: Identifier[] = [];
   const sourceFiles = new Map<string, SourceFile>();
 
@@ -185,7 +214,7 @@ export async function extractLocalReferences(
   for (const fileName of localFiles) {
     const sourceFile = sourceFiles.get(fileName);
     if (sourceFile !== undefined) {
-      collectFileReferences(sourceFile, requests);
+      collectFileReferences(sourceFile, requests, propertyKeys, propertyNames);
     }
   }
 
@@ -261,6 +290,38 @@ export async function extractLocalReferences(
     });
   }
 
+  const keyList = [...propertyKeys.values()];
+  const keyTargets = await resolveLocalSymbols<
+    LocalSymbol | ImportBindingSymbol
+  >(
+    view.checker,
+    await resolvePropertyKeys(view.checker, keyList),
+    localById,
+    localByDeclaration,
+    importBindingById,
+  );
+  for (const [index, request] of keyList.entries()) {
+    const target = keyTargets[index];
+    if (target === undefined) {
+      continue;
+    }
+    const start = request.node.getStart(request.file);
+    const end = request.node.getEnd();
+    references.push({
+      fileName: request.file.fileName,
+      kind: "REFERENCES",
+      source: findOwner(symbols.symbols, request.file.fileName, start),
+      target,
+      start,
+      end,
+      startLine: request.file.getLineAndCharacterOfPosition(start).line + 1,
+      endLine:
+        request.file.getLineAndCharacterOfPosition(Math.max(start, end - 1))
+          .line + 1,
+      text: request.node.getText(request.file),
+    });
+  }
+
   service.assertFresh(view);
   references.sort(compareReferences);
   return {
@@ -299,6 +360,8 @@ async function selectLocalFiles(
 function collectFileReferences(
   file: SourceFile,
   requests: Map<string, ReferenceRequest>,
+  propertyKeys: Map<string, PropertyKeyRequest>,
+  propertyNames: ReadonlySet<string>,
 ): void {
   const visit = (
     node: Node,
@@ -306,6 +369,17 @@ function collectFileReferences(
     ignored: boolean,
   ): void => {
     const ignoredHere = ignored || isIgnoredContainer(node);
+    if (!ignoredHere && isIdentifier(node)) {
+      const key = propertyKeyContainer(node);
+      if (key !== undefined && propertyNames.has(node.getText(file))) {
+        propertyKeys.set(`${file.fileName}\u0000${node.pos}:${node.end}`, {
+          file,
+          node,
+          container: key.container,
+          source: key.source,
+        });
+      }
+    }
     if (
       !ignoredHere &&
       (isIdentifier(node) || isPrivateIdentifier(node)) &&
@@ -333,6 +407,104 @@ function collectFileReferences(
   };
 
   file.forEachChild((child) => visit(child, undefined, false));
+}
+
+function propertyKeyContainer(
+  node: Identifier,
+): { container: Node; source: "literal" | "pattern" } | undefined {
+  const parent = node.parent;
+  if (parent === undefined) {
+    return undefined;
+  }
+  if (
+    (isPropertyAssignment(parent) ||
+      isShorthandPropertyAssignment(parent) ||
+      isMethodDeclaration(parent) ||
+      isGetAccessorDeclaration(parent) ||
+      isSetAccessorDeclaration(parent)) &&
+    sameNode(parent.name, node) &&
+    parent.parent !== undefined &&
+    isObjectLiteralExpression(parent.parent)
+  ) {
+    return { container: parent.parent, source: "literal" };
+  }
+  if (
+    isBindingElement(parent) &&
+    parent.propertyName === undefined &&
+    parent.dotDotDotToken === undefined &&
+    sameNode(parent.name, node) &&
+    parent.parent !== undefined &&
+    isObjectBindingPattern(parent.parent)
+  ) {
+    return { container: parent.parent, source: "pattern" };
+  }
+  return undefined;
+}
+
+/**
+ * Find, for each key, the property it names on the type the key is checked
+ * against. Types are looked up once per object literal or pattern and their
+ * members once per type; `null` and `undefined` are removed first so an optional
+ * parameter still has the properties of what it holds.
+ */
+async function resolvePropertyKeys(
+  checker: ProjectView["checker"],
+  requests: readonly PropertyKeyRequest[],
+): Promise<(TypeScriptSymbol | undefined)[]> {
+  if (requests.length === 0) {
+    return [];
+  }
+  const types: (Type | undefined)[] = new Array(requests.length).fill(
+    undefined,
+  );
+  const patterns = requests.flatMap((request, index) =>
+    request.source === "pattern"
+      ? [{ index, container: request.container }]
+      : [],
+  );
+  if (patterns.length > 0) {
+    const patternTypes = await checker.getTypeAtLocation(
+      patterns.map((pattern) => pattern.container),
+    );
+    for (const [position, pattern] of patterns.entries()) {
+      types[pattern.index] = patternTypes[position];
+    }
+  }
+  await Promise.all(
+    requests.map(async (request, index) => {
+      if (request.source === "literal") {
+        types[index] = await checker.getContextualType(
+          request.container as Expression,
+        );
+      }
+    }),
+  );
+
+  const members = new Map<number, Promise<Map<string, TypeScriptSymbol>>>();
+  const membersOf = (type: Type): Promise<Map<string, TypeScriptSymbol>> => {
+    let cached = members.get(type.id);
+    if (cached === undefined) {
+      cached = (async () => {
+        const present = (await checker.getNonNullableType(type)) ?? type;
+        const byName = new Map<string, TypeScriptSymbol>();
+        for (const member of await checker.getPropertiesOfType(present)) {
+          byName.set(member.name, member);
+        }
+        return byName;
+      })();
+      members.set(type.id, cached);
+    }
+    return cached;
+  };
+  return Promise.all(
+    requests.map(async (request, index) => {
+      const type = types[index];
+      if (type === undefined) {
+        return undefined;
+      }
+      return (await membersOf(type)).get(request.node.getText(request.file));
+    }),
+  );
 }
 
 function collectFunctionValueNodes(
