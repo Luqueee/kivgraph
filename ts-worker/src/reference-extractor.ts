@@ -11,6 +11,7 @@ import type {
   BindingName,
   Identifier,
   Node,
+  PrivateIdentifier,
   SourceFile,
 } from "typescript/unstable/ast";
 import {
@@ -39,6 +40,7 @@ import {
   isNewExpression,
   isObjectBindingPattern,
   isParameterDeclaration,
+  isPrivateIdentifier,
   isPropertyAccessExpression,
   isPropertyDeclaration,
   isPropertySignatureDeclaration,
@@ -123,7 +125,7 @@ type ContextKind = LocalReferenceKind | undefined;
 
 interface ReferenceRequest {
   file: SourceFile;
-  node: Identifier;
+  node: Identifier | PrivateIdentifier;
   kind: LocalReferenceKind;
 }
 
@@ -304,7 +306,11 @@ function collectFileReferences(
     ignored: boolean,
   ): void => {
     const ignoredHere = ignored || isIgnoredContainer(node);
-    if (!ignoredHere && isIdentifier(node) && !isDeclarationName(node)) {
+    if (
+      !ignoredHere &&
+      (isIdentifier(node) || isPrivateIdentifier(node)) &&
+      !isDeclarationName(node)
+    ) {
       addRequest(requests, {
         file,
         node,
@@ -395,7 +401,10 @@ function addDirectCallee(
     addRequest(requests, { file, node: expression, kind: "CALLS_DIRECT" });
     return;
   }
-  if (isPropertyAccessExpression(expression) && isIdentifier(expression.name)) {
+  if (
+    isPropertyAccessExpression(expression) &&
+    (isIdentifier(expression.name) || isPrivateIdentifier(expression.name))
+  ) {
     addRequest(requests, {
       file,
       node: expression.name,
@@ -419,7 +428,7 @@ function addRequest(
 }
 
 function kindForIdentifier(
-  node: Identifier,
+  node: Identifier | PrivateIdentifier,
   inheritedKind: ContextKind,
 ): LocalReferenceKind {
   if (inheritedKind !== undefined) {
@@ -472,7 +481,7 @@ function findOwner(
   return owner;
 }
 
-function isDeclarationName(node: Identifier): boolean {
+function isDeclarationName(node: Identifier | PrivateIdentifier): boolean {
   const parent = node.parent;
   if (isVariableDeclaration(parent)) {
     return bindingContains(node, parent.name);

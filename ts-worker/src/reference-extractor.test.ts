@@ -154,6 +154,48 @@ target(2);
     ).toBe(true);
   });
 
+  it("resolves uses of ES private names to the private declaration", async () => {
+    const workspace = await createWorkspace({
+      "src/counter.ts": `
+export class Counter {
+  #count = 0;
+
+  #bump(by: number): number {
+    this.#count += by;
+    return this.#count;
+  }
+
+  run(other: Counter): number {
+    this.#bump(1);
+    other.#bump(2);
+    return this.#count + other.#count;
+  }
+}
+`,
+    });
+    const service = openService(workspace);
+    await service.openProject(workspace.configFileName);
+    const view = service.project(workspace.configFileName);
+    const symbols = await extractLocalSymbols(service, view);
+    const extraction = await extractLocalReferences(service, view, symbols);
+
+    expect(
+      extraction.references
+        .filter((reference) => reference.target.name.startsWith("#"))
+        .map(
+          (reference) =>
+            `${reference.kind}:${reference.text}:${reference.target.name}:${reference.source?.name}`,
+        ),
+    ).toEqual([
+      "REFERENCES:#count:#count:#bump",
+      "REFERENCES:#count:#count:#bump",
+      "CALLS_DIRECT:#bump:#bump:run",
+      "CALLS_DIRECT:#bump:#bump:run",
+      "REFERENCES:#count:#count:run",
+      "REFERENCES:#count:#count:run",
+    ]);
+  });
+
   it("limits files and never emits imported external symbols", async () => {
     const workspace = await createWorkspace({
       "src/first.ts": `export function first(): number { return second(); }
