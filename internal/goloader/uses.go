@@ -308,7 +308,7 @@ func enclosingDeclaration(loaded *packages.Package, stack []declarationContext) 
 					owner = receiverTypeName(receiver.Type())
 				}
 			}
-			return qualifiedName(owner, declaration.Name.Name), kind
+			return declarationQualifiedName(loaded.Fset, loaded.Syntax, declaration, owner), kind
 		case *ast.TypeSpec:
 			return declaration.Name.Name, KindType
 		case *ast.ValueSpec:

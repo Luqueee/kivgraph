@@ -637,3 +637,86 @@ func TestExtractDefinitionsSkipsFieldsOfInlineLiteralsAndQualifiesNestedOnes(t *
 		}
 	}
 }
+
+// Go lets a package declare any number of `init` functions, and they are the
+// one kind of function that cannot be told apart by name: they have no object
+// path and share name, kind and signature. Three of them gave every symbol the
+// same identity, and publishing a generation failed on the DEFINES multiplicity
+// for any real repository that had two in one package.
+//
+// Each one is named by its file, plus an ordinal when a file holds several, and
+// the use inside its body must be sourced at that same name or the edge loses
+// its source.
+func TestExtractDefinitionsGivesEveryInitFunctionItsOwnIdentity(t *testing.T) {
+	root := testsupport.TempDir(t)
+	module := filepath.Join(root, "module")
+	writeFiles(t, module, map[string]string{
+		"go.mod": "module example.com/inits\n\ngo 1.22\n",
+		"sample/a.go": `package sample
+
+var registry []string
+
+func init() { registry = append(registry, "a") }
+func init() { registry = append(registry, "a2") }
+`,
+		"sample/b.go": `package sample
+
+func init() { registry = append(registry, "b") }
+
+type Holder struct{}
+
+func (Holder) init() {}
+`,
+		"sample/c.go": `package sample
+
+func init() {}
+`,
+	})
+	result, err := Load(context.Background(), Options{Directory: module})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	definitions, err := ExtractDefinitions(context.Background(), result, DefinitionOptions{Repository: "fixture"})
+	if err != nil {
+		t.Fatalf("ExtractDefinitions() error = %v", err)
+	}
+	var got []string
+	for _, definition := range definitions {
+		if definition.Name == "init" {
+			got = append(got, string(definition.Kind)+" "+definition.QualifiedName)
+		}
+	}
+	sort.Strings(got)
+	want := []string{"func init#a.go#1", "func init#a.go#2", "func init#b.go", "func init#c.go", "method Holder.init"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("init definitions = %v, want %v", got, want)
+	}
+
+	keyed, err := AssignStableKeys(context.Background(), definitions)
+	if err != nil {
+		t.Fatalf("AssignStableKeys() error = %v", err)
+	}
+	keys := make(map[hotsnapshot.StableKey]string)
+	for _, definition := range keyed {
+		if previous, clash := keys[definition.StableKey]; clash {
+			t.Fatalf("%q and %q share a stable key", previous, definition.QualifiedName)
+		}
+		keys[definition.StableKey] = definition.QualifiedName
+	}
+
+	uses, err := ExtractUses(context.Background(), result, UseOptions{Repository: "fixture"})
+	if err != nil {
+		t.Fatalf("ExtractUses() error = %v", err)
+	}
+	sources := map[string]bool{}
+	for _, use := range uses {
+		if use.TargetQualifiedName == "registry" {
+			sources[use.SourceQualifiedName] = true
+		}
+	}
+	for _, name := range []string{"init#a.go#1", "init#a.go#2", "init#b.go"} {
+		if !sources[name] {
+			t.Errorf("no use of registry is sourced at %q; sources = %v", name, sources)
+		}
+	}
+}
