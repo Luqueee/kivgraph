@@ -14,6 +14,8 @@ import type {
   Node,
   PrivateIdentifier,
   SourceFile,
+  StringLiteral,
+  TypeNode,
 } from "typescript/unstable/ast";
 import {
   isArrayBindingPattern,
@@ -23,6 +25,7 @@ import {
   isBindingElement,
   isCallExpression,
   isClassDeclaration,
+  isElementAccessExpression,
   isEnumDeclaration,
   isEnumMember,
   isExportAssignment,
@@ -34,7 +37,9 @@ import {
   isIdentifier,
   isImportDeclaration,
   isImportEqualsDeclaration,
+  isIndexedAccessTypeNode,
   isInterfaceDeclaration,
+  isLiteralTypeNode,
   isMethodDeclaration,
   isMethodSignatureDeclaration,
   isModuleDeclaration,
@@ -42,6 +47,7 @@ import {
   isObjectBindingPattern,
   isObjectLiteralExpression,
   isParameterDeclaration,
+  isParenthesizedTypeNode,
   isPrivateIdentifier,
   isPropertyAccessExpression,
   isPropertyAssignment,
@@ -50,9 +56,11 @@ import {
   isReturnStatement,
   isSetAccessorDeclaration,
   isShorthandPropertyAssignment,
+  isStringLiteral,
   isTypeAliasDeclaration,
   isTypeNode,
   isTypeParameterDeclaration,
+  isUnionTypeNode,
   isVariableDeclaration,
 } from "typescript/unstable/ast/is";
 import type {
@@ -146,10 +154,16 @@ interface ReferenceRequest {
  */
 interface PropertyKeyRequest {
   file: SourceFile;
-  node: Identifier;
+  node: Identifier | StringLiteral;
   container: Node;
-  source: "literal" | "pattern";
+  source: PropertyKeySource;
 }
+
+type PropertyKeySource =
+  | "literal"
+  | "pattern"
+  | "indexed-value"
+  | "indexed-type";
 
 const KIND_PRIORITY: Record<LocalReferenceKind, number> = {
   REFERENCES: 1,
@@ -369,9 +383,10 @@ function collectFileReferences(
     ignored: boolean,
   ): void => {
     const ignoredHere = ignored || isIgnoredContainer(node);
-    if (!ignoredHere && isIdentifier(node)) {
+    if (!ignoredHere && (isIdentifier(node) || isStringLiteral(node))) {
       const key = propertyKeyContainer(node);
-      if (key !== undefined && propertyNames.has(node.getText(file))) {
+      const name = isStringLiteral(node) ? node.text : node.getText(file);
+      if (key !== undefined && propertyNames.has(name)) {
         propertyKeys.set(`${file.fileName}\u0000${node.pos}:${node.end}`, {
           file,
           node,
@@ -410,11 +425,14 @@ function collectFileReferences(
 }
 
 function propertyKeyContainer(
-  node: Identifier,
-): { container: Node; source: "literal" | "pattern" } | undefined {
+  node: Identifier | StringLiteral,
+): { container: Node; source: PropertyKeySource } | undefined {
   const parent = node.parent;
   if (parent === undefined) {
     return undefined;
+  }
+  if (isStringLiteral(node)) {
+    return stringKeyContainer(node, parent);
   }
   if (
     (isPropertyAssignment(parent) ||
@@ -441,6 +459,40 @@ function propertyKeyContainer(
   return undefined;
 }
 
+/** A string literal that names a property: `value["key"]`, `T["key"]`. */
+function stringKeyContainer(
+  node: StringLiteral,
+  parent: Node,
+): { container: Node; source: PropertyKeySource } | undefined {
+  if (
+    isElementAccessExpression(parent) &&
+    sameNode(parent.argumentExpression, node)
+  ) {
+    return { container: parent.expression, source: "indexed-value" };
+  }
+  if (!isLiteralTypeNode(parent)) {
+    return undefined;
+  }
+  // `T["a" | "b"]` names both: climb out of the union to the indexed access.
+  let previous: Node = parent;
+  let current = parent.parent;
+  while (
+    current !== undefined &&
+    (isUnionTypeNode(current) || isParenthesizedTypeNode(current))
+  ) {
+    previous = current;
+    current = current.parent;
+  }
+  if (
+    current !== undefined &&
+    isIndexedAccessTypeNode(current) &&
+    sameNode(current.indexType, previous)
+  ) {
+    return { container: current.objectType, source: "indexed-type" };
+  }
+  return undefined;
+}
+
 /**
  * Find, for each key, the property it names on the type the key is checked
  * against. Types are looked up once per object literal or pattern and their
@@ -457,17 +509,17 @@ async function resolvePropertyKeys(
   const types: (Type | undefined)[] = new Array(requests.length).fill(
     undefined,
   );
-  const patterns = requests.flatMap((request, index) =>
-    request.source === "pattern"
+  const valueSources = requests.flatMap((request, index) =>
+    request.source === "pattern" || request.source === "indexed-value"
       ? [{ index, container: request.container }]
       : [],
   );
-  if (patterns.length > 0) {
-    const patternTypes = await checker.getTypeAtLocation(
-      patterns.map((pattern) => pattern.container),
+  if (valueSources.length > 0) {
+    const valueTypes = await checker.getTypeAtLocation(
+      valueSources.map((source) => source.container),
     );
-    for (const [position, pattern] of patterns.entries()) {
-      types[pattern.index] = patternTypes[position];
+    for (const [position, source] of valueSources.entries()) {
+      types[source.index] = valueTypes[position];
     }
   }
   await Promise.all(
@@ -475,6 +527,10 @@ async function resolvePropertyKeys(
       if (request.source === "literal") {
         types[index] = await checker.getContextualType(
           request.container as Expression,
+        );
+      } else if (request.source === "indexed-type") {
+        types[index] = await checker.getTypeFromTypeNode(
+          request.container as TypeNode,
         );
       }
     }),
@@ -502,7 +558,10 @@ async function resolvePropertyKeys(
       if (type === undefined) {
         return undefined;
       }
-      return (await membersOf(type)).get(request.node.getText(request.file));
+      const name = isStringLiteral(request.node)
+        ? request.node.text
+        : request.node.getText(request.file);
+      return (await membersOf(type)).get(name);
     }),
   );
 }

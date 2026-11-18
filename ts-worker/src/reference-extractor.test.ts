@@ -274,6 +274,57 @@ export function readIndexed(value: Record<string, number>): number {
     ]);
   });
 
+  it("resolves property names written as string literals to the property they name", async () => {
+    const workspace = await createWorkspace({
+      "src/indexed.ts": `
+export interface Options {
+  retries?: number;
+  name: string;
+  onDone?: () => void;
+}
+
+export interface Other {
+  retries: boolean;
+}
+
+export type Retries = Options["retries"];
+export type Both = Options["retries" | "name"];
+export type Callback = NonNullable<Options["onDone"]>;
+export type OtherRetries = Other["retries"];
+export type FromRecord = Record<string, number>["retries"];
+
+export function read(options: Options): number | undefined {
+  return options["retries"];
+}
+`,
+    });
+    const service = openService(workspace);
+    await service.openProject(workspace.configFileName);
+    const view = service.project(workspace.configFileName);
+    const symbols = await extractLocalSymbols(service, view);
+    const extraction = await extractLocalReferences(service, view, symbols);
+    const found = extraction.references
+      .filter(
+        (reference) =>
+          "kind" in reference.target && reference.target.kind === "property",
+      )
+      .map(
+        (reference) =>
+          `${reference.startLine}:${reference.text}->${reference.target.qualifiedName}`,
+      );
+
+    // `FromRecord` indexes a type with no declared `retries`, so nothing
+    // local is named there.
+    expect(found).toEqual([
+      '12:"retries"->Options.retries',
+      '13:"retries"->Options.retries',
+      '13:"name"->Options.name',
+      '14:"onDone"->Options.onDone',
+      '15:"retries"->Other.retries',
+      '19:"retries"->Options.retries',
+    ]);
+  });
+
   it("limits files and never emits imported external symbols", async () => {
     const workspace = await createWorkspace({
       "src/first.ts": `export function first(): number { return second(); }
