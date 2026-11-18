@@ -503,3 +503,161 @@ func TestPackageRootsListsTheOtherPackagesThatExist(t *testing.T) {
 		}
 	}
 }
+
+func TestUTF16LengthCountsCodeUnitsAndNotBytes(t *testing.T) {
+	for _, testCase := range []struct {
+		name string
+		data string
+		want int
+	}{
+		{name: "empty", data: "", want: 0},
+		{name: "ascii", data: "abc", want: 3},
+		{name: "two byte rune is one unit", data: "á—", want: 2},
+		{name: "astral rune is a surrogate pair", data: "a😀", want: 3},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			if got := utf16Length([]byte(testCase.data)); got != testCase.want {
+				t.Fatalf("utf16Length(%q) = %d, want %d", testCase.data, got, testCase.want)
+			}
+		})
+	}
+}
+
+// TestRunResolvesUsesInAFileWithNonASCIIText pins the request the Analysis
+// Server answers with nothing when its length runs past the end of the file:
+// the length is in UTF-16 code units, and a comment with an accent made the byte
+// count larger than that, so every use in the file went missing without an
+// error.
+func TestRunResolvesUsesInAFileWithNonASCIIText(t *testing.T) {
+	if _, err := exec.LookPath("dart"); err != nil {
+		t.Skip("dart SDK is not installed")
+	}
+	root := t.TempDir()
+	for name, content := range map[string]string{
+		"pubspec.yaml":     "name: accents\npublish_to: none\nenvironment:\n  sdk: \">=3.0.0 <4.0.0\"\n",
+		"lib/accents.dart": "// Una nota con acentos: áéíóú — y un emoji 😀\nconst int _limit = 3;\nint doubled(int value) => value * _limit;\n",
+	} {
+		path := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	repository := workspace.Repository{Name: "accents", Path: root, RealPath: root}
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	payload, err := Run(ctx, "dart", "dart", repository, true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := map[string]string{}
+	for _, symbol := range payload.Symbols {
+		names[symbol.ID] = symbol.Name
+	}
+	var found []string
+	for _, reference := range payload.References {
+		found = append(found, names[reference.SourceID]+" -> "+names[reference.TargetID])
+	}
+	if !slices.Contains(found, "doubled -> _limit") {
+		t.Fatalf("references = %v, want doubled -> _limit", found)
+	}
+}
+
+// TestRunAttributesAnInstanceToItsClass pins that building an object is a use
+// of its class. A class with an explicit constructor gets the call resolved to
+// the constructor, which left the class itself with no reference from the file
+// that instantiates it.
+func TestRunAttributesAnInstanceToItsClass(t *testing.T) {
+	if _, err := exec.LookPath("dart"); err != nil {
+		t.Skip("dart SDK is not installed")
+	}
+	root := t.TempDir()
+	for name, content := range map[string]string{
+		"pubspec.yaml":   "name: boxes\npublish_to: none\nenvironment:\n  sdk: \">=3.0.0 <4.0.0\"\n",
+		"lib/box.dart":   "class Box {\n  Box(this.side);\n  Box.square(int side) : this(side);\n  final int side;\n}\n\nclass Plain {}\n",
+		"lib/build.dart": "import 'box.dart';\n\nBox makeBox() => Box(2);\nBox makeSquare() => Box.square(3);\nPlain makePlain() => Plain();\n",
+	} {
+		path := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	repository := workspace.Repository{Name: "boxes", Path: root, RealPath: root}
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	payload, err := Run(ctx, "dart", "dart", repository, true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := map[string]string{}
+	for _, symbol := range payload.Symbols {
+		names[symbol.ID] = symbol.QualifiedName + " " + symbol.Kind
+	}
+	found := map[string]int{}
+	for _, reference := range payload.References {
+		if reference.Kind == "CALLS_DIRECT" {
+			found[names[reference.SourceID]+" -> "+names[reference.TargetID]]++
+		}
+	}
+	// The constructor edges stay, the class gains its own, an implicit
+	// constructor is still one edge and not two, and a constructor does not
+	// make its own class a callee of itself.
+	for edge, want := range map[string]int{
+		"makeBox function -> Box.Box constructor":           1,
+		"makeBox function -> Box class":                     1,
+		"makeSquare function -> Box class":                  1,
+		"makePlain function -> Plain class":                 1,
+		"Box.Box.square constructor -> Box.Box constructor": 1,
+		"Box.Box.square constructor -> Box class":           0,
+	} {
+		if found[edge] != want {
+			t.Errorf("%q = %d, want %d; calls = %v", edge, found[edge], want, found)
+		}
+	}
+}
+
+// TestRunLeavesDocCommentLinksOutOfTheGraph pins that a `[name]` in a comment is
+// not a use of the declaration. The Analysis Server navigates doc links like
+// code, and one written "compatible with [hash]" was published as a module
+// EMBEDS the function, because the keyword scan read the sentence.
+func TestRunLeavesDocCommentLinksOutOfTheGraph(t *testing.T) {
+	if _, err := exec.LookPath("dart"); err != nil {
+		t.Skip("dart SDK is not installed")
+	}
+	root := t.TempDir()
+	for name, content := range map[string]string{
+		"pubspec.yaml":  "name: docs\npublish_to: none\nenvironment:\n  sdk: \">=3.0.0 <4.0.0\"\n",
+		"lib/docs.dart": "int hash(String value) => value.length;\n\n/// A length that is compatible with [hash] and extends [hash].\nint other(String value) => value.length;\n\nint real(String value) => hash(value); // see [hash]\n",
+	} {
+		path := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	repository := workspace.Repository{Name: "docs", Path: root, RealPath: root}
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	payload, err := Run(ctx, "dart", "dart", repository, true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := map[string]string{}
+	for _, symbol := range payload.Symbols {
+		names[symbol.ID] = symbol.QualifiedName
+	}
+	var found []string
+	for _, reference := range payload.References {
+		found = append(found, names[reference.SourceID]+" -"+reference.Kind+"-> "+names[reference.TargetID])
+	}
+	if want := []string{"real -CALLS_DIRECT-> hash"}; !slices.Equal(found, want) {
+		t.Fatalf("references = %v, want %v", found, want)
+	}
+}

@@ -47,12 +47,15 @@ type Options struct {
 	Providers           []workspace.Repository
 }
 
-type position struct{ Line, Character int }
-type lspRange struct{ Start, End position }
-type location struct {
-	URI   string   `json:"uri"`
-	Range lspRange `json:"range"`
-}
+type (
+	position struct{ Line, Character int }
+	lspRange struct{ Start, End position }
+	location struct {
+		URI   string   `json:"uri"`
+		Range lspRange `json:"range"`
+	}
+)
+
 type documentSymbol struct {
 	Name           string           `json:"name"`
 	Kind           int              `json:"kind"`
@@ -610,7 +613,7 @@ func appendNavigationReferences(ctx context.Context, lsp *client, command, sdkPa
 		id := server.nextID()
 		requests[id] = struct{}{}
 		requestPaths[id] = path
-		if err := server.sendRequest(id, "analysis.getNavigation", map[string]any{"file": path, "offset": 0, "length": len(contents[path])}); err != nil {
+		if err := server.sendRequest(id, "analysis.getNavigation", map[string]any{"file": path, "offset": 0, "length": utf16Length(contents[path])}); err != nil {
 			return err
 		}
 	}
@@ -633,6 +636,7 @@ func appendNavigationReferences(ctx context.Context, lsp *client, command, sdkPa
 		byLocation[locationKey(path, selectionOffsets[symbol.ID])] = symbol.ID
 	}
 	appendDartAnalyzerOverrides(events, root, contents, byURI, symbols, selectionOffsets, payload)
+	owners := constructorOwners(symbols)
 	seen := make(map[string]struct{})
 	for id, result := range results {
 		sourcePath := requestPaths[id]
@@ -643,6 +647,12 @@ func appendNavigationReferences(ctx context.Context, lsp *client, command, sdkPa
 		for _, region := range navigation.Regions {
 			sourceData := contents[sourcePath]
 			sourceOffset := analyzerOffset(sourceData, region.Offset)
+			if inLineComment(sourceData, sourceOffset) {
+				// A `[name]` link in a doc comment is navigable but it is
+				// prose: nothing there calls, extends or embeds anything, and
+				// the sentence around it was being read for those keywords.
+				continue
+			}
 			source := enclosing(byURI[fileURI(sourcePath)], positionAt(sourceData, sourceOffset))
 			if source.ID == "" {
 				continue
@@ -708,10 +718,54 @@ func appendNavigationReferences(ctx context.Context, lsp *client, command, sdkPa
 				startPosition := positionAt(sourceData, startOffset)
 				endPosition := positionAt(sourceData, endOffset)
 				payload.References = append(payload.References, facts.SemanticReference{File: relative(root, sourcePath), SourceID: source.ID, TargetID: targetID, Target: externalTarget, Kind: kind, StartLine: startPosition.Line + 1, StartColumn: startPosition.Character, Start: startOffset, EndLine: endPosition.Line + 1, EndColumn: endPosition.Character, End: endOffset, Text: sliceLine(sourceData, startPosition)})
+				// Building an instance is a use of the class. A class with an
+				// explicit constructor resolves the call to that constructor,
+				// and the class itself would have no reference at all.
+				if ownerID, constructed := owners[targetID]; constructed && ownerID != source.ID && owners[source.ID] != ownerID {
+					ownerKey := fmt.Sprintf("%s\x00%s\x00%d\x00%d", source.ID, ownerID, sourceOffset, endOffset-sourceOffset)
+					if _, ok := seen[ownerKey]; !ok {
+						seen[ownerKey] = struct{}{}
+						payload.References = append(payload.References, facts.SemanticReference{File: relative(root, sourcePath), SourceID: source.ID, TargetID: ownerID, Kind: "CALLS_DIRECT", StartLine: startPosition.Line + 1, StartColumn: startPosition.Character, Start: startOffset, EndLine: endPosition.Line + 1, EndColumn: endPosition.Character, End: endOffset, Text: sliceLine(sourceData, startPosition)})
+					}
+				}
 			}
 		}
 	}
 	return nil
+}
+
+// inLineComment reports whether the offset is on a line that is a `//` or `///`
+// comment, which is where the Analysis Server finds a doc link. Only a line
+// that starts with the marker counts: a `//` inside a string literal earlier on
+// a line of code, such as a URL, says nothing about what follows it.
+func inLineComment(data []byte, offset int) bool {
+	offset = min(max(offset, 0), len(data))
+	start := bytes.LastIndexByte(data[:offset], '\n') + 1
+	return strings.HasPrefix(strings.TrimLeft(string(data[start:offset]), " \t"), "//")
+}
+
+// constructorOwners maps every constructor to the class it builds. A
+// constructor is published as `Class.Class` or `Class.Class.named`, so the
+// first segment of its qualified name is the class, declared in the same file.
+func constructorOwners(symbols []facts.SemanticSymbol) map[string]string {
+	classes := make(map[string]string, len(symbols))
+	for _, symbol := range symbols {
+		switch symbol.Kind {
+		case "class", "enum", "extension_type":
+			classes[symbol.File+"\x00"+symbol.QualifiedName] = symbol.ID
+		}
+	}
+	owners := make(map[string]string)
+	for _, symbol := range symbols {
+		if symbol.Kind != "constructor" {
+			continue
+		}
+		owner, _, _ := strings.Cut(symbol.QualifiedName, ".")
+		if id, found := classes[symbol.File+"\x00"+owner]; found {
+			owners[symbol.ID] = id
+		}
+	}
+	return owners
 }
 
 // appendDartAnalyzerOutlines uses the analyzer protocol's semantic outline as
@@ -1134,6 +1188,7 @@ func (c *client) call(ctx context.Context, method string, params any) (json.RawM
 func (c *client) notify(method string, params any) error {
 	return c.send(map[string]any{"jsonrpc": "2.0", "method": method, "params": params})
 }
+
 func (c *client) send(message any) error {
 	if err := c.worker.stopped("write"); err != nil {
 		return err
@@ -1268,6 +1323,7 @@ func beforePosition(left, right position) bool {
 func afterPosition(left, right position) bool {
 	return right.Line < left.Line || (right.Line == left.Line && right.Character < left.Character)
 }
+
 func dartKind(kind int) string {
 	switch kind {
 	case 1:
@@ -1364,10 +1420,12 @@ func uriPath(value string) (string, error) {
 	}
 	return filepath.FromSlash(path), nil
 }
+
 func relative(root, path string) string {
 	value, _ := filepath.Rel(root, path)
 	return filepath.ToSlash(value)
 }
+
 func pathWithin(root, path string) bool {
 	rel, err := filepath.Rel(root, path)
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
@@ -1468,6 +1526,7 @@ func offsetAt(data []byte, point position) int {
 	}
 	return min(offset+utf16ByteOffset(data[offset:], point.Character), len(data))
 }
+
 func callAt(data []byte, point position) bool {
 	lines := bytes.Split(data, []byte("\n"))
 	if point.Line < 0 || point.Line >= len(lines) {
@@ -1478,6 +1537,7 @@ func callAt(data []byte, point position) bool {
 	rest := line[min(column, len(line)):]
 	return bytes.HasPrefix(bytes.TrimSpace(rest), []byte("("))
 }
+
 func callAtOffset(data []byte, offset int) bool {
 	return callAt(data, positionAt(data, offset))
 }
@@ -1713,6 +1773,7 @@ func isTypeLikeDartTarget(kind string) bool {
 func isIdentifierPart(value byte) bool {
 	return value == '_' || value >= 'a' && value <= 'z' || value >= 'A' && value <= 'Z' || value >= '0' && value <= '9'
 }
+
 func positionAt(data []byte, offset int) position {
 	offset = min(max(offset, 0), len(data))
 	line, column := 0, 0
@@ -1761,27 +1822,48 @@ func utf16ByteOffset(data []byte, codeUnits int) int {
 	return len(data)
 }
 
+// utf16Length is the length of data in UTF-16 code units, which is what the
+// Analysis Server counts a file in. A byte count is longer for any file with a
+// non-ASCII character, and a request whose length runs past the end of the file
+// is answered with nothing.
+func utf16Length(data []byte) int {
+	units := 0
+	for index := 0; index < len(data); {
+		value, width := utf8.DecodeRune(data[index:])
+		if width == 0 {
+			width = 1
+		}
+		units += utf16Width(value)
+		index += width
+	}
+	return units
+}
+
 func utf16Width(value rune) int {
 	if value > 0xffff {
 		return 2
 	}
 	return 1
 }
+
 func locationKey(path string, offset int) string {
 	return filepath.Clean(path) + "\x00" + strconv.Itoa(offset)
 }
+
 func max(a, b int) int {
 	if a > b {
 		return a
 	}
 	return b
 }
+
 func min(a, b int) int {
 	if a < b {
 		return a
 	}
 	return b
 }
+
 func isGenerated(path string) bool {
 	base := filepath.Base(path)
 	if strings.HasSuffix(base, ".g.dart") || strings.HasSuffix(base, ".freezed.dart") || strings.HasSuffix(base, ".gr.dart") || strings.HasSuffix(base, ".config.dart") || strings.HasSuffix(base, ".mocks.dart") {
@@ -1894,10 +1976,12 @@ func pathExcluded(root, path string, patterns []string) bool {
 	}
 	return false
 }
+
 func isTestPath(root, path string) bool {
 	rel := filepath.ToSlash(relative(root, path))
 	return rel == "test" || strings.HasPrefix(rel, "test/") || rel == "integration_test" || strings.HasPrefix(rel, "integration_test/")
 }
+
 func dartPackageName(root string) string {
 	data, err := os.ReadFile(filepath.Join(root, "pubspec.yaml"))
 	if err != nil {
