@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/Luqueee/kivgraph/internal/testsupport"
@@ -196,5 +198,69 @@ func TestExtractUsesIsDeterministicAndCancellable(t *testing.T) {
 	cancel()
 	if _, err := ExtractUses(ctx, result, UseOptions{}); !errors.Is(err, context.Canceled) {
 		t.Fatalf("ExtractUses() error = %v, want context.Canceled", err)
+	}
+}
+
+// A use is sourced at the declaration that contains it, and only a declaration
+// the graph publishes can be that. Two shapes were sourced at a name nobody
+// published, and the edge was dropped as having no source:
+//
+//   - a local `var`, `type` or blank `var _` inside a function, whose name is
+//     not a symbol -- `var warnings []caddyconfig.Warning` left the alias with
+//     no reference from the file that declared it;
+//   - a package-level `var _ I = T{}`, the interface assertion, whose blank
+//     name is not a symbol either -- `gin`'s `Redirect` lost the file that
+//     asserts it implements `Render`.
+//
+// The first belongs to the function, the second to the file.
+func TestExtractUsesAreNotSourcedAtLocalOrBlankDeclarations(t *testing.T) {
+	root := testsupport.TempDir(t)
+	module := filepath.Join(root, "module")
+	writeFiles(t, module, map[string]string{
+		"go.mod": "module example.com/sources\n\ngo 1.22\n",
+		"sample/sample.go": `package sample
+
+type Render interface{ Render() }
+
+type Redirect struct{}
+
+func (Redirect) Render() {}
+
+var _ Render = (*Redirect)(nil)
+
+type Warning = Redirect
+
+func Local() int {
+	var warnings []Redirect
+	type local struct{ r Redirect }
+	var _ = Redirect{}
+	return len(warnings) + len([]local{})
+}
+
+var a, b = Redirect{}, 1
+
+var _, c = Redirect{}, 2
+`,
+	})
+	result, err := Load(context.Background(), Options{Directory: module})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	uses, err := ExtractUses(context.Background(), result, UseOptions{Repository: "fixture"})
+	if err != nil {
+		t.Fatalf("ExtractUses() error = %v", err)
+	}
+	var sources []string
+	for _, use := range uses {
+		if use.TargetQualifiedName == "Redirect" {
+			sources = append(sources, use.SourceQualifiedName)
+		}
+	}
+	sort.Strings(sources)
+	// "" is the file, which facts hands to the module that owns it. The name of
+	// a declaration with several names is the first one the graph publishes.
+	want := []string{"", "Local", "Local", "Local", "Redirect.Render", "Warning", "a", "c"}
+	if strings.Join(sources, "|") != strings.Join(want, "|") {
+		t.Fatalf("sources of the uses of Redirect = %q, want %q", sources, want)
 	}
 }

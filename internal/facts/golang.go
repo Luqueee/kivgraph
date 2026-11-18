@@ -314,6 +314,7 @@ func NormalizeGo(ctx context.Context, input GoInput) (Set, GoReport, error) {
 			Module:        relative,
 			QualifiedName: qualifiedName,
 			Kind:          ModuleSymbolKind,
+			Discriminator: discriminatorOf(""),
 		}
 		canonical, err := identity.Canonical()
 		if err != nil {
@@ -323,7 +324,7 @@ func NormalizeGo(ctx context.Context, input GoInput) (Set, GoReport, error) {
 		if err != nil {
 			return "", fmt.Errorf("module symbol %q key: %w", relative, err)
 		}
-		set.Symbols = append(set.Symbols, Symbol{
+		symbolsByKey[string(key)] = Symbol{
 			Key:               string(key),
 			CanonicalIdentity: canonical,
 			RepositoryKey:     repositoryKey,
@@ -334,7 +335,7 @@ func NormalizeGo(ctx context.Context, input GoInput) (Set, GoReport, error) {
 			QualifiedName:     qualifiedName,
 			Kind:              ModuleSymbolKind,
 			Start:             Position{Line: 1},
-		})
+		}
 		set.Edges = append(set.Edges, Edge{
 			Kind:      Defines,
 			SourceKey: fileKey,
@@ -384,7 +385,8 @@ func NormalizeGo(ctx context.Context, input GoInput) (Set, GoReport, error) {
 			continue
 		}
 		targetKey, confidence, provenance, resolved := resolveGoTarget(
-			reference, crossByLocation, symbolsByQualifiedName)
+			reference, crossByLocation, symbolsByQualifiedName,
+		)
 		if !resolved {
 			report.EdgesWithoutTarget++
 			continue
