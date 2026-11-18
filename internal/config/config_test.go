@@ -64,8 +64,11 @@ repositories:
 	if loaded.Config.Python.IndexerCommand != "kivgraph-python-worker" || loaded.Config.Python.AnalyzerCommand != "kivgraph-python-pyright" || loaded.Config.Python.AnalyzerMode != "fallback" || loaded.Config.Python.PythonPath != "python3" || loaded.Config.Python.MaximumWorkers != 3 || loaded.Config.Python.IncludeTests || loaded.Config.Python.IncludeGenerated || loaded.Config.Python.IncludeExternal {
 		t.Fatalf("Python defaults = %#v", loaded.Config.Python)
 	}
-	if loaded.Config.Dart.AnalyzerCommand != "dart" || loaded.Config.Dart.SDKPath != "dart" || loaded.Config.Dart.MaximumWorkers != 2 || loaded.Config.Dart.IncludeTests || loaded.Config.Dart.IncludeGenerated || loaded.Config.Dart.IncludeExternal || loaded.Config.Dart.IncludeSDK || loaded.Config.Dart.PackageConfig != "auto" || !loaded.Config.Dart.WaitForAnalysis || loaded.Config.Dart.MaximumAnalysisTime != Duration(5*time.Minute) {
+	if loaded.Config.Dart.AnalyzerCommand != "dart" || loaded.Config.Dart.SDKPath != "dart" || loaded.Config.Dart.MaximumWorkers != 2 || !loaded.Config.Dart.IncludeTests || loaded.Config.Dart.IncludeGenerated || loaded.Config.Dart.IncludeExternal || loaded.Config.Dart.IncludeSDK || loaded.Config.Dart.PackageConfig != "auto" || !loaded.Config.Dart.WaitForAnalysis || loaded.Config.Dart.MaximumAnalysisTime != Duration(5*time.Minute) {
 		t.Fatalf("Dart defaults = %#v", loaded.Config.Dart)
+	}
+	if !loaded.Config.Go.IncludeTests {
+		t.Fatal("go.include_tests defaults to false, want true: the graph answers for the tests that use a symbol")
 	}
 	if loaded.Config.Indexing.GeneratedFiles != "include" || loaded.Config.Indexing.UnresolvedReferences != "retain" {
 		t.Fatalf("core defaults = storage=%#v indexing=%#v", loaded.Config.Storage, loaded.Config.Indexing)
@@ -128,6 +131,25 @@ func TestSupportedLanguagesCoversEveryAnalysedLanguage(t *testing.T) {
 		if SupportedLanguage(language) {
 			t.Fatalf("SupportedLanguage(%q) = true", language)
 		}
+	}
+}
+
+// A config.yaml written by an earlier `init` spells every key out, so it pins
+// include_tests: false and keeps it when the default moves. Reading it as true
+// would change what an existing installation indexes without anyone editing the
+// file, and the next `index --full` would be slower for a reason nobody chose.
+func TestLoadKeepsAnExplicitIncludeTestsFalse(t *testing.T) {
+	root := testsupport.TempDir(t)
+	configPath := filepath.Join(root, "config.yaml")
+	repositoriesPath := filepath.Join(root, "repositories.yaml")
+	writeConfigFixture(t, configPath, "version: 1\nworkspace:\n  repositories_file: "+repositoriesPath+"\ngo:\n  include_tests: false\ndart:\n  include_tests: false\n")
+	writeConfigFixture(t, repositoriesPath, "version: 1\nrepositories: []\n")
+	loaded, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if loaded.Config.Go.IncludeTests || loaded.Config.Dart.IncludeTests {
+		t.Fatalf("explicit include_tests: false was overridden: go=%v dart=%v", loaded.Config.Go.IncludeTests, loaded.Config.Dart.IncludeTests)
 	}
 }
 

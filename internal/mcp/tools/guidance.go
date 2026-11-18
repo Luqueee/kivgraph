@@ -26,7 +26,7 @@ func referenceGuidance(direction string, total, returned int, truncated bool, ve
 	case total == 0:
 		return "this symbol reaches nothing in the published graph. Ask the other direction with direction=incoming"
 	case truncated:
-		return truncatedGuidance(returned, total, "edge_kinds, confidence, repo or language")
+		return truncatedGuidance(returned, total, "edge_kinds, confidence, repo, language or exclude_tests")
 	default:
 		return ""
 	}

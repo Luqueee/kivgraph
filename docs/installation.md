@@ -423,7 +423,7 @@ toolchain; los tags y los tests forman parte del mismo contexto:
 ```yaml
 go:
   synthetic_work_file: ~/.local/state/kivgraph/go.work
-  include_tests: false
+  include_tests: true
   goos: linux
   goarch: amd64
   cgo_enabled: false
@@ -514,7 +514,7 @@ dart:
   analyzer_command: dart
   sdk_path: dart
   maximum_workers: 2
-  include_tests: false
+  include_tests: true
   include_generated: false
   include_external_packages: false
   include_sdk: false

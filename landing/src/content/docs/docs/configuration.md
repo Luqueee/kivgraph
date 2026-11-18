@@ -110,7 +110,7 @@ reference. Accepting another word would promise behaviour no code implements.
 | Key | Default | Notes |
 | --- | --- | --- |
 | `synthetic_work_file` | `~/.local/state/kivgraph/go.work` | The synthetic workspace, outside every indexed repository. |
-| `include_tests` | `false` | Whether the Go tests are indexed. Tests are recognised by path (`_test.go`), so `kivgraph impact` lists a Go test among the affected symbols only when this is `true`. |
+| `include_tests` | `true` | Whether the Go tests are indexed. Tests are recognised by path (`_test.go`), so `kivgraph impact` lists a Go test among the affected symbols and `find_references` includes the tests that use a symbol only while this is `true`. A `config.yaml` written by an earlier `init` spells the key out as `false` and keeps it until edited. `find_references` takes `exclude_tests` to leave them out of one answer. |
 | `goos` | *(empty)* | The build platform's operating system, passed to every Go load as `GOOS`. Empty uses the platform of the configured Go toolchain. |
 | `goarch` | *(empty)* | The build platform's architecture, passed to every Go load as `GOARCH`. Empty uses the platform of the configured Go toolchain. |
 | `cgo_enabled` | *(unset)* | When set, passed to every Go load as `CGO_ENABLED`: `true` is `1` and `false` is `0`. Unset leaves the variable as the process environment has it. |
@@ -138,7 +138,7 @@ reference. Accepting another word would promise behaviour no code implements.
 | `analyzer_command` | `dart` | Must not be empty. The default resolves through the `PATH`, so the fact cache fingerprint identifies the SDK it finds. |
 | `maximum_workers` | `2` | Must be positive. |
 | `sdk_path` | `dart` | Must not be empty. |
-| `include_tests` | `false` | |
+| `include_tests` | `true` | Whether the Dart tests are indexed, recognised by path (`test/`, `_test.dart`). |
 | `include_generated` | `false` | |
 | `include_external_packages` | `false` | Adds the packages the package config resolves as provider repositories of their own, so references into them have a target. Off, the registered repository is the only unit and package-cache source never enters the graph. |
 | `include_sdk` | `false` | Publishes the Dart SDK itself. |

@@ -256,7 +256,8 @@ func setMappingScalar(mapping *yaml.Node, field, value string) error {
 		node.Anchor = ""
 		return nil
 	}
-	mapping.Content = append(mapping.Content,
+	mapping.Content = append(
+		mapping.Content,
 		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: field},
 		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: value},
 	)
@@ -601,7 +602,7 @@ func DefaultConfig() Config {
 		},
 		Go: GoConfig{
 			SyntheticWorkFile: defaultSyntheticWork,
-			IncludeTests:      false,
+			IncludeTests:      true,
 			GOOS:              "",
 			GOARCH:            "",
 			CGOEnabled:        nil,
@@ -628,7 +629,7 @@ func DefaultConfig() Config {
 			AnalyzerCommand:     "dart",
 			MaximumWorkers:      2,
 			SDKPath:             "dart",
-			IncludeTests:        false,
+			IncludeTests:        true,
 			IncludeGenerated:    false,
 			IncludeExternal:     false,
 			IncludeSDK:          false,
@@ -1123,7 +1124,8 @@ func setPythonAnalyzer(path string, expectedCommand *string, command, mode strin
 	python := mappingValue(document, "python")
 	if python == nil {
 		python = &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
-		document.Content = append(document.Content,
+		document.Content = append(
+			document.Content,
 			&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "python"}, python,
 		)
 	} else if python.Kind == yaml.ScalarNode && python.Tag == "!!null" {

@@ -14,6 +14,7 @@ description: Type-checked incoming or outgoing references for one symbol, with t
 | `cursor` | string | none | Opaque token taken from `next_cursor`. Resumes the same query at the next offset. |
 | `direction` | string | `incoming` | `incoming` returns the symbols that reference this one. `outgoing` returns the ones it reaches. Any other value is rejected with `INVALID_ARGUMENT`. |
 | `edge_kinds` | array of string | none, meaning every reference kind except `EXPORTS` and `REEXPORTS` | Restricts rows to these relations. The default leaves out the forwarding bindings: an `export { x }` or `export { x } from "./y"` names a path to the declaration rather than a use of it, and the response says so under `edge_kinds_default_excluded`. Nothing becomes unreachable -- the checker resolves an import through however many barrels stand in the way, so every consumer behind one carries its own `IMPORTS_SYMBOL` edge and is listed without them. A list replaces that default; `["*"]` reports every reference kind, and the wildcard stands alone since mixing it with names asks for a filter and for no filter at once. Accepted: `IMPORTS_SYMBOL`, `EXPORTS`, `REEXPORTS`, `REFERENCES`, `CALLS_DIRECT`, `PASSES_AS_CALLBACK`, `ASSIGNS_FUNCTION`, `RETURNS_FUNCTION`, `TYPE_USES`, `IMPLEMENTS`, `EXTENDS`, `EMBEDS`, `OVERRIDES`, `PART_OF`. Containment and package kinds are rejected. Duplicates collapse; an empty or space-padded entry is rejected. |
+| `exclude_tests` | boolean | `false` | Drops the rows declared in a test file, recognised by path: `_test.go`, `_test.py`, `_test.dart`, `test_*.py`, `*.test.*`, `*.spec.*`, Java and C# files ending in `Test` or `Tests`, and a `test`, `tests`, `__tests__`, `spec` or `specs` directory. Applied before the total and the page, so a cursor taken without it is rejected under it. Tests are in the graph unless `go.include_tests` or `dart.include_tests` is `false`. |
 | `include_derived` | boolean | `false` | Includes rows from providers Kivgraph derives from the machine, which take the `rust:` namespace, such as a Rust toolchain's standard library. Naming one of them in `repo` has the same effect. |
 | `language` | string | none | Keeps rows whose symbol carries this language: `go`, `typescript`, `rust`, `python`, `dart`, `java` or `csharp`, as stored for the symbol. Compared exactly, so the registry aliases such as `ts`, `rs`, `py` and `cs` match nothing; surrounding whitespace is rejected. |
 | `limit` | integer | `50` | Rows in this page. Must be between 1 and 500. |
@@ -213,7 +214,7 @@ The same symbol, the other direction, with a page smaller than the answer:
   "coverage": {
     "exact": 66
   },
-  "guidance": "showing 2 of 66; narrow with edge_kinds, confidence, repo or language, or pass the cursor for the next page",
+  "guidance": "showing 2 of 66; narrow with edge_kinds, confidence, repo, language or exclude_tests, or pass the cursor for the next page",
   "results": {
     "subject": "kivgraph:internal/facts/facts.go:516",
     "qn": "MergeAll",
@@ -268,7 +269,7 @@ The same page in the `full` view:
     "unresolved_related": 0,
     "package_level": 0
   },
-  "guidance": "showing 2 of 66; narrow with edge_kinds, confidence, repo or language, or pass the cursor for the next page",
+  "guidance": "showing 2 of 66; narrow with edge_kinds, confidence, repo, language or exclude_tests, or pass the cursor for the next page",
   "results": {
     "subject": {
       "stable_key": "KHXAWFM5ED2YEIFIEMB5NALA7L7YXNHSUJEBLU7SDAMLGKX24UAA",

@@ -400,13 +400,15 @@ func (i indexer) register() error {
 		return fmt.Errorf("read %s: %w", config, err)
 	}
 	// Go tests are indexed, so both surfaces see the same files: graft always
-	// parses them. This needed a fix in the loader -- a field of a nested
-	// anonymous struct inside a function took an unrooted owner path, so every
-	// file in a package that unmarshalled into the same shape declared one
-	// `Errors.Message` and the fact set failed the DEFINES multiplicity at publish
-	// time. The sweep recorded in report.md predates that fix and ran with Go
-	// tests excluded on the kivgraph side only.
-	patched := strings.Replace(string(raw), "include_tests: false", "include_tests: true", 1)
+	// parses them. `go.include_tests` is true by default, so nothing is patched
+	// here; a replace of the first `include_tests: false` would now switch on
+	// the next language's tests instead. Indexing them needed a fix in the
+	// loader -- a field of a nested anonymous struct inside a function took an
+	// unrooted owner path, so every file in a package that unmarshalled into the
+	// same shape declared one `Errors.Message` and the fact set failed the
+	// DEFINES multiplicity at publish time. The sweep recorded in report.md
+	// predates that fix and ran with Go tests excluded on the kivgraph side only.
+	patched := string(raw)
 	// The generated configuration locates state through `~`, which resolves
 	// against whatever HOME the reader has. The arms cannot set HOME: an `env`
 	// block in an MCP config replaces the environment instead of extending it,
