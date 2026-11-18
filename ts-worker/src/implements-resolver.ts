@@ -398,12 +398,19 @@ export async function resolveImplementations(
 
   const targetIDsByRequiredName = new Map<string, Set<number>>();
   const targetsWithoutRequiredMembers = new Set<number>();
+  // Targets that ask for no behaviour: no required method. They are data shapes
+  // or option bags, and a class that happens to carry their fields is assignable
+  // to them without implementing anything.
+  const targetsWithoutRequiredMethods = new Set<number>();
   for (const target of targets.values()) {
     let hasRequiredMembers = false;
+    let hasRequiredMethods = false;
     for (const targetType of target.types.values()) {
       for (const property of await props(targetType)) {
         if ((property.flags & SymbolFlags.Optional) !== 0) continue;
         hasRequiredMembers = true;
+        if ((property.flags & SymbolFlags.Method) !== 0)
+          hasRequiredMethods = true;
         const matching =
           targetIDsByRequiredName.get(property.name) ?? new Set();
         matching.add(target.symbol.id);
@@ -412,6 +419,8 @@ export async function resolveImplementations(
     }
     if (!hasRequiredMembers)
       targetsWithoutRequiredMembers.add(target.symbol.id);
+    if (!hasRequiredMethods)
+      targetsWithoutRequiredMethods.add(target.symbol.id);
   }
   for (const source of sources.values()) {
     const candidateIDs = new Set([
@@ -463,6 +472,19 @@ export async function resolveImplementations(
                 (property.flags & SymbolFlags.Optional) === 0 &&
                 !sourceNames.has(property.name),
             )
+          )
+            continue;
+          // A type with no required method asks nothing of a class's behaviour:
+          // any object is assignable to an empty type, and so is one that merely
+          // carries the fields of a data shape -- an error class with `issues`
+          // is assignable to the result type that declares `issues`, and an error
+          // class with `maxResponseSize` to the options bag that declares
+          // `maxResponseSize?`. That is not an implementation, and the references
+          // to the type would be forwarded to it. A declared `implements` is a
+          // statement and keeps its edge.
+          if (
+            detection === "structural" &&
+            targetsWithoutRequiredMethods.has(target.symbol.id)
           )
             continue;
           if (await assignable(sourceType, targetType)) {
