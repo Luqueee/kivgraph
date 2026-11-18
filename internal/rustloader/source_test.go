@@ -85,3 +85,45 @@ func offsetOfOccurrence(t *testing.T, source string, line int, name string) int 
 	t.Fatalf("source has no line %d", line)
 	return 0
 }
+
+// TestMacroPathsReadsOnlyWhatNamesADeclaration pins what is read out of a
+// macro body and, as much, what is not: a bare word, a method, a macro
+// invocation and a metavariable stand for something the grammar cannot name.
+func TestMacroPathsReadsOnlyWhatNamesADeclaration(t *testing.T) {
+	code := `macro_rules! m {
+    ($value:expr, $callee:ident) => {
+        $crate::shapes::area($value);
+        crate::util::Thing::build();
+        helper($value);
+        plain_word;
+        $value.method();
+        inner!($value);
+        $callee($value);
+        std::mem::drop::<Vec<u8>>(v);
+    };
+}
+fn outside() { not_in_a_macro::called(); }
+`
+	manager, err := syntax.NewParserManager(1)
+	if err != nil {
+		t.Fatalf("NewParserManager() error = %v", err)
+	}
+	t.Cleanup(func() { manager.Close() })
+	parsed, err := NewSource(context.Background(), manager, "m.rs", []byte(code))
+	if err != nil {
+		t.Fatalf("NewSource() error = %v", err)
+	}
+	t.Cleanup(parsed.Close)
+	var got []string
+	for _, path := range parsed.MacroPaths() {
+		suffix := ""
+		if path.Called {
+			suffix = "()"
+		}
+		got = append(got, strings.Join(path.Segments, "::")+suffix)
+	}
+	want := []string{"shapes::area()", "util::Thing::build()", "helper()", "std::mem::drop"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("MacroPaths() = %v, want %v", got, want)
+	}
+}

@@ -478,6 +478,9 @@ func rustRelationKind(kind rustloader.RelationKind) EdgeKind {
 // call carries a syntax provenance over a type-checked resolution -- the same
 // division GO_AST_CALL keeps.
 func rustReferenceTrust(reference rustloader.Reference) (Confidence, Provenance) {
+	if reference.Candidate {
+		return Candidate, TreeSitterSyntax
+	}
 	confidence := ExactTypechecked
 	if reference.TargetRepository != "" {
 		confidence = ExactPackageMapped

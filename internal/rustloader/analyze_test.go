@@ -441,3 +441,38 @@ func TestAnalyzeReadsFunctionValues(t *testing.T) {
 		}
 	}
 }
+
+// TestAnalyzePublishesNamesInsideMacroBodiesAsCandidates pins what the analyzer
+// leaves out: it resolves nothing inside a `macro_rules!` body, so the uses of
+// `double`, `helper_user` and `private_helper` there reach the graph only
+// through the grammar, as candidates sourced at the macro.
+func TestAnalyzePublishesNamesInsideMacroBodiesAsCandidates(t *testing.T) {
+	analysis := analyzeFixture(t)
+	names := map[string]string{}
+	for _, definition := range analysis.Definitions {
+		names[string(definition.StableKey)] = definition.QualifiedName
+	}
+	type edge struct {
+		kind      ReferenceKind
+		candidate bool
+	}
+	observed := map[string]edge{}
+	for _, reference := range analysis.References {
+		if strings.HasPrefix(names[reference.SourceKey], "doubled") {
+			observed[names[reference.SourceKey]+" -> "+names[reference.TargetKey]] = edge{reference.Kind, reference.Candidate}
+		}
+	}
+	want := map[string]edge{
+		"doubled -> double":         {ReferenceCall, true},
+		"doubled -> helper_user":    {ReferenceCall, true},
+		"doubled -> private_helper": {ReferenceCall, true},
+	}
+	if len(observed) != len(want) {
+		t.Fatalf("references from the macro = %v, want %v", observed, want)
+	}
+	for key, value := range want {
+		if observed[key] != value {
+			t.Errorf("reference %q = %v, want %v; observed %v", key, observed[key], value, observed)
+		}
+	}
+}

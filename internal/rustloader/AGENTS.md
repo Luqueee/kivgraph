@@ -86,6 +86,11 @@ Las reglas del motor están en `internal/AGENTS.md`.
   destino de un `OVERRIDES` se compone desde el símbolo del trait y solo se
   emite si el índice lo observó; una implementación que la gramática no ve
   -generada por una macro- queda ausente y no se adivina.
+- Un nombre escrito dentro del cuerpo de un `macro_rules!` no tiene ocurrencia
+  en el índice: el analizador no resuelve nada ahí. La gramática lee esas rutas
+  (`MacroPaths`) y se publica una referencia `CANDIDATE` con procedencia
+  `TREE_SITTER_SYNTAX` solo cuando exactamente una declaración del crate de la
+  macro termina con esa ruta. Nunca `EXACT`; ver ADR 0128.
 - Nombrar una función no es llamarla, y las tres formas en que Rust la mueve
   son tres relaciones distintas: argumento de una llamada
   (`PASSES_AS_CALLBACK`, con procedencia propia `RUST_SYNTAX_CALLBACK`, el

@@ -76,10 +76,19 @@ func TestFullIndexesARustRepository(t *testing.T) {
 		t.Fatalf("packages = %#v", set.Packages)
 	}
 
-	var calls, dependencies int
+	var calls, candidates, dependencies int
 	for _, edge := range set.Edges {
 		switch edge.Kind {
 		case facts.CallsDirect:
+			if edge.Confidence == facts.Candidate {
+				// A call written inside a `macro_rules!` body, which the
+				// analyzer does not resolve: the grammar found it.
+				candidates++
+				if edge.Provenance != facts.TreeSitterSyntax || edge.EvidenceKey == "" {
+					t.Fatalf("candidate call edge = %#v", edge)
+				}
+				continue
+			}
 			calls++
 			if edge.Confidence != facts.ExactTypechecked || edge.EvidenceKey == "" {
 				t.Fatalf("call edge = %#v", edge)
@@ -88,8 +97,8 @@ func TestFullIndexesARustRepository(t *testing.T) {
 			dependencies++
 		}
 	}
-	if calls == 0 || dependencies == 0 {
-		t.Fatalf("edges = %d calls, %d dependencies", calls, dependencies)
+	if calls == 0 || candidates != 3 || dependencies == 0 {
+		t.Fatalf("edges = %d calls, %d candidates, %d dependencies", calls, candidates, dependencies)
 	}
 	// The standard library is not a registered repository, so its uses are
 	// declared rather than turned into edges.

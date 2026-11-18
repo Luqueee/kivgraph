@@ -88,8 +88,12 @@ type Reference struct {
 	TargetQualifiedName string
 	Kind                ReferenceKind
 	Use                 UseKind
-	SourceCrate         CrateRef
-	TargetCrate         CrateRef
+	// Candidate marks a use the grammar found and the analyzer did not
+	// resolve: a name inside a `macro_rules!` body. It is plausible, not
+	// proven, and publishes as a candidate.
+	Candidate   bool
+	SourceCrate CrateRef
+	TargetCrate CrateRef
 
 	File        string
 	StartLine   int
@@ -308,6 +312,7 @@ func Analyze(ctx context.Context, options AnalyzeOptions) (Analysis, error) {
 	}
 	dependencies := make(map[string]CrateDependency)
 	unresolved := make(map[string]UnresolvedReference)
+	macros := newMacroIndex(definitions)
 	for _, document := range documents {
 		if err := ctx.Err(); err != nil {
 			return Analysis{}, err
@@ -315,6 +320,7 @@ func Analyze(ctx context.Context, options AnalyzeOptions) (Analysis, error) {
 		relations, consumed := collectRelations(document, resolver, observed)
 		analysis.Relations = append(analysis.Relations, relations...)
 		collectReferences(document, resolver, &analysis, dependencies, unresolved, options, consumed)
+		collectMacroReferences(document, resolver, macros, &analysis)
 		collectMissingDefinitions(document, unresolved)
 	}
 	collectEmptyCrates(options, analysis.Files, unresolved)
@@ -667,7 +673,8 @@ func duplicateDefinitions(duplicated map[string][]string, definitions map[string
 		sort.Strings(files)
 		reported = append(reported, fmt.Sprintf(
 			"the analyzer defines %q in more than one document: published from %s, not from %s",
-			symbol, definitions[symbol].File, strings.Join(files, ", ")))
+			symbol, definitions[symbol].File, strings.Join(files, ", "),
+		))
 	}
 	return reported
 }
