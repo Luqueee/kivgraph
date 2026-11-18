@@ -28,6 +28,7 @@ generation, incoming to the subject.
 | `profile` | array of strings | configured default | Profiles to query. `["*"]` alone selects all. A stable key requires exactly one named profile when several profiles exist. |
 | `cursor` | string | none | Opaque token taken from `next_cursor`. Keep the filters unchanged; it is bound to the served generation. |
 | `detection` | string | none | Filters the evidence: `declared` or `structural`. Omitted, it includes both and the other typed mechanisms. Anything else is rejected with `INVALID_ARGUMENT`. |
+| `exclude_tests` | boolean | `false` | Drops the rows declared in a test file, matched by path as `find_references` does. |
 | `language` | string | none | Filters rows by language, as stored for the symbol: `go`, `typescript`, `rust`, `python`, `dart`, `java` or `csharp`. |
 | `limit` | integer | `50` | Rows in this page. Must be between 1 and 500. |
 | `name` | string | none | The subject's name. Ambiguity returns candidates. Alternatively use `stable_key` or `qualified_name`. |

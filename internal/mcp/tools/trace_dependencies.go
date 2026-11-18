@@ -53,6 +53,7 @@ type TraceDependenciesInput struct {
 	MaxNodes       int      `json:"max_nodes,omitempty" jsonschema:"Nodes the walk may visit before it stops and declares that it did. Defaults to 5000."`
 	Repo           string   `json:"repo,omitempty" jsonschema:"Keep only reached symbols in this repository. Refused with to, since a route missing a link is not a route."`
 	Language       string   `json:"language,omitempty" jsonschema:"Keep only reached symbols written in this language. Refused with to."`
+	ExcludeTests   bool     `json:"exclude_tests,omitempty" jsonschema:"Drop reached symbols declared in test files, matched by path. Refused with to."`
 	EdgeKinds      []string `json:"edge_kinds,omitempty" jsonschema:"Relation kinds the walk may follow, such as CALLS. It gates what is reachable, not just what is shown."`
 	Confidence     string   `json:"confidence,omitempty" jsonschema:"Follow only edges resolved at this confidence, such as EXACT_TYPECHECKED. It gates what is reachable."`
 	IncludeDerived bool     `json:"include_derived,omitempty" jsonschema:"Include reached symbols of the derived provider, which is withheld by default. Refused with to."`
@@ -414,19 +415,20 @@ func (trace DependencyTrace) MarshalJSON() ([]byte, error) {
 }
 
 type traceDependenciesOptions struct {
-	Selector   symbolSelector
-	Target     string
-	TargetPath string
-	Depth      int
-	MaxNodes   int
-	Repo       string
-	Language   string
-	EdgeKinds  []string
-	Confidence string
-	Derived    derivedFilter
-	Limit      int
-	Format     string
-	View       string
+	Selector     symbolSelector
+	Target       string
+	TargetPath   string
+	Depth        int
+	MaxNodes     int
+	Repo         string
+	Language     string
+	ExcludeTests bool
+	EdgeKinds    []string
+	Confidence   string
+	Derived      derivedFilter
+	Limit        int
+	Format       string
+	View         string
 }
 
 type traceDependenciesQuery struct {
@@ -441,6 +443,7 @@ type traceDependenciesQuery struct {
 	MaxNodes      int      `json:"max_nodes"`
 	Repo          string   `json:"repo,omitempty"`
 	Language      string   `json:"language,omitempty"`
+	ExcludeTests  bool     `json:"exclude_tests,omitempty"`
 	EdgeKinds     []string `json:"edge_kinds,omitempty"`
 	Confidence    string   `json:"confidence,omitempty"`
 	// See blastRadiusQuery for why this one is `omitempty`.
@@ -645,7 +648,7 @@ func traceDependencies(
 		Tool: traceDependenciesToolName, StableKey: options.Selector.StableKey, QualifiedName: options.Selector.QualifiedName,
 		Repository: options.Selector.Repository, Path: options.Selector.Path,
 		To: options.Target, ToPath: options.TargetPath, Depth: options.Depth,
-		MaxNodes: options.MaxNodes, Repo: options.Repo, Language: options.Language,
+		MaxNodes: options.MaxNodes, Repo: options.Repo, Language: options.Language, ExcludeTests: options.ExcludeTests,
 		EdgeKinds: options.EdgeKinds, Confidence: options.Confidence, IncludeDerived: arguments.IncludeDerived,
 	})
 	if err != nil {
@@ -833,7 +836,7 @@ func normalizeTraceDependenciesInput(arguments TraceDependenciesInput) (traceDep
 	return traceDependenciesOptions{
 		Selector: selector, Target: target, TargetPath: targetPath,
 		Depth: depth, MaxNodes: maxNodes, Repo: repo,
-		Language: language, EdgeKinds: edgeKinds, Confidence: confidence, Limit: limit, Format: format,
+		Language: language, ExcludeTests: arguments.ExcludeTests, EdgeKinds: edgeKinds, Confidence: confidence, Limit: limit, Format: format,
 		Derived: derived, View: view,
 	}, nil
 }
@@ -913,6 +916,9 @@ func dependencyNodes(
 			continue
 		}
 		if options.Language != "" && !containsString(languages, options.Language) {
+			continue
+		}
+		if options.ExcludeTests && IsTestPath(file.path) {
 			continue
 		}
 		source, found := snapshot.Symbol(visit.Source)

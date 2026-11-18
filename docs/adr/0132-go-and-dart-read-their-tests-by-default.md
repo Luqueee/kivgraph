@@ -56,8 +56,22 @@ not change without one.
   `get_blast_radius`, which is the purpose.
 - The language-recall benchmark's second configuration is now the one that
   switches tests off (`go.tests_excluded`, `dart.tests_excluded`).
-- Only `find_references` has the filter. `find_implementations`,
-  `trace_dependencies`, `get_blast_radius` and `find_cross_repo_consumers` return
-  test rows when the graph holds them.
+- `find_implementations`, `trace_dependencies`, `get_blast_radius` and
+  `find_cross_repo_consumers` returned test rows with no way to leave them out;
+  see the amendment below.
 - Test files are recognised by path. A Rust `#[cfg(test)]` module inside a source
   file is not seen.
+
+## Amendment
+
+`exclude_tests` is also an argument of `find_implementations`,
+`trace_dependencies` and `get_blast_radius`, with the same path rule. In
+`get_blast_radius` it is applied where the row filters are, before the axes are
+counted, so the page and `affected`, `by_repository`, `by_package`, `by_depth`
+and `by_kind` describe the same symbols; the walk itself still crosses a test
+file, which is where a test is a link and not a leaf. A cursor is bound to it,
+like to every other filter. `trace_dependencies` refuses it together with `to`,
+as it does `repo` and `language`: a route with a link left out is not a route.
+`find_cross_repo_consumers` does not take it.
+
+The schema ceiling went to `18.600` bytes for the three arguments, `122` each.

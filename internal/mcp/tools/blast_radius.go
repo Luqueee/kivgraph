@@ -53,6 +53,7 @@ type GetBlastRadiusInput struct {
 	Confidence     string   `json:"confidence,omitempty" jsonschema:"Follow only edges resolved at this confidence, such as EXACT_TYPECHECKED."`
 	Kinds          []string `json:"kinds,omitempty" jsonschema:"Symbol kinds to report. Empty excludes variable and field, the local bindings a walk passes through; * reports every kind."`
 	IncludeDerived bool     `json:"include_derived,omitempty" jsonschema:"Include affected symbols of the derived provider, which is withheld by default."`
+	ExcludeTests   bool     `json:"exclude_tests,omitempty" jsonschema:"Drop affected symbols declared in test files, matched by path. Every axis follows."`
 	Limit          int      `json:"limit,omitempty" jsonschema:"Affected symbols in one page. Defaults to 50."`
 	Cursor         string   `json:"cursor,omitempty" jsonschema:"Previous next_cursor; keep other arguments unchanged."`
 	ResponseFormat string   `json:"response_format,omitempty" jsonschema:"concise (default), or detailed with derived identifiers."`
@@ -213,16 +214,17 @@ func compactPackageCounts(groups []BlastRadiusPackageGroup, hoisted string) []co
 }
 
 type blastRadiusOptions struct {
-	Selector   symbolSelector
-	Depth      int
-	MaxNodes   int
-	EdgeKinds  []string
-	Confidence string
-	Kinds      blastRadiusKindFilter
-	Limit      int
-	Format     string
-	View       string
-	Derived    derivedFilter
+	Selector     symbolSelector
+	Depth        int
+	MaxNodes     int
+	EdgeKinds    []string
+	Confidence   string
+	Kinds        blastRadiusKindFilter
+	ExcludeTests bool
+	Limit        int
+	Format       string
+	View         string
+	Derived      derivedFilter
 }
 
 // blastRadiusQuery is the identity a cursor is bound to. Kinds carries no
@@ -241,8 +243,10 @@ type blastRadiusQuery struct {
 	Confidence    string   `json:"confidence,omitempty"`
 	Kinds         []string `json:"kinds"`
 	// `omitempty`, so every cursor minted without the flag keeps its hash and
-	// only the pages that asked for the derived provider are bound to it.
+	// only the pages that asked for the derived provider are bound to it. The
+	// same goes for the tests filter.
 	IncludeDerived bool `json:"include_derived,omitempty"`
+	ExcludeTests   bool `json:"exclude_tests,omitempty"`
 }
 
 // blastRadiusDefaultExcludedKinds are the symbol kinds an unasked-for impact
@@ -603,7 +607,7 @@ func getBlastRadius(
 		Tool: blastRadiusToolName, StableKey: options.Selector.StableKey, QualifiedName: options.Selector.QualifiedName,
 		Repository: options.Selector.Repository, Path: options.Selector.Path, Depth: options.Depth,
 		MaxNodes: options.MaxNodes, EdgeKinds: options.EdgeKinds, Confidence: options.Confidence,
-		Kinds: options.Kinds.applied, IncludeDerived: arguments.IncludeDerived,
+		Kinds: options.Kinds.applied, IncludeDerived: arguments.IncludeDerived, ExcludeTests: options.ExcludeTests,
 	})
 	if err != nil {
 		return nil, Response[BlastRadius]{}, err
@@ -646,7 +650,7 @@ func getBlastRadius(
 		return nil, Response[BlastRadius]{}, classifyTraversalError(err)
 	}
 
-	radius, coverage, err := blastRadiusGroups(snapshot, traversal.Visits, traversalOptions, options.Format, options.Derived, options.Kinds)
+	radius, coverage, err := blastRadiusGroups(snapshot, traversal.Visits, traversalOptions, options.Format, options.Derived, options.Kinds, options.ExcludeTests)
 	if err != nil {
 		return nil, Response[BlastRadius]{}, WrapToolError(CodeSnapshotUnavailable, "active snapshot contains invalid impact metadata", err)
 	}
@@ -778,7 +782,7 @@ func normalizeBlastRadiusInput(arguments GetBlastRadiusInput) (blastRadiusOption
 		Selector: selector, Depth: depth, MaxNodes: maxNodes,
 		EdgeKinds: edgeKinds, Confidence: confidence, Kinds: kinds,
 		Limit: limit, Format: format, View: view,
-		Derived: derived,
+		Derived: derived, ExcludeTests: arguments.ExcludeTests,
 	}, nil
 }
 
@@ -815,6 +819,7 @@ func blastRadiusGroups(
 	format string,
 	derived derivedFilter,
 	reported blastRadiusKindFilter,
+	excludeTests bool,
 ) (BlastRadius, Coverage, error) {
 	radius := BlastRadius{Symbols: make([]ReachedSymbol, 0, len(visits))}
 	coverage := Coverage{}
@@ -833,6 +838,11 @@ func blastRadiusGroups(
 			return BlastRadius{}, Coverage{}, err
 		}
 		if !derived.keepsRepository(repository.name) {
+			continue
+		}
+		// A test is out of the answer and out of every axis, which are counted
+		// over the symbols that pass these filters and not over the whole walk.
+		if excludeTests && IsTestPath(file.path) {
 			continue
 		}
 		table := snapshot.Strings()

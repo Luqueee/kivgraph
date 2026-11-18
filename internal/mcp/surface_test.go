@@ -172,7 +172,12 @@ func TestServerExposesExactlyTheAllowedSurface(t *testing.T) {
 // so any new argument had to move this number; the argument itself, with its
 // description, is `138`. It lands in the input schema, which is the deferred
 // half, and no route or description a session pays for in every request changed.
-const MaximumSurfaceSchemaBytes = 18200
+//
+// And to `18.600` for the same argument on `get_blast_radius`,
+// `trace_dependencies` and `find_implementations`, so that a caller can ask any
+// of them for production code only: `18.128` to `18.494`, `122` bytes each, all
+// of it input schema. The surface keeps `106` bytes of room.
+const MaximumSurfaceSchemaBytes = 18600
 
 func TestServerSurfaceStaysCheapToLoad(t *testing.T) {
 	session := connectToServer(t, publishedServer(t))
