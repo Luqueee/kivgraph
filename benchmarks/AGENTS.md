@@ -25,6 +25,30 @@ declarado en la raíz.
   de `graph_status`, no del fixture. El brazo Rust se salta declarándose
   cuando falta su toolchain, y preserva `RUSTUP_HOME` porque un `HOME` aislado
   deja a `rustup` sin toolchains.
+- `benchmarks/language-recall/` mide, por lenguaje, qué parte de los archivos
+  que dependen de una declaración devuelve `find_references`. La verdad de
+  referencia sale de renombrar la declaración y volver a comprobar tipos: los
+  archivos que ganan un error son los que la usan. **En Go, TypeScript y Dart
+  el oráculo y Kivgraph comparten el comprobador de tipos** (`dart analyze` y
+  el Analysis Server), así que no se mide la resolución de tipos sino todo lo
+  que la rodea. En Rust no: el oráculo es `rustc` por `cargo check` y Kivgraph
+  lee `rust-analyzer`. Lo que se mide en los otros es qué archivos y variantes
+  se cargan, cómo un uso resuelto se vuelve arista y qué se filtra. La unidad es el
+  archivo, no la referencia, porque tras un import roto el compilador no
+  reporta los usos del nombre importado. Un error solo cuenta si su línea
+  nombra el identificador original (los errores en cascada no) y se excluyen
+  las relaciones de implementación y los errores sobre la propia línea de la
+  declaración. Corpus público fijado por commit; un repositorio por lenguaje
+  en el piloto, así que las cifras describen esos repositorios y no el
+  lenguaje. Go y Dart leen sus tests por defecto (ADR 0132) y se miden con la
+  configuración por defecto y con `include_tests: false`
+  (`go.tests_excluded`), porque la diferencia entre las dos es lo que compra
+  leerlos. `-repos` mide repositorios extra por nombre -- `gin`, `caddy`,
+  `prometheus`, y `got`, `ripgrep` y `args` como segundo repositorio de
+  TypeScript, Rust y Dart (`second-repository/`) -- que no entran en la
+  ejecución por defecto. Un resultado sin la
+  lista de lo que no se pudo muestrear no se
+  publica.
 - `benchmarks/edit-frequency` no mide una reconstrucción contra otra: mide qué
   le cuesta el grafo a **un agente que edita**, que es la carga por la que la
   issue `#106` reabrió el ADR 0057. Sus dos brazos se encuentran en una sola
