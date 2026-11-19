@@ -7,15 +7,17 @@
  */
 
 import path from "node:path";
-import type {
-  BindingName,
-  Expression,
-  Identifier,
-  Node,
-  PrivateIdentifier,
-  SourceFile,
-  StringLiteral,
-  TypeNode,
+import {
+  type BindingName,
+  type Expression,
+  type Identifier,
+  type Node,
+  type ObjectLiteralExpression,
+  type PrivateIdentifier,
+  type SourceFile,
+  type StringLiteral,
+  SyntaxKind,
+  type TypeNode,
 } from "typescript/unstable/ast";
 import {
   isArrayBindingPattern,
@@ -63,9 +65,10 @@ import {
   isUnionTypeNode,
   isVariableDeclaration,
 } from "typescript/unstable/ast/is";
-import type {
-  Symbol as TypeScriptSymbol,
-  Type,
+import {
+  isUnionType,
+  type Symbol as TypeScriptSymbol,
+  type Type,
 } from "typescript/unstable/async";
 import { isDependencySourceFile } from "./dependency-source-file.js";
 import {
@@ -309,7 +312,15 @@ export async function extractLocalReferences(
     LocalSymbol | ImportBindingSymbol
   >(
     view.checker,
-    await resolvePropertyKeys(view.checker, keyList),
+    await resolvePropertyKeys(
+      view.checker,
+      keyList,
+      (symbol) =>
+        localById.has(symbol.id) ||
+        symbol.declarations.some((declaration) =>
+          localByDeclaration.has(symbolDeclarationKey(declaration)),
+        ),
+    ),
     localById,
     localByDeclaration,
     importBindingById,
@@ -502,6 +513,7 @@ function stringKeyContainer(
 async function resolvePropertyKeys(
   checker: ProjectView["checker"],
   requests: readonly PropertyKeyRequest[],
+  isLocal: (symbol: TypeScriptSymbol) => boolean,
 ): Promise<(TypeScriptSymbol | undefined)[]> {
   if (requests.length === 0) {
     return [];
@@ -561,9 +573,123 @@ async function resolvePropertyKeys(
       const name = isStringLiteral(request.node)
         ? request.node.text
         : request.node.getText(request.file);
-      return (await membersOf(type)).get(name);
+      const found = (await membersOf(type)).get(name);
+      if (
+        request.source !== "literal" ||
+        (found !== undefined && (isLocal(found) || !isLiteralMember(found)))
+      ) {
+        return found;
+      }
+      // The contextual type of an argument of a generic call is what the
+      // checker inferred from the literal, so its members are the literal's
+      // own. The declared type is the one the parameter is constrained to.
+      const declared = await declaredLiteralTypes(
+        checker,
+        request.container as ObjectLiteralExpression,
+      );
+      let fallback: TypeScriptSymbol | undefined;
+      for (const candidate of declared) {
+        const member = (await membersOf(candidate)).get(name);
+        if (member !== undefined && isLocal(member)) {
+          return member;
+        }
+        fallback ??= member;
+      }
+      return fallback ?? found;
     }),
   );
+}
+
+/**
+ * Whether a member is one the literal itself declares, which is what the
+ * checker answers when it found nothing declared to check the literal against.
+ */
+function isLiteralMember(member: TypeScriptSymbol): boolean {
+  return member.declarations.every((declaration) =>
+    LITERAL_MEMBER_KINDS.has(declaration.kind),
+  );
+}
+
+const LITERAL_MEMBER_KINDS: ReadonlySet<SyntaxKind> = new Set([
+  SyntaxKind.PropertyAssignment,
+  SyntaxKind.ShorthandPropertyAssignment,
+  SyntaxKind.MethodDeclaration,
+  SyntaxKind.GetAccessor,
+  SyntaxKind.SetAccessor,
+]);
+
+/**
+ * The types an object literal is declared to have, when it is an argument of a
+ * call (or of a literal that is, through property values) and the parameter
+ * is a type parameter: the constraint of that parameter, walked down the
+ * properties that lead to the literal. A union is walked member by member, as
+ * the checker does for a contextual type, because a property is on the union
+ * only when every member has it. Empty when the literal is not in that
+ * position or the declared type has no such property.
+ */
+async function declaredLiteralTypes(
+  checker: ProjectView["checker"],
+  literal: ObjectLiteralExpression,
+): Promise<Type[]> {
+  const keys: string[] = [];
+  let current: ObjectLiteralExpression = literal;
+  while (
+    current.parent !== undefined &&
+    isPropertyAssignment(current.parent) &&
+    current.parent.parent !== undefined &&
+    isObjectLiteralExpression(current.parent.parent)
+  ) {
+    const name = current.parent.name;
+    if (!isIdentifier(name) && !isStringLiteral(name)) {
+      return [];
+    }
+    keys.unshift(name.text);
+    current = current.parent.parent;
+  }
+  const call = current.parent;
+  if (
+    call === undefined ||
+    !(isCallExpression(call) || isNewExpression(call))
+  ) {
+    return [];
+  }
+  const index = (call.arguments ?? []).findIndex((argument) =>
+    sameNode(argument, current),
+  );
+  const signature =
+    index < 0 ? undefined : await checker.getResolvedSignature(call);
+  const parameter =
+    signature === undefined
+      ? undefined
+      : await checker.getParameterType(
+          (await signature.getTarget()) ?? signature,
+          index,
+        );
+  if (parameter === undefined) {
+    return [];
+  }
+
+  const members = async (type: Type): Promise<Type[]> => {
+    const bound = (await checker.getBaseConstraintOfType(type)) ?? type;
+    const present = (await checker.getNonNullableType(bound)) ?? bound;
+    return isUnionType(present) ? [...(await present.getTypes())] : [present];
+  };
+  let types = await members(parameter);
+  for (const key of keys) {
+    const next: Type[] = [];
+    for (const type of types) {
+      const member = await checker.getPropertyOfType(type, key);
+      const memberType =
+        member === undefined
+          ? undefined
+          : await checker.getTypeOfSymbol(member);
+      if (memberType !== undefined) {
+        next.push(...(await members(memberType)));
+      }
+    }
+    types = next;
+  }
+  return types;
 }
 
 function collectFunctionValueNodes(
