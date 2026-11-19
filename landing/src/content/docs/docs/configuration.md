@@ -110,7 +110,7 @@ reference. Accepting another word would promise behaviour no code implements.
 | Key | Default | Notes |
 | --- | --- | --- |
 | `synthetic_work_file` | `~/.local/state/kivgraph/go.work` | The synthetic workspace, outside every indexed repository. |
-| `include_tests` | `true` | Whether the Go tests are indexed. Tests are recognised by path (`_test.go`), so `kivgraph impact` lists a Go test among the affected symbols and `find_references` includes the tests that use a symbol only while this is `true`. A `config.yaml` written by an earlier `init` spells the key out as `false` and keeps it until edited. `find_references`, `find_implementations`, `trace_dependencies` and `get_blast_radius` take `exclude_tests` to leave them out of one answer. |
+| `include_tests` | `true` | Whether the Go tests are indexed. Tests are recognised by path (`_test.go`), so `kivgraph impact` lists a Go test among the affected symbols and `find_references` includes the tests that use a symbol only while this is `true`. A `config.yaml` written by an earlier `init` spells the key out as `false` and keeps it until edited. `find_references`, `find_implementations`, `trace_dependencies`, `get_blast_radius` and `find_cross_repo_consumers` take `exclude_tests` to leave them out of one answer. |
 | `goos` | *(empty)* | The build platform's operating system, passed to every Go load as `GOOS`. Empty uses the platform of the configured Go toolchain. |
 | `goarch` | *(empty)* | The build platform's architecture, passed to every Go load as `GOARCH`. Empty uses the platform of the configured Go toolchain. |
 | `cgo_enabled` | *(unset)* | When set, passed to every Go load as `CGO_ENABLED`: `true` is `1` and `false` is `0`. Unset leaves the variable as the process environment has it. |

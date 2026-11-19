@@ -12,6 +12,7 @@ description: Consumers of one symbol in other repositories, with exact uses coun
 | `profile` | array of strings | configured default | Profiles to query. `["*"]` alone selects all. A stable key requires exactly one named profile when several profiles exist. |
 | `cursor` | string | none | Opaque token taken from `next_cursor`. Resumes the same query at the next offset. |
 | `language` | string | none | Keeps only consumers carrying this language: `go`, `typescript`, `rust`, `python`, `dart`, `java` or `csharp`. Compared exactly, so the registry aliases such as `ts`, `rs`, `py` and `cs` match nothing; surrounding whitespace is rejected. |
+| `exclude_tests` | boolean | `false` | Drops the consumers and unresolved failures declared in a test file, matched by path as `find_references` does. A package dependency names no file, so it stays: it proves a repository depends on the provider, not where. |
 | `limit` | integer | `50` | Rows in this page. Must be between 1 and 500. |
 | `path` | string | none | Repository-relative path narrowing `qualified_name`. Requires `repository`. Rejected together with `stable_key`. |
 | `qualified_name` | string | none | Names the symbol to ask about. Either this or `stable_key` is required, never both. A name matching more than one symbol is rejected with `AMBIGUOUS_SYMBOL` instead of being resolved silently. |
@@ -257,7 +258,7 @@ back unchanged. It fails closed:
 | What changed | What you get |
 | --- | --- |
 | A new generation was published | `CURSOR_SNAPSHOT_EXPIRED`; restart pagination |
-| The selector, `repo` or `language` differ from the call that produced it | `CURSOR_INVALID` |
+| The selector, `repo`, `language` or `exclude_tests` differ from the call that produced it | `CURSOR_INVALID` |
 | The token was edited, re-encoded, truncated, or decodes with trailing bytes after the checksum | `CURSOR_INVALID` |
 | The token was minted by a server of the previous cursor version | `CURSOR_INVALID`; the body declares version 2 and version 1 is not reinterpreted under the new layout |
 

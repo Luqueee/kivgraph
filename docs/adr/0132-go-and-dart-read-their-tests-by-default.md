@@ -58,7 +58,7 @@ not change without one.
   switches tests off (`go.tests_excluded`, `dart.tests_excluded`).
 - `find_implementations`, `trace_dependencies`, `get_blast_radius` and
   `find_cross_repo_consumers` returned test rows with no way to leave them out;
-  see the amendment below.
+  see the amendments below.
 - Test files are recognised by path. A Rust `#[cfg(test)]` module inside a source
   file is not seen.
 
@@ -72,6 +72,18 @@ and `by_kind` describe the same symbols; the walk itself still crosses a test
 file, which is where a test is a link and not a leaf. A cursor is bound to it,
 like to every other filter. `trace_dependencies` refuses it together with `to`,
 as it does `repo` and `language`: a route with a link left out is not a route.
-`find_cross_repo_consumers` does not take it.
+`find_cross_repo_consumers` did not take it; the second amendment adds it.
 
 The schema ceiling went to `18.600` bytes for the three arguments, `122` each.
+
+## Second amendment
+
+`find_cross_repo_consumers` takes `exclude_tests`. It drops a consumer symbol
+or an unresolved failure whose file is a test, before the coverage is counted,
+so `total` and `coverage` describe the page returned. A package dependency
+names no file and stays: it proves a repository depends on the provider, and
+that a test file alone caused it is not something the row records. `completeness`
+still counts every failure the index could not read, tests included, because
+that figure says whether the empty answer can be trusted. A cursor is bound to
+the argument. The description is `46` characters and the surface stays under
+the `18.600` ceiling.
