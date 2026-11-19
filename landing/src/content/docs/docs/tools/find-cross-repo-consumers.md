@@ -59,6 +59,7 @@ measured ones.
   "snapshot_id": 30,
   "total": 0,
   "returned": 0,
+  "completeness": { "verdict": "COMPLETE" },
   "guidance": "no repository in the published graph consumes this symbol. Check graph_status if a consumer is registered but was not indexed, and find_references for uses inside its own repository",
   "results": {
     "subject": {
@@ -104,6 +105,7 @@ The same answer in the `full` view:
     "unresolved_related": 0,
     "package_level": 0
   },
+  "completeness": { "verdict": "COMPLETE" },
   "guidance": "no repository in the published graph consumes this symbol. Check graph_status if a consumer is registered but was not indexed, and find_references for uses inside its own repository",
   "results": {
     "subject": {

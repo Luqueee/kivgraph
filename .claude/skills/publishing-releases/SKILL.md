@@ -145,6 +145,10 @@ Elige requires_reindex por el comportamiento, no por costumbre:
   forma que un grafo existente ya no representa correctamente las fuentes;
 - false si el grafo existente sigue siendo válido.
 
+Una versión sin tag en el repositorio al que enlaza la página lleva
+`tagged: false`, y la página no muestra su enlace de comparación, que sería un
+404. Se quita esa línea al crear el tag.
+
 Si cambia el schema persistente o una superficie de compatibilidad, revisa el
 ADR y el camino de migración o full rebuild antes de escribir la nota. La nota
 debe explicar el impacto para el usuario, los cambios incompatibles y la acción

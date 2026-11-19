@@ -78,6 +78,7 @@ Incoming references, three at a time. Nothing asks for a `view`, so this is the
   "coverage": {
     "exact": 3
   },
+  "completeness": { "verdict": "COMPLETE" },
   "results": {
     "subject": "kivgraph:internal/facts/facts.go:516",
     "qn": "MergeAll",
@@ -136,6 +137,7 @@ explicitly:
     "unresolved_related": 0,
     "package_level": 0
   },
+  "completeness": { "verdict": "COMPLETE" },
   "results": {
     "subject": {
       "stable_key": "KHXAWFM5ED2YEIFIEMB5NALA7L7YXNHSUJEBLU7SDAMLGKX24UAA",
@@ -214,6 +216,7 @@ The same symbol, the other direction, with a page smaller than the answer:
   "coverage": {
     "exact": 66
   },
+  "completeness": { "verdict": "COMPLETE" },
   "guidance": "showing 2 of 66; narrow with edge_kinds, confidence, repo, language or exclude_tests, or pass the cursor for the next page",
   "results": {
     "subject": "kivgraph:internal/facts/facts.go:516",
@@ -269,6 +272,7 @@ The same page in the `full` view:
     "unresolved_related": 0,
     "package_level": 0
   },
+  "completeness": { "verdict": "COMPLETE" },
   "guidance": "showing 2 of 66; narrow with edge_kinds, confidence, repo, language or exclude_tests, or pass the cursor for the next page",
   "results": {
     "subject": {
@@ -337,6 +341,7 @@ and it pages at 500 by default so the list is whole:
   "coverage": {
     "exact": 3
   },
+  "completeness": { "verdict": "COMPLETE" },
   "results": {
     "subject": "kivgraph:internal/facts/facts.go:516",
     "qn": "MergeAll",
@@ -535,6 +540,7 @@ A homonym with declarations of two kinds in two repositories, so no single
   "total": 6,
   "returned": 6,
   "coverage": { "exact": 6 },
+  "completeness": { "verdict": "COMPLETE" },
   "results": {
     "subject": "kivgraph:internal/workspace/registry.go:68",
     "qn": "NewRegistry",

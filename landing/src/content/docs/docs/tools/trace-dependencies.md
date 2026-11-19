@@ -77,6 +77,7 @@ a captured page.
   "coverage": {
     "exact": 37
   },
+  "completeness": { "verdict": "COMPLETE" },
   "guidance": "showing 3 of 37; narrow with depth, max_nodes, edge_kinds or confidence, or pass the cursor for the next page",
   "results": {
     "root_key": "KHXAWFM5ED2YEIFIEMB5NALA7L7YXNHSUJEBLU7SDAMLGKX24UAA",
@@ -141,6 +142,7 @@ The same page in the `full` view:
     "unresolved_related": 0,
     "package_level": 0
   },
+  "completeness": { "verdict": "COMPLETE" },
   "guidance": "showing 3 of 37; narrow with depth, max_nodes, edge_kinds or confidence, or pass the cursor for the next page",
   "results": {
     "root_key": "KHXAWFM5ED2YEIFIEMB5NALA7L7YXNHSUJEBLU7SDAMLGKX24UAA",
@@ -328,6 +330,7 @@ via_kind)` tuples out of a walk of seven:
   "total": 7,
   "returned": 7,
   "coverage": { "exact": 7 },
+  "completeness": { "verdict": "COMPLETE" },
   "results": {
     "root_key": "EOVNCHGUQS43STPNTZICMD4MI35UUDJQFFRFGLKXRPQFOCTHBUJA",
     "root_repository": "kivgraph",

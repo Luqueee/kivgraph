@@ -15,6 +15,9 @@ const releases = defineCollection({
     version: z.string(),
     date: z.date(),
     requires_reindex: z.boolean().default(false),
+    // `false` while the version has no tag in the repository the page links
+    // to: its compare link would be a 404. Remove the line when it is tagged.
+    tagged: z.boolean().default(true),
   }),
 });
 
