@@ -47,9 +47,7 @@ machine; two runs on `prometheus` (with tests) and one on `caddy`:
   peak RSS `2.85 GB` to `1.88 GB`; time `5.7 s` to `4.8 s`.
 
 The Go heap halves. The resident peak falls by about a third. What is left above
-the Go heap (`1.6 GB` on `prometheus`) was not attributed: it is memory the Go
-runtime has not given back or memory outside it, and this change does not
-touch it.
+the Go heap was attributed afterwards (ADR 0139).
 
 The graph is the same. Symbols, edges, evidence, package edges, unresolved by
 reason and files are equal on `cobra`, `gin`, `caddy` and `prometheus`; and the

@@ -551,6 +551,8 @@ func RunFull(ctx context.Context, options FullOptions) (result FullResult, resul
 		}()
 	}
 
+	defer collectSooner()()
+
 	indexOptions := options.indexerOptions()
 	var (
 		manifest             sourceobservation.Manifest
