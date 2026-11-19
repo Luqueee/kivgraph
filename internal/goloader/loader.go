@@ -211,7 +211,18 @@ func Load(ctx context.Context, options Options) (Result, error) {
 		BuildFlags: tagFlags,
 	}
 
+	stripper := newBodyStripper(directory)
+	configuration.ParseFile = stripper.parse
 	roots, err := packages.Load(configuration, patterns...)
+	if err == nil && stripper.touches(roots) {
+		// A root lives outside the load directory, so its bodies are gone.
+		// Nothing is read from a load that lost them: do it again, whole.
+		configuration.ParseFile = nil
+		configuration.Fset = token.NewFileSet()
+		fset = configuration.Fset
+		stripper = nil
+		roots, err = packages.Load(configuration, patterns...)
+	}
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return Result{}, ctxErr
@@ -223,6 +234,9 @@ func Load(ctx context.Context, options Options) (Result, error) {
 	}
 	if len(roots) == 0 {
 		return Result{}, ErrNoPackages
+	}
+	if stripper != nil {
+		stripper.forgive(roots)
 	}
 	roots = withoutGeneratedTestMains(roots)
 	sort.Slice(roots, func(left, right int) bool {

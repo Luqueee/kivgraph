@@ -1,0 +1,140 @@
+package goloader
+
+import (
+	"context"
+	"go/ast"
+	"path/filepath"
+	"testing"
+
+	"golang.org/x/tools/go/packages"
+
+	"github.com/Luqueee/kivgraph/internal/testsupport"
+)
+
+func bodiesOf(loaded *packages.Package) map[string]bool {
+	bodies := map[string]bool{}
+	for _, file := range loaded.Syntax {
+		for _, declaration := range file.Decls {
+			if function, ok := declaration.(*ast.FuncDecl); ok {
+				bodies[function.Name.Name] = function.Body != nil
+			}
+		}
+	}
+	return bodies
+}
+
+// TestLoadReadsNoBodiesOfDependencies pins what the stripping keeps and what it
+// takes. The roots keep every body. A dependency loses the body of an ordinary
+// function and keeps the bodies the checker asks for: a generic function's, and
+// an `init`. And nothing of the stripping is reported: the standard library
+// imports packages its bodies alone use, and each of them is an error the
+// checker raises when the bodies are gone.
+func TestLoadReadsNoBodiesOfDependencies(t *testing.T) {
+	root := testsupport.TempDir(t)
+	writeFiles(t, root, map[string]string{
+		"go.mod": "module example.com/root\n\ngo 1.24\n",
+		"main.go": `package main
+
+import (
+	"slices"
+	"strings"
+)
+
+func main() { println(strings.ToUpper("a"), slices.Max([]int{1})) }
+`,
+	})
+	result, err := Load(context.Background(), Options{Directory: root})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if len(result.Errors) != 0 {
+		t.Fatalf("errors = %#v, want none", result.Errors)
+	}
+	if got := bodiesOf(result.Packages[0]); !got["main"] {
+		t.Fatalf("root bodies = %v, want main to keep its body", got)
+	}
+	strs := bodiesOf(result.Packages[0].Imports["strings"])
+	if strs["ToUpper"] {
+		t.Fatal("strings.ToUpper kept its body")
+	}
+	if !bodiesOf(result.Packages[0].Imports["slices"])["Max"] {
+		t.Fatal("slices.Max is generic and the checker needs its body")
+	}
+	if result.Packages[0].Imports["strings"].Types.Scope().Lookup("ToUpper") == nil {
+		t.Fatal("a function without a body is still declared")
+	}
+}
+
+// TestLoadKeepsTheBodiesOfARootOutsideTheLoadDirectory is the guard of the
+// stripping: a file is a dependency's because it is outside the directory, and a
+// root can be outside it. Such a load is done again whole, and what is returned
+// has every body.
+func TestLoadKeepsTheBodiesOfARootOutsideTheLoadDirectory(t *testing.T) {
+	root := testsupport.TempDir(t)
+	main := filepath.Join(root, "main")
+	other := filepath.Join(root, "other")
+	writeFiles(t, other, map[string]string{
+		"go.mod":   "module example.com/other\n\ngo 1.24\n",
+		"other.go": "package other\n\nfunc Answer() int { return 42 }\n",
+	})
+	writeFiles(t, main, map[string]string{
+		"go.mod": "module example.com/main\n\ngo 1.24\n\nrequire example.com/other v0.0.0\n\nreplace example.com/other => ../other\n",
+		"main.go": `package main
+
+import "example.com/other"
+
+func main() { println(other.Answer()) }
+`,
+	})
+	result, err := Load(context.Background(), Options{Directory: main, Patterns: []string{"example.com/other"}})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if len(result.Packages) != 1 || result.Packages[0].PkgPath != "example.com/other" {
+		t.Fatalf("packages = %v, want the one root outside the directory", result.Packages)
+	}
+	if !bodiesOf(result.Packages[0])["Answer"] {
+		t.Fatal("a root outside the load directory lost its bodies")
+	}
+}
+
+// TestForgiveKeepsWhatTheStrippingDidNotCause covers what the real standard
+// library cannot be made to show: a dependency whose only errors are the unused
+// imports of the files that lost their bodies is clean, advisory included, and
+// one with any other error keeps all of them.
+func TestForgiveKeepsWhatTheStrippingDidNotCause(t *testing.T) {
+	skew := packages.Error{
+		Pos: "-", Kind: packages.UnknownError,
+		Msg: "This application uses version go1.26 of the source-processing packages but runs version go1.27 of 'go list'.",
+	}
+	unused := packages.Error{Pos: "/dep/a.go:3:8", Kind: packages.TypeError, Msg: `"fmt" imported and not used`}
+	unusedOld := packages.Error{Pos: "/dep/a.go:4:8", Kind: packages.TypeError, Msg: `"os" imported but not used`}
+	unusedElsewhere := packages.Error{Pos: "/dep/kept.go:3:8", Kind: packages.TypeError, Msg: `"fmt" imported and not used`}
+	typeError := packages.Error{Pos: "/dep/a.go:9:2", Kind: packages.TypeError, Msg: "undefined: missing"}
+
+	for _, test := range []struct {
+		name string
+		in   []packages.Error
+		want []packages.Error
+	}{
+		{"only unused imports of a stripped file", []packages.Error{skew, unused, unusedOld}, nil},
+		{"an unused import in a file that kept its bodies is a real error", []packages.Error{skew, unusedElsewhere}, []packages.Error{skew, unusedElsewhere}},
+		{"another error keeps the advisory and itself", []packages.Error{skew, unused, typeError}, []packages.Error{skew, typeError}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			dependency := &packages.Package{ID: "example.com/dep", Errors: test.in}
+			root := &packages.Package{ID: "example.com/root", Imports: map[string]*packages.Package{"example.com/dep": dependency}}
+			stripper := newBodyStripper(t.TempDir())
+			stripper.stripped.Store("/dep/a.go", struct{}{})
+			stripper.forgive([]*packages.Package{root})
+			if len(dependency.Errors) != len(test.want) {
+				t.Fatalf("errors = %#v, want %#v", dependency.Errors, test.want)
+			}
+			for index := range test.want {
+				if dependency.Errors[index] != test.want[index] {
+					t.Fatalf("errors = %#v, want %#v", dependency.Errors, test.want)
+				}
+			}
+		})
+	}
+}
