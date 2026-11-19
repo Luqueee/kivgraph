@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path"
+	"strconv"
 	"strings"
 
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
@@ -74,6 +75,13 @@ type TypeScriptReference struct {
 	File                string `json:"file"`
 	Kind                string `json:"kind"`
 	SourceQualifiedName string `json:"sourceQualifiedName"`
+	// SourceStart and TargetStart are where the declaration holding the use and
+	// the one it reaches start. A qualified name is not unique in a file, so the
+	// names alone cannot say which symbol is meant; the offset can. They are
+	// pointers because absent is not zero: a worker that predates them sends
+	// neither, and a declaration may start at offset 0.
+	SourceStart         *int   `json:"sourceStart,omitempty"`
+	TargetStart         *int   `json:"targetStart,omitempty"`
 	TargetQualifiedName string `json:"targetQualifiedName"`
 	TargetFile          string `json:"targetFile"`
 	StartLine           int    `json:"startLine"`
@@ -311,6 +319,12 @@ func escapesRepository(file string) bool {
 	return cleaned == ".." || strings.HasPrefix(cleaned, "../")
 }
 
+// symbolStartKey identifies a symbol of a payload by where it starts, which a
+// qualified name alone does not: two symbols of a file may share one.
+func symbolStartKey(file, qualifiedName string, start int) string {
+	return file + "\x00" + qualifiedName + "\x00" + strconv.Itoa(start)
+}
+
 // DecodeTypeScriptPayload parses a `ts-facts-v5` document.
 func DecodeTypeScriptPayload(data []byte) (TypeScriptPayload, error) {
 	var payload TypeScriptPayload
@@ -435,6 +449,9 @@ func NormalizeTypeScript(
 	}
 
 	symbolKeys := make(map[string]string, len(payload.Symbols))
+	// symbolKeysByStart tells apart the symbols of one file that share a
+	// qualified name, which symbolKeys cannot: it keeps the last one.
+	symbolKeysByStart := make(map[string]string, len(payload.Symbols))
 	for _, symbol := range payload.Symbols {
 		if err := ctx.Err(); err != nil {
 			return Set{}, TypeScriptReport{}, err
@@ -475,6 +492,7 @@ func NormalizeTypeScript(
 			End:               Position{Line: symbol.EndLine, Offset: symbol.End},
 		})
 		symbolKeys[symbol.File+"\x00"+symbol.QualifiedName] = string(key)
+		symbolKeysByStart[symbolStartKey(symbol.File, symbol.QualifiedName, symbol.Start)] = string(key)
 		set.Edges = append(set.Edges, Edge{
 			Kind:       Defines,
 			SourceKey:  fileKey,
@@ -535,6 +553,18 @@ func NormalizeTypeScript(
 		return string(key), nil
 	}
 
+	// symbolKeyFor resolves a name to its symbol, by where the symbol starts
+	// when the worker said so. The name alone is the fallback for a worker that
+	// predates the offset, and for a symbol the payload gives no offset for.
+	symbolKeyFor := func(file, qualifiedName string, start *int) (string, bool) {
+		if start != nil {
+			if key, ok := symbolKeysByStart[symbolStartKey(file, qualifiedName, *start)]; ok {
+				return key, true
+			}
+		}
+		key, ok := symbolKeys[file+"\x00"+qualifiedName]
+		return key, ok
+	}
 	for _, reference := range payload.References {
 		if err := ctx.Err(); err != nil {
 			return Set{}, TypeScriptReport{}, err
@@ -543,7 +573,7 @@ func NormalizeTypeScript(
 			report.FactsOutsideRepository++
 			continue
 		}
-		sourceKey, hasSource := symbolKeys[reference.File+"\x00"+reference.SourceQualifiedName]
+		sourceKey, hasSource := symbolKeyFor(reference.File, reference.SourceQualifiedName, reference.SourceStart)
 		if !hasSource && reference.SourceQualifiedName == "" {
 			// The use has no enclosing declaration, not an unknown one: the
 			// worker reports an empty source exactly then. Its owner is the
@@ -561,7 +591,7 @@ func NormalizeTypeScript(
 			report.EdgesWithoutSource++
 			continue
 		}
-		targetKey, hasTarget := symbolKeys[reference.TargetFile+"\x00"+reference.TargetQualifiedName]
+		targetKey, hasTarget := symbolKeyFor(reference.TargetFile, reference.TargetQualifiedName, reference.TargetStart)
 		if !hasTarget {
 			report.EdgesWithoutTarget++
 			continue

@@ -148,6 +148,15 @@ interface FactReference {
   readonly file: string;
   readonly kind: string;
   readonly sourceQualifiedName: string | null;
+  /**
+   * Where the declaration holding the use starts, and where the declaration it
+   * reaches starts. A qualified name is not unique in a file -- every parameter
+   * of an arrow function assigned to a `const` is just its own name, and a
+   * method may share one with them -- so the names alone cannot say which symbol
+   * is meant. Null when the use sits at file level.
+   */
+  readonly sourceStart: number | null;
+  readonly targetStart: number;
   readonly targetQualifiedName: string;
   readonly targetFile: string;
   readonly startLine: number;
@@ -493,6 +502,8 @@ export async function collectFacts(
             file: relative(root, reference.fileName),
             kind: reference.kind,
             sourceQualifiedName: reference.source?.qualifiedName ?? null,
+            sourceStart: reference.source?.start ?? null,
+            targetStart: reference.target.start,
             targetQualifiedName: reference.target.qualifiedName,
             targetFile: relative(root, reference.target.fileName),
             startLine: reference.startLine,
@@ -648,6 +659,8 @@ async function collectUnclaimedFacts(
         file: relative(root, reference.fileName),
         kind: reference.kind,
         sourceQualifiedName: reference.source?.qualifiedName ?? null,
+        sourceStart: reference.source?.start ?? null,
+        targetStart: reference.target.start,
         targetQualifiedName: reference.target.qualifiedName,
         targetFile: relative(root, reference.target.fileName),
         startLine: reference.startLine,
