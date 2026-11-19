@@ -452,6 +452,7 @@ func NormalizeTypeScript(
 	// symbolKeysByStart tells apart the symbols of one file that share a
 	// qualified name, which symbolKeys cannot: it keeps the last one.
 	symbolKeysByStart := make(map[string]string, len(payload.Symbols))
+	occurrences := make(map[string]int, len(payload.Symbols))
 	for _, symbol := range payload.Symbols {
 		if err := ctx.Err(); err != nil {
 			return Set{}, TypeScriptReport{}, err
@@ -471,6 +472,20 @@ func NormalizeTypeScript(
 		canonical, err := identity.Canonical()
 		if err != nil {
 			return Set{}, TypeScriptReport{}, fmt.Errorf("symbol %q identity: %w", symbol.QualifiedName, err)
+		}
+		// Two declarations of one file can share every component of the
+		// identity: the parameter `value: string` of two functions, or a
+		// local `key`. The first keeps the key it always had; each repeat is
+		// numbered, so the graph holds them apart instead of merging them.
+		// The number is the order in the payload, which is by position.
+		occurrence := occurrences[canonical] + 1
+		occurrences[canonical] = occurrence
+		if occurrence > 1 {
+			identity = typeScriptSymbolIdentity(name, payload.Package.Name, symbol.File, symbol.QualifiedName, symbol.Kind,
+				fmt.Sprintf("%s#%d", discriminatorOf(symbol.Signature), occurrence))
+			if canonical, err = identity.Canonical(); err != nil {
+				return Set{}, TypeScriptReport{}, fmt.Errorf("symbol %q identity: %w", symbol.QualifiedName, err)
+			}
 		}
 		key, err := identity.Key()
 		if err != nil {

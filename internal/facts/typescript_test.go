@@ -1515,3 +1515,83 @@ func TestNormalizeTypeScriptTellsApartSymbolsThatShareAQualifiedName(t *testing.
 		t.Fatalf("%d uses reach the method, want at most the one with no offset: %v", toMethod, got)
 	}
 }
+
+// TestNormalizeTypeScriptKeepsDeclarationsThatShareEveryIdentityComponent pins
+// the case ky has dozens of: the parameter `value: string` of two functions in
+// one file is one identity, and the graph used to hold one symbol for both, so
+// every use of either was an edge to the same node. The first keeps the key it
+// always had, which is what keeps a graph built before this valid.
+func TestNormalizeTypeScriptKeepsDeclarationsThatShareEveryIdentityComponent(t *testing.T) {
+	number := func(value int) *int { return &value }
+	payload := TypeScriptPayload{
+		Version:    TypeScriptWireVersion,
+		Repository: TypeScriptRepository{Name: "core"},
+		Package: &TypeScriptPackage{
+			Name: "@kivgraph-fixture/core", Version: "1.0.0",
+			RootPath: ".", ManifestPath: "package.json",
+		},
+		Files: []string{"src/body.ts"},
+		Symbols: []TypeScriptSymbol{
+			{File: "src/body.ts", Name: "first", QualifiedName: "first", Kind: "function", Signature: "(value: string) => number", StartLine: 1, EndLine: 1, Start: 0, End: 50},
+			{File: "src/body.ts", Name: "value", QualifiedName: "value", Kind: "parameter", Signature: "value: string", StartLine: 1, EndLine: 1, Start: 16, End: 29},
+			{File: "src/body.ts", Name: "second", QualifiedName: "second", Kind: "function", Signature: "(value: string) => number", StartLine: 2, EndLine: 2, Start: 60, End: 110},
+			{File: "src/body.ts", Name: "value", QualifiedName: "value", Kind: "parameter", Signature: "value: string", StartLine: 2, EndLine: 2, Start: 77, End: 90},
+			{File: "src/body.ts", Name: "value", QualifiedName: "value", Kind: "parameter", Signature: "value: string", StartLine: 3, EndLine: 3, Start: 120, End: 133},
+		},
+		References: []TypeScriptReference{
+			{File: "src/body.ts", Kind: "REFERENCES", Text: "value", StartLine: 1, Start: 40, End: 45,
+				SourceQualifiedName: "first", SourceStart: number(0),
+				TargetFile: "src/body.ts", TargetQualifiedName: "value", TargetStart: number(16)},
+			{File: "src/body.ts", Kind: "REFERENCES", Text: "value", StartLine: 2, Start: 100, End: 105,
+				SourceQualifiedName: "second", SourceStart: number(60),
+				TargetFile: "src/body.ts", TargetQualifiedName: "value", TargetStart: number(77)},
+		},
+	}
+	set, _, err := NormalizeTypeScript(context.Background(), payload, workspace.Repository{RealPath: "/repositories/core"})
+	if err != nil {
+		t.Fatalf("NormalizeTypeScript() error = %v", err)
+	}
+	if err := set.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+
+	var values []Symbol
+	for _, symbol := range set.Symbols {
+		if symbol.Kind == "parameter" {
+			values = append(values, symbol)
+		}
+	}
+	if len(values) != 3 {
+		t.Fatalf("parameters = %d, want the three declarations", len(values))
+	}
+	// The set is sorted by key; the declarations are told apart by position.
+	sort.Slice(values, func(i, j int) bool { return values[i].Start.Offset < values[j].Start.Offset })
+	keys := map[string]bool{}
+	for _, symbol := range values {
+		keys[symbol.Key] = true
+	}
+	if len(keys) != 3 {
+		t.Fatalf("parameters share %d keys, want one each", len(keys))
+	}
+	original, err := typeScriptSymbolIdentity("core", "@kivgraph-fixture/core", "src/body.ts", "value", "parameter", "value: string").Key()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if values[0].Key != string(original) {
+		t.Fatalf("the first declaration's key changed: %s, want %s", values[0].Key, original)
+	}
+
+	names := map[string]string{}
+	for _, symbol := range set.Symbols {
+		names[symbol.Key] = symbol.QualifiedName
+	}
+	reached := map[string]string{}
+	for _, edge := range set.Edges {
+		if edge.Kind == References {
+			reached[names[edge.SourceKey]] = edge.TargetKey
+		}
+	}
+	if reached["first"] != values[0].Key || reached["second"] != values[1].Key {
+		t.Fatalf("uses reach %v, want first -> %s and second -> %s", reached, values[0].Key, values[1].Key)
+	}
+}
