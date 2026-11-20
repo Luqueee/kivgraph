@@ -36,7 +36,10 @@ func (indexer *controlledProjectIndexer) IndexProjects(
 	projects []indexing.Project,
 	progress func(indexing.ProjectProgress),
 ) (indexing.ProjectResult, error) {
-	indexer.startOnce.Do(func() { close(indexer.started) })
+	// Announced after the first progress report, not before it: a test that
+	// waits on `started` and then reads the status is asking for that report,
+	// and read it as absent whenever it won the race to here.
+	defer indexer.startOnce.Do(func() { close(indexer.started) })
 	if len(projects) == 0 {
 		return indexing.ProjectResult{}, errors.New("indexer received an empty project batch")
 	}
@@ -45,6 +48,7 @@ func (indexer *controlledProjectIndexer) IndexProjects(
 			Phase: "go", Repository: projects[0].Name, Completed: 0, Total: 1,
 		})
 	}
+	indexer.startOnce.Do(func() { close(indexer.started) })
 	select {
 	case <-indexer.release:
 	case <-ctx.Done():
