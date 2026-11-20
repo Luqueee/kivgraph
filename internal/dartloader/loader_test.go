@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"slices"
 	"strings"
@@ -659,5 +660,51 @@ func TestRunLeavesDocCommentLinksOutOfTheGraph(t *testing.T) {
 	}
 	if want := []string{"real -CALLS_DIRECT-> hash"}; !slices.Equal(found, want) {
 		t.Fatalf("references = %v, want %v", found, want)
+	}
+}
+
+// `exclusions` is a key of the repository, and the Dart loader read it with a
+// matcher of its own: a bare name at any depth, and `./x` or an absolute path
+// not at all. One list excluded different directories for Dart than for the Go
+// and TypeScript files beside them.
+func TestDartFilesReadExclusionsAsTheRegistryDoes(t *testing.T) {
+	root := t.TempDir()
+	for _, relative := range []string{"lib/main.dart", "gen/a.dart", "lib/gen/b.dart", "lib/x/gen/c.dart", "tool/d.dart"} {
+		path := filepath.Join(root, filepath.FromSlash(relative))
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("class Fixture {}\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	all := []string{"gen/a.dart", "lib/gen/b.dart", "lib/main.dart", "lib/x/gen/c.dart", "tool/d.dart"}
+	for name, test := range map[string]struct {
+		exclusions []string
+		want       []string
+	}{
+		"none":                    {nil, all},
+		"a bare name is the root": {[]string{"gen"}, []string{"lib/gen/b.dart", "lib/main.dart", "lib/x/gen/c.dart", "tool/d.dart"}},
+		"any depth is spelled":    {[]string{"**/gen"}, []string{"lib/main.dart", "tool/d.dart"}},
+		"relative to the root":    {[]string{"./gen", "./tool"}, []string{"lib/gen/b.dart", "lib/main.dart", "lib/x/gen/c.dart"}},
+		"absolute":                {[]string{filepath.Join(root, "lib", "gen")}, []string{"gen/a.dart", "lib/main.dart", "lib/x/gen/c.dart", "tool/d.dart"}},
+		"through a wildcard":      {[]string{"lib/*/gen"}, []string{"gen/a.dart", "lib/gen/b.dart", "lib/main.dart", "tool/d.dart"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			files, err := dartFilesForRepository(root, nil, test.exclusions, true, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got []string
+			for _, file := range files {
+				got = append(got, relative(root, file))
+			}
+			if !reflect.DeepEqual(got, test.want) {
+				t.Errorf("files = %q, want %q", got, test.want)
+			}
+		})
+	}
+	if _, err := dartFilesForRepository(root, nil, []string{"[unterminated"}, true, true); err == nil {
+		t.Error("a pattern the registry refuses was read as matching nothing")
 	}
 }

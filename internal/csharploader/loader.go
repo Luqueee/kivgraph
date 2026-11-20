@@ -164,6 +164,10 @@ func convert(index scipwire.Index, options Options, sources, repository, project
 	if strings.TrimSpace(name) == "" {
 		name = filepath.Base(repository)
 	}
+	excluded, err := workspace.ExclusionMatcher(repository, options.Repository.Exclusions)
+	if err != nil {
+		return facts.SemanticPayload{}, fmt.Errorf("csharp indexer: %w", err)
+	}
 	manifest := ""
 	if project != "" {
 		// The project may live in the scratch tree, so the manifest path is
@@ -189,7 +193,7 @@ func convert(index scipwire.Index, options Options, sources, repository, project
 			return os.ReadFile(filepath.Join(sources, filepath.FromSlash(relative)))
 		},
 		IncludeFile: func(relative string) bool {
-			return includeFile(relative, options)
+			return includeFile(relative, options) && !excluded(relative)
 		},
 		Generated: isGenerated,
 	})

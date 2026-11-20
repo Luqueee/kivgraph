@@ -2546,8 +2546,16 @@ of the precision column, and `exclude_tests` on the traversal tools.
   which takes the default from `43.7 %` to `82.9 %` recall at `85.6 %`
   precision; both workers apply `internal/testpath`; and `exclusions` reach
   the Python graph. Still open: the default mode recalls no use of a method,
-  which needs a type; `analyzer_mode` stays `fallback`; `exclusions` were only
-  checked for Python, Go and TypeScript, not for the other loaders.
+  which needs a type; `analyzer_mode` stays `fallback`.
+- **`exclusions` mean one thing in every loader.** Checked for the four that
+  were left: Rust already applied the registry's matcher. Java and C# did not
+  read the key at all -- the indexer builds the whole project and every document
+  it wrote entered the graph -- and now leave excluded files out as they leave
+  tests out. Dart read it with a matcher of its own, which took a bare name at
+  any depth and did not read `./x`, an absolute path or `a/**/b`; it now asks
+  the registry's (`workspace.ExclusionMatcher`). For Dart that is a change of
+  meaning: `gen` excludes the root's `gen` and no longer one nested below, which
+  is written `**/gen`, as it is for every other language.
 
   Two things about the oracle are worth keeping. mypy binds a name to `Any`
   after its import fails, which hides every use behind a re-export in

@@ -1911,8 +1911,17 @@ func dartFiles(root string, includeGenerated, includeTests bool) ([]string, erro
 }
 
 func dartFilesForRepository(root string, roots, exclusions []string, includeGenerated, includeTests bool) ([]string, error) {
+	// The registry's matcher, and not one of this loader's own: the one it had
+	// read a bare name at any depth and did not read `./x` or an absolute path
+	// at all, so one list excluded different directories for Dart than for the
+	// Go and TypeScript files beside them.
+	excluded, err := workspace.ExclusionMatcher(root, exclusions)
+	if err != nil {
+		return nil, err
+	}
+	pathExcluded := func(path string) bool { return excluded(relative(root, path)) }
 	var files []string
-	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+	err = filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -1921,12 +1930,12 @@ func dartFilesForRepository(root string, roots, exclusions []string, includeGene
 			case ".git", ".dart_tool", "build", ".idea":
 				return filepath.SkipDir
 			}
-			if pathExcluded(root, path, exclusions) || !pathInRoots(root, path, roots) {
+			if pathExcluded(path) || !pathInRoots(root, path, roots) {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		if filepath.Ext(path) != ".dart" || pathExcluded(root, path, exclusions) || !pathInRoots(root, path, roots) || (!includeGenerated && isGenerated(path)) || (!includeTests && isTestPath(root, path)) {
+		if filepath.Ext(path) != ".dart" || pathExcluded(path) || !pathInRoots(root, path, roots) || (!includeGenerated && isGenerated(path)) || (!includeTests && isTestPath(root, path)) {
 			return nil
 		}
 		files = append(files, path)
@@ -1945,33 +1954,6 @@ func pathInRoots(root, path string, roots []string) bool {
 		configured = strings.Trim(strings.TrimSpace(filepath.ToSlash(configured)), "/")
 		if configured == "" || configured == "." || rel == configured || strings.HasPrefix(rel, configured+"/") {
 			return true
-		}
-	}
-	return false
-}
-
-func pathExcluded(root, path string, patterns []string) bool {
-	if len(patterns) == 0 {
-		return false
-	}
-	rel := filepath.ToSlash(relative(root, path))
-	for _, raw := range patterns {
-		pattern := strings.Trim(strings.TrimSpace(filepath.ToSlash(raw)), "/")
-		if pattern == "" {
-			continue
-		}
-		if rel == pattern || strings.HasPrefix(rel, pattern+"/") {
-			return true
-		}
-		pattern = strings.TrimPrefix(pattern, "**/")
-		if matched, _ := filepath.Match(pattern, rel); matched {
-			return true
-		}
-		parts := strings.Split(rel, "/")
-		for index := range parts {
-			if matched, _ := filepath.Match(pattern, strings.Join(parts[index:], "/")); matched {
-				return true
-			}
 		}
 	}
 	return false

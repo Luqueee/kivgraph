@@ -260,7 +260,7 @@ isolated configuration write into the real installation.
 | `languages` | At least one of `go`, `typescript`, `javascript`, `ts`, `js`, `rust`, `rs`, `python`, `py`, `dart`, `java`, `csharp`, `cs`. Compared without regard to case or surrounding space; a duplicate is refused. Validated when the registry is written, not only when a pass runs. |
 | `manifests` | Optional. Explicit manifest paths. |
 | `roots` | Optional. Explicit analysis roots. |
-| `exclusions` | Optional. Directories the discovery never walks, and therefore never analyses. |
+| `exclusions` | Optional. Directories and files left out of the graph, for every language of the repository. A pattern is relative to the repository root: `vendor` is the root's `vendor`, `**/vendor` is one at any depth, and `./x`, an absolute path inside the repository, `*` and `**` are read. Go, TypeScript, Rust and Dart never walk them; Java, C# and Python are analysed whole by their tools and lose the excluded files afterwards. |
 
 ```yaml
 version: 1

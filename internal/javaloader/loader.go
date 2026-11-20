@@ -159,6 +159,10 @@ func Convert(index scipwire.Index, options Options, root string) (facts.Semantic
 // They are the same directory only when no scratch tree is involved.
 func convert(index scipwire.Index, options Options, sources, repository string) (facts.SemanticPayload, error) {
 	name, manifest := packageIdentity(repository)
+	excluded, err := workspace.ExclusionMatcher(repository, options.Repository.Exclusions)
+	if err != nil {
+		return facts.SemanticPayload{}, fmt.Errorf("java indexer: %w", err)
+	}
 	return scip.Convert(index, scip.Options{
 		Language:        facts.LanguageJava,
 		Repository:      options.Repository.Name,
@@ -175,7 +179,7 @@ func convert(index scipwire.Index, options Options, sources, repository string) 
 			return os.ReadFile(filepath.Join(sources, filepath.FromSlash(relative)))
 		},
 		IncludeFile: func(relative string) bool {
-			return includeFile(relative, options)
+			return includeFile(relative, options) && !excluded(relative)
 		},
 		Generated: isGenerated,
 	})
