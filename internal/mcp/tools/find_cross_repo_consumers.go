@@ -13,6 +13,7 @@ import (
 
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/testpath"
 )
 
 const (
@@ -917,7 +918,7 @@ func consumerLocationMatches(location consumerLocation, options findCrossRepoCon
 	if options.Repo != "" && location.RepositoryName != options.Repo {
 		return false
 	}
-	if options.ExcludeTests && IsTestPath(location.FilePath) {
+	if options.ExcludeTests && testpath.Is(location.FilePath) {
 		return false
 	}
 	return options.Language == "" || containsString(location.Languages, options.Language)

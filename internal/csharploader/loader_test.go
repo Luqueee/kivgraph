@@ -100,6 +100,7 @@ func TestIncludeFileExcludesBuildOutputAndTests(t *testing.T) {
 		"src/obj/Generated.cs":                        false,
 		"tests/CatalogTests.cs":                       false,
 		"src/CatalogTest.cs":                          false,
+		"test/App.UnitTests/GuardAgainstNull.cs":      false,
 		"Form.Designer.cs":                            false,
 		"coverage.csproj":                             false,
 	} {

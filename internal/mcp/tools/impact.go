@@ -4,14 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/gitdiff"
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/testpath"
 )
 
 // This file is the engine of `kivgraph impact`, a command and not a tool. It
@@ -413,30 +412,6 @@ func impactRow(snapshot *hotsnapshot.GraphSnapshot, table hotsnapshot.StringTabl
 	}
 	return ImpactSymbol{
 		QualifiedName: qualified, Kind: kind, FilePath: file.path,
-		StartLine: symbol.StartLine, EndLine: symbol.EndLine, Test: IsTestPath(file.path),
+		StartLine: symbol.StartLine, EndLine: symbol.EndLine, Test: testpath.Is(file.path),
 	}, nil
-}
-
-// IsTestPath says whether a repository-relative path is a test file by the
-// conventions of the languages the graph indexes: a name or a directory. A Rust
-// test module inside a source file, which carries no such mark, is not seen.
-func IsTestPath(filePath string) bool {
-	normalized := strings.ToLower(filepath.ToSlash(filePath))
-	base := path.Base(normalized)
-	stem := strings.TrimSuffix(base, path.Ext(base))
-	switch {
-	case strings.HasSuffix(base, "_test.go"), strings.HasSuffix(base, "_test.py"), strings.HasSuffix(base, "_test.dart"),
-		strings.HasPrefix(base, "test_") && strings.HasSuffix(base, ".py"), base == "conftest.py",
-		strings.Contains(base, ".test."), strings.Contains(base, ".spec."),
-		strings.HasSuffix(stem, "test") && (strings.HasSuffix(base, ".java") || strings.HasSuffix(base, ".cs")),
-		strings.HasSuffix(stem, "tests") && (strings.HasSuffix(base, ".java") || strings.HasSuffix(base, ".cs")):
-		return true
-	}
-	for _, component := range strings.Split(path.Dir(normalized), "/") {
-		switch component {
-		case "test", "tests", "__tests__", "spec", "specs":
-			return true
-		}
-	}
-	return false
 }

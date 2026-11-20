@@ -61,3 +61,29 @@ argument away.
   although the loader does not call them tests. Not reconciled here.
 - The benchmark's second configuration for Java and C# is now
   `java.tests_excluded` and `csharp.tests_excluded`, as for Go and Dart.
+
+## Amendment: one rule says what a C# test is
+
+The two rules named above are now one. `internal/testpath` holds it, the C#
+loader applies it when `csharp.include_tests` is `false`, and the tools apply
+it under `exclude_tests`. A file can no longer be in the graph as production
+code and be filtered from an answer as a test.
+
+For C# the rule is wider than the loader's was: it adds a `test`, `spec`,
+`specs` or `__tests__` directory to `tests/` and to the `*Test.cs` and
+`*Tests.cs` names. So a configuration that sets `csharp.include_tests: false`
+indexes fewer files than before on a repository laid out like `GuardClauses`,
+which is what the key says it does. The default configuration reads tests and
+is not affected.
+
+Measured again on `GuardClauses`, `53` declarations:
+
+| configuration | file recall | file precision |
+|---|---|---|
+| default | `49.1 %` | `54.9 %` |
+| `csharp.tests_excluded`, before | `47.4 %` | `54.0 %` |
+| `csharp.tests_excluded`, now | `14.0 %` | `72.7 %` |
+
+The excluded arm now leaves the tests out, as the same arm does for the other
+languages. The Java loader keeps its own narrower rule (`src/test/`,
+`src/it/`) and is not changed here.

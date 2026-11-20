@@ -290,20 +290,3 @@ func TestImpactFindsTheRepositoryThroughASymbolicLink(t *testing.T) {
 		t.Fatalf("a checkout reached through a link is the same repository: %v", err)
 	}
 }
-
-func TestIsTestPathReadsTheConventionsOfEveryIndexedLanguage(t *testing.T) {
-	for path, want := range map[string]bool{
-		"internal/a_test.go": true, "a.go": false,
-		"src/widget.test.ts": true, "src/widget.spec.tsx": true, "src/widget.ts": false,
-		"pkg/test_model.py": true, "pkg/model_test.py": true, "pkg/conftest.py": true, "pkg/model.py": false,
-		"src/test/java/app/AppTest.java": true, "src/main/java/app/App.java": false, "app/ServiceTests.cs": true,
-		"lib/models_test.dart": true, "test/models.dart": true,
-		"tests/integration.rs": true, "src/__tests__/x.ts": true, "src/contest.ts": false,
-		"testdata/fixture.go": false, "src/latest/value.go": false,
-		`src\widget.test.ts`: true,
-	} {
-		if got := IsTestPath(path); got != want {
-			t.Errorf("IsTestPath(%q) = %v, want %v", path, got, want)
-		}
-	}
-}

@@ -29,6 +29,7 @@ import (
 	"github.com/Luqueee/kivgraph/internal/scip"
 	"github.com/Luqueee/kivgraph/internal/scip/scipwire"
 	"github.com/Luqueee/kivgraph/internal/scratchtree"
+	"github.com/Luqueee/kivgraph/internal/testpath"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
@@ -298,7 +299,7 @@ func includeFile(relative string, options Options) bool {
 	if !options.IncludeGenerated && isGenerated(slashed) {
 		return false
 	}
-	if !options.IncludeTests && isTest(slashed) {
+	if !options.IncludeTests && testpath.Is(slashed) {
 		return false
 	}
 	return true
@@ -320,17 +321,6 @@ func isGenerated(path string) bool {
 	return strings.HasSuffix(lower, ".g.cs") ||
 		strings.HasSuffix(lower, ".generated.cs") ||
 		strings.HasSuffix(lower, ".designer.cs")
-}
-
-// isTest is the layout the .NET templates produce. It is a path and filename
-// rule, never a guess about content.
-func isTest(path string) bool {
-	slashed := strings.ToLower(filepath.ToSlash(path))
-	if strings.Contains(slashed, "/tests/") || strings.HasPrefix(slashed, "tests/") {
-		return true
-	}
-	base := filepath.Base(slashed)
-	return strings.HasSuffix(base, "tests.cs") || strings.HasSuffix(base, "test.cs")
 }
 
 func lastLines(value string, count int) string {

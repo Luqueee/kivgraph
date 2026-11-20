@@ -22,7 +22,7 @@ Intervals are 95 % percentile intervals from resampling declarations.
 |java|default|100|98|100.0 % (100.0 to 100.0)|96.8 % (93.4 to 99.2)|100.0 % (96.2 to 100.0)|
 |csharp|default|53|40|49.1 % (27.9 to 71.9)|54.9 % (44.4 to 72.1)|50.0 % (35.2 to 64.8)|
 |java|java.tests_excluded|100|98|61.1 % (54.7 to 69.4)|96.6 % (92.2 to 99.5)|58.2 % (48.3 to 67.4)|
-|csharp|csharp.tests_excluded|53|40|47.4 % (26.3 to 70.0)|54.0 % (43.3 to 71.0)|47.5 % (32.9 to 62.5)|
+|csharp|csharp.tests_excluded|53|40|14.0 % (4.1 to 29.6)|72.7 % (36.4 to 100.0)|15.0 % (7.1 to 29.1)|
 
 `file recall` pools the dependent files of every declaration. `fully recalled` is the share of declarations with dependents for which no file was missed (Wilson interval). A `tests_excluded` configuration is the default one with that language's `include_tests: false`; each pair draws the same declarations.
 
@@ -155,51 +155,42 @@ Declarations with a reported file the compiler did not flag (first 15 of 5). The
 ## csharp (csharp.tests_excluded)
 
 - Declarations listed 328, eligible for the rename 53, measured 53 (oracle failed on 0, Kivgraph refused 0).
-- Recall on non-test files: 66.7 % (30.0 to 100.0). On test files: 42.2 % (19.0 to 67.4).
-- Declarations with no dependents for which Kivgraph still reports a file: 4 of 13.
-- Completeness verdicts: COMPLETE 44, LOWER_BOUND 9.
-- Answers that said `COMPLETE` and missed at least one non-test file: 2 of 44.
+- Recall on non-test files: 66.7 % (30.0 to 100.0). On test files: 0.0 % (0.0 to 0.0).
+- Declarations with no dependents for which Kivgraph still reports a file: 2 of 13.
+- Completeness verdicts: COMPLETE 51, LOWER_BOUND 2.
+- Answers that said `COMPLETE` and missed at least one non-test file: 3 of 51.
 - Not sampled: kind not sampled: 209; name not found in declaring position: 66.
 
 |kind|declarations with dependents|file recall|
 |---|---|---|
-|method|40|47.4 % (26.3 to 68.4)|
+|method|40|14.0 % (3.9 to 29.6)|
 
-Declarations with a missed file (first 15 of 21):
+Declarations with a missed file (first 15 of 34):
 
 |declaration|kind|missed|verdict|
 |---|---|---|---|
-|`Zero` (src/GuardClauses/GuardAgainstZeroExtensions.cs:40)|method|test/GuardClauses.UnitTests/GuardAgainstZero.cs|LOWER_BOUND|
+|`Expression` (src/GuardClauses/GuardAgainstExpressionExtensions.cs:24)|method|test/GuardClauses.UnitTests/GuardAgainstExpression.cs|COMPLETE|
+|`Zero` (src/GuardClauses/GuardAgainstZeroExtensions.cs:40)|method|test/GuardClauses.UnitTests/GuardAgainstZero.cs|COMPLETE|
 |`NullOrEmpty` (src/GuardClauses/GuardAgainstNullExtensions.cs:121)|method|test/GuardClauses.UnitTests/GuardAgainstNullOrEmpty.cs|COMPLETE|
-|`Zero` (src/GuardClauses/GuardAgainstZeroExtensions.cs:100)|method|test/GuardClauses.UnitTests/GuardAgainstZero.cs|LOWER_BOUND|
+|`Zero` (src/GuardClauses/GuardAgainstZeroExtensions.cs:100)|method|test/GuardClauses.UnitTests/GuardAgainstZero.cs|COMPLETE|
 |`NegativeOrZero` (src/GuardClauses/GuardAgainstNegativeExtensions.cs:234)|method|test/GuardClauses.UnitTests/GuardAgainstNegativeOrZero.cs|COMPLETE|
 |`NegativeOrZero` (src/GuardClauses/GuardAgainstNegativeExtensions.cs:253)|method|test/GuardClauses.UnitTests/GuardAgainstNegativeOrZero.cs|COMPLETE|
 |`Negative` (src/GuardClauses/GuardAgainstNegativeExtensions.cs:132)|method|src/GuardClauses/GuardAgainstNegativeExtensions.cs, src/GuardClauses/GuardAgainstOutOfRangeExtensions.cs|COMPLETE|
 |`NullOrOutOfRange` (src/GuardClauses/GuardAgainstOutOfRangeExtensions.cs:256)|method|test/GuardClauses.UnitTests/GuardAgainstNullOrOutOfRangeForNullableInt.cs|COMPLETE|
 |`Negative` (src/GuardClauses/GuardAgainstNegativeExtensions.cs:113)|method|test/GuardClauses.UnitTests/GuardAgainstNegative.cs|COMPLETE|
+|`NullOrOutOfSQLDateRange` (src/GuardClauses/GuardAgainstOutOfRangeExtensions.cs:157)|method|test/GuardClauses.UnitTests/GuardAgainstNullOrOutOfSQLDateRange.cs|COMPLETE|
 |`EnumOutOfRange` (src/GuardClauses/GuardAgainstOutOfRangeExtensions.cs:84)|method|test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForEnum.cs|COMPLETE|
+|`NullOrWhiteSpace` (src/GuardClauses/GuardAgainstNullExtensions.cs:184)|method|test/GuardClauses.UnitTests/GuardAgainstNullOrWhiteSpace.cs|COMPLETE|
 |`Negative` (src/GuardClauses/GuardAgainstNegativeExtensions.cs:39)|method|test/GuardClauses.UnitTests/GuardAgainstNegative.cs|COMPLETE|
-|`Zero` (src/GuardClauses/GuardAgainstZeroExtensions.cs:138)|method|src/GuardClauses/GuardAgainstZeroExtensions.cs|LOWER_BOUND|
-|`Negative` (src/GuardClauses/GuardAgainstNegativeExtensions.cs:58)|method|test/GuardClauses.UnitTests/GuardAgainstNegative.cs|COMPLETE|
-|`Zero` (src/GuardClauses/GuardAgainstZeroExtensions.cs:60)|method|test/GuardClauses.UnitTests/GuardAgainstZero.cs|LOWER_BOUND|
-|`InvalidFormat` (src/GuardClauses/GuardAgainstInvalidFormatExtensions.cs:21)|method|test/GuardClauses.UnitTests/GuardAgainstInvalidFormatTests.cs|COMPLETE|
-|`NegativeOrZero` (src/GuardClauses/GuardAgainstNegativeExtensions.cs:273)|method|src/GuardClauses/GuardAgainstNegativeExtensions.cs|COMPLETE|
+|`Zero` (src/GuardClauses/GuardAgainstZeroExtensions.cs:138)|method|src/GuardClauses/GuardAgainstZeroExtensions.cs|COMPLETE|
+|`InvalidInputAsync` (src/GuardClauses/GuardAgainstInvalidFormatExtensions.cs:81)|method|test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForInvalidInput.cs|COMPLETE|
 
-Declarations with a reported file the compiler did not flag (first 15 of 11). These are unaudited: a use the compiler does not reject, such as one in a comment, is not a false positive.
+Declarations with a reported file the compiler did not flag (first 15 of 2). These are unaudited: a use the compiler does not reject, such as one in a comment, is not a false positive.
 
 |declaration|kind|extra|
 |---|---|---|
-|`Zero` (src/GuardClauses/GuardAgainstZeroExtensions.cs:20)|method|test/GuardClauses.UnitTests/GuardAgainstZero.cs|
-|`StringTooShort` (src/GuardClauses/GuardAgainstStringLengthExtensions.cs:24)|method|test/GuardClauses.UnitTests/GuardAgainstStringTooShort.cs|
-|`Null` (src/GuardClauses/GuardAgainstNullExtensions.cs:28)|method|test/GuardClauses.UnitTests/GuardAgainstNull.cs|
-|`Negative` (src/GuardClauses/GuardAgainstNegativeExtensions.cs:19)|method|test/GuardClauses.UnitTests/GuardAgainstNegative.cs|
-|`NegativeOrZero` (src/GuardClauses/GuardAgainstNegativeExtensions.cs:158)|method|src/GuardClauses/GuardAgainstStringLengthExtensions.cs, test/GuardClauses.UnitTests/GuardAgainstNegativeOrZero.cs|
-|`StringTooLong` (src/GuardClauses/GuardAgainstStringLengthExtensions.cs:53)|method|test/GuardClauses.UnitTests/GuardAgainstStringTooLong.cs|
-|`NullOrEmpty` (src/GuardClauses/GuardAgainstNullExtensions.cs:92)|method|src/GuardClauses/GuardAgainstNotFoundExtensions.cs, src/GuardClauses/GuardAgainstNullExtensions.cs, test/GuardClauses.UnitTests/GuardAgainstNullOrEmpty.cs|
-|`OutOfRange` (src/GuardClauses/GuardAgainstOutOfRangeExtensions.cs:118)|method|test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForDateTime.cs, test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForDecimal.cs, test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForDouble.cs, test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForFloat.cs, test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForInt.cs, test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForShort.cs, test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForStructIComparable.cs, test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForTimeSpan.cs, test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForUint.cs|
-|`NullOrOutOfRange` (src/GuardClauses/GuardAgainstOutOfRangeExtensions.cs:229)|method|test/GuardClauses.UnitTests/GuardAgainstNullOrOutOfRangeForInt.cs, test/GuardClauses.UnitTests/GuardAgainstNullOrOutOfRangeForNullableInt.cs|
-|`InvalidInput` (src/GuardClauses/GuardAgainstInvalidFormatExtensions.cs:52)|method|test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForInvalidInput.cs|
-|`OutOfSQLDateRange` (src/GuardClauses/GuardAgainstOutOfRangeExtensions.cs:177)|method|test/GuardClauses.UnitTests/GuardAgainstOutOfSQLDateRange.cs|
+|`NegativeOrZero` (src/GuardClauses/GuardAgainstNegativeExtensions.cs:158)|method|src/GuardClauses/GuardAgainstStringLengthExtensions.cs|
+|`NullOrEmpty` (src/GuardClauses/GuardAgainstNullExtensions.cs:92)|method|src/GuardClauses/GuardAgainstNotFoundExtensions.cs, src/GuardClauses/GuardAgainstNullExtensions.cs|
 
 ## What this does not show
 

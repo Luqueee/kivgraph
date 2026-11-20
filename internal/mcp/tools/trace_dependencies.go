@@ -13,6 +13,7 @@ import (
 
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/testpath"
 )
 
 const (
@@ -918,7 +919,7 @@ func dependencyNodes(
 		if options.Language != "" && !containsString(languages, options.Language) {
 			continue
 		}
-		if options.ExcludeTests && IsTestPath(file.path) {
+		if options.ExcludeTests && testpath.Is(file.path) {
 			continue
 		}
 		source, found := snapshot.Symbol(visit.Source)

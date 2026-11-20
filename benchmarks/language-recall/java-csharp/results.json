@@ -5283,10 +5283,10 @@
       "oracle_failures": 0,
       "kivgraph_failures": 0,
       "file_recall": {
-        "value": 0.47368421052631576,
-        "low": 0.2631578947368421,
-        "high": 0.7,
-        "numerator": 27,
+        "value": 0.14035087719298245,
+        "low": 0.04081632653061224,
+        "high": 0.2962962962962963,
+        "numerator": 8,
         "denominator": 57,
         "symbols": 40
       },
@@ -5299,10 +5299,10 @@
         "symbols": 9
       },
       "file_recall_test": {
-        "value": 0.4222222222222222,
-        "low": 0.19047619047619047,
-        "high": 0.6744186046511628,
-        "numerator": 19,
+        "value": 0,
+        "low": 0,
+        "high": 0,
+        "numerator": 0,
         "denominator": 45,
         "symbols": 31
       },
@@ -5315,51 +5315,51 @@
         "symbols": 0
       },
       "file_recall_without_private_names": {
-        "value": 0.47368421052631576,
-        "low": 0.2549019607843137,
-        "high": 0.6964285714285714,
-        "numerator": 27,
+        "value": 0.14035087719298245,
+        "low": 0.03571428571428571,
+        "high": 0.28888888888888886,
+        "numerator": 8,
         "denominator": 57,
         "symbols": 40
       },
       "file_precision": {
-        "value": 0.54,
-        "low": 0.43283582089552236,
-        "high": 0.7096774193548387,
-        "numerator": 27,
-        "denominator": 50,
-        "symbols": 23
+        "value": 0.7272727272727273,
+        "low": 0.36363636363636365,
+        "high": 1,
+        "numerator": 8,
+        "denominator": 11,
+        "symbols": 8
       },
       "symbols_fully_recalled": {
-        "value": 0.475,
-        "low": 0.329354700094151,
-        "high": 0.6250263800287721,
-        "numerator": 19,
+        "value": 0.15,
+        "low": 0.07061187676107432,
+        "high": 0.29072324495985025,
+        "numerator": 6,
         "denominator": 40,
         "symbols": 40
       },
       "symbols_without_dependents_that_report_references": {
-        "value": 0.3076923076923077,
-        "low": 0.12680703567070326,
-        "high": 0.5763065701492199,
-        "numerator": 4,
+        "value": 0.15384615384615385,
+        "low": 0.04325817796522907,
+        "high": 0.4223463125106327,
+        "numerator": 2,
         "denominator": 13,
         "symbols": 13
       },
       "completeness_verdicts": {
-        "COMPLETE": 44,
-        "LOWER_BOUND": 9
+        "COMPLETE": 51,
+        "LOWER_BOUND": 2
       },
-      "complete_verdicts_that_missed_a_non_test_file": 2,
+      "complete_verdicts_that_missed_a_non_test_file": 3,
       "by_kind": [
         {
           "kind": "method",
           "symbols_with_dependents": 40,
           "file_recall": {
-            "value": 0.47368421052631576,
-            "low": 0.2631578947368421,
-            "high": 0.6842105263157895,
-            "numerator": 27,
+            "value": 0.14035087719298245,
+            "low": 0.03896103896103896,
+            "high": 0.2962962962962963,
+            "numerator": 8,
             "denominator": 57,
             "symbols": 40
           }
@@ -5374,7 +5374,7 @@
           "line": 119,
           "truth_files": null,
           "reported_files": null,
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "GuardClauses",
@@ -5385,7 +5385,8 @@
           "truth_files": [
             "test/GuardClauses.UnitTests/GuardAgainstExpression.cs"
           ],
-          "reported_files": [
+          "reported_files": null,
+          "missed_files": [
             "test/GuardClauses.UnitTests/GuardAgainstExpression.cs"
           ],
           "verdict": "COMPLETE"
@@ -5403,7 +5404,7 @@
           "missed_files": [
             "test/GuardClauses.UnitTests/GuardAgainstZero.cs"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "GuardClauses",
@@ -5433,7 +5434,7 @@
           "missed_files": [
             "test/GuardClauses.UnitTests/GuardAgainstZero.cs"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "GuardClauses",
@@ -5467,13 +5468,8 @@
           "kind": "method",
           "line": 20,
           "truth_files": null,
-          "reported_files": [
-            "test/GuardClauses.UnitTests/GuardAgainstZero.cs"
-          ],
-          "extra_files": [
-            "test/GuardClauses.UnitTests/GuardAgainstZero.cs"
-          ],
-          "verdict": "LOWER_BOUND"
+          "reported_files": null,
+          "verdict": "COMPLETE"
         },
         {
           "repository": "GuardClauses",
@@ -5546,7 +5542,8 @@
           "truth_files": [
             "test/GuardClauses.UnitTests/GuardAgainstNullOrOutOfSQLDateRange.cs"
           ],
-          "reported_files": [
+          "reported_files": null,
+          "missed_files": [
             "test/GuardClauses.UnitTests/GuardAgainstNullOrOutOfSQLDateRange.cs"
           ],
           "verdict": "COMPLETE"
@@ -5575,7 +5572,8 @@
           "truth_files": [
             "test/GuardClauses.UnitTests/GuardAgainstNullOrWhiteSpace.cs"
           ],
-          "reported_files": [
+          "reported_files": null,
+          "missed_files": [
             "test/GuardClauses.UnitTests/GuardAgainstNullOrWhiteSpace.cs"
           ],
           "verdict": "COMPLETE"
@@ -5590,11 +5588,7 @@
             "src/GuardClauses/GuardAgainstOutOfRangeExtensions.cs"
           ],
           "reported_files": [
-            "src/GuardClauses/GuardAgainstOutOfRangeExtensions.cs",
-            "test/GuardClauses.UnitTests/GuardAgainstStringTooShort.cs"
-          ],
-          "extra_files": [
-            "test/GuardClauses.UnitTests/GuardAgainstStringTooShort.cs"
+            "src/GuardClauses/GuardAgainstOutOfRangeExtensions.cs"
           ],
           "verdict": "COMPLETE"
         },
@@ -5637,11 +5631,7 @@
           "reported_files": [
             "src/GuardClauses/GuardAgainstNotFoundExtensions.cs",
             "src/GuardClauses/GuardAgainstNullExtensions.cs",
-            "src/GuardClauses/GuardAgainstOutOfRangeExtensions.cs",
-            "test/GuardClauses.UnitTests/GuardAgainstNull.cs"
-          ],
-          "extra_files": [
-            "test/GuardClauses.UnitTests/GuardAgainstNull.cs"
+            "src/GuardClauses/GuardAgainstOutOfRangeExtensions.cs"
           ],
           "verdict": "COMPLETE"
         },
@@ -5658,7 +5648,7 @@
           "missed_files": [
             "src/GuardClauses/GuardAgainstZeroExtensions.cs"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "GuardClauses",
@@ -5669,7 +5659,8 @@
           "truth_files": [
             "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForInvalidInput.cs"
           ],
-          "reported_files": [
+          "reported_files": null,
+          "missed_files": [
             "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForInvalidInput.cs"
           ],
           "verdict": "COMPLETE"
@@ -5698,7 +5689,8 @@
           "truth_files": [
             "test/GuardClauses.UnitTests/GuardAgainstNullOrInvalidInput.cs"
           ],
-          "reported_files": [
+          "reported_files": null,
+          "missed_files": [
             "test/GuardClauses.UnitTests/GuardAgainstNullOrInvalidInput.cs"
           ],
           "verdict": "COMPLETE"
@@ -5716,7 +5708,7 @@
           "missed_files": [
             "test/GuardClauses.UnitTests/GuardAgainstZero.cs"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "GuardClauses",
@@ -5740,12 +5732,7 @@
           "kind": "method",
           "line": 19,
           "truth_files": null,
-          "reported_files": [
-            "test/GuardClauses.UnitTests/GuardAgainstNegative.cs"
-          ],
-          "extra_files": [
-            "test/GuardClauses.UnitTests/GuardAgainstNegative.cs"
-          ],
+          "reported_files": null,
           "verdict": "COMPLETE"
         },
         {
@@ -5772,7 +5759,8 @@
           "truth_files": [
             "test/GuardClauses.UnitTests/GuardAgainstStringLengthOutOfRange.cs"
           ],
-          "reported_files": [
+          "reported_files": null,
+          "missed_files": [
             "test/GuardClauses.UnitTests/GuardAgainstStringLengthOutOfRange.cs"
           ],
           "verdict": "COMPLETE"
@@ -5785,12 +5773,10 @@
           "line": 158,
           "truth_files": null,
           "reported_files": [
-            "src/GuardClauses/GuardAgainstStringLengthExtensions.cs",
-            "test/GuardClauses.UnitTests/GuardAgainstNegativeOrZero.cs"
+            "src/GuardClauses/GuardAgainstStringLengthExtensions.cs"
           ],
           "extra_files": [
-            "src/GuardClauses/GuardAgainstStringLengthExtensions.cs",
-            "test/GuardClauses.UnitTests/GuardAgainstNegativeOrZero.cs"
+            "src/GuardClauses/GuardAgainstStringLengthExtensions.cs"
           ],
           "verdict": "COMPLETE"
         },
@@ -5804,11 +5790,7 @@
             "src/GuardClauses/GuardAgainstOutOfRangeExtensions.cs"
           ],
           "reported_files": [
-            "src/GuardClauses/GuardAgainstOutOfRangeExtensions.cs",
-            "test/GuardClauses.UnitTests/GuardAgainstStringTooLong.cs"
-          ],
-          "extra_files": [
-            "test/GuardClauses.UnitTests/GuardAgainstStringTooLong.cs"
+            "src/GuardClauses/GuardAgainstOutOfRangeExtensions.cs"
           ],
           "verdict": "COMPLETE"
         },
@@ -5821,13 +5803,11 @@
           "truth_files": null,
           "reported_files": [
             "src/GuardClauses/GuardAgainstNotFoundExtensions.cs",
-            "src/GuardClauses/GuardAgainstNullExtensions.cs",
-            "test/GuardClauses.UnitTests/GuardAgainstNullOrEmpty.cs"
+            "src/GuardClauses/GuardAgainstNullExtensions.cs"
           ],
           "extra_files": [
             "src/GuardClauses/GuardAgainstNotFoundExtensions.cs",
-            "src/GuardClauses/GuardAgainstNullExtensions.cs",
-            "test/GuardClauses.UnitTests/GuardAgainstNullOrEmpty.cs"
+            "src/GuardClauses/GuardAgainstNullExtensions.cs"
           ],
           "verdict": "COMPLETE"
         },
@@ -5887,34 +5867,15 @@
             "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForEnumerableShort.cs",
             "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForEnumerableTimeSpan.cs"
           ],
-          "reported_files": [
-            "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForDateTime.cs",
-            "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForDecimal.cs",
-            "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForDouble.cs",
+          "reported_files": null,
+          "missed_files": [
             "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForEnumerableDecimal.cs",
             "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForEnumerableDouble.cs",
             "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForEnumerableFloat.cs",
             "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForEnumerableInt.cs",
             "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForEnumerableLong.cs",
             "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForEnumerableShort.cs",
-            "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForEnumerableTimeSpan.cs",
-            "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForFloat.cs",
-            "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForInt.cs",
-            "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForShort.cs",
-            "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForStructIComparable.cs",
-            "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForTimeSpan.cs",
-            "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForUint.cs"
-          ],
-          "extra_files": [
-            "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForDateTime.cs",
-            "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForDecimal.cs",
-            "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForDouble.cs",
-            "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForFloat.cs",
-            "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForInt.cs",
-            "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForShort.cs",
-            "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForStructIComparable.cs",
-            "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForTimeSpan.cs",
-            "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForUint.cs"
+            "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForEnumerableTimeSpan.cs"
           ],
           "verdict": "COMPLETE"
         },
@@ -5927,7 +5888,8 @@
           "truth_files": [
             "test/GuardClauses.UnitTests/GuardAgainstNullOrEmpty.cs"
           ],
-          "reported_files": [
+          "reported_files": null,
+          "missed_files": [
             "test/GuardClauses.UnitTests/GuardAgainstNullOrEmpty.cs"
           ],
           "verdict": "LOWER_BOUND"
@@ -5951,14 +5913,9 @@
           "truth_files": [
             "test/GuardClauses.UnitTests/GuardAgainstNullOrOutOfRangeForClassIComparable.cs"
           ],
-          "reported_files": [
-            "test/GuardClauses.UnitTests/GuardAgainstNullOrOutOfRangeForClassIComparable.cs",
-            "test/GuardClauses.UnitTests/GuardAgainstNullOrOutOfRangeForInt.cs",
-            "test/GuardClauses.UnitTests/GuardAgainstNullOrOutOfRangeForNullableInt.cs"
-          ],
-          "extra_files": [
-            "test/GuardClauses.UnitTests/GuardAgainstNullOrOutOfRangeForInt.cs",
-            "test/GuardClauses.UnitTests/GuardAgainstNullOrOutOfRangeForNullableInt.cs"
+          "reported_files": null,
+          "missed_files": [
+            "test/GuardClauses.UnitTests/GuardAgainstNullOrOutOfRangeForClassIComparable.cs"
           ],
           "verdict": "COMPLETE"
         },
@@ -6040,7 +5997,8 @@
           "truth_files": [
             "test/GuardClauses.UnitTests/GuardAgainstDefault.cs"
           ],
-          "reported_files": [
+          "reported_files": null,
+          "missed_files": [
             "test/GuardClauses.UnitTests/GuardAgainstDefault.cs"
           ],
           "verdict": "LOWER_BOUND"
@@ -6069,7 +6027,8 @@
           "truth_files": [
             "test/GuardClauses.UnitTests/GuardAgainstNotFound.cs"
           ],
-          "reported_files": [
+          "reported_files": null,
+          "missed_files": [
             "test/GuardClauses.UnitTests/GuardAgainstNotFound.cs"
           ],
           "verdict": "COMPLETE"
@@ -6109,11 +6068,7 @@
             "src/GuardClauses/GuardAgainstNullExtensions.cs"
           ],
           "reported_files": [
-            "src/GuardClauses/GuardAgainstNullExtensions.cs",
-            "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForInvalidInput.cs"
-          ],
-          "extra_files": [
-            "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForInvalidInput.cs"
+            "src/GuardClauses/GuardAgainstNullExtensions.cs"
           ],
           "verdict": "COMPLETE"
         },
@@ -6127,11 +6082,7 @@
             "src/GuardClauses/GuardAgainstOutOfRangeExtensions.cs"
           ],
           "reported_files": [
-            "src/GuardClauses/GuardAgainstOutOfRangeExtensions.cs",
-            "test/GuardClauses.UnitTests/GuardAgainstOutOfSQLDateRange.cs"
-          ],
-          "extra_files": [
-            "test/GuardClauses.UnitTests/GuardAgainstOutOfSQLDateRange.cs"
+            "src/GuardClauses/GuardAgainstOutOfRangeExtensions.cs"
           ],
           "verdict": "COMPLETE"
         },
@@ -6154,7 +6105,8 @@
           "truth_files": [
             "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForEnum.cs"
           ],
-          "reported_files": [
+          "reported_files": null,
+          "missed_files": [
             "test/GuardClauses.UnitTests/GuardAgainstOutOfRangeForEnum.cs"
           ],
           "verdict": "COMPLETE"
@@ -6167,7 +6119,7 @@
           "line": 80,
           "truth_files": null,
           "reported_files": null,
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "GuardClauses",
@@ -6178,7 +6130,8 @@
           "truth_files": [
             "test/GuardClauses.UnitTests/GuardAgainstNullOrWhiteSpace.cs"
           ],
-          "reported_files": [
+          "reported_files": null,
+          "missed_files": [
             "test/GuardClauses.UnitTests/GuardAgainstNullOrWhiteSpace.cs"
           ],
           "verdict": "COMPLETE"
@@ -6203,5 +6156,5 @@
     "Java is checked by running `javac` over the main and the test sources at once, with the classpath Maven resolves, so one failing file does not hide another; Kivgraph reads `scip-java`, which drives the same compiler through the build. A Java or C# constructor is written with its type's name, so renaming the type breaks the constructors' own declarations: those errors are left out, as for Dart.",
     "C# is checked with `dotnet build` on the solution, and MSBuild does not compile a project whose reference failed: a rename in the library leaves the test project unbuilt, so its files are missing from the truth. The C# truth is a lower bound and so is its precision, as for a Rust workspace. Kivgraph reads `scip-dotnet`, which drives Roslyn, the same compiler."
   ],
-  "wall_seconds": 853.636369167
+  "wall_seconds": 779.989884292
 }

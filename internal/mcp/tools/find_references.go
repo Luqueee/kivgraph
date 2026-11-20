@@ -12,6 +12,7 @@ import (
 
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/testpath"
 )
 
 const (
@@ -1146,7 +1147,7 @@ func referenceMatches(
 		if !ok {
 			return false, fmt.Errorf("file %d has an invalid path", related.File)
 		}
-		if IsTestPath(filePath) {
+		if testpath.Is(filePath) {
 			return false, nil
 		}
 	}

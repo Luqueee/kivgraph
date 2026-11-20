@@ -12,6 +12,7 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/testpath"
 )
 
 const (
@@ -842,7 +843,7 @@ func blastRadiusGroups(
 		}
 		// A test is out of the answer and out of every axis, which are counted
 		// over the symbols that pass these filters and not over the whole walk.
-		if excludeTests && IsTestPath(file.path) {
+		if excludeTests && testpath.Is(file.path) {
 			continue
 		}
 		table := snapshot.Strings()
