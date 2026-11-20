@@ -32,6 +32,10 @@ type corpusRepository struct {
 	Path string `json:"-"`
 }
 
+// javaClasspathFile is where a Java repository's setup leaves its classpath,
+// under the build directory the repository already ignores.
+const javaClasspathFile = "target/kivgraph.classpath"
+
 func corpus() []corpusRepository {
 	return []corpusRepository{
 		{
@@ -54,6 +58,20 @@ func corpus() []corpusRepository {
 			Language: "dart", Name: "collection", URL: "https://github.com/dart-lang/collection.git",
 			Commit: "96afcc2fce622ea7e75053af5b73f8db07491bc4",
 			Setup:  []string{"dart pub get"},
+		},
+		// Java and C# are measured only when asked for with -languages: their
+		// indexers are not part of a default installation.
+		{
+			Language: "java", Name: "jsoup", URL: "https://github.com/jhy/jsoup.git",
+			Commit: "d90d57521d931db7bf7ee464a4c0a1a9293db088",
+			// The oracle runs javac itself, over the main and the test sources at
+			// once, so it needs the classpath Maven resolves.
+			Setup: []string{"mvn -q dependency:build-classpath -Dmdep.outputFile=" + javaClasspathFile + " -Dmdep.includeScope=test"},
+		},
+		{
+			Language: "csharp", Name: "GuardClauses", URL: "https://github.com/ardalis/GuardClauses.git",
+			Commit: "ad43aa02babf3bc8aee8efc2258f5ad3571c8ec5",
+			Setup:  []string{"dotnet restore"},
 		},
 		{
 			Language: "typescript", Name: "got", URL: "https://github.com/sindresorhus/got.git",

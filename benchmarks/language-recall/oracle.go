@@ -139,6 +139,18 @@ func isRelationError(language string, e oracleError) bool {
 			return true
 		}
 		return false
+	case "java":
+		// The last one is a constructor after its class was renamed.
+		return strings.Contains(e.Message, "does not override abstract method") ||
+			strings.Contains(e.Message, "does not override or implement a method from a supertype") ||
+			strings.Contains(e.Message, "invalid method declaration; return type required")
+	case "csharp":
+		switch e.Code {
+		// CS1520 is a constructor after its type was renamed.
+		case "CS0115", "CS0534", "CS0535", "CS0737", "CS0738", "CS1520":
+			return true
+		}
+		return false
 	default:
 		switch e.Code {
 		case "TS2415", "TS2416", "TS2420", "TS2515", "TS2559":
@@ -173,6 +185,10 @@ func (o *oracle) check(ctx context.Context, file string, content []byte) ([]orac
 		return o.checkRust(ctx)
 	case "dart":
 		return o.checkDart(ctx)
+	case "java":
+		return o.checkJava(ctx)
+	case "csharp":
+		return o.checkCSharp(ctx)
 	}
 	return o.checkTypeScript(ctx)
 }
@@ -347,6 +363,93 @@ func (o *oracle) checkDart(ctx context.Context) ([]oracleError, error) {
 	}
 	if runErr != nil && len(errs) == 0 && strings.Contains(stderr.String(), "Could not") {
 		return nil, fmt.Errorf("dart analyze: %w: %s", runErr, strings.TrimSpace(stderr.String()))
+	}
+	return errs, nil
+}
+
+var javacError = regexp.MustCompile(`^(.+?\.java):(\d+): error: (.*)$`)
+
+// checkJava compiles the main and the test sources in one `javac` run, into a
+// scratch directory. One run over every file is the point: the build compiles
+// the tests only after the main sources succeed, and a rename is exactly what
+// makes them fail. Annotation processors are off; the corpus uses none.
+func (o *oracle) checkJava(ctx context.Context) ([]oracleError, error) {
+	classpath, err := os.ReadFile(filepath.Join(o.repository.Path, javaClasspathFile))
+	if err != nil {
+		return nil, fmt.Errorf("classpath: %w", err)
+	}
+	listed, err := exec.CommandContext(ctx, "git", "-C", o.repository.Path, "ls-files", "src/main/java/*.java", "src/test/java/*.java").Output()
+	if err != nil {
+		return nil, err
+	}
+	output, err := os.MkdirTemp("", benchmarkName+"-javac-")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(output)
+	arguments := append([]string{
+		// Renaming a public class is an error of its file's name, raised before
+		// the uses are checked, and javac stops there unless told to go on.
+		"-XDshould-stop.ifError=FLOW",
+		"-proc:none", "-nowarn", "-Xlint:none", "-Xmaxerrs", "100000", "-encoding", "UTF-8",
+		"-d", output, "-cp", strings.TrimSpace(string(classpath)),
+	}, strings.Fields(string(listed))...)
+	process := exec.CommandContext(ctx, "javac", arguments...)
+	process.Dir = o.repository.Path
+	process.Env = toolEnvironment()
+	var out bytes.Buffer
+	process.Stdout, process.Stderr = &out, &out
+	runErr := process.Run()
+	var errs []oracleError
+	for _, line := range strings.Split(out.String(), "\n") {
+		match := javacError.FindStringSubmatch(strings.TrimRight(line, "\r"))
+		if match == nil {
+			continue
+		}
+		number, _ := strconv.Atoi(match[2])
+		errs = append(errs, oracleError{File: filepath.ToSlash(match[1]), Line: number, Message: match[3]})
+	}
+	if runErr != nil && len(errs) == 0 {
+		return nil, fmt.Errorf("javac: %w: %s", runErr, strings.TrimSpace(out.String()))
+	}
+	return errs, nil
+}
+
+var mscError = regexp.MustCompile(`^(.+?\.cs)\((\d+),\d+\): error (CS\d+): (.*?)(?: \[[^\]]*\])?$`)
+
+// checkCSharp builds the solution. A multi-targeted project reports an error
+// once per framework, and the errors are deduplicated by their key.
+func (o *oracle) checkCSharp(ctx context.Context) ([]oracleError, error) {
+	process := exec.CommandContext(ctx, "dotnet", "build", "--no-restore", "--nologo", "-v", "q", "-p:TreatWarningsAsErrors=false")
+	process.Dir = o.repository.Path
+	process.Env = append(toolEnvironment(), "DOTNET_CLI_TELEMETRY_OPTOUT=1", "DOTNET_CLI_UI_LANGUAGE=en", "DOTNET_NOLOGO=1")
+	var out bytes.Buffer
+	process.Stdout, process.Stderr = &out, &out
+	runErr := process.Run()
+	root, err := filepath.EvalSymlinks(o.repository.Path)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	var errs []oracleError
+	for _, line := range strings.Split(out.String(), "\n") {
+		match := mscError.FindStringSubmatch(strings.TrimSpace(line))
+		if match == nil {
+			continue
+		}
+		file, err := filepath.Rel(root, match[1])
+		if err != nil || strings.HasPrefix(file, "..") {
+			continue
+		}
+		number, _ := strconv.Atoi(match[2])
+		e := oracleError{File: filepath.ToSlash(file), Line: number, Code: match[3], Message: match[4]}
+		if !seen[e.key()] {
+			seen[e.key()] = true
+			errs = append(errs, e)
+		}
+	}
+	if runErr != nil && len(errs) == 0 {
+		return nil, fmt.Errorf("dotnet build: %w: %s", runErr, strings.TrimSpace(out.String()))
 	}
 	return errs, nil
 }

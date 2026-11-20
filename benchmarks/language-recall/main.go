@@ -140,6 +140,14 @@ func run(ctx context.Context) error {
 		Corpus:      describe(repositories),
 		Limitations: limitations(),
 	}
+	for _, repository := range repositories {
+		switch repository.Language {
+		case "java":
+			measured.Environment.Java = toolVersion(ctx, "javac", "-version")
+		case "csharp":
+			measured.Environment.Dotnet = toolVersion(ctx, "dotnet", "--version")
+		}
+	}
 	// Two configurations of Kivgraph are measured for the languages that read
 	// test files: the default, which reads them, and the language with
 	// `include_tests: false`. They differ in one setting, and the gap between
@@ -149,6 +157,13 @@ func run(ctx context.Context) error {
 	for _, language := range []string{"go", "dart"} {
 		if wanted[language] {
 			arms = append(arms, arm{Name: language + ".tests_excluded", Language: language, ExcludeTests: language})
+		}
+	}
+	// Java and C# are the other way round: they do not read their tests by
+	// default, so their second configuration is the one that does.
+	for _, language := range []string{"java", "csharp"} {
+		if wanted[language] {
+			arms = append(arms, arm{Name: language + ".tests_included", Language: language, IncludeTests: language})
 		}
 	}
 	for _, current := range arms {
@@ -179,6 +194,7 @@ type arm struct {
 	Name         string
 	Language     string
 	ExcludeTests string // the config section whose include_tests is switched off
+	IncludeTests string // the config section whose include_tests is switched on
 }
 
 // measureArm indexes the corpus with a configuration, serves it, and measures
@@ -189,7 +205,7 @@ func measureArm(ctx context.Context, binary, root string, current arm, members [
 		return nil, err
 	}
 	defer os.RemoveAll(state)
-	if err := index(ctx, binary, root, state, members, current.ExcludeTests); err != nil {
+	if err := index(ctx, binary, root, state, members, current.ExcludeTests, current.IncludeTests); err != nil {
 		return nil, err
 	}
 	session, stop, err := connect(ctx, binary, state)
@@ -198,7 +214,7 @@ func measureArm(ctx context.Context, binary, root string, current arm, members [
 	}
 	defer stop()
 	var out []languageResult
-	for _, language := range []string{"go", "typescript", "rust", "dart"} {
+	for _, language := range []string{"go", "typescript", "rust", "dart", "java", "csharp"} {
 		var byLanguage []corpusRepository
 		for _, repository := range members {
 			if repository.Language == language {

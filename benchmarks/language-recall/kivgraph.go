@@ -31,7 +31,7 @@ func indexEnvironment(home string) []string {
 
 // index registers the corpus and builds the graph with the real binary. It runs
 // from a Kivgraph checkout because the TypeScript worker is started from there.
-func index(ctx context.Context, binary, root, home string, repositories []corpusRepository, excludeTests string) error {
+func index(ctx context.Context, binary, root, home string, repositories []corpusRepository, excludeTests, includeTests string) error {
 	var languages []string
 	seen := map[string]bool{}
 	arguments := []string{"init"}
@@ -44,8 +44,18 @@ func index(ctx context.Context, binary, root, home string, repositories []corpus
 	}
 	arguments = append(arguments, "--languages", strings.Join(languages, ","))
 	for _, step := range [][]string{arguments, {"index", "--full"}} {
+		if step[0] == "index" {
+			if err := registerLanguages(home, repositories); err != nil {
+				return err
+			}
+		}
 		if step[0] == "index" && excludeTests != "" {
-			if err := disableTests(home, excludeTests); err != nil {
+			if err := setTests(home, excludeTests, false); err != nil {
+				return err
+			}
+		}
+		if step[0] == "index" && includeTests != "" {
+			if err := setTests(home, includeTests, true); err != nil {
 				return err
 			}
 		}
@@ -59,11 +69,25 @@ func index(ctx context.Context, binary, root, home string, repositories []corpus
 	return nil
 }
 
-// disableTests sets `<section>.include_tests: false` in the configuration `init`
-// wrote. Both languages read their tests by default, so this is the arm that
-// shows what reading them buys. The key is the first `include_tests` after the
-// section, which the check below confirms rather than assumes.
-func disableTests(home, section string) error {
+// registerLanguages rewrites the registry `init` wrote so each repository has
+// its own language. `init` gives every repository every language it was passed,
+// which the first four tolerate and Java and C# do not: a repository registered
+// as C# with no solution in it aborts the whole index.
+func registerLanguages(home string, repositories []corpusRepository) error {
+	var registry strings.Builder
+	registry.WriteString("version: 1\nrepositories:\n")
+	for _, repository := range repositories {
+		fmt.Fprintf(&registry, "    - name: %s\n      path: %s\n      languages:\n        - %s\n",
+			repository.Name, repository.Path, repository.Language)
+	}
+	return os.WriteFile(filepath.Join(home, ".config", "kivgraph", "repositories.yaml"), []byte(registry.String()), 0o644)
+}
+
+// setTests sets `<section>.include_tests` in the configuration `init` wrote to
+// the value its default is not, which is the arm that shows what reading the
+// tests buys. The key is the first `include_tests` after the section, and it
+// must hold the opposite value: that is checked rather than assumed.
+func setTests(home, section string, include bool) error {
 	path := filepath.Join(home, ".config", "kivgraph", "config.yaml")
 	content, err := os.ReadFile(path)
 	if err != nil {
@@ -73,13 +97,16 @@ func disableTests(home, section string) error {
 	if start < 0 {
 		return fmt.Errorf("%s has no %s section", path, section)
 	}
-	const on, off = "    include_tests: true\n", "    include_tests: false\n"
-	offset := strings.Index(string(content[start:]), on)
+	from, to := "    include_tests: true\n", "    include_tests: false\n"
+	if include {
+		from, to = to, from
+	}
+	offset := strings.Index(string(content[start:]), from)
 	if offset < 0 {
-		return fmt.Errorf("%s does not declare %s.include_tests as true", path, section)
+		return fmt.Errorf("%s does not declare %s.include_tests as %t", path, section, !include)
 	}
 	offset += start
-	updated := string(content[:offset]) + off + string(content[offset+len(on):])
+	updated := string(content[:offset]) + to + string(content[offset+len(from):])
 	return os.WriteFile(path, []byte(updated), 0o644)
 }
 

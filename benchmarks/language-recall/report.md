@@ -3,7 +3,7 @@
 How many of the files that depend on a declaration does `find_references` report? The ground truth is the language's own type checker: rename the declaration, type-check again, and the files that gain an error are the files that use it.
 
 - Command: `go run ./benchmarks/language-recall -kivgraph <binary> -repo-root .`
-- Date: 2026-11-19, seed 1, up to 100 declarations per language
+- Date: 2026-11-20, seed 1, up to 100 declarations per language
 - Kivgraph `0.10.0` on darwin/arm64, go1.26.11, Version 5.9.3, node v25.9.0, rustc 1.100.0 (0ef1bc386 2026-11-09) (Homebrew)
 
 ## Corpus
@@ -28,7 +28,7 @@ Intervals are 95 % percentile intervals from resampling declarations.
 |go|go.tests_excluded|100|96|65.9 % (59.4 to 74.6)|100.0 % (100.0 to 100.0)|57.3 % (47.3 to 66.7)|
 |dart|dart.tests_excluded|100|73|74.0 % (65.1 to 82.7)|92.5 % (86.2 to 97.6)|67.1 % (55.7 to 76.8)|
 
-`file recall` pools the dependent files of every declaration. `fully recalled` is the share of declarations with dependents for which no file was missed (Wilson interval). `go.tests_excluded` and `dart.tests_excluded` are the default configuration with that language's `include_tests: false`; each pair draws the same declarations.
+`file recall` pools the dependent files of every declaration. `fully recalled` is the share of declarations with dependents for which no file was missed (Wilson interval). `go.tests_excluded` and `dart.tests_excluded` are the default configuration with that language's `include_tests: false`; each pair draws the same declarations. `java.tests_included` and `csharp.tests_included` are the default configuration with `include_tests: true`, because those two do not read their tests by default.
 
 ## go (default)
 
@@ -252,3 +252,7 @@ Declarations with a reported file the compiler did not flag (first 15 of 6). The
 - The TypeScript dependencies are installed with `npm install` and are not pinned by a lockfile, so a rerun can resolve other versions. The Rust dependencies are fetched with `--locked`.
 - `rustc` stops after name resolution when that fails, so an error that needs type inference can be hidden behind an unresolved name elsewhere. The same holds across a workspace: a crate that fails to compile hides every crate and target that depends on it, so on a multi-crate workspace the truth is a lower bound and the precision is too (on `ripgrep`, 25 of 33 extra files are in other crates and 8 in targets of the declaring crate). The Rust truth cannot contain a file that does not use the name.
 - Renaming a Dart class breaks its constructors' own declarations (a constructor is written with the class's name), and an `implements` clause is an implementation relation: those errors are left out of the truth. The Dart dependencies are resolved with `dart pub get`, and the repository ships no lockfile.
+- Java and C# do not read their tests by default (`java.include_tests` and `csharp.include_tests` are false), so their default arm misses every test file by construction and the `tests_included` arm is the one that reads them.
+- `scip-dotnet` resolves a call written as an extension method (`Guard.Against.Negative(0L)`) to the first overload of the name whatever its arguments, and records no occurrence for a generic call with explicit type arguments (`Negative<int>(...)`). The C# corpus is a library of overloaded extension methods, so its recall is mostly that: the other overloads have no reference in the index, and Kivgraph answers `COMPLETE` for them.
+- Java is checked by running `javac` over the main and the test sources at once, with the classpath Maven resolves, so one failing file does not hide another; Kivgraph reads `scip-java`, which drives the same compiler through the build. A Java or C# constructor is written with its type's name, so renaming the type breaks the constructors' own declarations: those errors are left out, as for Dart.
+- C# is checked with `dotnet build` on the solution, and MSBuild does not compile a project whose reference failed: a rename in the library leaves the test project unbuilt, so its files are missing from the truth. The C# truth is a lower bound and so is its precision, as for a Rust workspace. Kivgraph reads `scip-dotnet`, which drives Roslyn, the same compiler.

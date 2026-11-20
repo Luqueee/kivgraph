@@ -24,6 +24,8 @@ var kinds = map[string][]string{
 	"typescript": {"function", "class", "interface", "enum", "type", "method", "property", "variable"},
 	"rust":       {"function", "method", "static_method", "trait_method", "struct", "enum", "enum_member", "field", "trait", "constant", "static", "type_alias"},
 	"dart":       {"class", "mixin", "enum", "enum_member", "extension", "type_alias", "getter", "setter", "function", "method", "field", "variable"},
+	"java":       {"class", "interface", "enum", "method", "field", "term"},
+	"csharp":     {"class", "interface", "enum", "struct", "method", "property", "field"},
 }
 
 var skippedNames = map[string]bool{"_": true, "main": true, "init": true}
@@ -62,6 +64,10 @@ func isSourceFile(language, path string) bool {
 		return strings.HasSuffix(path, ".rs") && !isTestFile(language, path)
 	case "dart":
 		return strings.HasSuffix(path, ".dart") && !isTestFile(language, path)
+	case "java":
+		return strings.HasPrefix(path, "src/main/java/") && strings.HasSuffix(path, ".java")
+	case "csharp":
+		return strings.HasSuffix(path, ".cs") && !isTestFile(language, path)
 	default:
 		return (strings.HasSuffix(path, ".ts") || strings.HasSuffix(path, ".tsx")) &&
 			!strings.HasSuffix(path, ".d.ts") && !isTestFile(language, path)
@@ -77,6 +83,14 @@ func isTestFile(language, path string) bool {
 	}
 	if language == "dart" {
 		return strings.HasPrefix(path, "test/") || strings.Contains(path, "/test/") || strings.HasSuffix(path, "_test.dart")
+	}
+	if language == "java" {
+		return strings.HasPrefix(path, "src/test/") || strings.Contains(path, "/src/test/")
+	}
+	if language == "csharp" {
+		lower := strings.ToLower(path)
+		return strings.HasPrefix(lower, "test/") || strings.HasPrefix(lower, "tests/") || strings.Contains(lower, "/test/") ||
+			strings.Contains(lower, "/tests/") || strings.Contains(lower, "tests/") || strings.HasSuffix(lower, "tests.cs")
 	}
 	base := filepath.Base(path)
 	return strings.Contains(base, ".test.") || strings.Contains(base, ".spec.") ||
@@ -145,6 +159,22 @@ func declarationPattern(language, kind, name string) *regexp.Regexp {
 		pattern = `^\s*(?:@\w+(?:\([^)]*\))?\s+)*(?:(?:static|late|final|const|var|external|covariant)\s+)*(?:[\w<>?,.\[\]\s]*?\s)?(` + quoted + `)\s*(?:=[^>]|;|,|$)`
 	case "dart/enum_member":
 		pattern = `^\s*(?:@\w+(?:\([^)]*\))?\s+)*(` + quoted + `)\s*(?:[,;(<{]|$)`
+	case "java/class", "java/interface", "java/enum":
+		pattern = `\b(?:class|interface|enum|record)\s+(` + quoted + `)\b`
+	case "java/method":
+		pattern = `^\s*(?:(?:public|protected|private|static|final|abstract|synchronized|default|native|strictfp)\s+)*(?:<[^>]*>\s*)?[\w<>\[\],.? ]+?\s+(` + quoted + `)\s*\(`
+	case "java/field":
+		pattern = `^\s*(?:(?:public|protected|private|static|final|volatile|transient)\s+)*[\w<>\[\],.? ]+?\s+(` + quoted + `)\s*(?:=[^=]|;|,)`
+	case "java/term":
+		pattern = `^\s*(` + quoted + `)\s*(?:[,;({]|$)`
+	case "csharp/class", "csharp/interface", "csharp/enum", "csharp/struct":
+		pattern = `\b(?:class|interface|enum|struct|record)\s+(` + quoted + `)\b`
+	case "csharp/method":
+		pattern = `^\s*(?:(?:public|private|protected|internal|static|virtual|override|abstract|sealed|async|partial|unsafe|extern|new|readonly)\s+)*[\w<>\[\],.?() ]+?\s+(` + quoted + `)\s*(?:<[^>(]*>)?\s*\(`
+	case "csharp/property":
+		pattern = `^\s*(?:(?:public|private|protected|internal|static|virtual|override|abstract|sealed|new|readonly|required)\s+)*[\w<>\[\],.?() ]+?\s+(` + quoted + `)\s*(?:\{|=>|$)`
+	case "csharp/field":
+		pattern = `^\s*(?:(?:public|private|protected|internal|static|readonly|const|volatile|new)\s+)*[\w<>\[\],.?() ]+?\s+(` + quoted + `)\s*(?:=[^=>]|;|,)`
 	default:
 		return nil
 	}
