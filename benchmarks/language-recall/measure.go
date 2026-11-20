@@ -76,6 +76,12 @@ func measureLanguage(ctx context.Context, session *sdkmcp.ClientSession, oracles
 			result.KivgraphFailures++
 			continue
 		}
+		// A file the oracle does not check has no truth to be compared with.
+		for file := range reported {
+			if !inProject(repository, file) {
+				delete(reported, file)
+			}
+		}
 		if verdict == "" {
 			verdict = "none"
 		}

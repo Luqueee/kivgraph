@@ -73,6 +73,17 @@ func corpus() []corpusRepository {
 			Commit: "ad43aa02babf3bc8aee8efc2258f5ad3571c8ec5",
 			Setup:  []string{"dotnet restore"},
 		},
+		// Python is measured only when asked for with -languages: the oracle is
+		// mypy and the exact mode needs Pyright, and neither is part of a default
+		// installation. Project is what mypy checks, and its first entry's parent
+		// is where the package is imported from.
+		{
+			Language: "python", Name: "click", URL: "https://github.com/pallets/click.git",
+			Commit: "934813e4d421071a1b3db3973c02fe2721359a6e",
+			// `docs` and `examples` are left out: scripts that each define their own
+			// `setup` or `conf` module, which mypy cannot check together.
+			Project: "src/click tests",
+		},
 		{
 			Language: "typescript", Name: "got", URL: "https://github.com/sindresorhus/got.git",
 			Commit: "6b5aafc1cd538998728be6f45c65b0f80bae01b2", Extra: true,

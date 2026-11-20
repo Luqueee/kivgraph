@@ -22,6 +22,9 @@ type environment struct {
 	Rust       string `json:"rust,omitempty"`
 	Java       string `json:"java,omitempty"`
 	Dotnet     string `json:"dotnet,omitempty"`
+	Python     string `json:"python,omitempty"`
+	Mypy       string `json:"mypy,omitempty"`
+	Pyright    string `json:"pyright,omitempty"`
 }
 
 type metric struct {
@@ -76,8 +79,10 @@ type results struct {
 	WallSeconds float64            `json:"wall_seconds"`
 }
 
-func limitations() []string {
-	return []string{
+// limitations are the same for every run except for the ones about a language
+// that is measured only when asked for and has an oracle of another kind.
+func limitations(languages map[string]bool) []string {
+	out := []string{
 		"The oracle and Kivgraph share each language's type checker for Go, TypeScript and Dart. Go is checked with `go/packages` and `go/types` on both sides, TypeScript with the repository's own `tsc` on one side and the same checker inside the worker on the other, Dart with `dart analyze` on one side and the Analysis Server on the other. Type resolution is not what this measures there: it measures which files and build variants are loaded, how resolved uses become edges, and what is filtered on the way out. Rust is the exception: the oracle is `rustc` through `cargo check` and Kivgraph reads `rust-analyzer`, two different front ends.",
 		"The unit is the file, not the reference. A rename makes the compiler reject some uses and not others (after a failed import, the uses of the imported name are not reported), so reference-level ground truth would differ by language. A file is a dependent if it gains an error.",
 		"Implementation and inheritance relations are left out of the truth: an error that says a type no longer satisfies an interface or a base class is not a use of the renamed name, and `find_references` is not the tool for it.",
@@ -94,6 +99,17 @@ func limitations() []string {
 		"Java is checked by running `javac` over the main and the test sources at once, with the classpath Maven resolves, so one failing file does not hide another; Kivgraph reads `scip-java`, which drives the same compiler through the build. A Java or C# constructor is written with its type's name, so renaming the type breaks the constructors' own declarations: those errors are left out, as for Dart.",
 		"C# is checked with `dotnet build` on the solution, and MSBuild does not compile a project whose reference failed: a rename in the library leaves the test project unbuilt, so its files are missing from the truth. The C# truth is a lower bound and so is its precision, as for a Rust workspace. Kivgraph reads `scip-dotnet`, which drives Roslyn, the same compiler.",
 	}
+	if languages["python"] {
+		out = append(out,
+			"Python is checked with mypy, which Kivgraph does not use: its exact mode reads Pyright and its default mode a syntactic worker. mypy reports nothing through a value it types as `Any` -- an unannotated parameter, which is what a pytest fixture is -- so a use reached only that way is not in the truth. The Python truth is a lower bound: a file Kivgraph reports beyond it counts against precision whether or not it is a real use.",
+			"After an import fails mypy binds the imported name to `Any`, which would hide every use behind a re-export in a package's `__init__`. The oracle follows the rename through: each import that fails for the renamed name is rewritten to the new name and the check runs again until none fails.",
+			"`python.tests_included`, `python.exact` and `python.exact.tests_included` are the default configuration with `python.include_tests: true`, with `analyzer_mode: exact` over Pyright, and with both. Each samples from what its own graph lists, and the two modes do not list the same declarations, so the four do not draw the same sample.",
+			"mypy checks the package and its tests. The repository's `docs` and `examples` are scripts that each define modules of the same name, which it cannot check together, so a file Kivgraph reports there is left out of the comparison instead of being counted against it.",
+			"A name bound in more than one place survives the rename of one binding: a constant assigned in both branches of an `if`, an attribute annotated on one line and assigned on the next. mypy reports nothing then, and the uses count against precision. So do the uses on a line marked `# type: ignore`.",
+			"mypy does not check code under a platform test that is false where it runs (`if sys.platform == \"win32\"`), so declarations used only there have no truth on this machine and their uses count against precision.",
+		)
+	}
+	return out
 }
 
 func writeResults(directory string, measured results) error {
@@ -134,6 +150,9 @@ func renderReport(measured results) string {
 	}
 	if measured.Environment.Dotnet != "" {
 		fmt.Fprintf(&b, ", dotnet %s", measured.Environment.Dotnet)
+	}
+	if measured.Environment.Mypy != "" {
+		fmt.Fprintf(&b, ", %s, %s, %s", measured.Environment.Python, measured.Environment.Mypy, measured.Environment.Pyright)
 	}
 	fmt.Fprintf(&b, "\n\n## Corpus\n\n|language|repository|commit|\n|---|---|---|\n")
 	for _, repository := range measured.Corpus {

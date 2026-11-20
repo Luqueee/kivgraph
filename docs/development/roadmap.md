@@ -2508,6 +2508,40 @@ of the precision column, and `exclude_tests` on the traversal tools.
   on the first plain `import x`, which no fixture had. Fixed. Open: no Windows
   counterpart for the guard; the exact Python mode has still only been run on
   one corpus.
+- **Python measured on real code** (`benchmarks/language-recall/python/`,
+  `click` at `934813e4`, `100` declarations per configuration). The oracle is
+  mypy, which Kivgraph does not use, so the truth is a lower bound: it sees
+  nothing through `Any`.
+
+  | configuration | file recall | file precision |
+  |---|---|---|
+  | default (syntactic worker, no tests) | `43.0 %` | `86.1 %` |
+  | `python.tests_included` | `43.0 %` | `86.1 %` |
+  | `python.exact` (Pyright) | `66.1 %` | `95.3 %` |
+  | `python.exact.tests_included` | `99.5 %` | `95.9 %` |
+
+  The exact mode with tests misses one file in `83` declarations with
+  dependents: a `ParamSpec` used in quoted annotations, answered `COMPLETE`.
+  Without tests every other miss is a test file. What the run also showed,
+  none of it fixed:
+  - The default mode answers `COMPLETE` and misses a non-test file in `15` of
+    `75` such answers, and recalls no use of a method (`0` of `10`).
+  - Reading tests buys the default mode nothing here: it does not resolve
+    `import click` from `tests/` to `src/click`, so no test reaches the package.
+  - `exclusions` in the registry did not keep `docs` and `examples` out of the
+    Python graph. The comparison leaves those files out on both sides instead.
+  - `python.include_tests` is `false` by default and `analyzer_mode` is
+    `fallback`: the measured gap is `43.0 %` to `99.5 %`. Changing either
+    default is a decision, as it was for Java and C# (ADR 0142).
+
+  Two things about the oracle are worth keeping. mypy binds a name to `Any`
+  after its import fails, which hides every use behind a re-export in
+  `__init__`; the oracle rewrites each failing import and checks again. And
+  mypy's cache takes a file for unchanged when its size and its modification
+  second are: every rename here adds three bytes, and a first run read one
+  declaration's errors for the next one in the same file. It runs without a
+  cache, and the audit that caught it -- the same declaration must get the same
+  truth in every configuration -- found `0` differences in `179` afterwards.
 - **Open after the language-recall work** (none has an owner or a date):
   - Dart: explicit extension application (`IterableExtension(this)`) and `/** */`
     doc links. Rust: methods on a receiver, names passed through a metavariable

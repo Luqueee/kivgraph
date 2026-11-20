@@ -49,7 +49,14 @@ declarado en la raíz.
   ejecución por defecto. Java y C# (`jsoup`, `GuardClauses`) solo se miden con
   `-languages java,csharp`, porque sus indexadores no forman parte de una
   instalación por defecto; leen sus tests por defecto (ADR 0142) y su segundo
-  brazo es `tests_excluded`, como en Go y Dart. Sus resultados viven en `java-csharp/`. Un resultado
+  brazo es `tests_excluded`, como en Go y Dart. Sus resultados viven en `java-csharp/`.
+  Python (`click`) solo se mide con `-languages python` y con `mypy` y
+  `pyright-langserver` en el `PATH`: el oráculo es `mypy`, que Kivgraph no usa,
+  y sus cuatro brazos cruzan `analyzer_mode: exact` con `include_tests: true`,
+  porque el modo por defecto no es ninguna de las dos cosas. `mypy` se ejecuta
+  sin caché a propósito: da un fichero por no cambiado cuando coinciden su
+  tamaño y su segundo de modificación, y aquí todo renombrado añade los mismos
+  tres bytes. Sus resultados viven en `python/`. Un resultado
   sin la lista de lo que no se pudo muestrear no se publica.
 - `benchmarks/edit-frequency` no mide una reconstrucción contra otra: mide qué
   le cuesta el grafo a **un agente que edita**, que es la carga por la que la

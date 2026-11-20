@@ -31,7 +31,7 @@ func indexEnvironment(home string) []string {
 
 // index registers the corpus and builds the graph with the real binary. It runs
 // from a Kivgraph checkout because the TypeScript worker is started from there.
-func index(ctx context.Context, binary, root, home string, repositories []corpusRepository, excludeTests string) error {
+func index(ctx context.Context, binary, root, home string, repositories []corpusRepository, excludeTests string, settings []setting) error {
 	var languages []string
 	seen := map[string]bool{}
 	arguments := []string{"init"}
@@ -52,6 +52,13 @@ func index(ctx context.Context, binary, root, home string, repositories []corpus
 		if step[0] == "index" && excludeTests != "" {
 			if err := disableTests(home, excludeTests); err != nil {
 				return err
+			}
+		}
+		if step[0] == "index" {
+			for _, change := range settings {
+				if err := setKey(home, change); err != nil {
+					return err
+				}
 			}
 		}
 		process := exec.CommandContext(ctx, binary, step...)
@@ -100,6 +107,47 @@ func disableTests(home, section string) error {
 	offset += start
 	updated := string(content[:offset]) + off + string(content[offset+len(on):])
 	return os.WriteFile(path, []byte(updated), 0o644)
+}
+
+// setting is one key of the configuration `init` wrote, given another value.
+type setting struct{ Section, Key, Value string }
+
+// setKey rewrites the first `key:` after the section. It fails when the section
+// or the key is not there: an arm that silently measured the default
+// configuration would publish a difference that was never applied.
+func setKey(home string, change setting) error {
+	path := filepath.Join(home, ".config", "kivgraph", "config.yaml")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	text := string(content)
+	start := strings.Index(text, "\n"+change.Section+":\n")
+	if start < 0 {
+		return fmt.Errorf("%s has no %s section", path, change.Section)
+	}
+	start += len(change.Section) + 3
+	end := len(text)
+	// The section ends at the next line that is not indented.
+	for offset := start; offset < len(text); {
+		next := strings.IndexByte(text[offset:], '\n')
+		if next < 0 {
+			break
+		}
+		offset += next + 1
+		if offset < len(text) && text[offset] != ' ' && text[offset] != '\n' {
+			end = offset
+			break
+		}
+	}
+	prefix := "    " + change.Key + ":"
+	at := strings.Index(text[start-1:end], "\n"+prefix)
+	if at < 0 {
+		return fmt.Errorf("%s does not declare %s.%s", path, change.Section, change.Key)
+	}
+	at += start
+	stop := at + strings.IndexByte(text[at:], '\n')
+	return os.WriteFile(path, []byte(text[:at]+prefix+" "+change.Value+text[stop:]), 0o644)
 }
 
 func connect(ctx context.Context, binary, home string) (*sdkmcp.ClientSession, func(), error) {

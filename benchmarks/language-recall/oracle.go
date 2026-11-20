@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -70,6 +71,8 @@ func (o *oracle) dependents(ctx context.Context, file string, line int, name str
 	switch o.repository.Language {
 	case "go":
 		errs, err = o.check(ctx, file, renamed)
+	case "python":
+		errs, err = o.checkPythonRename(ctx, file, renamed, name)
 	default:
 		errs, err = o.checkOnDisk(ctx, file, renamed)
 	}
@@ -144,6 +147,8 @@ func isRelationError(language string, e oracleError) bool {
 		return strings.Contains(e.Message, "does not override abstract method") ||
 			strings.Contains(e.Message, "does not override or implement a method from a supertype") ||
 			strings.Contains(e.Message, "invalid method declaration; return type required")
+	case "python":
+		return e.Code == "override" || e.Code == "abstract" || e.Code == "safe-super"
 	case "csharp":
 		switch e.Code {
 		// CS1520 is a constructor after its type was renamed.
@@ -189,6 +194,8 @@ func (o *oracle) check(ctx context.Context, file string, content []byte) ([]orac
 		return o.checkJava(ctx)
 	case "csharp":
 		return o.checkCSharp(ctx)
+	case "python":
+		return o.checkPython(ctx)
 	}
 	return o.checkTypeScript(ctx)
 }
@@ -452,4 +459,135 @@ func (o *oracle) checkCSharp(ctx context.Context) ([]oracleError, error) {
 		return nil, fmt.Errorf("dotnet build: %w: %s", runErr, strings.TrimSpace(out.String()))
 	}
 	return errs, nil
+}
+
+var mypyError = regexp.MustCompile(`^(.+?\.py):(\d+): error: (.*?)(?:\s+\[([a-z0-9-]+)\])?$`)
+
+// checkPython runs mypy over the project. It is the one checker here that
+// Kivgraph does not use: the exact mode reads Pyright. The repository's own
+// configuration is not read -- it pins a Python version the installed mypy may
+// have dropped -- and bodies of unannotated functions are checked, since most
+// tests are written that way.
+func (o *oracle) checkPython(ctx context.Context) ([]oracleError, error) {
+	roots := strings.Fields(o.repository.Project)
+	if len(roots) == 0 {
+		return nil, fmt.Errorf("mypy: %s names no project to check", o.repository.Name)
+	}
+	arguments := append([]string{
+		"--config-file=", "--no-pretty", "--check-untyped-defs", "--show-error-codes", "--no-error-summary",
+		"--hide-error-context", "--no-color-output",
+		// No cache, and not for tidiness. mypy takes a file for unchanged when
+		// its size and its modification time in whole seconds are: every rename
+		// here adds the same three bytes, so two declarations of one file
+		// renamed within a second read the first one's errors for the second.
+		"--no-incremental", "--cache-dir=" + os.DevNull,
+	}, roots...)
+	process := exec.CommandContext(ctx, "mypy", arguments...)
+	process.Dir = o.repository.Path
+	process.Env = append(toolEnvironment(), "MYPYPATH="+filepath.Dir(roots[0]))
+	var stdout, stderr bytes.Buffer
+	process.Stdout, process.Stderr = &stdout, &stderr
+	runErr := process.Run()
+	var errs []oracleError
+	for _, line := range strings.Split(stdout.String(), "\n") {
+		match := mypyError.FindStringSubmatch(strings.TrimRight(line, "\r"))
+		if match == nil {
+			continue
+		}
+		number, err := strconv.Atoi(match[2])
+		if err != nil {
+			continue
+		}
+		errs = append(errs, oracleError{File: filepath.ToSlash(match[1]), Line: number, Code: match[4], Message: match[3]})
+	}
+	// mypy exits 1 when it reports errors and 2 when it could not run.
+	var exit *exec.ExitError
+	if runErr != nil && (!errors.As(runErr, &exit) || exit.ExitCode() != 1) {
+		return nil, fmt.Errorf("mypy: %w: %s%s", runErr, strings.TrimSpace(stderr.String()), strings.TrimSpace(stdout.String()))
+	}
+	return errs, nil
+}
+
+// pythonImportLine recognises a line that imports names: the statement itself,
+// or one name of a parenthesised list written a line each.
+var pythonImportLine = regexp.MustCompile(`^\s*(?:(?:from\s+\S+\s+)?import\b|\w+(?:\s+as\s+\w+)?\s*,?\s*\)?\s*(?:#.*)?$)`)
+
+// checkPythonRename is the rename as mypy has to be shown it.
+//
+// After an import fails, mypy binds the imported name to `Any` so that one
+// mistake is reported once. That is the right thing for a person and the wrong
+// thing here: a package that re-exports the declaration from its `__init__`
+// gets one error on that import, and every `package.Name` behind it -- which is
+// how the tests reach it -- goes quiet. So the rename is followed through: each
+// import that fails for the renamed name is rewritten to import the new one,
+// which re-exports it under the new name, and the check runs again until no
+// import fails. The files touched are restored before returning.
+func (o *oracle) checkPythonRename(ctx context.Context, file string, renamed []byte, name string) ([]oracleError, error) {
+	originals := map[string][]byte{}
+	defer func() {
+		for path, content := range originals {
+			_ = os.WriteFile(filepath.Join(o.repository.Path, path), content, 0o644)
+		}
+	}()
+	replace := func(path string, content []byte) error {
+		full := filepath.Join(o.repository.Path, path)
+		if _, kept := originals[path]; !kept {
+			original, err := os.ReadFile(full)
+			if err != nil {
+				return err
+			}
+			originals[path] = original
+			// The line a diagnostic is read against is the original one.
+			o.lines[path] = strings.Split(string(original), "\n")
+		}
+		return os.WriteFile(full, content, 0o644)
+	}
+	if err := replace(file, renamed); err != nil {
+		return nil, err
+	}
+	word := regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `\b`)
+	seen := map[string]bool{}
+	var all []oracleError
+	// A chain of re-exports is as long as the package is deep; the bound only
+	// stops a rewrite that keeps producing new import errors.
+	for round := 0; round < 8; round++ {
+		errs, err := o.check(ctx, "", nil)
+		if err != nil {
+			return nil, err
+		}
+		rewrite := map[string]map[int]bool{}
+		for _, e := range errs {
+			if o.baseline[e.key()] || seen[e.key()] {
+				continue
+			}
+			seen[e.key()] = true
+			all = append(all, e)
+			if e.Code != "attr-defined" || !strings.HasPrefix(e.Message, `Module "`) {
+				continue
+			}
+			if line := o.line(e.File, e.Line); pythonImportLine.MatchString(line) && word.MatchString(line) {
+				if rewrite[e.File] == nil {
+					rewrite[e.File] = map[int]bool{}
+				}
+				rewrite[e.File][e.Line] = true
+			}
+		}
+		if len(rewrite) == 0 {
+			break
+		}
+		for path, numbers := range rewrite {
+			current, err := os.ReadFile(filepath.Join(o.repository.Path, path))
+			if err != nil {
+				return nil, err
+			}
+			lines := strings.Split(string(current), "\n")
+			for number := range numbers {
+				lines[number-1] = word.ReplaceAllString(lines[number-1], name+renameSuffix)
+			}
+			if err := replace(path, []byte(strings.Join(lines, "\n"))); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return all, nil
 }

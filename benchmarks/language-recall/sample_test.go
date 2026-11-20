@@ -2,6 +2,8 @@ package main
 
 import (
 	"math/rand/v2"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 )
@@ -22,6 +24,10 @@ func TestLocateFindsTheDeclaringOccurrence(t *testing.T) {
 		{"typescript private method", "typescript", "method", "class A {\n\tasync #load(x: string) {\n", "#load(x: string)"},
 		{"typescript exported variable", "typescript", "variable", "export const limit = 3;\n", "limit = 3"},
 		{"typescript function whose parameter has the same name", "typescript", "function", "export function run(run: number) {\n", "run(run: number)"},
+		{"python method whose parameter has the same name", "python", "method", "class A:\n    async def close(self, close=True):\n", "close(self, close=True)"},
+		{"python attribute bound on self", "python", "variable", "    def __init__(self):\n        self.name = name\n", "name = name"},
+		{"python annotated class attribute", "python", "variable", "class A:\n    allow_extra_args: bool\n", "allow_extra_args: bool"},
+		{"python module constant", "python", "constant", "import os\nWIN = os.name == \"nt\"\n", "WIN = os.name"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -49,6 +55,24 @@ func TestLocateRefusesWhatItCannotRenameExactly(t *testing.T) {
 		{"skipped name", "func main() {}\n", declaration{Name: "main", Kind: "func", Line: 1}},
 		{"line past the end", "func wanted() {}\n", declaration{Name: "wanted", Kind: "func", Line: 9}},
 		{"line zero", "func wanted() {}\n", declaration{Name: "wanted", Kind: "func", Line: 0}},
+	}
+	for _, test := range []struct {
+		name   string
+		source string
+		decl   declaration
+	}{
+		// A rename of one target of an unpacking, or of a loop variable, would
+		// not be a rename of a declaration.
+		{"python unpacking", "first, second = pair\n", declaration{Name: "second", Kind: "variable", Line: 1}},
+		{"python loop variable", "for item in items:\n", declaration{Name: "item", Kind: "variable", Line: 1}},
+		{"python comparison", "value == other\n", declaration{Name: "value", Kind: "variable", Line: 1}},
+		{"python keyword argument of a call", "    call(name=1)\n", declaration{Name: "name", Kind: "variable", Line: 1}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if _, ok := locate("python", []byte(test.source), test.decl); ok {
+				t.Fatal("locate accepted a Python binding it cannot rename exactly")
+			}
+		})
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -151,4 +175,81 @@ func countLinesBefore(source, marker string) int {
 		}
 	}
 	return 0
+}
+
+// The two things the Python oracle reads out of text: a line of mypy's output,
+// and whether a source line is an import, which decides if the rename is
+// followed through it.
+func TestMypyErrorLinesAreParsed(t *testing.T) {
+	for line, want := range map[string][]string{
+		`src/click/core.py:1481: error: Name "Command" is not defined  [name-defined]`:                    {"src/click/core.py", "1481", `Name "Command" is not defined`, "name-defined"},
+		`tests/test_a.py:3: error: Module "click" has no attribute "echo"; maybe "Echo"?  [attr-defined]`: {"tests/test_a.py", "3", `Module "click" has no attribute "echo"; maybe "Echo"?`, "attr-defined"},
+		`src/a.py:9: error: invalid syntax`: {"src/a.py", "9", "invalid syntax", ""},
+	} {
+		got := mypyError.FindStringSubmatch(line)
+		if got == nil || !reflect.DeepEqual(got[1:], want) {
+			t.Errorf("%q parsed as %q, want %q", line, got, want)
+		}
+	}
+	for _, line := range []string{
+		`src/click/core.py:1481: note: See https://mypy.readthedocs.io`,
+		`Found 3 errors in 2 files (checked 40 source files)`,
+		``,
+	} {
+		if mypyError.MatchString(line) {
+			t.Errorf("%q was read as an error", line)
+		}
+	}
+}
+
+func TestOnlyImportLinesAreFollowed(t *testing.T) {
+	for line, want := range map[string]bool{
+		"from .core import Command as Command": true,
+		"    from .core import Context":        true,
+		"import click.core":                    true,
+		"    Command as Command,":              true,
+		"    Command,":                         true,
+		"    Command)  # re-exported":          true,
+		"command = click.Command(name)":        false,
+		"    return Command(name, **attrs)":    false,
+		"class Group(Command):":                false,
+		"    important = Command":              false,
+	} {
+		if got := pythonImportLine.MatchString(line); got != want {
+			t.Errorf("pythonImportLine(%q) = %t, want %t", line, got, want)
+		}
+	}
+}
+
+func TestSetKeyChangesOneKeyOfOneSection(t *testing.T) {
+	home := t.TempDir()
+	directory := filepath.Join(home, ".config", "kivgraph")
+	if err := os.MkdirAll(directory, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(directory, "config.yaml")
+	const before = "version: 1\ngo:\n    include_tests: true\npython:\n    analyzer_mode: fallback\n    include_tests: false\ndart:\n    include_tests: true\n"
+	if err := os.WriteFile(path, []byte(before), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := setKey(home, setting{"python", "include_tests", "true"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := setKey(home, setting{"python", "analyzer_mode", "exact"}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const want = "version: 1\ngo:\n    include_tests: true\npython:\n    analyzer_mode: exact\n    include_tests: true\ndart:\n    include_tests: true\n"
+	if string(got) != want {
+		t.Fatalf("config = %q, want %q", got, want)
+	}
+	// An arm that could not apply its setting must not run as the default one.
+	for _, missing := range []setting{{"java", "include_tests", "true"}, {"python", "analyzer", "x"}, {"dart", "analyzer_mode", "exact"}} {
+		if err := setKey(home, missing); err == nil {
+			t.Errorf("setKey(%+v) changed a key that is not there", missing)
+		}
+	}
 }

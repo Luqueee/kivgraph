@@ -20,6 +20,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -138,7 +139,7 @@ func run(ctx context.Context) error {
 			Rust:       toolVersion(ctx, "rustc", "--version"),
 		},
 		Corpus:      describe(repositories),
-		Limitations: limitations(),
+		Limitations: limitations(wanted),
 	}
 	for _, repository := range repositories {
 		switch repository.Language {
@@ -146,6 +147,10 @@ func run(ctx context.Context) error {
 			measured.Environment.Java = toolVersion(ctx, "javac", "-version")
 		case "csharp":
 			measured.Environment.Dotnet = toolVersion(ctx, "dotnet", "--version")
+		case "python":
+			measured.Environment.Python = toolVersion(ctx, "python3", "--version")
+			measured.Environment.Mypy = toolVersion(ctx, "mypy", "--version")
+			measured.Environment.Pyright = toolVersion(ctx, "pyright", "--version")
 		}
 	}
 	// Two configurations of Kivgraph are measured for the languages that read
@@ -158,6 +163,27 @@ func run(ctx context.Context) error {
 		if wanted[language] {
 			arms = append(arms, arm{Name: language + ".tests_excluded", Language: language, ExcludeTests: language})
 		}
+	}
+	if wanted["python"] {
+		// Python's default is neither exact nor reads tests, so it gets the two
+		// settings crossed: what the default answers, and what each one buys.
+		server, err := exec.LookPath("pyright-langserver")
+		if err != nil {
+			return fmt.Errorf("the exact Python arms need pyright-langserver on PATH: %w", err)
+		}
+		if strings.ContainsAny(server, " \t'\"") {
+			return fmt.Errorf("pyright-langserver is at %q, and this harness does not quote it", server)
+		}
+		tests := setting{"python", "include_tests", "true"}
+		exact := []setting{
+			{"python", "analyzer_mode", "exact"},
+			{"python", "analyzer_command", "kivgraph-python-pyright --analyzer " + server},
+		}
+		arms = append(arms,
+			arm{Name: "python.tests_included", Language: "python", Settings: []setting{tests}},
+			arm{Name: "python.exact", Language: "python", Settings: exact},
+			arm{Name: "python.exact.tests_included", Language: "python", Settings: append([]setting{tests}, exact...)},
+		)
 	}
 	for _, current := range arms {
 		var members []corpusRepository
@@ -176,7 +202,7 @@ func run(ctx context.Context) error {
 		}
 		for _, result := range results {
 			measured.Languages = append(measured.Languages, result)
-			fmt.Printf("%-10s %-17s %d declarations, %d with dependents: file recall %.1f%%, file precision %.1f%%\n",
+			fmt.Printf("%-10s %-27s %d declarations, %d with dependents: file recall %.1f%%, file precision %.1f%%\n",
 				result.Language, result.Arm, result.Sampled, result.WithDependents,
 				100*result.Recall.Value, 100*result.Precision.Value)
 		}
@@ -191,6 +217,7 @@ type arm struct {
 	Name         string
 	Language     string
 	ExcludeTests string // the config section whose include_tests is switched off
+	Settings     []setting
 }
 
 // measureArm indexes the corpus with a configuration, serves it, and measures
@@ -201,7 +228,7 @@ func measureArm(ctx context.Context, binary, root string, current arm, members [
 		return nil, err
 	}
 	defer os.RemoveAll(state)
-	if err := index(ctx, binary, root, state, members, current.ExcludeTests); err != nil {
+	if err := index(ctx, binary, root, state, members, current.ExcludeTests, current.Settings); err != nil {
 		return nil, err
 	}
 	session, stop, err := connect(ctx, binary, state)
@@ -210,7 +237,7 @@ func measureArm(ctx context.Context, binary, root string, current arm, members [
 	}
 	defer stop()
 	var out []languageResult
-	for _, language := range []string{"go", "typescript", "rust", "dart", "java", "csharp"} {
+	for _, language := range []string{"go", "typescript", "rust", "dart", "java", "csharp", "python"} {
 		var byLanguage []corpusRepository
 		for _, repository := range members {
 			if repository.Language == language {

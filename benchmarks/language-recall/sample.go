@@ -26,6 +26,7 @@ var kinds = map[string][]string{
 	"dart":       {"class", "mixin", "enum", "enum_member", "extension", "type_alias", "getter", "setter", "function", "method", "field", "variable"},
 	"java":       {"class", "interface", "enum", "method", "field", "term"},
 	"csharp":     {"class", "interface", "enum", "struct", "method", "property", "field"},
+	"python":     {"class", "function", "method", "variable", "constant"},
 }
 
 var skippedNames = map[string]bool{"_": true, "main": true, "init": true}
@@ -48,12 +49,26 @@ func sourceFiles(ctx context.Context, repository corpusRepository) ([]string, er
 	}
 	var files []string
 	for _, path := range strings.Split(strings.TrimSpace(string(output)), "\n") {
-		if isSourceFile(repository.Language, path) {
+		if isSourceFile(repository.Language, path) && inProject(repository, path) {
 			files = append(files, path)
 		}
 	}
 	sort.Strings(files)
 	return files, nil
+}
+
+// inProject keeps a Python sample inside what the oracle type-checks. The other
+// languages check everything their build names, and are not narrowed.
+func inProject(repository corpusRepository, path string) bool {
+	if repository.Language != "python" {
+		return true
+	}
+	for _, root := range strings.Fields(repository.Project) {
+		if strings.HasPrefix(path, root+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 func isSourceFile(language, path string) bool {
@@ -68,6 +83,8 @@ func isSourceFile(language, path string) bool {
 		return strings.HasPrefix(path, "src/main/java/") && strings.HasSuffix(path, ".java")
 	case "csharp":
 		return strings.HasSuffix(path, ".cs") && !isTestFile(language, path)
+	case "python":
+		return strings.HasSuffix(path, ".py") && !isTestFile(language, path)
 	default:
 		return (strings.HasSuffix(path, ".ts") || strings.HasSuffix(path, ".tsx")) &&
 			!strings.HasSuffix(path, ".d.ts") && !isTestFile(language, path)
@@ -91,6 +108,11 @@ func isTestFile(language, path string) bool {
 		lower := strings.ToLower(path)
 		return strings.HasPrefix(lower, "test/") || strings.HasPrefix(lower, "tests/") || strings.Contains(lower, "/test/") ||
 			strings.Contains(lower, "/tests/") || strings.Contains(lower, "tests/") || strings.HasSuffix(lower, "tests.cs")
+	}
+	if language == "python" {
+		base := filepath.Base(path)
+		return strings.HasPrefix(path, "tests/") || strings.Contains(path, "/tests/") ||
+			strings.HasPrefix(base, "test_") || strings.HasSuffix(base, "_test.py") || base == "conftest.py"
 	}
 	base := filepath.Base(path)
 	return strings.Contains(base, ".test.") || strings.Contains(base, ".spec.") ||
@@ -175,6 +197,14 @@ func declarationPattern(language, kind, name string) *regexp.Regexp {
 		pattern = `^\s*(?:(?:public|private|protected|internal|static|virtual|override|abstract|sealed|new|readonly|required)\s+)*[\w<>\[\],.?() ]+?\s+(` + quoted + `)\s*(?:\{|=>|$)`
 	case "csharp/field":
 		pattern = `^\s*(?:(?:public|private|protected|internal|static|readonly|const|volatile|new)\s+)*[\w<>\[\],.?() ]+?\s+(` + quoted + `)\s*(?:=[^=>]|;|,)`
+	case "python/class":
+		pattern = `^\s*class\s+(` + quoted + `)\b`
+	case "python/function", "python/method":
+		pattern = `^\s*(?:async\s+)?def\s+(` + quoted + `)\b`
+	case "python/variable", "python/constant":
+		// A plain or annotated binding, at module level, in a class body or on
+		// `self`. Unpacking, `for` and `with` targets are not renamed.
+		pattern = `^\s*(?:self\.)?(` + quoted + `)\s*(?::[^=]*)?(?:=[^=]|$)`
 	default:
 		return nil
 	}
