@@ -507,7 +507,7 @@ python:
   analyzer_mode: fallback
   python_path: python3
   maximum_workers: 3
-  include_tests: false
+  include_tests: true
   include_generated: false
   include_external_packages: false
 dart:

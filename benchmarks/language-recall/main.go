@@ -165,8 +165,8 @@ func run(ctx context.Context) error {
 		}
 	}
 	if wanted["python"] {
-		// Python's default is neither exact nor reads tests, so it gets the two
-		// settings crossed: what the default answers, and what each one buys.
+		// Python's default reads tests and is not exact, so the two settings are
+		// crossed: what the default answers, and what each one is worth.
 		server, err := exec.LookPath("pyright-langserver")
 		if err != nil {
 			return fmt.Errorf("the exact Python arms need pyright-langserver on PATH: %w", err)
@@ -174,15 +174,14 @@ func run(ctx context.Context) error {
 		if strings.ContainsAny(server, " \t'\"") {
 			return fmt.Errorf("pyright-langserver is at %q, and this harness does not quote it", server)
 		}
-		tests := setting{"python", "include_tests", "true"}
 		exact := []setting{
 			{"python", "analyzer_mode", "exact"},
 			{"python", "analyzer_command", "kivgraph-python-pyright --analyzer " + server},
 		}
 		arms = append(arms,
-			arm{Name: "python.tests_included", Language: "python", Settings: []setting{tests}},
+			arm{Name: "python.tests_excluded", Language: "python", ExcludeTests: "python"},
 			arm{Name: "python.exact", Language: "python", Settings: exact},
-			arm{Name: "python.exact.tests_included", Language: "python", Settings: append([]setting{tests}, exact...)},
+			arm{Name: "python.exact.tests_excluded", Language: "python", ExcludeTests: "python", Settings: exact},
 		)
 	}
 	for _, current := range arms {

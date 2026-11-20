@@ -52,8 +52,8 @@ declarado en la raíz.
   brazo es `tests_excluded`, como en Go y Dart. Sus resultados viven en `java-csharp/`.
   Python (`click`) solo se mide con `-languages python` y con `mypy` y
   `pyright-langserver` en el `PATH`: el oráculo es `mypy`, que Kivgraph no usa,
-  y sus cuatro brazos cruzan `analyzer_mode: exact` con `include_tests: true`,
-  porque el modo por defecto no es ninguna de las dos cosas. `mypy` se ejecuta
+  y sus cuatro brazos cruzan `analyzer_mode: exact` con `include_tests: false`,
+  porque el modo por defecto lee los tests (ADR 0144) y no es exacto. `mypy` se ejecuta
   sin caché a propósito: da un fichero por no cambiado cuando coinciden su
   tamaño y su segundo de modificación, y aquí todo renombrado añade los mismos
   tres bytes. Sus resultados viven en `python/`. Un resultado

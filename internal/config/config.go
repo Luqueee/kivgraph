@@ -621,7 +621,7 @@ func DefaultConfig() Config {
 			AnalyzerMode:     "fallback",
 			MaximumWorkers:   3,
 			PythonPath:       "python3",
-			IncludeTests:     false,
+			IncludeTests:     true,
 			IncludeGenerated: false,
 			IncludeExternal:  false,
 		},

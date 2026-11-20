@@ -18,28 +18,28 @@ Intervals are 95 % percentile intervals from resampling declarations.
 
 |language|configuration|declarations measured|with dependents|file recall|file precision|fully recalled|
 |---|---|---|---|---|---|---|
-|python|default|100|71|43.0 % (35.8 to 52.1)|86.1 % (77.0 to 93.2)|39.4 % (28.9 to 51.1)|
-|python|python.tests_included|100|71|43.0 % (35.8 to 52.1)|86.1 % (77.0 to 93.2)|39.4 % (28.9 to 51.1)|
-|python|python.exact|100|83|66.1 % (58.8 to 75.0)|95.3 % (90.7 to 99.2)|62.7 % (51.9 to 72.3)|
-|python|python.exact.tests_included|100|83|99.5 % (98.2 to 100.0)|95.9 % (92.1 to 98.7)|98.8 % (93.5 to 99.8)|
+|python|default|100|71|43.7 % (36.4 to 52.5)|86.2 % (77.0 to 93.1)|39.4 % (28.9 to 51.1)|
+|python|python.tests_excluded|100|71|43.7 % (36.4 to 52.5)|86.2 % (77.0 to 93.1)|39.4 % (28.9 to 51.1)|
+|python|python.exact|100|83|100.0 % (100.0 to 100.0)|95.9 % (92.2 to 98.6)|100.0 % (95.6 to 100.0)|
+|python|python.exact.tests_excluded|100|83|66.7 % (59.4 to 75.5)|95.4 % (90.6 to 99.2)|63.9 % (53.1 to 73.4)|
 
 `file recall` pools the dependent files of every declaration. `fully recalled` is the share of declarations with dependents for which no file was missed (Wilson interval). A `tests_excluded` configuration is the default one with that language's `include_tests: false`; each pair draws the same declarations.
 
 ## python (default)
 
 - Declarations listed 638, eligible for the rename 621, measured 100 (oracle failed on 0, Kivgraph refused 0).
-- Recall on non-test files: 63.6 % (53.3 to 71.7). On test files: 0.0 % (0.0 to 0.0).
+- Recall on non-test files: 64.5 % (54.6 to 72.8). On test files: 0.0 % (0.0 to 0.0).
 - Declarations with no dependents for which Kivgraph still reports a file: 10 of 29.
-- Completeness verdicts: COMPLETE 75, LOWER_BOUND 25.
-- Answers that said `COMPLETE` and missed at least one non-test file: 15 of 75.
+- Completeness verdicts: COMPLETE 43, LOWER_BOUND 57.
+- Answers that said `COMPLETE` and missed at least one non-test file: 1 of 43.
 - Not sampled: kind not sampled: 16; name not found in declaring position: 1.
 
 |kind|declarations with dependents|file recall|
 |---|---|---|
-|class|23|41.8 % (32.1 to 54.7)|
+|class|23|43.0 % (33.9 to 55.7)|
 |function|25|50.0 % (33.3 to 68.8)|
 |method|10|0.0 % (0.0 to 0.0)|
-|variable|13|61.9 % (48.1 to 86.7)|
+|variable|13|61.9 % (46.4 to 86.7)|
 
 Declarations with a missed file (first 15 of 43):
 
@@ -48,18 +48,18 @@ Declarations with a missed file (first 15 of 43):
 |`MissingParameter` (src/click/exceptions.py:136)|class|src/click/__init__.py, tests/test_arguments.py, tests/test_options.py|LOWER_BOUND|
 |`decorator` (src/click/decorators.py:75)|function|src/click/decorators.py|LOWER_BOUND|
 |`unstyle` (src/click/termui.py:591)|function|src/click/__init__.py, tests/test_utils.py|LOWER_BOUND|
-|`takes_value` (src/click/parser.py:196)|method|src/click/parser.py|COMPLETE|
-|`_available_shells` (src/click/shell_completion.py:407)|variable|tests/test_shell_completion.py|COMPLETE|
-|`format_usage` (src/click/core.py:1269)|method|src/click/core.py|COMPLETE|
+|`takes_value` (src/click/parser.py:196)|method|src/click/parser.py|LOWER_BOUND|
+|`_available_shells` (src/click/shell_completion.py:407)|variable|tests/test_shell_completion.py|LOWER_BOUND|
+|`format_usage` (src/click/core.py:1269)|method|src/click/core.py|LOWER_BOUND|
 |`NoSuchOption` (src/click/exceptions.py:205)|class|src/click/__init__.py|LOWER_BOUND|
-|`call_on_close` (src/click/core.py:587)|method|src/click/types.py, tests/test_context.py|COMPLETE|
-|`get_short_help_str` (src/click/core.py:1337)|method|src/click/core.py|COMPLETE|
+|`call_on_close` (src/click/core.py:587)|method|src/click/types.py, tests/test_context.py|LOWER_BOUND|
+|`get_short_help_str` (src/click/core.py:1337)|method|src/click/core.py|LOWER_BOUND|
 |`Abort` (src/click/exceptions.py:282)|class|src/click/__init__.py, tests/test_utils.py|LOWER_BOUND|
 |`visible_input` (src/click/testing.py:279)|function|src/click/testing.py|LOWER_BOUND|
-|`visible_prompt_func` (src/click/termui.py:26)|variable|src/click/testing.py|COMPLETE|
-|`split_arg_string` (src/click/parser.py:127)|function|tests/test_parser.py|COMPLETE|
-|`shell_complete` (src/click/core.py:965)|method|src/click/core.py, src/click/shell_completion.py|COMPLETE|
-|`KeepOpenFile` (src/click/utils.py:194)|class|tests/test_utils.py|COMPLETE|
+|`visible_prompt_func` (src/click/termui.py:26)|variable|src/click/testing.py|LOWER_BOUND|
+|`split_arg_string` (src/click/parser.py:127)|function|tests/test_parser.py|LOWER_BOUND|
+|`shell_complete` (src/click/core.py:965)|method|src/click/core.py, src/click/shell_completion.py|LOWER_BOUND|
+|`KeepOpenFile` (src/click/utils.py:194)|class|tests/test_utils.py|LOWER_BOUND|
 
 Declarations with a reported file the compiler did not flag (first 15 of 11). These are unaudited: a use the compiler does not reject, such as one in a comment, is not a false positive.
 
@@ -77,21 +77,21 @@ Declarations with a reported file the compiler did not flag (first 15 of 11). Th
 |`AFTER_BAR` (src/click/_termui_impl.py:33)|variable|src/click/_termui_impl.py|
 |`_WindowsConsoleWriter` (src/click/_winconsole.py:149)|class|src/click/_winconsole.py|
 
-## python (python.tests_included)
+## python (python.tests_excluded)
 
 - Declarations listed 638, eligible for the rename 621, measured 100 (oracle failed on 0, Kivgraph refused 0).
-- Recall on non-test files: 63.6 % (53.3 to 71.7). On test files: 0.0 % (0.0 to 0.0).
+- Recall on non-test files: 64.5 % (54.6 to 72.8). On test files: 0.0 % (0.0 to 0.0).
 - Declarations with no dependents for which Kivgraph still reports a file: 10 of 29.
-- Completeness verdicts: COMPLETE 73, LOWER_BOUND 27.
-- Answers that said `COMPLETE` and missed at least one non-test file: 14 of 73.
+- Completeness verdicts: COMPLETE 49, LOWER_BOUND 51.
+- Answers that said `COMPLETE` and missed at least one non-test file: 1 of 49.
 - Not sampled: kind not sampled: 16; name not found in declaring position: 1.
 
 |kind|declarations with dependents|file recall|
 |---|---|---|
-|class|23|41.8 % (32.1 to 54.7)|
+|class|23|43.0 % (33.9 to 55.7)|
 |function|25|50.0 % (33.3 to 68.8)|
 |method|10|0.0 % (0.0 to 0.0)|
-|variable|13|61.9 % (48.1 to 86.7)|
+|variable|13|61.9 % (46.4 to 86.7)|
 
 Declarations with a missed file (first 15 of 43):
 
@@ -100,17 +100,17 @@ Declarations with a missed file (first 15 of 43):
 |`MissingParameter` (src/click/exceptions.py:136)|class|src/click/__init__.py, tests/test_arguments.py, tests/test_options.py|LOWER_BOUND|
 |`decorator` (src/click/decorators.py:75)|function|src/click/decorators.py|LOWER_BOUND|
 |`unstyle` (src/click/termui.py:591)|function|src/click/__init__.py, tests/test_utils.py|LOWER_BOUND|
-|`takes_value` (src/click/parser.py:196)|method|src/click/parser.py|COMPLETE|
+|`takes_value` (src/click/parser.py:196)|method|src/click/parser.py|LOWER_BOUND|
 |`_available_shells` (src/click/shell_completion.py:407)|variable|tests/test_shell_completion.py|COMPLETE|
-|`format_usage` (src/click/core.py:1269)|method|src/click/core.py|COMPLETE|
+|`format_usage` (src/click/core.py:1269)|method|src/click/core.py|LOWER_BOUND|
 |`NoSuchOption` (src/click/exceptions.py:205)|class|src/click/__init__.py|LOWER_BOUND|
-|`call_on_close` (src/click/core.py:587)|method|src/click/types.py, tests/test_context.py|COMPLETE|
-|`get_short_help_str` (src/click/core.py:1337)|method|src/click/core.py|COMPLETE|
+|`call_on_close` (src/click/core.py:587)|method|src/click/types.py, tests/test_context.py|LOWER_BOUND|
+|`get_short_help_str` (src/click/core.py:1337)|method|src/click/core.py|LOWER_BOUND|
 |`Abort` (src/click/exceptions.py:282)|class|src/click/__init__.py, tests/test_utils.py|LOWER_BOUND|
 |`visible_input` (src/click/testing.py:279)|function|src/click/testing.py|LOWER_BOUND|
-|`visible_prompt_func` (src/click/termui.py:26)|variable|src/click/testing.py|COMPLETE|
-|`split_arg_string` (src/click/parser.py:127)|function|tests/test_parser.py|LOWER_BOUND|
-|`shell_complete` (src/click/core.py:965)|method|src/click/core.py, src/click/shell_completion.py|COMPLETE|
+|`visible_prompt_func` (src/click/termui.py:26)|variable|src/click/testing.py|LOWER_BOUND|
+|`split_arg_string` (src/click/parser.py:127)|function|tests/test_parser.py|COMPLETE|
+|`shell_complete` (src/click/core.py:965)|method|src/click/core.py, src/click/shell_completion.py|LOWER_BOUND|
 |`KeepOpenFile` (src/click/utils.py:194)|class|tests/test_utils.py|COMPLETE|
 
 Declarations with a reported file the compiler did not flag (first 15 of 11). These are unaudited: a use the compiler does not reject, such as one in a comment, is not a false positive.
@@ -132,21 +132,50 @@ Declarations with a reported file the compiler did not flag (first 15 of 11). Th
 ## python (python.exact)
 
 - Declarations listed 852, eligible for the rename 832, measured 100 (oracle failed on 0, Kivgraph refused 0).
-- Recall on non-test files: 99.2 % (97.3 to 100.0). On test files: 0.0 % (0.0 to 0.0).
-- Declarations with no dependents for which Kivgraph still reports a file: 3 of 17.
-- Completeness verdicts: COMPLETE 91, LOWER_BOUND 9.
-- Answers that said `COMPLETE` and missed at least one non-test file: 1 of 91.
+- Recall on non-test files: 100.0 % (100.0 to 100.0). On test files: 100.0 % (100.0 to 100.0).
+- Declarations with no dependents for which Kivgraph still reports a file: 4 of 17.
+- Completeness verdicts: COMPLETE 87, LOWER_BOUND 13.
+- Answers that said `COMPLETE` and missed at least one non-test file: 0 of 87.
 - Not sampled: kind not sampled: 16; name not found in declaring position: 4.
 
 |kind|declarations with dependents|file recall|
 |---|---|---|
-|class|20|53.9 % (44.2 to 66.7)|
-|constant|19|63.9 % (52.6 to 78.6)|
-|function|19|82.8 % (71.9 to 93.9)|
+|class|20|100.0 % (100.0 to 100.0)|
+|constant|19|100.0 % (100.0 to 100.0)|
+|function|19|100.0 % (100.0 to 100.0)|
+|method|10|100.0 % (100.0 to 100.0)|
+|variable|15|100.0 % (100.0 to 100.0)|
+
+Declarations with a reported file the compiler did not flag (first 15 of 7). These are unaudited: a use the compiler does not reject, such as one in a comment, is not a false positive.
+
+|declaration|kind|extra|
+|---|---|---|
+|`BaseCommand` (src/click/core.py:837)|class|tests/test_context.py|
+|`AFTER_BAR` (src/click/_termui_impl.py:36)|constant|src/click/_termui_impl.py|
+|`WIN` (src/click/_compat.py:10)|constant|src/click/_compat.py|
+|`format_message` (src/click/exceptions.py:123)|method|tests/test_arguments.py|
+|`should_strip_ansi` (src/click/_compat.py:496)|function|src/click/_compat.py|
+|`auto_wrap_for_ansi` (src/click/_compat.py:519)|function|src/click/_compat.py, src/click/utils.py|
+|`secondary_opts` (src/click/core.py:2115)|variable|src/click/core.py|
+
+## python (python.exact.tests_excluded)
+
+- Declarations listed 852, eligible for the rename 832, measured 100 (oracle failed on 0, Kivgraph refused 0).
+- Recall on non-test files: 100.0 % (100.0 to 100.0). On test files: 0.0 % (0.0 to 0.0).
+- Declarations with no dependents for which Kivgraph still reports a file: 3 of 17.
+- Completeness verdicts: COMPLETE 90, LOWER_BOUND 10.
+- Answers that said `COMPLETE` and missed at least one non-test file: 0 of 90.
+- Not sampled: kind not sampled: 16; name not found in declaring position: 4.
+
+|kind|declarations with dependents|file recall|
+|---|---|---|
+|class|20|53.9 % (44.2 to 66.2)|
+|constant|19|66.7 % (55.1 to 82.1)|
+|function|19|82.8 % (71.4 to 93.1)|
 |method|10|81.8 % (61.5 to 100.0)|
 |variable|15|90.5 % (80.0 to 100.0)|
 
-Declarations with a missed file (first 15 of 31):
+Declarations with a missed file (first 15 of 30):
 
 |declaration|kind|missed|verdict|
 |---|---|---|---|
@@ -159,12 +188,12 @@ Declarations with a missed file (first 15 of 31):
 |`UUID` (src/click/types.py:1093)|constant|tests/test_basic.py, tests/test_info_dict.py|LOWER_BOUND|
 |`getvalue` (src/click/formatting.py:278)|method|tests/test_formatting.py|LOWER_BOUND|
 |`ENVIRONMENT` (src/click/core.py:159)|constant|tests/test_context.py|COMPLETE|
-|`Context` (src/click/core.py:169)|class|tests/test_arguments.py, tests/test_commands.py, tests/test_context.py, tests/test_custom_classes.py, tests/test_info_dict.py, tests/test_options.py, tests/test_parser.py, tests/test_types.py, tests/typing/typing_aliased_group.py|COMPLETE|
+|`Context` (src/click/core.py:169)|class|tests/test_arguments.py, tests/test_commands.py, tests/test_context.py, tests/test_custom_classes.py, tests/test_info_dict.py, tests/test_options.py, tests/test_parser.py, tests/test_types.py, tests/typing/typing_aliased_group.py|LOWER_BOUND|
 |`BOOL` (src/click/types.py:1090)|constant|tests/test_info_dict.py|COMPLETE|
 |`password_option` (src/click/decorators.py:395)|function|tests/typing/typing_password_option.py|COMPLETE|
 |`BaseCommand` (src/click/core.py:837)|class|tests/test_commands.py|COMPLETE|
 |`OptionParser` (src/click/parser.py:255)|class|tests/test_parser.py|COMPLETE|
-|`P` (src/click/utils.py:24)|constant|src/click/utils.py|COMPLETE|
+|`FuncParamType` (src/click/types.py:165)|class|tests/test_info_dict.py|COMPLETE|
 
 Declarations with a reported file the compiler did not flag (first 15 of 5). These are unaudited: a use the compiler does not reject, such as one in a comment, is not a false positive.
 
@@ -172,41 +201,6 @@ Declarations with a reported file the compiler did not flag (first 15 of 5). The
 |---|---|---|
 |`AFTER_BAR` (src/click/_termui_impl.py:36)|constant|src/click/_termui_impl.py|
 |`WIN` (src/click/_compat.py:10)|constant|src/click/_compat.py|
-|`should_strip_ansi` (src/click/_compat.py:496)|function|src/click/_compat.py|
-|`auto_wrap_for_ansi` (src/click/_compat.py:519)|function|src/click/_compat.py, src/click/utils.py|
-|`secondary_opts` (src/click/core.py:2115)|variable|src/click/core.py|
-
-## python (python.exact.tests_included)
-
-- Declarations listed 852, eligible for the rename 832, measured 100 (oracle failed on 0, Kivgraph refused 0).
-- Recall on non-test files: 99.2 % (97.3 to 100.0). On test files: 100.0 % (100.0 to 100.0).
-- Declarations with no dependents for which Kivgraph still reports a file: 4 of 17.
-- Completeness verdicts: COMPLETE 87, LOWER_BOUND 13.
-- Answers that said `COMPLETE` and missed at least one non-test file: 1 of 87.
-- Not sampled: kind not sampled: 16; name not found in declaring position: 4.
-
-|kind|declarations with dependents|file recall|
-|---|---|---|
-|class|20|100.0 % (100.0 to 100.0)|
-|constant|19|97.2 % (90.6 to 100.0)|
-|function|19|100.0 % (100.0 to 100.0)|
-|method|10|100.0 % (100.0 to 100.0)|
-|variable|15|100.0 % (100.0 to 100.0)|
-
-Declarations with a missed file (first 15 of 1):
-
-|declaration|kind|missed|verdict|
-|---|---|---|---|
-|`P` (src/click/utils.py:24)|constant|src/click/utils.py|COMPLETE|
-
-Declarations with a reported file the compiler did not flag (first 15 of 7). These are unaudited: a use the compiler does not reject, such as one in a comment, is not a false positive.
-
-|declaration|kind|extra|
-|---|---|---|
-|`BaseCommand` (src/click/core.py:837)|class|tests/test_context.py|
-|`AFTER_BAR` (src/click/_termui_impl.py:36)|constant|src/click/_termui_impl.py|
-|`WIN` (src/click/_compat.py:10)|constant|src/click/_compat.py|
-|`format_message` (src/click/exceptions.py:123)|method|tests/test_arguments.py|
 |`should_strip_ansi` (src/click/_compat.py:496)|function|src/click/_compat.py|
 |`auto_wrap_for_ansi` (src/click/_compat.py:519)|function|src/click/_compat.py, src/click/utils.py|
 |`secondary_opts` (src/click/core.py:2115)|variable|src/click/core.py|
@@ -230,7 +224,7 @@ Declarations with a reported file the compiler did not flag (first 15 of 7). The
 - C# is checked with `dotnet build` on the solution, and MSBuild does not compile a project whose reference failed: a rename in the library leaves the test project unbuilt, so its files are missing from the truth. The C# truth is a lower bound and so is its precision, as for a Rust workspace. Kivgraph reads `scip-dotnet`, which drives Roslyn, the same compiler.
 - Python is checked with mypy, which Kivgraph does not use: its exact mode reads Pyright and its default mode a syntactic worker. mypy reports nothing through a value it types as `Any` -- an unannotated parameter, which is what a pytest fixture is -- so a use reached only that way is not in the truth. The Python truth is a lower bound: a file Kivgraph reports beyond it counts against precision whether or not it is a real use.
 - After an import fails mypy binds the imported name to `Any`, which would hide every use behind a re-export in a package's `__init__`. The oracle follows the rename through: each import that fails for the renamed name is rewritten to the new name and the check runs again until none fails.
-- `python.tests_included`, `python.exact` and `python.exact.tests_included` are the default configuration with `python.include_tests: true`, with `analyzer_mode: exact` over Pyright, and with both. Each samples from what its own graph lists, and the two modes do not list the same declarations, so the four do not draw the same sample.
+- `python.tests_excluded`, `python.exact` and `python.exact.tests_excluded` are the default configuration with `python.include_tests: false`, with `analyzer_mode: exact` over Pyright, and with both. Each samples from what its own graph lists, and the two modes do not list the same declarations, so the four do not draw the same sample.
 - mypy checks the package and its tests. The repository's `docs` and `examples` are scripts that each define modules of the same name, which it cannot check together, so a file Kivgraph reports there is left out of the comparison instead of being counted against it.
 - A name bound in more than one place survives the rename of one binding: a constant assigned in both branches of an `if`, an attribute annotated on one line and assigned on the next. mypy reports nothing then, and the uses count against precision. So do the uses on a line marked `# type: ignore`.
 - mypy does not check code under a platform test that is false where it runs (`if sys.platform == "win32"`), so declarations used only there have no truth on this machine and their uses count against precision.

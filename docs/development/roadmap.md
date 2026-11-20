@@ -2534,6 +2534,17 @@ of the precision column, and `exclude_tests` on the traversal tools.
     `fallback`: the measured gap is `43.0 %` to `99.5 %`. Changing either
     default is a decision, as it was for Java and C# (ADR 0142).
 
+  Three of these were then fixed (ADR 0144), and the table above is the
+  measurement before them. `python.include_tests` defaults to `true`; the
+  syntactic worker records each member access it does not resolve, which takes
+  its wrong `COMPLETE` answers from `15` of `75` to `1` of `43` without making
+  it more complete (`43.7 %`); and both workers read names inside quoted
+  annotations, which is the `ParamSpec`. The exact mode now measures `100.0 %`
+  recall and `95.9 %` precision by default and `66.7 %` with tests excluded.
+  Still open: `exclusions` not reaching the Python graph; the syntactic worker
+  not resolving `import click` under a `src/` layout; the workers' rule for a
+  test differing from `internal/testpath`; `analyzer_mode` staying `fallback`.
+
   Two things about the oracle are worth keeping. mypy binds a name to `Any`
   after its import fails, which hides every use behind a re-export in
   `__init__`; the oracle rewrites each failing import and checks again. And

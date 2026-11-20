@@ -39,18 +39,18 @@
       "oracle_failures": 0,
       "kivgraph_failures": 0,
       "file_recall": {
-        "value": 0.43037974683544306,
-        "low": 0.35802469135802467,
-        "high": 0.5211267605633803,
-        "numerator": 68,
+        "value": 0.43670886075949367,
+        "low": 0.3644859813084112,
+        "high": 0.525,
+        "numerator": 69,
         "denominator": 158,
         "symbols": 71
       },
       "file_recall_non_test": {
-        "value": 0.6355140186915887,
-        "low": 0.5333333333333333,
-        "high": 0.7169811320754716,
-        "numerator": 68,
+        "value": 0.6448598130841121,
+        "low": 0.5463917525773195,
+        "high": 0.7282608695652174,
+        "numerator": 69,
         "denominator": 107,
         "symbols": 70
       },
@@ -71,20 +71,20 @@
         "symbols": 0
       },
       "file_recall_without_private_names": {
-        "value": 0.43037974683544306,
-        "low": 0.35359116022099446,
-        "high": 0.5179856115107914,
-        "numerator": 68,
+        "value": 0.43670886075949367,
+        "low": 0.3611111111111111,
+        "high": 0.5253164556962026,
+        "numerator": 69,
         "denominator": 158,
         "symbols": 71
       },
       "file_precision": {
-        "value": 0.8607594936708861,
+        "value": 0.8625,
         "low": 0.7702702702702703,
-        "high": 0.9318181818181818,
-        "numerator": 68,
-        "denominator": 79,
-        "symbols": 59
+        "high": 0.9310344827586207,
+        "numerator": 69,
+        "denominator": 80,
+        "symbols": 60
       },
       "symbols_fully_recalled": {
         "value": 0.39436619718309857,
@@ -103,19 +103,19 @@
         "symbols": 29
       },
       "completeness_verdicts": {
-        "COMPLETE": 75,
-        "LOWER_BOUND": 25
+        "COMPLETE": 43,
+        "LOWER_BOUND": 57
       },
-      "complete_verdicts_that_missed_a_non_test_file": 15,
+      "complete_verdicts_that_missed_a_non_test_file": 1,
       "by_kind": [
         {
           "kind": "class",
           "symbols_with_dependents": 23,
           "file_recall": {
-            "value": 0.4177215189873418,
-            "low": 0.32051282051282054,
-            "high": 0.546875,
-            "numerator": 33,
+            "value": 0.43037974683544306,
+            "low": 0.3389830508474576,
+            "high": 0.5573770491803278,
+            "numerator": 34,
             "denominator": 79,
             "symbols": 23
           }
@@ -149,7 +149,7 @@
           "symbols_with_dependents": 13,
           "file_recall": {
             "value": 0.6190476190476191,
-            "low": 0.48148148148148145,
+            "low": 0.4642857142857143,
             "high": 0.8666666666666667,
             "numerator": 13,
             "denominator": 21,
@@ -203,7 +203,7 @@
           "line": 904,
           "truth_files": null,
           "reported_files": null,
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -263,7 +263,7 @@
           "missed_files": [
             "src/click/parser.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -281,7 +281,7 @@
           "missed_files": [
             "tests/test_shell_completion.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -324,7 +324,7 @@
           "missed_files": [
             "src/click/core.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -383,7 +383,7 @@
             "src/click/types.py",
             "tests/test_context.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -443,7 +443,7 @@
           "missed_files": [
             "src/click/core.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -522,7 +522,7 @@
           "missed_files": [
             "src/click/testing.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -554,7 +554,7 @@
           "missed_files": [
             "tests/test_parser.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -571,7 +571,7 @@
             "src/click/core.py",
             "src/click/shell_completion.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -586,7 +586,7 @@
           "extra_files": [
             "src/click/_winconsole.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -604,7 +604,7 @@
           "missed_files": [
             "tests/test_utils.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -633,7 +633,7 @@
           "line": 106,
           "truth_files": null,
           "reported_files": null,
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -717,7 +717,7 @@
           "extra_files": [
             "src/click/_winconsole.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -830,7 +830,7 @@
           "line": 2850,
           "truth_files": null,
           "reported_files": null,
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -853,13 +853,14 @@
             "tests/conftest.py",
             "tests/test_testing.py"
           ],
-          "reported_files": null,
+          "reported_files": [
+            "src/click/testing.py"
+          ],
           "missed_files": [
-            "src/click/testing.py",
             "tests/conftest.py",
             "tests/test_testing.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -888,7 +889,7 @@
           "line": 1408,
           "truth_files": null,
           "reported_files": null,
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -994,7 +995,7 @@
           "extra_files": [
             "src/click/_winconsole.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -1012,7 +1013,7 @@
           "missed_files": [
             "tests/test_info_dict.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -1036,7 +1037,7 @@
           "line": 534,
           "truth_files": null,
           "reported_files": null,
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -1109,7 +1110,7 @@
           "missed_files": [
             "src/click/core.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -1178,7 +1179,7 @@
             "src/click/core.py",
             "tests/test_formatting.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -1287,7 +1288,7 @@
           "line": 276,
           "truth_files": null,
           "reported_files": null,
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -1305,7 +1306,7 @@
           "missed_files": [
             "src/click/testing.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -1347,7 +1348,7 @@
           "line": 2920,
           "truth_files": null,
           "reported_files": null,
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -1421,7 +1422,7 @@
           "missed_files": [
             "src/click/core.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -1480,7 +1481,7 @@
             "src/click/core.py",
             "tests/test_context.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -1541,7 +1542,7 @@
           "missed_files": [
             "src/click/formatting.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -1556,7 +1557,7 @@
           "extra_files": [
             "src/click/_winconsole.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -1578,7 +1579,7 @@
           "missed_files": [
             "tests/test_utils.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -1660,7 +1661,7 @@
           "line": 363,
           "truth_files": null,
           "reported_files": null,
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -1708,7 +1709,7 @@
           "missed_files": [
             "src/click/testing.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -1718,7 +1719,7 @@
           "line": 1432,
           "truth_files": null,
           "reported_files": null,
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -1737,7 +1738,7 @@
       ]
     },
     {
-      "arm": "python.tests_included",
+      "arm": "python.tests_excluded",
       "language": "python",
       "declarations_listed": 638,
       "declarations_eligible": 621,
@@ -1750,18 +1751,18 @@
       "oracle_failures": 0,
       "kivgraph_failures": 0,
       "file_recall": {
-        "value": 0.43037974683544306,
-        "low": 0.35802469135802467,
-        "high": 0.5211267605633803,
-        "numerator": 68,
+        "value": 0.43670886075949367,
+        "low": 0.3644859813084112,
+        "high": 0.525,
+        "numerator": 69,
         "denominator": 158,
         "symbols": 71
       },
       "file_recall_non_test": {
-        "value": 0.6355140186915887,
-        "low": 0.5333333333333333,
-        "high": 0.7169811320754716,
-        "numerator": 68,
+        "value": 0.6448598130841121,
+        "low": 0.5463917525773195,
+        "high": 0.7282608695652174,
+        "numerator": 69,
         "denominator": 107,
         "symbols": 70
       },
@@ -1782,20 +1783,20 @@
         "symbols": 0
       },
       "file_recall_without_private_names": {
-        "value": 0.43037974683544306,
-        "low": 0.35359116022099446,
-        "high": 0.5179856115107914,
-        "numerator": 68,
+        "value": 0.43670886075949367,
+        "low": 0.3611111111111111,
+        "high": 0.5253164556962026,
+        "numerator": 69,
         "denominator": 158,
         "symbols": 71
       },
       "file_precision": {
-        "value": 0.8607594936708861,
+        "value": 0.8625,
         "low": 0.7702702702702703,
-        "high": 0.9318181818181818,
-        "numerator": 68,
-        "denominator": 79,
-        "symbols": 59
+        "high": 0.9310344827586207,
+        "numerator": 69,
+        "denominator": 80,
+        "symbols": 60
       },
       "symbols_fully_recalled": {
         "value": 0.39436619718309857,
@@ -1814,19 +1815,19 @@
         "symbols": 29
       },
       "completeness_verdicts": {
-        "COMPLETE": 73,
-        "LOWER_BOUND": 27
+        "COMPLETE": 49,
+        "LOWER_BOUND": 51
       },
-      "complete_verdicts_that_missed_a_non_test_file": 14,
+      "complete_verdicts_that_missed_a_non_test_file": 1,
       "by_kind": [
         {
           "kind": "class",
           "symbols_with_dependents": 23,
           "file_recall": {
-            "value": 0.4177215189873418,
-            "low": 0.32051282051282054,
-            "high": 0.546875,
-            "numerator": 33,
+            "value": 0.43037974683544306,
+            "low": 0.3389830508474576,
+            "high": 0.5573770491803278,
+            "numerator": 34,
             "denominator": 79,
             "symbols": 23
           }
@@ -1860,7 +1861,7 @@
           "symbols_with_dependents": 13,
           "file_recall": {
             "value": 0.6190476190476191,
-            "low": 0.48148148148148145,
+            "low": 0.4642857142857143,
             "high": 0.8666666666666667,
             "numerator": 13,
             "denominator": 21,
@@ -1914,7 +1915,7 @@
           "line": 904,
           "truth_files": null,
           "reported_files": null,
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -1974,7 +1975,7 @@
           "missed_files": [
             "src/click/parser.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -2035,7 +2036,7 @@
           "missed_files": [
             "src/click/core.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -2094,7 +2095,7 @@
             "src/click/types.py",
             "tests/test_context.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -2154,7 +2155,7 @@
           "missed_files": [
             "src/click/core.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -2233,7 +2234,7 @@
           "missed_files": [
             "src/click/testing.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -2265,7 +2266,7 @@
           "missed_files": [
             "tests/test_parser.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -2282,7 +2283,7 @@
             "src/click/core.py",
             "src/click/shell_completion.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -2297,7 +2298,7 @@
           "extra_files": [
             "src/click/_winconsole.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -2344,7 +2345,7 @@
           "line": 106,
           "truth_files": null,
           "reported_files": null,
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -2428,7 +2429,7 @@
           "extra_files": [
             "src/click/_winconsole.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -2541,7 +2542,7 @@
           "line": 2850,
           "truth_files": null,
           "reported_files": null,
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -2564,13 +2565,14 @@
             "tests/conftest.py",
             "tests/test_testing.py"
           ],
-          "reported_files": null,
+          "reported_files": [
+            "src/click/testing.py"
+          ],
           "missed_files": [
-            "src/click/testing.py",
             "tests/conftest.py",
             "tests/test_testing.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -2599,7 +2601,7 @@
           "line": 1408,
           "truth_files": null,
           "reported_files": null,
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -2705,7 +2707,7 @@
           "extra_files": [
             "src/click/_winconsole.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -2747,7 +2749,7 @@
           "line": 534,
           "truth_files": null,
           "reported_files": null,
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -2820,7 +2822,7 @@
           "missed_files": [
             "src/click/core.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -2889,7 +2891,7 @@
             "src/click/core.py",
             "tests/test_formatting.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -2998,7 +3000,7 @@
           "line": 276,
           "truth_files": null,
           "reported_files": null,
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -3016,7 +3018,7 @@
           "missed_files": [
             "src/click/testing.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -3058,7 +3060,7 @@
           "line": 2920,
           "truth_files": null,
           "reported_files": null,
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -3132,7 +3134,7 @@
           "missed_files": [
             "src/click/core.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -3191,7 +3193,7 @@
             "src/click/core.py",
             "tests/test_context.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -3252,7 +3254,7 @@
           "missed_files": [
             "src/click/formatting.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -3267,7 +3269,7 @@
           "extra_files": [
             "src/click/_winconsole.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -3371,7 +3373,7 @@
           "line": 363,
           "truth_files": null,
           "reported_files": null,
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -3419,7 +3421,7 @@
           "missed_files": [
             "src/click/testing.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -3429,7 +3431,7 @@
           "line": 1432,
           "truth_files": null,
           "reported_files": null,
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -3461,1788 +3463,18 @@
       "oracle_failures": 0,
       "kivgraph_failures": 0,
       "file_recall": {
-        "value": 0.6612903225806451,
-        "low": 0.5882352941176471,
-        "high": 0.75,
-        "numerator": 123,
+        "value": 1,
+        "low": 1,
+        "high": 1,
+        "numerator": 186,
         "denominator": 186,
         "symbols": 83
       },
       "file_recall_non_test": {
-        "value": 0.9919354838709677,
-        "low": 0.972972972972973,
+        "value": 1,
+        "low": 1,
         "high": 1,
-        "numerator": 123,
-        "denominator": 124,
-        "symbols": 82
-      },
-      "file_recall_test": {
-        "value": 0,
-        "low": 0,
-        "high": 0,
-        "numerator": 0,
-        "denominator": 62,
-        "symbols": 30
-      },
-      "file_recall_private_names": {
-        "value": 0,
-        "low": 0,
-        "high": 0,
-        "numerator": 0,
-        "denominator": 0,
-        "symbols": 0
-      },
-      "file_recall_without_private_names": {
-        "value": 0.6612903225806451,
-        "low": 0.5874439461883408,
-        "high": 0.7485029940119761,
-        "numerator": 123,
-        "denominator": 186,
-        "symbols": 83
-      },
-      "file_precision": {
-        "value": 0.9534883720930233,
-        "low": 0.9069767441860465,
-        "high": 0.9917355371900827,
-        "numerator": 123,
-        "denominator": 129,
-        "symbols": 84
-      },
-      "symbols_fully_recalled": {
-        "value": 0.6265060240963856,
-        "low": 0.5190168544406468,
-        "high": 0.7228031272884141,
-        "numerator": 52,
-        "denominator": 83,
-        "symbols": 83
-      },
-      "symbols_without_dependents_that_report_references": {
-        "value": 0.17647058823529413,
-        "low": 0.06191126589146398,
-        "high": 0.4102945877077837,
-        "numerator": 3,
-        "denominator": 17,
-        "symbols": 17
-      },
-      "completeness_verdicts": {
-        "COMPLETE": 91,
-        "LOWER_BOUND": 9
-      },
-      "complete_verdicts_that_missed_a_non_test_file": 1,
-      "by_kind": [
-        {
-          "kind": "class",
-          "symbols_with_dependents": 20,
-          "file_recall": {
-            "value": 0.5393258426966292,
-            "low": 0.44155844155844154,
-            "high": 0.6666666666666666,
-            "numerator": 48,
-            "denominator": 89,
-            "symbols": 20
-          }
-        },
-        {
-          "kind": "constant",
-          "symbols_with_dependents": 19,
-          "file_recall": {
-            "value": 0.6388888888888888,
-            "low": 0.5263157894736842,
-            "high": 0.7857142857142857,
-            "numerator": 23,
-            "denominator": 36,
-            "symbols": 19
-          }
-        },
-        {
-          "kind": "function",
-          "symbols_with_dependents": 19,
-          "file_recall": {
-            "value": 0.8275862068965517,
-            "low": 0.71875,
-            "high": 0.9393939393939394,
-            "numerator": 24,
-            "denominator": 29,
-            "symbols": 19
-          }
-        },
-        {
-          "kind": "method",
-          "symbols_with_dependents": 10,
-          "file_recall": {
-            "value": 0.8181818181818182,
-            "low": 0.6153846153846154,
-            "high": 1,
-            "numerator": 9,
-            "denominator": 11,
-            "symbols": 10
-          }
-        },
-        {
-          "kind": "variable",
-          "symbols_with_dependents": 15,
-          "file_recall": {
-            "value": 0.9047619047619048,
-            "low": 0.8,
-            "high": 1,
-            "numerator": 19,
-            "denominator": 21,
-            "symbols": 15
-          }
-        }
-      ],
-      "symbols": [
-        {
-          "repository": "click",
-          "path": "src/click/formatting.py",
-          "name": "HelpFormatter",
-          "kind": "class",
-          "line": 102,
-          "truth_files": [
-            "src/click/__init__.py",
-            "src/click/core.py",
-            "tests/test_custom_classes.py",
-            "tests/test_formatting.py"
-          ],
-          "reported_files": [
-            "src/click/__init__.py",
-            "src/click/core.py"
-          ],
-          "missed_files": [
-            "tests/test_custom_classes.py",
-            "tests/test_formatting.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/core.py",
-          "name": "COMMANDLINE",
-          "kind": "constant",
-          "line": 157,
-          "truth_files": [
-            "src/click/core.py",
-            "src/click/shell_completion.py",
-            "tests/test_context.py"
-          ],
-          "reported_files": [
-            "src/click/core.py",
-            "src/click/shell_completion.py"
-          ],
-          "missed_files": [
-            "tests/test_context.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/termui.py",
-          "name": "progressbar",
-          "kind": "function",
-          "line": 283,
-          "truth_files": [
-            "src/click/__init__.py",
-            "tests/test_termui.py"
-          ],
-          "reported_files": [
-            "src/click/__init__.py"
-          ],
-          "missed_files": [
-            "tests/test_termui.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/types.py",
-          "name": "__repr__",
-          "kind": "method",
-          "line": 513,
-          "truth_files": null,
-          "reported_files": null,
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/core.py",
-          "name": "nargs",
-          "kind": "variable",
-          "line": 2131,
-          "truth_files": [
-            "src/click/core.py",
-            "src/click/shell_completion.py",
-            "tests/test_options.py"
-          ],
-          "reported_files": [
-            "src/click/core.py",
-            "src/click/shell_completion.py"
-          ],
-          "missed_files": [
-            "tests/test_options.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/testing.py",
-          "name": "EchoingStdin",
-          "kind": "class",
-          "line": 21,
-          "truth_files": [
-            "src/click/testing.py"
-          ],
-          "reported_files": [
-            "src/click/testing.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/shell_completion.py",
-          "name": "_SOURCE_ZSH",
-          "kind": "constant",
-          "line": 125,
-          "truth_files": [
-            "src/click/shell_completion.py"
-          ],
-          "reported_files": [
-            "src/click/shell_completion.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/types.py",
-          "name": "_is_file_like",
-          "kind": "function",
-          "line": 764,
-          "truth_files": [
-            "src/click/types.py"
-          ],
-          "reported_files": [
-            "src/click/types.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/core.py",
-          "name": "get_default",
-          "kind": "method",
-          "line": 2242,
-          "truth_files": null,
-          "reported_files": null,
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/core.py",
-          "name": "_close_callbacks",
-          "kind": "variable",
-          "line": 436,
-          "truth_files": null,
-          "reported_files": null,
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/shell_completion.py",
-          "name": "CompletionItem",
-          "kind": "class",
-          "line": 55,
-          "truth_files": [
-            "src/click/core.py",
-            "src/click/shell_completion.py",
-            "src/click/types.py",
-            "tests/test_shell_completion.py"
-          ],
-          "reported_files": [
-            "src/click/core.py",
-            "src/click/shell_completion.py",
-            "src/click/types.py"
-          ],
-          "missed_files": [
-            "tests/test_shell_completion.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/shell_completion.py",
-          "name": "_SOURCE_FISH",
-          "kind": "constant",
-          "line": 169,
-          "truth_files": [
-            "src/click/shell_completion.py"
-          ],
-          "reported_files": [
-            "src/click/shell_completion.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/globals.py",
-          "name": "push_context",
-          "kind": "function",
-          "line": 44,
-          "truth_files": [
-            "src/click/core.py"
-          ],
-          "reported_files": [
-            "src/click/core.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/core.py",
-          "name": "add_to_parser",
-          "kind": "method",
-          "line": 2275,
-          "truth_files": [
-            "src/click/core.py"
-          ],
-          "reported_files": [
-            "src/click/core.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/types.py",
-          "name": "name",
-          "kind": "variable",
-          "line": 673,
-          "truth_files": null,
-          "reported_files": null,
-          "verdict": "LOWER_BOUND"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/exceptions.py",
-          "name": "MissingParameter",
-          "kind": "class",
-          "line": 136,
-          "truth_files": [
-            "src/click/__init__.py",
-            "src/click/core.py",
-            "tests/test_arguments.py",
-            "tests/test_options.py"
-          ],
-          "reported_files": [
-            "src/click/__init__.py",
-            "src/click/core.py"
-          ],
-          "missed_files": [
-            "tests/test_arguments.py",
-            "tests/test_options.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/types.py",
-          "name": "UUID",
-          "kind": "constant",
-          "line": 1093,
-          "truth_files": [
-            "src/click/__init__.py",
-            "tests/test_basic.py",
-            "tests/test_info_dict.py"
-          ],
-          "reported_files": [
-            "src/click/__init__.py"
-          ],
-          "missed_files": [
-            "tests/test_basic.py",
-            "tests/test_info_dict.py"
-          ],
-          "verdict": "LOWER_BOUND"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/core.py",
-          "name": "decorator",
-          "kind": "function",
-          "line": 1604,
-          "truth_files": [
-            "src/click/core.py"
-          ],
-          "reported_files": [
-            "src/click/core.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/types.py",
-          "name": "shell_complete",
-          "kind": "method",
-          "line": 139,
-          "truth_files": [
-            "src/click/core.py"
-          ],
-          "reported_files": [
-            "src/click/core.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/types.py",
-          "name": "readable",
-          "kind": "variable",
-          "line": 818,
-          "truth_files": [
-            "src/click/types.py"
-          ],
-          "reported_files": [
-            "src/click/types.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/types.py",
-          "name": "CompositeParamType",
-          "kind": "class",
-          "line": 157,
-          "truth_files": [
-            "src/click/types.py"
-          ],
-          "reported_files": [
-            "src/click/types.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/core.py",
-          "name": "PROMPT",
-          "kind": "constant",
-          "line": 165,
-          "truth_files": [
-            "src/click/core.py"
-          ],
-          "reported_files": [
-            "src/click/core.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/globals.py",
-          "name": "resolve_color_default",
-          "kind": "function",
-          "line": 54,
-          "truth_files": [
-            "src/click/exceptions.py",
-            "src/click/termui.py",
-            "src/click/utils.py"
-          ],
-          "reported_files": [
-            "src/click/exceptions.py",
-            "src/click/termui.py",
-            "src/click/utils.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/formatting.py",
-          "name": "getvalue",
-          "kind": "method",
-          "line": 278,
-          "truth_files": [
-            "src/click/core.py",
-            "tests/test_formatting.py"
-          ],
-          "reported_files": [
-            "src/click/core.py"
-          ],
-          "missed_files": [
-            "tests/test_formatting.py"
-          ],
-          "verdict": "LOWER_BOUND"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/testing.py",
-          "name": "mix_stderr",
-          "kind": "variable",
-          "line": 189,
-          "truth_files": [
-            "src/click/testing.py"
-          ],
-          "reported_files": [
-            "src/click/testing.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/types.py",
-          "name": "UnprocessedParamType",
-          "kind": "class",
-          "line": 189,
-          "truth_files": [
-            "src/click/types.py"
-          ],
-          "reported_files": [
-            "src/click/types.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/core.py",
-          "name": "ENVIRONMENT",
-          "kind": "constant",
-          "line": 159,
-          "truth_files": [
-            "src/click/core.py",
-            "tests/test_context.py"
-          ],
-          "reported_files": [
-            "src/click/core.py"
-          ],
-          "missed_files": [
-            "tests/test_context.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/core.py",
-          "name": "_write_opts",
-          "kind": "function",
-          "line": 2745,
-          "truth_files": [
-            "src/click/core.py"
-          ],
-          "reported_files": [
-            "src/click/core.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/types.py",
-          "name": "__repr__",
-          "kind": "method",
-          "line": 504,
-          "truth_files": null,
-          "reported_files": null,
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/core.py",
-          "name": "context_settings",
-          "kind": "variable",
-          "line": 885,
-          "truth_files": [
-            "src/click/core.py"
-          ],
-          "reported_files": [
-            "src/click/core.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/core.py",
-          "name": "Context",
-          "kind": "class",
-          "line": 169,
-          "truth_files": [
-            "src/click/__init__.py",
-            "src/click/core.py",
-            "src/click/decorators.py",
-            "src/click/exceptions.py",
-            "src/click/globals.py",
-            "src/click/parser.py",
-            "src/click/shell_completion.py",
-            "src/click/types.py",
-            "tests/test_arguments.py",
-            "tests/test_commands.py",
-            "tests/test_context.py",
-            "tests/test_custom_classes.py",
-            "tests/test_info_dict.py",
-            "tests/test_options.py",
-            "tests/test_parser.py",
-            "tests/test_types.py",
-            "tests/typing/typing_aliased_group.py"
-          ],
-          "reported_files": [
-            "src/click/__init__.py",
-            "src/click/core.py",
-            "src/click/decorators.py",
-            "src/click/exceptions.py",
-            "src/click/globals.py",
-            "src/click/parser.py",
-            "src/click/shell_completion.py",
-            "src/click/types.py"
-          ],
-          "missed_files": [
-            "tests/test_arguments.py",
-            "tests/test_commands.py",
-            "tests/test_context.py",
-            "tests/test_custom_classes.py",
-            "tests/test_info_dict.py",
-            "tests/test_options.py",
-            "tests/test_parser.py",
-            "tests/test_types.py",
-            "tests/typing/typing_aliased_group.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/types.py",
-          "name": "BOOL",
-          "kind": "constant",
-          "line": 1090,
-          "truth_files": [
-            "src/click/__init__.py",
-            "src/click/types.py",
-            "tests/test_info_dict.py"
-          ],
-          "reported_files": [
-            "src/click/__init__.py",
-            "src/click/types.py"
-          ],
-          "missed_files": [
-            "tests/test_info_dict.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/decorators.py",
-          "name": "password_option",
-          "kind": "function",
-          "line": 395,
-          "truth_files": [
-            "src/click/__init__.py",
-            "tests/typing/typing_password_option.py"
-          ],
-          "reported_files": [
-            "src/click/__init__.py"
-          ],
-          "missed_files": [
-            "tests/typing/typing_password_option.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/_textwrap.py",
-          "name": "indent_only",
-          "kind": "method",
-          "line": 38,
-          "truth_files": [
-            "src/click/formatting.py"
-          ],
-          "reported_files": [
-            "src/click/formatting.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/core.py",
-          "name": "short_help",
-          "kind": "variable",
-          "line": 1232,
-          "truth_files": [
-            "src/click/core.py"
-          ],
-          "reported_files": [
-            "src/click/core.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/core.py",
-          "name": "BaseCommand",
-          "kind": "class",
-          "line": 837,
-          "truth_files": [
-            "src/click/__init__.py",
-            "src/click/core.py",
-            "src/click/shell_completion.py",
-            "src/click/testing.py",
-            "tests/test_commands.py"
-          ],
-          "reported_files": [
-            "src/click/__init__.py",
-            "src/click/core.py",
-            "src/click/shell_completion.py",
-            "src/click/testing.py"
-          ],
-          "missed_files": [
-            "tests/test_commands.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/core.py",
-          "name": "F",
-          "kind": "constant",
-          "line": 46,
-          "truth_files": [
-            "src/click/core.py"
-          ],
-          "reported_files": [
-            "src/click/core.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/_compat.py",
-          "name": "get_text_stderr",
-          "kind": "function",
-          "line": 351,
-          "truth_files": [
-            "src/click/_compat.py",
-            "src/click/exceptions.py"
-          ],
-          "reported_files": [
-            "src/click/_compat.py",
-            "src/click/exceptions.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/core.py",
-          "name": "collect_usage_pieces",
-          "kind": "method",
-          "line": 1566,
-          "truth_files": null,
-          "reported_files": null,
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/core.py",
-          "name": "_custom_shell_complete",
-          "kind": "variable",
-          "line": 2138,
-          "truth_files": [
-            "src/click/core.py"
-          ],
-          "reported_files": [
-            "src/click/core.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/parser.py",
-          "name": "OptionParser",
-          "kind": "class",
-          "line": 255,
-          "truth_files": [
-            "src/click/__init__.py",
-            "src/click/core.py",
-            "tests/test_parser.py"
-          ],
-          "reported_files": [
-            "src/click/__init__.py",
-            "src/click/core.py"
-          ],
-          "missed_files": [
-            "tests/test_parser.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/utils.py",
-          "name": "P",
-          "kind": "constant",
-          "line": 24,
-          "truth_files": [
-            "src/click/utils.py"
-          ],
-          "reported_files": null,
-          "missed_files": [
-            "src/click/utils.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/shell_completion.py",
-          "name": "shell_complete",
-          "kind": "function",
-          "line": 17,
-          "truth_files": [
-            "src/click/core.py"
-          ],
-          "reported_files": [
-            "src/click/core.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/shell_completion.py",
-          "name": "format_completion",
-          "kind": "method",
-          "line": 375,
-          "truth_files": null,
-          "reported_files": null,
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/_termui_impl.py",
-          "name": "extension",
-          "kind": "variable",
-          "line": 525,
-          "truth_files": [
-            "src/click/_termui_impl.py"
-          ],
-          "reported_files": [
-            "src/click/_termui_impl.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/types.py",
-          "name": "FuncParamType",
-          "kind": "class",
-          "line": 165,
-          "truth_files": [
-            "src/click/types.py",
-            "tests/test_info_dict.py"
-          ],
-          "reported_files": [
-            "src/click/types.py"
-          ],
-          "missed_files": [
-            "tests/test_info_dict.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/decorators.py",
-          "name": "R",
-          "kind": "constant",
-          "line": 21,
-          "truth_files": [
-            "src/click/decorators.py"
-          ],
-          "reported_files": [
-            "src/click/decorators.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/utils.py",
-          "name": "get_text_stream",
-          "kind": "function",
-          "line": 334,
-          "truth_files": [
-            "src/click/__init__.py"
-          ],
-          "reported_files": [
-            "src/click/__init__.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/core.py",
-          "name": "with_resource",
-          "kind": "method",
-          "line": 558,
-          "truth_files": [
-            "tests/test_context.py"
-          ],
-          "reported_files": null,
-          "missed_files": [
-            "tests/test_context.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/parser.py",
-          "name": "_args",
-          "kind": "variable",
-          "line": 291,
-          "truth_files": [
-            "src/click/parser.py"
-          ],
-          "reported_files": [
-            "src/click/parser.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/core.py",
-          "name": "Argument",
-          "kind": "class",
-          "line": 2974,
-          "truth_files": [
-            "src/click/__init__.py",
-            "src/click/core.py",
-            "src/click/decorators.py",
-            "src/click/parser.py",
-            "src/click/shell_completion.py",
-            "tests/test_arguments.py",
-            "tests/test_command_decorators.py",
-            "tests/test_formatting.py",
-            "tests/test_info_dict.py",
-            "tests/test_options.py",
-            "tests/test_shell_completion.py",
-            "tests/test_types.py"
-          ],
-          "reported_files": [
-            "src/click/__init__.py",
-            "src/click/core.py",
-            "src/click/decorators.py",
-            "src/click/parser.py",
-            "src/click/shell_completion.py"
-          ],
-          "missed_files": [
-            "tests/test_arguments.py",
-            "tests/test_command_decorators.py",
-            "tests/test_formatting.py",
-            "tests/test_info_dict.py",
-            "tests/test_options.py",
-            "tests/test_shell_completion.py",
-            "tests/test_types.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/types.py",
-          "name": "FLOAT",
-          "kind": "constant",
-          "line": 1086,
-          "truth_files": [
-            "src/click/__init__.py",
-            "src/click/types.py",
-            "tests/test_defaults.py",
-            "tests/test_info_dict.py"
-          ],
-          "reported_files": [
-            "src/click/__init__.py",
-            "src/click/types.py"
-          ],
-          "missed_files": [
-            "tests/test_defaults.py",
-            "tests/test_info_dict.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/_compat.py",
-          "name": "term_len",
-          "kind": "function",
-          "line": 567,
-          "truth_files": [
-            "src/click/_termui_impl.py",
-            "src/click/formatting.py"
-          ],
-          "reported_files": [
-            "src/click/_termui_impl.py",
-            "src/click/formatting.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/core.py",
-          "name": "__init__",
-          "kind": "method",
-          "line": 1826,
-          "truth_files": null,
-          "reported_files": null,
-          "verdict": "LOWER_BOUND"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/core.py",
-          "name": "info_name",
-          "kind": "variable",
-          "line": 293,
-          "truth_files": [
-            "src/click/core.py",
-            "src/click/decorators.py"
-          ],
-          "reported_files": [
-            "src/click/core.py",
-            "src/click/decorators.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/exceptions.py",
-          "name": "BadParameter",
-          "kind": "class",
-          "line": 94,
-          "truth_files": [
-            "src/click/__init__.py",
-            "src/click/core.py",
-            "src/click/exceptions.py",
-            "src/click/types.py",
-            "tests/test_arguments.py",
-            "tests/test_options.py",
-            "tests/test_types.py"
-          ],
-          "reported_files": [
-            "src/click/__init__.py",
-            "src/click/core.py",
-            "src/click/exceptions.py",
-            "src/click/types.py"
-          ],
-          "missed_files": [
-            "tests/test_arguments.py",
-            "tests/test_options.py",
-            "tests/test_types.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/decorators.py",
-          "name": "T",
-          "kind": "constant",
-          "line": 22,
-          "truth_files": [
-            "src/click/decorators.py"
-          ],
-          "reported_files": [
-            "src/click/decorators.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/shell_completion.py",
-          "name": "_is_incomplete_option",
-          "kind": "function",
-          "line": 478,
-          "truth_files": [
-            "src/click/shell_completion.py"
-          ],
-          "reported_files": [
-            "src/click/shell_completion.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/core.py",
-          "name": "forward",
-          "kind": "method",
-          "line": 790,
-          "truth_files": null,
-          "reported_files": null,
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/exceptions.py",
-          "name": "param_type",
-          "kind": "variable",
-          "line": 157,
-          "truth_files": [
-            "src/click/exceptions.py"
-          ],
-          "reported_files": [
-            "src/click/exceptions.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/types.py",
-          "name": "DateTime",
-          "kind": "class",
-          "line": 334,
-          "truth_files": [
-            "src/click/__init__.py",
-            "tests/test_basic.py",
-            "tests/test_info_dict.py"
-          ],
-          "reported_files": [
-            "src/click/__init__.py"
-          ],
-          "missed_files": [
-            "tests/test_basic.py",
-            "tests/test_info_dict.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/termui.py",
-          "name": "V",
-          "kind": "constant",
-          "line": 22,
-          "truth_files": [
-            "src/click/termui.py"
-          ],
-          "reported_files": [
-            "src/click/termui.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/testing.py",
-          "name": "_getchar",
-          "kind": "function",
-          "line": 293,
-          "truth_files": [
-            "src/click/testing.py"
-          ],
-          "reported_files": [
-            "src/click/testing.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/core.py",
-          "name": "consume_value",
-          "kind": "method",
-          "line": 2278,
-          "truth_files": [
-            "src/click/core.py"
-          ],
-          "reported_files": [
-            "src/click/core.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/__init__.py",
-          "name": "__version__",
-          "kind": "variable",
-          "line": 75,
-          "truth_files": null,
-          "reported_files": null,
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/types.py",
-          "name": "ParamType",
-          "kind": "class",
-          "line": 24,
-          "truth_files": [
-            "src/click/__init__.py",
-            "src/click/core.py",
-            "src/click/termui.py",
-            "src/click/types.py",
-            "tests/test_formatting.py",
-            "tests/test_info_dict.py"
-          ],
-          "reported_files": [
-            "src/click/__init__.py",
-            "src/click/core.py",
-            "src/click/termui.py",
-            "src/click/types.py"
-          ],
-          "missed_files": [
-            "tests/test_formatting.py",
-            "tests/test_info_dict.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/_termui_impl.py",
-          "name": "AFTER_BAR",
-          "kind": "constant",
-          "line": 36,
-          "truth_files": null,
-          "reported_files": [
-            "src/click/_termui_impl.py"
-          ],
-          "extra_files": [
-            "src/click/_termui_impl.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/parser.py",
-          "name": "_fetch",
-          "kind": "function",
-          "line": 68,
-          "truth_files": [
-            "src/click/parser.py"
-          ],
-          "reported_files": [
-            "src/click/parser.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/shell_completion.py",
-          "name": "source",
-          "kind": "method",
-          "line": 248,
-          "truth_files": [
-            "src/click/shell_completion.py"
-          ],
-          "reported_files": [
-            "src/click/shell_completion.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/types.py",
-          "name": "name",
-          "kind": "variable",
-          "line": 46,
-          "truth_files": [
-            "src/click/core.py",
-            "src/click/types.py"
-          ],
-          "reported_files": [
-            "src/click/core.py",
-            "src/click/types.py"
-          ],
-          "verdict": "LOWER_BOUND"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/types.py",
-          "name": "_NumberParamTypeBase",
-          "kind": "class",
-          "line": 405,
-          "truth_files": [
-            "src/click/types.py"
-          ],
-          "reported_files": [
-            "src/click/types.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/_compat.py",
-          "name": "WIN",
-          "kind": "constant",
-          "line": 10,
-          "truth_files": [
-            "src/click/_termui_impl.py",
-            "src/click/utils.py",
-            "tests/test_imports.py",
-            "tests/test_termui.py",
-            "tests/test_utils.py"
-          ],
-          "reported_files": [
-            "src/click/_compat.py",
-            "src/click/_termui_impl.py",
-            "src/click/utils.py"
-          ],
-          "missed_files": [
-            "tests/test_imports.py",
-            "tests/test_termui.py",
-            "tests/test_utils.py"
-          ],
-          "extra_files": [
-            "src/click/_compat.py"
-          ],
-          "verdict": "LOWER_BOUND"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/utils.py",
-          "name": "get_binary_stream",
-          "kind": "function",
-          "line": 322,
-          "truth_files": [
-            "src/click/__init__.py",
-            "tests/test_testing.py"
-          ],
-          "reported_files": [
-            "src/click/__init__.py"
-          ],
-          "missed_files": [
-            "tests/test_testing.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/exceptions.py",
-          "name": "format_message",
-          "kind": "method",
-          "line": 123,
-          "truth_files": null,
-          "reported_files": null,
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/testing.py",
-          "name": "stderr_bytes",
-          "kind": "variable",
-          "line": 122,
-          "truth_files": [
-            "src/click/testing.py"
-          ],
-          "reported_files": [
-            "src/click/testing.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/types.py",
-          "name": "IntParamType",
-          "kind": "class",
-          "line": 509,
-          "truth_files": [
-            "src/click/types.py"
-          ],
-          "reported_files": [
-            "src/click/types.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/_compat.py",
-          "name": "CYGWIN",
-          "kind": "constant",
-          "line": 9,
-          "truth_files": [
-            "src/click/_termui_impl.py"
-          ],
-          "reported_files": [
-            "src/click/_termui_impl.py"
-          ],
-          "verdict": "LOWER_BOUND"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/_compat.py",
-          "name": "should_strip_ansi",
-          "kind": "function",
-          "line": 496,
-          "truth_files": [
-            "src/click/testing.py",
-            "src/click/utils.py",
-            "tests/test_compat.py"
-          ],
-          "reported_files": [
-            "src/click/_compat.py",
-            "src/click/testing.py",
-            "src/click/utils.py"
-          ],
-          "missed_files": [
-            "tests/test_compat.py"
-          ],
-          "extra_files": [
-            "src/click/_compat.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/types.py",
-          "name": "__init__",
-          "kind": "method",
-          "line": 424,
-          "truth_files": [
-            "src/click/types.py"
-          ],
-          "reported_files": [
-            "src/click/types.py"
-          ],
-          "verdict": "LOWER_BOUND"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/exceptions.py",
-          "name": "option_name",
-          "kind": "variable",
-          "line": 223,
-          "truth_files": null,
-          "reported_files": null,
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/types.py",
-          "name": "Path",
-          "kind": "class",
-          "line": 768,
-          "truth_files": [
-            "src/click/__init__.py",
-            "tests/test_arguments.py",
-            "tests/test_basic.py",
-            "tests/test_info_dict.py",
-            "tests/test_options.py",
-            "tests/test_shell_completion.py",
-            "tests/test_types.py",
-            "tests/test_utils.py"
-          ],
-          "reported_files": [
-            "src/click/__init__.py"
-          ],
-          "missed_files": [
-            "tests/test_arguments.py",
-            "tests/test_basic.py",
-            "tests/test_info_dict.py",
-            "tests/test_options.py",
-            "tests/test_shell_completion.py",
-            "tests/test_types.py",
-            "tests/test_utils.py"
-          ],
-          "verdict": "LOWER_BOUND"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/shell_completion.py",
-          "name": "_SOURCE_BASH",
-          "kind": "constant",
-          "line": 93,
-          "truth_files": [
-            "src/click/shell_completion.py"
-          ],
-          "reported_files": [
-            "src/click/shell_completion.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/shell_completion.py",
-          "name": "get_completion_class",
-          "kind": "function",
-          "line": 434,
-          "truth_files": [
-            "src/click/shell_completion.py"
-          ],
-          "reported_files": [
-            "src/click/shell_completion.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/shell_completion.py",
-          "name": "func_name",
-          "kind": "method",
-          "line": 229,
-          "truth_files": [
-            "src/click/shell_completion.py"
-          ],
-          "reported_files": [
-            "src/click/shell_completion.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/core.py",
-          "name": "required",
-          "kind": "variable",
-          "line": 2129,
-          "truth_files": [
-            "src/click/core.py",
-            "src/click/types.py"
-          ],
-          "reported_files": [
-            "src/click/core.py",
-            "src/click/types.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/utils.py",
-          "name": "LazyFile",
-          "kind": "class",
-          "line": 106,
-          "truth_files": [
-            "src/click/termui.py",
-            "src/click/types.py",
-            "src/click/utils.py",
-            "tests/test_utils.py"
-          ],
-          "reported_files": [
-            "src/click/termui.py",
-            "src/click/types.py",
-            "src/click/utils.py"
-          ],
-          "missed_files": [
-            "tests/test_utils.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/types.py",
-          "name": "UNPROCESSED",
-          "kind": "constant",
-          "line": 1074,
-          "truth_files": [
-            "src/click/__init__.py",
-            "tests/test_commands.py",
-            "tests/test_info_dict.py"
-          ],
-          "reported_files": [
-            "src/click/__init__.py"
-          ],
-          "missed_files": [
-            "tests/test_commands.py",
-            "tests/test_info_dict.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/shell_completion.py",
-          "name": "_is_incomplete_argument",
-          "kind": "function",
-          "line": 444,
-          "truth_files": [
-            "src/click/shell_completion.py"
-          ],
-          "reported_files": [
-            "src/click/shell_completion.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/core.py",
-          "name": "format_help",
-          "kind": "method",
-          "line": 1353,
-          "truth_files": [
-            "src/click/core.py"
-          ],
-          "reported_files": [
-            "src/click/core.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/core.py",
-          "name": "default_map",
-          "kind": "variable",
-          "line": 323,
-          "truth_files": [
-            "src/click/core.py"
-          ],
-          "reported_files": [
-            "src/click/core.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/exceptions.py",
-          "name": "BadArgumentUsage",
-          "kind": "class",
-          "line": 256,
-          "truth_files": [
-            "src/click/__init__.py",
-            "src/click/parser.py"
-          ],
-          "reported_files": [
-            "src/click/__init__.py",
-            "src/click/parser.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/utils.py",
-          "name": "R",
-          "kind": "constant",
-          "line": 26,
-          "truth_files": [
-            "src/click/utils.py"
-          ],
-          "reported_files": [
-            "src/click/utils.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/_compat.py",
-          "name": "auto_wrap_for_ansi",
-          "kind": "function",
-          "line": 519,
-          "truth_files": null,
-          "reported_files": [
-            "src/click/_compat.py",
-            "src/click/utils.py"
-          ],
-          "extra_files": [
-            "src/click/_compat.py",
-            "src/click/utils.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/utils.py",
-          "name": "__iter__",
-          "kind": "method",
-          "line": 215,
-          "truth_files": null,
-          "reported_files": null,
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/core.py",
-          "name": "secondary_opts",
-          "kind": "variable",
-          "line": 2115,
-          "truth_files": null,
-          "reported_files": [
-            "src/click/core.py"
-          ],
-          "extra_files": [
-            "src/click/core.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/types.py",
-          "name": "FloatRange",
-          "kind": "class",
-          "line": 551,
-          "truth_files": [
-            "src/click/__init__.py",
-            "tests/test_info_dict.py",
-            "tests/test_types.py"
-          ],
-          "reported_files": [
-            "src/click/__init__.py"
-          ],
-          "missed_files": [
-            "tests/test_info_dict.py",
-            "tests/test_types.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/formatting.py",
-          "name": "FORCED_WIDTH",
-          "kind": "constant",
-          "line": 9,
-          "truth_files": [
-            "src/click/formatting.py",
-            "src/click/testing.py"
-          ],
-          "reported_files": [
-            "src/click/formatting.py",
-            "src/click/testing.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/termui.py",
-          "name": "edit",
-          "kind": "function",
-          "line": 637,
-          "truth_files": [
-            "src/click/__init__.py",
-            "tests/test_termui.py"
-          ],
-          "reported_files": [
-            "src/click/__init__.py"
-          ],
-          "missed_files": [
-            "tests/test_termui.py"
-          ],
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/types.py",
-          "name": "__repr__",
-          "kind": "method",
-          "line": 615,
-          "truth_files": null,
-          "reported_files": null,
-          "verdict": "COMPLETE"
-        },
-        {
-          "repository": "click",
-          "path": "src/click/_termui_impl.py",
-          "name": "pos",
-          "kind": "variable",
-          "line": 96,
-          "truth_files": [
-            "src/click/_termui_impl.py",
-            "tests/test_termui.py"
-          ],
-          "reported_files": [
-            "src/click/_termui_impl.py"
-          ],
-          "missed_files": [
-            "tests/test_termui.py"
-          ],
-          "verdict": "COMPLETE"
-        }
-      ]
-    },
-    {
-      "arm": "python.exact.tests_included",
-      "language": "python",
-      "declarations_listed": 852,
-      "declarations_eligible": 832,
-      "not_sampled": {
-        "kind not sampled": 16,
-        "name not found in declaring position": 4
-      },
-      "declarations_measured": 100,
-      "with_dependents": 83,
-      "oracle_failures": 0,
-      "kivgraph_failures": 0,
-      "file_recall": {
-        "value": 0.9946236559139785,
-        "low": 0.9821428571428571,
-        "high": 1,
-        "numerator": 185,
-        "denominator": 186,
-        "symbols": 83
-      },
-      "file_recall_non_test": {
-        "value": 0.9919354838709677,
-        "low": 0.972972972972973,
-        "high": 1,
-        "numerator": 123,
+        "numerator": 124,
         "denominator": 124,
         "symbols": 82
       },
@@ -5263,26 +3495,26 @@
         "symbols": 0
       },
       "file_recall_without_private_names": {
-        "value": 0.9946236559139785,
-        "low": 0.9806451612903225,
+        "value": 1,
+        "low": 1,
         "high": 1,
-        "numerator": 185,
+        "numerator": 186,
         "denominator": 186,
         "symbols": 83
       },
       "file_precision": {
-        "value": 0.9585492227979274,
-        "low": 0.9212121212121213,
-        "high": 0.9869565217391304,
-        "numerator": 185,
-        "denominator": 193,
-        "symbols": 86
+        "value": 0.9587628865979382,
+        "low": 0.9219512195121952,
+        "high": 0.9855072463768116,
+        "numerator": 186,
+        "denominator": 194,
+        "symbols": 87
       },
       "symbols_fully_recalled": {
-        "value": 0.9879518072289156,
-        "low": 0.934864192645231,
-        "high": 0.9978700225954329,
-        "numerator": 82,
+        "value": 1,
+        "low": 0.9557646896910507,
+        "high": 1,
+        "numerator": 83,
         "denominator": 83,
         "symbols": 83
       },
@@ -5298,7 +3530,7 @@
         "COMPLETE": 87,
         "LOWER_BOUND": 13
       },
-      "complete_verdicts_that_missed_a_non_test_file": 1,
+      "complete_verdicts_that_missed_a_non_test_file": 0,
       "by_kind": [
         {
           "kind": "class",
@@ -5316,10 +3548,10 @@
           "kind": "constant",
           "symbols_with_dependents": 19,
           "file_recall": {
-            "value": 0.9722222222222222,
-            "low": 0.90625,
+            "value": 1,
+            "low": 1,
             "high": 1,
-            "numerator": 35,
+            "numerator": 36,
             "denominator": 36,
             "symbols": 19
           }
@@ -6017,8 +4249,7 @@
           "truth_files": [
             "src/click/utils.py"
           ],
-          "reported_files": null,
-          "missed_files": [
+          "reported_files": [
             "src/click/utils.py"
           ],
           "verdict": "COMPLETE"
@@ -6936,6 +5167,1775 @@
           "verdict": "COMPLETE"
         }
       ]
+    },
+    {
+      "arm": "python.exact.tests_excluded",
+      "language": "python",
+      "declarations_listed": 852,
+      "declarations_eligible": 832,
+      "not_sampled": {
+        "kind not sampled": 16,
+        "name not found in declaring position": 4
+      },
+      "declarations_measured": 100,
+      "with_dependents": 83,
+      "oracle_failures": 0,
+      "kivgraph_failures": 0,
+      "file_recall": {
+        "value": 0.6666666666666666,
+        "low": 0.5942028985507246,
+        "high": 0.7552447552447552,
+        "numerator": 124,
+        "denominator": 186,
+        "symbols": 83
+      },
+      "file_recall_non_test": {
+        "value": 1,
+        "low": 1,
+        "high": 1,
+        "numerator": 124,
+        "denominator": 124,
+        "symbols": 82
+      },
+      "file_recall_test": {
+        "value": 0,
+        "low": 0,
+        "high": 0,
+        "numerator": 0,
+        "denominator": 62,
+        "symbols": 30
+      },
+      "file_recall_private_names": {
+        "value": 0,
+        "low": 0,
+        "high": 0,
+        "numerator": 0,
+        "denominator": 0,
+        "symbols": 0
+      },
+      "file_recall_without_private_names": {
+        "value": 0.6666666666666666,
+        "low": 0.5953488372093023,
+        "high": 0.7586206896551724,
+        "numerator": 124,
+        "denominator": 186,
+        "symbols": 83
+      },
+      "file_precision": {
+        "value": 0.9538461538461539,
+        "low": 0.905982905982906,
+        "high": 0.9915966386554622,
+        "numerator": 124,
+        "denominator": 130,
+        "symbols": 85
+      },
+      "symbols_fully_recalled": {
+        "value": 0.6385542168674698,
+        "low": 0.5311967990769955,
+        "high": 0.7336536571024521,
+        "numerator": 53,
+        "denominator": 83,
+        "symbols": 83
+      },
+      "symbols_without_dependents_that_report_references": {
+        "value": 0.17647058823529413,
+        "low": 0.06191126589146398,
+        "high": 0.4102945877077837,
+        "numerator": 3,
+        "denominator": 17,
+        "symbols": 17
+      },
+      "completeness_verdicts": {
+        "COMPLETE": 90,
+        "LOWER_BOUND": 10
+      },
+      "complete_verdicts_that_missed_a_non_test_file": 0,
+      "by_kind": [
+        {
+          "kind": "class",
+          "symbols_with_dependents": 20,
+          "file_recall": {
+            "value": 0.5393258426966292,
+            "low": 0.4418604651162791,
+            "high": 0.6621621621621622,
+            "numerator": 48,
+            "denominator": 89,
+            "symbols": 20
+          }
+        },
+        {
+          "kind": "constant",
+          "symbols_with_dependents": 19,
+          "file_recall": {
+            "value": 0.6666666666666666,
+            "low": 0.5510204081632653,
+            "high": 0.8214285714285714,
+            "numerator": 24,
+            "denominator": 36,
+            "symbols": 19
+          }
+        },
+        {
+          "kind": "function",
+          "symbols_with_dependents": 19,
+          "file_recall": {
+            "value": 0.8275862068965517,
+            "low": 0.7142857142857143,
+            "high": 0.9310344827586207,
+            "numerator": 24,
+            "denominator": 29,
+            "symbols": 19
+          }
+        },
+        {
+          "kind": "method",
+          "symbols_with_dependents": 10,
+          "file_recall": {
+            "value": 0.8181818181818182,
+            "low": 0.6153846153846154,
+            "high": 1,
+            "numerator": 9,
+            "denominator": 11,
+            "symbols": 10
+          }
+        },
+        {
+          "kind": "variable",
+          "symbols_with_dependents": 15,
+          "file_recall": {
+            "value": 0.9047619047619048,
+            "low": 0.8,
+            "high": 1,
+            "numerator": 19,
+            "denominator": 21,
+            "symbols": 15
+          }
+        }
+      ],
+      "symbols": [
+        {
+          "repository": "click",
+          "path": "src/click/formatting.py",
+          "name": "HelpFormatter",
+          "kind": "class",
+          "line": 102,
+          "truth_files": [
+            "src/click/__init__.py",
+            "src/click/core.py",
+            "tests/test_custom_classes.py",
+            "tests/test_formatting.py"
+          ],
+          "reported_files": [
+            "src/click/__init__.py",
+            "src/click/core.py"
+          ],
+          "missed_files": [
+            "tests/test_custom_classes.py",
+            "tests/test_formatting.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/core.py",
+          "name": "COMMANDLINE",
+          "kind": "constant",
+          "line": 157,
+          "truth_files": [
+            "src/click/core.py",
+            "src/click/shell_completion.py",
+            "tests/test_context.py"
+          ],
+          "reported_files": [
+            "src/click/core.py",
+            "src/click/shell_completion.py"
+          ],
+          "missed_files": [
+            "tests/test_context.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/termui.py",
+          "name": "progressbar",
+          "kind": "function",
+          "line": 283,
+          "truth_files": [
+            "src/click/__init__.py",
+            "tests/test_termui.py"
+          ],
+          "reported_files": [
+            "src/click/__init__.py"
+          ],
+          "missed_files": [
+            "tests/test_termui.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/types.py",
+          "name": "__repr__",
+          "kind": "method",
+          "line": 513,
+          "truth_files": null,
+          "reported_files": null,
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/core.py",
+          "name": "nargs",
+          "kind": "variable",
+          "line": 2131,
+          "truth_files": [
+            "src/click/core.py",
+            "src/click/shell_completion.py",
+            "tests/test_options.py"
+          ],
+          "reported_files": [
+            "src/click/core.py",
+            "src/click/shell_completion.py"
+          ],
+          "missed_files": [
+            "tests/test_options.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/testing.py",
+          "name": "EchoingStdin",
+          "kind": "class",
+          "line": 21,
+          "truth_files": [
+            "src/click/testing.py"
+          ],
+          "reported_files": [
+            "src/click/testing.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/shell_completion.py",
+          "name": "_SOURCE_ZSH",
+          "kind": "constant",
+          "line": 125,
+          "truth_files": [
+            "src/click/shell_completion.py"
+          ],
+          "reported_files": [
+            "src/click/shell_completion.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/types.py",
+          "name": "_is_file_like",
+          "kind": "function",
+          "line": 764,
+          "truth_files": [
+            "src/click/types.py"
+          ],
+          "reported_files": [
+            "src/click/types.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/core.py",
+          "name": "get_default",
+          "kind": "method",
+          "line": 2242,
+          "truth_files": null,
+          "reported_files": null,
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/core.py",
+          "name": "_close_callbacks",
+          "kind": "variable",
+          "line": 436,
+          "truth_files": null,
+          "reported_files": null,
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/shell_completion.py",
+          "name": "CompletionItem",
+          "kind": "class",
+          "line": 55,
+          "truth_files": [
+            "src/click/core.py",
+            "src/click/shell_completion.py",
+            "src/click/types.py",
+            "tests/test_shell_completion.py"
+          ],
+          "reported_files": [
+            "src/click/core.py",
+            "src/click/shell_completion.py",
+            "src/click/types.py"
+          ],
+          "missed_files": [
+            "tests/test_shell_completion.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/shell_completion.py",
+          "name": "_SOURCE_FISH",
+          "kind": "constant",
+          "line": 169,
+          "truth_files": [
+            "src/click/shell_completion.py"
+          ],
+          "reported_files": [
+            "src/click/shell_completion.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/globals.py",
+          "name": "push_context",
+          "kind": "function",
+          "line": 44,
+          "truth_files": [
+            "src/click/core.py"
+          ],
+          "reported_files": [
+            "src/click/core.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/core.py",
+          "name": "add_to_parser",
+          "kind": "method",
+          "line": 2275,
+          "truth_files": [
+            "src/click/core.py"
+          ],
+          "reported_files": [
+            "src/click/core.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/types.py",
+          "name": "name",
+          "kind": "variable",
+          "line": 673,
+          "truth_files": null,
+          "reported_files": null,
+          "verdict": "LOWER_BOUND"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/exceptions.py",
+          "name": "MissingParameter",
+          "kind": "class",
+          "line": 136,
+          "truth_files": [
+            "src/click/__init__.py",
+            "src/click/core.py",
+            "tests/test_arguments.py",
+            "tests/test_options.py"
+          ],
+          "reported_files": [
+            "src/click/__init__.py",
+            "src/click/core.py"
+          ],
+          "missed_files": [
+            "tests/test_arguments.py",
+            "tests/test_options.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/types.py",
+          "name": "UUID",
+          "kind": "constant",
+          "line": 1093,
+          "truth_files": [
+            "src/click/__init__.py",
+            "tests/test_basic.py",
+            "tests/test_info_dict.py"
+          ],
+          "reported_files": [
+            "src/click/__init__.py"
+          ],
+          "missed_files": [
+            "tests/test_basic.py",
+            "tests/test_info_dict.py"
+          ],
+          "verdict": "LOWER_BOUND"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/core.py",
+          "name": "decorator",
+          "kind": "function",
+          "line": 1604,
+          "truth_files": [
+            "src/click/core.py"
+          ],
+          "reported_files": [
+            "src/click/core.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/types.py",
+          "name": "shell_complete",
+          "kind": "method",
+          "line": 139,
+          "truth_files": [
+            "src/click/core.py"
+          ],
+          "reported_files": [
+            "src/click/core.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/types.py",
+          "name": "readable",
+          "kind": "variable",
+          "line": 818,
+          "truth_files": [
+            "src/click/types.py"
+          ],
+          "reported_files": [
+            "src/click/types.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/types.py",
+          "name": "CompositeParamType",
+          "kind": "class",
+          "line": 157,
+          "truth_files": [
+            "src/click/types.py"
+          ],
+          "reported_files": [
+            "src/click/types.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/core.py",
+          "name": "PROMPT",
+          "kind": "constant",
+          "line": 165,
+          "truth_files": [
+            "src/click/core.py"
+          ],
+          "reported_files": [
+            "src/click/core.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/globals.py",
+          "name": "resolve_color_default",
+          "kind": "function",
+          "line": 54,
+          "truth_files": [
+            "src/click/exceptions.py",
+            "src/click/termui.py",
+            "src/click/utils.py"
+          ],
+          "reported_files": [
+            "src/click/exceptions.py",
+            "src/click/termui.py",
+            "src/click/utils.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/formatting.py",
+          "name": "getvalue",
+          "kind": "method",
+          "line": 278,
+          "truth_files": [
+            "src/click/core.py",
+            "tests/test_formatting.py"
+          ],
+          "reported_files": [
+            "src/click/core.py"
+          ],
+          "missed_files": [
+            "tests/test_formatting.py"
+          ],
+          "verdict": "LOWER_BOUND"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/testing.py",
+          "name": "mix_stderr",
+          "kind": "variable",
+          "line": 189,
+          "truth_files": [
+            "src/click/testing.py"
+          ],
+          "reported_files": [
+            "src/click/testing.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/types.py",
+          "name": "UnprocessedParamType",
+          "kind": "class",
+          "line": 189,
+          "truth_files": [
+            "src/click/types.py"
+          ],
+          "reported_files": [
+            "src/click/types.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/core.py",
+          "name": "ENVIRONMENT",
+          "kind": "constant",
+          "line": 159,
+          "truth_files": [
+            "src/click/core.py",
+            "tests/test_context.py"
+          ],
+          "reported_files": [
+            "src/click/core.py"
+          ],
+          "missed_files": [
+            "tests/test_context.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/core.py",
+          "name": "_write_opts",
+          "kind": "function",
+          "line": 2745,
+          "truth_files": [
+            "src/click/core.py"
+          ],
+          "reported_files": [
+            "src/click/core.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/types.py",
+          "name": "__repr__",
+          "kind": "method",
+          "line": 504,
+          "truth_files": null,
+          "reported_files": null,
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/core.py",
+          "name": "context_settings",
+          "kind": "variable",
+          "line": 885,
+          "truth_files": [
+            "src/click/core.py"
+          ],
+          "reported_files": [
+            "src/click/core.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/core.py",
+          "name": "Context",
+          "kind": "class",
+          "line": 169,
+          "truth_files": [
+            "src/click/__init__.py",
+            "src/click/core.py",
+            "src/click/decorators.py",
+            "src/click/exceptions.py",
+            "src/click/globals.py",
+            "src/click/parser.py",
+            "src/click/shell_completion.py",
+            "src/click/types.py",
+            "tests/test_arguments.py",
+            "tests/test_commands.py",
+            "tests/test_context.py",
+            "tests/test_custom_classes.py",
+            "tests/test_info_dict.py",
+            "tests/test_options.py",
+            "tests/test_parser.py",
+            "tests/test_types.py",
+            "tests/typing/typing_aliased_group.py"
+          ],
+          "reported_files": [
+            "src/click/__init__.py",
+            "src/click/core.py",
+            "src/click/decorators.py",
+            "src/click/exceptions.py",
+            "src/click/globals.py",
+            "src/click/parser.py",
+            "src/click/shell_completion.py",
+            "src/click/types.py"
+          ],
+          "missed_files": [
+            "tests/test_arguments.py",
+            "tests/test_commands.py",
+            "tests/test_context.py",
+            "tests/test_custom_classes.py",
+            "tests/test_info_dict.py",
+            "tests/test_options.py",
+            "tests/test_parser.py",
+            "tests/test_types.py",
+            "tests/typing/typing_aliased_group.py"
+          ],
+          "verdict": "LOWER_BOUND"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/types.py",
+          "name": "BOOL",
+          "kind": "constant",
+          "line": 1090,
+          "truth_files": [
+            "src/click/__init__.py",
+            "src/click/types.py",
+            "tests/test_info_dict.py"
+          ],
+          "reported_files": [
+            "src/click/__init__.py",
+            "src/click/types.py"
+          ],
+          "missed_files": [
+            "tests/test_info_dict.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/decorators.py",
+          "name": "password_option",
+          "kind": "function",
+          "line": 395,
+          "truth_files": [
+            "src/click/__init__.py",
+            "tests/typing/typing_password_option.py"
+          ],
+          "reported_files": [
+            "src/click/__init__.py"
+          ],
+          "missed_files": [
+            "tests/typing/typing_password_option.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/_textwrap.py",
+          "name": "indent_only",
+          "kind": "method",
+          "line": 38,
+          "truth_files": [
+            "src/click/formatting.py"
+          ],
+          "reported_files": [
+            "src/click/formatting.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/core.py",
+          "name": "short_help",
+          "kind": "variable",
+          "line": 1232,
+          "truth_files": [
+            "src/click/core.py"
+          ],
+          "reported_files": [
+            "src/click/core.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/core.py",
+          "name": "BaseCommand",
+          "kind": "class",
+          "line": 837,
+          "truth_files": [
+            "src/click/__init__.py",
+            "src/click/core.py",
+            "src/click/shell_completion.py",
+            "src/click/testing.py",
+            "tests/test_commands.py"
+          ],
+          "reported_files": [
+            "src/click/__init__.py",
+            "src/click/core.py",
+            "src/click/shell_completion.py",
+            "src/click/testing.py"
+          ],
+          "missed_files": [
+            "tests/test_commands.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/core.py",
+          "name": "F",
+          "kind": "constant",
+          "line": 46,
+          "truth_files": [
+            "src/click/core.py"
+          ],
+          "reported_files": [
+            "src/click/core.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/_compat.py",
+          "name": "get_text_stderr",
+          "kind": "function",
+          "line": 351,
+          "truth_files": [
+            "src/click/_compat.py",
+            "src/click/exceptions.py"
+          ],
+          "reported_files": [
+            "src/click/_compat.py",
+            "src/click/exceptions.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/core.py",
+          "name": "collect_usage_pieces",
+          "kind": "method",
+          "line": 1566,
+          "truth_files": null,
+          "reported_files": null,
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/core.py",
+          "name": "_custom_shell_complete",
+          "kind": "variable",
+          "line": 2138,
+          "truth_files": [
+            "src/click/core.py"
+          ],
+          "reported_files": [
+            "src/click/core.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/parser.py",
+          "name": "OptionParser",
+          "kind": "class",
+          "line": 255,
+          "truth_files": [
+            "src/click/__init__.py",
+            "src/click/core.py",
+            "tests/test_parser.py"
+          ],
+          "reported_files": [
+            "src/click/__init__.py",
+            "src/click/core.py"
+          ],
+          "missed_files": [
+            "tests/test_parser.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/utils.py",
+          "name": "P",
+          "kind": "constant",
+          "line": 24,
+          "truth_files": [
+            "src/click/utils.py"
+          ],
+          "reported_files": [
+            "src/click/utils.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/shell_completion.py",
+          "name": "shell_complete",
+          "kind": "function",
+          "line": 17,
+          "truth_files": [
+            "src/click/core.py"
+          ],
+          "reported_files": [
+            "src/click/core.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/shell_completion.py",
+          "name": "format_completion",
+          "kind": "method",
+          "line": 375,
+          "truth_files": null,
+          "reported_files": null,
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/_termui_impl.py",
+          "name": "extension",
+          "kind": "variable",
+          "line": 525,
+          "truth_files": [
+            "src/click/_termui_impl.py"
+          ],
+          "reported_files": [
+            "src/click/_termui_impl.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/types.py",
+          "name": "FuncParamType",
+          "kind": "class",
+          "line": 165,
+          "truth_files": [
+            "src/click/types.py",
+            "tests/test_info_dict.py"
+          ],
+          "reported_files": [
+            "src/click/types.py"
+          ],
+          "missed_files": [
+            "tests/test_info_dict.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/decorators.py",
+          "name": "R",
+          "kind": "constant",
+          "line": 21,
+          "truth_files": [
+            "src/click/decorators.py"
+          ],
+          "reported_files": [
+            "src/click/decorators.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/utils.py",
+          "name": "get_text_stream",
+          "kind": "function",
+          "line": 334,
+          "truth_files": [
+            "src/click/__init__.py"
+          ],
+          "reported_files": [
+            "src/click/__init__.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/core.py",
+          "name": "with_resource",
+          "kind": "method",
+          "line": 558,
+          "truth_files": [
+            "tests/test_context.py"
+          ],
+          "reported_files": null,
+          "missed_files": [
+            "tests/test_context.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/parser.py",
+          "name": "_args",
+          "kind": "variable",
+          "line": 291,
+          "truth_files": [
+            "src/click/parser.py"
+          ],
+          "reported_files": [
+            "src/click/parser.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/core.py",
+          "name": "Argument",
+          "kind": "class",
+          "line": 2974,
+          "truth_files": [
+            "src/click/__init__.py",
+            "src/click/core.py",
+            "src/click/decorators.py",
+            "src/click/parser.py",
+            "src/click/shell_completion.py",
+            "tests/test_arguments.py",
+            "tests/test_command_decorators.py",
+            "tests/test_formatting.py",
+            "tests/test_info_dict.py",
+            "tests/test_options.py",
+            "tests/test_shell_completion.py",
+            "tests/test_types.py"
+          ],
+          "reported_files": [
+            "src/click/__init__.py",
+            "src/click/core.py",
+            "src/click/decorators.py",
+            "src/click/parser.py",
+            "src/click/shell_completion.py"
+          ],
+          "missed_files": [
+            "tests/test_arguments.py",
+            "tests/test_command_decorators.py",
+            "tests/test_formatting.py",
+            "tests/test_info_dict.py",
+            "tests/test_options.py",
+            "tests/test_shell_completion.py",
+            "tests/test_types.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/types.py",
+          "name": "FLOAT",
+          "kind": "constant",
+          "line": 1086,
+          "truth_files": [
+            "src/click/__init__.py",
+            "src/click/types.py",
+            "tests/test_defaults.py",
+            "tests/test_info_dict.py"
+          ],
+          "reported_files": [
+            "src/click/__init__.py",
+            "src/click/types.py"
+          ],
+          "missed_files": [
+            "tests/test_defaults.py",
+            "tests/test_info_dict.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/_compat.py",
+          "name": "term_len",
+          "kind": "function",
+          "line": 567,
+          "truth_files": [
+            "src/click/_termui_impl.py",
+            "src/click/formatting.py"
+          ],
+          "reported_files": [
+            "src/click/_termui_impl.py",
+            "src/click/formatting.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/core.py",
+          "name": "__init__",
+          "kind": "method",
+          "line": 1826,
+          "truth_files": null,
+          "reported_files": null,
+          "verdict": "LOWER_BOUND"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/core.py",
+          "name": "info_name",
+          "kind": "variable",
+          "line": 293,
+          "truth_files": [
+            "src/click/core.py",
+            "src/click/decorators.py"
+          ],
+          "reported_files": [
+            "src/click/core.py",
+            "src/click/decorators.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/exceptions.py",
+          "name": "BadParameter",
+          "kind": "class",
+          "line": 94,
+          "truth_files": [
+            "src/click/__init__.py",
+            "src/click/core.py",
+            "src/click/exceptions.py",
+            "src/click/types.py",
+            "tests/test_arguments.py",
+            "tests/test_options.py",
+            "tests/test_types.py"
+          ],
+          "reported_files": [
+            "src/click/__init__.py",
+            "src/click/core.py",
+            "src/click/exceptions.py",
+            "src/click/types.py"
+          ],
+          "missed_files": [
+            "tests/test_arguments.py",
+            "tests/test_options.py",
+            "tests/test_types.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/decorators.py",
+          "name": "T",
+          "kind": "constant",
+          "line": 22,
+          "truth_files": [
+            "src/click/decorators.py"
+          ],
+          "reported_files": [
+            "src/click/decorators.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/shell_completion.py",
+          "name": "_is_incomplete_option",
+          "kind": "function",
+          "line": 478,
+          "truth_files": [
+            "src/click/shell_completion.py"
+          ],
+          "reported_files": [
+            "src/click/shell_completion.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/core.py",
+          "name": "forward",
+          "kind": "method",
+          "line": 790,
+          "truth_files": null,
+          "reported_files": null,
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/exceptions.py",
+          "name": "param_type",
+          "kind": "variable",
+          "line": 157,
+          "truth_files": [
+            "src/click/exceptions.py"
+          ],
+          "reported_files": [
+            "src/click/exceptions.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/types.py",
+          "name": "DateTime",
+          "kind": "class",
+          "line": 334,
+          "truth_files": [
+            "src/click/__init__.py",
+            "tests/test_basic.py",
+            "tests/test_info_dict.py"
+          ],
+          "reported_files": [
+            "src/click/__init__.py"
+          ],
+          "missed_files": [
+            "tests/test_basic.py",
+            "tests/test_info_dict.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/termui.py",
+          "name": "V",
+          "kind": "constant",
+          "line": 22,
+          "truth_files": [
+            "src/click/termui.py"
+          ],
+          "reported_files": [
+            "src/click/termui.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/testing.py",
+          "name": "_getchar",
+          "kind": "function",
+          "line": 293,
+          "truth_files": [
+            "src/click/testing.py"
+          ],
+          "reported_files": [
+            "src/click/testing.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/core.py",
+          "name": "consume_value",
+          "kind": "method",
+          "line": 2278,
+          "truth_files": [
+            "src/click/core.py"
+          ],
+          "reported_files": [
+            "src/click/core.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/__init__.py",
+          "name": "__version__",
+          "kind": "variable",
+          "line": 75,
+          "truth_files": null,
+          "reported_files": null,
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/types.py",
+          "name": "ParamType",
+          "kind": "class",
+          "line": 24,
+          "truth_files": [
+            "src/click/__init__.py",
+            "src/click/core.py",
+            "src/click/termui.py",
+            "src/click/types.py",
+            "tests/test_formatting.py",
+            "tests/test_info_dict.py"
+          ],
+          "reported_files": [
+            "src/click/__init__.py",
+            "src/click/core.py",
+            "src/click/termui.py",
+            "src/click/types.py"
+          ],
+          "missed_files": [
+            "tests/test_formatting.py",
+            "tests/test_info_dict.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/_termui_impl.py",
+          "name": "AFTER_BAR",
+          "kind": "constant",
+          "line": 36,
+          "truth_files": null,
+          "reported_files": [
+            "src/click/_termui_impl.py"
+          ],
+          "extra_files": [
+            "src/click/_termui_impl.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/parser.py",
+          "name": "_fetch",
+          "kind": "function",
+          "line": 68,
+          "truth_files": [
+            "src/click/parser.py"
+          ],
+          "reported_files": [
+            "src/click/parser.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/shell_completion.py",
+          "name": "source",
+          "kind": "method",
+          "line": 248,
+          "truth_files": [
+            "src/click/shell_completion.py"
+          ],
+          "reported_files": [
+            "src/click/shell_completion.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/types.py",
+          "name": "name",
+          "kind": "variable",
+          "line": 46,
+          "truth_files": [
+            "src/click/core.py",
+            "src/click/types.py"
+          ],
+          "reported_files": [
+            "src/click/core.py",
+            "src/click/types.py"
+          ],
+          "verdict": "LOWER_BOUND"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/types.py",
+          "name": "_NumberParamTypeBase",
+          "kind": "class",
+          "line": 405,
+          "truth_files": [
+            "src/click/types.py"
+          ],
+          "reported_files": [
+            "src/click/types.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/_compat.py",
+          "name": "WIN",
+          "kind": "constant",
+          "line": 10,
+          "truth_files": [
+            "src/click/_termui_impl.py",
+            "src/click/utils.py",
+            "tests/test_imports.py",
+            "tests/test_termui.py",
+            "tests/test_utils.py"
+          ],
+          "reported_files": [
+            "src/click/_compat.py",
+            "src/click/_termui_impl.py",
+            "src/click/utils.py"
+          ],
+          "missed_files": [
+            "tests/test_imports.py",
+            "tests/test_termui.py",
+            "tests/test_utils.py"
+          ],
+          "extra_files": [
+            "src/click/_compat.py"
+          ],
+          "verdict": "LOWER_BOUND"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/utils.py",
+          "name": "get_binary_stream",
+          "kind": "function",
+          "line": 322,
+          "truth_files": [
+            "src/click/__init__.py",
+            "tests/test_testing.py"
+          ],
+          "reported_files": [
+            "src/click/__init__.py"
+          ],
+          "missed_files": [
+            "tests/test_testing.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/exceptions.py",
+          "name": "format_message",
+          "kind": "method",
+          "line": 123,
+          "truth_files": null,
+          "reported_files": null,
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/testing.py",
+          "name": "stderr_bytes",
+          "kind": "variable",
+          "line": 122,
+          "truth_files": [
+            "src/click/testing.py"
+          ],
+          "reported_files": [
+            "src/click/testing.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/types.py",
+          "name": "IntParamType",
+          "kind": "class",
+          "line": 509,
+          "truth_files": [
+            "src/click/types.py"
+          ],
+          "reported_files": [
+            "src/click/types.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/_compat.py",
+          "name": "CYGWIN",
+          "kind": "constant",
+          "line": 9,
+          "truth_files": [
+            "src/click/_termui_impl.py"
+          ],
+          "reported_files": [
+            "src/click/_termui_impl.py"
+          ],
+          "verdict": "LOWER_BOUND"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/_compat.py",
+          "name": "should_strip_ansi",
+          "kind": "function",
+          "line": 496,
+          "truth_files": [
+            "src/click/testing.py",
+            "src/click/utils.py",
+            "tests/test_compat.py"
+          ],
+          "reported_files": [
+            "src/click/_compat.py",
+            "src/click/testing.py",
+            "src/click/utils.py"
+          ],
+          "missed_files": [
+            "tests/test_compat.py"
+          ],
+          "extra_files": [
+            "src/click/_compat.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/types.py",
+          "name": "__init__",
+          "kind": "method",
+          "line": 424,
+          "truth_files": [
+            "src/click/types.py"
+          ],
+          "reported_files": [
+            "src/click/types.py"
+          ],
+          "verdict": "LOWER_BOUND"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/exceptions.py",
+          "name": "option_name",
+          "kind": "variable",
+          "line": 223,
+          "truth_files": null,
+          "reported_files": null,
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/types.py",
+          "name": "Path",
+          "kind": "class",
+          "line": 768,
+          "truth_files": [
+            "src/click/__init__.py",
+            "tests/test_arguments.py",
+            "tests/test_basic.py",
+            "tests/test_info_dict.py",
+            "tests/test_options.py",
+            "tests/test_shell_completion.py",
+            "tests/test_types.py",
+            "tests/test_utils.py"
+          ],
+          "reported_files": [
+            "src/click/__init__.py"
+          ],
+          "missed_files": [
+            "tests/test_arguments.py",
+            "tests/test_basic.py",
+            "tests/test_info_dict.py",
+            "tests/test_options.py",
+            "tests/test_shell_completion.py",
+            "tests/test_types.py",
+            "tests/test_utils.py"
+          ],
+          "verdict": "LOWER_BOUND"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/shell_completion.py",
+          "name": "_SOURCE_BASH",
+          "kind": "constant",
+          "line": 93,
+          "truth_files": [
+            "src/click/shell_completion.py"
+          ],
+          "reported_files": [
+            "src/click/shell_completion.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/shell_completion.py",
+          "name": "get_completion_class",
+          "kind": "function",
+          "line": 434,
+          "truth_files": [
+            "src/click/shell_completion.py"
+          ],
+          "reported_files": [
+            "src/click/shell_completion.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/shell_completion.py",
+          "name": "func_name",
+          "kind": "method",
+          "line": 229,
+          "truth_files": [
+            "src/click/shell_completion.py"
+          ],
+          "reported_files": [
+            "src/click/shell_completion.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/core.py",
+          "name": "required",
+          "kind": "variable",
+          "line": 2129,
+          "truth_files": [
+            "src/click/core.py",
+            "src/click/types.py"
+          ],
+          "reported_files": [
+            "src/click/core.py",
+            "src/click/types.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/utils.py",
+          "name": "LazyFile",
+          "kind": "class",
+          "line": 106,
+          "truth_files": [
+            "src/click/termui.py",
+            "src/click/types.py",
+            "src/click/utils.py",
+            "tests/test_utils.py"
+          ],
+          "reported_files": [
+            "src/click/termui.py",
+            "src/click/types.py",
+            "src/click/utils.py"
+          ],
+          "missed_files": [
+            "tests/test_utils.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/types.py",
+          "name": "UNPROCESSED",
+          "kind": "constant",
+          "line": 1074,
+          "truth_files": [
+            "src/click/__init__.py",
+            "tests/test_commands.py",
+            "tests/test_info_dict.py"
+          ],
+          "reported_files": [
+            "src/click/__init__.py"
+          ],
+          "missed_files": [
+            "tests/test_commands.py",
+            "tests/test_info_dict.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/shell_completion.py",
+          "name": "_is_incomplete_argument",
+          "kind": "function",
+          "line": 444,
+          "truth_files": [
+            "src/click/shell_completion.py"
+          ],
+          "reported_files": [
+            "src/click/shell_completion.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/core.py",
+          "name": "format_help",
+          "kind": "method",
+          "line": 1353,
+          "truth_files": [
+            "src/click/core.py"
+          ],
+          "reported_files": [
+            "src/click/core.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/core.py",
+          "name": "default_map",
+          "kind": "variable",
+          "line": 323,
+          "truth_files": [
+            "src/click/core.py"
+          ],
+          "reported_files": [
+            "src/click/core.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/exceptions.py",
+          "name": "BadArgumentUsage",
+          "kind": "class",
+          "line": 256,
+          "truth_files": [
+            "src/click/__init__.py",
+            "src/click/parser.py"
+          ],
+          "reported_files": [
+            "src/click/__init__.py",
+            "src/click/parser.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/utils.py",
+          "name": "R",
+          "kind": "constant",
+          "line": 26,
+          "truth_files": [
+            "src/click/utils.py"
+          ],
+          "reported_files": [
+            "src/click/utils.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/_compat.py",
+          "name": "auto_wrap_for_ansi",
+          "kind": "function",
+          "line": 519,
+          "truth_files": null,
+          "reported_files": [
+            "src/click/_compat.py",
+            "src/click/utils.py"
+          ],
+          "extra_files": [
+            "src/click/_compat.py",
+            "src/click/utils.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/utils.py",
+          "name": "__iter__",
+          "kind": "method",
+          "line": 215,
+          "truth_files": null,
+          "reported_files": null,
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/core.py",
+          "name": "secondary_opts",
+          "kind": "variable",
+          "line": 2115,
+          "truth_files": null,
+          "reported_files": [
+            "src/click/core.py"
+          ],
+          "extra_files": [
+            "src/click/core.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/types.py",
+          "name": "FloatRange",
+          "kind": "class",
+          "line": 551,
+          "truth_files": [
+            "src/click/__init__.py",
+            "tests/test_info_dict.py",
+            "tests/test_types.py"
+          ],
+          "reported_files": [
+            "src/click/__init__.py"
+          ],
+          "missed_files": [
+            "tests/test_info_dict.py",
+            "tests/test_types.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/formatting.py",
+          "name": "FORCED_WIDTH",
+          "kind": "constant",
+          "line": 9,
+          "truth_files": [
+            "src/click/formatting.py",
+            "src/click/testing.py"
+          ],
+          "reported_files": [
+            "src/click/formatting.py",
+            "src/click/testing.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/termui.py",
+          "name": "edit",
+          "kind": "function",
+          "line": 637,
+          "truth_files": [
+            "src/click/__init__.py",
+            "tests/test_termui.py"
+          ],
+          "reported_files": [
+            "src/click/__init__.py"
+          ],
+          "missed_files": [
+            "tests/test_termui.py"
+          ],
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/types.py",
+          "name": "__repr__",
+          "kind": "method",
+          "line": 615,
+          "truth_files": null,
+          "reported_files": null,
+          "verdict": "COMPLETE"
+        },
+        {
+          "repository": "click",
+          "path": "src/click/_termui_impl.py",
+          "name": "pos",
+          "kind": "variable",
+          "line": 96,
+          "truth_files": [
+            "src/click/_termui_impl.py",
+            "tests/test_termui.py"
+          ],
+          "reported_files": [
+            "src/click/_termui_impl.py"
+          ],
+          "missed_files": [
+            "tests/test_termui.py"
+          ],
+          "verdict": "COMPLETE"
+        }
+      ]
     }
   ],
   "limitations": [
@@ -6956,10 +6956,10 @@
     "C# is checked with `dotnet build` on the solution, and MSBuild does not compile a project whose reference failed: a rename in the library leaves the test project unbuilt, so its files are missing from the truth. The C# truth is a lower bound and so is its precision, as for a Rust workspace. Kivgraph reads `scip-dotnet`, which drives Roslyn, the same compiler.",
     "Python is checked with mypy, which Kivgraph does not use: its exact mode reads Pyright and its default mode a syntactic worker. mypy reports nothing through a value it types as `Any` -- an unannotated parameter, which is what a pytest fixture is -- so a use reached only that way is not in the truth. The Python truth is a lower bound: a file Kivgraph reports beyond it counts against precision whether or not it is a real use.",
     "After an import fails mypy binds the imported name to `Any`, which would hide every use behind a re-export in a package's `__init__`. The oracle follows the rename through: each import that fails for the renamed name is rewritten to the new name and the check runs again until none fails.",
-    "`python.tests_included`, `python.exact` and `python.exact.tests_included` are the default configuration with `python.include_tests: true`, with `analyzer_mode: exact` over Pyright, and with both. Each samples from what its own graph lists, and the two modes do not list the same declarations, so the four do not draw the same sample.",
+    "`python.tests_excluded`, `python.exact` and `python.exact.tests_excluded` are the default configuration with `python.include_tests: false`, with `analyzer_mode: exact` over Pyright, and with both. Each samples from what its own graph lists, and the two modes do not list the same declarations, so the four do not draw the same sample.",
     "mypy checks the package and its tests. The repository's `docs` and `examples` are scripts that each define modules of the same name, which it cannot check together, so a file Kivgraph reports there is left out of the comparison instead of being counted against it.",
     "A name bound in more than one place survives the rename of one binding: a constant assigned in both branches of an `if`, an attribute annotated on one line and assigned on the next. mypy reports nothing then, and the uses count against precision. So do the uses on a line marked `# type: ignore`.",
     "mypy does not check code under a platform test that is false where it runs (`if sys.platform == \"win32\"`), so declarations used only there have no truth on this machine and their uses count against precision."
   ],
-  "wall_seconds": 444.725793125
+  "wall_seconds": 439.891330375
 }
