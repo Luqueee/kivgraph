@@ -56,3 +56,23 @@ not in the group and is not touched; the build goes on using it.
   unguarded, as it did before.
 - Not changed: `rust-analyzer` and the Python worker are still started as one
   process each.
+
+## Amendment: the Python worker joins, `rust-analyzer` does not need to
+
+The last line above was a question, and it was measured, by killing each
+analyzer's process and kivgraph itself during an index and looking for
+descendants three seconds later.
+
+- **`rust-analyzer`: nothing to change.** With `cargo check`, a dozen `rustc`
+  and the proc-macro servers running under it, killing the analyzer alone left
+  `0` of `7` descendants and killing kivgraph left `0` of `33`. They hold pipes
+  to their parent and end when those close.
+- **The Python worker: it was left running.** Killing kivgraph left the worker
+  -- and in `exact` mode the Pyright server under it, at `523 MB` -- working to
+  the end with no parent. Killing the worker alone left nothing: Pyright exits
+  when its input closes.
+
+So the Python loader runs its producer through `proctree.Output`, the same
+containment with standard output kept apart from standard error, which is how
+the producer hands back its payload and its diagnosis. Killed at the same two
+points again, nothing is left in either mode.

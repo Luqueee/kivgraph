@@ -10,6 +10,7 @@ package proctree
 
 import (
 	"bytes"
+	"errors"
 	"os/exec"
 	"time"
 )
@@ -29,13 +30,32 @@ const waitDelay = 5 * time.Second
 func CombinedOutput(cmd *exec.Cmd) ([]byte, error) {
 	var output bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &output, &output
+	err := run(cmd)
+	return output.Bytes(), err
+}
+
+// Output is exec.Cmd.Output with the same three guarantees: standard output is
+// returned, and what the tool wrote to standard error travels in the
+// *exec.ExitError of a tool that failed.
+func Output(cmd *exec.Cmd) ([]byte, error) {
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	err := run(cmd)
+	var exit *exec.ExitError
+	if errors.As(err, &exit) {
+		exit.Stderr = stderr.Bytes()
+	}
+	return stdout.Bytes(), err
+}
+
+func run(cmd *exec.Cmd) error {
 	Contain(cmd)
 	if err := cmd.Start(); err != nil {
-		return nil, err
+		return err
 	}
 	release := Guard(cmd)
 	err := cmd.Wait()
 	release()
 	_ = killTree(cmd)
-	return output.Bytes(), err
+	return err
 }

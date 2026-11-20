@@ -2499,9 +2499,15 @@ of the precision column, and `exclude_tests` on the traversal tools.
   process group, kills the group on cancellation, on this process's death and
   on return. Unix only. The Java loader now applies the shared test rule too
   (ADR 0142, second amendment), which gained `src/it/` and reads the capital
-  in `*Test`, so `Latest.java` is no longer a test. Open: `rust-analyzer` and
-  the Python worker are still started as one process each; no Windows
-  counterpart for the guard.
+  in `*Test`, so `Latest.java` is no longer a test. The other two analyzers
+  were then measured the same way: `rust-analyzer` leaves nothing behind,
+  killed alone or with kivgraph, and is not changed; the Python worker, and
+  the Pyright server under it, kept running when kivgraph was killed and now
+  go through `proctree` too. Running the exact Python mode on real code for
+  that measurement found it could not index any: the Pyright adapter crashed
+  on the first plain `import x`, which no fixture had. Fixed. Open: no Windows
+  counterpart for the guard; the exact Python mode has still only been run on
+  one corpus.
 - **Open after the language-recall work** (none has an owner or a date):
   - Dart: explicit extension application (`IterableExtension(this)`) and `/** */`
     doc links. Rust: methods on a receiver, names passed through a metavariable

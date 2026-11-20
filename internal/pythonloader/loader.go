@@ -15,6 +15,7 @@ import (
 
 	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/proctree"
 	"github.com/Luqueee/kivgraph/internal/toolchain"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
@@ -82,7 +83,7 @@ func RunWithOptions(ctx context.Context, options Options, repository workspace.R
 	}
 	process := exec.CommandContext(ctx, executable, args...)
 	process.Dir = workingDirectory
-	output, err := process.Output()
+	output, err := proctree.Output(process)
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			return facts.SemanticPayload{}, fmt.Errorf("python indexer %q failed: %w: %s", executable, err, strings.TrimSpace(string(exitErr.Stderr)))

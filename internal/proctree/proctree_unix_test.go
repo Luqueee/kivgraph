@@ -86,6 +86,34 @@ func TestTheOutputAndTheExitStatusAreTheTools(t *testing.T) {
 	}
 }
 
+// The worker that is one process and writes its answer to standard output: a
+// tool killed while it works took nothing with it before, and its diagnostics
+// have to reach the caller the way exec.Cmd.Output hands them over.
+func TestOutputKeepsTheStreamsApartAndKillsTheTreeToo(t *testing.T) {
+	output, err := Output(exec.CommandContext(t.Context(), "/bin/sh", "-c", "echo answer; echo why >&2; exit 4"))
+	var exit *exec.ExitError
+	if !errors.As(err, &exit) || exit.ExitCode() != 4 || string(exit.Stderr) != "why\n" {
+		t.Fatalf("Output() error = %v, want exit status 4 carrying the tool's standard error", err)
+	}
+	if string(output) != "answer\n" {
+		t.Fatalf("output = %q, want standard output alone", output)
+	}
+
+	output, err = Output(exec.CommandContext(t.Context(), "/bin/sh", "-c", "sleep 30 >/dev/null 2>&1 & echo $!"))
+	if err != nil {
+		t.Fatalf("Output() = %v", err)
+	}
+	waitGone(t, firstPID(t, output), "the process the tool left behind")
+
+	ctx, cancel := context.WithTimeout(t.Context(), 300*time.Millisecond)
+	defer cancel()
+	output, err = Output(exec.CommandContext(ctx, "/bin/sh", "-c", "sleep 30 & echo $!; wait"))
+	if err == nil {
+		t.Fatal("a tool killed at its deadline reported success")
+	}
+	waitGone(t, firstPID(t, output), "the tool's child")
+}
+
 const helperEnv = "KIVGRAPH_PROCTREE_HELPER"
 
 // TestHelperProcess is the process that gets killed while a tool it started is
