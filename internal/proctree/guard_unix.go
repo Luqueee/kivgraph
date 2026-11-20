@@ -69,7 +69,10 @@ func Guard(cmd *exec.Cmd) (release func()) {
 	if err != nil {
 		return func() {}
 	}
-	watcher := exec.Command("/bin/sh", "-c", `read _; kill -KILL -- "$0"`, target)
+	// The one spelling every shell tried takes for a negative id: dash reads
+	// `kill -KILL -- -123` as a malformed number and bash reads
+	// `kill -s KILL -123` as a second signal.
+	watcher := exec.Command("/bin/sh", "-c", `read _; kill -s KILL -- "$0"`, target)
 	watcher.Stdin = read
 	err = watcher.Start()
 	_ = read.Close()
