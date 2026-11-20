@@ -184,7 +184,7 @@ func TestMypyErrorLinesAreParsed(t *testing.T) {
 	for line, want := range map[string][]string{
 		`src/click/core.py:1481: error: Name "Command" is not defined  [name-defined]`:                    {"src/click/core.py", "1481", `Name "Command" is not defined`, "name-defined"},
 		`tests/test_a.py:3: error: Module "click" has no attribute "echo"; maybe "Echo"?  [attr-defined]`: {"tests/test_a.py", "3", `Module "click" has no attribute "echo"; maybe "Echo"?`, "attr-defined"},
-		`src/a.py:9: error: invalid syntax`: {"src/a.py", "9", "invalid syntax", ""},
+		`src/a.py:9: error: invalid syntax`:                                                               {"src/a.py", "9", "invalid syntax", ""},
 	} {
 		got := mypyError.FindStringSubmatch(line)
 		if got == nil || !reflect.DeepEqual(got[1:], want) {
