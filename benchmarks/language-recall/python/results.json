@@ -39,26 +39,26 @@
       "oracle_failures": 0,
       "kivgraph_failures": 0,
       "file_recall": {
-        "value": 0.43670886075949367,
-        "low": 0.3644859813084112,
-        "high": 0.525,
-        "numerator": 69,
+        "value": 0.8291139240506329,
+        "low": 0.7401574803149606,
+        "high": 0.8952380952380953,
+        "numerator": 131,
         "denominator": 158,
         "symbols": 71
       },
       "file_recall_non_test": {
-        "value": 0.6448598130841121,
-        "low": 0.5463917525773195,
-        "high": 0.7282608695652174,
-        "numerator": 69,
+        "value": 0.8598130841121495,
+        "low": 0.7717391304347826,
+        "high": 0.924812030075188,
+        "numerator": 92,
         "denominator": 107,
         "symbols": 70
       },
       "file_recall_test": {
-        "value": 0,
-        "low": 0,
-        "high": 0,
-        "numerator": 0,
+        "value": 0.7647058823529411,
+        "low": 0.5833333333333334,
+        "high": 0.875,
+        "numerator": 39,
         "denominator": 51,
         "symbols": 24
       },
@@ -71,26 +71,26 @@
         "symbols": 0
       },
       "file_recall_without_private_names": {
-        "value": 0.43670886075949367,
-        "low": 0.3611111111111111,
-        "high": 0.5253164556962026,
-        "numerator": 69,
+        "value": 0.8291139240506329,
+        "low": 0.7424242424242424,
+        "high": 0.8936170212765957,
+        "numerator": 131,
         "denominator": 158,
         "symbols": 71
       },
       "file_precision": {
-        "value": 0.8625,
-        "low": 0.7702702702702703,
-        "high": 0.9310344827586207,
-        "numerator": 69,
-        "denominator": 80,
-        "symbols": 60
+        "value": 0.8562091503267973,
+        "low": 0.7080745341614907,
+        "high": 0.9612403100775194,
+        "numerator": 131,
+        "denominator": 153,
+        "symbols": 67
       },
       "symbols_fully_recalled": {
-        "value": 0.39436619718309857,
-        "low": 0.28893401217256764,
-        "high": 0.5106423159186432,
-        "numerator": 28,
+        "value": 0.676056338028169,
+        "low": 0.5606115696210574,
+        "high": 0.7734278835602577,
+        "numerator": 48,
         "denominator": 71,
         "symbols": 71
       },
@@ -103,8 +103,8 @@
         "symbols": 29
       },
       "completeness_verdicts": {
-        "COMPLETE": 43,
-        "LOWER_BOUND": 57
+        "COMPLETE": 60,
+        "LOWER_BOUND": 40
       },
       "complete_verdicts_that_missed_a_non_test_file": 1,
       "by_kind": [
@@ -112,10 +112,10 @@
           "kind": "class",
           "symbols_with_dependents": 23,
           "file_recall": {
-            "value": 0.43037974683544306,
-            "low": 0.3389830508474576,
-            "high": 0.5573770491803278,
-            "numerator": 34,
+            "value": 0.9367088607594937,
+            "low": 0.8727272727272727,
+            "high": 0.9836065573770492,
+            "numerator": 74,
             "denominator": 79,
             "symbols": 23
           }
@@ -124,10 +124,10 @@
           "kind": "function",
           "symbols_with_dependents": 25,
           "file_recall": {
-            "value": 0.5,
-            "low": 0.3333333333333333,
-            "high": 0.6875,
-            "numerator": 22,
+            "value": 0.8409090909090909,
+            "low": 0.7333333333333333,
+            "high": 0.9333333333333333,
+            "numerator": 37,
             "denominator": 44,
             "symbols": 25
           }
@@ -148,10 +148,10 @@
           "kind": "variable",
           "symbols_with_dependents": 13,
           "file_recall": {
-            "value": 0.6190476190476191,
-            "low": 0.4642857142857143,
-            "high": 0.8666666666666667,
-            "numerator": 13,
+            "value": 0.9523809523809523,
+            "low": 0.8461538461538461,
+            "high": 1,
+            "numerator": 20,
             "denominator": 21,
             "symbols": 13
           }
@@ -171,14 +171,12 @@
             "tests/test_options.py"
           ],
           "reported_files": [
-            "src/click/core.py"
-          ],
-          "missed_files": [
             "src/click/__init__.py",
+            "src/click/core.py",
             "tests/test_arguments.py",
             "tests/test_options.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -243,9 +241,10 @@
             "src/click/__init__.py",
             "tests/test_utils.py"
           ],
-          "reported_files": null,
+          "reported_files": [
+            "src/click/__init__.py"
+          ],
           "missed_files": [
-            "src/click/__init__.py",
             "tests/test_utils.py"
           ],
           "verdict": "LOWER_BOUND"
@@ -347,12 +346,10 @@
             "src/click/parser.py"
           ],
           "reported_files": [
+            "src/click/__init__.py",
             "src/click/parser.py"
           ],
-          "missed_files": [
-            "src/click/__init__.py"
-          ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -472,11 +469,11 @@
             "tests/test_utils.py"
           ],
           "reported_files": [
+            "src/click/__init__.py",
             "src/click/core.py",
             "src/click/termui.py"
           ],
           "missed_files": [
-            "src/click/__init__.py",
             "tests/test_utils.py"
           ],
           "verdict": "LOWER_BOUND"
@@ -517,12 +514,10 @@
             "src/click/testing.py"
           ],
           "reported_files": [
-            "src/click/termui.py"
-          ],
-          "missed_files": [
+            "src/click/termui.py",
             "src/click/testing.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -549,12 +544,10 @@
             "tests/test_parser.py"
           ],
           "reported_files": [
-            "src/click/shell_completion.py"
-          ],
-          "missed_files": [
+            "src/click/shell_completion.py",
             "tests/test_parser.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -617,11 +610,12 @@
             "tests/test_termui.py",
             "tests/test_testing.py"
           ],
-          "reported_files": null,
-          "missed_files": [
+          "reported_files": [
             "src/click/__init__.py",
-            "tests/test_termui.py",
             "tests/test_testing.py"
+          ],
+          "missed_files": [
+            "tests/test_termui.py"
           ],
           "verdict": "LOWER_BOUND"
         },
@@ -648,14 +642,12 @@
             "tests/test_options.py"
           ],
           "reported_files": [
-            "src/click/types.py"
-          ],
-          "missed_files": [
             "src/click/__init__.py",
+            "src/click/types.py",
             "tests/test_info_dict.py",
             "tests/test_options.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -670,15 +662,14 @@
             "tests/test_options.py",
             "tests/test_types.py"
           ],
-          "reported_files": null,
-          "missed_files": [
+          "reported_files": [
             "src/click/__init__.py",
             "src/click/core.py",
             "tests/test_info_dict.py",
             "tests/test_options.py",
             "tests/test_types.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -733,10 +724,8 @@
             "tests/test_options.py"
           ],
           "reported_files": [
-            "src/click/types.py"
-          ],
-          "missed_files": [
             "src/click/__init__.py",
+            "src/click/types.py",
             "tests/test_arguments.py",
             "tests/test_info_dict.py",
             "tests/test_options.py"
@@ -753,13 +742,33 @@
             "tests/test_command_decorators.py"
           ],
           "reported_files": [
-            "src/click/core.py"
-          ],
-          "missed_files": [
-            "tests/test_command_decorators.py"
+            "src/click/__init__.py",
+            "src/click/core.py",
+            "tests/test_arguments.py",
+            "tests/test_basic.py",
+            "tests/test_chain.py",
+            "tests/test_command_decorators.py",
+            "tests/test_commands.py",
+            "tests/test_context.py",
+            "tests/test_defaults.py",
+            "tests/test_formatting.py",
+            "tests/test_normalization.py",
+            "tests/test_options.py",
+            "tests/typing/typing_group_kw_options.py"
           ],
           "extra_files": [
-            "src/click/core.py"
+            "src/click/__init__.py",
+            "src/click/core.py",
+            "tests/test_arguments.py",
+            "tests/test_basic.py",
+            "tests/test_chain.py",
+            "tests/test_commands.py",
+            "tests/test_context.py",
+            "tests/test_defaults.py",
+            "tests/test_formatting.py",
+            "tests/test_normalization.py",
+            "tests/test_options.py",
+            "tests/typing/typing_group_kw_options.py"
           ],
           "verdict": "LOWER_BOUND"
         },
@@ -785,13 +794,11 @@
             "tests/test_info_dict.py"
           ],
           "reported_files": [
-            "src/click/types.py"
-          ],
-          "missed_files": [
             "src/click/__init__.py",
+            "src/click/types.py",
             "tests/test_info_dict.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -854,13 +861,11 @@
             "tests/test_testing.py"
           ],
           "reported_files": [
-            "src/click/testing.py"
-          ],
-          "missed_files": [
+            "src/click/testing.py",
             "tests/conftest.py",
             "tests/test_testing.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -873,13 +878,12 @@
             "tests/test_arguments.py",
             "tests/test_context.py"
           ],
-          "reported_files": null,
-          "missed_files": [
+          "reported_files": [
             "src/click/__init__.py",
             "tests/test_arguments.py",
             "tests/test_context.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -931,16 +935,14 @@
             "tests/typing/typing_aliased_group.py"
           ],
           "reported_files": [
+            "src/click/__init__.py",
             "src/click/core.py",
             "src/click/decorators.py",
             "src/click/exceptions.py",
             "src/click/globals.py",
             "src/click/parser.py",
             "src/click/shell_completion.py",
-            "src/click/types.py"
-          ],
-          "missed_files": [
-            "src/click/__init__.py",
+            "src/click/types.py",
             "tests/test_arguments.py",
             "tests/test_commands.py",
             "tests/test_context.py",
@@ -951,7 +953,7 @@
             "tests/test_types.py",
             "tests/typing/typing_aliased_group.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -1075,20 +1077,20 @@
             "tests/test_types.py"
           ],
           "reported_files": [
+            "src/click/__init__.py",
             "src/click/core.py",
             "src/click/decorators.py",
             "src/click/parser.py",
-            "src/click/shell_completion.py"
-          ],
-          "missed_files": [
-            "src/click/__init__.py",
+            "src/click/shell_completion.py",
             "tests/test_arguments.py",
             "tests/test_command_decorators.py",
             "tests/test_formatting.py",
-            "tests/test_info_dict.py",
             "tests/test_options.py",
             "tests/test_shell_completion.py",
             "tests/test_types.py"
+          ],
+          "missed_files": [
+            "tests/test_info_dict.py"
           ],
           "verdict": "LOWER_BOUND"
         },
@@ -1104,13 +1106,11 @@
             "src/click/types.py"
           ],
           "reported_files": [
+            "src/click/core.py",
             "src/click/termui.py",
             "src/click/types.py"
           ],
-          "missed_files": [
-            "src/click/core.py"
-          ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -1274,8 +1274,7 @@
           "truth_files": [
             "src/click/__init__.py"
           ],
-          "reported_files": null,
-          "missed_files": [
+          "reported_files": [
             "src/click/__init__.py"
           ],
           "verdict": "LOWER_BOUND"
@@ -1301,12 +1300,10 @@
             "src/click/testing.py"
           ],
           "reported_files": [
-            "src/click/formatting.py"
-          ],
-          "missed_files": [
+            "src/click/formatting.py",
             "src/click/testing.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -1319,12 +1316,10 @@
             "src/click/parser.py"
           ],
           "reported_files": [
+            "src/click/__init__.py",
             "src/click/parser.py"
           ],
-          "missed_files": [
-            "src/click/__init__.py"
-          ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -1375,13 +1370,12 @@
             "tests/test_basic.py",
             "tests/test_info_dict.py"
           ],
-          "reported_files": null,
-          "missed_files": [
+          "reported_files": [
             "src/click/__init__.py",
             "tests/test_basic.py",
             "tests/test_info_dict.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -1398,13 +1392,13 @@
             "tests/test_utils.py"
           ],
           "reported_files": [
+            "src/click/__init__.py",
             "src/click/core.py",
-            "src/click/termui.py"
+            "src/click/termui.py",
+            "tests/test_custom_classes.py",
+            "tests/test_testing.py"
           ],
           "missed_files": [
-            "src/click/__init__.py",
-            "tests/test_custom_classes.py",
-            "tests/test_testing.py",
             "tests/test_utils.py"
           ],
           "verdict": "LOWER_BOUND"
@@ -1590,11 +1584,10 @@
           "truth_files": [
             "src/click/__init__.py"
           ],
-          "reported_files": null,
-          "missed_files": [
+          "reported_files": [
             "src/click/__init__.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -1629,14 +1622,12 @@
             "tests/test_formatting.py"
           ],
           "reported_files": [
-            "src/click/core.py"
-          ],
-          "missed_files": [
             "src/click/__init__.py",
+            "src/click/core.py",
             "tests/test_custom_classes.py",
             "tests/test_formatting.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -1704,12 +1695,10 @@
             "src/click/testing.py"
           ],
           "reported_files": [
-            "src/click/termui.py"
-          ],
-          "missed_files": [
+            "src/click/termui.py",
             "src/click/testing.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -1751,18 +1740,18 @@
       "oracle_failures": 0,
       "kivgraph_failures": 0,
       "file_recall": {
-        "value": 0.43670886075949367,
-        "low": 0.3644859813084112,
-        "high": 0.525,
-        "numerator": 69,
+        "value": 0.5822784810126582,
+        "low": 0.5135135135135135,
+        "high": 0.6713286713286714,
+        "numerator": 92,
         "denominator": 158,
         "symbols": 71
       },
       "file_recall_non_test": {
-        "value": 0.6448598130841121,
-        "low": 0.5463917525773195,
-        "high": 0.7282608695652174,
-        "numerator": 69,
+        "value": 0.8598130841121495,
+        "low": 0.7717391304347826,
+        "high": 0.924812030075188,
+        "numerator": 92,
         "denominator": 107,
         "symbols": 70
       },
@@ -1783,26 +1772,26 @@
         "symbols": 0
       },
       "file_recall_without_private_names": {
-        "value": 0.43670886075949367,
-        "low": 0.3611111111111111,
-        "high": 0.5253164556962026,
-        "numerator": 69,
+        "value": 0.5822784810126582,
+        "low": 0.5136612021857924,
+        "high": 0.6717557251908397,
+        "numerator": 92,
         "denominator": 158,
         "symbols": 71
       },
       "file_precision": {
-        "value": 0.8625,
-        "low": 0.7702702702702703,
-        "high": 0.9310344827586207,
-        "numerator": 69,
-        "denominator": 80,
-        "symbols": 60
+        "value": 0.8846153846153846,
+        "low": 0.8064516129032258,
+        "high": 0.9482758620689655,
+        "numerator": 92,
+        "denominator": 104,
+        "symbols": 67
       },
       "symbols_fully_recalled": {
-        "value": 0.39436619718309857,
-        "low": 0.28893401217256764,
-        "high": 0.5106423159186432,
-        "numerator": 28,
+        "value": 0.5070422535211268,
+        "low": 0.39341308239719974,
+        "high": 0.619948495730053,
+        "numerator": 36,
         "denominator": 71,
         "symbols": 71
       },
@@ -1815,8 +1804,8 @@
         "symbols": 29
       },
       "completeness_verdicts": {
-        "COMPLETE": 49,
-        "LOWER_BOUND": 51
+        "COMPLETE": 71,
+        "LOWER_BOUND": 29
       },
       "complete_verdicts_that_missed_a_non_test_file": 1,
       "by_kind": [
@@ -1824,10 +1813,10 @@
           "kind": "class",
           "symbols_with_dependents": 23,
           "file_recall": {
-            "value": 0.43037974683544306,
-            "low": 0.3389830508474576,
-            "high": 0.5573770491803278,
-            "numerator": 34,
+            "value": 0.569620253164557,
+            "low": 0.5,
+            "high": 0.6949152542372882,
+            "numerator": 45,
             "denominator": 79,
             "symbols": 23
           }
@@ -1836,10 +1825,10 @@
           "kind": "function",
           "symbols_with_dependents": 25,
           "file_recall": {
-            "value": 0.5,
-            "low": 0.3333333333333333,
-            "high": 0.6875,
-            "numerator": 22,
+            "value": 0.6818181818181818,
+            "low": 0.5365853658536586,
+            "high": 0.8260869565217391,
+            "numerator": 30,
             "denominator": 44,
             "symbols": 25
           }
@@ -1860,10 +1849,10 @@
           "kind": "variable",
           "symbols_with_dependents": 13,
           "file_recall": {
-            "value": 0.6190476190476191,
-            "low": 0.4642857142857143,
-            "high": 0.8666666666666667,
-            "numerator": 13,
+            "value": 0.8095238095238095,
+            "low": 0.6785714285714286,
+            "high": 1,
+            "numerator": 17,
             "denominator": 21,
             "symbols": 13
           }
@@ -1883,14 +1872,14 @@
             "tests/test_options.py"
           ],
           "reported_files": [
+            "src/click/__init__.py",
             "src/click/core.py"
           ],
           "missed_files": [
-            "src/click/__init__.py",
             "tests/test_arguments.py",
             "tests/test_options.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -1955,12 +1944,13 @@
             "src/click/__init__.py",
             "tests/test_utils.py"
           ],
-          "reported_files": null,
+          "reported_files": [
+            "src/click/__init__.py"
+          ],
           "missed_files": [
-            "src/click/__init__.py",
             "tests/test_utils.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -2059,12 +2049,10 @@
             "src/click/parser.py"
           ],
           "reported_files": [
+            "src/click/__init__.py",
             "src/click/parser.py"
           ],
-          "missed_files": [
-            "src/click/__init__.py"
-          ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -2184,14 +2172,14 @@
             "tests/test_utils.py"
           ],
           "reported_files": [
+            "src/click/__init__.py",
             "src/click/core.py",
             "src/click/termui.py"
           ],
           "missed_files": [
-            "src/click/__init__.py",
             "tests/test_utils.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -2229,12 +2217,10 @@
             "src/click/testing.py"
           ],
           "reported_files": [
-            "src/click/termui.py"
-          ],
-          "missed_files": [
+            "src/click/termui.py",
             "src/click/testing.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -2329,13 +2315,14 @@
             "tests/test_termui.py",
             "tests/test_testing.py"
           ],
-          "reported_files": null,
+          "reported_files": [
+            "src/click/__init__.py"
+          ],
           "missed_files": [
-            "src/click/__init__.py",
             "tests/test_termui.py",
             "tests/test_testing.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -2360,14 +2347,14 @@
             "tests/test_options.py"
           ],
           "reported_files": [
+            "src/click/__init__.py",
             "src/click/types.py"
           ],
           "missed_files": [
-            "src/click/__init__.py",
             "tests/test_info_dict.py",
             "tests/test_options.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -2382,15 +2369,16 @@
             "tests/test_options.py",
             "tests/test_types.py"
           ],
-          "reported_files": null,
-          "missed_files": [
+          "reported_files": [
             "src/click/__init__.py",
-            "src/click/core.py",
+            "src/click/core.py"
+          ],
+          "missed_files": [
             "tests/test_info_dict.py",
             "tests/test_options.py",
             "tests/test_types.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -2445,10 +2433,10 @@
             "tests/test_options.py"
           ],
           "reported_files": [
+            "src/click/__init__.py",
             "src/click/types.py"
           ],
           "missed_files": [
-            "src/click/__init__.py",
             "tests/test_arguments.py",
             "tests/test_info_dict.py",
             "tests/test_options.py"
@@ -2465,12 +2453,14 @@
             "tests/test_command_decorators.py"
           ],
           "reported_files": [
+            "src/click/__init__.py",
             "src/click/core.py"
           ],
           "missed_files": [
             "tests/test_command_decorators.py"
           ],
           "extra_files": [
+            "src/click/__init__.py",
             "src/click/core.py"
           ],
           "verdict": "LOWER_BOUND"
@@ -2497,13 +2487,13 @@
             "tests/test_info_dict.py"
           ],
           "reported_files": [
+            "src/click/__init__.py",
             "src/click/types.py"
           ],
           "missed_files": [
-            "src/click/__init__.py",
             "tests/test_info_dict.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -2585,13 +2575,14 @@
             "tests/test_arguments.py",
             "tests/test_context.py"
           ],
-          "reported_files": null,
+          "reported_files": [
+            "src/click/__init__.py"
+          ],
           "missed_files": [
-            "src/click/__init__.py",
             "tests/test_arguments.py",
             "tests/test_context.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -2643,6 +2634,7 @@
             "tests/typing/typing_aliased_group.py"
           ],
           "reported_files": [
+            "src/click/__init__.py",
             "src/click/core.py",
             "src/click/decorators.py",
             "src/click/exceptions.py",
@@ -2652,7 +2644,6 @@
             "src/click/types.py"
           ],
           "missed_files": [
-            "src/click/__init__.py",
             "tests/test_arguments.py",
             "tests/test_commands.py",
             "tests/test_context.py",
@@ -2663,7 +2654,7 @@
             "tests/test_types.py",
             "tests/typing/typing_aliased_group.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -2787,13 +2778,13 @@
             "tests/test_types.py"
           ],
           "reported_files": [
+            "src/click/__init__.py",
             "src/click/core.py",
             "src/click/decorators.py",
             "src/click/parser.py",
             "src/click/shell_completion.py"
           ],
           "missed_files": [
-            "src/click/__init__.py",
             "tests/test_arguments.py",
             "tests/test_command_decorators.py",
             "tests/test_formatting.py",
@@ -2802,7 +2793,7 @@
             "tests/test_shell_completion.py",
             "tests/test_types.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -2816,13 +2807,11 @@
             "src/click/types.py"
           ],
           "reported_files": [
+            "src/click/core.py",
             "src/click/termui.py",
             "src/click/types.py"
           ],
-          "missed_files": [
-            "src/click/core.py"
-          ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -2919,7 +2908,7 @@
           "reported_files": [
             "src/click/parser.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -2986,11 +2975,10 @@
           "truth_files": [
             "src/click/__init__.py"
           ],
-          "reported_files": null,
-          "missed_files": [
+          "reported_files": [
             "src/click/__init__.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -3013,12 +3001,10 @@
             "src/click/testing.py"
           ],
           "reported_files": [
-            "src/click/formatting.py"
-          ],
-          "missed_files": [
+            "src/click/formatting.py",
             "src/click/testing.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -3031,12 +3017,10 @@
             "src/click/parser.py"
           ],
           "reported_files": [
+            "src/click/__init__.py",
             "src/click/parser.py"
           ],
-          "missed_files": [
-            "src/click/__init__.py"
-          ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -3087,13 +3071,14 @@
             "tests/test_basic.py",
             "tests/test_info_dict.py"
           ],
-          "reported_files": null,
+          "reported_files": [
+            "src/click/__init__.py"
+          ],
           "missed_files": [
-            "src/click/__init__.py",
             "tests/test_basic.py",
             "tests/test_info_dict.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -3110,16 +3095,16 @@
             "tests/test_utils.py"
           ],
           "reported_files": [
+            "src/click/__init__.py",
             "src/click/core.py",
             "src/click/termui.py"
           ],
           "missed_files": [
-            "src/click/__init__.py",
             "tests/test_custom_classes.py",
             "tests/test_testing.py",
             "tests/test_utils.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -3302,11 +3287,10 @@
           "truth_files": [
             "src/click/__init__.py"
           ],
-          "reported_files": null,
-          "missed_files": [
+          "reported_files": [
             "src/click/__init__.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -3341,14 +3325,14 @@
             "tests/test_formatting.py"
           ],
           "reported_files": [
+            "src/click/__init__.py",
             "src/click/core.py"
           ],
           "missed_files": [
-            "src/click/__init__.py",
             "tests/test_custom_classes.py",
             "tests/test_formatting.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -3416,12 +3400,10 @@
             "src/click/testing.py"
           ],
           "reported_files": [
-            "src/click/termui.py"
-          ],
-          "missed_files": [
+            "src/click/termui.py",
             "src/click/testing.py"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "click",
@@ -3527,8 +3509,8 @@
         "symbols": 17
       },
       "completeness_verdicts": {
-        "COMPLETE": 87,
-        "LOWER_BOUND": 13
+        "COMPLETE": 86,
+        "LOWER_BOUND": 14
       },
       "complete_verdicts_that_missed_a_non_test_file": 0,
       "by_kind": [
@@ -4078,7 +4060,7 @@
             "tests/test_types.py",
             "tests/typing/typing_aliased_group.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -6961,5 +6943,5 @@
     "A name bound in more than one place survives the rename of one binding: a constant assigned in both branches of an `if`, an attribute annotated on one line and assigned on the next. mypy reports nothing then, and the uses count against precision. So do the uses on a line marked `# type: ignore`.",
     "mypy does not check code under a platform test that is false where it runs (`if sys.platform == \"win32\"`), so declarations used only there have no truth on this machine and their uses count against precision."
   ],
-  "wall_seconds": 439.891330375
+  "wall_seconds": 476.862596959
 }

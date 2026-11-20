@@ -103,7 +103,7 @@ func RunWithOptions(ctx context.Context, options Options, repository workspace.R
 	} else {
 		payload.Analyzer = strings.TrimSpace(options.AnalyzerCommand)
 	}
-	return payload, nil
+	return withoutExcluded(payload, root, repository.Exclusions)
 }
 
 func resolveCommand(command, pythonPath, workingDirectory string) ([]string, string, bool, error) {

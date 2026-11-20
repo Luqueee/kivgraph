@@ -74,3 +74,47 @@ default, where it was `15` of `75`; `0` of `87` in `exact` mode, where it was
   directory) is not the rule `exclude_tests` applies (`internal/testpath`).
   Not reconciled here.
 - Existing graphs need `kivgraph index --full` to gain the occurrences.
+
+## Amendment: the package by its own name, one rule for a test, exclusions
+
+Three of the things left open above, closed.
+
+**A package is found by the name it is imported as.** The syntactic worker
+named `src/click/core.py` as `src.click.core`, so `import click` resolved to
+nothing and no test reached the package. A module is now also reachable by its
+package name -- the path from the first directory above it that is not a
+package -- unless two modules would claim that name. The stable identity of a
+declaration is unchanged: only how an import finds it. With it:
+
+- a relative import in an `__init__` is read against the package itself, which
+  it was not: `from .core import X` in `click/__init__.py` looked in `src`;
+- what a module imports is what it makes available, followed until nothing new
+  resolves, so `click.Command` is the class `__init__` re-exports;
+- `module.member` is resolved when the module is one the file imported. That is
+  reading an import. A member of anything else is still an unresolved
+  occurrence.
+
+| configuration | file recall, before | file recall, now | file precision, now |
+|---|---|---|---|
+| default | `43.7 %` | `82.9 %` | `85.6 %` |
+| `python.tests_excluded` | `43.7 %` | `58.2 %` | `88.5 %` |
+
+Reading tests is now worth `24.7` points to the default mode. It still recalls
+no use of a method (`0` of `10`): that needs a type, and it says `LOWER_BOUND`.
+One `COMPLETE` answer in `60` misses a non-test file, the same one as before.
+The exact mode is unchanged at `100.0 %` and `66.7 %`.
+
+**One rule says what a Python test is.** Both workers apply
+`internal/testpath`, written in them a second time because they decide what to
+read before a graph exists; a test holds the two copies to the same answer over
+`380` paths. The rule gains the `integration_test` directory the workers had.
+With `python.include_tests: false` a `test_*.py`, a `*_test.py` or a
+`conftest.py` outside a test directory is now left out, as `exclude_tests`
+already filtered it.
+
+**`exclusions` reach the Python graph.** The producers walk the repository
+themselves and were never told. The filter is applied to the payload with the
+registry's own matcher, so an external producer is covered and there is no
+second grammar. A use that stays of a declaration that goes becomes an
+unresolved occurrence, `TARGET_NOT_INDEXED`. The producer still reads the
+excluded files; only the graph loses them.

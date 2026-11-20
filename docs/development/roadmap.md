@@ -2541,9 +2541,13 @@ of the precision column, and `exclude_tests` on the traversal tools.
   it more complete (`43.7 %`); and both workers read names inside quoted
   annotations, which is the `ParamSpec`. The exact mode now measures `100.0 %`
   recall and `95.9 %` precision by default and `66.7 %` with tests excluded.
-  Still open: `exclusions` not reaching the Python graph; the syntactic worker
-  not resolving `import click` under a `src/` layout; the workers' rule for a
-  test differing from `internal/testpath`; `analyzer_mode` staying `fallback`.
+  Then the rest (ADR 0144, amended): the syntactic worker finds a package by
+  the name it is imported as, follows re-exports and resolves `module.member`,
+  which takes the default from `43.7 %` to `82.9 %` recall at `85.6 %`
+  precision; both workers apply `internal/testpath`; and `exclusions` reach
+  the Python graph. Still open: the default mode recalls no use of a method,
+  which needs a type; `analyzer_mode` stays `fallback`; `exclusions` were only
+  checked for Python, Go and TypeScript, not for the other loaders.
 
   Two things about the oracle are worth keeping. mypy binds a name to `Any`
   after its import fails, which hides every use behind a re-export in

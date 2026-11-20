@@ -97,6 +97,48 @@ def module_name(root, path):
     return ".".join(parts) or root.name
 
 
+# is_test_path is internal/testpath.Is, the one rule that says a path is a test
+# file. It is written twice because this worker has to decide what to read
+# before the graph exists, and a test in internal/pythonloader holds the two to
+# the same answer over a corpus of paths. With a rule of its own the worker
+# left `test_models.py` in the graph as production code while `exclude_tests`
+# filtered it as a test.
+TEST_DIRECTORIES = {"test", "tests", "__tests__", "spec", "specs", "integration_test"}
+
+
+def is_test_path(relative):
+    normalized = relative.lower()
+    directory, _, base = normalized.rpartition("/")
+    if (base.endswith(("_test.go", "_test.py", "_test.dart")) or
+            (base.startswith("test_") and base.endswith(".py")) or base == "conftest.py" or
+            ".test." in base or ".spec." in base):
+        return True
+    original = relative.rpartition("/")[2]
+    stem, dot, extension = original.rpartition(".")
+    if dot and extension in {"java", "cs"} and stem.endswith(("Test", "Tests")):
+        return True
+    if any(component in TEST_DIRECTORIES for component in directory.split("/")):
+        return True
+    return "/src/it/" in "/" + directory + "/"
+
+
+# package_name is what a module is imported as when a directory above it is the
+# import root: `src/click/core.py` is `click.core`, because `click` is a package
+# and `src` is not. It is empty when that is the name the file already has, or
+# when the file is in no package at all.
+def package_name(root, path):
+    parts = list(pathlib.Path(path).relative_to(root).with_suffix("").parts)
+    directory, kept = pathlib.Path(path).parent, 1
+    while directory != root and ((directory / "__init__.py").is_file() or (directory / "__init__.pyi").is_file()):
+        directory, kept = directory.parent, kept + 1
+    if kept == 1 or kept >= len(parts):
+        return ""
+    name = parts[-kept:]
+    if name[-1] == "__init__":
+        name.pop()
+    return ".".join(name)
+
+
 def exported(name):
     return not name.startswith("_")
 
@@ -114,7 +156,7 @@ def main():
         if not path.is_file() or path.suffix not in (".py", ".pyi"):
             continue
         relative_parts = path.relative_to(root).parts
-        if not args.include_tests and any(part in {"test", "tests", "integration_test"} for part in relative_parts):
+        if not args.include_tests and is_test_path("/".join(relative_parts)):
             continue
         if not args.include_generated and any(part.endswith(("_generated.py", ".generated.py", ".pyc")) or part in {"__pycache__", "build", "dist", ".tox"} for part in relative_parts):
             continue
@@ -189,6 +231,67 @@ def main():
 
         visit(tree, module, None)
 
+    # A module is also reachable by its package name, which is the one an import
+    # outside the package writes. A name two modules would claim, or one that is
+    # already some module's own, is left out: this worker does not choose.
+    aliases = {}
+    for path in tree_by_path:
+        alias = package_name(root, path)
+        if alias:
+            aliases[module_name(root, path)] = alias
+    claimed = {}
+    for alias in aliases.values():
+        claimed[alias] = claimed.get(alias, 0) + 1
+    aliases = {module: alias for module, alias in aliases.items()
+               if claimed[alias] == 1 and (alias, "__module__") not in symbol_by_module_name}
+    module_of_id = {symbol_id: module for (module, name), symbol_id in symbol_by_module_name.items()
+                    if name == "__module__"}
+    for (module, name), symbol_id in list(symbol_by_module_name.items()):
+        if module in aliases:
+            symbol_by_module_name.setdefault((aliases[module], name), symbol_id)
+
+    def import_base(module, path, node):
+        base = node.module or ""
+        if not node.level:
+            return base
+        # One dot is the package the module is in. For `__init__` that is the
+        # module itself, which is its own package.
+        up = node.level - 1 if path.stem == "__init__" else node.level
+        prefix = module.split(".")
+        prefix = prefix[:len(prefix) - up] if up else prefix
+        return ".".join(prefix + ([base] if base else []))
+
+    # What a module makes available without declaring it: `from .core import
+    # Command` in `__init__` is why `click.Command` exists. Followed until
+    # nothing new resolves, because a package re-exports what its subpackages
+    # re-export.
+    exports = {}
+
+    def lookup(module, name):
+        return (symbol_by_module_name.get((module, name)) or exports.get((module, name)) or
+                symbol_by_module_name.get((module + "." + name, "__module__")))
+
+    imported = []
+    for path, tree in tree_by_path.items():
+        module = module_name(root, path)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom):
+                base = import_base(module, path, node)
+                imported.extend((module, base, alias.name, alias.asname or alias.name) for alias in node.names)
+    for _ in range(16):
+        progressed = False
+        for module, base, name, local in imported:
+            if (module, local) in symbol_by_module_name or (module, local) in exports:
+                continue
+            target = lookup(base, name)
+            if target:
+                exports[(module, local)] = target
+                if module in aliases:
+                    exports.setdefault((aliases[module], local), target)
+                progressed = True
+        if not progressed:
+            break
+
     # A dynamic module can assign the same name more than once. The canonical
     # graph has one DEFINES edge per durable symbol, so retain the first
     # declaration and let later assignments remain ordinary references or
@@ -237,13 +340,10 @@ def main():
                     if target:
                         local_bindings[local] = target
             elif isinstance(node, ast.ImportFrom):
-                base = node.module or ""
-                if node.level:
-                    prefix = module.split(".")[:-node.level]
-                    base = ".".join(prefix + ([base] if base else []))
+                base = import_base(module, path, node)
                 for alias in node.names:
                     local = alias.asname or alias.name
-                    target = symbol_by_module_name.get((base, alias.name))
+                    target = lookup(base, alias.name)
                     imports.append({"file": relative, "requestedPackage": base, "requestedSymbol": alias.name,
                                     "targetId": target or "", **point(node, starts, text)})
                     if target:
@@ -283,6 +383,18 @@ def main():
                 # as used by nobody, and the answer said COMPLETE.
                 end = point(node, starts, text)["end"]
                 occurrence = span(text, end - len(node.attr), len(node.attr))
+                # The one member it can name: `module.member`, where the module
+                # is one this file imported. That is reading an import, which
+                # is what the worker does, and not inferring a type.
+                owner = local_bindings.get(node.value.id) if isinstance(node.value, ast.Name) else None
+                target = lookup(module_of_id[owner], node.attr) if owner in module_of_id else None
+                if target:
+                    parent = getattr(node, "parent", None)
+                    kind = "CALLS_DIRECT" if isinstance(parent, ast.Call) and parent.func is node else (
+                        "TYPE_USES" if is_type_position(node) else "REFERENCES")
+                    references.append({"file": relative, "sourceId": source_symbol(relative, occurrence["start"]),
+                                       "targetId": target, "kind": kind, **occurrence, "text": node.attr})
+                    continue
                 unresolved.append({"file": relative, "sourceId": source_symbol(relative, occurrence["start"]),
                                    "requestedSymbol": node.attr, "reason": "NAME_NOT_RESOLVED", **occurrence})
             elif is_quoted_annotation(node):

@@ -16,6 +16,7 @@ func TestIsReadsTheConventionsOfEveryIndexedLanguage(t *testing.T) {
 		"src/main/java/app/Test.java": true, "src/App/Tests.cs": true,
 		// Maven's integration tests, and the `it` that is something else.
 		"src/it/java/app/ServiceIT.java": true, "module/src/it/settings.xml": true,
+		"service/integration_test/flow.py": true, "service/integration/flow.py": false,
 		"locales/it/messages.go": false, "src/item/it.go": false, "it/src/main.go": false,
 		"lib/models_test.dart": true, "test/models.dart": true,
 		"tests/integration.rs": true, "src/__tests__/x.ts": true, "src/contest.ts": false,

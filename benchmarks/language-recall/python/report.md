@@ -18,8 +18,8 @@ Intervals are 95 % percentile intervals from resampling declarations.
 
 |language|configuration|declarations measured|with dependents|file recall|file precision|fully recalled|
 |---|---|---|---|---|---|---|
-|python|default|100|71|43.7 % (36.4 to 52.5)|86.2 % (77.0 to 93.1)|39.4 % (28.9 to 51.1)|
-|python|python.tests_excluded|100|71|43.7 % (36.4 to 52.5)|86.2 % (77.0 to 93.1)|39.4 % (28.9 to 51.1)|
+|python|default|100|71|82.9 % (74.0 to 89.5)|85.6 % (70.8 to 96.1)|67.6 % (56.1 to 77.3)|
+|python|python.tests_excluded|100|71|58.2 % (51.4 to 67.1)|88.5 % (80.6 to 94.8)|50.7 % (39.3 to 62.0)|
 |python|python.exact|100|83|100.0 % (100.0 to 100.0)|95.9 % (92.2 to 98.6)|100.0 % (95.6 to 100.0)|
 |python|python.exact.tests_excluded|100|83|66.7 % (59.4 to 75.5)|95.4 % (90.6 to 99.2)|63.9 % (53.1 to 73.4)|
 
@@ -28,38 +28,38 @@ Intervals are 95 % percentile intervals from resampling declarations.
 ## python (default)
 
 - Declarations listed 638, eligible for the rename 621, measured 100 (oracle failed on 0, Kivgraph refused 0).
-- Recall on non-test files: 64.5 % (54.6 to 72.8). On test files: 0.0 % (0.0 to 0.0).
+- Recall on non-test files: 86.0 % (77.2 to 92.5). On test files: 76.5 % (58.3 to 87.5).
 - Declarations with no dependents for which Kivgraph still reports a file: 10 of 29.
-- Completeness verdicts: COMPLETE 43, LOWER_BOUND 57.
-- Answers that said `COMPLETE` and missed at least one non-test file: 1 of 43.
+- Completeness verdicts: COMPLETE 60, LOWER_BOUND 40.
+- Answers that said `COMPLETE` and missed at least one non-test file: 1 of 60.
 - Not sampled: kind not sampled: 16; name not found in declaring position: 1.
 
 |kind|declarations with dependents|file recall|
 |---|---|---|
-|class|23|43.0 % (33.9 to 55.7)|
-|function|25|50.0 % (33.3 to 68.8)|
+|class|23|93.7 % (87.3 to 98.4)|
+|function|25|84.1 % (73.3 to 93.3)|
 |method|10|0.0 % (0.0 to 0.0)|
-|variable|13|61.9 % (46.4 to 86.7)|
+|variable|13|95.2 % (84.6 to 100.0)|
 
-Declarations with a missed file (first 15 of 43):
+Declarations with a missed file (first 15 of 23):
 
 |declaration|kind|missed|verdict|
 |---|---|---|---|
-|`MissingParameter` (src/click/exceptions.py:136)|class|src/click/__init__.py, tests/test_arguments.py, tests/test_options.py|LOWER_BOUND|
 |`decorator` (src/click/decorators.py:75)|function|src/click/decorators.py|LOWER_BOUND|
-|`unstyle` (src/click/termui.py:591)|function|src/click/__init__.py, tests/test_utils.py|LOWER_BOUND|
+|`unstyle` (src/click/termui.py:591)|function|tests/test_utils.py|LOWER_BOUND|
 |`takes_value` (src/click/parser.py:196)|method|src/click/parser.py|LOWER_BOUND|
 |`_available_shells` (src/click/shell_completion.py:407)|variable|tests/test_shell_completion.py|LOWER_BOUND|
 |`format_usage` (src/click/core.py:1269)|method|src/click/core.py|LOWER_BOUND|
-|`NoSuchOption` (src/click/exceptions.py:205)|class|src/click/__init__.py|LOWER_BOUND|
 |`call_on_close` (src/click/core.py:587)|method|src/click/types.py, tests/test_context.py|LOWER_BOUND|
 |`get_short_help_str` (src/click/core.py:1337)|method|src/click/core.py|LOWER_BOUND|
-|`Abort` (src/click/exceptions.py:282)|class|src/click/__init__.py, tests/test_utils.py|LOWER_BOUND|
+|`Abort` (src/click/exceptions.py:282)|class|tests/test_utils.py|LOWER_BOUND|
 |`visible_input` (src/click/testing.py:279)|function|src/click/testing.py|LOWER_BOUND|
-|`visible_prompt_func` (src/click/termui.py:26)|variable|src/click/testing.py|LOWER_BOUND|
-|`split_arg_string` (src/click/parser.py:127)|function|tests/test_parser.py|LOWER_BOUND|
 |`shell_complete` (src/click/core.py:965)|method|src/click/core.py, src/click/shell_completion.py|LOWER_BOUND|
 |`KeepOpenFile` (src/click/utils.py:194)|class|tests/test_utils.py|LOWER_BOUND|
+|`secho` (src/click/termui.py:603)|function|tests/test_termui.py|LOWER_BOUND|
+|`_get_windows_console_stream` (src/click/_compat.py:561)|function|src/click/_compat.py|COMPLETE|
+|`abort` (src/click/core.py:693)|method|src/click/decorators.py|LOWER_BOUND|
+|`FuncParamType` (src/click/types.py:165)|class|tests/test_info_dict.py|LOWER_BOUND|
 
 Declarations with a reported file the compiler did not flag (first 15 of 11). These are unaudited: a use the compiler does not reject, such as one in a comment, is not a false positive.
 
@@ -68,7 +68,7 @@ Declarations with a reported file the compiler did not flag (first 15 of 11). Th
 |`STDOUT_HANDLE` (src/click/_winconsole.py:50)|variable|src/click/_winconsole.py|
 |`GetConsoleMode` (src/click/_winconsole.py:41)|variable|src/click/_winconsole.py|
 |`WriteConsoleW` (src/click/_winconsole.py:40)|variable|src/click/_winconsole.py|
-|`group` (src/click/decorators.py:254)|function|src/click/core.py|
+|`group` (src/click/decorators.py:254)|function|src/click/__init__.py, src/click/core.py, tests/test_arguments.py, tests/test_basic.py, tests/test_chain.py, tests/test_commands.py, tests/test_context.py, tests/test_defaults.py, tests/test_formatting.py, tests/test_normalization.py, tests/test_options.py, tests/typing/typing_group_kw_options.py|
 |`GetStdHandle` (src/click/_winconsole.py:38)|variable|src/click/_winconsole.py|
 |`c_ssize_p` (src/click/_winconsole.py:35)|variable|src/click/_winconsole.py|
 |`ERROR_OPERATION_ABORTED` (src/click/_winconsole.py:58)|variable|src/click/_winconsole.py|
@@ -80,38 +80,38 @@ Declarations with a reported file the compiler did not flag (first 15 of 11). Th
 ## python (python.tests_excluded)
 
 - Declarations listed 638, eligible for the rename 621, measured 100 (oracle failed on 0, Kivgraph refused 0).
-- Recall on non-test files: 64.5 % (54.6 to 72.8). On test files: 0.0 % (0.0 to 0.0).
+- Recall on non-test files: 86.0 % (77.2 to 92.5). On test files: 0.0 % (0.0 to 0.0).
 - Declarations with no dependents for which Kivgraph still reports a file: 10 of 29.
-- Completeness verdicts: COMPLETE 49, LOWER_BOUND 51.
-- Answers that said `COMPLETE` and missed at least one non-test file: 1 of 49.
+- Completeness verdicts: COMPLETE 71, LOWER_BOUND 29.
+- Answers that said `COMPLETE` and missed at least one non-test file: 1 of 71.
 - Not sampled: kind not sampled: 16; name not found in declaring position: 1.
 
 |kind|declarations with dependents|file recall|
 |---|---|---|
-|class|23|43.0 % (33.9 to 55.7)|
-|function|25|50.0 % (33.3 to 68.8)|
+|class|23|57.0 % (50.0 to 69.5)|
+|function|25|68.2 % (53.7 to 82.6)|
 |method|10|0.0 % (0.0 to 0.0)|
-|variable|13|61.9 % (46.4 to 86.7)|
+|variable|13|81.0 % (67.9 to 100.0)|
 
-Declarations with a missed file (first 15 of 43):
+Declarations with a missed file (first 15 of 35):
 
 |declaration|kind|missed|verdict|
 |---|---|---|---|
-|`MissingParameter` (src/click/exceptions.py:136)|class|src/click/__init__.py, tests/test_arguments.py, tests/test_options.py|LOWER_BOUND|
+|`MissingParameter` (src/click/exceptions.py:136)|class|tests/test_arguments.py, tests/test_options.py|COMPLETE|
 |`decorator` (src/click/decorators.py:75)|function|src/click/decorators.py|LOWER_BOUND|
-|`unstyle` (src/click/termui.py:591)|function|src/click/__init__.py, tests/test_utils.py|LOWER_BOUND|
+|`unstyle` (src/click/termui.py:591)|function|tests/test_utils.py|COMPLETE|
 |`takes_value` (src/click/parser.py:196)|method|src/click/parser.py|LOWER_BOUND|
 |`_available_shells` (src/click/shell_completion.py:407)|variable|tests/test_shell_completion.py|COMPLETE|
 |`format_usage` (src/click/core.py:1269)|method|src/click/core.py|LOWER_BOUND|
-|`NoSuchOption` (src/click/exceptions.py:205)|class|src/click/__init__.py|LOWER_BOUND|
 |`call_on_close` (src/click/core.py:587)|method|src/click/types.py, tests/test_context.py|LOWER_BOUND|
 |`get_short_help_str` (src/click/core.py:1337)|method|src/click/core.py|LOWER_BOUND|
-|`Abort` (src/click/exceptions.py:282)|class|src/click/__init__.py, tests/test_utils.py|LOWER_BOUND|
+|`Abort` (src/click/exceptions.py:282)|class|tests/test_utils.py|COMPLETE|
 |`visible_input` (src/click/testing.py:279)|function|src/click/testing.py|LOWER_BOUND|
-|`visible_prompt_func` (src/click/termui.py:26)|variable|src/click/testing.py|LOWER_BOUND|
 |`split_arg_string` (src/click/parser.py:127)|function|tests/test_parser.py|COMPLETE|
 |`shell_complete` (src/click/core.py:965)|method|src/click/core.py, src/click/shell_completion.py|LOWER_BOUND|
 |`KeepOpenFile` (src/click/utils.py:194)|class|tests/test_utils.py|COMPLETE|
+|`secho` (src/click/termui.py:603)|function|tests/test_termui.py, tests/test_testing.py|COMPLETE|
+|`STRING` (src/click/types.py:1078)|variable|tests/test_info_dict.py, tests/test_options.py|COMPLETE|
 
 Declarations with a reported file the compiler did not flag (first 15 of 11). These are unaudited: a use the compiler does not reject, such as one in a comment, is not a false positive.
 
@@ -120,7 +120,7 @@ Declarations with a reported file the compiler did not flag (first 15 of 11). Th
 |`STDOUT_HANDLE` (src/click/_winconsole.py:50)|variable|src/click/_winconsole.py|
 |`GetConsoleMode` (src/click/_winconsole.py:41)|variable|src/click/_winconsole.py|
 |`WriteConsoleW` (src/click/_winconsole.py:40)|variable|src/click/_winconsole.py|
-|`group` (src/click/decorators.py:254)|function|src/click/core.py|
+|`group` (src/click/decorators.py:254)|function|src/click/__init__.py, src/click/core.py|
 |`GetStdHandle` (src/click/_winconsole.py:38)|variable|src/click/_winconsole.py|
 |`c_ssize_p` (src/click/_winconsole.py:35)|variable|src/click/_winconsole.py|
 |`ERROR_OPERATION_ABORTED` (src/click/_winconsole.py:58)|variable|src/click/_winconsole.py|
@@ -134,8 +134,8 @@ Declarations with a reported file the compiler did not flag (first 15 of 11). Th
 - Declarations listed 852, eligible for the rename 832, measured 100 (oracle failed on 0, Kivgraph refused 0).
 - Recall on non-test files: 100.0 % (100.0 to 100.0). On test files: 100.0 % (100.0 to 100.0).
 - Declarations with no dependents for which Kivgraph still reports a file: 4 of 17.
-- Completeness verdicts: COMPLETE 87, LOWER_BOUND 13.
-- Answers that said `COMPLETE` and missed at least one non-test file: 0 of 87.
+- Completeness verdicts: COMPLETE 86, LOWER_BOUND 14.
+- Answers that said `COMPLETE` and missed at least one non-test file: 0 of 86.
 - Not sampled: kind not sampled: 16; name not found in declaring position: 4.
 
 |kind|declarations with dependents|file recall|

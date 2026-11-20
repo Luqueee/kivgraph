@@ -124,10 +124,10 @@ reference. Accepting another word would promise behaviour no code implements.
 | --- | --- | --- |
 | `indexer_command` | `kivgraph-python-worker` | Must not be empty. |
 | `analyzer_command` | `kivgraph-python-pyright` | Must not be empty. An optional type-aware producer that must emit the versioned semantic payload Kivgraph understands. |
-| `analyzer_mode` | `fallback` | `fallback` or `exact`. In `fallback` the bundled AST worker reads names and does not resolve members: a use through `object.member` is recorded as unresolved, so an answer about that member says `LOWER_BOUND`. `exact` asks Pyright and resolves them. |
+| `analyzer_mode` | `fallback` | `fallback` or `exact`. In `fallback` the bundled AST worker reads names and imports: it resolves `module.member` and what a package re-exports, and records a use through `object.member` as unresolved, so an answer about that member says `LOWER_BOUND`. `exact` asks Pyright and resolves them. |
 | `maximum_workers` | `3` | Must be positive. |
 | `python_path` | `python3` | Must not be empty. |
-| `include_tests` | `true` | Whether the Python tests are indexed: files under a `test`, `tests` or `integration_test` directory. A `config.yaml` written by an earlier `init` spells the key out as `false` and keeps it until edited. |
+| `include_tests` | `true` | Whether the Python tests are indexed: `test_*.py`, `*_test.py`, `conftest.py` and files under a `test`, `tests` or `integration_test` directory, the same rule `exclude_tests` applies. A `config.yaml` written by an earlier `init` spells the key out as `false` and keeps it until edited. |
 | `include_generated` | `false` | |
 | `include_external_packages` | `false` | |
 

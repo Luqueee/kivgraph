@@ -29,7 +29,8 @@ func Is(filePath string) bool {
 	directory := path.Dir(normalized)
 	for _, component := range strings.Split(directory, "/") {
 		switch component {
-		case "test", "tests", "__tests__", "spec", "specs":
+		// The last is the one the Python workers had as a rule of their own.
+		case "test", "tests", "__tests__", "spec", "specs", "integration_test":
 			return true
 		}
 	}

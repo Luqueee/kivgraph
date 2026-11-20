@@ -314,6 +314,31 @@ def is_type_position(node):
     return False
 
 
+# is_test_path is internal/testpath.Is, the one rule that says a path is a test
+# file. It is written twice because this worker has to decide what to read
+# before the graph exists, and a test in internal/pythonloader holds the two to
+# the same answer over a corpus of paths. With a rule of its own the worker
+# left `test_models.py` in the graph as production code while `exclude_tests`
+# filtered it as a test.
+TEST_DIRECTORIES = {"test", "tests", "__tests__", "spec", "specs", "integration_test"}
+
+
+def is_test_path(relative):
+    normalized = relative.lower()
+    directory, _, base = normalized.rpartition("/")
+    if (base.endswith(("_test.go", "_test.py", "_test.dart")) or
+            (base.startswith("test_") and base.endswith(".py")) or base == "conftest.py" or
+            ".test." in base or ".spec." in base):
+        return True
+    original = relative.rpartition("/")[2]
+    stem, dot, extension = original.rpartition(".")
+    if dot and extension in {"java", "cs"} and stem.endswith(("Test", "Tests")):
+        return True
+    if any(component in TEST_DIRECTORIES for component in directory.split("/")):
+        return True
+    return "/src/it/" in "/" + directory + "/"
+
+
 def symbol_kind(value):
     # LSP SymbolKind values are fixed by the protocol. Keeping this mapping
     # here makes symbol IDs stable across Pyright and BasedPyright.
@@ -341,7 +366,7 @@ def main():
         relative_parts = path.relative_to(root).parts
         if any(part in {".git", ".venv", "venv", "__pycache__", ".tox"} for part in relative_parts):
             continue
-        if not args.include_tests and any(part in {"tests", "test", "integration_test"} for part in relative_parts):
+        if not args.include_tests and is_test_path("/".join(relative_parts)):
             continue
         if not args.include_generated and any(part in {"build", "dist"} or part.endswith(("_generated.py", ".generated.py")) for part in relative_parts):
             continue
