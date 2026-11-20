@@ -317,3 +317,48 @@ def run(callback: Callable[[], int]) -> Callable[[], int]:
 		}
 	}
 }
+
+// `import x` and `from x import y` are two node types and only the second has a
+// module. The adapter read it off both, so the first plain import in a
+// repository ended the pass with a traceback -- and no fixture had one.
+func TestRunExactPyrightReadsAPlainImport(t *testing.T) {
+	analyzer := os.Getenv("KIVGRAPH_PYRIGHT_LANGSERVER")
+	if analyzer == "" {
+		analyzer, _ = exec.LookPath("pyright-langserver")
+	}
+	if analyzer == "" {
+		t.Skip("set KIVGRAPH_PYRIGHT_LANGSERVER or install pyright-langserver")
+	}
+	root := t.TempDir()
+	for name, content := range map[string]string{
+		"helpers.py": "def helper():\n    return 1\n",
+		"main.py":    "import helpers\nimport os.path as paths\nfrom helpers import helper\n\n\ndef main():\n    return helpers.helper() + helper() + len(paths.sep)\n",
+	} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	payload, err := RunWithOptions(context.Background(), Options{
+		AnalyzerCommand: "kivgraph-python-pyright --analyzer " + analyzer,
+		AnalyzerMode:    "exact",
+		PythonPath:      "python3",
+	}, workspace.Repository{Name: "plain-import", Path: root, RealPath: root}, filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	requested := map[string]string{}
+	for _, importFact := range payload.Imports {
+		if importFact.File == "main.py" {
+			requested[importFact.RequestedSymbol] = importFact.RequestedPackage
+		}
+	}
+	want := map[string]string{"helpers": "helpers", "os.path": "os.path", "helper": "helpers"}
+	for symbol, pkg := range want {
+		if requested[symbol] != pkg {
+			t.Errorf("import of %q asks package %q, want %q (all: %v)", symbol, requested[symbol], pkg, requested)
+		}
+	}
+	if len(requested) != len(want) {
+		t.Errorf("imports of main.py = %v, want exactly %v", requested, want)
+	}
+}

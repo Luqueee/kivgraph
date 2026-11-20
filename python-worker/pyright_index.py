@@ -425,7 +425,8 @@ def main():
 
             for node in ast.walk(tree):
                 if isinstance(node, (ast.Import, ast.ImportFrom)):
-                    package = node.module or ""
+                    # Only `from x import y` names a module; `import x` has none.
+                    package = getattr(node, "module", None) or ""
                     for alias in node.names:
                         target_id, _ = definition_target(import_name_offset(alias))
                         imports.append({"file": relative, "sourceId": module_id,
