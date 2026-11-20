@@ -3,8 +3,8 @@
 How many of the files that depend on a declaration does `find_references` report? The ground truth is the language's own type checker: rename the declaration, type-check again, and the files that gain an error are the files that use it.
 
 - Command: `go run ./benchmarks/language-recall -kivgraph <binary> -repo-root .`
-- Date: 2026-11-19, seed 1, up to 100 declarations per language
-- Kivgraph `0.10.0` on darwin/arm64, go1.26.11, Version 6.0.3, node v25.9.0, rustc 1.99.1 (58cf8f9c3 2026-10-13) (Homebrew)
+- Date: 2026-11-20, seed 1, up to 100 declarations per language
+- Kivgraph `0.10.0` on darwin/arm64, go1.26.11, Version 6.0.3, node v25.9.0, rustc 1.100.0 (0ef1bc386 2026-11-09) (Homebrew)
 
 ## Corpus
 
@@ -20,7 +20,7 @@ Intervals are 95 % percentile intervals from resampling declarations.
 
 |language|configuration|declarations measured|with dependents|file recall|file precision|fully recalled|
 |---|---|---|---|---|---|---|
-|typescript|default|100|86|97.8 % (95.1 to 99.6)|70.3 % (55.5 to 82.8)|95.3 % (88.6 to 98.2)|
+|typescript|default|100|86|98.7 % (96.0 to 100.0)|70.3 % (55.6 to 82.5)|97.7 % (91.9 to 99.4)|
 |rust|default|100|87|100.0 % (100.0 to 100.0)|81.1 % (68.1 to 93.3)|100.0 % (95.8 to 100.0)|
 |dart|default|100|88|100.0 % (100.0 to 100.0)|91.3 % (78.5 to 100.0)|100.0 % (95.8 to 100.0)|
 |dart|dart.tests_excluded|100|88|65.1 % (55.8 to 76.2)|95.1 % (86.9 to 100.0)|70.5 % (60.2 to 79.0)|
@@ -30,8 +30,8 @@ Intervals are 95 % percentile intervals from resampling declarations.
 ## typescript (default)
 
 - Declarations listed 3251, eligible for the rename 1084, measured 100 (oracle failed on 0, Kivgraph refused 0).
-- Recall on non-test files: 98.1 % (95.1 to 100.0). On test files: 97.4 % (93.9 to 100.0).
-- Recall on ES private names (`#x`): 100.0 % (100.0 to 100.0) over 4 declarations. On every other declaration: 97.7 % (95.0 to 99.6).
+- Recall on non-test files: 98.1 % (95.1 to 100.0). On test files: 99.1 % (96.5 to 100.0).
+- Recall on ES private names (`#x`): 100.0 % (100.0 to 100.0) over 4 declarations. On every other declaration: 98.6 % (96.1 to 100.0).
 - Declarations with no dependents for which Kivgraph still reports a file: 9 of 14.
 - Completeness verdicts: LOWER_BOUND 100.
 - Answers that said `COMPLETE` and missed at least one non-test file: 0 of 0.
@@ -43,20 +43,18 @@ Intervals are 95 % percentile intervals from resampling declarations.
 |function|13|100.0 % (100.0 to 100.0)|
 |interface|1|100.0 % (100.0 to 100.0)|
 |method|10|72.7 % (41.7 to 100.0)|
-|property|15|97.1 % (93.7 to 100.0)|
+|property|15|100.0 % (100.0 to 100.0)|
 |type|16|100.0 % (100.0 to 100.0)|
 |variable|16|100.0 % (100.0 to 100.0)|
 
-Declarations with a missed file (first 15 of 4):
+Declarations with a missed file (first 15 of 2):
 
 |declaration|kind|missed|verdict|
 |---|---|---|---|
-|`beforeRedirect` (source/core/options.ts:339)|property|test/types/extend.ts|LOWER_BOUND|
 |`dnsCache` (source/core/options.ts:2438)|method|source/core/options.ts, test/create.ts|LOWER_BOUND|
-|`rejectUnauthorized` (source/core/options.ts:691)|property|test/dns-cache-integration.ts|LOWER_BOUND|
 |`maxHeaderSize` (source/core/options.ts:3456)|method|source/core/options.ts|LOWER_BOUND|
 
-Declarations with a reported file the compiler did not flag (first 15 of 40). These are unaudited: a use the compiler does not reject, such as one in a comment, is not a false positive.
+Declarations with a reported file the compiler did not flag (first 15 of 41). These are unaudited: a use the compiler does not reject, such as one in a comment, is not a false positive.
 
 |declaration|kind|extra|
 |---|---|---|

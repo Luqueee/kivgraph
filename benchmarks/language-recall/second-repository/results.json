@@ -1,7 +1,7 @@
 {
   "benchmark": "language-recall",
   "command": "go run ./benchmarks/language-recall -kivgraph \u003cbinary\u003e -repo-root .",
-  "date": "2026-11-19",
+  "date": "2026-11-20",
   "seed": 1,
   "declarations_per_language": 100,
   "environment": {
@@ -11,7 +11,7 @@
     "kivgraph": "0.10.0",
     "node": "v25.9.0",
     "typescript": "Version 6.0.3",
-    "rust": "rustc 1.99.1 (58cf8f9c3 2026-10-13) (Homebrew)"
+    "rust": "rustc 1.100.0 (0ef1bc386 2026-11-09) (Homebrew)"
   },
   "corpus": [
     {
@@ -49,10 +49,10 @@
       "oracle_failures": 0,
       "kivgraph_failures": 0,
       "file_recall": {
-        "value": 0.9775784753363229,
-        "low": 0.9505494505494505,
-        "high": 0.9959677419354839,
-        "numerator": 218,
+        "value": 0.9865470852017937,
+        "low": 0.96,
+        "high": 1,
+        "numerator": 220,
         "denominator": 223,
         "symbols": 86
       },
@@ -65,10 +65,10 @@
         "symbols": 86
       },
       "file_recall_test": {
-        "value": 0.9739130434782609,
-        "low": 0.9393939393939394,
+        "value": 0.991304347826087,
+        "low": 0.9649122807017544,
         "high": 1,
-        "numerator": 112,
+        "numerator": 114,
         "denominator": 115,
         "symbols": 20
       },
@@ -81,26 +81,26 @@
         "symbols": 4
       },
       "file_recall_without_private_names": {
-        "value": 0.9771689497716894,
-        "low": 0.9497716894977168,
-        "high": 0.9958677685950413,
-        "numerator": 214,
+        "value": 0.9863013698630136,
+        "low": 0.961352657004831,
+        "high": 1,
+        "numerator": 216,
         "denominator": 219,
         "symbols": 82
       },
       "file_precision": {
-        "value": 0.7032258064516129,
-        "low": 0.5551470588235294,
-        "high": 0.8278688524590164,
-        "numerator": 218,
-        "denominator": 310,
+        "value": 0.7028753993610224,
+        "low": 0.5563636363636364,
+        "high": 0.824773413897281,
+        "numerator": 220,
+        "denominator": 313,
         "symbols": 93
       },
       "symbols_fully_recalled": {
-        "value": 0.9534883720930233,
-        "low": 0.8864300211505846,
-        "high": 0.9817660318883398,
-        "numerator": 82,
+        "value": 0.9767441860465116,
+        "low": 0.9191198537004109,
+        "high": 0.9935990738533299,
+        "numerator": 84,
         "denominator": 86,
         "symbols": 86
       },
@@ -169,10 +169,10 @@
           "kind": "property",
           "symbols_with_dependents": 15,
           "file_recall": {
-            "value": 0.9705882352941176,
-            "low": 0.9365079365079365,
+            "value": 1,
+            "low": 1,
             "high": 1,
-            "numerator": 66,
+            "numerator": 68,
             "denominator": 68,
             "symbols": 15
           }
@@ -964,9 +964,7 @@
             "test/redirects.ts",
             "test/request-timeout.ts",
             "test/retry.ts",
-            "test/timeout.ts"
-          ],
-          "missed_files": [
+            "test/timeout.ts",
             "test/types/extend.ts"
           ],
           "verdict": "LOWER_BOUND"
@@ -1388,6 +1386,8 @@
             "source/core/options.ts",
             "test/agent.ts",
             "test/diagnostics-channel.ts",
+            "test/dns-cache-integration.ts",
+            "test/helpers/with-server.ts",
             "test/https.ts",
             "test/merge-instances.ts",
             "test/normalize-arguments.ts",
@@ -1396,8 +1396,8 @@
             "test/timeout.ts",
             "test/timings.ts"
           ],
-          "missed_files": [
-            "test/dns-cache-integration.ts"
+          "extra_files": [
+            "test/helpers/with-server.ts"
           ],
           "verdict": "LOWER_BOUND"
         },
@@ -7464,5 +7464,5 @@
     "`rustc` stops after name resolution when that fails, so an error that needs type inference can be hidden behind an unresolved name elsewhere. The same holds across a workspace: a crate that fails to compile hides every crate and target that depends on it, so on a multi-crate workspace the truth is a lower bound and the precision is too (on `ripgrep`, 25 of 33 extra files are in other crates and 8 in targets of the declaring crate). The Rust truth cannot contain a file that does not use the name.",
     "Renaming a Dart class breaks its constructors' own declarations (a constructor is written with the class's name), and an `implements` clause is an implementation relation: those errors are left out of the truth. The Dart dependencies are resolved with `dart pub get`, and the repository ships no lockfile."
   ],
-  "wall_seconds": 1020.402108584
+  "wall_seconds": 693.142133583
 }
