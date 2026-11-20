@@ -525,7 +525,7 @@ java:
   indexer_command: scip-java
   build_tool: ""
   maximum_workers: 1
-  include_tests: false
+  include_tests: true
   include_generated: false
   target_directory: ~/.local/state/kivgraph/java-target
   maximum_index_time: 20m
@@ -533,7 +533,7 @@ csharp:
   indexer_command: scip-dotnet
   project: ""
   maximum_workers: 1
-  include_tests: false
+  include_tests: true
   include_generated: false
   skip_restore: false
   target_directory: ~/.local/state/kivgraph/csharp-target

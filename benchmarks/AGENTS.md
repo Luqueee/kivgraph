@@ -48,8 +48,8 @@ declarado en la raíz.
   TypeScript, Rust y Dart (`second-repository/`) -- que no entran en la
   ejecución por defecto. Java y C# (`jsoup`, `GuardClauses`) solo se miden con
   `-languages java,csharp`, porque sus indexadores no forman parte de una
-  instalación por defecto, y su segundo brazo es `tests_included`: no leen
-  sus tests por defecto. Sus resultados viven en `java-csharp/`. Un resultado
+  instalación por defecto; leen sus tests por defecto (ADR 0142) y su segundo
+  brazo es `tests_excluded`, como en Go y Dart. Sus resultados viven en `java-csharp/`. Un resultado
   sin la lista de lo que no se pudo muestrear no se publica.
 - `benchmarks/edit-frequency` no mide una reconstrucción contra otra: mide qué
   le cuesta el grafo a **un agente que edita**, que es la carga por la que la

@@ -31,7 +31,7 @@ func indexEnvironment(home string) []string {
 
 // index registers the corpus and builds the graph with the real binary. It runs
 // from a Kivgraph checkout because the TypeScript worker is started from there.
-func index(ctx context.Context, binary, root, home string, repositories []corpusRepository, excludeTests, includeTests string) error {
+func index(ctx context.Context, binary, root, home string, repositories []corpusRepository, excludeTests string) error {
 	var languages []string
 	seen := map[string]bool{}
 	arguments := []string{"init"}
@@ -50,12 +50,7 @@ func index(ctx context.Context, binary, root, home string, repositories []corpus
 			}
 		}
 		if step[0] == "index" && excludeTests != "" {
-			if err := setTests(home, excludeTests, false); err != nil {
-				return err
-			}
-		}
-		if step[0] == "index" && includeTests != "" {
-			if err := setTests(home, includeTests, true); err != nil {
+			if err := disableTests(home, excludeTests); err != nil {
 				return err
 			}
 		}
@@ -83,11 +78,11 @@ func registerLanguages(home string, repositories []corpusRepository) error {
 	return os.WriteFile(filepath.Join(home, ".config", "kivgraph", "repositories.yaml"), []byte(registry.String()), 0o644)
 }
 
-// setTests sets `<section>.include_tests` in the configuration `init` wrote to
-// the value its default is not, which is the arm that shows what reading the
-// tests buys. The key is the first `include_tests` after the section, and it
-// must hold the opposite value: that is checked rather than assumed.
-func setTests(home, section string, include bool) error {
+// disableTests sets `<section>.include_tests: false` in the configuration `init`
+// wrote. Every language measured here reads its tests by default, so this is the
+// arm that shows what reading them buys. The key is the first `include_tests`
+// after the section, which the check below confirms rather than assumes.
+func disableTests(home, section string) error {
 	path := filepath.Join(home, ".config", "kivgraph", "config.yaml")
 	content, err := os.ReadFile(path)
 	if err != nil {
@@ -97,16 +92,13 @@ func setTests(home, section string, include bool) error {
 	if start < 0 {
 		return fmt.Errorf("%s has no %s section", path, section)
 	}
-	from, to := "    include_tests: true\n", "    include_tests: false\n"
-	if include {
-		from, to = to, from
-	}
-	offset := strings.Index(string(content[start:]), from)
+	const on, off = "    include_tests: true\n", "    include_tests: false\n"
+	offset := strings.Index(string(content[start:]), on)
 	if offset < 0 {
-		return fmt.Errorf("%s does not declare %s.include_tests as %t", path, section, !include)
+		return fmt.Errorf("%s does not declare %s.include_tests as true", path, section)
 	}
 	offset += start
-	updated := string(content[:offset]) + to + string(content[offset+len(from):])
+	updated := string(content[:offset]) + off + string(content[offset+len(on):])
 	return os.WriteFile(path, []byte(updated), 0o644)
 }
 

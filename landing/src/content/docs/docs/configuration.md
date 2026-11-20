@@ -153,7 +153,7 @@ reference. Accepting another word would promise behaviour no code implements.
 | `indexer_command` | `scip-java` | Must not be empty. Java is indexed by building it: `scip-java` drives the repository's own build tool. |
 | `build_tool` | *(empty)* | Empty lets `scip-java` detect Maven, Gradle, sbt and mill on its own; name one for a repository that carries two. Accepts `maven`, `gradle`, `sbt`, `mill` or `bazel`. |
 | `maximum_workers` | `1` | Must be positive. |
-| `include_tests` | `false` | |
+| `include_tests` | `true` | Whether the Java tests are indexed, recognised by path (`src/test/`). A `config.yaml` written by an earlier `init` spells the key out as `false` and keeps it until edited. |
 | `include_generated` | `false` | |
 | `target_directory` | `~/.local/state/kivgraph/java-target` | Where the indexer writes its SemanticDB output and its index, outside every indexed repository. Must be absolute after expansion. |
 | `maximum_index_time` | `20m` | A Go duration string; must be positive. |
@@ -165,7 +165,7 @@ reference. Accepting another word would promise behaviour no code implements.
 | `indexer_command` | `scip-dotnet` | Must not be empty. C# is indexed by building it: `scip-dotnet` runs `dotnet restore` and drives Roslyn. |
 | `project` | *(empty)* | The `.sln` or `.csproj` to index. Empty discovers one, and a solution wins over a project. |
 | `maximum_workers` | `1` | Must be positive. |
-| `include_tests` | `false` | |
+| `include_tests` | `true` | Whether the C# tests are indexed, recognised by path and file name. A `config.yaml` written by an earlier `init` spells the key out as `false` and keeps it until edited. |
 | `include_generated` | `false` | |
 | `skip_restore` | `false` | An index built without a restore loses every symbol that comes from a package. |
 | `target_directory` | `~/.local/state/kivgraph/csharp-target` | Where the indexer writes its output, outside every indexed repository. Must be absolute after expansion. |

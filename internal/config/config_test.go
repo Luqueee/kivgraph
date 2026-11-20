@@ -70,6 +70,10 @@ repositories:
 	if !loaded.Config.Go.IncludeTests {
 		t.Fatal("go.include_tests defaults to false, want true: the graph answers for the tests that use a symbol")
 	}
+	if !loaded.Config.Java.IncludeTests || !loaded.Config.CSharp.IncludeTests {
+		t.Fatalf("include_tests defaults: java=%v csharp=%v, want both true: a symbol only its tests use was answered as unused",
+			loaded.Config.Java.IncludeTests, loaded.Config.CSharp.IncludeTests)
+	}
 	if loaded.Config.Indexing.GeneratedFiles != "include" || loaded.Config.Indexing.UnresolvedReferences != "retain" {
 		t.Fatalf("core defaults = storage=%#v indexing=%#v", loaded.Config.Storage, loaded.Config.Indexing)
 	}
@@ -142,14 +146,15 @@ func TestLoadKeepsAnExplicitIncludeTestsFalse(t *testing.T) {
 	root := testsupport.TempDir(t)
 	configPath := filepath.Join(root, "config.yaml")
 	repositoriesPath := filepath.Join(root, "repositories.yaml")
-	writeConfigFixture(t, configPath, "version: 1\nworkspace:\n  repositories_file: "+repositoriesPath+"\ngo:\n  include_tests: false\ndart:\n  include_tests: false\n")
+	writeConfigFixture(t, configPath, "version: 1\nworkspace:\n  repositories_file: "+repositoriesPath+"\ngo:\n  include_tests: false\ndart:\n  include_tests: false\njava:\n  include_tests: false\ncsharp:\n  include_tests: false\n")
 	writeConfigFixture(t, repositoriesPath, "version: 1\nrepositories: []\n")
 	loaded, err := Load(configPath)
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
-	if loaded.Config.Go.IncludeTests || loaded.Config.Dart.IncludeTests {
-		t.Fatalf("explicit include_tests: false was overridden: go=%v dart=%v", loaded.Config.Go.IncludeTests, loaded.Config.Dart.IncludeTests)
+	if loaded.Config.Go.IncludeTests || loaded.Config.Dart.IncludeTests || loaded.Config.Java.IncludeTests || loaded.Config.CSharp.IncludeTests {
+		t.Fatalf("explicit include_tests: false was overridden: go=%v dart=%v java=%v csharp=%v",
+			loaded.Config.Go.IncludeTests, loaded.Config.Dart.IncludeTests, loaded.Config.Java.IncludeTests, loaded.Config.CSharp.IncludeTests)
 	}
 }
 

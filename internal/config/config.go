@@ -640,7 +640,7 @@ func DefaultConfig() Config {
 		Java: JavaConfig{
 			IndexerCommand:   "scip-java",
 			MaximumWorkers:   1,
-			IncludeTests:     false,
+			IncludeTests:     true,
 			IncludeGenerated: false,
 			TargetDirectory:  defaultJavaTargetDir,
 			MaximumIndexTime: Duration(20 * time.Minute),
@@ -648,7 +648,7 @@ func DefaultConfig() Config {
 		CSharp: CSharpConfig{
 			IndexerCommand:   "scip-dotnet",
 			MaximumWorkers:   1,
-			IncludeTests:     false,
+			IncludeTests:     true,
 			IncludeGenerated: false,
 			SkipRestore:      false,
 			TargetDirectory:  defaultCSharpTargetDir,

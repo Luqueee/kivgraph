@@ -2461,10 +2461,16 @@ of the precision column, and `exclude_tests` on the traversal tools.
   the benchmark were fixed on the way: `javac` stopped at the file-name error
   of a renamed public class (`-XDshould-stop.ifError=FLOW`), and `init` gave
   every repository every language, which Java and C# do not tolerate.
-  Open: whether Java and C# should read their tests by default, as Go and Dart
-  do since ADR 0132; a registered repository with no project for its language
+  Open: a registered repository with no project for its language
   (C# with no solution, Java when `scip-java` writes no index) aborts the whole
   pass instead of being isolated; and the C# overloads.
+- **Java and C# read their tests by default (ADR 0142).** `jsoup` recall
+  `61.1 %` to `100 %`, every miss having been a test file; symbols `3528` to
+  `6673`, no slower to index. An explicit `false` in an existing `config.yaml`
+  is kept. C# gains `7` symbols on `GuardClauses`: its loader's rule for a test
+  (`tests/`, `*Test.cs`, `*Tests.cs`) does not match that repository's layout,
+  so its tests were already read, and it differs from the rule `exclude_tests`
+  uses. Not reconciled. Python stays as it was, unmeasured.
 - **Open after the language-recall work** (none has an owner or a date):
   - Dart: explicit extension application (`IterableExtension(this)`) and `/** */`
     doc links. Rust: methods on a receiver, names passed through a metavariable

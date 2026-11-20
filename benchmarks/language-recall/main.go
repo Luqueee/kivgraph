@@ -154,16 +154,9 @@ func run(ctx context.Context) error {
 	// them is what reading tests buys, which a single run would fold into the
 	// recall.
 	arms := []arm{{Name: "default"}}
-	for _, language := range []string{"go", "dart"} {
+	for _, language := range []string{"go", "dart", "java", "csharp"} {
 		if wanted[language] {
 			arms = append(arms, arm{Name: language + ".tests_excluded", Language: language, ExcludeTests: language})
-		}
-	}
-	// Java and C# are the other way round: they do not read their tests by
-	// default, so their second configuration is the one that does.
-	for _, language := range []string{"java", "csharp"} {
-		if wanted[language] {
-			arms = append(arms, arm{Name: language + ".tests_included", Language: language, IncludeTests: language})
 		}
 	}
 	for _, current := range arms {
@@ -172,6 +165,10 @@ func run(ctx context.Context) error {
 			if current.Language == "" || repository.Language == current.Language {
 				members = append(members, repository)
 			}
+		}
+		if len(members) == 0 {
+			// -repos named no repository of this arm's language.
+			continue
 		}
 		results, err := measureArm(ctx, binary, root, current, members, oracles, cfg)
 		if err != nil {
@@ -194,7 +191,6 @@ type arm struct {
 	Name         string
 	Language     string
 	ExcludeTests string // the config section whose include_tests is switched off
-	IncludeTests string // the config section whose include_tests is switched on
 }
 
 // measureArm indexes the corpus with a configuration, serves it, and measures
@@ -205,7 +201,7 @@ func measureArm(ctx context.Context, binary, root string, current arm, members [
 		return nil, err
 	}
 	defer os.RemoveAll(state)
-	if err := index(ctx, binary, root, state, members, current.ExcludeTests, current.IncludeTests); err != nil {
+	if err := index(ctx, binary, root, state, members, current.ExcludeTests); err != nil {
 		return nil, err
 	}
 	session, stop, err := connect(ctx, binary, state)
