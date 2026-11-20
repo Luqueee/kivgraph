@@ -91,6 +91,14 @@ from the graph driving the work.
   (T2); both help the two arms equally but dilute the find-the-files part.
 - Two smoke runs on `4eea720` that preceded the sweep are not included.
 - The earlier six-arm sweep could not be repeated: its corpus is private (H1).
+- The `kivgraph` arm's `serve` could relay to a daemon it installed itself: the
+  harness did not yet set `KIVGRAPH_SERVE_IN_PROCESS`, and the transcripts that
+  would say whether it did are not kept. Measured afterwards on this repository
+  with a current build, over a session of the three graph calls a run made most:
+  the answers are byte-identical either way, a relayed session takes `36 ms`
+  and an in-process one `123 ms` (medians), and the session that installs the
+  daemon `314 ms`. That is under `0.2 s` of the `172 s` a run took, so no
+  figure above depends on which of the two served.
 
 ## Reproduce
 
