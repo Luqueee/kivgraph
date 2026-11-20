@@ -32,6 +32,63 @@ def point(node, starts, text):
             "endLine": end_line, "endColumn": end_column, "end": end}
 
 
+# A quoted annotation is source like any other: `def f(ctx: "Context")` uses
+# Context exactly as the unquoted form does, and so does `t.cast("Context", x)`.
+# Read as a string constant it is no occurrence at all -- no edge and no
+# unresolved row -- and a declaration used only that way was answered as used by
+# nobody, with a verdict of COMPLETE.
+def is_quoted_annotation(node):
+    if not (isinstance(node, ast.Constant) and isinstance(node.value, str)):
+        return False
+    child, parent = node, getattr(node, "parent", None)
+    while isinstance(parent, (ast.Subscript, ast.Tuple, ast.List, ast.BinOp)):
+        if isinstance(parent, ast.Subscript):
+            head = parent.value
+            name = head.id if isinstance(head, ast.Name) else getattr(head, "attr", "")
+            # The strings of `Literal["a"]` are values and those of
+            # `Annotated[T, "note"]` are metadata; neither names anything.
+            if name in {"Literal", "Annotated"}:
+                return False
+        child, parent = parent, getattr(parent, "parent", None)
+    if isinstance(parent, (ast.arg, ast.AnnAssign)) and parent.annotation is child:
+        return True
+    if isinstance(parent, (ast.FunctionDef, ast.AsyncFunctionDef)) and parent.returns is child:
+        return True
+    if isinstance(parent, ast.Call) and child is node and parent.args and parent.args[0] is node:
+        callee = parent.func
+        return (callee.id if isinstance(callee, ast.Name) else getattr(callee, "attr", "")) == "cast"
+    return False
+
+
+# quoted_names yields the names a quoted annotation uses, with where each one is
+# in the file. Only a plain one-line ASCII literal is read: anything else -- a
+# prefix, an escape, a concatenation -- would put the offsets somewhere the name
+# is not, and an occurrence with the wrong evidence is worse than none.
+def quoted_names(node, text, start):
+    value = node.value
+    if not value.isascii() or "\n" in value or text[start:start + 1] not in ("'", '"'):
+        return
+    if text[start + 1:start + 1 + len(value)] != value:
+        return
+    try:
+        tree = ast.parse(value, mode="eval")
+    except SyntaxError:
+        return
+    for inner in ast.walk(tree):
+        if isinstance(inner, ast.Name):
+            yield inner.id, start + 1 + inner.col_offset, False
+        elif isinstance(inner, ast.Attribute):
+            yield inner.attr, start + 1 + inner.end_col_offset - len(inner.attr), True
+
+
+def span(text, start, length):
+    line_start = text.rfind("\n", 0, start) + 1
+    line = text.count("\n", 0, start) + 1
+    column = start - line_start
+    return {"startLine": line, "startColumn": column, "start": start,
+            "endLine": line, "endColumn": column + length, "end": start + length}
+
+
 def module_name(root, path):
     relative = pathlib.Path(path).relative_to(root).with_suffix("")
     parts = list(relative.parts)
@@ -218,6 +275,31 @@ def main():
                 else:
                     kind = "REFERENCES"
                 references.append({"file": relative, "sourceId": source_id, "targetId": target, "kind": kind, **point(node, starts, text), "text": node.id})
+            elif isinstance(node, ast.Attribute):
+                # This worker reads names, not types, so it cannot say what
+                # `ctx.scope` or `termui.prompt` is. It can say that it saw one
+                # and did not resolve it, and it has to: with no row at all, a
+                # method used through every one of its receivers was answered
+                # as used by nobody, and the answer said COMPLETE.
+                end = point(node, starts, text)["end"]
+                occurrence = span(text, end - len(node.attr), len(node.attr))
+                unresolved.append({"file": relative, "sourceId": source_symbol(relative, occurrence["start"]),
+                                   "requestedSymbol": node.attr, "reason": "NAME_NOT_RESOLVED", **occurrence})
+            elif is_quoted_annotation(node):
+                for name, offset, member in quoted_names(node, text, point(node, starts, text)["start"]):
+                    occurrence = span(text, offset, len(name))
+                    source_id = source_symbol(relative, offset)
+                    target = "" if member else local_bindings.get(name)
+                    if not target and not member:
+                        candidates = symbols_by_short.get((module, name), [])
+                        if len(candidates) == 1:
+                            target = candidates[0]["id"]
+                    if not target:
+                        unresolved.append({"file": relative, "sourceId": source_id, "requestedSymbol": name,
+                                           "reason": "NAME_NOT_RESOLVED", **occurrence})
+                        continue
+                    references.append({"file": relative, "sourceId": source_id, "targetId": target,
+                                       "kind": "TYPE_USES", **occurrence, "text": name})
 
     # Keep a source-text fallback for call expressions whose AST parent is a
     # selector or a wrapped expression.
