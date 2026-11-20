@@ -104,7 +104,10 @@ func disableTests(home, section string) error {
 
 func connect(ctx context.Context, binary, home string) (*sdkmcp.ClientSession, func(), error) {
 	process := exec.Command(binary, "serve")
-	process.Env = indexEnvironment(home)
+	// Without this `serve` installs a supervised daemon for the throwaway
+	// configuration: a launchd agent or systemd unit in the real user session,
+	// which outlives the run and restarts against a home that is gone.
+	process.Env = append(indexEnvironment(home), "KIVGRAPH_SERVE_IN_PROCESS=1")
 	transport := &sdkmcp.CommandTransport{Command: process, TerminateDuration: 5 * time.Second}
 	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: benchmarkName, Version: "1.0.0"}, nil)
 	callContext, cancel := context.WithCancel(ctx)
