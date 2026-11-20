@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/proctree"
 	"github.com/Luqueee/kivgraph/internal/scip"
 	"github.com/Luqueee/kivgraph/internal/scip/scipwire"
 	"github.com/Luqueee/kivgraph/internal/scratchtree"
@@ -125,7 +126,7 @@ func Run(ctx context.Context, options Options) (facts.SemanticPayload, error) {
 
 	process := exec.CommandContext(runContext, executable, arguments...)
 	process.Dir = tree.Path
-	combined, runErr := process.CombinedOutput()
+	combined, runErr := proctree.CombinedOutput(process)
 	if runErr != nil {
 		if runContext.Err() != nil && ctx.Err() == nil {
 			return facts.SemanticPayload{}, fmt.Errorf(

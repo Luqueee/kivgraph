@@ -92,7 +92,7 @@ func TestClosingAWorkerLeavesNoWatcher(t *testing.T) {
 	}
 	pid := worker.cmd.Process.Pid
 	watchers := func() string {
-		out, _ := exec.Command("pgrep", "-f", fmt.Sprintf(`read _; kill -9 "\$0" %d$`, pid)).Output()
+		out, _ := exec.Command("pgrep", "-f", fmt.Sprintf(`read _; kill -KILL -- "\$0" %d$`, pid)).Output()
 		return strings.TrimSpace(string(out))
 	}
 	if watchers() == "" {
