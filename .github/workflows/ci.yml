@@ -491,7 +491,7 @@ jobs:
 
       - name: Install Chromium for web end-to-end tests
         working-directory: web
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm exec playwright install --only-shell chromium
 
       - name: Test large topology in Chromium
         working-directory: web
@@ -738,7 +738,8 @@ jobs:
 
           bundle="$PWD/dist/kivgraph-linux-amd64/bin/kivgraph"
           "$bundle" init --repository kivgraph="$PWD" --languages go,typescript
-          "$bundle" doctor
+          # setup-go reads ".go: " as a compiler diagnostic even without a line number.
+          "$bundle" doctor | sed 's/^toolchain\.go: PASS/toolchain.go PASS/'
           "$bundle" index --full --json | tee "$RUNNER_TEMP/index.json" | tail -1
 
           # The graph has to be worth serving: below this the pass loaded almost
@@ -1023,6 +1024,49 @@ jobs:
       - name: Vet for windows/amd64
         run: go vet ./...
 
+  # The cross-compile above proves the Windows code builds, not that it works.
+  # Windows is a published platform whose own code -- the supervisor, the file
+  # lock, the publish lock, the private-object ACLs, the updater, the pipe to
+  # the worker -- only a Windows process can exercise. The packages are the
+  # ones that carry a `_windows.go` file; the whole suite is not run here
+  # because most of it asks nothing the Linux and macOS jobs do not already.
+  #
+  # Untagged on purpose: the LadybugDB binding has no Windows build in this
+  # job, and the packages below do not open the native store.
+  windows:
+    name: Test Windows-specific packages
+    needs: classify
+    if: needs.classify.outputs.full == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: ./.github/actions/setup-go
+        with:
+          job: ${{ github.job }}
+
+      - name: Go tests of the Windows-specific packages
+        shell: bash
+        run: |
+          go test -count=1 \
+            ./internal/daemon/... \
+            ./internal/executable/... \
+            ./internal/filelock/... \
+            ./internal/integrations/... \
+            ./internal/privateobject/... \
+            ./internal/procstat/... \
+            ./internal/storage/generation/... \
+            ./internal/supervisor/... \
+            ./internal/tsworker/... \
+            ./internal/update/... \
+            ./internal/workspace/...
+
   ci_result:
     name: CI result
     runs-on: ubuntu-latest
@@ -1042,6 +1086,7 @@ jobs:
       - darwin-bundle
       - macos
       - windows-cross
+      - windows
     steps:
       - name: Check the selected path
         shell: bash
@@ -1061,6 +1106,7 @@ jobs:
           DARWIN_BUNDLE_RESULT: ${{ needs['darwin-bundle'].result }}
           MACOS_RESULT: ${{ needs.macos.result }}
           WINDOWS_CROSS_RESULT: ${{ needs['windows-cross'].result }}
+          WINDOWS_RESULT: ${{ needs.windows.result }}
         run: |
           set -euo pipefail
           [[ "$CLASSIFY_RESULT" == success ]] ||
@@ -1090,7 +1136,8 @@ jobs:
             "$SMOKE_RESULT" \
             "$DARWIN_BUNDLE_RESULT" \
             "$MACOS_RESULT" \
-            "$WINDOWS_CROSS_RESULT"; do
+            "$WINDOWS_CROSS_RESULT" \
+            "$WINDOWS_RESULT"; do
             [[ "$result" == success ]] ||
               { echo "complete CI result: $result" >&2; exit 1; }
           done

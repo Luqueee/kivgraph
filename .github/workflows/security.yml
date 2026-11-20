@@ -1,0 +1,82 @@
+name: Security scans
+
+# The pull-request CI runs `govulncheck` only when a pull request runs, so an
+# advisory published against a dependency nobody is touching is found by the
+# next person to open one -- or not at all. This runs the same two checks on a
+# schedule, against `main`, and the run fails when there is something to read.
+#
+# Scheduled, and therefore unreliable by design: GitHub disables a scheduled
+# workflow after sixty days without repository activity. `workflow_dispatch`
+# runs it by hand.
+on:
+  schedule:
+    - cron: "41 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GOTOOLCHAIN: local
+
+concurrency:
+  group: security-scans
+  cancel-in-progress: false
+
+jobs:
+  govulncheck:
+    name: Reachable Go vulnerabilities
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: ./.github/actions/setup-go
+        with:
+          job: ${{ github.job }}
+
+      # Reachable ones, as in the pull-request CI: a vulnerability in a module
+      # the code never calls does not fail the run.
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+
+  pnpm-audit:
+    name: Audit ${{ matrix.project }} dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [ts-worker, web, landing]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with:
+          version: 11.5.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22
+
+      # The lockfile is the input: nothing is installed, so a project whose
+      # install is broken is still audited.
+      #
+      # `--ignore-unfixable` leaves out an advisory whose patched version is not
+      # published yet (picomatch GHSA-fc5q-39xc-vjpf was one when this was
+      # written): the run is a prompt to act, and there is nothing to do until
+      # a fix exists. It reports again once one does.
+      - name: pnpm audit
+        working-directory: ${{ matrix.project }}
+        run: pnpm audit --audit-level moderate --ignore-unfixable
