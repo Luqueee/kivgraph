@@ -2098,7 +2098,9 @@ func readDoctorConfiguration(configPath string) (loadedConfiguration config.Load
 	}
 	profiles := filepath.Join(filepath.Dir(loadedConfiguration.Config.Storage.DatabasePath), "profiles")
 	if _, err := os.Stat(profiles); errors.Is(err, os.ErrNotExist) {
-		return loadedConfiguration, nil, nil
+		// Not migrated yet is not a defect. Not being able to migrate is, and
+		// it is the one every other command dies of without doctor noticing.
+		return loadedConfiguration, config.InspectProfileMigration(configPath), nil
 	} else if err != nil {
 		return config.Loaded{}, nil, fmt.Errorf("inspect profiles: %w", err)
 	}
@@ -2138,7 +2140,10 @@ func runDoctor(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	doctorResult("config", true, fmt.Sprintf("schema=%d", loaded.Config.Version))
-	if profileErr != nil {
+	if errors.Is(profileErr, config.ErrProfileMigrationBackup) {
+		doctorResult("profiles", false, profileErr.Error()+
+			"; every command that needs the graph fails until that directory is moved aside or removed")
+	} else if profileErr != nil {
 		doctorResult("profiles", false, profileErr.Error())
 	}
 	// A retired key is not a defect in the store and not a reason to fail: the

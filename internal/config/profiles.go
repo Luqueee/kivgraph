@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"io/fs"
 	"net"
@@ -21,9 +22,13 @@ import (
 )
 
 var (
-	ErrProfileNotFound = errors.New("profile does not exist")
-	ErrProfileExists   = errors.New("profile already exists")
-	ErrDefaultProfile  = errors.New("default profile cannot be removed")
+	// ErrProfileMigrationBackup is a recovery point beside the state that is not
+	// a copy of it. The migration will not overwrite it and cannot proceed past
+	// it, so it stays refused until someone moves the recovery point.
+	ErrProfileMigrationBackup = errors.New("profile migration backup differs from legacy state")
+	ErrProfileNotFound        = errors.New("profile does not exist")
+	ErrProfileExists          = errors.New("profile already exists")
+	ErrDefaultProfile         = errors.New("default profile cannot be removed")
 )
 
 // Profile describes one independently indexed repository registry.
@@ -48,6 +53,13 @@ func profileAt(configuration Config, name string) Profile {
 		RepositoriesPath: filepath.Join(directory, "repositories.yaml"),
 		TopologyPath:     filepath.Join(directory, "topology.yaml"),
 	}
+}
+
+// legacyProfileArtifacts are the entries of the pre-profile layout that belong
+// to its one graph, and so the ones a migration carries into the default profile.
+var legacyProfileArtifacts = []string{
+	"generations", "CURRENT", "BACKUP", "backups", "freshness",
+	"go.work", "go.work.sum", "graph.lbdb",
 }
 
 // ensureDefaultProfile builds the initial profile beside the legacy layout and
@@ -132,10 +144,7 @@ func ensureDefaultProfile(configuration Config, repositoriesPath string) (result
 	if err := copyProfileRegistry(repositoriesPath, filepath.Join(temporaryProfile, "repositories.yaml")); err != nil {
 		return err
 	}
-	for _, name := range []string{
-		"generations", "CURRENT", "BACKUP", "backups", "freshness",
-		"go.work", "go.work.sum", "graph.lbdb",
-	} {
+	for _, name := range legacyProfileArtifacts {
 		source := filepath.Join(stateRoot, name)
 		if _, err := os.Lstat(source); errors.Is(err, os.ErrNotExist) {
 			continue
@@ -162,7 +171,7 @@ func ensureDefaultProfile(configuration Config, repositoriesPath string) (result
 			return err
 		}
 		if candidate != backup {
-			return fmt.Errorf("profile migration backup differs from legacy state: %s", backupRoot)
+			return fmt.Errorf("%w: %s", ErrProfileMigrationBackup, backupRoot)
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("inspect profile migration backup: %w", err)
@@ -331,7 +340,16 @@ func copyProfileArtifact(source, destination string) error {
 
 func profileArtifactDigest(root string) ([32]byte, error) {
 	digest := sha256.New()
-	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+	err := digestProfileTree(digest, root, ".")
+	var result [32]byte
+	copy(result[:], digest.Sum(nil))
+	return result, err
+}
+
+// digestProfileTree writes the identity and contents of everything under root,
+// named as if root were the entry `name` of the tree being digested.
+func digestProfileTree(digest hash.Hash, root, name string) error {
+	return filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -339,6 +357,7 @@ func profileArtifactDigest(root string) ([32]byte, error) {
 		if err != nil {
 			return err
 		}
+		relative = filepath.Join(name, relative)
 		info, err := entry.Info()
 		if err != nil {
 			return err
@@ -361,9 +380,89 @@ func profileArtifactDigest(root string) ([32]byte, error) {
 		_, err = io.Copy(digest, file)
 		return errors.Join(err, file.Close())
 	})
+}
+
+// legacyProfileDigest is the digest the profile a migration would build has,
+// computed from the legacy layout where it lies. A migration copies first and
+// digests the copy; this reads the same bytes in the same order and writes
+// nothing, which is what lets a diagnostic ask the question.
+func legacyProfileDigest(stateRoot, repositoriesPath string) ([32]byte, error) {
 	var result [32]byte
+	const registry = "repositories.yaml"
+	names := []string{registry}
+	for _, name := range legacyProfileArtifacts {
+		if _, err := os.Lstat(filepath.Join(stateRoot, name)); errors.Is(err, os.ErrNotExist) {
+			continue
+		} else if err != nil {
+			return result, fmt.Errorf("inspect copied profile artifact %q: %w", name, err)
+		}
+		names = append(names, name)
+	}
+	// The order a walk of the copy visits them in.
+	sort.Strings(names)
+	digest := sha256.New()
+	fmt.Fprintf(digest, "%q %d\n", ".", fs.ModeDir)
+	for _, name := range names {
+		if name != registry {
+			if err := digestProfileTree(digest, filepath.Join(stateRoot, name), name); err != nil {
+				return result, err
+			}
+			continue
+		}
+		// The copy of the registry is always a regular file, whatever the
+		// configured path is.
+		data, err := os.ReadFile(repositoriesPath)
+		if err != nil {
+			return result, fmt.Errorf("read repository registry %q: %w", repositoriesPath, err)
+		}
+		fmt.Fprintf(digest, "%q %d\n%d\n", registry, fs.FileMode(0), len(data))
+		digest.Write(data)
+	}
 	copy(result[:], digest.Sum(nil))
-	return result, err
+	return result, nil
+}
+
+// InspectProfileMigration reports the one way a migration to profiles that has
+// not happened yet stays refused on every run: a recovery point left beside the
+// state that is not a copy of it. Every command that loads a profile then fails,
+// and nothing else says why.
+//
+// It writes nothing and takes no lock, so it does not see the refusals that
+// pass on their own -- a running daemon, a writer holding a lock.
+func InspectProfileMigration(configPath string) error {
+	loaded, err := Load(configPath)
+	if err != nil {
+		return err
+	}
+	profile := profileAt(loaded.Config, loaded.Config.Profiles.Default)
+	stateRoot := filepath.Dir(loaded.Config.Storage.DatabasePath)
+	backupRoot := stateRoot + ".pre-profiles"
+	if _, err := os.Stat(profile.StateDirectory); err == nil {
+		return nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("inspect default profile %q: %w", profile.StateDirectory, err)
+	}
+	// Without legacy state the recovery point is renamed back into place, and
+	// without a recovery point there is nothing to disagree with.
+	for _, root := range []string{stateRoot, backupRoot} {
+		if _, err := os.Stat(root); errors.Is(err, os.ErrNotExist) {
+			return nil
+		} else if err != nil {
+			return fmt.Errorf("inspect profile migration state %q: %w", root, err)
+		}
+	}
+	candidate, err := legacyProfileDigest(stateRoot, loaded.RepositoriesPath)
+	if err != nil {
+		return err
+	}
+	backup, err := profileArtifactDigest(backupRoot)
+	if err != nil {
+		return err
+	}
+	if candidate != backup {
+		return fmt.Errorf("%w: %s", ErrProfileMigrationBackup, backupRoot)
+	}
+	return nil
 }
 
 // ListProfiles returns profiles in canonical name order.

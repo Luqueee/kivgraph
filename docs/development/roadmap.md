@@ -2471,6 +2471,19 @@ of the precision column, and `exclude_tests` on the traversal tools.
   (`tests/`, `*Test.cs`, `*Tests.cs`) does not match that repository's layout,
   so its tests were already read, and it differs from the rule `exclude_tests`
   uses. Not reconciled. Python stays as it was, unmeasured.
+- **Doctor sees a blocked profile migration; tests leave the real home
+  alone.** A state directory recreated beside an older `.pre-profiles`
+  recovery point made `init`, `serve` and `index` refuse while `doctor`
+  answered `PASS`. `doctor` now fails on `profiles` and names the directory to
+  move, from a read-only digest of the legacy layout that a test holds equal
+  to the digest of the migrated copy. What recreated the directory was this
+  repository's own suite: `54` tests in `internal/config` and `cmd/kivgraph`
+  initialise a configuration at a temporary path, whose synthetic Go workspace
+  lives in the user's state directory. Both packages now run under
+  `testsupport.IsolateHome`. Open: a daemon installed by `serve` under a
+  different `HOME` is started by the supervisor with the real one; orphaned
+  Dart analysis servers after some runs; the C# loader's rule for a test
+  differs from the one `exclude_tests` uses.
 - **Open after the language-recall work** (none has an owner or a date):
   - Dart: explicit extension application (`IterableExtension(this)`) and `/** */`
     doc links. Rust: methods on a receiver, names passed through a metavariable
