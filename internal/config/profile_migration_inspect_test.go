@@ -9,6 +9,28 @@ import (
 	"testing"
 )
 
+// legacyProfileFixture is an installation from before profiles: one published
+// generation directly under the state directory.
+func legacyProfileFixture(t *testing.T) (string, string) {
+	t.Helper()
+	// Unix socket addresses must fit Darwin's 104-byte limit.
+	root, err := os.MkdirTemp("", "kg-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(root) })
+	state := filepath.Join(root, "state")
+	if err := os.MkdirAll(filepath.Join(state, "generations", "000007"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(root, "config.yaml")
+	registry := filepath.Join(root, "repositories.yaml")
+	writeConfigFixture(t, path, "version: 1\nworkspace:\n  repositories_file: "+registry+"\nstorage:\n  database_path: "+filepath.Join(state, "graph.lbdb")+"\n")
+	writeConfigFixture(t, registry, "version: 1\nrepositories: []\n")
+	writeConfigFixture(t, filepath.Join(state, "CURRENT"), "000007\n")
+	return path, state
+}
+
 // stateListing names every entry under the state root and beside it, so a test
 // can show that a diagnostic wrote nothing.
 func stateListing(t *testing.T, state string) []string {

@@ -14,26 +14,6 @@ import (
 	"github.com/Luqueee/kivgraph/internal/filelock"
 )
 
-func legacyProfileFixture(t *testing.T) (string, string) {
-	t.Helper()
-	// Unix socket addresses must fit Darwin's 104-byte limit.
-	root, err := os.MkdirTemp("", "kg-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(root) })
-	state := filepath.Join(root, "state")
-	if err := os.MkdirAll(filepath.Join(state, "generations", "000007"), 0700); err != nil {
-		t.Fatal(err)
-	}
-	path := filepath.Join(root, "config.yaml")
-	registry := filepath.Join(root, "repositories.yaml")
-	writeConfigFixture(t, path, "version: 1\nworkspace:\n  repositories_file: "+registry+"\nstorage:\n  database_path: "+filepath.Join(state, "graph.lbdb")+"\n")
-	writeConfigFixture(t, registry, "version: 1\nrepositories: []\n")
-	writeConfigFixture(t, filepath.Join(state, "CURRENT"), "000007\n")
-	return path, state
-}
-
 func TestProfileUpgradePreservesRuntimeAndFreshness(t *testing.T) {
 	path, state := legacyProfileFixture(t)
 	// A real socket cannot be copied as an ordinary file. It must retain its
