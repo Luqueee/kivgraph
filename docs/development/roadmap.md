@@ -2480,10 +2480,19 @@ of the precision column, and `exclude_tests` on the traversal tools.
   repository's own suite: `54` tests in `internal/config` and `cmd/kivgraph`
   initialise a configuration at a temporary path, whose synthetic Go workspace
   lives in the user's state directory. Both packages now run under
-  `testsupport.IsolateHome`. Open: a daemon installed by `serve` under a
-  different `HOME` is started by the supervisor with the real one; orphaned
-  Dart analysis servers after some runs; the C# loader's rule for a test
-  differs from the one `exclude_tests` uses.
+  `testsupport.IsolateHome`.
+- **Three leftovers of that work, closed.** `serve` no longer installs a
+  daemon when it runs under a home that is not the account's: the supervisor
+  would start it under the account's, against another installation. A Dart
+  analysis server now dies with the process that started it; it does not exit
+  when its input closes, so one whose parent was killed stayed for good
+  (unix only: a watcher on a pipe; a declared limitation elsewhere). And one
+  rule says what a C# test is, in `internal/testpath`, for the loader and for
+  `exclude_tests` (ADR 0142, amended): `csharp.tests_excluded` on
+  `GuardClauses` goes from `47.4 %` to `14.0 %` recall, which is the arm
+  leaving the tests out at last. Open: `dotnet` children of `scip-dotnet` were
+  found running after two test sessions and the cause was not reproduced; the
+  Java loader's rule for a test is still its own.
 - **Open after the language-recall work** (none has an owner or a date):
   - Dart: explicit extension application (`IterableExtension(this)`) and `/** */`
     doc links. Rust: methods on a receiver, names passed through a metavariable

@@ -349,9 +349,11 @@ stderr, naming `kivgraph daemon remove`. It installs nothing when a unit
 already exists: a unit whose daemon is not running is a daemon you stopped, and
 starting it again would leave `kivgraph stop` unable to stop anything.
 
-Four things make it answer from its own graph instead, and none is an error:
+Five things make it answer from its own graph instead, and none is an error:
 no daemon is published, nothing answers where one says it is, a platform has no
-supervisor to install, or `KIVGRAPH_SERVE_IN_PROCESS` is set. The last is the
+supervisor to install, the process runs under a home directory that is not the
+account's (a supervisor would start the daemon under the account's, against a
+different installation), or `KIVGRAPH_SERVE_IN_PROCESS` is set. The last is the
 way out if the forwarding path misbehaves and you do not want to stop the
 daemon other clients are using.
 

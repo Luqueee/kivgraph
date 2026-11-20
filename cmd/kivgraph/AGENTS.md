@@ -272,7 +272,11 @@ superficie observable.
   predomina está defendiendo `10`-`15 MB`.
 - **Declinar no es fallar.** Sin endpoint publicado, con un endpoint que nadie
   contesta, o con `KIVGRAPH_SERVE_IN_PROCESS` puesto, `serve` contesta él mismo
-  y en esos caminos nada queda peor que antes. La variable de entorno existe
+  y en esos caminos nada queda peor que antes. Tampoco instala un demonio
+  cuando corre bajo un `HOME` que no es el de la cuenta (`foreignHome`): el
+  supervisor lo arrancaría con el de la cuenta, contra otra instalación, y la
+  unidad quedaría registrada cuando el directorio desde el que se instaló ya no
+  existe. La variable de entorno existe
   porque el relé es el defecto en un proceso que lanza un cliente sin
   supervisión: sin escape, una máquina donde el relé se porte mal no tiene
   vuelta que no pase por parar el demonio que usan los demás.
