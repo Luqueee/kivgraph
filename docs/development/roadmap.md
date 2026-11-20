@@ -2446,6 +2446,25 @@ of the precision column, and `exclude_tests` on the traversal tools.
   `2.5 GB` (`56 s`), and is still killed at `2 GB`, where what is live does not
   fit. `GOMEMLIMIT` wins; without a cgroup limit nothing is set. Measured on
   `linux/arm64` in a container, not on `linux/amd64`.
+- **Java and C#, measured for the first time (ADR 0141).** `scip-java` and
+  `scip-dotnet` were installed and the benchmark got an arm for each (`jsoup`,
+  `GuardClauses`; `benchmarks/language-recall/java-csharp/`). Three product
+  defects surfaced before a figure did, all in the shared converter: a C#
+  `partial` type aborted the whole index; every Java and C# line was one too
+  low (SCIP counts from zero); and `new T(...)` was not a use of `T`. Fixed.
+  Java with tests read: recall `100 %`, precision `96.8 %`. Java by default
+  (`java.include_tests: false`): `61.1 %`, every miss a test file. C#: `49.1 %`
+  with tests, `47.4 %` without, on `53` declarations, all methods; the cause is
+  `scip-dotnet`, which resolves an extension-method call to the first overload
+  and records nothing for a generic call with explicit type arguments, so the
+  other overloads are answered `COMPLETE` with no caller. Two oracle defects of
+  the benchmark were fixed on the way: `javac` stopped at the file-name error
+  of a renamed public class (`-XDshould-stop.ifError=FLOW`), and `init` gave
+  every repository every language, which Java and C# do not tolerate.
+  Open: whether Java and C# should read their tests by default, as Go and Dart
+  do since ADR 0132; a registered repository with no project for its language
+  (C# with no solution, Java when `scip-java` writes no index) aborts the whole
+  pass instead of being isolated; and the C# overloads.
 - **Open after the language-recall work** (none has an owner or a date):
   - Dart: explicit extension application (`IterableExtension(this)`) and `/** */`
     doc links. Rust: methods on a receiver, names passed through a metavariable
@@ -2453,9 +2472,9 @@ of the precision column, and `exclude_tests` on the traversal tools.
     a contextual union outside a generic call (the generic-call case is fixed,
     ADR 0137), and function-typed properties under the structural
     implementation rule.
-  - The benchmark measures one repository per language apart from Go; Java and
-    C# need `scip-java` and `scip-dotnet`, Python has no oracle independent of
-    Pyright, and `etcd` needs a Go `1.27` build.
+  - The benchmark measures one repository per language apart from Go, and one
+    for Java and C#; Python has no oracle independent of Pyright, and `etcd`
+    needs a Go `1.27` build.
   - Site, done: `/github` answers `302` (the earlier `404` is gone, and the
     redirect lives in the edge Worker, not in this repository). The compare link
     of a release with no tag (`v0.10.0`, `v0.10.0-dev.1`) is hidden by
