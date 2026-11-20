@@ -218,7 +218,11 @@ func run(ctx context.Context, cfg config) error {
 		out.Wiring[name] = facts
 	}
 
-	kiv, err := dial(ctx, "kivgraph", cfg.Kivgraph, []string{"serve"}, map[string]string{"HOME": cfg.Home})
+	// Without this `serve` installs a supervised daemon when none answers: a
+	// launchd agent or systemd unit in the real user session that outlives the
+	// run, and an arm that would measure a relay instead of this process.
+	kiv, err := dial(ctx, "kivgraph", cfg.Kivgraph, []string{"serve"},
+		map[string]string{"HOME": cfg.Home, "KIVGRAPH_SERVE_IN_PROCESS": "1"})
 	if err != nil {
 		return err
 	}

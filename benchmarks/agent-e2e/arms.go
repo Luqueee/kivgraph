@@ -244,7 +244,10 @@ func (a arm) run(cfg config, t task, trial int) (runResult, error) {
 
 	command := exec.Command(cfg.Agent, arguments...)
 	command.Dir = cfg.Root
-	command.Env = append(os.Environ(), "HOME="+cfg.AgentHome)
+	// The agent spawns the MCP servers, so they inherit this. Without the second
+	// variable the kivgraph arm's `serve` installs a supervised daemon in the
+	// real user session that outlives the run.
+	command.Env = append(os.Environ(), "HOME="+cfg.AgentHome, "KIVGRAPH_SERVE_IN_PROCESS=1")
 	stdout, err := command.StdoutPipe()
 	if err != nil {
 		return result, fmt.Errorf("pipe agent stdout: %w", err)

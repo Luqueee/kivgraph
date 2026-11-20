@@ -761,7 +761,10 @@ func pinAnalyzer(home, analyzer string) error {
 
 func connect(ctx context.Context, binary, home string) (*sdkmcp.ClientSession, func(), error) {
 	process := exec.Command(binary, "serve")
-	process.Env = indexEnvironment(home)
+	// Without this `serve` installs a supervised daemon when none answers: a
+	// launchd agent or systemd unit in the real user session that outlives the
+	// run, and an arm that would measure a relay instead of this process.
+	process.Env = append(indexEnvironment(home), "KIVGRAPH_SERVE_IN_PROCESS=1")
 	process.Stderr = os.NewFile(uintptr(0), os.DevNull)
 	transport := &sdkmcp.CommandTransport{Command: process, TerminateDuration: 5 * time.Second}
 	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: benchmarkName, Version: "1.0.0"}, nil)
