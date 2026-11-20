@@ -443,9 +443,9 @@ It was measured rather than argued:
 `TestReplaceBundleMovesABundleWhoseBinaryIsStillRunning` copies the test binary
 into a bundle, starts it, waits for it to report itself loaded, and calls
 `replaceBundle`. **The rename succeeds.** What fails is the removal afterwards
--- Windows keeps the executing image open -- so `removeReplacedBundle` treats
-that as the successful update it is and leaves the directory for the next
-update to clear. `replaceBundle` now clears a stale backup instead of refusing
+-- Windows keeps the executing image open -- so `replaceBundle` treats that as
+the successful update it is and leaves the directory for the next update to
+clear, on every platform. It also clears a stale backup instead of refusing
 on one, because on Windows a leftover backup is the ordinary state of an
 installation that has updated once, and refusing would have capped every
 machine at a single update.

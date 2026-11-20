@@ -449,7 +449,7 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
   contrato runtime se comprueba además en `internal/mcp/surface_test.go` y
   `internal/mcp/server.go`.
 - La referencia de tools documenta la superficie que `internal/mcp/server.go`
-  registra, no el paquete `internal/mcp/tools`: son catorce tools, `get_source`
+  registra, no el paquete `internal/mcp/tools`: son quince tools, `get_source`
   entre ellas, y `get_unresolved_references` no está publicada -- esa pregunta
   la contesta el CLI. Sin generación publicada sólo se registran los tres
   controles de indexado, y la documentación lo dice donde se instala.
@@ -467,7 +467,7 @@ No entra en ningún bundle publicado; la lista blanca del payload vive en
   se cambian las cuatro: esta frase, el comentario de cabecera de `index.astro`,
   sus secciones y los enlaces de `TopBar.astro`, que llevan el mismo orden como
   anclajes.
-- Lo que **no** está en la portada es la lista de las catorce tools. El visitante
+- Lo que **no** está en la portada es la lista de las quince tools. El visitante
   pregunta qué va a poder entender su agente, no qué funciones exporta el
   servidor; la referencia de tools es una página y cada banda enlaza a ella donde
   la pregunta aparece. Un componente que las enumeraba desapareció por eso,

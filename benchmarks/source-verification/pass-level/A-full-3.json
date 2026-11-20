@@ -1,0 +1,859 @@
+{
+  "benchmark": "edit-frequency",
+  "schema": "edit-frequency-v2",
+  "command": "/private/tmp/edit-frequency -config /private/tmp/p6b/home/.config/kivgraph/config.yaml -edits 8 -grep-repeats 1 -root /private/tmp/p6b/root -fact-cache /private/tmp/p6b/factcache -scratch /private/tmp/p6b/scratch -output /private/tmp/p6b/sv-A-full-3.json",
+  "commit": "6bfc84c4810b23b5aed0934b3c54d755f0c1e365",
+  "generated_at": "2026-11-16T08:38:41Z",
+  "environment": {
+    "os": "darwin",
+    "arch": "arm64",
+    "cpus": 10,
+    "go": "go1.27.4"
+  },
+  "corpus": {
+    "repositories": 6,
+    "languages": [
+      "go",
+      "typescript"
+    ],
+    "scratch_repository": "kivgraph",
+    "scratch_path": "/private/tmp/p6b/scratch",
+    "scratch_commit": "19dd1068cb5edea47d7720f789085c61e77707c7",
+    "scratch_go_files": 393
+  },
+  "search_tool": "ripgrep",
+  "warmup": {
+    "step": 0,
+    "label": "warm-up",
+    "total_seconds": 64.40268075,
+    "analysis_seconds": 49.00271775,
+    "publication_seconds": 15.399963,
+    "publication_stages": [
+      {
+        "name": "facts",
+        "seconds": 0.11674883300000001
+      },
+      {
+        "name": "staging",
+        "seconds": 0.927166459
+      },
+      {
+        "name": "graph.next",
+        "seconds": 1.66e-7
+      },
+      {
+        "name": "bulk load",
+        "seconds": 4.17900925
+      },
+      {
+        "name": "integrity",
+        "seconds": 2.9056241249999997
+      },
+      {
+        "name": "snapshot",
+        "seconds": 3.043582417
+      },
+      {
+        "name": "golden probes",
+        "seconds": 0.100825125
+      },
+      {
+        "name": "publish",
+        "seconds": 15.105188959
+      }
+    ],
+    "cache_mode": "on",
+    "cache_hits": 0,
+    "cache_misses": 39,
+    "cache_verified": 0,
+    "files": 920,
+    "symbols": 40935,
+    "edges": 144933,
+    "generation_id": "000001",
+    "publish_steps": [
+      {
+        "name": "setup",
+        "seconds": 0.142596583
+      },
+      {
+        "name": "build",
+        "seconds": 8.41750375
+      },
+      {
+        "name": "sync candidate",
+        "seconds": 0.025042458
+      },
+      {
+        "name": "validate",
+        "seconds": 3.00645825
+      },
+      {
+        "name": "verify sources",
+        "seconds": 3.496935084
+      },
+      {
+        "name": "sync validated",
+        "seconds": 0.0042595
+      },
+      {
+        "name": "commit",
+        "seconds": 0.011895416
+      },
+      {
+        "name": "prune",
+        "seconds": 0.000425583
+      }
+    ]
+  },
+  "edit_passes": [
+    {
+      "step": 1,
+      "label": "edit",
+      "edited_file": "benchmarks/agent-e2e/arms.go",
+      "total_seconds": 27.750859958,
+      "analysis_seconds": 12.538820208,
+      "publication_seconds": 15.212039749999999,
+      "publication_stages": [
+        {
+          "name": "facts",
+          "seconds": 0.111677667
+        },
+        {
+          "name": "staging",
+          "seconds": 1.001631083
+        },
+        {
+          "name": "graph.next",
+          "seconds": 8.3e-8
+        },
+        {
+          "name": "bulk load",
+          "seconds": 4.132597041
+        },
+        {
+          "name": "integrity",
+          "seconds": 2.9875508749999997
+        },
+        {
+          "name": "snapshot",
+          "seconds": 3.166873625
+        },
+        {
+          "name": "golden probes",
+          "seconds": 0.122112167
+        },
+        {
+          "name": "publish",
+          "seconds": 14.958125125
+        }
+      ],
+      "cache_mode": "on",
+      "cache_hits": 33,
+      "cache_misses": 6,
+      "cache_verified": 0,
+      "files": 920,
+      "symbols": 40935,
+      "edges": 144933,
+      "generation_id": "000002",
+      "publish_steps": [
+        {
+          "name": "setup",
+          "seconds": 0.0006775409999999999
+        },
+        {
+          "name": "build",
+          "seconds": 8.610368917
+        },
+        {
+          "name": "sync candidate",
+          "seconds": 0.016543458
+        },
+        {
+          "name": "validate",
+          "seconds": 3.109672084
+        },
+        {
+          "name": "verify sources",
+          "seconds": 3.196567208
+        },
+        {
+          "name": "sync validated",
+          "seconds": 0.005610792
+        },
+        {
+          "name": "commit",
+          "seconds": 0.017915833
+        },
+        {
+          "name": "prune",
+          "seconds": 0.000689292
+        }
+      ]
+    },
+    {
+      "step": 2,
+      "label": "edit",
+      "edited_file": "benchmarks/agent-e2e/main.go",
+      "total_seconds": 27.63301775,
+      "analysis_seconds": 12.709061167,
+      "publication_seconds": 14.923956583,
+      "publication_stages": [
+        {
+          "name": "facts",
+          "seconds": 0.091675125
+        },
+        {
+          "name": "staging",
+          "seconds": 0.7884621660000001
+        },
+        {
+          "name": "graph.next",
+          "seconds": 1.25e-7
+        },
+        {
+          "name": "bulk load",
+          "seconds": 4.329798083
+        },
+        {
+          "name": "integrity",
+          "seconds": 2.722506583
+        },
+        {
+          "name": "snapshot",
+          "seconds": 3.0456422499999998
+        },
+        {
+          "name": "golden probes",
+          "seconds": 0.11117350000000001
+        },
+        {
+          "name": "publish",
+          "seconds": 14.641180875
+        }
+      ],
+      "cache_mode": "on",
+      "cache_hits": 33,
+      "cache_misses": 6,
+      "cache_verified": 0,
+      "files": 920,
+      "symbols": 40935,
+      "edges": 144933,
+      "generation_id": "000003",
+      "publish_steps": [
+        {
+          "name": "setup",
+          "seconds": 0.000930291
+        },
+        {
+          "name": "build",
+          "seconds": 8.402170416999999
+        },
+        {
+          "name": "sync candidate",
+          "seconds": 0.01585925
+        },
+        {
+          "name": "validate",
+          "seconds": 2.83369075
+        },
+        {
+          "name": "verify sources",
+          "seconds": 3.357937125
+        },
+        {
+          "name": "sync validated",
+          "seconds": 0.0050030000000000005
+        },
+        {
+          "name": "commit",
+          "seconds": 0.018698792000000002
+        },
+        {
+          "name": "prune",
+          "seconds": 0.0067549590000000005
+        }
+      ]
+    },
+    {
+      "step": 3,
+      "label": "edit",
+      "edited_file": "benchmarks/agent-e2e/workspace.go",
+      "total_seconds": 28.060912041,
+      "analysis_seconds": 11.81420175,
+      "publication_seconds": 16.246710291,
+      "publication_stages": [
+        {
+          "name": "facts",
+          "seconds": 0.08845204200000001
+        },
+        {
+          "name": "staging",
+          "seconds": 0.7944066249999999
+        },
+        {
+          "name": "graph.next",
+          "seconds": 8.3e-8
+        },
+        {
+          "name": "bulk load",
+          "seconds": 4.394935584
+        },
+        {
+          "name": "integrity",
+          "seconds": 3.113891792
+        },
+        {
+          "name": "snapshot",
+          "seconds": 3.4066213750000003
+        },
+        {
+          "name": "golden probes",
+          "seconds": 0.146664833
+        },
+        {
+          "name": "publish",
+          "seconds": 16.014688959
+        }
+      ],
+      "cache_mode": "on",
+      "cache_hits": 33,
+      "cache_misses": 6,
+      "cache_verified": 0,
+      "files": 920,
+      "symbols": 40935,
+      "edges": 144933,
+      "generation_id": "000004",
+      "publish_steps": [
+        {
+          "name": "setup",
+          "seconds": 0.0006457500000000001
+        },
+        {
+          "name": "build",
+          "seconds": 8.850964874999999
+        },
+        {
+          "name": "sync candidate",
+          "seconds": 0.017112542
+        },
+        {
+          "name": "validate",
+          "seconds": 3.260566833
+        },
+        {
+          "name": "verify sources",
+          "seconds": 3.855239417
+        },
+        {
+          "name": "sync validated",
+          "seconds": 0.004422375
+        },
+        {
+          "name": "commit",
+          "seconds": 0.018569916
+        },
+        {
+          "name": "prune",
+          "seconds": 0.00698275
+        }
+      ]
+    },
+    {
+      "step": 4,
+      "label": "edit",
+      "edited_file": "benchmarks/build-system-cost/main.go",
+      "total_seconds": 28.457840459,
+      "analysis_seconds": 12.751547375,
+      "publication_seconds": 15.706293084,
+      "publication_stages": [
+        {
+          "name": "facts",
+          "seconds": 0.098855
+        },
+        {
+          "name": "staging",
+          "seconds": 0.850749209
+        },
+        {
+          "name": "graph.next",
+          "seconds": 1.25e-7
+        },
+        {
+          "name": "bulk load",
+          "seconds": 4.100144834
+        },
+        {
+          "name": "integrity",
+          "seconds": 3.122835542
+        },
+        {
+          "name": "snapshot",
+          "seconds": 3.440243416
+        },
+        {
+          "name": "golden probes",
+          "seconds": 0.125458458
+        },
+        {
+          "name": "publish",
+          "seconds": 15.443545541999999
+        }
+      ],
+      "cache_mode": "on",
+      "cache_hits": 33,
+      "cache_misses": 6,
+      "cache_verified": 0,
+      "files": 920,
+      "symbols": 40935,
+      "edges": 144933,
+      "generation_id": "000005",
+      "publish_steps": [
+        {
+          "name": "setup",
+          "seconds": 0.001020667
+        },
+        {
+          "name": "build",
+          "seconds": 8.661549667
+        },
+        {
+          "name": "sync candidate",
+          "seconds": 0.016427333000000002
+        },
+        {
+          "name": "validate",
+          "seconds": 3.2483027499999992
+        },
+        {
+          "name": "verify sources",
+          "seconds": 3.4893602500000003
+        },
+        {
+          "name": "sync validated",
+          "seconds": 0.004238167
+        },
+        {
+          "name": "commit",
+          "seconds": 0.016497665999999998
+        },
+        {
+          "name": "prune",
+          "seconds": 0.006083375
+        }
+      ]
+    },
+    {
+      "step": 5,
+      "label": "edit",
+      "edited_file": "benchmarks/daemon-cost/main.go",
+      "total_seconds": 26.39293825,
+      "analysis_seconds": 11.857975542,
+      "publication_seconds": 14.534962708,
+      "publication_stages": [
+        {
+          "name": "facts",
+          "seconds": 0.112388584
+        },
+        {
+          "name": "staging",
+          "seconds": 0.7431725
+        },
+        {
+          "name": "graph.next",
+          "seconds": 8.3e-8
+        },
+        {
+          "name": "bulk load",
+          "seconds": 4.135279959
+        },
+        {
+          "name": "integrity",
+          "seconds": 2.6394685
+        },
+        {
+          "name": "snapshot",
+          "seconds": 3.0875292500000002
+        },
+        {
+          "name": "golden probes",
+          "seconds": 0.09252450000000001
+        },
+        {
+          "name": "publish",
+          "seconds": 14.285032584
+        }
+      ],
+      "cache_mode": "on",
+      "cache_hits": 33,
+      "cache_misses": 6,
+      "cache_verified": 0,
+      "files": 920,
+      "symbols": 40935,
+      "edges": 144933,
+      "generation_id": "000006",
+      "publish_steps": [
+        {
+          "name": "setup",
+          "seconds": 0.000682958
+        },
+        {
+          "name": "build",
+          "seconds": 8.213256375
+        },
+        {
+          "name": "sync candidate",
+          "seconds": 0.016171375
+        },
+        {
+          "name": "validate",
+          "seconds": 2.7320025419999996
+        },
+        {
+          "name": "verify sources",
+          "seconds": 3.295785875
+        },
+        {
+          "name": "sync validated",
+          "seconds": 0.0047565
+        },
+        {
+          "name": "commit",
+          "seconds": 0.016393666
+        },
+        {
+          "name": "prune",
+          "seconds": 0.00585725
+        }
+      ]
+    },
+    {
+      "step": 6,
+      "label": "edit",
+      "edited_file": "benchmarks/daemon-cost/measure.go",
+      "total_seconds": 27.604633792,
+      "analysis_seconds": 12.448949125,
+      "publication_seconds": 15.155684667000001,
+      "publication_stages": [
+        {
+          "name": "facts",
+          "seconds": 0.102075875
+        },
+        {
+          "name": "staging",
+          "seconds": 0.7592559999999999
+        },
+        {
+          "name": "graph.next",
+          "seconds": 8.3e-8
+        },
+        {
+          "name": "bulk load",
+          "seconds": 4.560466084
+        },
+        {
+          "name": "integrity",
+          "seconds": 2.7662637500000002
+        },
+        {
+          "name": "snapshot",
+          "seconds": 2.988138583
+        },
+        {
+          "name": "golden probes",
+          "seconds": 0.112107584
+        },
+        {
+          "name": "publish",
+          "seconds": 14.900815709
+        }
+      ],
+      "cache_mode": "on",
+      "cache_hits": 33,
+      "cache_misses": 6,
+      "cache_verified": 0,
+      "files": 920,
+      "symbols": 40935,
+      "edges": 144933,
+      "generation_id": "000007",
+      "publish_steps": [
+        {
+          "name": "setup",
+          "seconds": 0.00074925
+        },
+        {
+          "name": "build",
+          "seconds": 8.5708585
+        },
+        {
+          "name": "sync candidate",
+          "seconds": 0.017450792
+        },
+        {
+          "name": "validate",
+          "seconds": 2.8783861249999996
+        },
+        {
+          "name": "verify sources",
+          "seconds": 3.405328041
+        },
+        {
+          "name": "sync validated",
+          "seconds": 0.004685
+        },
+        {
+          "name": "commit",
+          "seconds": 0.017285250000000002
+        },
+        {
+          "name": "prune",
+          "seconds": 0.0059974170000000005
+        }
+      ]
+    },
+    {
+      "step": 7,
+      "label": "edit",
+      "edited_file": "benchmarks/daemon-cost/results.go",
+      "total_seconds": 16.357847375,
+      "analysis_seconds": 10.004961792,
+      "publication_seconds": 6.352885582999999,
+      "publication_stages": [
+        {
+          "name": "facts",
+          "seconds": 0.028311792
+        },
+        {
+          "name": "staging",
+          "seconds": 0.263113667
+        },
+        {
+          "name": "graph.next",
+          "seconds": 4.2e-8
+        },
+        {
+          "name": "bulk load",
+          "seconds": 2.042360667
+        },
+        {
+          "name": "integrity",
+          "seconds": 1.012181416
+        },
+        {
+          "name": "snapshot",
+          "seconds": 1.1946926249999998
+        },
+        {
+          "name": "golden probes",
+          "seconds": 0.058616290999999994
+        },
+        {
+          "name": "publish",
+          "seconds": 6.272761249999999
+        }
+      ],
+      "cache_mode": "on",
+      "cache_hits": 33,
+      "cache_misses": 6,
+      "cache_verified": 0,
+      "files": 920,
+      "symbols": 40935,
+      "edges": 144933,
+      "generation_id": "000008",
+      "publish_steps": [
+        {
+          "name": "setup",
+          "seconds": 0.000386667
+        },
+        {
+          "name": "build",
+          "seconds": 3.70612
+        },
+        {
+          "name": "sync candidate",
+          "seconds": 0.020601333
+        },
+        {
+          "name": "validate",
+          "seconds": 1.070805833
+        },
+        {
+          "name": "verify sources",
+          "seconds": 1.4466805839999999
+        },
+        {
+          "name": "sync validated",
+          "seconds": 0.00415275
+        },
+        {
+          "name": "commit",
+          "seconds": 0.018246917
+        },
+        {
+          "name": "prune",
+          "seconds": 0.005725542
+        }
+      ]
+    },
+    {
+      "step": 8,
+      "label": "edit",
+      "edited_file": "benchmarks/dart-semantic/main.go",
+      "total_seconds": 11.878293333,
+      "analysis_seconds": 5.455558166,
+      "publication_seconds": 6.422735167,
+      "publication_stages": [
+        {
+          "name": "facts",
+          "seconds": 0.031079542
+        },
+        {
+          "name": "staging",
+          "seconds": 0.33024066599999996
+        },
+        {
+          "name": "graph.next",
+          "seconds": 8.4e-8
+        },
+        {
+          "name": "bulk load",
+          "seconds": 2.089631625
+        },
+        {
+          "name": "integrity",
+          "seconds": 1.012860417
+        },
+        {
+          "name": "snapshot",
+          "seconds": 1.1758314580000002
+        },
+        {
+          "name": "golden probes",
+          "seconds": 0.050860833
+        },
+        {
+          "name": "publish",
+          "seconds": 6.329788499999999
+        }
+      ],
+      "cache_mode": "on",
+      "cache_hits": 33,
+      "cache_misses": 6,
+      "cache_verified": 0,
+      "files": 920,
+      "symbols": 40935,
+      "edges": 144933,
+      "generation_id": "000009",
+      "publish_steps": [
+        {
+          "name": "setup",
+          "seconds": 0.000461458
+        },
+        {
+          "name": "build",
+          "seconds": 3.801205875
+        },
+        {
+          "name": "sync candidate",
+          "seconds": 0.016868875
+        },
+        {
+          "name": "validate",
+          "seconds": 1.0637293329999997
+        },
+        {
+          "name": "verify sources",
+          "seconds": 1.418918834
+        },
+        {
+          "name": "sync validated",
+          "seconds": 0.005598
+        },
+        {
+          "name": "commit",
+          "seconds": 0.016946458
+        },
+        {
+          "name": "prune",
+          "seconds": 0.006009292
+        }
+      ]
+    }
+  ],
+  "grep_arm": [
+    {
+      "symbol": "NewServer",
+      "matches": 154,
+      "matched_files": 56,
+      "file_bytes": 1628802,
+      "search_seconds": 0.087549625,
+      "read_seconds": 0.001592208,
+      "seconds": 0.089141833
+    },
+    {
+      "symbol": "Run",
+      "matches": 683,
+      "matched_files": 282,
+      "file_bytes": 4183270,
+      "search_seconds": 0.067217458,
+      "read_seconds": 0.006953209,
+      "seconds": 0.074170667
+    },
+    {
+      "symbol": "Load",
+      "matches": 420,
+      "matched_files": 128,
+      "file_bytes": 3279121,
+      "search_seconds": 0.069491625,
+      "read_seconds": 0.003477708,
+      "seconds": 0.072969333
+    },
+    {
+      "symbol": "Close",
+      "matches": 875,
+      "matched_files": 217,
+      "file_bytes": 4220297,
+      "search_seconds": 0.066680666,
+      "read_seconds": 0.005158,
+      "seconds": 0.071838666
+    },
+    {
+      "symbol": "Options",
+      "matches": 441,
+      "matched_files": 118,
+      "file_bytes": 2596973,
+      "search_seconds": 0.067365459,
+      "read_seconds": 0.003073292,
+      "seconds": 0.07043875100000001
+    },
+    {
+      "symbol": "Report",
+      "matches": 284,
+      "matched_files": 56,
+      "file_bytes": 2072272,
+      "search_seconds": 0.068683416,
+      "read_seconds": 0.001633459,
+      "seconds": 0.070316875
+    }
+  ],
+  "summary": {
+    "passes": 8,
+    "median_total_seconds": 27.618825771,
+    "fastest_total_seconds": 11.878293333,
+    "slowest_total_seconds": 28.457840459,
+    "passes_with_boundary": 8,
+    "median_analysis_seconds": 12.1534623335,
+    "median_publication_seconds": 15.039820625,
+    "publication_share": 0.5445496035820588,
+    "analysis_share": 0.44004268806609576,
+    "grep_seconds_per_question": 0.0724039995,
+    "questions_paid_for_by_one_rebuild": 381.45442187900136
+  },
+  "limitations": [
+    "The edits land in a private copy of \"kivgraph\" only. The other repositories of the corpus are read where they are and are never written to, so this measures the edit rate of an agent working inside one repository -- which is the workload issue 106 names, and not a corpus-wide pull.",
+    "Every step is one appended declaration in one file, 8 of them. A larger edit changes what the analysis half costs and cannot change what the publication half costs, because publication rewrites the whole graph either way.",
+    "The warm-up pass fills a private fact cache, so the machine's own cache is neither read nor written. A run against a cache warmed by other work would see fewer misses in the warm-up and the same misses in every edit pass.",
+    "The search arm times the real searcher plus reading every file it matched. It does not price the tokens either arm spends; those are measured in benchmarks/mcp-token-cost and benchmarks/graph-tools-comparison, and the report reads the crossover in both currencies.",
+    "The fact cache is keyed on the fingerprint of the indexing binary, so a run driven by `go run` recompiles to a new path and can never hit it. Every pass here is driven by one built binary, and the reproduce command says so.",
+    "Wall clock on a shared machine is not an SLO. No gate is asserted and no acceptance verdict is emitted."
+  ]
+}

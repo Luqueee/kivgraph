@@ -125,7 +125,7 @@ func TestRunUpdatePassesTheDevelopmentChannel(t *testing.T) {
 		}
 		return update.Result{
 			CurrentVersion:  version.Value,
-			LatestVersion:   "0.10.0-dev.1",
+			LatestVersion:   "0.10.1-dev.1",
 			UpdateAvailable: true,
 			Channel:         update.ChannelDevelopment,
 		}, nil
@@ -135,7 +135,7 @@ func TestRunUpdatePassesTheDevelopmentChannel(t *testing.T) {
 		runner, noProcesses, nil, nil, true); got != 0 {
 		t.Fatalf("runUpdateWithRunner(%#v, true) exit code = %d, stderr=%q", args, got, stderr.String())
 	}
-	if got, want := stdout.String(), "kivgraph update available (dev channel): "+version.Value+" -> 0.10.0-dev.1\n"; got != want {
+	if got, want := stdout.String(), "kivgraph update available (dev channel): "+version.Value+" -> 0.10.1-dev.1\n"; got != want {
 		t.Fatalf("runUpdateWithRunner(%#v, true) stdout = %q, want %q", args, got, want)
 	}
 }
@@ -623,8 +623,8 @@ func TestRunConfiguredUIListensOnEveryInterfaceByDefault(t *testing.T) {
 	}
 
 	err := runConfiguredUI(context.Background(), []string{"--config", configPath}, func(_ context.Context, address string, _ http.Handler) error {
-		if address != "0.0.0.0:7777" {
-			t.Fatalf("address = %q, want 0.0.0.0:7777", address)
+		if address != "127.0.0.1:7777" {
+			t.Fatalf("address = %q, want 127.0.0.1:7777", address)
 		}
 		return nil
 	}, true)
@@ -1358,6 +1358,11 @@ func TestRunRollbackPrintsTransitionDigestsAndInvariants(t *testing.T) {
 	}
 	if !strings.Contains(out, "rollback result: PASS") {
 		t.Fatalf("stdout missing overall verdict: %q", out)
+	}
+	// CURRENT moved back, and a server already running never follows it.
+	notice := "running serve, daemon and ui processes keep serving 000002 until they restart: run `kivgraph stop`"
+	if !strings.Contains(out, notice) {
+		t.Fatalf("stdout does not say running servers were left behind: %q", out)
 	}
 }
 

@@ -47,6 +47,11 @@ type Question struct {
 	// Tool is the spelling the agent used, kept for the message: telling a
 	// caller its `rg` was refused reads better than telling it its `Bash` was.
 	Tool string
+	// Native says the call came from a tool of the agent that takes no command
+	// line -- Grep, Glob, a subagent dispatch -- as opposed to one typed in a
+	// shell. It decides how a refusal says to insist: a variable before the
+	// command has no command to go before.
+	Native bool
 }
 
 // Classify answers what a payload asks, without touching the filesystem or the
@@ -95,6 +100,7 @@ func classifyGrep(raw json.RawMessage) Question {
 		return question
 	}
 	question.Tool = "grep"
+	question.Native = true
 	if input.Path != "" {
 		question.Paths = []string{input.Path}
 	}
@@ -124,7 +130,7 @@ func classifyGlob(raw json.RawMessage) Question {
 	if input.Path != "" {
 		paths = append(paths, input.Path)
 	}
-	return Question{Kind: KindFiles, Pattern: input.Pattern, Paths: paths, Tool: "glob"}
+	return Question{Kind: KindFiles, Pattern: input.Pattern, Paths: paths, Tool: "glob", Native: true}
 }
 
 // agentInput is a subagent dispatch.
@@ -155,7 +161,7 @@ func classifyAgent(raw json.RawMessage) Question {
 	if intent == "" {
 		intent = firstLine(input.Prompt)
 	}
-	return Question{Kind: KindResearchAgent, Pattern: intent, Tool: "agent"}
+	return Question{Kind: KindResearchAgent, Pattern: intent, Tool: "agent", Native: true}
 }
 
 // firstLine is the opening sentence of a prompt, bounded so a refusal that

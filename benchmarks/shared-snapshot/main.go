@@ -424,6 +424,10 @@ func startServer(ctx context.Context, cfg config) (*server, error) {
 		arguments = append(arguments, "--config", cfg.ConfigPath)
 	}
 	command := exec.Command(cfg.Server, arguments...)
+	// Without this `serve` installs a supervised daemon when none answers: a
+	// launchd agent or systemd unit in the real user session that outlives the
+	// run, and an arm that would measure a relay instead of this process.
+	command.Env = append(os.Environ(), "KIVGRAPH_SERVE_IN_PROCESS=1")
 	// The server's own diagnostics, kept so a failure names its cause. Writing
 	// this to os.NewFile(0, os.DevNull) would alias standard input, which is a
 	// different file descriptor with the same name.

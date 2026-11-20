@@ -20,3 +20,11 @@ fn private_helper() -> i32 {
 pub fn helper_user() -> i32 {
     private_helper()
 }
+
+/// doubled names functions in its body, which the analyzer does not resolve.
+#[macro_export]
+macro_rules! doubled {
+    ($value:expr) => {
+        $crate::double($value) + $crate::helper_user() + private_helper()
+    };
+}

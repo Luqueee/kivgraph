@@ -3,7 +3,7 @@ title: find_references
 description: Type-checked incoming or outgoing references for one symbol, with the edge kind, confidence and provenance on every answer.
 ---
 
-> Who calls or references a symbol, or what it uses with direction outgoing. Type-checked, not name-matched: grep cannot separate homonyms, and an empty answer means nobody calls it. A bare name suffices.
+> Typed references to a symbol; direction outgoing shows its uses. A bare name suffices. Check completeness before interpreting absence.
 
 ## Arguments
 
@@ -13,9 +13,10 @@ description: Type-checked incoming or outgoing references for one symbol, with t
 | `confidence` | string | none | Keeps only edges carrying exactly this confidence. Accepted: `EXACT_TYPECHECKED`, `EXACT_DECLARATION_MAPPED`, `EXACT_PACKAGE_MAPPED`, `STRUCTURAL_CERTAIN`, `CANDIDATE`, `UNRESOLVED`. One value, not a list. Anything else is rejected with `INVALID_ARGUMENT`. |
 | `cursor` | string | none | Opaque token taken from `next_cursor`. Resumes the same query at the next offset. |
 | `direction` | string | `incoming` | `incoming` returns the symbols that reference this one. `outgoing` returns the ones it reaches. Any other value is rejected with `INVALID_ARGUMENT`. |
-| `edge_kinds` | array of string | none, meaning every reference kind except `EXPORTS` and `REEXPORTS` | Restricts rows to these relations. The default leaves out the forwarding bindings: an `export { x }` or `export { x } from "./y"` names a path to the declaration rather than a use of it, and the response says so under `edge_kinds_default_excluded`. Nothing becomes unreachable -- the checker resolves an import through however many barrels stand in the way, so every consumer behind one carries its own `IMPORTS_SYMBOL` edge and is listed without them. A list replaces that default; `["*"]` reports every reference kind, and the wildcard stands alone since mixing it with names asks for a filter and for no filter at once. Accepted: `IMPORTS_SYMBOL`, `EXPORTS`, `REEXPORTS`, `REFERENCES`, `CALLS_DIRECT`, `PASSES_AS_CALLBACK`, `ASSIGNS_FUNCTION`, `RETURNS_FUNCTION`, `TYPE_USES`, `IMPLEMENTS`, `EXTENDS`, `EMBEDS`, `OVERRIDES`. Containment and package kinds are rejected. Duplicates collapse; an empty or space-padded entry is rejected. |
+| `edge_kinds` | array of string | none, meaning every reference kind except `EXPORTS` and `REEXPORTS` | Restricts rows to these relations. The default leaves out the forwarding bindings: an `export { x }` or `export { x } from "./y"` names a path to the declaration rather than a use of it, and the response says so under `edge_kinds_default_excluded`. Nothing becomes unreachable -- the checker resolves an import through however many barrels stand in the way, so every consumer behind one carries its own `IMPORTS_SYMBOL` edge and is listed without them. A list replaces that default; `["*"]` reports every reference kind, and the wildcard stands alone since mixing it with names asks for a filter and for no filter at once. Accepted: `IMPORTS_SYMBOL`, `EXPORTS`, `REEXPORTS`, `REFERENCES`, `CALLS_DIRECT`, `PASSES_AS_CALLBACK`, `ASSIGNS_FUNCTION`, `RETURNS_FUNCTION`, `TYPE_USES`, `IMPLEMENTS`, `EXTENDS`, `EMBEDS`, `OVERRIDES`, `PART_OF`. Containment and package kinds are rejected. Duplicates collapse; an empty or space-padded entry is rejected. |
+| `exclude_tests` | boolean | `false` | Drops the rows declared in a test file, recognised by path: `_test.go`, `_test.py`, `_test.dart`, `test_*.py`, `*.test.*`, `*.spec.*`, Java and C# files ending in `Test` or `Tests`, and a `test`, `tests`, `__tests__`, `spec`, `specs` or `integration_test` directory, or under Maven's `src/it/`. Applied before the total and the page, so a cursor taken without it is rejected under it. Tests are in the graph unless `go.include_tests` or `dart.include_tests` is `false`. |
 | `include_derived` | boolean | `false` | Includes rows from providers Kivgraph derives from the machine, which take the `rust:` namespace, such as a Rust toolchain's standard library. Naming one of them in `repo` has the same effect. |
-| `language` | string | none | Keeps rows whose symbol carries this language: `go`, `typescript` or `rust`. Compared exactly; surrounding whitespace is rejected. |
+| `language` | string | none | Keeps rows whose symbol carries this language: `go`, `typescript`, `rust`, `python`, `dart`, `java` or `csharp`, as stored for the symbol. Compared exactly, so the registry aliases such as `ts`, `rs`, `py` and `cs` match nothing; surrounding whitespace is rejected. |
 | `limit` | integer | `50` | Rows in this page. Must be between 1 and 500. |
 | `name` | string | none | The unqualified name of the declaration to ask about, so the common question costs one call instead of two. One declaration carrying that name is answered directly; several are rejected with `AMBIGUOUS_SYMBOL` naming the candidates as `repository:path:line`. Cannot be combined with `stable_key` or `qualified_name`; `repository`, or `repository` plus `path`, narrows it. A name that is only imported or re-exported and never declared is `SYMBOL_NOT_FOUND`, because the declaration is what a reference question is about. |
 | `path` | string | none | Repository-relative path narrowing `qualified_name`. Requires `repository`. Rejected together with `stable_key`. |
@@ -77,6 +78,7 @@ Incoming references, three at a time. Nothing asks for a `view`, so this is the
   "coverage": {
     "exact": 3
   },
+  "completeness": { "verdict": "COMPLETE" },
   "results": {
     "subject": "kivgraph:internal/facts/facts.go:516",
     "qn": "MergeAll",
@@ -135,6 +137,7 @@ explicitly:
     "unresolved_related": 0,
     "package_level": 0
   },
+  "completeness": { "verdict": "COMPLETE" },
   "results": {
     "subject": {
       "stable_key": "KHXAWFM5ED2YEIFIEMB5NALA7L7YXNHSUJEBLU7SDAMLGKX24UAA",
@@ -213,7 +216,8 @@ The same symbol, the other direction, with a page smaller than the answer:
   "coverage": {
     "exact": 66
   },
-  "guidance": "showing 2 of 66; narrow with edge_kinds, confidence, repo or language, or pass the cursor for the next page",
+  "completeness": { "verdict": "COMPLETE" },
+  "guidance": "showing 2 of 66; narrow with edge_kinds, confidence, repo, language or exclude_tests, or pass the cursor for the next page",
   "results": {
     "subject": "kivgraph:internal/facts/facts.go:516",
     "qn": "MergeAll",
@@ -268,7 +272,8 @@ The same page in the `full` view:
     "unresolved_related": 0,
     "package_level": 0
   },
-  "guidance": "showing 2 of 66; narrow with edge_kinds, confidence, repo or language, or pass the cursor for the next page",
+  "completeness": { "verdict": "COMPLETE" },
+  "guidance": "showing 2 of 66; narrow with edge_kinds, confidence, repo, language or exclude_tests, or pass the cursor for the next page",
   "results": {
     "subject": {
       "stable_key": "KHXAWFM5ED2YEIFIEMB5NALA7L7YXNHSUJEBLU7SDAMLGKX24UAA",
@@ -336,6 +341,7 @@ and it pages at 500 by default so the list is whole:
   "coverage": {
     "exact": 3
   },
+  "completeness": { "verdict": "COMPLETE" },
   "results": {
     "subject": "kivgraph:internal/facts/facts.go:516",
     "qn": "MergeAll",
@@ -434,7 +440,7 @@ two places, never in neither.
   spans more than one line. Nothing was left over: the header answers the rest.
 - An array whose first element is that same label, when the row had to carry a
   column the header could not hoist. The remaining elements are appended in a
-  fixed order -- `edge_kind`, `kind`, `confidence`, `provenance` -- skipping
+  fixed order -- `kind`, `edge_kind`, `confidence`, `provenance` -- skipping
   every column the header already states. That is why
   `["mergeSets@681-712", "func"]` above is a kind and
   `["Set.Symbols@251", "GO_TYPES_USE"]` is a provenance: the header says which
@@ -502,13 +508,14 @@ the paths that close the gap. The distinction is load-bearing on an empty page:
 the two you got, and a reader who takes "nobody references this" from a
 `LOWER_BOUND` page can delete live code. See
 [the completeness verdict](/mcp/usage/#read-the-answer) for the semantics the
-six checking tools share.
+seven checking tools share.
 
-An empty answer -- an empty `files` list in the compact view, an empty
+An empty answer -- no `files` key in the compact view, an empty
 `references` list in the full one -- with `total` at `0` and a `COMPLETE`
 verdict is a proven absence, not a miss.
-The edges came from `go/types`, the TypeScript checker and `rust-analyzer`, not
-from matching names, so nothing referencing the symbol was left out by a
+The edges came from the language analyzers -- `go/types`, the TypeScript checker,
+`rust-analyzer`, the Python indexer, the Dart analyzer and the Java and C#
+SCIP indexers -- not from matching names, so nothing referencing the symbol was left out by a
 spelling. Grep cannot make that claim. The response says so itself, in
 `guidance`.
 
@@ -533,6 +540,7 @@ A homonym with declarations of two kinds in two repositories, so no single
   "total": 6,
   "returned": 6,
   "coverage": { "exact": 6 },
+  "completeness": { "verdict": "COMPLETE" },
   "results": {
     "subject": "kivgraph:internal/workspace/registry.go:68",
     "qn": "NewRegistry",
@@ -591,11 +599,11 @@ truncated page. Pass it back unchanged. It fails closed:
 | What changed | What you get |
 | --- | --- |
 | A new generation was published | `CURSOR_SNAPSHOT_EXPIRED`; restart pagination |
-| The selector, `direction`, `repo`, `language`, `edge_kinds` or `confidence` differ from the call that produced it | `CURSOR_INVALID` |
+| The selector, `direction`, `repo`, `language`, `edge_kinds`, `confidence` or `include_derived` differ from the call that produced it | `CURSOR_INVALID` |
 | The token was edited, re-encoded, truncated, or decodes with trailing bytes after the checksum | `CURSOR_INVALID` |
 | The token was minted by a server of the previous cursor version | `CURSOR_INVALID`; the body is version 2 and version 1 is not reinterpreted under the new layout |
 
-`limit`, `view`, `response_format` and `include_derived` are not part of the
+`limit`, `view` and `response_format` are not part of the
 cursor identity, so changing one of them mid-pagination is accepted: the same
 cursor can continue a query in a different view, and changing `limit` shifts what
 the remaining pages contain. A page taken through `name` is bound to the

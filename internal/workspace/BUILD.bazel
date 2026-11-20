@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "workspace",
     srcs = [
+        "cachedir.go",
         "cargo_discovery.go",
         "cargo_manifests.go",
         "composition.go",
@@ -37,6 +38,7 @@ go_library(
 go_test(
     name = "workspace_test",
     srcs = [
+        "cachedir_test.go",
         "cargo_discovery_test.go",
         "composition_test.go",
         "discovery_test.go",
@@ -46,14 +48,17 @@ go_test(
         "paths_test.go",
         "paths_windows_test.go",
         "provider_conflicts_test.go",
+        "registry_locks_test.go",
         "registry_test.go",
         "typescript_config_test.go",
         "typescript_graph_test.go",
         "typescript_program_test.go",
+        "typescript_registry_nested_test.go",
         "typescript_registry_test.go",
         "typescript_sources_test.go",
         "typescript_unclaimed_test.go",
         "typescript_versions_test.go",
+        "walk_vanish_test.go",
     ],
     data = ["//:testdata"],
     embed = [":workspace"],

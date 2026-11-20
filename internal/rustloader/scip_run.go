@@ -181,13 +181,16 @@ func Run(ctx context.Context, options RunOptions) (RunResult, error) {
 	}
 	command[0] = resolved
 
+	sysroot, sysrootDiagnostic := hermeticSysroot(ctx, options)
+	options.Sysroot = sysroot
 	configPath := filepath.Join(options.OutputDirectory, "rust-analyzer.json")
 	if err := writeAnalyzerConfig(configPath, options); err != nil {
 		return RunResult{}, newRunError(RunErrorInvalidOptions, workspace, "write analyzer configuration", err)
 	}
 	indexPath := filepath.Join(options.OutputDirectory, "index.scip")
 
-	arguments := append(append([]string(nil), command[1:]...),
+	arguments := append(
+		append([]string(nil), command[1:]...),
 		"scip", workspace,
 		"--output", indexPath,
 		"--config-path", configPath,
@@ -208,6 +211,15 @@ func Run(ctx context.Context, options RunOptions) (RunResult, error) {
 	// which is already absolute here. Running from the output directory keeps
 	// a relative default output out of the sources.
 	process.Dir = options.OutputDirectory
+	// An offline pass does not install a toolchain. `cargo` and `rustc` are
+	// rustup's proxies on most machines, and a proxy whose active toolchain is
+	// missing -- a `rust-toolchain.toml` naming a release nobody installed --
+	// downloads it before running. The pinned analyzer already forbids that
+	// on every command it spawns; this makes it true of whichever analyzer
+	// `rust.analyzer_command` names.
+	if !options.AllowNetwork {
+		process.Env = ProbeEnvironment()
+	}
 	var stderr bytes.Buffer
 	process.Stdout = &stderr
 	process.Stderr = &stderr
@@ -239,10 +251,14 @@ func Run(ctx context.Context, options RunOptions) (RunResult, error) {
 	if err := validateIndex(index); err != nil {
 		return RunResult{}, newRunError(RunErrorAnalyzerUnsupported, workspace, err.Error(), nil)
 	}
+	diagnostics := classifyDiagnostics(stderr.String())
+	if sysrootDiagnostic != "" {
+		diagnostics = append(diagnostics, sysrootDiagnostic)
+	}
 	return RunResult{
 		Index:       index,
 		ToolVersion: index.ToolVersion,
-		Diagnostics: classifyDiagnostics(stderr.String()),
+		Diagnostics: diagnostics,
 		Duration:    duration,
 	}, nil
 }
@@ -354,6 +370,35 @@ func sysrootValue(sysroot string) *string {
 		return nil
 	}
 	return &value
+}
+
+// hermeticSysroot answers the sysroot the analyzer is told to load.
+//
+// `discover` is not a read. An analyzer that discovers a sysroot without
+// `rust-src` runs `rustup component add rust-src` itself: a download and a
+// write into the toolchain, from a pass that is offline unless the caller
+// allowed the network. Two passes starting together raced that install, and
+// the loser indexed without a standard library that was there a second later.
+//
+// Given a path instead, the analyzer loads what is under it and installs
+// nothing, so the question it would have asked -- `rustc --print sysroot`,
+// from the workspace, which is what honours a `rust-toolchain.toml` -- is
+// asked here and the answer passed on.
+//
+// When no `rustc` answers there is no path to pass, and `discover` is still
+// not passed: the answer is `none`, with a diagnostic, so the pass says the
+// standard library was not loaded instead of leaving the analyzer to look for
+// a toolchain and install into it.
+func hermeticSysroot(ctx context.Context, options RunOptions) (string, string) {
+	if options.AllowNetwork || !strings.EqualFold(strings.TrimSpace(options.Sysroot), "discover") {
+		return options.Sysroot, ""
+	}
+	_, root, reason := probeToolchain(ctx, strings.TrimSpace(options.Workspace))
+	if reason != "" {
+		return "none", "WARN no rustc answered `--print sysroot` (" + string(reason) +
+			"), so the standard library was not loaded"
+	}
+	return root, ""
 }
 
 // validateIndex refuses an index this build cannot place in a file or

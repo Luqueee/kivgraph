@@ -58,14 +58,21 @@ repositories:
 	if !filepath.IsAbs(loaded.Config.Storage.BackupsPath) || !filepath.IsAbs(loaded.Config.Go.SyntheticWorkFile) {
 		t.Fatalf("default paths were not expanded: backups=%q work=%q", loaded.Config.Storage.BackupsPath, loaded.Config.Go.SyntheticWorkFile)
 	}
-	if loaded.Config.Web.Address != "0.0.0.0:7777" {
-		t.Fatalf("web address default = %q, want 0.0.0.0:7777", loaded.Config.Web.Address)
+	if loaded.Config.Web.Address != "127.0.0.1:7777" {
+		t.Fatalf("web address default = %q, want 127.0.0.1:7777", loaded.Config.Web.Address)
 	}
-	if loaded.Config.Python.IndexerCommand != "kivgraph-python-worker" || loaded.Config.Python.AnalyzerCommand != "kivgraph-python-pyright" || loaded.Config.Python.AnalyzerMode != "fallback" || loaded.Config.Python.PythonPath != "python3" || loaded.Config.Python.MaximumWorkers != 3 || loaded.Config.Python.IncludeTests || loaded.Config.Python.IncludeGenerated || loaded.Config.Python.IncludeExternal {
+	if loaded.Config.Python.IndexerCommand != "kivgraph-python-worker" || loaded.Config.Python.AnalyzerCommand != "kivgraph-python-pyright" || loaded.Config.Python.AnalyzerMode != "fallback" || loaded.Config.Python.PythonPath != "python3" || loaded.Config.Python.MaximumWorkers != 3 || !loaded.Config.Python.IncludeTests || loaded.Config.Python.IncludeGenerated || loaded.Config.Python.IncludeExternal {
 		t.Fatalf("Python defaults = %#v", loaded.Config.Python)
 	}
-	if loaded.Config.Dart.AnalyzerCommand != "dart" || loaded.Config.Dart.SDKPath != "dart" || loaded.Config.Dart.MaximumWorkers != 2 || loaded.Config.Dart.IncludeTests || loaded.Config.Dart.IncludeGenerated || loaded.Config.Dart.IncludeExternal || loaded.Config.Dart.IncludeSDK || loaded.Config.Dart.PackageConfig != "auto" || !loaded.Config.Dart.WaitForAnalysis || loaded.Config.Dart.MaximumAnalysisTime != Duration(5*time.Minute) {
+	if loaded.Config.Dart.AnalyzerCommand != "dart" || loaded.Config.Dart.SDKPath != "dart" || loaded.Config.Dart.MaximumWorkers != 2 || !loaded.Config.Dart.IncludeTests || loaded.Config.Dart.IncludeGenerated || loaded.Config.Dart.IncludeExternal || loaded.Config.Dart.IncludeSDK || loaded.Config.Dart.PackageConfig != "auto" || !loaded.Config.Dart.WaitForAnalysis || loaded.Config.Dart.MaximumAnalysisTime != Duration(5*time.Minute) {
 		t.Fatalf("Dart defaults = %#v", loaded.Config.Dart)
+	}
+	if !loaded.Config.Go.IncludeTests {
+		t.Fatal("go.include_tests defaults to false, want true: the graph answers for the tests that use a symbol")
+	}
+	if !loaded.Config.Java.IncludeTests || !loaded.Config.CSharp.IncludeTests {
+		t.Fatalf("include_tests defaults: java=%v csharp=%v, want both true: a symbol only its tests use was answered as unused",
+			loaded.Config.Java.IncludeTests, loaded.Config.CSharp.IncludeTests)
 	}
 	if loaded.Config.Indexing.GeneratedFiles != "include" || loaded.Config.Indexing.UnresolvedReferences != "retain" {
 		t.Fatalf("core defaults = storage=%#v indexing=%#v", loaded.Config.Storage, loaded.Config.Indexing)
@@ -131,6 +138,28 @@ func TestSupportedLanguagesCoversEveryAnalysedLanguage(t *testing.T) {
 	}
 }
 
+// A config.yaml written by an earlier `init` spells every key out, so it pins
+// include_tests: false and keeps it when the default moves. Reading it as true
+// would change what an existing installation indexes without anyone editing the
+// file, and the next `index --full` would be slower for a reason nobody chose.
+func TestLoadKeepsAnExplicitIncludeTestsFalse(t *testing.T) {
+	root := testsupport.TempDir(t)
+	configPath := filepath.Join(root, "config.yaml")
+	repositoriesPath := filepath.Join(root, "repositories.yaml")
+	writeConfigFixture(t, configPath, "version: 1\nworkspace:\n  repositories_file: "+repositoriesPath+"\ngo:\n  include_tests: false\ndart:\n  include_tests: false\njava:\n  include_tests: false\ncsharp:\n  include_tests: false\npython:\n  include_tests: false\n")
+	writeConfigFixture(t, repositoriesPath, "version: 1\nrepositories: []\n")
+	loaded, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if loaded.Config.Go.IncludeTests || loaded.Config.Dart.IncludeTests || loaded.Config.Java.IncludeTests ||
+		loaded.Config.CSharp.IncludeTests || loaded.Config.Python.IncludeTests {
+		t.Fatalf("explicit include_tests: false was overridden: go=%v dart=%v java=%v csharp=%v python=%v",
+			loaded.Config.Go.IncludeTests, loaded.Config.Dart.IncludeTests, loaded.Config.Java.IncludeTests,
+			loaded.Config.CSharp.IncludeTests, loaded.Config.Python.IncludeTests)
+	}
+}
+
 func TestLoadConfigRejectsInvalidDocuments(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -168,14 +197,6 @@ storage:
 			wantError: "snapshot_path",
 		},
 		{
-			name: "invalid limit relationship",
-			contents: `version: 1
-mcp:
-  maximum_limit: 10
-`,
-			wantError: "maximum_limit: must be at least default_limit",
-		},
-		{
 			name: "unsupported transport",
 			contents: `version: 1
 mcp:
@@ -198,6 +219,14 @@ web:
   address: localhost
 `,
 			wantError: "config.web.address: invalid listen address",
+		},
+		{
+			name: "unknown source verification mode",
+			contents: `version: 1
+indexing:
+  source_verification: stat
+`,
+			wantError: `config.indexing.source_verification: must be full or signature, got "stat"`,
 		},
 		{
 			name: "invalid web port",
@@ -308,6 +337,12 @@ storage:
   snapshots_path: /tmp/nowhere
   retain_snapshots: 7
   backups_path: `+filepath.Join(directory, "backups")+`
+mcp:
+  default_limit: 0
+  maximum_limit: -1
+  maximum_depth: 99
+  maximum_visited_nodes: 0
+  transport: stdio
 `)
 	writeConfigFixture(t, repositoriesPath, "version: 1\nrepositories: []\n")
 
@@ -315,7 +350,12 @@ storage:
 	if err != nil {
 		t.Fatalf("Load() error = %v, want a configuration with retired keys to load", err)
 	}
-	want := []string{"storage.snapshots_path", "storage.retain_snapshots"}
+	// The mcp values would each have failed validation while the keys lived:
+	// ignored means not validated either.
+	want := []string{
+		"storage.snapshots_path", "storage.retain_snapshots",
+		"mcp.default_limit", "mcp.maximum_limit", "mcp.maximum_depth", "mcp.maximum_visited_nodes",
+	}
 	if !slices.Equal(loaded.RetiredKeys, want) {
 		t.Fatalf("RetiredKeys = %v, want %v", loaded.RetiredKeys, want)
 	}
@@ -337,6 +377,31 @@ workspace:
 	}
 	if len(quiet.RetiredKeys) != 0 {
 		t.Fatalf("RetiredKeys = %v, want none", quiet.RetiredKeys)
+	}
+}
+
+// A configuration written before `indexing.source_verification` existed carries
+// an `indexing` section without it. It has to keep verifying the way it always did,
+// and the one value that changes it has to be honoured.
+func TestSourceVerificationDefaultsToFullAndHonoursSignature(t *testing.T) {
+	directory := t.TempDir()
+	repositoriesPath := filepath.Join(directory, "repositories.yaml")
+	writeConfigFixture(t, repositoriesPath, "version: 1\nrepositories: []\n")
+	load := func(name, indexing string) string {
+		t.Helper()
+		path := filepath.Join(directory, name)
+		writeConfigFixture(t, path, "version: 1\nworkspace:\n  repositories_file: "+repositoriesPath+"\nindexing:\n"+indexing)
+		loaded, err := Load(path)
+		if err != nil {
+			t.Fatalf("Load(%s) error = %v", name, err)
+		}
+		return loaded.Config.Indexing.SourceVerification
+	}
+	if got := load("older.yaml", "  fact_cache: \"on\"\n"); got != "full" {
+		t.Fatalf("a configuration without the key verifies with %q, want full", got)
+	}
+	if got := load("opted-in.yaml", "  source_verification: signature\n"); got != "signature" {
+		t.Fatalf("source_verification: signature loaded as %q", got)
 	}
 }
 

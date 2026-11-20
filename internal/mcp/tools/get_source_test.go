@@ -51,6 +51,58 @@ func TestGetSourceServesSeveralBodiesInOneCall(t *testing.T) {
 	}
 }
 
+// Two repositories routinely hold a file at the same relative path. Each body
+// must come from its own repository: the second symbol sits past the end of the
+// first repository's file, so sharing one read would slice out of range.
+func TestGetSourceKeepsSamePathInTwoRepositoriesApart(t *testing.T) {
+	alphaRoot, betaRoot := testsupport.TempDir(t), testsupport.TempDir(t)
+	alphaSource := "package main\n\nfunc Alpha() {}\n"
+	betaSource := "package main\n\n\n\n\n\n\nfunc Beta() {\n\treturn\n}\n"
+	for root, content := range map[string]string{alphaRoot: alphaSource, betaRoot: betaSource} {
+		if err := os.WriteFile(filepath.Join(root, "main.go"), []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rows := hotsnapshot.LadybugSnapshotRows{
+		Repositories: []hotsnapshot.RepositoryRow{
+			{Key: "repo-alpha", Name: "alpha", Path: alphaRoot, Languages: "go"},
+			{Key: "repo-beta", Name: "beta", Path: betaRoot, Languages: "go"},
+		},
+		Packages: []hotsnapshot.PackageRow{
+			{Key: "package-alpha", RepositoryKey: "repo-alpha", Language: "go", Name: "example.com/alpha", ModulePath: "example.com/alpha"},
+			{Key: "package-beta", RepositoryKey: "repo-beta", Language: "go", Name: "example.com/beta", ModulePath: "example.com/beta"},
+		},
+		Files: []hotsnapshot.FileRow{
+			{Key: "file-alpha", RepositoryKey: "repo-alpha", PackageKey: "package-alpha", Path: "main.go", Language: "go", ContentHash: digestOf(alphaSource)},
+			{Key: "file-beta", RepositoryKey: "repo-beta", PackageKey: "package-beta", Path: "main.go", Language: "go", ContentHash: digestOf(betaSource)},
+		},
+		Symbols: []hotsnapshot.SymbolRow{
+			{StableKey: "sym-alpha", CanonicalIdentity: "go:main.Alpha", FileKey: "file-alpha", Language: "go", Name: "Alpha", QualifiedName: "main.Alpha", Kind: "func", StartLine: 3, EndLine: 3},
+			{StableKey: "sym-beta", CanonicalIdentity: "go:main.Beta", FileKey: "file-beta", Language: "go", Name: "Beta", QualifiedName: "main.Beta", Kind: "func", StartLine: 8, EndLine: 10},
+		},
+	}
+	snapshot, err := hotsnapshot.BuildGraphSnapshot(rows, 97, time.Unix(1_700_000_097, 0).UTC(), 1)
+	if err != nil {
+		t.Fatalf("BuildGraphSnapshot() error = %v", err)
+	}
+	_, response, err := getSource(context.Background(), nil, GetSourceInput{
+		Symbols: []SourceRequest{{StableKey: "sym-alpha"}, {StableKey: "sym-beta"}},
+	}, hotsnapshot.NewSnapshotStore(snapshot))
+	if err != nil {
+		t.Fatal(err)
+	}
+	bodies := response.Results.Bodies
+	if len(bodies) != 2 {
+		t.Fatalf("bodies = %#v, want two", bodies)
+	}
+	if bodies[0].Code != "func Alpha() {}" || !bodies[0].Fresh {
+		t.Fatalf("alpha body = %#v", bodies[0])
+	}
+	if bodies[1].Repository != "beta" || bodies[1].Code != "func Beta() {\n\treturn\n}" || !bodies[1].Fresh {
+		t.Fatalf("beta body = %#v, want beta's own lines", bodies[1])
+	}
+}
+
 func TestGetSourceIncludesSurroundingLinesOnRequest(t *testing.T) {
 	store, _ := sourceSnapshot(t, 92)
 	_, response, err := getSource(context.Background(), nil, GetSourceInput{

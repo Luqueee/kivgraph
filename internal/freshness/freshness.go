@@ -94,6 +94,13 @@ func Capture(ctx context.Context, repositories []workspace.Repository) (string, 
 		extensions := config.SourceExtensionSet(languages)
 		err = filepath.WalkDir(root, func(filename string, entry fs.DirEntry, walkErr error) error {
 			if walkErr != nil {
+				// An entry below the root that vanished between being listed and
+				// being read -- a build's temporary directory -- is not there to
+				// hash: it contributes what an entry that never existed does. The
+				// repository itself going away is not that, and stays an error.
+				if errors.Is(walkErr, fs.ErrNotExist) && filename != root {
+					return nil
+				}
 				return fmt.Errorf("walk %q: %w", filename, walkErr)
 			}
 			if err := ctx.Err(); err != nil {
@@ -109,7 +116,7 @@ func Capture(ctx context.Context, repositories []workspace.Repository) (string, 
 				return err
 			}
 			if entry.IsDir() {
-				if relative != "." && (excluded || entry.Name() == ".git" || entry.Name() == "node_modules") {
+				if relative != "." && (excluded || entry.Name() == ".git" || entry.Name() == "node_modules" || workspace.IsCacheDirectory(filename)) {
 					return fs.SkipDir
 				}
 				return nil
@@ -123,12 +130,32 @@ func Capture(ctx context.Context, repositories []workspace.Repository) (string, 
 				return nil
 			}
 			if entry.Type()&os.ModeSymlink != 0 {
-				return fmt.Errorf("inventory %q: refuses symlink", filename)
+				if _, explicit := explicitManifests[filepath.Clean(filename)]; explicit {
+					return fmt.Errorf("inventory %q: refuses symlink", filename)
+				}
+				// The link belongs to the repository and what it points at is
+				// not followed: a source file reached only through a link is
+				// read where it lives, or is outside the tree. The digest
+				// covers the link's text, so retargeting it still changes it.
+				target, err := os.Readlink(filename)
+				if errors.Is(err, fs.ErrNotExist) {
+					return nil
+				}
+				if err != nil {
+					return fmt.Errorf("read inventory symlink %q: %w", filename, err)
+				}
+				if _, err := fmt.Fprintf(digest, "%s\x00symlink\x00%x\x00", relative, sha256.Sum256([]byte(target))); err != nil {
+					return fmt.Errorf("write inventory digest for %q: %w", filename, err)
+				}
+				return nil
 			}
 			if !entry.Type().IsRegular() {
 				return fmt.Errorf("inventory %q: refuses non-regular file", filename)
 			}
 			file, err := os.Open(filename)
+			if errors.Is(err, fs.ErrNotExist) {
+				return nil
+			}
 			if err != nil {
 				return fmt.Errorf("open inventory file %q: %w", filename, err)
 			}
@@ -258,7 +285,7 @@ func Save(ctx context.Context, root string, generation uint64, digest string) (e
 		return err
 	}
 	filename := recordPath(root, generation)
-	if err := os.MkdirAll(filepath.Dir(filename), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(filename), 0o700); err != nil {
 		return fmt.Errorf("create freshness directory %q: %w", filepath.Dir(filename), err)
 	}
 	if err := ctx.Err(); err != nil {

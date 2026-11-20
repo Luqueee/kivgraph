@@ -1,0 +1,105 @@
+// Package walkcount counts the directory entries the walks of a pass look at.
+// It is copied into a throwaway worktree by instrument.py and never builds in
+// the repository: its only job is to be what `filepath.WalkDir` and `os.ReadDir`
+// are replaced with, so that every walk in the process is counted the same way
+// and is named by the function that called it.
+package walkcount
+
+import (
+	"fmt"
+	"io"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"runtime"
+	"sort"
+	"strings"
+	"sync"
+)
+
+type tally struct {
+	Entries, Directories, Calls int64
+}
+
+var (
+	mutex  sync.Mutex
+	counts = map[string]*tally{}
+)
+
+func caller() string {
+	pc, _, _, ok := runtime.Caller(2)
+	if !ok {
+		return "unknown"
+	}
+	name := runtime.FuncForPC(pc).Name()
+	name = strings.TrimPrefix(name, "github.com/Luqueee/kivgraph/")
+	// A closure is counted under the function that holds it.
+	if index := strings.Index(name, ".func"); index >= 0 {
+		name = name[:index]
+	}
+	return name
+}
+
+func add(key string, entries, directories, calls int64) {
+	mutex.Lock()
+	defer mutex.Unlock()
+	count := counts[key]
+	if count == nil {
+		count = &tally{}
+		counts[key] = count
+	}
+	count.Entries += entries
+	count.Directories += directories
+	count.Calls += calls
+}
+
+// WalkDir is filepath.WalkDir that counts every entry its callback is given.
+// A walk that the callback prunes with SkipDir has still looked at that entry.
+func WalkDir(root string, fn fs.WalkDirFunc) error {
+	key := "walk " + caller()
+	add(key, 0, 0, 1)
+	return filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		var directory int64
+		if entry != nil && entry.IsDir() {
+			directory = 1
+		}
+		add(key, 1, directory, 0)
+		return fn(path, entry, err)
+	})
+}
+
+// ReadDir is os.ReadDir that counts the entries it lists, which is the work a
+// hand-written recursive walk does for each directory it enters.
+func ReadDir(name string) ([]os.DirEntry, error) {
+	entries, err := os.ReadDir(name)
+	var directories int64
+	for _, entry := range entries {
+		if entry.IsDir() {
+			directories++
+		}
+	}
+	add("read "+caller(), int64(len(entries)), directories, 1)
+	return entries, err
+}
+
+// Reset starts a new pass.
+func Reset() {
+	mutex.Lock()
+	defer mutex.Unlock()
+	counts = map[string]*tally{}
+}
+
+// Dump writes one line per counted walk, sorted, for the pass named label.
+func Dump(w io.Writer, label string) {
+	mutex.Lock()
+	defer mutex.Unlock()
+	keys := make([]string, 0, len(counts))
+	for key := range counts {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		count := counts[key]
+		fmt.Fprintf(w, "WALKCOUNT\t%s\t%s\tentries=%d\tdirectories=%d\tcalls=%d\n", label, key, count.Entries, count.Directories, count.Calls)
+	}
+}

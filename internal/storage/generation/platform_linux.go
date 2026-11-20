@@ -3,6 +3,7 @@
 package generation
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"syscall"
@@ -30,8 +31,16 @@ func preallocate(path string, size int64) error {
 		}
 	}()
 	if size > 0 {
+		// A filesystem that cannot preallocate still has to hold the reserve,
+		// so it gets the same bytes written one by one. Running out of space is
+		// not that case and stays the error it is.
 		if err := syscall.Fallocate(int(file.Fd()), 0, 0, size); err != nil {
-			return err
+			if !unsupportedFallocate(err) {
+				return err
+			}
+			if err := writeZeros(file, size); err != nil {
+				return err
+			}
 		}
 		if err := file.Truncate(size); err != nil {
 			return err
@@ -45,4 +54,11 @@ func preallocate(path string, size int64) error {
 	}
 	remove = false
 	return nil
+}
+
+// unsupportedFallocate is the kernel saying this filesystem cannot preallocate,
+// as opposed to saying it has no room: NFS before 4.2, 9p and most FUSE
+// filesystems answer EOPNOTSUPP, and a kernel without the call answers ENOSYS.
+func unsupportedFallocate(err error) bool {
+	return errors.Is(err, syscall.EOPNOTSUPP) || errors.Is(err, syscall.ENOSYS)
 }

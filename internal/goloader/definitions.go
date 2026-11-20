@@ -5,7 +5,9 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"golang.org/x/tools/go/packages"
@@ -174,6 +176,12 @@ func extractFile(
 			return true
 		}
 		owner := ownerFor(kind, object, stack)
+		qualified := qualifiedName(owner, object.Name())
+		if len(stack) >= 2 {
+			if declaration, isFunction := stack[len(stack)-2].node.(*ast.FuncDecl); isFunction && declaration.Name == identifier {
+				qualified = declarationQualifiedName(fset, []*ast.File{file}, declaration, owner)
+			}
+		}
 		definition := Definition{
 			Repository:    options.Repository,
 			ModulePath:    modulePath,
@@ -181,7 +189,7 @@ func extractFile(
 			PackageName:   loaded.Name,
 			FileName:      fset.Position(identifier.Pos()).Filename,
 			Name:          object.Name(),
-			QualifiedName: qualifiedName(owner, object.Name()),
+			QualifiedName: qualified,
 			Kind:          kind,
 			Owner:         owner,
 			Exported:      object.Exported(),
@@ -551,4 +559,43 @@ func declarationNode(stack []declarationContext) ast.Node {
 		}
 	}
 	return stack[len(stack)-1].node
+}
+
+// declarationQualifiedName is qualifiedName for a function declaration, which
+// is the one place a name does not separate two declarations: a package may
+// declare any number of `init` functions, with no receiver, no object path and
+// one signature between them.
+//
+// An `init` is named by its file, and by its ordinal among the `init` functions
+// of that file when there are several. It depends on nothing but the file, so
+// the build variants of a package -- with and without its tests -- name the
+// same declaration the same way, and adding a function to another file moves
+// no identity. Definitions and uses both call this, because a use is sourced at
+// the qualified name of the declaration around it.
+func declarationQualifiedName(fset *token.FileSet, files []*ast.File, declaration *ast.FuncDecl, owner string) string {
+	if owner != "" || declaration.Recv != nil || declaration.Name.Name != "init" {
+		return qualifiedName(owner, declaration.Name.Name)
+	}
+	for _, file := range files {
+		if declaration.Pos() < file.FileStart || declaration.Pos() >= file.FileEnd {
+			continue
+		}
+		total, ordinal := 0, 0
+		for _, entry := range file.Decls {
+			function, isFunction := entry.(*ast.FuncDecl)
+			if !isFunction || function.Recv != nil || function.Name.Name != "init" {
+				continue
+			}
+			total++
+			if function == declaration {
+				ordinal = total
+			}
+		}
+		name := "init#" + filepath.Base(fset.Position(file.FileStart).Filename)
+		if total > 1 {
+			name += "#" + strconv.Itoa(ordinal)
+		}
+		return name
+	}
+	return "init"
 }

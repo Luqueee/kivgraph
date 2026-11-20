@@ -17,7 +17,8 @@ the best `git grep` match appeared 25th. They are not success percentages or
 proof of an edge. Once the files are known, continue with the exact tools and
 inspect their `match`, confidence and completeness fields.
 
-See the [full measurement method](/comparison/) and the
+The method and the per-question results are in
+`benchmarks/intent-token-cost/report.md`. Read the
 [plain-language discovery contract](#arguments) before choosing a view.
 
 ## Arguments
@@ -26,13 +27,13 @@ See the [full measurement method](/comparison/) and the
 | --- | --- | --- | --- |
 | `profile` | array of strings | configured default | Profiles to query. `["*"]` alone selects all. |
 | `cursor` | string | none | Opaque token taken from `next_cursor`. Resumes the same query at the next offset. |
-| `intent` | string | none | The question, in plain language. Required: an empty or whitespace-only value is rejected with `INVALID_ARGUMENT`. It is a question and not a document, so more than 400 characters is rejected with the instruction to shorten it and pass the vocabulary as `keywords`. |
+| `intent` | string | none | The question, in plain language. Required: an empty or whitespace-only value is rejected with `INVALID_ARGUMENT`. It is a question and not a document, so more than 400 bytes, counted after surrounding whitespace is trimmed, is rejected with the instruction to shorten it and pass the vocabulary as `keywords`. |
 | `keywords` | array of string | none | Extra terms that extend the question rather than replacing it, and where you supply the vocabulary the code uses when it differs from the vocabulary the question used. At most 16; more is rejected with `INVALID_ARGUMENT`, and so is an empty or whitespace-only entry. There is no thesaurus and no embedding here: the model asking already knows more synonyms than a table would hold. |
 | `kind` | string | none | Keeps only candidates of this symbol kind. Compared exactly; surrounding whitespace is rejected. |
 | `limit` | integer | `10` | Rows in this page. Must be between 1 and 50. A row is whatever the view spells, so under `view: "files"` it counts files. |
 | `path_prefix` | string | none | Keeps only candidates whose repository-relative path starts with this prefix. Compared exactly; surrounding whitespace is rejected. |
 | `repo` | string | none | Keeps only candidates belonging to this repository, by name, compared exactly. Surrounding whitespace is rejected. |
-| `response_format` | string | `concise` | `concise` or `detailed`. Detailed adds the derived `stable_key` to the rows of the `full` view. Anything else is rejected with `INVALID_ARGUMENT`. |
+| `response_format` | string | `concise` | `concise` or `detailed`. Detailed adds the derived `stable_key` to the rows of the `compact` and `full` views; the `files` view has no rows to carry it. Anything else is rejected with `INVALID_ARGUMENT`. |
 | `view` | string | `compact` | The granularity of the answer, never a different answer. `compact` lifts into a header what every row shares. `full` is the field-per-row shape. `files` answers only which files hold candidates and how many each holds. Any other value is rejected with `INVALID_ARGUMENT`. |
 
 `repo`, `path_prefix` and `kind` narrow which candidates are *considered*, so
@@ -347,6 +348,11 @@ accumulating, and both example pages above sit exactly on it. A `total` of
 `4000` should be read as "at least this many, and the question is too broad to
 rank well" -- narrow it with `keywords`, `repo`, `kind` or `path_prefix`, or ask
 with `view: "files"` first, which is what the `guidance` on those pages says.
+
+What the bound keeps is not arbitrary. Symbols inside the `repo`, `kind` and
+`path_prefix` you gave are admitted before any outside them, and the rarest
+term of the question before the commonest, so what falls off is what a word
+most of the graph carries would have added.
 
 `limit` is capped at 50, well under the 500 of the traversal tools. Ranked text
 candidates past the first page are rarely the answer; the fix for a page that

@@ -304,6 +304,12 @@ func walkCargoFiles(ctx context.Context, base, current string, exclusions []stri
 	}
 	entries, err := os.ReadDir(current)
 	if err != nil {
+		// See walkGoFiles: a directory that vanished mid-walk holds nothing to
+		// discover, and the root going away stays an error. This is where a
+		// `target/` being written by cargo shows up.
+		if os.IsNotExist(err) && current != base {
+			return nil
+		}
 		return fmt.Errorf("read directory %q: %w", current, err)
 	}
 	for _, entry := range entries {
@@ -332,13 +338,16 @@ func walkCargoFiles(ctx context.Context, base, current string, exclusions []stri
 			continue
 		}
 		info, err := entry.Info()
+		if os.IsNotExist(err) {
+			continue
+		}
 		if err != nil {
 			return fmt.Errorf("inspect file %q: %w", entryPath, err)
 		}
 		if !info.Mode().IsRegular() {
 			continue
 		}
-		if err := visit(entryPath); err != nil {
+		if err := visitUnlessVanished(entryPath, visit); err != nil {
 			return err
 		}
 	}

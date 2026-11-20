@@ -5,8 +5,7 @@ description: >-
   ID that any MCP client can poll.
 ---
 
-> Starts a graph rebuild without holding one MCP call open for the duration of
-> the index. Prefer this tool over synchronous `index_project`.
+> Starts indexing; returns operation_id. Poll get_index_status.
 
 ## Arguments
 

@@ -122,11 +122,22 @@ export type TextBox = Box<string>;
   ]);
 });
 
-it("keeps empty and fully optional targets aligned with the exhaustive oracle", async () => {
+it("does not make a class implement a type with no required method", async () => {
+  // Any object is assignable to `{}` and to an options bag whose members are all
+  // optional, and a class that carries the fields of a data shape is assignable
+  // to it. The error classes below were reported as the implementation of
+  // `Options` and of `Result`, and the references to those types were then
+  // forwarded to them.
   const { service, view, symbols } = await fixture(`
 export interface Empty {}
-export interface Optional { read?(): string; }
+export interface Options { method?: string; maxResponseSize?: number; }
+export interface Result { readonly issues: string[]; }
 export class Blank {}
+export class Failure extends Error { maxResponseSize = 1; }
+export class Invalid extends Error { issues: string[] = []; }
+export class Declared implements Options {}
+export interface Reader { read(): string; }
+export class Reading { read(): string { return 'ok'; } }
 `);
   const result = await resolveImplementations(service, view, symbols, []);
   const brute = await resolveImplementations(service, view, symbols, [], {
@@ -134,13 +145,19 @@ export class Blank {}
   });
   expect(result.edges).toEqual(brute.edges);
   expect(
-    result.edges.map((edge) => [
-      edge.base.sourceQualifiedName,
-      edge.targetQualifiedName,
-    ]),
+    result.edges
+      .filter((edge) => edge.relation === "IMPLEMENTS")
+      .map((edge) => [
+        edge.base.sourceQualifiedName,
+        edge.targetQualifiedName,
+        edge.detection,
+      ]),
   ).toEqual([
-    ["Blank", "Empty"],
-    ["Blank", "Optional"],
+    // An explicit `implements` is a statement, whatever the shape.
+    ["Declared", "Options", "declared"],
+    // A required method is a contract, so a structural match to it still counts.
+    ["Reading.read", "Reader.read", "structural"],
+    ["Reading", "Reader", "structural"],
   ]);
 });
 

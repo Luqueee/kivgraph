@@ -89,9 +89,15 @@ func WatchSources(ctx context.Context, options SourceWatchOptions) error {
 		return fmt.Errorf("source watch: create filesystem watcher: %w", err)
 	}
 	defer filesystemWatcher.Close()
+	// An unreadable source is reported and watched around, here and below:
+	// the result beside that error is complete for every other path, and
+	// stopping would end invalidation for the whole profile over one file.
 	initial, err := reconciler.Reconcile(ctx)
 	if err != nil {
-		return fmt.Errorf("source watch: seed content cache: %w", err)
+		if !errors.Is(err, watcher.ErrUnreadablePath) {
+			return fmt.Errorf("source watch: seed content cache: %w", err)
+		}
+		reportSourceWatchError(options.OnError, err)
 	}
 	batcher, err := watcher.NewBatcher(debounce, maximum)
 	if err != nil {
@@ -178,7 +184,9 @@ func WatchSources(ctx context.Context, options SourceWatchOptions) error {
 			result, processErr := reconciler.Process(ctx, batch)
 			if processErr != nil {
 				reportSourceWatchError(options.OnError, processErr)
-				continue
+				if !errors.Is(processErr, watcher.ErrUnreadablePath) {
+					continue
+				}
 			}
 			if hasSourceChanges(result) {
 				queuePending(result)
@@ -188,7 +196,9 @@ func WatchSources(ctx context.Context, options SourceWatchOptions) error {
 			result, reconcileErr := reconciler.Reconcile(ctx)
 			if reconcileErr != nil {
 				reportSourceWatchError(options.OnError, reconcileErr)
-				continue
+				if !errors.Is(reconcileErr, watcher.ErrUnreadablePath) {
+					continue
+				}
 			}
 			if hasSourceChanges(result) {
 				queuePending(result)

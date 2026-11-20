@@ -3,7 +3,7 @@ title: get_source
 description: Read the code of up to twenty symbols in one call, as plain text, with the range re-anchored when the file changed.
 ---
 
-> The code of several symbols in one call. Prefer it to reading each range: no line numbers, one call across files and repositories.
+> Source of several symbols across files and repositories in one call; no line numbers needed.
 
 ## Arguments
 
@@ -14,7 +14,7 @@ description: Read the code of up to twenty symbols in one call, as plain text, w
 | `symbols[].stable_key` | string | unset | The durable key of one symbol. Exactly one of `stable_key` or `qualified_name` per entry; both is rejected, and a key together with `repository` or `path` is rejected. |
 | `symbols[].qualified_name` | string | unset | The qualified name of the symbol, as every row of this surface returns it. |
 | `symbols[].repository` | string | unset | Narrows that entry's `qualified_name` to one repository, matched by name. |
-| `symbols[].path` | string | unset | Narrows that entry's `qualified_name` to a repository-relative path prefix. It requires `repository`. An absolute path or any `..` segment is rejected. |
+| `symbols[].path` | string | unset | Narrows that entry's `qualified_name` to a repository-relative file, or to a directory containing it, matched at a path-segment boundary: `src/util.ts` does not match `src/util.tsx`, and `src/ut` matches nothing. It requires `repository`. An absolute path or any `..` segment is rejected. |
 | `context_lines` | integer | `0` | Lines kept before and after the declaration. Must be between 0 and 100; anything else is rejected with `INVALID_ARGUMENT`. The window is clamped at the first and last line of the file. |
 | `response_format` | string | `concise` | `concise` or `detailed`. `detailed` appends the stable key to each header line. Any other value is rejected with `INVALID_ARGUMENT`. |
 
@@ -93,8 +93,8 @@ you want the file, and the host reads files.
 
 There is no `limit` and no `cursor`, so there is no paging. The size bound is a
 262144-byte ceiling on the assembled bodies. When it stops the response short,
-the header says so, as `trimmed <n> at the 262144 byte ceiling`, and the
-envelope's `truncated` is set. A response that quietly stopped halfway would be
+the header says so, as `trimmed <n> at the 262144 byte ceiling`. There is no
+envelope around this answer, so the header is the only place it is said. A response that quietly stopped halfway would be
 worse than one that says it stopped. `guidance` is never emitted by this tool.
 
 `serve` may read the files of registered repositories only in order to deliver

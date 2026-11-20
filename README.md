@@ -83,19 +83,21 @@ twice, and there `grep` costs `0.53x` what Kivgraph does.
 
 A second harness, `benchmarks/mcp-token-cost`, compares against the host's own
 tool output captured verbatim, but it runs on Kivgraph's own single repository
-of 13,222 symbols: `7.64x` on the answers themselves and `1.60x` over a whole
-session, against a `2.41x` floor set by the source bodies both arms pay for.
+of 32,441 symbols: `1.76x` on the answers themselves and `1.24x` over a whole
+session, against a `2.50x` bound set by the source bodies both arms pay for.
+On its three rare names `grep` is the cheaper arm, at `0.83x` to `0.91x`.
 
 ## Status
 
 Released and in use. `kivgraph version` reports the published release; the
 backlog and the acceptance gate of every phase are in [`TASKS.md`](TASKS.md).
 
-- **Languages:** Go, TypeScript, Rust, Python and Dart. Python uses the
-  bundled AST worker in fallback mode; those inferred references are
+- **Languages:** Go, TypeScript, Rust, Python, Dart, Java and C#. Python uses
+  the bundled AST worker in fallback mode; those inferred references are
   `CANDIDATE`, never `EXACT`. Exact Python mode uses the bundled Pyright LSP
   adapter with an installed Pyright/BasedPyright server. Dart uses the Dart
-  Analysis Server supplied by the Dart or Flutter SDK.
+  Analysis Server supplied by the Dart or Flutter SDK. Java is indexed through
+  `scip-java` and C# through `scip-dotnet`, the compilers' own indexers.
 - **Semantic dependencies:** Python and Dart imports can publish a package
   dependency when exactly one registered provider owns the requested package;
   symbol-level cross-repository edges require an explicit provider identity.
@@ -166,7 +168,7 @@ From a checkout, either installer can be run directly:
 To install a specific release instead of the latest one:
 
 ```bash
-KIVGRAPH_VERSION=v0.9.10 ./scripts/install.sh
+KIVGRAPH_VERSION=v0.10.0 ./scripts/install.sh
 ```
 
 The script installs the bundle in `~/.local/opt/kivgraph` and puts launchers
@@ -372,16 +374,24 @@ Day to day:
 ```bash
 kivgraph graph status      # what is published, and whether a tree has moved
 kivgraph doctor            # toolchains, storage, and the type-checking ceiling
-kivgraph ui                # read-only 3D viewer, default 0.0.0.0:7777
+kivgraph ui                # read-only 3D viewer, default 127.0.0.1:7777
 kivgraph logs --follow     # aligned history of what it indexed, served and queried
 kivgraph tool-stats        # per-tool cost, calls, and failures
+kivgraph impact --base origin/main   # what this diff reaches, and which tests
 kivgraph stop              # terminate this user's serve and ui, never an index
 kivgraph clean --keep-active
 ```
 
-`kivgraph ui` binds a non-loopback address by default, because the graph is
-indexed where the repositories are and looked at from elsewhere; there is no
-authentication, so it logs exactly what it exposes and `--addr` restricts it.
+`kivgraph ui` binds loopback by default and refuses a request whose `Host` is
+not this machine. To look at the graph from another machine, pass
+`--addr 0.0.0.0:7777` or set `web.address`: there is no authentication, so that
+bind logs exactly what it exposes.
+
+`impact` maps the lines that differ from a ref onto the symbols that hold them,
+follows who depends on those, and lists the affected tests apart (`by_test_file`
+with `--json`). It reads the last published graph and refuses to answer when the
+graph is older than the working tree, because the changed lines would land on
+the wrong symbols; `kivgraph index` first, or `--allow-stale`.
 
 `logs` and `tool-stats` read an append-only record in the state directory
 rather than asking a server, which is why they can answer at all: the per-tool

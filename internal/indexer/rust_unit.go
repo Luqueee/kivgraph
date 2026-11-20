@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/rustloader"
@@ -511,18 +512,60 @@ func rustAnalysisUnits(units []rustWorkspaceUnit) []analysisUnit {
 // index contains: the analyzer that produced it and the build configuration it
 // was given. A feature turned on changes which code exists, so an entry taken
 // without it describes a graph this pass would not produce.
+//
+// Every question put to a toolchain is asked from probeDirectory, so that the
+// answer does not depend on where the process was started.
 func rustAnalysisFingerprint(options FullOptions) string {
 	hash := sha256.New()
+	probes := probeDirectory()
 	command := strings.Fields(strings.TrimSpace(options.RustAnalyzer))
-	fmt.Fprintf(hash, "command=%s\x00", strings.Join(command, " "))
-	if len(command) != 0 {
+
+	// The three questions are independent and each starts processes, so they are
+	// asked together and their answers written in the order they always were: the
+	// value does not depend on which one finished first.
+	var (
+		analyzer      string
+		identity      rustloader.ToolchainIdentity
+		identityError error
+		cargo         string
+		wait          sync.WaitGroup
+	)
+	wait.Add(3)
+	go func() {
+		defer wait.Done()
+		if len(command) == 0 {
+			return
+		}
 		if resolved, _, err := rustloader.ResolveAnalyzer(command[0]); err == nil {
-			fmt.Fprintf(hash, "analyzer=%s\x00", fileFingerprint(resolved))
-			if version, err := exec.Command(resolved, "--version").Output(); err == nil {
-				fmt.Fprintf(hash, "version=%s\x00", strings.TrimSpace(string(version)))
+			analyzer = fmt.Sprintf("analyzer=%s\x00", fileFingerprint(resolved))
+			if version, err := rustloader.ToolchainVersion(context.Background(), resolved, probes); err == nil {
+				analyzer += fmt.Sprintf("version=%s\x00", version)
 			}
 		}
-	}
+	}()
+	go func() {
+		defer wait.Done()
+		// The standard library in the graph is decided by `rustc`, not by cargo:
+		// a toolchain change is what invalidates every fact taken from it, and an
+		// entry that did not record the release would be served across one. It is
+		// the `rustc` the analyzer runs, which the PATH does not decide. Whether
+		// that toolchain carries its library sources is part of the answer too: a
+		// pass never installs them, so a machine that gains `rust-src` must not be
+		// served the facts it produced without it. One probe answers both.
+		identity, identityError = rustloader.ProbeToolchainIdentity(context.Background(), probes)
+	}()
+	go func() {
+		defer wait.Done()
+		if path, err := exec.LookPath("cargo"); err == nil {
+			if version, err := rustloader.ToolchainVersion(context.Background(), path, probes); err == nil {
+				cargo = fmt.Sprintf("cargo=%s\x00", version)
+			}
+		}
+	}()
+	wait.Wait()
+
+	fmt.Fprintf(hash, "command=%s\x00", strings.Join(command, " "))
+	fmt.Fprint(hash, analyzer)
 	features := append([]string(nil), options.RustFeatures...)
 	sort.Strings(features)
 	cfgs := append([]string(nil), options.RustCfgs...)
@@ -533,18 +576,12 @@ func rustAnalysisFingerprint(options FullOptions) string {
 		strings.Join(cfgs, ","), options.RustBuildScripts, options.RustProcMacros,
 		options.RustIncludeTests, options.RustAllowNetwork, strings.TrimSpace(options.RustSysroot),
 		options.RustIndexSysroot)
-	// The standard library in the graph is decided by `rustc`, not by cargo:
-	// a toolchain change is what invalidates every fact taken from it, and an
-	// entry that did not record the release would be served across one.
-	if compiler, err := exec.LookPath("rustc"); err == nil {
-		if version, err := exec.Command(compiler, "--version").Output(); err == nil {
-			fmt.Fprintf(hash, "rustc=%s\x00", strings.TrimSpace(string(version)))
-		}
+	if identity.Answered {
+		fmt.Fprintf(hash, "rustc=%s\x00", identity.Version)
 	}
-	if cargo, err := exec.LookPath("cargo"); err == nil {
-		if version, err := exec.Command(cargo, "--version").Output(); err == nil {
-			fmt.Fprintf(hash, "cargo=%s\x00", strings.TrimSpace(string(version)))
-		}
+	if identityError == nil {
+		fmt.Fprintf(hash, "library=%s\x00", identity.Library)
 	}
+	fmt.Fprint(hash, cargo)
 	return hex.EncodeToString(hash.Sum(nil))
 }

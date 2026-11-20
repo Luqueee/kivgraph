@@ -12,6 +12,7 @@ import (
 
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/testpath"
 )
 
 const (
@@ -47,6 +48,7 @@ type FindReferencesInput struct {
 	Direction               string   `json:"direction,omitempty" jsonschema:"incoming (default): who uses it; outgoing: what it uses."`
 	Repo                    string   `json:"repo,omitempty" jsonschema:"Filter rows by repository; naming the derived provider opts it in."`
 	Language                string   `json:"language,omitempty" jsonschema:"Keep only rows written in this language."`
+	ExcludeTests            bool     `json:"exclude_tests,omitempty" jsonschema:"Drop rows declared in test files, recognised by path (_test.go, tests/, *.spec.ts...)."`
 	EdgeKinds               []string `json:"edge_kinds,omitempty" jsonschema:"Edge kinds. Default excludes EXPORTS/REEXPORTS; * includes all."`
 	Confidence              string   `json:"confidence,omitempty" jsonschema:"Filter confidence, e.g. EXACT_TYPECHECKED or CANDIDATE."`
 	IncludeDerived          bool     `json:"include_derived,omitempty" jsonschema:"Include the normally withheld derived provider."`
@@ -363,15 +365,16 @@ type findReferencesOptions struct {
 	// resolved against the snapshot, so it never reaches the query hash: the
 	// hash covers the qualified name it resolved to, and a page stays valid
 	// while the snapshot does.
-	Name       string
-	View       string
-	Direction  string
-	Repo       string
-	Language   string
-	EdgeKinds  referenceEdgeKindFilter
-	Confidence string
-	Derived    derivedFilter
-	Limit      int
+	Name         string
+	View         string
+	Direction    string
+	Repo         string
+	Language     string
+	ExcludeTests bool
+	EdgeKinds    referenceEdgeKindFilter
+	Confidence   string
+	Derived      derivedFilter
+	Limit        int
 }
 
 type findReferencesQuery struct {
@@ -385,8 +388,11 @@ type findReferencesQuery struct {
 	Direction     string   `json:"direction"`
 	Repo          string   `json:"repo,omitempty"`
 	Language      string   `json:"language,omitempty"`
+	ExcludeTests  bool     `json:"exclude_tests,omitempty"`
 	EdgeKinds     []string `json:"edge_kinds,omitempty"`
 	Confidence    string   `json:"confidence,omitempty"`
+	// See blastRadiusQuery for why this one is `omitempty`.
+	IncludeDerived bool `json:"include_derived,omitempty"`
 }
 
 type decodedReferenceEdge struct {
@@ -649,8 +655,8 @@ func findReferences(
 		Tool: arguments.queryToolName(), Detection: arguments.implementationDetection, Paths: arguments.implementationPaths, StableKey: options.Selector.StableKey,
 		QualifiedName: options.Selector.QualifiedName, Repository: options.Selector.Repository,
 		Path: options.Selector.Path, Direction: options.Direction,
-		Repo: options.Repo, Language: options.Language, EdgeKinds: options.EdgeKinds.applied,
-		Confidence: options.Confidence,
+		Repo: options.Repo, Language: options.Language, ExcludeTests: options.ExcludeTests, EdgeKinds: options.EdgeKinds.applied,
+		Confidence: options.Confidence, IncludeDerived: arguments.IncludeDerived,
 	})
 	if err != nil {
 		return nil, Response[ReferenceResult]{}, err
@@ -879,7 +885,7 @@ func normalizeFindReferencesInput(arguments FindReferencesInput) (findReferences
 	}
 	return findReferencesOptions{
 		implementationsOnly: arguments.implementationsOnly, implementationDetection: arguments.implementationDetection, implementationPaths: arguments.implementationPaths,
-		Selector: selector, Name: name, View: view, Direction: direction, Repo: repo, Language: language,
+		Selector: selector, Name: name, View: view, Direction: direction, Repo: repo, Language: language, ExcludeTests: arguments.ExcludeTests,
 		EdgeKinds: edgeKinds, Confidence: confidence, Limit: limit,
 		Derived: newDerivedFilter(arguments.IncludeDerived, repo),
 	}, nil
@@ -1128,6 +1134,23 @@ func referenceMatches(
 	if options.Language != "" && !containsString(languages, options.Language) {
 		return false, nil
 	}
+	if options.ExcludeTests {
+		related, found := snapshot.Symbol(relatedID)
+		if !found {
+			return false, fmt.Errorf("symbol index %d is missing", relatedID)
+		}
+		file, found := snapshot.File(related.File)
+		if !found {
+			return false, fmt.Errorf("symbol index %d references missing file %d", relatedID, related.File)
+		}
+		filePath, ok := snapshot.Strings().String(file.Path)
+		if !ok {
+			return false, fmt.Errorf("file %d has an invalid path", related.File)
+		}
+		if testpath.Is(filePath) {
+			return false, nil
+		}
+	}
 	if !options.Derived.keepsAll() {
 		name, ok := snapshot.Strings().String(repository.Name)
 		if !ok {
@@ -1352,6 +1375,7 @@ func firstString(values []string) string {
 	}
 	return values[0]
 }
+
 func minReferenceInt(left, right int) int {
 	if left < right {
 		return left

@@ -241,6 +241,63 @@ def location_offset(location, contents):
     return path, offset_at(text, start.get("line", 0), start.get("character", 0))
 
 
+# A quoted annotation is source like any other: `def f(ctx: "Context")` uses
+# Context exactly as the unquoted form does, and so does `t.cast("Context", x)`.
+# Read as a string constant it is no occurrence at all -- no edge and no
+# unresolved row -- and a declaration used only that way was answered as used by
+# nobody, with a verdict of COMPLETE.
+def is_quoted_annotation(node):
+    if not (isinstance(node, ast.Constant) and isinstance(node.value, str)):
+        return False
+    child, parent = node, getattr(node, "parent", None)
+    while isinstance(parent, (ast.Subscript, ast.Tuple, ast.List, ast.BinOp)):
+        if isinstance(parent, ast.Subscript):
+            head = parent.value
+            name = head.id if isinstance(head, ast.Name) else getattr(head, "attr", "")
+            # The strings of `Literal["a"]` are values and those of
+            # `Annotated[T, "note"]` are metadata; neither names anything.
+            if name in {"Literal", "Annotated"}:
+                return False
+        child, parent = parent, getattr(parent, "parent", None)
+    if isinstance(parent, (ast.arg, ast.AnnAssign)) and parent.annotation is child:
+        return True
+    if isinstance(parent, (ast.FunctionDef, ast.AsyncFunctionDef)) and parent.returns is child:
+        return True
+    if isinstance(parent, ast.Call) and child is node and parent.args and parent.args[0] is node:
+        callee = parent.func
+        return (callee.id if isinstance(callee, ast.Name) else getattr(callee, "attr", "")) == "cast"
+    return False
+
+
+# quoted_names yields the names a quoted annotation uses, with where each one is
+# in the file. Only a plain one-line ASCII literal is read: anything else -- a
+# prefix, an escape, a concatenation -- would put the offsets somewhere the name
+# is not, and an occurrence with the wrong evidence is worse than none.
+def quoted_names(node, text, start):
+    value = node.value
+    if not value.isascii() or "\n" in value or text[start:start + 1] not in ("'", '"'):
+        return
+    if text[start + 1:start + 1 + len(value)] != value:
+        return
+    try:
+        tree = ast.parse(value, mode="eval")
+    except SyntaxError:
+        return
+    for inner in ast.walk(tree):
+        if isinstance(inner, ast.Name):
+            yield inner.id, start + 1 + inner.col_offset, False
+        elif isinstance(inner, ast.Attribute):
+            yield inner.attr, start + 1 + inner.end_col_offset - len(inner.attr), True
+
+
+def span(text, start, length):
+    line_start = text.rfind("\n", 0, start) + 1
+    line = text.count("\n", 0, start) + 1
+    column = start - line_start
+    return {"startLine": line, "startColumn": column, "start": start,
+            "endLine": line, "endColumn": column + length, "end": start + length}
+
+
 def is_type_position(node):
     parent = getattr(node, "parent", None)
     if isinstance(parent, (ast.AnnAssign, ast.arg)) and getattr(parent, "annotation", None) is node:
@@ -255,6 +312,31 @@ def is_type_position(node):
     if isinstance(parent, ast.ClassDef) and node in parent.bases:
         return True
     return False
+
+
+# is_test_path is internal/testpath.Is, the one rule that says a path is a test
+# file. It is written twice because this worker has to decide what to read
+# before the graph exists, and a test in internal/pythonloader holds the two to
+# the same answer over a corpus of paths. With a rule of its own the worker
+# left `test_models.py` in the graph as production code while `exclude_tests`
+# filtered it as a test.
+TEST_DIRECTORIES = {"test", "tests", "__tests__", "spec", "specs", "integration_test"}
+
+
+def is_test_path(relative):
+    normalized = relative.lower()
+    directory, _, base = normalized.rpartition("/")
+    if (base.endswith(("_test.go", "_test.py", "_test.dart")) or
+            (base.startswith("test_") and base.endswith(".py")) or base == "conftest.py" or
+            ".test." in base or ".spec." in base):
+        return True
+    original = relative.rpartition("/")[2]
+    stem, dot, extension = original.rpartition(".")
+    if dot and extension in {"java", "cs"} and stem.endswith(("Test", "Tests")):
+        return True
+    if any(component in TEST_DIRECTORIES for component in directory.split("/")):
+        return True
+    return "/src/it/" in "/" + directory + "/"
 
 
 def symbol_kind(value):
@@ -284,7 +366,7 @@ def main():
         relative_parts = path.relative_to(root).parts
         if any(part in {".git", ".venv", "venv", "__pycache__", ".tox"} for part in relative_parts):
             continue
-        if not args.include_tests and any(part in {"tests", "test", "integration_test"} for part in relative_parts):
+        if not args.include_tests and is_test_path("/".join(relative_parts)):
             continue
         if not args.include_generated and any(part in {"build", "dist"} or part.endswith(("_generated.py", ".generated.py")) for part in relative_parts):
             continue
@@ -425,7 +507,8 @@ def main():
 
             for node in ast.walk(tree):
                 if isinstance(node, (ast.Import, ast.ImportFrom)):
-                    package = node.module or ""
+                    # Only `from x import y` names a module; `import x` has none.
+                    package = getattr(node, "module", None) or ""
                     for alias in node.names:
                         target_id, _ = definition_target(import_name_offset(alias))
                         imports.append({"file": relative, "sourceId": module_id,
@@ -440,55 +523,62 @@ def main():
                 # occurrence is asked exactly like a bare name and refused the
                 # same way when it does not resolve.
                 if isinstance(node, ast.Name) and isinstance(getattr(node, "ctx", None), ast.Load):
-                    occurrence = point(node, line_starts, text)
-                    requested = node.id
+                    occurrences = [(point(node, line_starts, text), node.id, None)]
                 elif isinstance(node, ast.Attribute) and isinstance(getattr(node, "ctx", None), ast.Load):
-                    occurrence = attribute_point(node, line_starts, text)
-                    requested = node.attr
+                    occurrences = [(attribute_point(node, line_starts, text), node.attr, None)]
+                elif is_quoted_annotation(node):
+                    # Pyright resolves a forward reference where it is written,
+                    # inside the quotes, so each name is asked at its own offset
+                    # like any other occurrence.
+                    occurrences = [(span(text, offset, len(name)), name, "TYPE_USES")
+                                   for name, offset, _ in quoted_names(node, text, point(node, line_starts, text)["start"])]
                 else:
                     continue
-                target_id, target_path = definition_target(occurrence["start"])
-                if not target_id:
-                    # The enclosing declaration owns its failures too: a row
-                    # attributed to the module says the file could not resolve
-                    # something, which is a coarser fact than the one observed.
-                    unresolved.append({"file": relative,
-                                       "sourceId": target_at(str(path), occurrence["start"]) or module_id,
-                                       "requestedSymbol": requested,
-                                       "reason": "TARGET_NOT_INDEXED" if target_path else "NAME_NOT_RESOLVED",
-                                       "detail": target_path,
-                                       **occurrence})
-                    continue
-                parent = getattr(node, "parent", None)
-                kind = "REFERENCES"
-                if isinstance(parent, ast.Call) and parent.func is node:
-                    kind = "CALLS_DIRECT"
-                elif isinstance(parent, ast.ClassDef) and node in parent.bases:
-                    kind = "EXTENDS"
-                elif isinstance(parent, ast.Return):
-                    kind = "RETURNS_FUNCTION" if target_id in function_symbol_ids else "REFERENCES"
-                elif is_type_position(node):
-                    kind = "TYPE_USES"
-                elif isinstance(parent, (ast.Assign, ast.AnnAssign, ast.NamedExpr)):
-                    kind = "ASSIGNS_FUNCTION" if target_id in function_symbol_ids else "REFERENCES"
-                elif isinstance(parent, ast.Call) and node in parent.args:
-                    kind = "PASSES_AS_CALLBACK" if target_id in function_symbol_ids else "REFERENCES"
-                # The enclosing declaration, not the module: a reference belongs
-                # to whoever makes it. Attributing every one to the module made
-                # find_references answer at file granularity, and it fabricated
-                # relations that the source does not contain -- `class
-                # ElectricVehicle(Vehicle)` was published as the module itself
-                # extending Vehicle, as an EXACT edge.
-                source_id = target_at(str(path), occurrence["start"]) or module_id
-                # A declaration does not reference itself: the name in `def
-                # drive(self)` resolves to `drive`, and publishing that is a
-                # self loop the source does not contain. The Dart path already
-                # refuses the same shape.
-                if source_id == target_id:
-                    continue
-                references.append({"file": relative, "sourceId": source_id,
-                                   "targetId": target_id, "kind": kind,
-                                   **occurrence, "text": requested})
+                for occurrence, requested, quoted_kind in occurrences:
+                    target_id, target_path = definition_target(occurrence["start"])
+                    if not target_id:
+                        # The enclosing declaration owns its failures too: a row
+                        # attributed to the module says the file could not resolve
+                        # something, which is a coarser fact than the one observed.
+                        unresolved.append({"file": relative,
+                                           "sourceId": target_at(str(path), occurrence["start"]) or module_id,
+                                           "requestedSymbol": requested,
+                                           "reason": "TARGET_NOT_INDEXED" if target_path else "NAME_NOT_RESOLVED",
+                                           "detail": target_path,
+                                           **occurrence})
+                        continue
+                    parent = getattr(node, "parent", None)
+                    kind = "REFERENCES"
+                    if quoted_kind:
+                        kind = quoted_kind
+                    elif isinstance(parent, ast.Call) and parent.func is node:
+                        kind = "CALLS_DIRECT"
+                    elif isinstance(parent, ast.ClassDef) and node in parent.bases:
+                        kind = "EXTENDS"
+                    elif isinstance(parent, ast.Return):
+                        kind = "RETURNS_FUNCTION" if target_id in function_symbol_ids else "REFERENCES"
+                    elif is_type_position(node):
+                        kind = "TYPE_USES"
+                    elif isinstance(parent, (ast.Assign, ast.AnnAssign, ast.NamedExpr)):
+                        kind = "ASSIGNS_FUNCTION" if target_id in function_symbol_ids else "REFERENCES"
+                    elif isinstance(parent, ast.Call) and node in parent.args:
+                        kind = "PASSES_AS_CALLBACK" if target_id in function_symbol_ids else "REFERENCES"
+                    # The enclosing declaration, not the module: a reference belongs
+                    # to whoever makes it. Attributing every one to the module made
+                    # find_references answer at file granularity, and it fabricated
+                    # relations that the source does not contain -- `class
+                    # ElectricVehicle(Vehicle)` was published as the module itself
+                    # extending Vehicle, as an EXACT edge.
+                    source_id = target_at(str(path), occurrence["start"]) or module_id
+                    # A declaration does not reference itself: the name in `def
+                    # drive(self)` resolves to `drive`, and publishing that is a
+                    # self loop the source does not contain. The Dart path already
+                    # refuses the same shape.
+                    if source_id == target_id:
+                        continue
+                    references.append({"file": relative, "sourceId": source_id,
+                                       "targetId": target_id, "kind": kind,
+                                       **occurrence, "text": requested})
 
         result = {"version": 1, "authoritative": True, "analyzer": args.analyzer, "repository": root.name,
                   "language": "python", "package": {"name": root.name, "rootPath": str(root)},

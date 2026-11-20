@@ -629,7 +629,7 @@ together.
 **A binary that is not running from a release layout reports nothing**, and
 that is the declared hole in this number. Nothing distinguishes a developer's
 `go build` from a CI job's, and this repository's own CI builds and runs the
-binary on every push -- `ci.yml` has `verify`, `ladybug`, `smoke`,
+binary on every push -- `ci.yml` has `lint`, `verify`, `ladybug`, `smoke`,
 `darwin-bundle`, `macos` and `windows-cross`, and the `smoke` one serves a
 bundle it built -- so counting those would make the number mostly us. The cost
 is that somebody who ran `go install` is invisible.

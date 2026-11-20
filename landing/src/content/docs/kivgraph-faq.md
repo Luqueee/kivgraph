@@ -5,11 +5,11 @@ description: Answers about Kivgraph, cross-repository code graphs, MCP clients, 
 
 ## What is Kivgraph?
 
-Kivgraph is a local **cross-repository code intelligence MCP server** for AI coding agents. It indexes Go, TypeScript, Rust, Python and Dart repositories into a canonical semantic code graph and serves that graph to a client over stdio.
+Kivgraph is a local **cross-repository code intelligence MCP server** for AI coding agents. It indexes Go, TypeScript, Rust, Python, Dart, Java and C# repositories into a canonical semantic code graph and serves that graph to a client over stdio.
 
 ## Which languages are supported, and are they equal?
 
-Go, TypeScript, Rust, Python and Dart — and no, they are not equal. Go, TypeScript and Rust edges are type-checked; Dart edges are resolved by Dart Analysis Server; Python uses exact semantic facts when a configured analyzer provides them and `CANDIDATE` facts in its bundled AST fallback. The response carries that distinction, so a Python candidate is never presented as a proven call. `--languages` accepts ten tokens: the five names plus the aliases `javascript`, `ts`, `js`, `rs` and `py`.
+Go, TypeScript, Rust, Python, Dart, Java and C# — and no, they are not equal. Go, TypeScript and Rust edges are type-checked; Dart edges are resolved by Dart Analysis Server; Java and C# edges come from their compilers' own indexers, `scip-java` and `scip-dotnet`; Python uses exact semantic facts when a configured analyzer provides them and `CANDIDATE` facts in its bundled AST fallback. The response carries that distinction, so a Python candidate is never presented as a proven call. `--languages` accepts thirteen tokens: the seven names, with C# spelled `csharp`, plus the aliases `javascript`, `ts`, `js`, `rs`, `py` and `cs`.
 
 ## Does Kivgraph replace `grep`?
 
@@ -21,7 +21,7 @@ On the current run it does: 35,961 tokens over 36 tool calls against 267,980 tok
 
 ## Does my code leave my machine?
 
-No. The indexer, the canonical store, the published snapshot and the MCP server all run locally, and the server speaks stdio to a client on the same machine. One caveat deserves to be stated plainly: `kivgraph ui` is a local HTTP listener that binds `0.0.0.0:7777` by default and carries **no authentication**, so anything that can reach that port reads your repository paths, file paths, symbol names and signatures. Bind it to loopback with `--addr 127.0.0.1:7777`, or set `web.address`, unless you intend it to be reachable — see [limits](/limits/) and the [viewer guide](/guides/viewer/).
+No. The indexer, the canonical store, the published snapshot and the MCP server all run locally, and the server speaks stdio to a client on the same machine. One caveat deserves to be stated plainly: `kivgraph ui` is a local HTTP listener that binds `127.0.0.1:7777` by default and carries **no authentication**. If you bind it to another address with `--addr` or `web.address`, anything that can reach that port reads your repository paths, file paths, symbol names and signatures, so do that only if you intend it to be reachable. A configuration written by an earlier `init` carries `0.0.0.0:7777`; change it — see [limits](/limits/) and the [viewer guide](/guides/viewer/).
 
 ## Does Kivgraph require an LLM or an API key?
 

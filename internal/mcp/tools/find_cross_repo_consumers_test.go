@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"testing"
 	"time"
 
@@ -581,5 +582,61 @@ func TestFindCrossRepoConsumersCompactGroupsTheMajorityTupleOnce(t *testing.T) {
 		default:
 			t.Fatalf("unexpected group category %v", group["category"])
 		}
+	}
+}
+
+// TestFindCrossRepoConsumersExcludesTestFiles pins which rows exclude_tests
+// drops: a consumer symbol or an unresolved failure whose file is a test, and
+// nothing else. A package dependency names no file, so it stays -- dropping it
+// would hide a repository that depends on the provider -- and the coverage
+// counts describe the page that is returned.
+func TestFindCrossRepoConsumersExcludesTestFiles(t *testing.T) {
+	rows := crossRepoConsumerRows()
+	rows.Files = append(rows.Files, hotsnapshot.FileRow{Key: "file-consumer-test", RepositoryKey: "repo-consumer", PackageKey: "pkg-consumer", Path: "consumer_test.go", Language: "go"})
+	for index := range rows.Symbols {
+		if key := rows.Symbols[index].StableKey; key == "sym-candidate" || key == "sym-unresolved" {
+			rows.Symbols[index].FileKey = "file-consumer-test"
+		}
+	}
+	for index := range rows.Unresolved {
+		if rows.Unresolved[index].Key == "unresolved-consumer" {
+			rows.Unresolved[index].FileKey = "file-consumer-test"
+		}
+	}
+	store := hotsnapshot.NewSnapshotStore(buildCrossRepoSnapshot(t, rows, 31))
+	call := func(arguments FindCrossRepoConsumersInput) Response[CrossRepoConsumers] {
+		t.Helper()
+		arguments.StableKey = "sym-target"
+		_, response, err := findCrossRepoConsumers(context.Background(), nil, arguments, store)
+		if err != nil {
+			t.Fatalf("findCrossRepoConsumers(%#v) error = %v", arguments, err)
+		}
+		return response
+	}
+
+	all := call(FindCrossRepoConsumersInput{})
+	if all.Total != 4 || all.Coverage != (Coverage{Exact: 1, Candidate: 1, UnresolvedRelated: 1, PackageLevel: 1}) {
+		t.Fatalf("without the argument total = %d coverage = %#v, want the four rows", all.Total, all.Coverage)
+	}
+
+	kept := call(FindCrossRepoConsumersInput{ExcludeTests: true})
+	var categories []string
+	for _, row := range kept.Results.Consumers {
+		categories = append(categories, row.Category)
+	}
+	if want := []string{CrossRepoConsumerExactSymbol, CrossRepoConsumerPackage}; !slices.Equal(categories, want) {
+		t.Fatalf("categories = %v, want %v", categories, want)
+	}
+	if kept.Total != 2 || kept.Coverage != (Coverage{Exact: 1, PackageLevel: 1}) {
+		t.Fatalf("total = %d coverage = %#v, want the two rows counted", kept.Total, kept.Coverage)
+	}
+
+	first := call(FindCrossRepoConsumersInput{Limit: 1})
+	if first.NextCursor == nil {
+		t.Fatal("first page has no cursor to resume")
+	}
+	_, _, err := findCrossRepoConsumers(context.Background(), nil, FindCrossRepoConsumersInput{StableKey: "sym-target", Limit: 1, ExcludeTests: true, Cursor: *first.NextCursor}, store)
+	if err == nil {
+		t.Fatal("a cursor minted without exclude_tests was accepted with it")
 	}
 }

@@ -25,6 +25,7 @@ type FindImplementationsInput struct {
 	Path          string   `json:"path,omitempty" jsonschema:"Repository-relative file declaring the subject."`
 	Repo          string   `json:"repo,omitempty" jsonschema:"Filter implementation rows by repository."`
 	Language      string   `json:"language,omitempty" jsonschema:"Filter rows by language."`
+	ExcludeTests  bool     `json:"exclude_tests,omitempty" jsonschema:"Drop rows declared in test files, matched by path."`
 	Detection     string   `json:"detection,omitempty" jsonschema:"Filter evidence: declared or structural; omit for both and other typed mechanisms."`
 	Limit         int      `json:"limit,omitempty" jsonschema:"Rows per page; default 50."`
 	Cursor        string   `json:"cursor,omitempty" jsonschema:"Previous next_cursor; keep filters unchanged. Bound to the served generation."`
@@ -65,7 +66,7 @@ func findImplementations(ctx context.Context, request *sdkmcp.CallToolRequest, a
 		}
 	}
 	slices.Sort(paths)
-	query := FindReferencesInput{implementationPaths: paths, Profile: arguments.Profile, StableKey: arguments.StableKey, Name: arguments.Name, QualifiedName: arguments.QualifiedName, Repository: arguments.Repository, Path: arguments.Path, Repo: arguments.Repo, Language: arguments.Language, Limit: arguments.Limit, Cursor: arguments.Cursor, EdgeKinds: []string{string(facts.Implements), string(facts.Overrides)}, Direction: FindReferencesDirectionIncoming, ResponseFormat: ResponseFormatDetailed, View: ViewFull, implementationsOnly: true, implementationDetection: arguments.Detection}
+	query := FindReferencesInput{implementationPaths: paths, Profile: arguments.Profile, StableKey: arguments.StableKey, Name: arguments.Name, QualifiedName: arguments.QualifiedName, Repository: arguments.Repository, Path: arguments.Path, Repo: arguments.Repo, Language: arguments.Language, ExcludeTests: arguments.ExcludeTests, Limit: arguments.Limit, Cursor: arguments.Cursor, EdgeKinds: []string{string(facts.Implements), string(facts.Overrides)}, Direction: FindReferencesDirectionIncoming, ResponseFormat: ResponseFormatDetailed, View: ViewFull, implementationsOnly: true, implementationDetection: arguments.Detection}
 	selected, count, err := resolveProfileSelection(store, arguments.Profile, arguments.StableKey)
 	if err != nil {
 		return nil, Response[ImplementationResult]{}, err

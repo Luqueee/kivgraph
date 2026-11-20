@@ -62,6 +62,11 @@ func TestIncludeFileExcludesTestsAndGeneratedSources(t *testing.T) {
 		{"src/main/java/com/example/Service.java", true},
 		{"src/test/java/com/example/ServiceTest.java", false},
 		{"src/it/java/com/example/ServiceIT.java", false},
+		// The rule is the one `exclude_tests` applies, so a test is also a test
+		// outside Maven's layout, and a class that merely ends in "test" is not.
+		{"module/tests/com/example/Checks.java", false},
+		{"src/main/java/com/example/OrderTest.java", false},
+		{"src/main/java/com/example/Latest.java", true},
 		{"target/generated-sources/annotations/com/example/Gen.java", false},
 		{"build/generated/source/com/example/Gen.java", false},
 		{"src/main/resources/application.yaml", false},

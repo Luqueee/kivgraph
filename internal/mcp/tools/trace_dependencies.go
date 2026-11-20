@@ -13,6 +13,7 @@ import (
 
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/testpath"
 )
 
 const (
@@ -53,6 +54,7 @@ type TraceDependenciesInput struct {
 	MaxNodes       int      `json:"max_nodes,omitempty" jsonschema:"Nodes the walk may visit before it stops and declares that it did. Defaults to 5000."`
 	Repo           string   `json:"repo,omitempty" jsonschema:"Keep only reached symbols in this repository. Refused with to, since a route missing a link is not a route."`
 	Language       string   `json:"language,omitempty" jsonschema:"Keep only reached symbols written in this language. Refused with to."`
+	ExcludeTests   bool     `json:"exclude_tests,omitempty" jsonschema:"Drop reached symbols declared in test files, matched by path. Refused with to."`
 	EdgeKinds      []string `json:"edge_kinds,omitempty" jsonschema:"Relation kinds the walk may follow, such as CALLS. It gates what is reachable, not just what is shown."`
 	Confidence     string   `json:"confidence,omitempty" jsonschema:"Follow only edges resolved at this confidence, such as EXACT_TYPECHECKED. It gates what is reachable."`
 	IncludeDerived bool     `json:"include_derived,omitempty" jsonschema:"Include reached symbols of the derived provider, which is withheld by default. Refused with to."`
@@ -414,19 +416,20 @@ func (trace DependencyTrace) MarshalJSON() ([]byte, error) {
 }
 
 type traceDependenciesOptions struct {
-	Selector   symbolSelector
-	Target     string
-	TargetPath string
-	Depth      int
-	MaxNodes   int
-	Repo       string
-	Language   string
-	EdgeKinds  []string
-	Confidence string
-	Derived    derivedFilter
-	Limit      int
-	Format     string
-	View       string
+	Selector     symbolSelector
+	Target       string
+	TargetPath   string
+	Depth        int
+	MaxNodes     int
+	Repo         string
+	Language     string
+	ExcludeTests bool
+	EdgeKinds    []string
+	Confidence   string
+	Derived      derivedFilter
+	Limit        int
+	Format       string
+	View         string
 }
 
 type traceDependenciesQuery struct {
@@ -441,8 +444,11 @@ type traceDependenciesQuery struct {
 	MaxNodes      int      `json:"max_nodes"`
 	Repo          string   `json:"repo,omitempty"`
 	Language      string   `json:"language,omitempty"`
+	ExcludeTests  bool     `json:"exclude_tests,omitempty"`
 	EdgeKinds     []string `json:"edge_kinds,omitempty"`
 	Confidence    string   `json:"confidence,omitempty"`
+	// See blastRadiusQuery for why this one is `omitempty`.
+	IncludeDerived bool `json:"include_derived,omitempty"`
 }
 
 // RegisterTraceDependencies adds the read-only dependency traversal without a
@@ -624,7 +630,7 @@ func traceDependenciesAcrossProfiles(
 		Profiles: profiles, CrossProfileEdges: "not_resolved",
 		Total: len(rows), Returned: end - offset, Truncated: end < len(rows), NextCursor: next,
 		Coverage: coverage, Completeness: &mergedCompleteness,
-		Guidance: traversalGuidance(traceDependenciesToolName, len(rows), end-offset, end < len(rows), mergedCompleteness.Verdict),
+		Guidance: traversalGuidance(traceDependenciesToolName, len(rows), end-offset, end < len(rows), trace.TraversalTruncated, mergedCompleteness.Verdict),
 		Results:  trace, View: options.View,
 	}, nil
 }
@@ -643,8 +649,8 @@ func traceDependencies(
 		Tool: traceDependenciesToolName, StableKey: options.Selector.StableKey, QualifiedName: options.Selector.QualifiedName,
 		Repository: options.Selector.Repository, Path: options.Selector.Path,
 		To: options.Target, ToPath: options.TargetPath, Depth: options.Depth,
-		MaxNodes: options.MaxNodes, Repo: options.Repo, Language: options.Language,
-		EdgeKinds: options.EdgeKinds, Confidence: options.Confidence,
+		MaxNodes: options.MaxNodes, Repo: options.Repo, Language: options.Language, ExcludeTests: options.ExcludeTests,
+		EdgeKinds: options.EdgeKinds, Confidence: options.Confidence, IncludeDerived: arguments.IncludeDerived,
 	})
 	if err != nil {
 		return nil, Response[DependencyTrace]{}, err
@@ -687,6 +693,10 @@ func traceDependencies(
 	// seed is skipped from the rows by dependencyNodes, which drops a visit
 	// whose Source is InvalidSymbolID. ADR 0059.
 	seeds := append([]hotsnapshot.SymbolID{rootID}, containedMembers(snapshot, rootID, root)...)
+	// For the same reason a member does not spend the node budget: the bound
+	// the caller set is on the root and what it reaches. Counted against it,
+	// the members of a large type refused a small budget outright.
+	traversalOptions.MaxNodes = min(traversalOptions.MaxNodes+len(seeds)-1, hotsnapshot.MaxTraversalNodes)
 	if options.Target != "" {
 		return traceWitness(snapshot, options, traversalOptions, seeds, rootID, root, rootRepository.name)
 	}
@@ -734,9 +744,15 @@ func traceDependencies(
 	completeness, unresolvedRelated, err := completenessOutwardFor(snapshot, rootID, rootName, rootRepositoryID)
 	if err != nil {
 		return nil, Response[DependencyTrace]{}, WrapToolError(
-			CodeSnapshotUnavailable, "active snapshot contains invalid unresolved metadata", err)
+			CodeSnapshotUnavailable, "active snapshot contains invalid unresolved metadata", err,
+		)
 	}
 	coverage.UnresolvedRelated += unresolvedRelated
+	// A walk cut by max_nodes never discovered part of what this reaches. See
+	// the same downgrade in get_blast_radius.
+	if traversal.Truncated {
+		completeness.Verdict = VerdictLowerBound
+	}
 
 	snapshotID := metadata.ID
 	snapshotAgeMS := snapshotAgeMilliseconds(metadata.CreatedAt)
@@ -745,11 +761,11 @@ func traceDependencies(
 		Total: total, Returned: len(page), Truncated: hasMore, NextCursor: nextCursor,
 		Coverage:     coverage,
 		Completeness: &completeness,
-		Guidance:     traversalGuidance(traceDependenciesToolName, total, len(page), hasMore, completeness.Verdict),
+		Guidance:     traversalGuidance(traceDependenciesToolName, total, len(page), hasMore, traversal.Truncated, completeness.Verdict),
 		Results: DependencyTrace{
 			RootKey: symbolStableKey(snapshot, root), RootRepository: rootRepository.name,
 			Depth: options.Depth, MaxNodes: options.MaxNodes,
-			Reached: len(traversal.Visits) - 1, DeepestDepth: deepest,
+			Reached: reachedBeyondSeeds(traversal.Visits), DeepestDepth: deepest,
 			TraversalTruncated: traversal.Truncated, Nodes: page,
 			View: options.View,
 		},
@@ -821,7 +837,7 @@ func normalizeTraceDependenciesInput(arguments TraceDependenciesInput) (traceDep
 	return traceDependenciesOptions{
 		Selector: selector, Target: target, TargetPath: targetPath,
 		Depth: depth, MaxNodes: maxNodes, Repo: repo,
-		Language: language, EdgeKinds: edgeKinds, Confidence: confidence, Limit: limit, Format: format,
+		Language: language, ExcludeTests: arguments.ExcludeTests, EdgeKinds: edgeKinds, Confidence: confidence, Limit: limit, Format: format,
 		Derived: derived, View: view,
 	}, nil
 }
@@ -903,6 +919,9 @@ func dependencyNodes(
 		if options.Language != "" && !containsString(languages, options.Language) {
 			continue
 		}
+		if options.ExcludeTests && testpath.Is(file.path) {
+			continue
+		}
 		source, found := snapshot.Symbol(visit.Source)
 		if !found {
 			return nil, Coverage{}, 0, fmt.Errorf("symbol index %d is missing", visit.Source)
@@ -955,6 +974,19 @@ func classifyTraversalError(err error) error {
 	default:
 		return WrapToolError(CodeSnapshotUnavailable, "dependency traversal could not run", err)
 	}
+}
+
+// reachedBeyondSeeds counts the visits a walk arrived at, leaving out the ones
+// it started from. A seed is the root or one of its own members, and a member
+// is not something the root reaches.
+func reachedBeyondSeeds(visits []hotsnapshot.TraversalVisit) int {
+	reached := 0
+	for _, visit := range visits {
+		if visit.Source != hotsnapshot.InvalidSymbolID {
+			reached++
+		}
+	}
+	return reached
 }
 
 // containedMembers returns the declarations a root contains, so a traversal can

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/Luqueee/kivgraph/internal/goloader"
 	"github.com/Luqueee/kivgraph/internal/goworkspace"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
@@ -860,5 +862,97 @@ func TestNormalizeGoNeverDuplicatesAPackageDependencyEdge(t *testing.T) {
 	}
 	if checked == 0 {
 		t.Fatalf("no PACKAGE_DEPENDS_ON or MODULE_DEPENDS_ON edges were produced to check")
+	}
+}
+
+// A use that no declaration encloses -- the interface assertion `var _ I = T{}`
+// -- is owned by the file's own scope, the synthetic module symbol. Before the
+// loader stopped sourcing it at the blank name, nothing reached this path with
+// a real file: the closure that builds the module symbol left the identity's
+// discriminator empty, which the key refuses, and one assertion in a file
+// aborted the whole index. A use inside a function with a local variable of the
+// type belongs to the function, not to the module.
+func TestNormalizeGoOwnsAFileLevelUseByTheModule(t *testing.T) {
+	root := testsupport.TempDir(t)
+	for name, content := range map[string]string{
+		"go.mod": "module example.com/owners\n\ngo 1.22\n",
+		"sample/sample.go": `package sample
+
+type Render interface{ Render() }
+
+type Redirect struct{}
+
+func (Redirect) Render() {}
+
+var _ Render = (*Redirect)(nil)
+
+func Local() int {
+	var held []Redirect
+	return len(held)
+}
+`,
+	} {
+		path := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	repository := workspace.Repository{Name: "owners", Path: root, RealPath: root}
+	ctx := context.Background()
+	load, err := goloader.Load(ctx, goloader.Options{Directory: root})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	definitions, err := goloader.ExtractDefinitions(ctx, load, goloader.DefinitionOptions{Repository: repository.Name})
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyed, err := goloader.AssignStableKeys(ctx, definitions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	uses, err := goloader.ExtractUses(ctx, load, goloader.UseOptions{Repository: repository.Name})
+	if err != nil {
+		t.Fatal(err)
+	}
+	references, err := goloader.ClassifyReferences(ctx, load, uses)
+	if err != nil {
+		t.Fatal(err)
+	}
+	set, report, err := NormalizeGo(ctx, GoInput{Repository: repository, Definitions: keyed, References: references})
+	if err != nil {
+		t.Fatalf("NormalizeGo() error = %v", err)
+	}
+	// The module symbol has to be in the set, not only named by an edge: the
+	// closure that made it once appended to a list the end of NormalizeGo
+	// rebuilt from the declarations, and the edges pointed at nothing.
+	if err := set.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+	// The assertion names two types, so it is two uses.
+	if report.EdgesOwnedByModule != 2 {
+		t.Fatalf("edges owned by the module = %d, want the two uses of the assertion", report.EdgesOwnedByModule)
+	}
+
+	byKey := map[string]Symbol{}
+	for _, symbol := range set.Symbols {
+		byKey[symbol.Key] = symbol
+	}
+	owners := map[string]bool{}
+	for _, edge := range set.Edges {
+		target := byKey[edge.TargetKey]
+		if target.Name != "Redirect" || edge.Kind == Defines {
+			continue
+		}
+		source := byKey[edge.SourceKey]
+		owners[source.Kind+" "+source.Name] = true
+	}
+	for _, want := range []string{ModuleSymbolKind + " sample.go", "func Local"} {
+		if !owners[want] {
+			t.Errorf("no use of Redirect is owned by %q; owners = %v", want, owners)
+		}
 	}
 }

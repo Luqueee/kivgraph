@@ -30,12 +30,22 @@ refuses rather than downloading something that will not run.
   process
 - The Dart or Flutter SDK when indexing Dart — the loader drives the Dart
   Analysis Server it supplies
+- `scip-java` and the build tool of the repository (Maven, Gradle, sbt or mill)
+  when indexing Java — Java is indexed by building it
+- `scip-dotnet` and the .NET SDK when indexing C# — `scip-dotnet` runs
+  `dotnet restore` and drives Roslyn
 - `curl`, `tar` on Linux and macOS
 - `sha256sum` or `shasum` on Linux and macOS
 
 The bundle carries its own `rust-analyzer`. Indexing Rust repositories
 additionally needs `cargo` on the `PATH`: the analyzer cannot load a Cargo
 workspace without it.
+
+The bundle does not carry `scip-java`, `scip-dotnet`, the Java build tools or
+the .NET SDK, and the installer does not install them. `kivgraph doctor` reports
+`toolchain.java` or `toolchain.csharp` as failing when a registered repository
+declares the language and the configured indexer command (`java.indexer_command`,
+`csharp.indexer_command`) cannot be found.
 
 On Windows the installer also installs the Visual C++ redistributable, because
 `kivgraph.exe` does not start without it — `STATUS_DLL_NOT_FOUND`, since the
@@ -80,11 +90,16 @@ From a checkout, either installer runs directly:
 To install a specific release instead of the latest one:
 
 ```bash
-KIVGRAPH_VERSION=v0.9.10 ./scripts/install.sh
+KIVGRAPH_VERSION=v0.10.0 ./scripts/install.sh
 ```
 
 `KIVGRAPH_VERSION` is read by both installers, and so are
 `KIVGRAPH_INSTALL_ROOT`, `KIVGRAPH_BIN_DIR` and `KIVGRAPH_RELEASE_BASE_URL`.
+
+`KIVGRAPH_CONFIGURE` is read by both installers and accepts `ask` (the default),
+`1` or `0`; see [configuring clients](#configuring-clients). `KIVGRAPH_GITHUB_TOKEN`
+is read by `install.sh` only: it is an optional token sent as a bearer
+`Authorization` header, for a private GitHub repository.
 
 ## Where it lands
 
@@ -98,9 +113,27 @@ uninstall is not one this project ships — and both say so when the launcher
 directory is not on it. The Windows one also prints the `setx` line that would
 add it for the current account.
 
-It never modifies a registered repository, creates an index or replaces
-configuration files. Installing Kivgraph and initialising it are two separate
-acts.
+It never modifies a registered repository or creates an index. Installing
+Kivgraph and initialising it are two separate acts, with one exception that you
+can decline: see below.
+
+### Configuring clients
+
+Once the bundle and its launchers are installed, the installer offers to run
+`kivgraph configure`, which registers Kivgraph with your coding agents. That is
+the only step that touches client configuration, and a failure there does not
+roll back the installation. `KIVGRAPH_CONFIGURE` decides what happens:
+
+| Value | Behaviour |
+| --- | --- |
+| `ask` | The default. On an interactive terminal it asks `[Y/n]` and runs `kivgraph configure` on an empty answer, `y` or `yes`. |
+| `1` | Runs `kivgraph configure` without asking, when there is an interactive terminal. |
+| `0` | Skips it and prints the command to run later. |
+
+With no interactive terminal, the installer does not configure anything and
+prints the `kivgraph configure` command to run later. `install.sh` reads the
+answer from `/dev/tty`, so the piped `curl | bash` form can still ask. Any other
+value is refused.
 
 Add the launcher directory to the current shell and verify both runtimes:
 
@@ -166,3 +199,18 @@ when the network is unavailable.
 
 Interactive command output uses semantic ANSI colours when the destination is a
 terminal. Set `NO_COLOR`, or redirect the output, to keep it plain.
+
+## Uninstalling
+
+To remove the installed bundle and launchers without deleting configuration,
+repository registrations or graph state:
+
+```bash
+uninstall_url=https://github.com/Luqueee/kivgraph/releases/latest/download/uninstall.sh
+curl -fsSL "$uninstall_url" -o /tmp/kivgraph-uninstall.sh
+bash /tmp/kivgraph-uninstall.sh
+```
+
+Use `bash /tmp/kivgraph-uninstall.sh --yes` for a non-interactive removal.
+Windows users can run the corresponding `uninstall.ps1` with PowerShell. Both
+scripts are release assets beside the installers.

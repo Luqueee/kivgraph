@@ -7,11 +7,17 @@
  */
 
 import path from "node:path";
-import type {
-  BindingName,
-  Identifier,
-  Node,
-  SourceFile,
+import {
+  type BindingName,
+  type Expression,
+  type Identifier,
+  type Node,
+  type ObjectLiteralExpression,
+  type PrivateIdentifier,
+  type SourceFile,
+  type StringLiteral,
+  SyntaxKind,
+  type TypeNode,
 } from "typescript/unstable/ast";
 import {
   isArrayBindingPattern,
@@ -21,6 +27,7 @@ import {
   isBindingElement,
   isCallExpression,
   isClassDeclaration,
+  isElementAccessExpression,
   isEnumDeclaration,
   isEnumMember,
   isExportAssignment,
@@ -32,23 +39,38 @@ import {
   isIdentifier,
   isImportDeclaration,
   isImportEqualsDeclaration,
+  isIndexedAccessTypeNode,
   isInterfaceDeclaration,
+  isLiteralTypeNode,
   isMethodDeclaration,
   isMethodSignatureDeclaration,
   isModuleDeclaration,
   isNewExpression,
   isObjectBindingPattern,
+  isObjectLiteralExpression,
   isParameterDeclaration,
+  isParenthesizedTypeNode,
+  isPrivateIdentifier,
   isPropertyAccessExpression,
+  isPropertyAssignment,
   isPropertyDeclaration,
   isPropertySignatureDeclaration,
   isReturnStatement,
   isSetAccessorDeclaration,
+  isShorthandPropertyAssignment,
+  isStringLiteral,
   isTypeAliasDeclaration,
   isTypeNode,
   isTypeParameterDeclaration,
+  isUnionTypeNode,
   isVariableDeclaration,
 } from "typescript/unstable/ast/is";
+import {
+  isUnionType,
+  type Symbol as TypeScriptSymbol,
+  type Type,
+} from "typescript/unstable/async";
+import { isDependencySourceFile } from "./dependency-source-file.js";
 import {
   type LanguageService,
   LanguageServiceError,
@@ -122,9 +144,29 @@ type ContextKind = LocalReferenceKind | undefined;
 
 interface ReferenceRequest {
   file: SourceFile;
-  node: Identifier;
+  node: Identifier | PrivateIdentifier;
   kind: LocalReferenceKind;
 }
+
+/**
+ * A property name written where the checker does not point it at the property:
+ * the key of an object literal, or a destructured binding with no explicit
+ * property name. `getSymbolAtLocation` answers with the literal's own member or
+ * the new local variable, so these are resolved through the type the literal
+ * is checked against or the value being destructured.
+ */
+interface PropertyKeyRequest {
+  file: SourceFile;
+  node: Identifier | StringLiteral;
+  container: Node;
+  source: PropertyKeySource;
+}
+
+type PropertyKeySource =
+  | "literal"
+  | "pattern"
+  | "indexed-value"
+  | "indexed-type";
 
 const KIND_PRIORITY: Record<LocalReferenceKind, number> = {
   REFERENCES: 1,
@@ -165,6 +207,13 @@ export async function extractLocalReferences(
   const localFiles = await selectLocalFiles(view, options.files);
   const allLocalFiles = await selectLocalFiles(view, undefined);
   const requests = new Map<string, ReferenceRequest>();
+  const propertyKeys = new Map<string, PropertyKeyRequest>();
+  // A key is only worth a type query if some local declaration has that name.
+  const propertyNames = new Set(
+    symbols.symbols
+      .filter((local) => local.kind === "property" || local.kind === "method")
+      .map((local) => local.name),
+  );
   const functionValueNodes: Identifier[] = [];
   const sourceFiles = new Map<string, SourceFile>();
 
@@ -172,7 +221,7 @@ export async function extractLocalReferences(
     const sourceFile = await view.program.getSourceFile(fileName);
     if (
       sourceFile === undefined ||
-      (await view.program.isSourceFileFromExternalLibrary(sourceFile))
+      (await isDependencySourceFile(view.program, sourceFile))
     ) {
       continue;
     }
@@ -182,7 +231,7 @@ export async function extractLocalReferences(
   for (const fileName of localFiles) {
     const sourceFile = sourceFiles.get(fileName);
     if (sourceFile !== undefined) {
-      collectFileReferences(sourceFile, requests);
+      collectFileReferences(sourceFile, requests, propertyKeys, propertyNames);
     }
   }
 
@@ -258,6 +307,46 @@ export async function extractLocalReferences(
     });
   }
 
+  const keyList = [...propertyKeys.values()];
+  const keyTargets = await resolveLocalSymbols<
+    LocalSymbol | ImportBindingSymbol
+  >(
+    view.checker,
+    await resolvePropertyKeys(
+      view.checker,
+      keyList,
+      (symbol) =>
+        localById.has(symbol.id) ||
+        symbol.declarations.some((declaration) =>
+          localByDeclaration.has(symbolDeclarationKey(declaration)),
+        ),
+    ),
+    localById,
+    localByDeclaration,
+    importBindingById,
+  );
+  for (const [index, request] of keyList.entries()) {
+    const target = keyTargets[index];
+    if (target === undefined) {
+      continue;
+    }
+    const start = request.node.getStart(request.file);
+    const end = request.node.getEnd();
+    references.push({
+      fileName: request.file.fileName,
+      kind: "REFERENCES",
+      source: findOwner(symbols.symbols, request.file.fileName, start),
+      target,
+      start,
+      end,
+      startLine: request.file.getLineAndCharacterOfPosition(start).line + 1,
+      endLine:
+        request.file.getLineAndCharacterOfPosition(Math.max(start, end - 1))
+          .line + 1,
+      text: request.node.getText(request.file),
+    });
+  }
+
   service.assertFresh(view);
   references.sort(compareReferences);
   return {
@@ -296,6 +385,8 @@ async function selectLocalFiles(
 function collectFileReferences(
   file: SourceFile,
   requests: Map<string, ReferenceRequest>,
+  propertyKeys: Map<string, PropertyKeyRequest>,
+  propertyNames: ReadonlySet<string>,
 ): void {
   const visit = (
     node: Node,
@@ -303,7 +394,23 @@ function collectFileReferences(
     ignored: boolean,
   ): void => {
     const ignoredHere = ignored || isIgnoredContainer(node);
-    if (!ignoredHere && isIdentifier(node) && !isDeclarationName(node)) {
+    if (!ignoredHere && (isIdentifier(node) || isStringLiteral(node))) {
+      const key = propertyKeyContainer(node);
+      const name = isStringLiteral(node) ? node.text : node.getText(file);
+      if (key !== undefined && propertyNames.has(name)) {
+        propertyKeys.set(`${file.fileName}\u0000${node.pos}:${node.end}`, {
+          file,
+          node,
+          container: key.container,
+          source: key.source,
+        });
+      }
+    }
+    if (
+      !ignoredHere &&
+      (isIdentifier(node) || isPrivateIdentifier(node)) &&
+      !isDeclarationName(node)
+    ) {
       addRequest(requests, {
         file,
         node,
@@ -326,6 +433,263 @@ function collectFileReferences(
   };
 
   file.forEachChild((child) => visit(child, undefined, false));
+}
+
+function propertyKeyContainer(
+  node: Identifier | StringLiteral,
+): { container: Node; source: PropertyKeySource } | undefined {
+  const parent = node.parent;
+  if (parent === undefined) {
+    return undefined;
+  }
+  if (isStringLiteral(node)) {
+    return stringKeyContainer(node, parent);
+  }
+  if (
+    (isPropertyAssignment(parent) ||
+      isShorthandPropertyAssignment(parent) ||
+      isMethodDeclaration(parent) ||
+      isGetAccessorDeclaration(parent) ||
+      isSetAccessorDeclaration(parent)) &&
+    sameNode(parent.name, node) &&
+    parent.parent !== undefined &&
+    isObjectLiteralExpression(parent.parent)
+  ) {
+    return { container: parent.parent, source: "literal" };
+  }
+  if (
+    isBindingElement(parent) &&
+    parent.propertyName === undefined &&
+    parent.dotDotDotToken === undefined &&
+    sameNode(parent.name, node) &&
+    parent.parent !== undefined &&
+    isObjectBindingPattern(parent.parent)
+  ) {
+    return { container: parent.parent, source: "pattern" };
+  }
+  return undefined;
+}
+
+/** A string literal that names a property: `value["key"]`, `T["key"]`. */
+function stringKeyContainer(
+  node: StringLiteral,
+  parent: Node,
+): { container: Node; source: PropertyKeySource } | undefined {
+  if (
+    isElementAccessExpression(parent) &&
+    sameNode(parent.argumentExpression, node)
+  ) {
+    return { container: parent.expression, source: "indexed-value" };
+  }
+  if (!isLiteralTypeNode(parent)) {
+    return undefined;
+  }
+  // `T["a" | "b"]` names both: climb out of the union to the indexed access.
+  let previous: Node = parent;
+  let current = parent.parent;
+  while (
+    current !== undefined &&
+    (isUnionTypeNode(current) || isParenthesizedTypeNode(current))
+  ) {
+    previous = current;
+    current = current.parent;
+  }
+  if (
+    current !== undefined &&
+    isIndexedAccessTypeNode(current) &&
+    sameNode(current.indexType, previous)
+  ) {
+    return { container: current.objectType, source: "indexed-type" };
+  }
+  return undefined;
+}
+
+/**
+ * Find, for each key, the property it names on the type the key is checked
+ * against. Types are looked up once per object literal or pattern and their
+ * members once per type; `null` and `undefined` are removed first so an optional
+ * parameter still has the properties of what it holds.
+ */
+async function resolvePropertyKeys(
+  checker: ProjectView["checker"],
+  requests: readonly PropertyKeyRequest[],
+  isLocal: (symbol: TypeScriptSymbol) => boolean,
+): Promise<(TypeScriptSymbol | undefined)[]> {
+  if (requests.length === 0) {
+    return [];
+  }
+  const types: (Type | undefined)[] = new Array(requests.length).fill(
+    undefined,
+  );
+  const valueSources = requests.flatMap((request, index) =>
+    request.source === "pattern" || request.source === "indexed-value"
+      ? [{ index, container: request.container }]
+      : [],
+  );
+  if (valueSources.length > 0) {
+    const valueTypes = await checker.getTypeAtLocation(
+      valueSources.map((source) => source.container),
+    );
+    for (const [position, source] of valueSources.entries()) {
+      types[source.index] = valueTypes[position];
+    }
+  }
+  await Promise.all(
+    requests.map(async (request, index) => {
+      if (request.source === "literal") {
+        types[index] = await checker.getContextualType(
+          request.container as Expression,
+        );
+      } else if (request.source === "indexed-type") {
+        types[index] = await checker.getTypeFromTypeNode(
+          request.container as TypeNode,
+        );
+      }
+    }),
+  );
+
+  const members = new Map<number, Promise<Map<string, TypeScriptSymbol>>>();
+  const membersOf = (type: Type): Promise<Map<string, TypeScriptSymbol>> => {
+    let cached = members.get(type.id);
+    if (cached === undefined) {
+      cached = (async () => {
+        const present = (await checker.getNonNullableType(type)) ?? type;
+        const byName = new Map<string, TypeScriptSymbol>();
+        for (const member of await checker.getPropertiesOfType(present)) {
+          byName.set(member.name, member);
+        }
+        return byName;
+      })();
+      members.set(type.id, cached);
+    }
+    return cached;
+  };
+  return Promise.all(
+    requests.map(async (request, index) => {
+      const type = types[index];
+      if (type === undefined) {
+        return undefined;
+      }
+      const name = isStringLiteral(request.node)
+        ? request.node.text
+        : request.node.getText(request.file);
+      const found = (await membersOf(type)).get(name);
+      if (
+        request.source !== "literal" ||
+        (found !== undefined && (isLocal(found) || !isLiteralMember(found)))
+      ) {
+        return found;
+      }
+      // The contextual type of an argument of a generic call is what the
+      // checker inferred from the literal, so its members are the literal's
+      // own. The declared type is the one the parameter is constrained to.
+      const declared = await declaredLiteralTypes(
+        checker,
+        request.container as ObjectLiteralExpression,
+      );
+      let fallback: TypeScriptSymbol | undefined;
+      for (const candidate of declared) {
+        const member = (await membersOf(candidate)).get(name);
+        if (member !== undefined && isLocal(member)) {
+          return member;
+        }
+        fallback ??= member;
+      }
+      return fallback ?? found;
+    }),
+  );
+}
+
+/**
+ * Whether a member is one the literal itself declares, which is what the
+ * checker answers when it found nothing declared to check the literal against.
+ */
+function isLiteralMember(member: TypeScriptSymbol): boolean {
+  return member.declarations.every((declaration) =>
+    LITERAL_MEMBER_KINDS.has(declaration.kind),
+  );
+}
+
+const LITERAL_MEMBER_KINDS: ReadonlySet<SyntaxKind> = new Set([
+  SyntaxKind.PropertyAssignment,
+  SyntaxKind.ShorthandPropertyAssignment,
+  SyntaxKind.MethodDeclaration,
+  SyntaxKind.GetAccessor,
+  SyntaxKind.SetAccessor,
+]);
+
+/**
+ * The types an object literal is declared to have, when it is an argument of a
+ * call (or of a literal that is, through property values) and the parameter
+ * is a type parameter: the constraint of that parameter, walked down the
+ * properties that lead to the literal. A union is walked member by member, as
+ * the checker does for a contextual type, because a property is on the union
+ * only when every member has it. Empty when the literal is not in that
+ * position or the declared type has no such property.
+ */
+async function declaredLiteralTypes(
+  checker: ProjectView["checker"],
+  literal: ObjectLiteralExpression,
+): Promise<Type[]> {
+  const keys: string[] = [];
+  let current: ObjectLiteralExpression = literal;
+  while (
+    current.parent !== undefined &&
+    isPropertyAssignment(current.parent) &&
+    current.parent.parent !== undefined &&
+    isObjectLiteralExpression(current.parent.parent)
+  ) {
+    const name = current.parent.name;
+    if (!isIdentifier(name) && !isStringLiteral(name)) {
+      return [];
+    }
+    keys.unshift(name.text);
+    current = current.parent.parent;
+  }
+  const call = current.parent;
+  if (
+    call === undefined ||
+    !(isCallExpression(call) || isNewExpression(call))
+  ) {
+    return [];
+  }
+  const index = (call.arguments ?? []).findIndex((argument) =>
+    sameNode(argument, current),
+  );
+  const signature =
+    index < 0 ? undefined : await checker.getResolvedSignature(call);
+  const parameter =
+    signature === undefined
+      ? undefined
+      : await checker.getParameterType(
+          (await signature.getTarget()) ?? signature,
+          index,
+        );
+  if (parameter === undefined) {
+    return [];
+  }
+
+  const members = async (type: Type): Promise<Type[]> => {
+    const bound = (await checker.getBaseConstraintOfType(type)) ?? type;
+    const present = (await checker.getNonNullableType(bound)) ?? bound;
+    return isUnionType(present) ? [...(await present.getTypes())] : [present];
+  };
+  let types = await members(parameter);
+  for (const key of keys) {
+    const next: Type[] = [];
+    for (const type of types) {
+      const member = await checker.getPropertyOfType(type, key);
+      const memberType =
+        member === undefined
+          ? undefined
+          : await checker.getTypeOfSymbol(member);
+      if (memberType !== undefined) {
+        next.push(...(await members(memberType)));
+      }
+    }
+    types = next;
+  }
+  return types;
 }
 
 function collectFunctionValueNodes(
@@ -394,7 +758,10 @@ function addDirectCallee(
     addRequest(requests, { file, node: expression, kind: "CALLS_DIRECT" });
     return;
   }
-  if (isPropertyAccessExpression(expression) && isIdentifier(expression.name)) {
+  if (
+    isPropertyAccessExpression(expression) &&
+    (isIdentifier(expression.name) || isPrivateIdentifier(expression.name))
+  ) {
     addRequest(requests, {
       file,
       node: expression.name,
@@ -418,7 +785,7 @@ function addRequest(
 }
 
 function kindForIdentifier(
-  node: Identifier,
+  node: Identifier | PrivateIdentifier,
   inheritedKind: ContextKind,
 ): LocalReferenceKind {
   if (inheritedKind !== undefined) {
@@ -471,7 +838,7 @@ function findOwner(
   return owner;
 }
 
-function isDeclarationName(node: Identifier): boolean {
+function isDeclarationName(node: Identifier | PrivateIdentifier): boolean {
   const parent = node.parent;
   if (isVariableDeclaration(parent)) {
     return bindingContains(node, parent.name);

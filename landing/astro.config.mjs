@@ -214,6 +214,10 @@ export default defineConfig({
                   slug: "docs/tools/find-references",
                 },
                 {
+                  label: "find_implementations",
+                  slug: "docs/tools/find-implementations",
+                },
+                {
                   label: "find_cross_repo_consumers",
                   slug: "docs/tools/find-cross-repo-consumers",
                 },

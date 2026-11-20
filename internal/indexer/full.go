@@ -194,6 +194,12 @@ type FullOptions struct {
 	// CacheDirectory holds content-addressed entries for analysis units. It
 	// lives outside every indexed repository and may be shared by profiles.
 	CacheDirectory string
+	// AnalyzerFingerprint is the AnalyzerFingerprint a caller has just observed
+	// for these options. The fact cache keys its entries with it instead of
+	// computing the value again, which hashes the executable and the worker and
+	// starts every toolchain it asks. Blank computes it, as a caller that did not
+	// observe one needs.
+	AnalyzerFingerprint string
 
 	// Progress, when set, is called synchronously as each unit of work
 	// starts and finishes. It must not block: a slow callback slows the
@@ -1745,6 +1751,9 @@ func factsCommand(options FullOptions, arguments []string) (string, []string, er
 		return "node", append([]string{checkoutEntry}, arguments[1:]...), nil
 	}
 	if _, lookupErr := exec.LookPath(command); lookupErr == nil {
+		if runsFactsEntry(commandArguments) && len(arguments) > 0 && arguments[0] == "facts" {
+			arguments = arguments[1:]
+		}
 		return command, append(commandArguments, arguments...), nil
 	} else if command != defaultTypeScriptWorkerCommand {
 		return "", nil, fmt.Errorf("worker command %q is not executable: %w", command, lookupErr)
@@ -1760,6 +1769,23 @@ func factsCommand(options FullOptions, arguments []string) (string, []string, er
 		return "", nil, fmt.Errorf("default worker is unavailable and pnpm is not executable: %w", err)
 	}
 	return "pnpm", append([]string{"--dir", workerRoot}, arguments...), nil
+}
+
+// runsFactsEntry reports whether a configured worker command already runs the
+// facts entry point of the worker, `facts-cli.js`, which takes the arguments of
+// the `facts` subcommand directly. A launcher removes that word itself; a command
+// that names the entry point has no launcher, and the indexer removes it, as it
+// does for the entry point of a checkout. Only the file name decides: the
+// directory can be anywhere, a build output directory or not.
+func runsFactsEntry(commandArguments []string) bool {
+	for _, argument := range commandArguments {
+		// An option such as --require=<file> names a module to preload, not the
+		// script that runs.
+		if !strings.HasPrefix(argument, "-") && filepath.Base(argument) == "facts-cli.js" {
+			return true
+		}
+	}
+	return false
 }
 
 // defaultTypeScriptWorkerCommand is the name a bundle installs and the

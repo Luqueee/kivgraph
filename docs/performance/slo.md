@@ -88,15 +88,14 @@ recuperación.
 ## Límites de recorrido y paginación
 
 Los límites son parte del contrato y no se aumentan para maquillar un
-benchmark:
+benchmark. Son constantes del código, no configuración -- las cuatro claves
+`mcp.*` que parecían fijarlos no las leía nadie y se retiraron en el ADR 0117:
 
-```yaml
-mcp:
-  default_limit: 50
-  maximum_limit: 500
-  maximum_depth: 5
-  maximum_visited_nodes: 25000
-```
+|límite|valor|
+|---|---|
+|filas por página, máximo|`500`|
+|profundidad de recorrido, máxima|`5`|
+|nodos visitados, máximo|`25000`|
 
 Las consultas de referencias usan un límite de 100 en el workload de SLO. Cada
 respuesta relevante declara `snapshot_id`, `snapshot_age`, `total`, `returned`,

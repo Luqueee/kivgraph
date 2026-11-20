@@ -11,6 +11,7 @@ package scip
 import (
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -57,6 +58,11 @@ type Options struct {
 
 // Convert turns one SCIP index into one semantic payload.
 //
+// SCIP counts lines and characters from zero and every other producer of this
+// graph counts them from one, which is what an editor shows: the positions are
+// converted here, once. They used to be published as SCIP wrote them, so every
+// Java and C# row pointed one line above its declaration.
+//
 // The shape it produces is the one facts.NormalizeSemantic consumes: files,
 // symbols with a full declaration range, references attributed to the symbol
 // that encloses them, and an unresolved row for every target this repository
@@ -100,6 +106,14 @@ func Convert(index scipwire.Index, options Options) (facts.SemanticPayload, erro
 	// is attributed. Doing it per document made a use of a class declared in
 	// another file of the same package look external.
 	declared := map[string]bool{}
+	// home is the one document a symbol is published from. A symbol can be
+	// defined in several: a C# `partial` type is one type written across files,
+	// and SCIP says so by giving every part the same symbol. The graph holds
+	// one node with one defining file, so the part in the first path is the
+	// declaration and the others are not published again; what they contain
+	// keeps its own symbols. Two files claiming one symbol used to abort the
+	// whole index.
+	home := map[string]string{}
 	// local is the set of SCIP packages this payload declares something in. It
 	// separates two very different absences: a target in another package that
 	// this graph does not hold, and a target in a package it does hold whose
@@ -114,6 +128,10 @@ func Convert(index scipwire.Index, options Options) (facts.SemanticPayload, erro
 				continue
 			}
 			declared[occurrence.Symbol] = true
+			path := filepath.ToSlash(filepath.Clean(document.RelativePath))
+			if first, seen := home[occurrence.Symbol]; !seen || path < first {
+				home[occurrence.Symbol] = path
+			}
 			if identity, err := parseSymbol(occurrence.Symbol); err == nil {
 				local[identity.pkg] = true
 			}
@@ -137,11 +155,18 @@ func Convert(index scipwire.Index, options Options) (facts.SemanticPayload, erro
 		}
 		payload.Files = append(payload.Files, facts.SemanticFile{Path: path, Generated: generated})
 
-		converted, err := convertDocument(document, path, offsets, declared, local, options)
+		converted, err := convertDocument(document, path, offsets, declared, home, local, options)
 		if err != nil {
 			return facts.SemanticPayload{}, err
 		}
-		payload.Symbols = append(payload.Symbols, converted.symbols...)
+		published := make(map[string]bool, len(converted.symbols))
+		for _, symbol := range converted.symbols {
+			if first, shared := home[symbol.ID]; (shared && first != path) || published[symbol.ID] {
+				continue
+			}
+			published[symbol.ID] = true
+			payload.Symbols = append(payload.Symbols, symbol)
+		}
 		payload.References = append(payload.References, converted.references...)
 		payload.Unresolved = append(payload.Unresolved, converted.unresolved...)
 	}
@@ -169,6 +194,7 @@ func convertDocument(
 	path string,
 	offsets *offsetTable,
 	declared map[string]bool,
+	home map[string]string,
 	local map[string]bool,
 	options Options,
 ) (documentFacts, error) {
@@ -192,7 +218,8 @@ func convertDocument(
 		Kind:          facts.ModuleSymbolKind,
 		Exported:      true,
 		Signature:     facts.ModuleSymbolKind + " " + path,
-		EndLine:       offsets.lastLine(),
+		StartLine:     1,
+		EndLine:       offsets.lastLine() + 1,
 		End:           offsets.size(),
 	})
 
@@ -240,17 +267,24 @@ func convertDocument(
 			Kind:          kindName(entry.info.Kind, identity),
 			Exported:      exported(entry.info, identity),
 			Signature:     signature(entry.info, identity),
-			StartLine:     int(span.StartLine),
-			StartColumn:   int(span.StartCharacter),
+			StartLine:     int(span.StartLine) + 1,
+			StartColumn:   int(span.StartCharacter) + 1,
 			Start:         start,
-			EndLine:       int(span.EndLine),
-			EndColumn:     int(span.EndCharacter),
+			EndLine:       int(span.EndLine) + 1,
+			EndColumn:     int(span.EndCharacter) + 1,
 			End:           end,
 		})
 	}
 
+	// A relation of a type is stated once, from the file that publishes it.
+	published := make([]declaration, 0, len(declarations))
+	for _, entry := range declarations {
+		if home[entry.symbol] == path {
+			published = append(published, entry)
+		}
+	}
 	result.references = append(result.references,
-		hierarchyReferences(declarations, path, offsets, declared, information)...)
+		hierarchyReferences(published, path, offsets, declared, information)...)
 
 	// Innermost first, so attributing a use walks from the tightest scope
 	// outwards and a method wins over the class that contains it.
@@ -266,6 +300,12 @@ func convertDocument(
 		}
 		sourceID := moduleID
 		for _, candidate := range enclosing {
+			// A part of a type published from another file is not a source
+			// here: a use is owned by a symbol of its own file, and what is
+			// written straight in this part's body falls to the file's scope.
+			if home[candidate.symbol] != path {
+				continue
+			}
 			if candidate.enclosing.Present && candidate.enclosing.Contains(occurrence.Range) {
 				sourceID = candidate.symbol
 				break
@@ -304,22 +344,39 @@ func convertDocument(
 				RequestedSymbol:  identity.qualifiedName(),
 				Reason:           reason,
 				Detail:           occurrence.Symbol,
-				StartLine:        int(occurrence.Range.StartLine),
-				StartColumn:      int(occurrence.Range.StartCharacter),
+				StartLine:        int(occurrence.Range.StartLine) + 1,
+				StartColumn:      int(occurrence.Range.StartCharacter) + 1,
 				Start:            start,
 			})
 			continue
+		}
+		// `new T(...)` is written with the type's name and both producers
+		// record it as a use of the constructor alone, so asking who uses T
+		// missed every place that builds one. It is a use of both.
+		if owner, constructs := constructedType(occurrence.Symbol); constructs && declared[owner] {
+			result.references = append(result.references, facts.SemanticReference{
+				File:        path,
+				SourceID:    sourceID,
+				TargetID:    owner,
+				Kind:        string(referenceKind(owner)),
+				StartLine:   int(occurrence.Range.StartLine) + 1,
+				StartColumn: int(occurrence.Range.StartCharacter) + 1,
+				Start:       start,
+				EndLine:     int(occurrence.Range.EndLine) + 1,
+				EndColumn:   int(occurrence.Range.EndCharacter) + 1,
+				End:         end,
+			})
 		}
 		result.references = append(result.references, facts.SemanticReference{
 			File:        path,
 			SourceID:    sourceID,
 			TargetID:    occurrence.Symbol,
 			Kind:        string(referenceKind(occurrence.Symbol)),
-			StartLine:   int(occurrence.Range.StartLine),
-			StartColumn: int(occurrence.Range.StartCharacter),
+			StartLine:   int(occurrence.Range.StartLine) + 1,
+			StartColumn: int(occurrence.Range.StartCharacter) + 1,
 			Start:       start,
-			EndLine:     int(occurrence.Range.EndLine),
-			EndColumn:   int(occurrence.Range.EndCharacter),
+			EndLine:     int(occurrence.Range.EndLine) + 1,
+			EndColumn:   int(occurrence.Range.EndCharacter) + 1,
 			End:         end,
 		})
 	}
@@ -379,4 +436,17 @@ func modulePseudoSymbol(path string) string { return "kivgraph-module\x00" + pat
 func moduleQualifiedName(path string) string {
 	trimmed := strings.TrimSuffix(path, filepath.Ext(path))
 	return strings.ReplaceAll(trimmed, "/", ".")
+}
+
+// constructor is how scip-java (`<init>`) and scip-dotnet (`.ctor`) name a
+// constructor after its type, with the overload number SCIP appends.
+var constructor = regexp.MustCompile("^`(?:<init>|\\.ctor)`\\((?:\\+\\d+)?\\)\\.$")
+
+// constructedType is the type a constructor symbol belongs to.
+func constructedType(symbol string) (string, bool) {
+	index := strings.LastIndexByte(symbol, '#')
+	if index < 0 || !constructor.MatchString(symbol[index+1:]) {
+		return "", false
+	}
+	return symbol[:index+1], true
 }

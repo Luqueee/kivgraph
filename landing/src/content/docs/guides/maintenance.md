@@ -17,6 +17,13 @@ whether a repository can be indexed. It also checks `cargo` separately: the
 bundle carries `rust-analyzer` but no Rust toolchain, and the analyzer cannot
 load a workspace without cargo.
 
+Beyond those checks it reports `config.retired` when the configuration carries
+a key that is accepted and ignored, `daemon.supervisor` (`absent`, `installed`,
+`stale` or `unsupported`; it never fails), `walk.cache_tag` (directories that
+carry a `CACHEDIR.TAG` file, which every walk skips) and `snapshot.published`
+(whether the active generation carries a usable snapshot file, or every server
+derives the graph from the canonical store).
+
 On installations with profiles, `doctor` inspects the default profile served
 by MCP. It preserves the legacy backup and does not initiate a migration.
 
@@ -80,6 +87,17 @@ the generation was published — and requires all six invariants to pass. A
 generation without `snapshot.sha256` is never reactivated blindly. If either
 check fails, `CURRENT` does not change.
 
+A server that is already running does not follow a rollback: it only ever
+installs a newer generation, so it keeps answering from the one you left.
+When the generation it moved to is older than the one it left, `rollback` says
+so after it succeeds. Run `kivgraph stop` and let your clients start their
+servers again.
+
+`rollback` takes the same publish lock as a rebuild. While a rebuild is
+publishing into the store it is refused, not queued: it prints
+`rollback: rollback failed: another process is publishing into this generation store`
+and `CURRENT` does not change. Run it again once the rebuild has finished.
+
 ## Rebuild the hot snapshot
 
 ```bash
@@ -119,6 +137,9 @@ After a full clean the numbering restarts at `000001`, and a snapshot store
 only accepts a strictly newer generation: **a running server keeps the graph
 that no longer exists and will install no further one.** The command says to
 restart it.
+
+`clean` is refused in the same way while a rebuild is publishing:
+`clean: discard generations: another process is publishing into this generation store`.
 
 ## Update the installation
 

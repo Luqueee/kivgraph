@@ -2,6 +2,7 @@ package watcher
 
 import (
 	"fmt"
+	"os"
 	pathpkg "path"
 	"path/filepath"
 	"strings"
@@ -13,8 +14,12 @@ var defaultIgnoredDirectoryNames = map[string]struct{}{
 	".pnpm":            {},
 	".yarn":            {},
 	"bower_components": {},
-	"vendor":           {},
 }
+
+// vendorManifests are the files whose package manager writes a `vendor`
+// directory beside them. `vendor` is ignored only there: under any other
+// parent it is a directory somebody named, and source like any other.
+var vendorManifests = []string{"go.mod", "Cargo.toml", "composer.json"}
 
 type ignoreMatcher struct {
 	root     string
@@ -56,8 +61,11 @@ func (matcher ignoreMatcher) ignored(candidate string) bool {
 		return false
 	}
 	parts := splitPath(relative)
-	for _, part := range parts {
+	for index, part := range parts {
 		if _, ignored := defaultIgnoredDirectoryNames[part]; ignored {
+			return true
+		}
+		if part == "vendor" && matcher.holdsVendorManifest(parts[:index]) {
 			return true
 		}
 	}
@@ -67,6 +75,22 @@ func (matcher ignoreMatcher) ignored(candidate string) bool {
 			if matchPathPattern(pattern, prefix) {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+// holdsVendorManifest reports whether the directory at parent, relative to the
+// root, carries a manifest whose dependencies live in a sibling `vendor`.
+//
+// It asks the filesystem on every path that has a `vendor` segment, which is
+// what keeps the answer current when a manifest appears or goes; such paths
+// are few, and the three lookups are cheaper than the hash that follows.
+func (matcher ignoreMatcher) holdsVendorManifest(parent []string) bool {
+	directory := filepath.Join(append([]string{matcher.root}, parent...)...)
+	for _, manifest := range vendorManifests {
+		if info, err := os.Stat(filepath.Join(directory, manifest)); err == nil && info.Mode().IsRegular() {
+			return true
 		}
 	}
 	return false

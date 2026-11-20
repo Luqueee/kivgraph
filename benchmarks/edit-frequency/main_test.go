@@ -336,6 +336,26 @@ func TestResolveSearchToolNamesWhatItWillRun(t *testing.T) {
 	}
 }
 
+func TestGraphLooksHollowSeparatesAnUnloadedCorpusFromASmallOne(t *testing.T) {
+	cases := []struct {
+		name             string
+		indexed, tracked int
+		want             bool
+	}{
+		{"the hollow graph that was published", 11, 393, true},
+		{"the real graph of the same repository", 343, 393, false},
+		{"nothing indexed", 0, 393, true},
+		{"exactly a quarter", 100, 400, false},
+		{"one file under a quarter", 99, 400, true},
+		{"nothing tracked cannot be judged", 0, 0, false},
+	}
+	for _, test := range cases {
+		if got := graphLooksHollow(test.indexed, test.tracked); got != test.want {
+			t.Errorf("%s: graphLooksHollow(%d, %d) = %v, want %v", test.name, test.indexed, test.tracked, got, test.want)
+		}
+	}
+}
+
 func near(got, want float64) bool {
 	difference := got - want
 	if difference < 0 {

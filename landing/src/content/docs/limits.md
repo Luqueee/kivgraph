@@ -30,10 +30,11 @@ question in the set is exact.
 
 ## Python resolves exactly only with a configured analyzer
 
-The five languages are not resolved to the same standard. Go, TypeScript and
+The seven languages are not resolved to the same standard. Go, TypeScript and
 Rust edges are type-checked; Dart edges are resolved by Dart Analysis Server;
-Python uses exact semantic facts when a configured analyzer provides them and
-`CANDIDATE` facts in its bundled AST fallback.
+Java and C# edges come from their compilers' own indexers, `scip-java` and
+`scip-dotnet`; Python uses exact semantic facts when a configured analyzer
+provides them and `CANDIDATE` facts in its bundled AST fallback.
 
 A `CANDIDATE` Python edge is not a proven call. Treating an empty Python answer
 as proof of absence is only safe when the response reports the confidence and
@@ -42,14 +43,14 @@ completeness to back it.
 ## Nothing answers before a generation is published
 
 `serve` with no published graph registers only its three indexing controls.
-That is deliberate — publishing eleven graph tools that all answer
+That is deliberate — publishing twelve graph tools that all answer
 `INDEX_NOT_READY` teaches an agent that the tools do not work — but it does mean
 a fresh install cannot answer a code question until the first index completes.
 
 There is no incremental path: a rebuild is a full pass over every registered
 repository.
 
-## Rust does not index `core`, `std` or `alloc`
+## Rust does not index `core`, `std` or `alloc` by default
 
 That single absence explains four measured silences:
 
@@ -61,8 +62,10 @@ That single absence explains four measured silences:
 
 Fabricating those edges against a target nobody publishes is forbidden by the
 graph contract, and emitting an `UNRESOLVED` for every `derive` would be worse
-than the current silence. Indexing the sysroot changes the size and the
-versioning of the graph and is tracked as its own task.
+than the current silence. Setting `rust.index_sysroot: true` publishes the
+standard library as a provider repository and turns the four into exact edges,
+at the cost of one extra analysis unit per toolchain; see
+[the standard library](/docs/configuration/#the-standard-library).
 
 Related Rust limits: a symbol behind an inactive Cargo feature is absent from
 the graph and reported as unresolved; a crate version the analyzer does not
@@ -109,9 +112,9 @@ database against `ENOSPC`; the qualification is recorded as
 
 ## The viewer is unauthenticated
 
-`kivgraph ui` binds `0.0.0.0:7777` by default and carries no authentication.
-Its responses contain repository and file paths, symbol names and signatures.
-The bind is a deliberate default — the graph is built where the repositories
-are and the viewer is usually opened from another machine — but it is not a
-safe one on a shared network. Restrict it with `--addr 127.0.0.1:7777` or
-`web.address`. See the [viewer guide](/guides/viewer/).
+`kivgraph ui` carries no authentication. Its responses contain repository and
+file paths, symbol names and signatures. It binds `127.0.0.1:7777` by default,
+so only this machine reaches it; exposing it on a network is a choice
+(`--addr` or `web.address`) and is not safe on a shared one. A configuration
+written by an earlier `init` carries `0.0.0.0:7777` and keeps it. See the
+[viewer guide](/guides/viewer/).

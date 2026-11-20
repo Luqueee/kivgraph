@@ -54,3 +54,9 @@ testdata/generated/
 /agent-e2e
 /hot-snapshot-footprint
 /shared-snapshot
+
+# The self-repo agent-e2e run writes one MCP config per arm (with the absolute
+# paths of the machine that ran it) and its full transcripts beside the task
+# set. The older benchmark directories commit theirs on purpose.
+benchmarks/agent-e2e/self-repo/mcp-*.json
+benchmarks/agent-e2e/self-repo/raw/

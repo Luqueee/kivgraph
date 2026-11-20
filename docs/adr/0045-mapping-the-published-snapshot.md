@@ -404,3 +404,22 @@ La decisión de fondo **no cambia**: mapear también las tablas sigue sin pedirl
 ningún número, y ahora se sabe cuánto compraría -- esos `614 B` por símbolo. Lo
 que sí cambia es que el arranque, `13x`, quedó medido y documentado, y era el
 efecto más grande del mapeo sin criterio que lo mirara.
+
+## El ancla del mapeo la comparten las tablas (`2026-11-17`)
+
+El párrafo anterior ataba la liberación del mapeo a la inalcanzabilidad del
+`*GraphSnapshot`, y eso era demasiado pronto. `Strings()` y `StableKeys()`
+entregan la tabla **por valor**, y una consulta que la toma y sigue leyendo no
+sostiene el snapshot: si un `Publish` lo ha reemplazado, el recolector lo
+encuentra inalcanzable, el `AddCleanup` desmapea, y la tabla sigue contestando
+desde páginas que ya no son del proceso. Medido en un test: `"Helper"` se
+leía como seis bytes a cero. Ninguno de los guardias lo cubría: el segundo libera
+a mano y el primero compara direcciones.
+
+`MapSnapshot` recibe ahora la función de liberación y es quien la ata, a un
+`mapping` al que apuntan el snapshot y las dos tablas de arena prestada, así que
+el mapeo vive mientras cualquiera de ellos sea alcanzable. No cambia el formato
+del fichero ni la copia que hace `String`. El test nuevo toma cada tabla por
+separado, suelta el snapshot, fuerza el recolector y compara la lectura con la
+anterior; falla con el `AddCleanup` sobre el snapshot y con cualquiera de las
+dos tablas sin ancla.

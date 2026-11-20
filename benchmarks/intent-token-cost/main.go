@@ -778,6 +778,10 @@ func connect(ctx context.Context, cfg config) (*sdkmcp.ClientSession, *bytes.Buf
 		arguments = append(arguments, "--config", cfg.ConfigPath)
 	}
 	serverCommand := exec.Command(cfg.Server, arguments...)
+	// Without this `serve` installs a supervised daemon when none answers: a
+	// launchd agent or systemd unit in the real user session that outlives the
+	// run, and an arm that would measure a relay instead of this process.
+	serverCommand.Env = append(os.Environ(), "KIVGRAPH_SERVE_IN_PROCESS=1")
 	stderr := &bytes.Buffer{}
 	serverCommand.Stderr = stderr
 	transport := &sdkmcp.CommandTransport{Command: serverCommand, TerminateDuration: 5 * time.Second}

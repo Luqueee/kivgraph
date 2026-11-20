@@ -143,9 +143,9 @@ func TestReplaceBundleLeavesNoBackupExceptWhereItCannot(t *testing.T) {
 	if err := replaceBundle(current, staged); err != nil {
 		t.Fatalf("replaceBundle() error = %v", err)
 	}
-	// Nothing was running out of this bundle, so the backup goes on every
-	// platform. A leftover here would mean removeReplacedBundle is swallowing
-	// a failure that has nothing to do with a locked image.
+	// Nothing was running out of this bundle and nothing in it refuses to
+	// go, so the backup goes on every platform. A leftover here would mean the
+	// removal is not being attempted at all.
 	if _, err := os.Stat(current + ".previous"); !os.IsNotExist(err) {
 		t.Fatalf("stat backup = %v, want it removed when nothing holds it", err)
 	}

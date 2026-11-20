@@ -266,6 +266,23 @@ func Capture(
 	profile, resolverVersion, analyzerFingerprint string,
 	repositories []workspace.Repository,
 ) (Manifest, error) {
+	return capture(ctx, profile, resolverVersion, analyzerFingerprint, repositories, treeDigester)
+}
+
+// digester observes the content of one repository's tree. Capture reads it with
+// TreeDigest; the signature entry points below record or reuse a signature.
+type digester func(ctx context.Context, repository workspace.Repository, root string) (string, error)
+
+func treeDigester(ctx context.Context, _ workspace.Repository, root string) (string, error) {
+	return TreeDigest(ctx, root)
+}
+
+func capture(
+	ctx context.Context,
+	profile, resolverVersion, analyzerFingerprint string,
+	repositories []workspace.Repository,
+	observe digester,
+) (Manifest, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -313,7 +330,7 @@ func Capture(
 		if root == "" {
 			root = repository.Path
 		}
-		digest, err := TreeDigest(ctx, root)
+		digest, err := observe(ctx, repository, root)
 		if err != nil {
 			return Manifest{}, fmt.Errorf("observe source repository %q content: %w", name, err)
 		}
@@ -374,7 +391,14 @@ func CaptureWithRepositories(
 	if err != nil {
 		return Manifest{}, nil, err
 	}
+	observed, err := observedRepositories(manifest, repositories)
+	if err != nil {
+		return Manifest{}, nil, err
+	}
+	return manifest, observed, nil
+}
 
+func observedRepositories(manifest Manifest, repositories []workspace.Repository) ([]workspace.Repository, error) {
 	byName := make(map[string]Source, len(manifest.Sources))
 	for _, source := range manifest.Sources {
 		byName[source.Repository] = source
@@ -383,13 +407,86 @@ func CaptureWithRepositories(
 	for index := range observed {
 		source, ok := byName[strings.TrimSpace(observed[index].Name)]
 		if !ok {
-			return Manifest{}, nil, fmt.Errorf("source observation repository %q missing from manifest", observed[index].Name)
+			return nil, fmt.Errorf("source observation repository %q missing from manifest", observed[index].Name)
 		}
 		observed[index].Commit = source.Observation.Commit
 		observed[index].Branch = source.Observation.Branch
 		observed[index].Dirty = source.Observation.Dirty
 	}
-	return manifest, observed, nil
+	return observed, nil
+}
+
+// Signatures holds the signature of each repository's tree by repository name.
+type Signatures map[string]*TreeSignature
+
+// Reuse says how many repositories a CaptureReusing observed and for how many it
+// skipped reading the tree because the signature held.
+type Reuse struct {
+	Repositories int
+	Reused       int
+}
+
+// CaptureWithSignatures is CaptureWithRepositories that also returns the signature
+// of every tree it read. It is the first observation of a pass that will verify
+// with CaptureReusing.
+func CaptureWithSignatures(
+	ctx context.Context,
+	profile, resolverVersion, analyzerFingerprint string,
+	repositories []workspace.Repository,
+) (Manifest, []workspace.Repository, Signatures, error) {
+	signatures := make(Signatures, len(repositories))
+	manifest, err := capture(ctx, profile, resolverVersion, analyzerFingerprint, repositories,
+		func(ctx context.Context, repository workspace.Repository, root string) (string, error) {
+			digest, signature, err := TreeDigestSigned(ctx, root)
+			if err != nil {
+				return "", err
+			}
+			signatures[strings.TrimSpace(repository.Name)] = signature
+			return digest, nil
+		})
+	if err != nil {
+		return Manifest{}, nil, nil, err
+	}
+	observed, err := observedRepositories(manifest, repositories)
+	if err != nil {
+		return Manifest{}, nil, nil, err
+	}
+	return manifest, observed, signatures, nil
+}
+
+// CaptureReusing observes the repositories again, taking the digest of a tree
+// from its signature when the signature can prove that reading the tree would
+// give the digest it already has, and reading the tree otherwise. A repository is
+// decided on its own: one that moved is read, one that did not is not.
+//
+// The manifest it returns is the manifest Capture would return. Everything that is
+// not the content digest -- the Git state, the policy, the composition -- is
+// observed again exactly as Capture does it.
+func CaptureReusing(
+	ctx context.Context,
+	profile, resolverVersion, analyzerFingerprint string,
+	repositories []workspace.Repository,
+	signatures Signatures,
+) (Manifest, []workspace.Repository, Reuse, error) {
+	var report Reuse
+	manifest, err := capture(ctx, profile, resolverVersion, analyzerFingerprint, repositories,
+		func(ctx context.Context, repository workspace.Repository, root string) (string, error) {
+			report.Repositories++
+			signature := signatures[strings.TrimSpace(repository.Name)]
+			if signature != nil && signature.root == strings.TrimSpace(root) && signature.Unchanged() {
+				report.Reused++
+				return signature.digest, nil
+			}
+			return TreeDigest(ctx, root)
+		})
+	if err != nil {
+		return Manifest{}, nil, report, err
+	}
+	observed, err := observedRepositories(manifest, repositories)
+	if err != nil {
+		return Manifest{}, nil, report, err
+	}
+	return manifest, observed, report, nil
 }
 
 // Compare reports a source state change with the first affected input. The
@@ -583,19 +680,36 @@ func Read(generationPath string) (Manifest, error) {
 // exclusions: omitting a source that a provider may have read could publish a
 // graph that cannot be reproduced, while an extra rebuild is safe.
 func TreeDigest(ctx context.Context, root string) (string, error) {
+	digest, _, err := treeDigest(ctx, root, false)
+	return digest, err
+}
+
+// TreeDigestSigned is TreeDigest that also returns the signature of the tree it
+// walked. The signature is recorded by the same walk, so it costs a map insert per
+// entry and no second traversal. A root that is a single file has no signature.
+func TreeDigestSigned(ctx context.Context, root string) (string, *TreeSignature, error) {
+	return treeDigest(ctx, root, true)
+}
+
+func treeDigest(ctx context.Context, root string, record bool) (string, *TreeSignature, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	root = strings.TrimSpace(root)
 	if root == "" {
-		return "", ErrAbsent
+		return "", nil, ErrAbsent
 	}
 	info, err := os.Stat(root)
 	if err != nil {
-		return "", classifyReadError(err)
+		return "", nil, classifyReadError(err)
 	}
 	if !info.IsDir() {
-		return FileDigest(ctx, root)
+		digest, err := FileDigest(ctx, root)
+		return digest, nil, err
+	}
+	var signature *TreeSignature
+	if record {
+		signature = newTreeSignature(root)
 	}
 	hash := sha256.New()
 	err = filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
@@ -603,11 +717,33 @@ func TreeDigest(ctx context.Context, root string) (string, error) {
 			return err
 		}
 		if walkErr != nil {
+			// An entry below the root that vanished between being listed and
+			// being read is not there to hash. The root going away is not that,
+			// and stays an error: a digest of nothing reads as an empty tree.
+			if errors.Is(walkErr, fs.ErrNotExist) && path != root {
+				signature.distrust()
+				return nil
+			}
 			return walkErr
 		}
 		if entry.IsDir() {
 			switch entry.Name() {
 			case "node_modules", ".git":
+				return fs.SkipDir
+			}
+			if signature != nil {
+				// Stamped before the directory is listed, so an entry added
+				// after the listing leaves a newer stamp than the digest saw.
+				if info, err := entry.Info(); err == nil {
+					signature.recordDirectory(path, info)
+				} else {
+					signature.distrust()
+				}
+			}
+			// Stamped above even when skipped: a tag added to or removed from
+			// this directory later changes its stamp, so the signature cannot
+			// vouch for a digest that was taken under the other answer.
+			if path != root && workspace.IsCacheDirectory(path) {
 				return fs.SkipDir
 			}
 			return nil
@@ -620,10 +756,37 @@ func TreeDigest(ctx context.Context, root string) (string, error) {
 			return nil
 		}
 		info, err := entry.Info()
+		if errors.Is(err, fs.ErrNotExist) {
+			signature.distrust()
+			return nil
+		}
 		if err != nil {
 			return err
 		}
+		// Opening a FIFO or socket named like a source blocks forever; a symlink
+		// is followed, so only its target decides.
+		if mode := info.Mode(); !mode.IsRegular() {
+			if mode&fs.ModeSymlink == 0 {
+				return nil
+			}
+			// The digest is the target's content and a stat of the link says
+			// nothing about it: the signature cannot vouch for this tree.
+			signature.distrust()
+			target, err := os.Stat(path)
+			if err != nil {
+				return err
+			}
+			if !target.Mode().IsRegular() {
+				return nil
+			}
+		} else if signature != nil {
+			signature.recordFile(path, info)
+		}
 		file, err := os.Open(path)
+		if errors.Is(err, fs.ErrNotExist) {
+			signature.distrust()
+			return nil
+		}
 		if err != nil {
 			return err
 		}
@@ -639,11 +802,15 @@ func TreeDigest(ctx context.Context, root string) (string, error) {
 	})
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return "", err
+			return "", nil, err
 		}
-		return "", classifyReadError(err)
+		return "", nil, classifyReadError(err)
 	}
-	return hex.EncodeToString(hash.Sum(nil)), nil
+	digest := hex.EncodeToString(hash.Sum(nil))
+	if signature != nil {
+		signature.digest = digest
+	}
+	return digest, signature, nil
 }
 
 // FileDigest hashes one source input with its byte length, matching the file
@@ -725,7 +892,7 @@ var analyzedManifests = map[string]struct{}{
 	"go.mod": {}, "go.sum": {}, "go.work": {}, "go.work.sum": {},
 	"package.json": {}, "pnpm-lock.yaml": {}, "pnpm-workspace.yaml": {}, "pnpm-workspace.yml": {},
 	"package-lock.json": {}, "npm-shrinkwrap.json": {}, "yarn.lock": {},
-	"cargo.toml": {}, "cargo.lock": {},
+	"cargo.toml": {}, "cargo.lock": {}, "rust-toolchain": {}, "rust-toolchain.toml": {},
 	"pyproject.toml": {}, "setup.py": {}, "setup.cfg": {}, "requirements.txt": {},
 	"pipfile": {}, "pipfile.lock": {}, "poetry.lock": {}, "uv.lock": {},
 	"pubspec.yaml": {}, "pubspec.lock": {}, "analysis_options.yaml": {},

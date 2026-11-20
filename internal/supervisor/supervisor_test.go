@@ -348,7 +348,7 @@ func TestRestartRepairsAnOwnedLegacyUnit(t *testing.T) {
 		t.Fatalf("read supervisor command log: %v", err)
 	}
 	for _, operation := range map[string][]string{
-		"linux":  {"daemon-reload", "enable --now", "restart"},
+		"linux":  {"daemon-reload", "enable", "restart"},
 		"darwin": {"bootstrap", "kickstart"},
 	}[runtime.GOOS] {
 		if !strings.Contains(string(log), operation) {

@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"os/user"
 	"path/filepath"
 	"time"
 
@@ -357,6 +358,47 @@ func relayToTheDaemon(
 	return true, relay.Run(ctx, endpoint)
 }
 
+// foreignHome reports the account's home directory when this process runs under
+// a different one.
+//
+// A supervisor starts its daemon in the user's session, with the home the
+// account has, and not with the environment of whoever installed the unit. A
+// `serve` started under another HOME -- a test harness, a sandbox, a benchmark
+// with a throwaway installation -- reads `~/.local/state/kivgraph` as one
+// directory and the daemon it installs reads it as another: the daemon serves
+// a different installation or fails to load one, `serve` waits out the deadline
+// for an endpoint that is published somewhere else, and the unit stays
+// registered after the directory it was installed from is gone.
+//
+// Where the account cannot be looked up the answer is "not foreign", which is
+// what this did before it asked: a build without cgo on Linux falls back to the
+// environment for an account that is not in /etc/passwd.
+func foreignHome() (account string, foreign bool) {
+	current, err := user.Current()
+	if err != nil || current.HomeDir == "" {
+		return "", false
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", false
+	}
+	if sameDirectory(current.HomeDir, home) {
+		return "", false
+	}
+	return current.HomeDir, true
+}
+
+// sameDirectory compares two paths as the file system does, so a link or a
+// different spelling of the same directory is not a different home.
+func sameDirectory(left, right string) bool {
+	leftInfo, leftErr := os.Stat(left)
+	rightInfo, rightErr := os.Stat(right)
+	if leftErr != nil || rightErr != nil {
+		return filepath.Clean(left) == filepath.Clean(right)
+	}
+	return os.SameFile(leftInfo, rightInfo)
+}
+
 // provisionLockName is the file a burst of relays contends on.
 //
 // It lives in the state directory because that is what a daemon belongs to:
@@ -465,6 +507,14 @@ func provisionDaemon(
 			writeWarning(os.Stderr, "serve: release the provisioning lock: %v", err)
 		}
 	}()
+
+	// The last thing checked, because it is the only decline here that is not
+	// already a fact about the supervisor or about who else is installing.
+	if account, foreign := foreignHome(); foreign {
+		logger.Info("serving in process: this process does not run under the account's home, and a supervised daemon would",
+			"command", command, "account_home", account)
+		return daemon.Endpoint{}, false
+	}
 
 	installed, err := supervisor.Install(spec)
 	if err != nil {

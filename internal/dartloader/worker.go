@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/Luqueee/kivgraph/internal/proctree"
 )
 
 const stderrLimit = 16 << 10
@@ -75,7 +77,8 @@ func launchWorker(ctx context.Context, executable string, args []string, root st
 		cancel()
 		return nil, nil, err
 	}
-	go func() { w.exit = cmd.Wait(); close(w.done) }()
+	release := proctree.Guard(cmd)
+	go func() { w.exit = cmd.Wait(); release(); close(w.done) }()
 	return w, out, nil
 }
 

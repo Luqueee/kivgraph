@@ -308,19 +308,28 @@ func enclosingDeclaration(loaded *packages.Package, stack []declarationContext) 
 					owner = receiverTypeName(receiver.Type())
 				}
 			}
-			return qualifiedName(owner, declaration.Name.Name), kind
+			return declarationQualifiedName(loaded.Fset, loaded.Syntax, declaration, owner), kind
 		case *ast.TypeSpec:
+			// A type declared inside a function is not a symbol of the graph,
+			// so a use inside it belongs to the function around it.
+			if object := loaded.TypesInfo.Defs[declaration.Name]; object != nil {
+				if _, indexable := classifyObject(object); !indexable {
+					continue
+				}
+			}
 			return declaration.Name.Name, KindType
 		case *ast.ValueSpec:
-			if len(declaration.Names) > 0 {
-				object := loaded.TypesInfo.Defs[declaration.Names[0]]
-				kind := KindVar
-				if object != nil {
-					if classified, indexable := classifyObject(object); indexable {
-						kind = classified
-					}
+			// The first name the graph publishes. A local `var`, and the blank
+			// `_` of `var _ I = T{}`, publish nothing: a use there belongs to
+			// the function around it, or to the file when there is none.
+			for _, name := range declaration.Names {
+				object := loaded.TypesInfo.Defs[name]
+				if object == nil {
+					return name.Name, KindVar
 				}
-				return declaration.Names[0].Name, kind
+				if classified, indexable := classifyObject(object); indexable {
+					return name.Name, classified
+				}
 			}
 		}
 	}

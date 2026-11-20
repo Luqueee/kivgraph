@@ -26,9 +26,11 @@ import (
 	"time"
 
 	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/proctree"
 	"github.com/Luqueee/kivgraph/internal/scip"
 	"github.com/Luqueee/kivgraph/internal/scip/scipwire"
 	"github.com/Luqueee/kivgraph/internal/scratchtree"
+	"github.com/Luqueee/kivgraph/internal/testpath"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
@@ -124,7 +126,7 @@ func Run(ctx context.Context, options Options) (facts.SemanticPayload, error) {
 
 	process := exec.CommandContext(runContext, executable, arguments...)
 	process.Dir = tree.Path
-	combined, runErr := process.CombinedOutput()
+	combined, runErr := proctree.CombinedOutput(process)
 	if runErr != nil {
 		if runContext.Err() != nil && ctx.Err() == nil {
 			return facts.SemanticPayload{}, fmt.Errorf(
@@ -162,6 +164,10 @@ func convert(index scipwire.Index, options Options, sources, repository, project
 	if strings.TrimSpace(name) == "" {
 		name = filepath.Base(repository)
 	}
+	excluded, err := workspace.ExclusionMatcher(repository, options.Repository.Exclusions)
+	if err != nil {
+		return facts.SemanticPayload{}, fmt.Errorf("csharp indexer: %w", err)
+	}
 	manifest := ""
 	if project != "" {
 		// The project may live in the scratch tree, so the manifest path is
@@ -187,7 +193,7 @@ func convert(index scipwire.Index, options Options, sources, repository, project
 			return os.ReadFile(filepath.Join(sources, filepath.FromSlash(relative)))
 		},
 		IncludeFile: func(relative string) bool {
-			return includeFile(relative, options)
+			return includeFile(relative, options) && !excluded(relative)
 		},
 		Generated: isGenerated,
 	})
@@ -298,7 +304,7 @@ func includeFile(relative string, options Options) bool {
 	if !options.IncludeGenerated && isGenerated(slashed) {
 		return false
 	}
-	if !options.IncludeTests && isTest(slashed) {
+	if !options.IncludeTests && testpath.Is(slashed) {
 		return false
 	}
 	return true
@@ -320,17 +326,6 @@ func isGenerated(path string) bool {
 	return strings.HasSuffix(lower, ".g.cs") ||
 		strings.HasSuffix(lower, ".generated.cs") ||
 		strings.HasSuffix(lower, ".designer.cs")
-}
-
-// isTest is the layout the .NET templates produce. It is a path and filename
-// rule, never a guess about content.
-func isTest(path string) bool {
-	slashed := strings.ToLower(filepath.ToSlash(path))
-	if strings.Contains(slashed, "/tests/") || strings.HasPrefix(slashed, "tests/") {
-		return true
-	}
-	base := filepath.Base(slashed)
-	return strings.HasSuffix(base, "tests.cs") || strings.HasSuffix(base, "test.cs")
 }
 
 func lastLines(value string, count int) string {

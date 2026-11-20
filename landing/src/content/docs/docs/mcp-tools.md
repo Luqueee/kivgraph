@@ -38,10 +38,12 @@ open the database for those queries and does not run the TypeScript worker.
 [index-status]: /docs/tools/get-index-status/
 
 Edges are resolved by language analyzers, never by matching names, and the
-resolution is not uniform across the five languages: Go, TypeScript and Rust
-edges are type-checked; Dart edges are resolved by Dart Analysis Server; Python
-uses exact semantic facts when a configured analyzer provides them and
-`CANDIDATE` facts in its bundled AST fallback. Where the edge is type-checked,
+resolution is not uniform across the seven languages: Go, TypeScript and Rust
+edges are type-checked; Dart edges are resolved by Dart Analysis Server; Java
+and C# edges come from their compilers' own indexers, `scip-java` and
+`scip-dotnet`; Python uses exact semantic facts when a configured analyzer
+provides them and `CANDIDATE` facts in its bundled AST fallback. Where the edge
+is type-checked,
 an empty reference list means nobody calls it, and two homonymous methods are
 two different symbols. `grep` can say neither.
 
@@ -138,9 +140,10 @@ about is its own.
 
 ## One channel per response
 
-No tool publishes an `outputSchema`. With one, the SDK marshals the typed
+No query tool publishes an `outputSchema`. With one, the SDK marshals the typed
 result into `structuredContent` and repeats the same JSON in the text block, so
-the response is paid for twice.
+the response is paid for twice. `index_project` is the one exception: its
+answer is a fixed-shape report emitted once per rebuild, not once per question.
 
 [`get_source`](/docs/tools/get-source/) goes further and answers in prose:
 source inside a JSON string costs more than the same source as text.

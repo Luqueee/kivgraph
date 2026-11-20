@@ -38,8 +38,6 @@ const (
 	defaultJavaTargetDir   = "~/.local/state/kivgraph/java-target"
 	defaultCSharpTargetDir = "~/.local/state/kivgraph/csharp-target"
 	defaultEventLogPath    = "~/.local/state/kivgraph/events.jsonl"
-
-	maximumConfiguredDepth = 5
 )
 
 // Duration is a YAML duration such as 10m or 30s.
@@ -169,7 +167,15 @@ var retiredConfigKeys = []retiredKey{
 		Reason: "nothing read it: Prune keeps the current generation and its backup, " +
 			"which is what a rollback needs",
 	},
+	{Section: "mcp", Field: "default_limit", Reason: unreadMCPLimit},
+	{Section: "mcp", Field: "maximum_limit", Reason: unreadMCPLimit},
+	{Section: "mcp", Field: "maximum_depth", Reason: unreadMCPLimit},
+	{Section: "mcp", Field: "maximum_visited_nodes", Reason: unreadMCPLimit},
 }
+
+// unreadMCPLimit is why the four mcp limits are retired. See ADR 0117.
+const unreadMCPLimit = "nothing read it: the bounds of a query are the tool's own, " +
+	"declared in its schema, and a value set here never limited a call"
 
 // Name is the dotted key a report and a doctor line name it by.
 func (key retiredKey) Name() string { return key.Section + "." + key.Field }
@@ -250,7 +256,8 @@ func setMappingScalar(mapping *yaml.Node, field, value string) error {
 		node.Anchor = ""
 		return nil
 	}
-	mapping.Content = append(mapping.Content,
+	mapping.Content = append(
+		mapping.Content,
 		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: field},
 		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: value},
 	)
@@ -278,13 +285,9 @@ type WebConfig struct {
 	Address string `yaml:"address"`
 }
 
-// MCPConfig controls transport and query limits.
+// MCPConfig controls the transport.
 type MCPConfig struct {
-	Transport           string `yaml:"transport"`
-	DefaultLimit        int    `yaml:"default_limit"`
-	MaximumLimit        int    `yaml:"maximum_limit"`
-	MaximumDepth        int    `yaml:"maximum_depth"`
-	MaximumVisitedNodes int    `yaml:"maximum_visited_nodes"`
+	Transport string `yaml:"transport"`
 }
 
 // IndexingConfig controls which facts and references are retained.
@@ -302,6 +305,12 @@ type IndexingConfig struct {
 	// FactCachePath holds one entry per analysis unit, outside every
 	// indexed repository.
 	FactCachePath string `yaml:"fact_cache_path"`
+	// SourceVerification decides how a pass proves that its sources did not change
+	// while it ran. `full` observes the whole tree again, as it always did.
+	// `signature` first compares the stat of every directory and analysed file with
+	// the stat taken at the first observation and reads a tree again only when it
+	// cannot prove it would read the same. See ADR 0121.
+	SourceVerification string `yaml:"source_verification"`
 }
 
 // WatcherConfig controls incremental file watching.
@@ -561,19 +570,14 @@ func DefaultConfig() Config {
 			BackupsPath:  defaultBackupsPath,
 		},
 		Web: WebConfig{
-			// The viewer listens on every interface. It is unauthenticated
-			// and its responses carry source paths, symbol names and
-			// signatures, so `kivgraph ui` warns on every bind that is not
-			// loopback -- which, with this default, is every bind. Restrict
-			// it with `web.address` or `--addr`.
-			Address: "0.0.0.0:7777",
+			// Loopback. The viewer is unauthenticated and its responses carry
+			// source paths, symbol names and signatures, so reaching it from
+			// the network is a choice: `web.address` or `--addr`, and every
+			// such bind logs what it exposes. See ADR 0119.
+			Address: "127.0.0.1:7777",
 		},
 		MCP: MCPConfig{
-			Transport:           "stdio",
-			DefaultLimit:        50,
-			MaximumLimit:        500,
-			MaximumDepth:        maximumConfiguredDepth,
-			MaximumVisitedNodes: 25_000,
+			Transport: "stdio",
 		},
 		Indexing: IndexingConfig{
 			GeneratedFiles:            "include",
@@ -582,6 +586,7 @@ func DefaultConfig() Config {
 			FullRebuildOnSchemaChange: true,
 			FactCache:                 "on",
 			FactCachePath:             defaultFactCachePath,
+			SourceVerification:        "full",
 		},
 		Watcher: WatcherConfig{
 			Enabled:                  true,
@@ -597,7 +602,7 @@ func DefaultConfig() Config {
 		},
 		Go: GoConfig{
 			SyntheticWorkFile: defaultSyntheticWork,
-			IncludeTests:      false,
+			IncludeTests:      true,
 			GOOS:              "",
 			GOARCH:            "",
 			CGOEnabled:        nil,
@@ -616,7 +621,7 @@ func DefaultConfig() Config {
 			AnalyzerMode:     "fallback",
 			MaximumWorkers:   3,
 			PythonPath:       "python3",
-			IncludeTests:     false,
+			IncludeTests:     true,
 			IncludeGenerated: false,
 			IncludeExternal:  false,
 		},
@@ -624,7 +629,7 @@ func DefaultConfig() Config {
 			AnalyzerCommand:     "dart",
 			MaximumWorkers:      2,
 			SDKPath:             "dart",
-			IncludeTests:        false,
+			IncludeTests:        true,
 			IncludeGenerated:    false,
 			IncludeExternal:     false,
 			IncludeSDK:          false,
@@ -635,7 +640,7 @@ func DefaultConfig() Config {
 		Java: JavaConfig{
 			IndexerCommand:   "scip-java",
 			MaximumWorkers:   1,
-			IncludeTests:     false,
+			IncludeTests:     true,
 			IncludeGenerated: false,
 			TargetDirectory:  defaultJavaTargetDir,
 			MaximumIndexTime: Duration(20 * time.Minute),
@@ -643,7 +648,7 @@ func DefaultConfig() Config {
 		CSharp: CSharpConfig{
 			IndexerCommand:   "scip-dotnet",
 			MaximumWorkers:   1,
-			IncludeTests:     false,
+			IncludeTests:     true,
 			IncludeGenerated: false,
 			SkipRestore:      false,
 			TargetDirectory:  defaultCSharpTargetDir,
@@ -1119,7 +1124,8 @@ func setPythonAnalyzer(path string, expectedCommand *string, command, mode strin
 	python := mappingValue(document, "python")
 	if python == nil {
 		python = &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
-		document.Content = append(document.Content,
+		document.Content = append(
+			document.Content,
 			&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "python"}, python,
 		)
 	} else if python.Kind == yaml.ScalarNode && python.Tag == "!!null" {
@@ -1339,18 +1345,6 @@ func validateConfig(configuration Config) error {
 	if configuration.MCP.Transport != "stdio" {
 		return fmt.Errorf("config.mcp.transport: unsupported transport %q", configuration.MCP.Transport)
 	}
-	if configuration.MCP.DefaultLimit < 1 {
-		return fmt.Errorf("config.mcp.default_limit: must be positive, got %d", configuration.MCP.DefaultLimit)
-	}
-	if configuration.MCP.MaximumLimit < configuration.MCP.DefaultLimit {
-		return fmt.Errorf("config.mcp.maximum_limit: must be at least default_limit (%d), got %d", configuration.MCP.DefaultLimit, configuration.MCP.MaximumLimit)
-	}
-	if configuration.MCP.MaximumDepth < 1 || configuration.MCP.MaximumDepth > maximumConfiguredDepth {
-		return fmt.Errorf("config.mcp.maximum_depth: must be between 1 and %d, got %d", maximumConfiguredDepth, configuration.MCP.MaximumDepth)
-	}
-	if configuration.MCP.MaximumVisitedNodes < 1 {
-		return fmt.Errorf("config.mcp.maximum_visited_nodes: must be positive, got %d", configuration.MCP.MaximumVisitedNodes)
-	}
 	// These two name what the pass does, and the pass does exactly one thing
 	// with each: it indexes generated files and it retains every unresolved
 	// reference, because a declared hole is a fact the graph owes its
@@ -1373,6 +1367,11 @@ func validateConfig(configuration Config) error {
 	}
 	if configuration.Indexing.FactCache != "off" && strings.TrimSpace(configuration.Indexing.FactCachePath) == "" {
 		return errors.New("config.indexing.fact_cache_path: must not be empty when the fact cache is enabled")
+	}
+	switch configuration.Indexing.SourceVerification {
+	case "full", "signature":
+	default:
+		return fmt.Errorf("config.indexing.source_verification: must be full or signature, got %q", configuration.Indexing.SourceVerification)
 	}
 	if configuration.Watcher.DebounceMilliseconds < 1 {
 		return fmt.Errorf("config.watcher.debounce_ms: must be positive, got %d", configuration.Watcher.DebounceMilliseconds)

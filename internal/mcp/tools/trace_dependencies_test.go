@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -172,6 +173,10 @@ func TestTraceDependenciesReportsNodeLimitTruncation(t *testing.T) {
 	}
 	if !response.Results.TraversalTruncated || response.Results.Reached != 1 {
 		t.Fatalf("node-bounded trace = %#v, want one dependency and a truncated traversal", response.Results)
+	}
+	if response.Completeness.Verdict != VerdictLowerBound || !strings.Contains(response.Guidance, "max_nodes") {
+		t.Fatalf("node-bounded verdict = %q, guidance = %q, want a lower bound that names max_nodes",
+			response.Completeness.Verdict, response.Guidance)
 	}
 }
 

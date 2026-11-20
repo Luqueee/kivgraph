@@ -13,7 +13,7 @@ description: Read one symbol's package, module, signature, visibility and line r
 | `stable_key` | string | unset | The durable key of one symbol. Exactly one of `stable_key` or `qualified_name` is required; passing both is rejected. Passing it together with `repository` or `path` is also rejected, because a key already names one symbol. |
 | `qualified_name` | string | unset | The qualified name of the symbol, as every row of this surface returns it. Exactly one of `stable_key` or `qualified_name` is required. |
 | `repository` | string | unset | Narrows a `qualified_name` to one repository, matched by name. A repository the published graph does not hold is rejected with `REPOSITORY_NOT_FOUND`. |
-| `path` | string | unset | Narrows a `qualified_name` to a repository-relative path prefix. It requires `repository`. An absolute path or any `..` segment is rejected; a trailing `/` is trimmed. |
+| `path` | string | unset | Narrows a `qualified_name` to a repository-relative file, or to a directory containing it, matched at a path-segment boundary: `src/util.ts` does not match `src/util.tsx`, and `src/ut` matches nothing. It requires `repository`. An absolute path or any `..` segment is rejected; a trailing `/` is trimmed. |
 | `response_format` | string | `concise` | `concise` or `detailed`. `detailed` adds `canonical_identity` and `repository_key`. Any other value is rejected with `INVALID_ARGUMENT`. |
 
 Any of the four selector fields carrying surrounding whitespace is rejected

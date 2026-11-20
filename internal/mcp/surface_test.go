@@ -165,7 +165,19 @@ func TestServerExposesExactlyTheAllowedSurface(t *testing.T) {
 // schemas went from `2.104` to `4.281`. That is the trade stated as a ratio:
 // the half a session pays for in every request grew by `1,8 %`, and the half
 // it reads once per tool, if ever, is what absorbed the rest.
-const MaximumSurfaceSchemaBytes = 18000
+//
+// It then went to `18.200` for `find_references.exclude_tests`, the argument that
+// lets a caller ask for production uses once the Go and Dart tests are in the
+// graph by default (ADR 0132). The surface was `17.990` bytes with `10` to spare,
+// so any new argument had to move this number; the argument itself, with its
+// description, is `138`. It lands in the input schema, which is the deferred
+// half, and no route or description a session pays for in every request changed.
+//
+// And to `18.600` for the same argument on `get_blast_radius`,
+// `trace_dependencies` and `find_implementations`, so that a caller can ask any
+// of them for production code only: `18.128` to `18.494`, `122` bytes each, all
+// of it input schema. The surface keeps `106` bytes of room.
+const MaximumSurfaceSchemaBytes = 18600
 
 func TestServerSurfaceStaysCheapToLoad(t *testing.T) {
 	session := connectToServer(t, publishedServer(t))

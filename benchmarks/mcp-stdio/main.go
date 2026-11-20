@@ -144,6 +144,10 @@ func run(ctx context.Context, cfg config) (results, error) {
 	}
 
 	serverCommand := exec.Command(cfg.Server, "serve", "--config", cfg.ConfigPath)
+	// Without this `serve` installs a supervised daemon when none answers: a
+	// launchd agent or systemd unit in the real user session that outlives the
+	// run, and an arm that would measure a relay instead of this process.
+	serverCommand.Env = append(os.Environ(), "KIVGRAPH_SERVE_IN_PROCESS=1")
 	var stderr bytes.Buffer
 	serverCommand.Stderr = &stderr
 	transport := &sdkmcp.CommandTransport{Command: serverCommand, TerminateDuration: 5 * time.Second}

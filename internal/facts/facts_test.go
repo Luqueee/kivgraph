@@ -165,6 +165,47 @@ func TestValidateRejectsASymbolWithTwoDefiners(t *testing.T) {
 	}
 }
 
+// TestValidateRejectsAFileUnderTwoPackages is the CONTAINS_FILE counterpart of
+// the test above. A file has one container; two payloads that both claim it
+// merge into one File and two edges, and LadybugDB refuses the second with a
+// node offset after the whole analysis has run. The message has to name the file
+// by its path and both packages, because a key names nothing a reader can open.
+func TestValidateRejectsAFileUnderTwoPackages(t *testing.T) {
+	repository := Repository{Key: "repo:acme", Name: "acme", RootPath: "/repos/acme", Languages: []Language{LanguageTypeScript}}
+	outer := Package{Key: "pkg:acme:root", RepositoryKey: repository.Key, Language: LanguageTypeScript, Name: "root", RootPath: "/repos/acme"}
+	inner := Package{Key: "pkg:acme:web", RepositoryKey: repository.Key, Language: LanguageTypeScript, Name: "@acme/web", RootPath: "/repos/acme/apps/web"}
+	file := File{Key: "file:acme:apps/web/src/a.ts", RepositoryKey: repository.Key, PackageKey: inner.Key, Path: "apps/web/src/a.ts", Language: LanguageTypeScript}
+	set := Set{
+		Repositories: []Repository{repository},
+		Packages:     []Package{outer, inner},
+		Files:        []File{file},
+		Edges: []Edge{
+			{Kind: ContainsFile, SourceKey: inner.Key, TargetKey: file.Key, Confidence: StructuralCertain, Provenance: PackageManifest},
+			{Kind: ContainsFile, SourceKey: outer.Key, TargetKey: file.Key, Confidence: StructuralCertain, Provenance: PackageManifest},
+		},
+	}
+
+	err := set.Validate()
+	if err == nil {
+		t.Fatal("Validate() error = nil, want a file under two packages rejected")
+	}
+	for _, named := range []string{file.Path, outer.Name, inner.Name} {
+		if !strings.Contains(err.Error(), named) {
+			t.Fatalf("Validate() error = %v, want it to name %q", err, named)
+		}
+	}
+
+	// The same package listing a file twice is one container, not two.
+	set.Edges[1].SourceKey = inner.Key
+	if err := set.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want a repeated edge from one package to pass", err)
+	}
+	set.Edges = set.Edges[:1]
+	if err := set.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want one container to pass", err)
+	}
+}
+
 // TestMergeAllKeepsTheFirstRecordOfEveryKey pins what makes two facts one.
 // A pass merges one set per unit of work, and the same symbol is defined
 // once but referenced from many units: whichever unit is merged first owns

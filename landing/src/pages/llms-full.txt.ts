@@ -45,7 +45,7 @@ export const GET: APIRoute = async ({ site }) => {
     `Generated ${new Date().toISOString().slice(0, 10)}. ${entries.length} pages, in the order the site navigation presents them.`,
     `Includes ${releases.length} releases with notes.`,
     `Licensed ${LICENSE_NAME} (${LICENSE_URL}). Source: ${REPOSITORY_URL}`,
-    `The server registers ${MCP_TOOLS.length} tools over stdio: ${MCP_TOOLS.join(", ")}.`,
+    `Once a generation is published the server registers ${MCP_TOOLS.length} tools, over stdio or through the local daemon: ${MCP_TOOLS.join(", ")}. Before that it registers only the three indexing controls.`,
     `Index of the same pages, one link each: ${absoluteUrl(site, "/llms.txt")}`,
   ].join("\n");
 

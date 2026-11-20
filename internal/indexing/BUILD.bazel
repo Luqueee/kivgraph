@@ -47,7 +47,11 @@ go_test(
         "service_test.go",
         "sourcewatch_test.go",
         "subprocess_test.go",
-    ],
+    ] + select({
+        "@rules_go//go/platform:darwin": ["sourcewatch_unreadable_test.go"],
+        "@rules_go//go/platform:linux": ["sourcewatch_unreadable_test.go"],
+        "//conditions:default": [],
+    }),
     embed = [":indexing"],
     deps = [
         "//internal/config",

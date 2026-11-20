@@ -140,6 +140,46 @@ func TestGateRefusesWhatTheGraphAnswersBetter(t *testing.T) {
 	}
 }
 
+// A refusal ends by telling the caller how to insist, and the way it names is a
+// variable before the command. A native Grep, Glob or subagent call has no command
+// to put it before, so for those the line used to describe something the caller
+// could not do. The hook reads the variable from its own environment, so what is
+// left is to have the session started with it, which is the user's to do.
+func TestARefusalOnlyOffersAnEscapeTheCallerCanApply(t *testing.T) {
+	graph := &fakeGraph{
+		symbol: Facts{Declarations: 4, Repositories: 2},
+		intent: Facts{Declarations: 3, Repositories: 1},
+	}
+	gate := Gate{Graph: graph, Indexed: IndexedExtensions([]string{".go"})}
+	for _, testCase := range []struct {
+		name     string
+		question Question
+	}{
+		{"a name", Question{Kind: KindSymbol, Pattern: "NewServer"}},
+		{"a regex", Question{Kind: KindIntent, Pattern: "New.*Server"}},
+		{"a glob", Question{Kind: KindFiles, Pattern: "**/*.go"}},
+		{"a subagent", Question{Kind: KindResearchAgent, Pattern: "map the indexer"}},
+	} {
+		for _, native := range []bool{false, true} {
+			question := testCase.question
+			question.Native = native
+			decision := gate.Decide(context.Background(), question)
+			if !decision.Deny {
+				t.Fatalf("%s (native=%v): allowed", testCase.name, native)
+			}
+			lines := strings.Split(decision.Reason, "\n")
+			last := lines[len(lines)-1]
+			want := escapeLine
+			if native {
+				want = nativeEscapeLine
+			}
+			if last != want {
+				t.Errorf("%s (native=%v) ends with %q, want %q", testCase.name, native, last, want)
+			}
+		}
+	}
+}
+
 // TestIntentStaysInsideTheCurrentRepository keeps a workspace-wide intent
 // search from redirecting an agent to a similarly named symbol in another
 // project. The hook already established the repository from cwd, so dropping
