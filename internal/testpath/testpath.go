@@ -16,22 +16,37 @@ import (
 // conventions of the languages the graph indexes: a name or a directory. A Rust
 // test module inside a source file, which carries no such mark, is not seen.
 func Is(filePath string) bool {
-	normalized := strings.ToLower(filepath.ToSlash(filePath))
+	slashed := filepath.ToSlash(filePath)
+	normalized := strings.ToLower(slashed)
 	base := path.Base(normalized)
-	stem := strings.TrimSuffix(base, path.Ext(base))
 	switch {
 	case strings.HasSuffix(base, "_test.go"), strings.HasSuffix(base, "_test.py"), strings.HasSuffix(base, "_test.dart"),
 		strings.HasPrefix(base, "test_") && strings.HasSuffix(base, ".py"), base == "conftest.py",
 		strings.Contains(base, ".test."), strings.Contains(base, ".spec."),
-		strings.HasSuffix(stem, "test") && (strings.HasSuffix(base, ".java") || strings.HasSuffix(base, ".cs")),
-		strings.HasSuffix(stem, "tests") && (strings.HasSuffix(base, ".java") || strings.HasSuffix(base, ".cs")):
+		isTestClass(path.Base(slashed)):
 		return true
 	}
-	for _, component := range strings.Split(path.Dir(normalized), "/") {
+	directory := path.Dir(normalized)
+	for _, component := range strings.Split(directory, "/") {
 		switch component {
 		case "test", "tests", "__tests__", "spec", "specs":
 			return true
 		}
 	}
-	return false
+	// Maven's integration tests. `it` alone is also a locale and a pronoun, so
+	// it counts only under `src`, which is where the convention puts it.
+	return strings.Contains("/"+directory+"/", "/src/it/")
+}
+
+// isTestClass reads the class-per-file convention of Java and C#: `ServiceTest`,
+// `ServiceTests`. The capital is the word boundary, and it is what keeps
+// `Latest.java` and `Contest.cs` out -- a comparison that folds case cannot
+// tell a suffix from the end of another word.
+func isTestClass(base string) bool {
+	extension := path.Ext(base)
+	if extension != ".java" && extension != ".cs" {
+		return false
+	}
+	stem := strings.TrimSuffix(base, extension)
+	return strings.HasSuffix(stem, "Test") || strings.HasSuffix(stem, "Tests")
 }

@@ -119,7 +119,8 @@ It reads the graph the last index published and does not index. Its limits:
 - Tests are recognised by path convention, because the graph carries no test
   flag: `_test.go`, `_test.py`, `_test.dart`, `test_*.py`, `conftest.py`,
   `*.test.*` and `*.spec.*`, Java and C# files whose name ends in `Test` or
-  `Tests`, and a `test`, `tests`, `__tests__`, `spec` or `specs` directory. Go
+  `Tests`, a `test`, `tests`, `__tests__`, `spec` or `specs` directory, and
+  Maven's `src/it/`. Go
   tests therefore appear unless `go.include_tests` is `false`, and a Rust test
   module inside a source file is not seen.
 - A removed symbol is not in a graph built from the new tree, so a deleted

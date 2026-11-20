@@ -2490,9 +2490,18 @@ of the precision column, and `exclude_tests` on the traversal tools.
   rule says what a C# test is, in `internal/testpath`, for the loader and for
   `exclude_tests` (ADR 0142, amended): `csharp.tests_excluded` on
   `GuardClauses` goes from `47.4 %` to `14.0 %` recall, which is the arm
-  leaving the tests out at last. Open: `dotnet` children of `scip-dotnet` were
-  found running after two test sessions and the cause was not reproduced; the
-  Java loader's rule for a test is still its own.
+  leaving the tests out at last.
+- **An indexer's process tree does not outlive it (ADR 0143).** The `dotnet`
+  processes found after test sessions were reproduced: a time limit killed the
+  launcher of `scip-dotnet` or `scip-java` and left its children, a killed
+  kivgraph left the whole tree, and a successful C# index left an MSBuild
+  worker node idling at `117 MB`. `internal/proctree` runs both tools in a
+  process group, kills the group on cancellation, on this process's death and
+  on return. Unix only. The Java loader now applies the shared test rule too
+  (ADR 0142, second amendment), which gained `src/it/` and reads the capital
+  in `*Test`, so `Latest.java` is no longer a test. Open: `rust-analyzer` and
+  the Python worker are still started as one process each; no Windows
+  counterpart for the guard.
 - **Open after the language-recall work** (none has an owner or a date):
   - Dart: explicit extension application (`IterableExtension(this)`) and `/** */`
     doc links. Rust: methods on a receiver, names passed through a metavariable

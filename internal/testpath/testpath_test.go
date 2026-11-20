@@ -11,6 +11,12 @@ func TestIsReadsTheConventionsOfEveryIndexedLanguage(t *testing.T) {
 		// A .NET solution that keeps its projects under `test/`, with file names
 		// that say nothing: the layout a rule read off the templates missed.
 		"test/App.UnitTests/GuardAgainstNull.cs": true, "src/App/Guard.cs": false,
+		// The capital is the word boundary: these end in "test" and are not tests.
+		"src/main/java/app/Latest.java": false, "src/App/Contest.cs": false, "src/App/Greatests.cs": false,
+		"src/main/java/app/Test.java": true, "src/App/Tests.cs": true,
+		// Maven's integration tests, and the `it` that is something else.
+		"src/it/java/app/ServiceIT.java": true, "module/src/it/settings.xml": true,
+		"locales/it/messages.go": false, "src/item/it.go": false, "it/src/main.go": false,
 		"lib/models_test.dart": true, "test/models.dart": true,
 		"tests/integration.rs": true, "src/__tests__/x.ts": true, "src/contest.ts": false,
 		"testdata/fixture.go": false, "src/latest/value.go": false,

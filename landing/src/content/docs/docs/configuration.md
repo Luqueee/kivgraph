@@ -153,7 +153,7 @@ reference. Accepting another word would promise behaviour no code implements.
 | `indexer_command` | `scip-java` | Must not be empty. Java is indexed by building it: `scip-java` drives the repository's own build tool. |
 | `build_tool` | *(empty)* | Empty lets `scip-java` detect Maven, Gradle, sbt and mill on its own; name one for a repository that carries two. Accepts `maven`, `gradle`, `sbt`, `mill` or `bazel`. |
 | `maximum_workers` | `1` | Must be positive. |
-| `include_tests` | `true` | Whether the Java tests are indexed, recognised by path (`src/test/`). A `config.yaml` written by an earlier `init` spells the key out as `false` and keeps it until edited. |
+| `include_tests` | `true` | Whether the Java tests are indexed. A test is a file under a `test` or `tests` directory or `src/it/`, or named `*Test.java` or `*Tests.java`, the same rule `exclude_tests` applies. A `config.yaml` written by an earlier `init` spells the key out as `false` and keeps it until edited. |
 | `include_generated` | `false` | |
 | `target_directory` | `~/.local/state/kivgraph/java-target` | Where the indexer writes its SemanticDB output and its index, outside every indexed repository. Must be absolute after expansion. |
 | `maximum_index_time` | `20m` | A Go duration string; must be positive. |

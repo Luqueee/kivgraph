@@ -87,3 +87,22 @@ Measured again on `GuardClauses`, `53` declarations:
 The excluded arm now leaves the tests out, as the same arm does for the other
 languages. The Java loader keeps its own narrower rule (`src/test/`,
 `src/it/`) and is not changed here.
+
+## Second amendment: the Java loader applies it too
+
+The Java loader kept `src/test/` and `src/it/` as its own rule. It now calls
+`internal/testpath` as well, and the rule changed in two ways to take it in:
+
+- `src/it/`, Maven's integration tests, is a test directory. `it` alone is not:
+  it is also a locale.
+- The class-name convention reads the capital. `ServiceTest.java` and
+  `ServiceTests.cs` are tests; `Latest.java` and `Contest.cs`, which the
+  case-folding comparison took for tests, are not.
+
+So `exclude_tests` no longer drops a production class whose name happens to end
+in "test", and drops the files under `src/it/`. With
+`java.include_tests: false` a `*Test.java` outside `src/test/` and a file under
+a `test` or `tests` directory are left out, which they were not. `jsoup` keeps
+all its tests under `src/test/`: `java.tests_excluded` is `61.1 %` recall and
+`96.6 %` precision before and after, and every other figure of the Java and C#
+results is unchanged.
