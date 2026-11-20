@@ -75,7 +75,8 @@ func launchWorker(ctx context.Context, executable string, args []string, root st
 		cancel()
 		return nil, nil, err
 	}
-	go func() { w.exit = cmd.Wait(); close(w.done) }()
+	release := guardOrphan(cmd.Process.Pid)
+	go func() { w.exit = cmd.Wait(); release(); close(w.done) }()
 	return w, out, nil
 }
 
