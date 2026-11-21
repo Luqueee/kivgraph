@@ -36,6 +36,7 @@ go_test(
         "fixture_negative_test.go",
         "fixture_positive_test.go",
         "loader_test.go",
+        "loader_testmain_test.go",
         "methods_test.go",
         "packagedependencies_test.go",
         "precision_test.go",

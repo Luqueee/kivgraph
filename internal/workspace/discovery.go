@@ -111,6 +111,11 @@ func walkTypeScriptFiles(ctx context.Context, base, current string, exclusions [
 	}
 	entries, err := os.ReadDir(current)
 	if err != nil {
+		// See walkGoFiles: a directory that vanished mid-walk holds nothing to
+		// discover, and the root going away stays an error.
+		if os.IsNotExist(err) && current != base {
+			return nil
+		}
 		return fmt.Errorf("read directory %q: %w", current, err)
 	}
 	for _, entry := range entries {
@@ -139,13 +144,16 @@ func walkTypeScriptFiles(ctx context.Context, base, current string, exclusions [
 			continue
 		}
 		info, err := entry.Info()
+		if os.IsNotExist(err) {
+			continue
+		}
 		if err != nil {
 			return fmt.Errorf("inspect file %q: %w", entryPath, err)
 		}
 		if !info.Mode().IsRegular() {
 			continue
 		}
-		if err := visit(entryPath); err != nil {
+		if err := visitUnlessVanished(entryPath, visit); err != nil {
 			return err
 		}
 	}
@@ -159,6 +167,9 @@ func isDiscoveryExcluded(base, candidate, name string, isDirectory bool, exclusi
 	}
 	if isDirectory {
 		if _, excluded := defaultTypeScriptExcludedDirectories[name]; excluded {
+			return true, nil
+		}
+		if IsCacheDirectory(candidate) {
 			return true, nil
 		}
 	}
@@ -208,6 +219,30 @@ func MatchesExclusion(base, candidate string, exclusions []string) (bool, error)
 		}
 	}
 	return false, nil
+}
+
+// ExclusionMatcher is MatchesExclusion for a loader that decides file by file:
+// the patterns are validated once, and the answer for a path relative to the
+// repository is then a plain yes or no.
+//
+// Every loader has to ask this one. `exclusions` is a key of the repository, not
+// of a language, and a loader that read it with a matcher of its own -- or did
+// not read it at all -- made the same list mean different things for the files
+// of one repository.
+func ExclusionMatcher(root string, exclusions []string) (func(relative string) bool, error) {
+	if len(exclusions) == 0 {
+		return func(string) bool { return false }, nil
+	}
+	root = filepath.Clean(root)
+	if err := validateExclusionPatterns(root, exclusions); err != nil {
+		return nil, err
+	}
+	return func(relative string) bool {
+		// The patterns are valid, so what is left to fail is a path that is
+		// not inside the repository, and that is not excluded from it.
+		excluded, err := MatchesExclusion(root, filepath.Join(root, filepath.FromSlash(relative)), exclusions)
+		return err == nil && excluded
+	}, nil
 }
 
 func validateExclusionPatterns(base string, exclusions []string) error {

@@ -64,8 +64,12 @@ type resyncHarness struct {
 	mutex         sync.Mutex
 	batches       [][]string
 	observedMoves int
-	attempts      int
-	fail          error
+	// reported is every repository the loop has said moved. A report carries the
+	// whole pending set, so this is what the loop has seen and not what one tick
+	// happened to see.
+	reported map[string]struct{}
+	attempts int
+	fail     error
 	// failuresLeft is how many more attempts fail: -1 for every one of them,
 	// and a positive count for a failure that heals on its own. The count is
 	// what makes "it failed twice and then worked" a fact of the fake rather
@@ -80,8 +84,9 @@ type resyncHarness struct {
 func startResync(t *testing.T, options ResyncOptions) *resyncHarness {
 	t.Helper()
 	harness := &resyncHarness{
-		clock: &fakeClock{now: time.Unix(1_700_000_000, 0)},
-		done:  make(chan struct{}),
+		clock:    &fakeClock{now: time.Unix(1_700_000_000, 0)},
+		done:     make(chan struct{}),
+		reported: make(map[string]struct{}),
 	}
 	options.Now = harness.clock.Now
 	if options.Interval == 0 {
@@ -96,11 +101,15 @@ func startResync(t *testing.T, options ResyncOptions) *resyncHarness {
 	// The loop stamps the quiet period from the clock the test controls, so
 	// a test that advanced it before the move was observed would stamp the
 	// debounce forward and wait forever. Counting observations lets a test
-	// advance only once the loop has seen what it did.
+	// advance only once the loop has seen what it did -- for one move; for
+	// several, see awaitMovedRepositories.
 	previousOnMoved := options.OnMoved
 	options.OnMoved = func(batch []RepositoryMovement) {
 		harness.mutex.Lock()
 		harness.observedMoves++
+		for _, movement := range batch {
+			harness.reported[movement.Repository.Name] = struct{}{}
+		}
 		harness.mutex.Unlock()
 		if previousOnMoved != nil {
 			previousOnMoved(batch)
@@ -139,9 +148,15 @@ func startResync(t *testing.T, options ResyncOptions) *resyncHarness {
 	return harness
 }
 
-// awaitMoved waits until the loop has observed count movement reports. A test
-// must not advance the clock before that: the loop stamps the quiet period
-// with the same clock, and an early advance moves the deadline with it.
+// awaitMoved waits until the loop has made count movement reports. A test must
+// not advance the clock before that: the loop stamps the quiet period with the
+// same clock, and an early advance moves the deadline with it.
+//
+// A report is one tick that saw something move, not one repository: a test that
+// moves several repositories one after another can be satisfied by the first
+// tick, which saw only the first of them, and advancing then lets a tick that
+// already read the others' old HEAD fire a batch without them. Use
+// awaitMovedRepositories for that.
 func (harness *resyncHarness) awaitMoved(t *testing.T, count int) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
@@ -155,6 +170,29 @@ func (harness *resyncHarness) awaitMoved(t *testing.T, count int) {
 		time.Sleep(2 * time.Millisecond)
 	}
 	t.Fatalf("timed out waiting for %d movement report(s)", count)
+}
+
+// awaitMovedRepositories waits until the loop has reported every named
+// repository as moved, which is when it has stamped the quiet period for all of
+// them and the clock can be advanced without splitting the batch.
+func (harness *resyncHarness) awaitMovedRepositories(t *testing.T, names ...string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		harness.mutex.Lock()
+		missing := 0
+		for _, name := range names {
+			if _, seen := harness.reported[name]; !seen {
+				missing++
+			}
+		}
+		harness.mutex.Unlock()
+		if missing == 0 {
+			return
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for the loop to report %v as moved", names)
 }
 
 func (harness *resyncHarness) setFailure(err error) {
@@ -254,7 +292,7 @@ func TestResyncCoalescesAWholeWorkspaceIntoOneRebuild(t *testing.T) {
 
 	moveHead(t, first, "main", "2222222222222222222222222222222222222222")
 	moveHead(t, second, "main", "4444444444444444444444444444444444444444")
-	harness.awaitMoved(t, 1)
+	harness.awaitMovedRepositories(t, "alpha", "beta")
 
 	batches := harness.awaitRebuild(t, 1)
 	if len(batches) != 1 {

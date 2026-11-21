@@ -2,10 +2,13 @@ package dartloader
 
 import (
 	"context"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -385,13 +388,57 @@ func TestDartPackageRootsReadsPubPackageConfig(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(configDir, "package_config.json"), []byte(config), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	roots := dartPackageRoots(root, "auto", true)
-	if len(roots) != 1 || roots[0] != external {
-		t.Fatalf("package roots = %#v, want [%q]", roots, external)
-	}
 	providers := ExternalPackageRepositories(root, "auto")
 	if len(providers) != 1 || providers[0].Path != external || !strings.HasPrefix(providers[0].Name, "dart-package:external:") {
 		t.Fatalf("external providers = %#v", providers)
+	}
+}
+
+// `dart.include_external_packages` used to send the analysis server `packageRoots` as
+// a list; the protocol defines a map, so every SDK refused the request and the whole
+// pass failed. The server finds the packages through the package config on its own.
+func TestRunResolvesAPackageDependencyWhenExternalPackagesAreIncluded(t *testing.T) {
+	if _, err := exec.LookPath("dart"); err != nil {
+		t.Skip("dart SDK is not installed")
+	}
+	base := t.TempDir()
+	write := func(path, content string) {
+		t.Helper()
+		path = filepath.Join(base, path)
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("provider/pubspec.yaml", "name: provider_pkg\nenvironment:\n  sdk: ^3.0.0\n")
+	write("provider/lib/provider.dart", "int addOne(int value) => value + 1;\n")
+	write("consumer/pubspec.yaml", "name: consumer_pkg\nenvironment:\n  sdk: ^3.0.0\n")
+	write("consumer/lib/consumer.dart", "import 'package:provider_pkg/provider.dart';\n\nint run() => addOne(1);\n")
+	write("consumer/.dart_tool/package_config.json", `{"configVersion": 2, "packages": [
+		{"name": "provider_pkg", "rootUri": "../../provider", "packageUri": "lib/"},
+		{"name": "consumer_pkg", "rootUri": "../", "packageUri": "lib/"}
+	]}`)
+	root := filepath.Join(base, "consumer")
+	repository := workspace.Repository{Name: "consumer", Path: root, RealPath: root}
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	for _, includeExternal := range []bool{false, true} {
+		payload, err := RunWithOptions(ctx, Options{
+			Command: "dart", SDKPath: "dart", Repository: repository, IncludeExternal: includeExternal,
+			Providers: ExternalPackageRepositories(root, "auto"),
+		})
+		if err != nil {
+			t.Fatalf("include_external_packages=%v: %v", includeExternal, err)
+		}
+		var calls bool
+		for _, reference := range payload.References {
+			calls = calls || (reference.Kind == "CALLS_DIRECT" && reference.Target != nil)
+		}
+		if !calls {
+			t.Fatalf("include_external_packages=%v: the call into the package has no target: %#v", includeExternal, payload.References)
+		}
 	}
 }
 
@@ -405,5 +452,259 @@ func TestSDKRootResolvesConfiguredDart(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(root, "lib")); err != nil {
 		t.Fatalf("SDK root %q has no lib directory: %v", root, err)
+	}
+}
+
+// The roots of the packages a repository reads besides itself, from its package
+// config: what the analysis server can open, so what a repository can depend on.
+func TestPackageRootsListsTheOtherPackagesThatExist(t *testing.T) {
+	base := t.TempDir()
+	for _, directory := range []string{"consumer", "provider", "other"} {
+		if err := os.MkdirAll(filepath.Join(base, directory), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	consumer := filepath.Join(base, "consumer")
+	writeConfig := func(path, content string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Itself, one that exists twice, one that does not exist and one by file URI.
+	automatic := `{"configVersion": 2, "packages": [
+		{"name": "consumer", "rootUri": "../"},
+		{"name": "provider", "rootUri": "../../provider"},
+		{"name": "provider_again", "rootUri": "../../provider/"},
+		{"name": "missing", "rootUri": "../../missing"},
+		{"name": "other", "rootUri": "` + (&url.URL{Scheme: "file", Path: filepath.Join(base, "other")}).String() + `"}
+	]}`
+	writeConfig(filepath.Join(consumer, ".dart_tool", "package_config.json"), automatic)
+
+	want := []string{filepath.Join(base, "other"), filepath.Join(base, "provider")}
+	for _, configured := range []string{"", "auto"} {
+		if got := PackageRoots(consumer, configured); !slices.Equal(got, want) {
+			t.Errorf("PackageRoots(configured=%q) = %q, want %q", configured, got, want)
+		}
+	}
+
+	// A configured path is relative to the repository, and one that is not a package
+	// config names no packages.
+	writeConfig(filepath.Join(consumer, "custom", "config.json"), `{"packages": [{"name": "provider", "rootUri": "../../provider"}]}`)
+	if got, want := PackageRoots(consumer, filepath.Join("custom", "config.json")), []string{filepath.Join(base, "provider")}; !slices.Equal(got, want) {
+		t.Errorf("PackageRoots(custom config) = %q, want %q", got, want)
+	}
+	writeConfig(filepath.Join(consumer, "broken.json"), "not json")
+	for name, configured := range map[string]string{"malformed": "broken.json", "absent": "nothing.json"} {
+		if got := PackageRoots(consumer, configured); len(got) != 0 {
+			t.Errorf("PackageRoots(%s config) = %q, want none", name, got)
+		}
+	}
+}
+
+func TestUTF16LengthCountsCodeUnitsAndNotBytes(t *testing.T) {
+	for _, testCase := range []struct {
+		name string
+		data string
+		want int
+	}{
+		{name: "empty", data: "", want: 0},
+		{name: "ascii", data: "abc", want: 3},
+		{name: "two byte rune is one unit", data: "á—", want: 2},
+		{name: "astral rune is a surrogate pair", data: "a😀", want: 3},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			if got := utf16Length([]byte(testCase.data)); got != testCase.want {
+				t.Fatalf("utf16Length(%q) = %d, want %d", testCase.data, got, testCase.want)
+			}
+		})
+	}
+}
+
+// TestRunResolvesUsesInAFileWithNonASCIIText pins the request the Analysis
+// Server answers with nothing when its length runs past the end of the file:
+// the length is in UTF-16 code units, and a comment with an accent made the byte
+// count larger than that, so every use in the file went missing without an
+// error.
+func TestRunResolvesUsesInAFileWithNonASCIIText(t *testing.T) {
+	if _, err := exec.LookPath("dart"); err != nil {
+		t.Skip("dart SDK is not installed")
+	}
+	root := t.TempDir()
+	for name, content := range map[string]string{
+		"pubspec.yaml":     "name: accents\npublish_to: none\nenvironment:\n  sdk: \">=3.0.0 <4.0.0\"\n",
+		"lib/accents.dart": "// Una nota con acentos: áéíóú — y un emoji 😀\nconst int _limit = 3;\nint doubled(int value) => value * _limit;\n",
+	} {
+		path := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	repository := workspace.Repository{Name: "accents", Path: root, RealPath: root}
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	payload, err := Run(ctx, "dart", "dart", repository, true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := map[string]string{}
+	for _, symbol := range payload.Symbols {
+		names[symbol.ID] = symbol.Name
+	}
+	var found []string
+	for _, reference := range payload.References {
+		found = append(found, names[reference.SourceID]+" -> "+names[reference.TargetID])
+	}
+	if !slices.Contains(found, "doubled -> _limit") {
+		t.Fatalf("references = %v, want doubled -> _limit", found)
+	}
+}
+
+// TestRunAttributesAnInstanceToItsClass pins that building an object is a use
+// of its class. A class with an explicit constructor gets the call resolved to
+// the constructor, which left the class itself with no reference from the file
+// that instantiates it.
+func TestRunAttributesAnInstanceToItsClass(t *testing.T) {
+	if _, err := exec.LookPath("dart"); err != nil {
+		t.Skip("dart SDK is not installed")
+	}
+	root := t.TempDir()
+	for name, content := range map[string]string{
+		"pubspec.yaml":   "name: boxes\npublish_to: none\nenvironment:\n  sdk: \">=3.0.0 <4.0.0\"\n",
+		"lib/box.dart":   "class Box {\n  Box(this.side);\n  Box.square(int side) : this(side);\n  final int side;\n}\n\nclass Plain {}\n",
+		"lib/build.dart": "import 'box.dart';\n\nBox makeBox() => Box(2);\nBox makeSquare() => Box.square(3);\nPlain makePlain() => Plain();\n",
+	} {
+		path := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	repository := workspace.Repository{Name: "boxes", Path: root, RealPath: root}
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	payload, err := Run(ctx, "dart", "dart", repository, true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := map[string]string{}
+	for _, symbol := range payload.Symbols {
+		names[symbol.ID] = symbol.QualifiedName + " " + symbol.Kind
+	}
+	found := map[string]int{}
+	for _, reference := range payload.References {
+		if reference.Kind == "CALLS_DIRECT" {
+			found[names[reference.SourceID]+" -> "+names[reference.TargetID]]++
+		}
+	}
+	// The constructor edges stay, the class gains its own, an implicit
+	// constructor is still one edge and not two, and a constructor does not
+	// make its own class a callee of itself.
+	for edge, want := range map[string]int{
+		"makeBox function -> Box.Box constructor":           1,
+		"makeBox function -> Box class":                     1,
+		"makeSquare function -> Box class":                  1,
+		"makePlain function -> Plain class":                 1,
+		"Box.Box.square constructor -> Box.Box constructor": 1,
+		"Box.Box.square constructor -> Box class":           0,
+	} {
+		if found[edge] != want {
+			t.Errorf("%q = %d, want %d; calls = %v", edge, found[edge], want, found)
+		}
+	}
+}
+
+// TestRunLeavesDocCommentLinksOutOfTheGraph pins that a `[name]` in a comment is
+// not a use of the declaration. The Analysis Server navigates doc links like
+// code, and one written "compatible with [hash]" was published as a module
+// EMBEDS the function, because the keyword scan read the sentence.
+func TestRunLeavesDocCommentLinksOutOfTheGraph(t *testing.T) {
+	if _, err := exec.LookPath("dart"); err != nil {
+		t.Skip("dart SDK is not installed")
+	}
+	root := t.TempDir()
+	for name, content := range map[string]string{
+		"pubspec.yaml":  "name: docs\npublish_to: none\nenvironment:\n  sdk: \">=3.0.0 <4.0.0\"\n",
+		"lib/docs.dart": "int hash(String value) => value.length;\n\n/// A length that is compatible with [hash] and extends [hash].\nint other(String value) => value.length;\n\nint real(String value) => hash(value); // see [hash]\n",
+	} {
+		path := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	repository := workspace.Repository{Name: "docs", Path: root, RealPath: root}
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	payload, err := Run(ctx, "dart", "dart", repository, true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := map[string]string{}
+	for _, symbol := range payload.Symbols {
+		names[symbol.ID] = symbol.QualifiedName
+	}
+	var found []string
+	for _, reference := range payload.References {
+		found = append(found, names[reference.SourceID]+" -"+reference.Kind+"-> "+names[reference.TargetID])
+	}
+	if want := []string{"real -CALLS_DIRECT-> hash"}; !slices.Equal(found, want) {
+		t.Fatalf("references = %v, want %v", found, want)
+	}
+}
+
+// `exclusions` is a key of the repository, and the Dart loader read it with a
+// matcher of its own: a bare name at any depth, and `./x` or an absolute path
+// not at all. One list excluded different directories for Dart than for the Go
+// and TypeScript files beside them.
+func TestDartFilesReadExclusionsAsTheRegistryDoes(t *testing.T) {
+	root := t.TempDir()
+	for _, relative := range []string{"lib/main.dart", "gen/a.dart", "lib/gen/b.dart", "lib/x/gen/c.dart", "tool/d.dart"} {
+		path := filepath.Join(root, filepath.FromSlash(relative))
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("class Fixture {}\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	all := []string{"gen/a.dart", "lib/gen/b.dart", "lib/main.dart", "lib/x/gen/c.dart", "tool/d.dart"}
+	for name, test := range map[string]struct {
+		exclusions []string
+		want       []string
+	}{
+		"none":                    {nil, all},
+		"a bare name is the root": {[]string{"gen"}, []string{"lib/gen/b.dart", "lib/main.dart", "lib/x/gen/c.dart", "tool/d.dart"}},
+		"any depth is spelled":    {[]string{"**/gen"}, []string{"lib/main.dart", "tool/d.dart"}},
+		"relative to the root":    {[]string{"./gen", "./tool"}, []string{"lib/gen/b.dart", "lib/main.dart", "lib/x/gen/c.dart"}},
+		"absolute":                {[]string{filepath.Join(root, "lib", "gen")}, []string{"gen/a.dart", "lib/main.dart", "lib/x/gen/c.dart", "tool/d.dart"}},
+		"through a wildcard":      {[]string{"lib/*/gen"}, []string{"gen/a.dart", "lib/gen/b.dart", "lib/main.dart", "tool/d.dart"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			files, err := dartFilesForRepository(root, nil, test.exclusions, true, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got []string
+			for _, file := range files {
+				got = append(got, relative(root, file))
+			}
+			if !reflect.DeepEqual(got, test.want) {
+				t.Errorf("files = %q, want %q", got, test.want)
+			}
+		})
+	}
+	if _, err := dartFilesForRepository(root, nil, []string{"[unterminated"}, true, true); err == nil {
+		t.Error("a pattern the registry refuses was read as matching nothing")
 	}
 }

@@ -19,10 +19,15 @@ go_library(
 
 go_test(
     name = "freshness_test",
-    srcs = ["freshness_test.go"],
+    srcs = [
+        "freshness_cachetag_test.go",
+        "freshness_test.go",
+        "freshness_vanish_test.go",
+    ],
     embed = [":freshness"],
     deps = [
         "//internal/config",
+        "//internal/testsupport",
         "//internal/workspace",
     ],
 )

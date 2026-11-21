@@ -21,12 +21,21 @@ Analysis is concurrent, and the unit differs per language:
 | Go | Module | `go.maximum_loads` |
 | TypeScript | Package | `typescript.maximum_workers` |
 | Rust | Cargo workspace | `rust.maximum_workspaces` |
+| Python | Repository | `python.maximum_workers` |
+| Dart | Repository | `dart.maximum_workers` |
+| Java | Repository | `java.maximum_workers` |
+| C# | Repository | `csharp.maximum_workers` |
 
 The budgets are separate because the costs are different. A Go load holds a
 complete type universe; a TypeScript worker is a process; a `rust-analyzer`
 invocation holds a whole Cargo workspace and its sysroot. Each queue is drained
 heaviest-first, with no more workers than it has units, and the first failure
 cancels the rest.
+
+Python, Dart, Java and C# are scheduled the same way, one unit per registered
+repository. Java and C# default to one worker: `scip-java` drives the project's
+own build tool and `scip-dotnet` runs `dotnet restore`, and two of either on one
+machine compete for the same package cache and heap.
 
 ## Where a pass runs
 
@@ -39,10 +48,17 @@ a live heap that stayed flat at 173 MB — a memory measurement on that corpus,
 not one of the token figures the [benchmark](/comparison/) reports.
 
 So when a server indexes — because a client called
-[`index_project`](/docs/tools/index-project/), or because `HEAD` moved in a
-registered repository — it runs `index --full --json` as a child process and
-reads the result. The peak dies with the child, and the server pays only for the
-snapshot it then loads.
+[`index_project`](/docs/tools/index-project/), because `HEAD` moved in a
+registered repository, or because a source file changed while `watcher.enabled`
+is on, which is the default — it runs `index --full --json` as a child process
+and reads the result. The peak dies with the child, and the server pays only for
+the snapshot it then loads. A `HEAD` move that leaves every indexed file as the
+graph recorded it, such as a plain commit, rebuilds nothing. The last two
+triggers belong to a `serve` that answers from its own graph and to the
+`daemon`; a `serve` that relays to the daemon holds no graph and watches
+nothing. The source watcher reconciles the whole tree every
+`watcher.reconciliation_interval`, so a filesystem event the platform dropped
+still reaches a rebuild.
 
 That flag is public. With `--json`, `stdout` carries only newline-delimited JSON
 events — any number of `progress`, then exactly one `result` — and the report a
@@ -119,15 +135,95 @@ a previous pass stored for it:
 
 An entry records the whole list of what the unit read and the fingerprint of
 each item; serving it revalidates that list in full. An entry is never served
-to a different analyzer: its identity includes the content of the executable,
-the answer of `go env`, the content of the TypeScript worker, the build tags,
-`include_tests` and `go.allow_network`.
+to a different analyzer. The analyzer fingerprint is the hash of nine parts —
+`resolver`, `binary`, `go`, `typescript`, `python`, `dart`, `java`, `csharp` and
+`rust` — and covers:
+
+- the content of the Kivgraph executable and the resolver version;
+- the answer of `go env`, the build tags, `include_tests`, `go.goos`,
+  `go.goarch`, `go.cgo_enabled` and `go.allow_network`;
+- the TypeScript worker. When the worker is a script in a directory named
+  `dist`, that is the entry script plus every JavaScript module below the
+  directory, and the `typescript` package it imports with the `@typescript`
+  platform packages beside it, by relative path and content. A worker started
+  through a shim is identified by the shim and the executable, which a bundle
+  replaces together;
+- the Dart SDK. A `dart` command is identified by its resolved path and what
+  `dart --version` prints, so a different SDK on the `PATH` is a different
+  analyzer;
+- the Rust toolchain: the `rustc`, `cargo` and sysroot probes;
+- the configuration of the Python, Dart, Java and C# loaders.
+
+The toolchain probes run from the temporary directory, so they describe the
+machine's default toolchain and not the pin of whichever directory the process
+started in. A repository's own pin is a change of `go.mod`, `go.work` or
+`rust-toolchain`, which the tree of its unit records.
+
+When a pass refuses entries because the analyzer changed, `index --full` names
+the part that moved on the `index.cache` line, for example
+`analyzer_changed=rust:34`. The number is how many refused entries differ in
+that part, and an entry that differs in several parts counts in each. An entry
+written before the parts were recorded counts as `unrecorded`. The parts are a
+diagnosis: an entry is served or refused by the fingerprint as a whole.
 
 A module the loader could not read is never cached, because its failure depends
 on the module cache and no fingerprint of the code describes it.
 
 Comparing two cached passes proves nothing. When touching this area, run with
 `fact_cache: verify`.
+
+### What the cache keeps
+
+The address of an entry holds the content of its unit, so every edit writes a
+new entry. After a pass admits entries, the cache keeps the newest three of each
+unit and at most six across all the resolutions of that unit, and removes the
+rest. Newest is the last time an entry was written or served. The entries the
+pass has just admitted are never removed by it, and an entry that has not been
+used for thirty days expires. The three and the six are constants, not
+configuration keys. The price is that going back to content older than the
+entries kept is a miss.
+
+### What the fingerprint does not look at
+
+These are what the cache leaves unwatched on purpose, not failures:
+
+- A worker script outside a directory named `dist`, or a launcher that hides
+  its `dist`, is identified only by its own bytes. A `.cjs`, `.cts`, `.mts` or
+  `.ts` entry, with or without a loader such as `tsx`, contributes neither its
+  bytes, nor a `dist`, nor the engine, and the content of a `--require` or
+  `--import` argument is not hashed. Only `.js` and `.mjs` scripts are
+  followed. In a bundle none of this matters: the binary changes with the
+  worker.
+- Without `ts-worker/dist/facts-cli.js` and without a worker on the `PATH`, the
+  pass runs `pnpm --dir ts-worker facts`, whose fingerprint is the `pnpm` binary
+  alone. `pnpm` builds `dist` during the pass, so the first pass fails once with
+  `analyzer configuration changed` and the second works. It never serves old
+  facts, but the message does not point at the cause: run
+  `pnpm --dir ts-worker build` first.
+- An update of the toolchain a repository selects without touching its files,
+  such as `rustup update` on a pinned `stable` channel, when the machine's
+  default toolchain is another one.
+- A live daemon whose binary is deleted fails five times while observing and
+  reindexing and gives up (`gave up rebuilding a stale profile`) until it is
+  restarted. A replaced binary converges on its own.
+
+## Verifying the sources
+
+A pass proves its sources did not change while it ran: it observes the tree
+before analysis and again before `CURRENT` moves, and a changed, missing or
+unreadable input rejects the candidate. By default that second observation
+hashes every analysed file again. ADR 0121 measured it at `10`-`11 %` of a
+`12`-`14 s` pass on six repositories.
+
+`indexing.source_verification: signature` is the opt-in alternative. It first
+compares the stat of every directory it read and every analysed file with the
+stat taken at the first observation, and reads a tree again only when it cannot
+prove it would read the same. The default stays `full`, because the proof rests
+on the filesystem's timestamps: it was measured on a local APFS volume only,
+and a filesystem with coarse timestamps or stale attribute caches (FAT, NFS,
+SMB) gives it no guarantee. Neither mode changes what a generation records.
+`index --full` prints `index.source_verification` with how many trees it did
+not read. See [`indexing`](/docs/configuration/#indexing) for the key.
 
 ## Hermetic by default
 
@@ -158,6 +254,18 @@ A Go module the loader cannot read publishes no facts — they would not be
 trustworthy — and is declared `MODULE_NOT_LOADED` with the diagnostics
 observed. One repository whose dependencies nobody downloaded does not decide
 whether the others have a graph.
+
+The same holds for a repository an analyzer ran on and could not read: a C#
+repository with no solution, a Java build that fails, a Python or Dart producer
+that exits. It publishes no facts and is declared `REPOSITORY_NOT_LOADED`, the
+report names it on an `index.<language>.not_read` line with the reason, and
+every answer about that repository says `LOWER_BOUND`. A Rust workspace the
+analyzer cannot load is declared `WORKSPACE_NOT_LOADED` the same way. So is a
+TypeScript repository whose projects cannot be discovered -- a `tsconfig.json`
+that does not parse -- and a package the worker fails on, as
+`PACKAGE_NOT_LOADED`. A repository registered as TypeScript with no project in
+it contributes nothing and is named on an `index.typescript.no_package` line. Fixing the
+repository and indexing again restores it: a failure to read is never cached.
 
 A package name declared by several manifests is an ambiguity, not a broken
 repository: nobody provides it, every manifest leaves the registry, and it is

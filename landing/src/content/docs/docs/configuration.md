@@ -34,7 +34,7 @@ state, its cache and its registry hang from its own directory. A `--config` in
 
 | Key | Default | Notes |
 | --- | --- | --- |
-| `database_path` | `~/.local/state/kivgraph/graph.lbdb` | The canonical LadybugDB database. A published generation lives in its own directory beside it, and carries the graph, the snapshot and the digests that prove they belong together. |
+| `database_path` | `~/.local/state/kivgraph/graph.lbdb` | The canonical LadybugDB database. A published generation lives at `generations/<id>/graph.db` in the directory that holds this path, beside the `CURRENT` and `BACKUP` pointer files, and carries the graph, the snapshot and the digests that prove they belong together. With profiles each profile derives its own `graph.lbdb` path under `<state>/profiles/<name>/`, and its generations live there, not beside this key. |
 | `backups_path` | `~/.local/state/kivgraph/backups` | What `rollback` restores from. |
 
 ### Retired keys
@@ -51,17 +51,24 @@ answer than the keys were a mistake.
 
 | Key | Default | Notes |
 | --- | --- | --- |
-| `address` | `0.0.0.0:7777` | Bind of `kivgraph ui`. Must be a valid `host:port`. Every non-loopback bind logs what it exposes; there is no authentication. |
+| `address` | `127.0.0.1:7777` | Bind of `kivgraph ui`. Must be a valid `host:port`. A loopback bind refuses a request whose `Host` is not this machine. Every non-loopback bind logs what it exposes; there is no authentication. A configuration written by an earlier `init` carries `0.0.0.0:7777` and keeps it. |
 
 ## `mcp`
 
 | Key | Default | Notes |
 | --- | --- | --- |
 | `transport` | `stdio` | The only accepted value, and a decision rather than a gap. The reason to want a shared transport was memory: every client launching its own server used to mean another private copy of the graph. A server now maps the published snapshot, so the largest part of it is one copy however many are running — see [what a second server costs](/guides/indexing/#what-a-second-server-costs). A client launching its own server is not something to negotiate with the user. |
-| `default_limit` | `50` | Must be positive. |
-| `maximum_limit` | `500` | Must be at least `default_limit`. |
-| `maximum_depth` | `5` | Must be between `1` and `5`. |
-| `maximum_visited_nodes` | `25000` | Must be positive. |
+
+### Retired limit keys
+
+`default_limit`, `maximum_limit`, `maximum_depth` and `maximum_visited_nodes`
+no longer exist. Nothing read them: a value set here never limited a call.
+The bounds of a query are fixed and each tool declares them in its schema —
+at most `500` rows a page, a depth of `5` and `25000` visited nodes.
+
+A configuration that still carries them loads normally, as with the retired
+`storage` keys: they are ignored and named by `kivgraph doctor` as
+`config.retired`.
 
 ## `indexing`
 
@@ -73,6 +80,7 @@ answer than the keys were a mistake.
 | `full_rebuild_on_schema_change` | `true` | |
 | `fact_cache` | `on` | `off`, `on` or `verify`. `verify` analyses everything and fails the pass when a servable entry disagrees with the analysis. |
 | `fact_cache_path` | `~/.local/state/kivgraph/factcache` | One entry per analysis unit, outside every indexed repository. Must not be empty unless the cache is `off`. |
+| `source_verification` | `full` | `full` or `signature`. A pass proves its sources did not change while it ran by observing the tree again before `CURRENT` moves. `full` hashes every analysed file again. `signature` first compares the stat of every directory it read and every analysed file with the stat taken at the first observation, and reads a tree again only when it cannot prove it would read the same: a differing stat, a missing entry, an entry modified within two seconds of the capture, a symlinked source, a platform without an inode change time. It is opt-in because the proof rests on the filesystem's timestamps: it was measured on a local APFS volume only, and a filesystem with coarse timestamps or stale attribute caches (FAT, NFS, SMB) gives it no guarantee. `index --full` prints `index.source_verification` with how many trees it did not read. See ADR 0121. |
 
 The two words are not decoration. `generated_files` and
 `unresolved_references` accept exactly one value each because that is exactly
@@ -102,10 +110,66 @@ reference. Accepting another word would promise behaviour no code implements.
 | Key | Default | Notes |
 | --- | --- | --- |
 | `synthetic_work_file` | `~/.local/state/kivgraph/go.work` | The synthetic workspace, outside every indexed repository. |
-| `include_tests` | `false` | |
+| `include_tests` | `true` | Whether the Go tests are indexed. Tests are recognised by path (`_test.go`), so `kivgraph impact` lists a Go test among the affected symbols and `find_references` includes the tests that use a symbol only while this is `true`. A `config.yaml` written by an earlier `init` spells the key out as `false` and keeps it until edited. `find_references`, `find_implementations`, `trace_dependencies`, `get_blast_radius` and `find_cross_repo_consumers` take `exclude_tests` to leave them out of one answer. |
+| `goos` | *(empty)* | The build platform's operating system, passed to every Go load as `GOOS`. Empty uses the platform of the configured Go toolchain. |
+| `goarch` | *(empty)* | The build platform's architecture, passed to every Go load as `GOARCH`. Empty uses the platform of the configured Go toolchain. |
+| `cgo_enabled` | *(unset)* | When set, passed to every Go load as `CGO_ENABLED`: `true` is `1` and `false` is `0`. Unset leaves the variable as the process environment has it. |
 | `build_tags` | *(empty)* | The constraints every Go load satisfies. No tag may be empty or contain a comma or whitespace. Indexing the Kivgraph repository itself requires `ladybug`. |
 | `allow_network` | `false` | The one declared escape from a hermetic pass: lets the go command reach a module proxy. |
 | `maximum_loads` | `0` | Bounds concurrent Go loads; each holds a complete type universe. `0` uses the processor count, capped. Must not be negative. |
+
+## `python`
+
+| Key | Default | Notes |
+| --- | --- | --- |
+| `indexer_command` | `kivgraph-python-worker` | Must not be empty. |
+| `analyzer_command` | `kivgraph-python-pyright` | Must not be empty. An optional type-aware producer that must emit the versioned semantic payload Kivgraph understands. |
+| `analyzer_mode` | `fallback` | `fallback` or `exact`. In `fallback` the bundled AST worker reads names and imports: it resolves `module.member` and what a package re-exports, and records a use through `object.member` as unresolved, so an answer about that member says `LOWER_BOUND`. `exact` asks Pyright and resolves them. |
+| `maximum_workers` | `3` | Must be positive. |
+| `python_path` | `python3` | Must not be empty. |
+| `include_tests` | `true` | Whether the Python tests are indexed: `test_*.py`, `*_test.py`, `conftest.py` and files under a `test`, `tests` or `integration_test` directory, the same rule `exclude_tests` applies. A `config.yaml` written by an earlier `init` spells the key out as `false` and keeps it until edited. |
+| `include_generated` | `false` | |
+| `include_external_packages` | `false` | |
+
+## `dart`
+
+| Key | Default | Notes |
+| --- | --- | --- |
+| `analyzer_command` | `dart` | Must not be empty. The default resolves through the `PATH`, so the fact cache fingerprint identifies the SDK it finds. |
+| `maximum_workers` | `2` | Must be positive. |
+| `sdk_path` | `dart` | Must not be empty. |
+| `include_tests` | `true` | Whether the Dart tests are indexed, recognised by path (`test/`, `_test.dart`). |
+| `include_generated` | `false` | |
+| `include_external_packages` | `false` | Adds the packages the package config resolves as provider repositories of their own, so references into them have a target. Off, the registered repository is the only unit and package-cache source never enters the graph. |
+| `include_sdk` | `false` | Publishes the Dart SDK itself. |
+| `package_config` | `auto` | Must not be empty. `auto` uses `.dart_tool/package_config.json`. |
+| `wait_for_analysis` | `true` | |
+| `maximum_analysis_time` | `5m` | A Go duration string; must be positive. |
+
+## `java`
+
+| Key | Default | Notes |
+| --- | --- | --- |
+| `indexer_command` | `scip-java` | Must not be empty. Java is indexed by building it: `scip-java` drives the repository's own build tool. |
+| `build_tool` | *(empty)* | Empty lets `scip-java` detect Maven, Gradle, sbt and mill on its own; name one for a repository that carries two. Accepts `maven`, `gradle`, `sbt`, `mill` or `bazel`. |
+| `maximum_workers` | `1` | Must be positive. |
+| `include_tests` | `true` | Whether the Java tests are indexed. A test is a file under a `test` or `tests` directory or `src/it/`, or named `*Test.java` or `*Tests.java`, the same rule `exclude_tests` applies. A `config.yaml` written by an earlier `init` spells the key out as `false` and keeps it until edited. |
+| `include_generated` | `false` | |
+| `target_directory` | `~/.local/state/kivgraph/java-target` | Where the indexer writes its SemanticDB output and its index, outside every indexed repository. Must be absolute after expansion. |
+| `maximum_index_time` | `20m` | A Go duration string; must be positive. |
+
+## `csharp`
+
+| Key | Default | Notes |
+| --- | --- | --- |
+| `indexer_command` | `scip-dotnet` | Must not be empty. C# is indexed by building it: `scip-dotnet` runs `dotnet restore` and drives Roslyn. |
+| `project` | *(empty)* | The `.sln` or `.csproj` to index. Empty discovers one, and a solution wins over a project. |
+| `maximum_workers` | `1` | Must be positive. |
+| `include_tests` | `true` | Whether the C# tests are indexed. A test is a file under a `test` or `tests` directory or named `*Test.cs` or `*Tests.cs`, the same rule `exclude_tests` applies. A `config.yaml` written by an earlier `init` spells the key out as `false` and keeps it until edited. |
+| `include_generated` | `false` | |
+| `skip_restore` | `false` | An index built without a restore loses every symbol that comes from a package. |
+| `target_directory` | `~/.local/state/kivgraph/csharp-target` | Where the indexer writes its output, outside every indexed repository. Must be absolute after expansion. |
+| `maximum_index_time` | `20m` | A Go duration string; must be positive. |
 
 ## `rust`
 
@@ -141,7 +205,16 @@ With it on, they become exact edges. It costs one extra analysis unit — around
 afterwards, because the cache fingerprint includes `rustc --version`. A machine
 with no toolchain, or one without the `rust-src` component, indexes its
 repositories and reports why the standard library is absent; it is never a
-failure.
+failure. Kivgraph does not install the component either: with `sysroot` set to
+`discover` it asks `rustc --print sysroot` and hands the analyzer that path, so
+a missing `rust-src` stays missing unless `allow_network` is on. It looks for
+`rustc` where the analyzer does: `$RUSTC`, then `$CARGO_HOME/bin`, then the
+`PATH`. Run `rustup component add rust-src` to have the standard library
+resolved; the next index notices and re-analyses.
+
+Nor does a pass install a toolchain. A workspace whose `rust-toolchain.toml`
+names a release that is not installed is reported as not loaded; run
+`rustup toolchain install` in that directory.
 
 Read tools withhold it by default. `find_symbol`, `find_references`,
 `trace_dependencies` and `get_blast_radius` accept `include_derived: true` to ask
@@ -184,10 +257,10 @@ isolated configuration write into the real installation.
 | --- | --- |
 | `name` | The identifier. Compared exactly, case included, and carried inside stable keys. |
 | `path` | Absolute path to the checkout. |
-| `languages` | Any of `go`, `typescript`, `rust`. Validated when the registry is written, not only when a pass runs. |
+| `languages` | At least one of `go`, `typescript`, `javascript`, `ts`, `js`, `rust`, `rs`, `python`, `py`, `dart`, `java`, `csharp`, `cs`. Compared without regard to case or surrounding space; a duplicate is refused. Validated when the registry is written, not only when a pass runs. |
 | `manifests` | Optional. Explicit manifest paths. |
 | `roots` | Optional. Explicit analysis roots. |
-| `exclusions` | Optional. Directories the discovery never walks, and therefore never analyses. |
+| `exclusions` | Optional. Directories and files left out of the graph, for every language of the repository. A pattern is relative to the repository root: `vendor` is the root's `vendor`, `**/vendor` is one at any depth, and `./x`, an absolute path inside the repository, `*` and `**` are read. Go, TypeScript, Rust and Dart never walk them; Java, C# and Python are analysed whole by their tools and lose the excluded files afterwards. |
 
 ```yaml
 version: 1
@@ -197,3 +270,23 @@ repositories:
     languages: [go, typescript, rust]
     exclusions: [vendor, third_party]
 ```
+
+Independently of `exclusions`, a directory that holds a valid `CACHEDIR.TAG` is
+never walked: it is the build tool's own statement that the directory is a
+reproducible cache (Cargo writes one in every `target/`). The tag must be a
+regular file, not a symlink, and start with the signature of the
+[Cache Directory Tagging Specification](https://bford.info/cachedir/). A
+directory with no tag, or a malformed one, is walked as before, and so is the
+repository root. A directory of real sources that carries such a tag is not
+indexed; remove the tag to index it. `kivgraph doctor` lists the skipped
+directories on its `walk.cache_tag` line. See ADR 0122.
+
+For Go, discovery reads the packages the `go` tool would. A directory named
+`testdata`, or beginning with `_` or `.`, is not a package of the module it sits
+in and is not parsed, so a fixture that is not valid Go cannot stop the index. A
+module that lives inside one (a `go.mod` there, or a `replace` pointing at it) is
+still a module. A file marked `//go:build ignore` is not part of its package. A
+directory that is not one valid package, two package names or a file that is not
+Go, does not stop the index either: `go` reports it and the module that holds it
+is declared not loaded, with go's reason, while every other repository is
+indexed. See ADR 0123.

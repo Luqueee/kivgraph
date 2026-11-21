@@ -75,7 +75,13 @@ go run -tags ladybug ./benchmarks/ladybug-recovery \
   --database /tmp/kivgraph-copy.db
 ```
 
-The crash, reopen, truncation, and permissions cases pass. The recorded result retains an explicit `FAIL` for a full disk: `Writer.Apply` returned success and the first intercepted `ENOSPC` appeared during shutdown, leaving the copy unable to reopen. The command returns a nonzero status while this limitation exists. The complete methodology and evidence are in `docs/testing/ladybug-recovery.md`.
+All eight cases pass, the full disk among them. What that case demonstrates
+is bounded: `ENOSPC` is injected at the libc boundary for the copied database
+file, on Linux, and the fault it lands is a late one, during shutdown after
+`Writer.Apply` returned success. No result of `Apply` is treated as durable
+under `ENOSPC`; durability starts when `CURRENT` is published, and the
+previous generation stays active until then. The complete methodology and
+evidence are in `docs/testing/ladybug-recovery.md`.
 
 The operational diagnostic opens the original database in read-only mode and runs the transaction test on a temporary copy:
 

@@ -87,10 +87,20 @@ type Generation struct {
 	DatabasePath string
 }
 
+// PublishStep is how long one step of Publish took. The steps follow one
+// another and together account for the whole call, so what a reader sees as
+// "publish" can be told apart from the stages the caller measures inside it.
+type PublishStep struct {
+	Name       string
+	DurationMS float64
+}
+
 type Publication struct {
 	Generation Generation
 	PreviousID string
 	Space      SpaceAssessment
+	// Steps is empty when Publish failed.
+	Steps []PublishStep
 }
 
 type SpaceAssessment struct {

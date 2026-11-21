@@ -1,0 +1,2063 @@
+{
+ "benchmark": "agent-e2e",
+ "generated_at": "2026-11-15T18:54:50.001493Z",
+ "commit": "d79c483",
+ "model": "claude-sonnet-5",
+ "agent": "claude",
+ "environment": {
+  "arch": "arm64",
+  "go": "go1.27.4",
+  "os": "darwin"
+ },
+ "corpus": "/private/tmp/e2e-corpus",
+ "arms": [
+  "cold",
+  "kivgraph"
+ ],
+ "trials": 2,
+ "budget_usd_per_run": 1.5,
+ "tasks": [
+  {
+   "id": "kivgraph-87a7951",
+   "repo": "kivgraph",
+   "language": "go",
+   "commit": "87a79513f05b3082e065ef83e2ea7563a3575ed1",
+   "subject": "fix(cli): keep the event log whole when several processes rotate it",
+   "truth_files": [
+    "internal/eventlog/eventlog.go",
+    "internal/eventlog/rotation_test.go"
+   ],
+   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-workspace.\n\nImplement this change:\n\nfix(cli): keep the event log whole when several processes rotate it\n\nA writer kept its descriptor and its own count of the file's size for\nlife, and several processes append to one store. After another process\nrotated twice, a long-lived writer's descriptor named a file with no\npath: its writes succeeded and went nowhere, so a daemon stopped\nappearing in `kivgraph logs` until it restarted. After one rotation by\nsomeone else, a writer's stale count rotated the fresh, nearly empty\nfile over the full rotation, discarding the history one rotation is\nkept for. And writers that each stayed under the limit by their own\ncount passed it together.\n\nThe change belongs in the kivgraph repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
+  },
+  {
+   "id": "kivgraph-511901e",
+   "repo": "kivgraph",
+   "language": "go",
+   "commit": "511901e4db154b1b773feef4ef30e2e296b16184",
+   "subject": "fix(hook): leave a search over files the graph does not cover",
+   "truth_files": [
+    "internal/agenthook/gate.go",
+    "internal/agenthook/gate_paths_test.go",
+    "internal/agenthook/languages.go"
+   ],
+   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-workspace.\n\nImplement this change:\n\nfix(hook): leave a search over files the graph does not cover\n\nThe gate asked the graph about the pattern alone and never read where\nthe search was looking. A bare word that two symbols declare was\nrefused whatever the target: …, a grep of\na log, a glob over YAML. The caller was told to call find_references\nfor a JSON key, and from the native Grep tool the printed escape -- a\nvariable before the command -- cannot be applied at all.\n\nThe change belongs in the kivgraph repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
+  },
+  {
+   "id": "kivgraph-4eea720",
+   "repo": "kivgraph",
+   "language": "go",
+   "commit": "4eea7201b3f4f25fc3cf5e894dad37ee973bde59",
+   "subject": "fix(mcp): spend the find_by_intent candidate bound where it matters",
+   "truth_files": [
+    "internal/mcp/tools/find_by_intent.go",
+    "internal/mcp/tools/find_by_intent_cap_test.go"
+   ],
+   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-workspace.\n\nImplement this change:\n\nfix(mcp): spend the find_by_intent candidate bound where it matters\n\nThe bound was spent in the order the question was written and before\nrepo, kind and path_prefix applied. A word most of the graph carries\nfilled it with whatever sorted first, so the symbols a rarer word named\nnever became candidates; and a narrowing that selected symbols past the\nfirst few thousand matches came back empty, with guidance that blamed\nthe narrowing for excluding what was never looked at.\n\nThe change belongs in the kivgraph repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
+  },
+  {
+   "id": "kivgraph-a013983",
+   "repo": "kivgraph",
+   "language": "go",
+   "commit": "a0139831fd6518b01e0f4bbcf28d48e36ccf3496",
+   "subject": "fix(mcp): match a selector's path as a file or a directory",
+   "truth_files": [
+    "internal/hotsnapshot/search.go",
+    "internal/mcp/tools/root_symbol.go",
+    "internal/mcp/tools/root_symbol_path_test.go"
+   ],
+   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-workspace.\n\nImplement this change:\n\nfix(mcp): match a selector's path as a file or a directory\n\nThe `path` of a symbol selector was applied as a string prefix. The\nexact path of one file also matched every file whose name starts the\nsame way -- … beside … -- so naming the file could\nnot separate them and the answer was AMBIGUOUS_SYMBOL with only a\nstable key offered as the way out. A path cut short in the middle of a\nname resolved as if it were whole.\n\nThe change belongs in the kivgraph repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
+  },
+  {
+   "id": "kivgraph-01ffe45",
+   "repo": "kivgraph",
+   "language": "go",
+   "commit": "01ffe45f428e43149dfaacb6615bf0d532c4256b",
+   "subject": "fix(mcp): leave a root's members out of reached and of max_nodes",
+   "truth_files": [
+    "internal/mcp/tools/trace_dependencies.go",
+    "internal/mcp/tools/trace_members_test.go"
+   ],
+   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-workspace.\n\nImplement this change:\n\nfix(mcp): leave a root's members out of reached and of max_nodes\n\ntrace_dependencies starts a container's walk from the root and its own\nmembers, because a member is content and not a dependency. Two counts\nstill treated the members as reached: `reached` was every visit but\none, so a class with nine methods reported nine symbols it does not\nreach, and the seeds counted against max_nodes, so a budget below the\nmember count was refused as INVALID_ARGUMENT.\n\nThe change belongs in the kivgraph repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
+  },
+  {
+   "id": "kivgraph-02dd835",
+   "repo": "kivgraph",
+   "language": "go",
+   "commit": "02dd83507675a8dcd3f1c50daaf78bacf22b7960",
+   "subject": "fix(indexing): watch around a source file that cannot be read",
+   "truth_files": [
+    "internal/indexing/sourcewatch.go",
+    "internal/indexing/sourcewatch_unreadable_test.go",
+    "internal/watcher/hash.go",
+    "internal/watcher/hash_unreadable_test.go",
+    "internal/watcher/reconcile.go"
+   ],
+   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-workspace.\n\nImplement this change:\n\nfix(indexing): watch around a source file that cannot be read\n\nOne path that existed and could not be read failed the whole batch in\nthe content hasher: every other change in it was discarded, the cache\nwas not updated, and each periodic reconciliation failed the same way\nfor as long as the path stayed unreadable. At startup the same failure\nended the source watcher, and with it every later invalidation of the\nprofile.\n\nThe change belongs in the kivgraph repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
+  },
+  {
+   "id": "kivgraph-ed901b6",
+   "repo": "kivgraph",
+   "language": "go",
+   "commit": "ed901b6a4a50082958d9e539f939b2885296efc2",
+   "subject": "fix(storage): reclaim candidates a dead rebuild left behind",
+   "truth_files": [
+    "internal/storage/generation/backup.go",
+    "internal/storage/generation/store_candidates_test.go",
+    "internal/storage/generation/store_test.go"
+   ],
+   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-workspace.\n\nImplement this change:\n\nfix(storage): reclaim candidates a dead rebuild left behind\n\nA rebuild that is killed leaves `\u003cid\u003e.tmp` in the generation store.\nPublish reclaims the one whose id it is about to reuse, and nothing\nelse ever looked: after a `clean` the numbering restarts, the id is\nnever reused, and a partial database stayed on disk while `clean`\nreported everything removed.\n\nThe change belongs in the kivgraph repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
+  },
+  {
+   "id": "kivgraph-dbaebf2",
+   "repo": "kivgraph",
+   "language": "go",
+   "commit": "dbaebf2bbe7940521448e4b8cfa1ba0c19b2be27",
+   "subject": "fix(indexing): ignore vendor only beside a dependency manifest",
+   "truth_files": [
+    "internal/watcher/ignore.go",
+    "internal/watcher/ignore_test.go"
+   ],
+   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-workspace.\n\nImplement this change:\n\nfix(indexing): ignore vendor only beside a dependency manifest\n\nThe watcher and its reconciler ignored every directory named `vendor`,\nin every language. A source directory with that name -- … in a\nTypeScript, Python, Java, C# or Dart repository -- fired no event and\nwas never hashed, so its edits never reached the graph, while discovery\nand the tree digest treated the same files as source.\n\nThe change belongs in the kivgraph repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
+  },
+  {
+   "id": "kivgraph-6809029",
+   "repo": "kivgraph",
+   "language": "go",
+   "commit": "68090291d3384f3e9691fb7000296247aca79f81",
+   "subject": "fix(mcp): bind a cursor to include_derived",
+   "truth_files": [
+    "internal/mcp/tools/blast_radius.go",
+    "internal/mcp/tools/cursor_derived_test.go",
+    "internal/mcp/tools/find_references.go",
+    "internal/mcp/tools/find_symbol.go",
+    "internal/mcp/tools/trace_dependencies.go"
+   ],
+   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-workspace.\n\nImplement this change:\n\nfix(mcp): bind a cursor to include_derived\n\nfind_references, find_symbol, get_blast_radius and trace_dependencies\nhashed their query without include_derived on the single-profile path,\nalthough the flag changes which rows the answer holds. A cursor minted\nwith one value was accepted with the other and applied its offset to a\ndifferent set, so rows were skipped or repeated with no error. It is\nnow CURSOR_INVALID, as it is under any other changed filter. The field\nis omitted when false, so cursors minted without the flag still resume.\n\nThe change belongs in the kivgraph repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
+  },
+  {
+   "id": "kivgraph-ce38264",
+   "repo": "kivgraph",
+   "language": "go",
+   "commit": "ce38264653635d74c69fa51fb0ae25516f436077",
+   "subject": "fix(mcp): fail get_source when no selected profile holds a symbol",
+   "truth_files": [
+    "internal/mcp/tools/get_source.go",
+    "internal/mcp/tools/profiles_test.go"
+   ],
+   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-workspace.\n\nImplement this change:\n\nfix(mcp): fail get_source when no selected profile holds a symbol\n\nAcross profiles a selector that resolved nowhere was skipped, so a\nmisspelt or unindexed symbol read as one body fewer, and a call where\nnone resolved answered with zero bodies and no error. The single\nprofile path returns SYMBOL_NOT_FOUND, and so does every other\ncross-profile tool. A symbol missing from one profile and present in\nanother is still served.\n\nThe change belongs in the kivgraph repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
+  },
+  {
+   "id": "kivgraph-391184b",
+   "repo": "kivgraph",
+   "language": "go",
+   "commit": "391184b12f00315f73da91e8136934b008a3d510",
+   "subject": "fix(storage): hold the publish lock for restore, prune and discard",
+   "truth_files": [
+    "internal/storage/generation/backup.go",
+    "internal/storage/generation/store.go",
+    "internal/storage/generation/store_lock_test.go"
+   ],
+   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-workspace.\n\nImplement this change:\n\nfix(storage): hold the publish lock for restore, prune and discard\n\nOnly Publish took the cross-process lock. It reads CURRENT, builds for\nminutes and then writes both pointers, so a rollback made meanwhile\nreported PASS and was overwritten when the rebuild finished; a prune or\na clean could remove a generation the publication was about to name.\nRestore, Prune, Discard and DiscardExcept now take the same lock and\nlose with ErrPublishInProgress, changing nothing.\n\nThe change belongs in the kivgraph repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
+  },
+  {
+   "id": "kivgraph-b8a44f1",
+   "repo": "kivgraph",
+   "language": "go",
+   "commit": "b8a44f1a3253fd34a95063616ef396f5b3d890ae",
+   "subject": "fix(mcp): key the get_source file cache by repository",
+   "truth_files": [
+    "internal/mcp/tools/get_source.go",
+    "internal/mcp/tools/get_source_test.go"
+   ],
+   "prompt": "You are working in a multi-repository workspace at /private/tmp/e2e-workspace.\n\nImplement this change:\n\nfix(mcp): key the get_source file cache by repository\n\nThe per-call cache was keyed by the repository-relative path, so two\nsymbols in different repositories that share a path -- main.go,\n… -- were both cut from whichever file was read first. The\nanswer named one repository and carried the other's code with\nfresh:true, and a line range past the end of the cached file panicked\nwith a slice out of range.\n\nThe change belongs in the kivgraph repository. Work out which files to modify by\nreading the code, then make the edits. Follow the conventions already in the\nrepository, including its tests if the change warrants one. Do not run builds or\ntests. Stop when the edits are complete.\n\n"
+  }
+ ],
+ "runs": [
+  {
+   "task": "kivgraph-87a7951",
+   "arm": "cold",
+   "trial": 1,
+   "ms": 262832,
+   "cost_usd": 0.6484438,
+   "input_tokens": 28,
+   "output_tokens": 24592,
+   "cache_read_tokens": 793699,
+   "cache_creation_tokens": 60932,
+   "turns": 15,
+   "tool_calls": 14,
+   "tools_used": [
+    "Edit×6",
+    "Glob×1",
+    "Grep×2",
+    "Read×5"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-87a7951-cold-t1.jsonl",
+   "wrote": [
+    "internal/eventlog/eventlog.go",
+    "internal/eventlog/eventlog_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.5,
+   "recall": 0.5,
+   "missing": [
+    "internal/eventlog/rotation_test.go"
+   ],
+   "spurious": [
+    "internal/eventlog/eventlog_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-87a7951",
+   "arm": "kivgraph",
+   "trial": 1,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 222721,
+   "cost_usd": 0.5400524,
+   "input_tokens": 20,
+   "output_tokens": 20640,
+   "cache_read_tokens": 561902,
+   "cache_creation_tokens": 55308,
+   "turns": 11,
+   "tool_calls": 10,
+   "tools_used": [
+    "Edit×4",
+    "Read×3",
+    "mcp__kivgraph__find_by_intent×1",
+    "mcp__kivgraph__find_references×2"
+   ],
+   "context_tool_calls": 3,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-87a7951-kivgraph-t1.jsonl",
+   "wrote": [
+    "internal/eventlog/eventlog.go",
+    "internal/eventlog/eventlog_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.5,
+   "recall": 0.5,
+   "missing": [
+    "internal/eventlog/rotation_test.go"
+   ],
+   "spurious": [
+    "internal/eventlog/eventlog_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-87a7951",
+   "arm": "cold",
+   "trial": 2,
+   "ms": 151736,
+   "cost_usd": 0.39121799999999995,
+   "input_tokens": 20,
+   "output_tokens": 12296,
+   "cache_read_tokens": 480530,
+   "cache_creation_tokens": 43028,
+   "turns": 10,
+   "tool_calls": 9,
+   "tools_used": [
+    "Edit×4",
+    "Grep×1",
+    "Read×4"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-87a7951-cold-t2.jsonl",
+   "wrote": [
+    "internal/eventlog/eventlog.go",
+    "internal/eventlog/eventlog_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.5,
+   "recall": 0.5,
+   "missing": [
+    "internal/eventlog/rotation_test.go"
+   ],
+   "spurious": [
+    "internal/eventlog/eventlog_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-87a7951",
+   "arm": "kivgraph",
+   "trial": 2,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 149867,
+   "cost_usd": 0.444994,
+   "input_tokens": 22,
+   "output_tokens": 13316,
+   "cache_read_tokens": 580350,
+   "cache_creation_tokens": 48930,
+   "turns": 13,
+   "tool_calls": 12,
+   "tools_used": [
+    "Edit×4",
+    "Glob×1",
+    "Read×4",
+    "mcp__kivgraph__find_by_intent×1",
+    "mcp__kivgraph__find_references×2"
+   ],
+   "context_tool_calls": 3,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-87a7951-kivgraph-t2.jsonl",
+   "wrote": [
+    "internal/eventlog/eventlog.go",
+    "internal/eventlog/eventlog_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.5,
+   "recall": 0.5,
+   "missing": [
+    "internal/eventlog/rotation_test.go"
+   ],
+   "spurious": [
+    "internal/eventlog/eventlog_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-511901e",
+   "arm": "cold",
+   "trial": 1,
+   "ms": 347390,
+   "cost_usd": 1.5099858000000002,
+   "input_tokens": 80,
+   "output_tokens": 29059,
+   "cache_read_tokens": 3673499,
+   "cache_creation_tokens": 110843,
+   "turns": 44,
+   "tool_calls": 44,
+   "tools_used": [
+    "Edit×20",
+    "Glob×3",
+    "Grep×8",
+    "Read×13"
+   ],
+   "context_tool_calls": 0,
+   "budget_exhausted": true,
+   "terminal_reason": "budget_exhausted",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-511901e-cold-t1.jsonl",
+   "wrote": [
+    "internal/agenthook/bash.go",
+    "internal/agenthook/classify.go",
+    "internal/agenthook/classify_test.go",
+    "internal/agenthook/gate.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.25,
+   "recall": 0.3333333333333333,
+   "missing": [
+    "internal/agenthook/gate_paths_test.go",
+    "internal/agenthook/languages.go"
+   ],
+   "spurious": [
+    "internal/agenthook/bash.go",
+    "internal/agenthook/classify.go",
+    "internal/agenthook/classify_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-511901e",
+   "arm": "kivgraph",
+   "trial": 1,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 179770,
+   "cost_usd": 0.6364291999999999,
+   "input_tokens": 32,
+   "output_tokens": 15205,
+   "cache_read_tokens": 1009916,
+   "cache_creation_tokens": 70583,
+   "turns": 22,
+   "tool_calls": 21,
+   "tools_used": [
+    "Edit×3",
+    "Glob×2",
+    "Grep×5",
+    "Read×9",
+    "mcp__kivgraph__find_symbol×2"
+   ],
+   "context_tool_calls": 2,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-511901e-kivgraph-t1.jsonl",
+   "wrote": [
+    "internal/agenthook/gate.go",
+    "internal/agenthook/gate_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.5,
+   "recall": 0.3333333333333333,
+   "missing": [
+    "internal/agenthook/gate_paths_test.go",
+    "internal/agenthook/languages.go"
+   ],
+   "spurious": [
+    "internal/agenthook/gate_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-511901e",
+   "arm": "cold",
+   "trial": 2,
+   "ms": 379462,
+   "cost_usd": 1.4621644,
+   "input_tokens": 80,
+   "output_tokens": 34385,
+   "cache_read_tokens": 3610532,
+   "cache_creation_tokens": 99012,
+   "turns": 44,
+   "tool_calls": 43,
+   "tools_used": [
+    "Edit×24",
+    "Glob×1",
+    "Grep×6",
+    "Read×12"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-511901e-cold-t2.jsonl",
+   "wrote": [
+    "internal/agenthook/bash.go",
+    "internal/agenthook/classify.go",
+    "internal/agenthook/classify_test.go",
+    "internal/agenthook/gate.go",
+    "internal/agenthook/gate_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.2,
+   "recall": 0.3333333333333333,
+   "missing": [
+    "internal/agenthook/gate_paths_test.go",
+    "internal/agenthook/languages.go"
+   ],
+   "spurious": [
+    "internal/agenthook/bash.go",
+    "internal/agenthook/classify.go",
+    "internal/agenthook/classify_test.go",
+    "internal/agenthook/gate_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-511901e",
+   "arm": "kivgraph",
+   "trial": 2,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 335466,
+   "cost_usd": 0.9964762000000001,
+   "input_tokens": 38,
+   "output_tokens": 28958,
+   "cache_read_tokens": 1642281,
+   "cache_creation_tokens": 94591,
+   "turns": 28,
+   "tool_calls": 27,
+   "tools_used": [
+    "Edit×7",
+    "Glob×2",
+    "Grep×3",
+    "Read×13",
+    "mcp__kivgraph__find_symbol×2"
+   ],
+   "context_tool_calls": 2,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-511901e-kivgraph-t2.jsonl",
+   "wrote": [
+    "internal/agenthook/gate.go",
+    "internal/agenthook/gate_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.5,
+   "recall": 0.3333333333333333,
+   "missing": [
+    "internal/agenthook/gate_paths_test.go",
+    "internal/agenthook/languages.go"
+   ],
+   "spurious": [
+    "internal/agenthook/gate_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-4eea720",
+   "arm": "cold",
+   "trial": 1,
+   "ms": 337416,
+   "cost_usd": 1.0971942000000001,
+   "input_tokens": 62,
+   "output_tokens": 30537,
+   "cache_read_tokens": 2251901,
+   "cache_creation_tokens": 85330,
+   "turns": 31,
+   "tool_calls": 30,
+   "tools_used": [
+    "Edit×6",
+    "Grep×13",
+    "Read×11"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-4eea720-cold-t1.jsonl",
+   "wrote": [
+    "internal/mcp/tools/find_by_intent.go",
+    "internal/mcp/tools/find_by_intent_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.5,
+   "recall": 0.5,
+   "missing": [
+    "internal/mcp/tools/find_by_intent_cap_test.go"
+   ],
+   "spurious": [
+    "internal/mcp/tools/find_by_intent_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-4eea720",
+   "arm": "kivgraph",
+   "trial": 1,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 224961,
+   "cost_usd": 0.7951757999999999,
+   "input_tokens": 30,
+   "output_tokens": 20978,
+   "cache_read_tokens": 1184479,
+   "cache_creation_tokens": 87110,
+   "turns": 15,
+   "tool_calls": 14,
+   "tools_used": [
+    "Edit×4",
+    "Grep×3",
+    "Read×6",
+    "mcp__kivgraph__find_symbol×1"
+   ],
+   "context_tool_calls": 1,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-4eea720-kivgraph-t1.jsonl",
+   "wrote": [
+    "internal/mcp/tools/find_by_intent.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 0.5,
+   "missing": [
+    "internal/mcp/tools/find_by_intent_cap_test.go"
+   ],
+   "spurious": null,
+   "exact": false
+  },
+  {
+   "task": "kivgraph-4eea720",
+   "arm": "cold",
+   "trial": 2,
+   "ms": 346802,
+   "cost_usd": 1.2131854,
+   "input_tokens": 54,
+   "output_tokens": 30914,
+   "cache_read_tokens": 2400747,
+   "cache_creation_tokens": 105947,
+   "turns": 27,
+   "tool_calls": 26,
+   "tools_used": [
+    "Edit×5",
+    "Grep×9",
+    "Read×12"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-4eea720-cold-t2.jsonl",
+   "wrote": [
+    "internal/mcp/tools/find_by_intent.go",
+    "internal/mcp/tools/find_by_intent_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.5,
+   "recall": 0.5,
+   "missing": [
+    "internal/mcp/tools/find_by_intent_cap_test.go"
+   ],
+   "spurious": [
+    "internal/mcp/tools/find_by_intent_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-4eea720",
+   "arm": "kivgraph",
+   "trial": 2,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 228973,
+   "cost_usd": 0.7432308,
+   "input_tokens": 24,
+   "output_tokens": 22024,
+   "cache_read_tokens": 880794,
+   "cache_creation_tokens": 86696,
+   "turns": 12,
+   "tool_calls": 11,
+   "tools_used": [
+    "Edit×2",
+    "Grep×4",
+    "Read×4",
+    "mcp__kivgraph__find_symbol×1"
+   ],
+   "context_tool_calls": 1,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-4eea720-kivgraph-t2.jsonl",
+   "wrote": [
+    "internal/mcp/tools/find_by_intent.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 0.5,
+   "missing": [
+    "internal/mcp/tools/find_by_intent_cap_test.go"
+   ],
+   "spurious": null,
+   "exact": false
+  },
+  {
+   "task": "kivgraph-a013983",
+   "arm": "cold",
+   "trial": 1,
+   "ms": 182988,
+   "cost_usd": 0.9652781999999999,
+   "input_tokens": 64,
+   "output_tokens": 15115,
+   "cache_read_tokens": 2324181,
+   "cache_creation_tokens": 87291,
+   "turns": 32,
+   "tool_calls": 31,
+   "tools_used": [
+    "Edit×6",
+    "Glob×1",
+    "Grep×14",
+    "Read×10"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-a013983-cold-t1.jsonl",
+   "wrote": [
+    "internal/hotsnapshot/search.go",
+    "internal/hotsnapshot/search_test.go",
+    "internal/mcp/tools/root_symbol.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.6666666666666666,
+   "recall": 0.6666666666666666,
+   "missing": [
+    "internal/mcp/tools/root_symbol_path_test.go"
+   ],
+   "spurious": [
+    "internal/hotsnapshot/search_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-a013983",
+   "arm": "kivgraph",
+   "trial": 1,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 217517,
+   "cost_usd": 0.8809347999999999,
+   "input_tokens": 56,
+   "output_tokens": 18761,
+   "cache_read_tokens": 1986464,
+   "cache_creation_tokens": 73980,
+   "turns": 32,
+   "tool_calls": 31,
+   "tools_used": [
+    "Edit×5",
+    "Grep×12",
+    "Read×13",
+    "mcp__kivgraph__find_by_intent×1"
+   ],
+   "context_tool_calls": 1,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-a013983-kivgraph-t1.jsonl",
+   "wrote": [
+    "internal/hotsnapshot/search.go",
+    "internal/mcp/tools/root_symbol.go",
+    "internal/mcp/tools/root_symbol_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.6666666666666666,
+   "recall": 0.6666666666666666,
+   "missing": [
+    "internal/mcp/tools/root_symbol_path_test.go"
+   ],
+   "spurious": [
+    "internal/mcp/tools/root_symbol_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-a013983",
+   "arm": "cold",
+   "trial": 2,
+   "ms": 207702,
+   "cost_usd": 0.7247126,
+   "input_tokens": 48,
+   "output_tokens": 17540,
+   "cache_read_tokens": 1476603,
+   "cache_creation_tokens": 63474,
+   "turns": 27,
+   "tool_calls": 25,
+   "tools_used": [
+    "Edit×7",
+    "Glob×2",
+    "Grep×7",
+    "Read×8",
+    "Skill×1"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-a013983-cold-t2.jsonl",
+   "wrote": [
+    "internal/hotsnapshot/search.go",
+    "internal/hotsnapshot/search_test.go",
+    "internal/mcp/tools/root_symbol.go",
+    "internal/mcp/tools/root_symbol_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.5,
+   "recall": 0.6666666666666666,
+   "missing": [
+    "internal/mcp/tools/root_symbol_path_test.go"
+   ],
+   "spurious": [
+    "internal/hotsnapshot/search_test.go",
+    "internal/mcp/tools/root_symbol_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-a013983",
+   "arm": "kivgraph",
+   "trial": 2,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 134431,
+   "cost_usd": 0.6083453999999999,
+   "input_tokens": 46,
+   "output_tokens": 11073,
+   "cache_read_tokens": 1346577,
+   "cache_creation_tokens": 57052,
+   "turns": 23,
+   "tool_calls": 22,
+   "tools_used": [
+    "Edit×7",
+    "Grep×6",
+    "Read×7",
+    "ReportFindings×1",
+    "mcp__kivgraph__find_by_intent×1"
+   ],
+   "context_tool_calls": 1,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-a013983-kivgraph-t2.jsonl",
+   "wrote": [
+    "internal/hotsnapshot/search.go",
+    "internal/hotsnapshot/search_test.go",
+    "internal/mcp/tools/root_symbol.go",
+    "internal/mcp/tools/root_symbol_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.5,
+   "recall": 0.6666666666666666,
+   "missing": [
+    "internal/mcp/tools/root_symbol_path_test.go"
+   ],
+   "spurious": [
+    "internal/hotsnapshot/search_test.go",
+    "internal/mcp/tools/root_symbol_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-01ffe45",
+   "arm": "cold",
+   "trial": 1,
+   "ms": 174671,
+   "cost_usd": 0.7543154000000001,
+   "input_tokens": 38,
+   "output_tokens": 15458,
+   "cache_read_tokens": 1373997,
+   "cache_creation_tokens": 81215,
+   "turns": 19,
+   "tool_calls": 18,
+   "tools_used": [
+    "Edit×4",
+    "Grep×7",
+    "Read×7"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-01ffe45-cold-t1.jsonl",
+   "wrote": [
+    "internal/mcp/tools/trace_dependencies.go",
+    "internal/mcp/tools/trace_dependencies_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.5,
+   "recall": 0.5,
+   "missing": [
+    "internal/mcp/tools/trace_members_test.go"
+   ],
+   "spurious": [
+    "internal/mcp/tools/trace_dependencies_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-01ffe45",
+   "arm": "kivgraph",
+   "trial": 1,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 133871,
+   "cost_usd": 0.6335721999999999,
+   "input_tokens": 48,
+   "output_tokens": 10106,
+   "cache_read_tokens": 1517141,
+   "cache_creation_tokens": 57247,
+   "turns": 25,
+   "tool_calls": 24,
+   "tools_used": [
+    "Edit×4",
+    "Grep×8",
+    "Read×9",
+    "mcp__kivgraph__find_by_intent×1",
+    "mcp__kivgraph__find_symbol×2"
+   ],
+   "context_tool_calls": 3,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-01ffe45-kivgraph-t1.jsonl",
+   "wrote": [
+    "internal/mcp/tools/trace_dependencies.go",
+    "internal/mcp/tools/trace_dependencies_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.5,
+   "recall": 0.5,
+   "missing": [
+    "internal/mcp/tools/trace_members_test.go"
+   ],
+   "spurious": [
+    "internal/mcp/tools/trace_dependencies_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-01ffe45",
+   "arm": "cold",
+   "trial": 2,
+   "ms": 288498,
+   "cost_usd": 1.0925151999999998,
+   "input_tokens": 52,
+   "output_tokens": 24541,
+   "cache_read_tokens": 2174546,
+   "cache_creation_tokens": 103023,
+   "turns": 27,
+   "tool_calls": 26,
+   "tools_used": [
+    "Edit×5",
+    "Glob×1",
+    "Grep×7",
+    "Read×13"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-01ffe45-cold-t2.jsonl",
+   "wrote": [
+    "internal/mcp/tools/trace_dependencies.go",
+    "internal/mcp/tools/trace_dependencies_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.5,
+   "recall": 0.5,
+   "missing": [
+    "internal/mcp/tools/trace_members_test.go"
+   ],
+   "spurious": [
+    "internal/mcp/tools/trace_dependencies_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-01ffe45",
+   "arm": "kivgraph",
+   "trial": 2,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 203263,
+   "cost_usd": 0.8621444000000001,
+   "input_tokens": 52,
+   "output_tokens": 17068,
+   "cache_read_tokens": 1916882,
+   "cache_creation_tokens": 76996,
+   "turns": 29,
+   "tool_calls": 28,
+   "tools_used": [
+    "Edit×4",
+    "Grep×7",
+    "Read×14",
+    "mcp__kivgraph__find_by_intent×1",
+    "mcp__kivgraph__find_symbol×2"
+   ],
+   "context_tool_calls": 3,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-01ffe45-kivgraph-t2.jsonl",
+   "wrote": [
+    "internal/mcp/tools/trace_dependencies.go",
+    "internal/mcp/tools/trace_dependencies_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.5,
+   "recall": 0.5,
+   "missing": [
+    "internal/mcp/tools/trace_members_test.go"
+   ],
+   "spurious": [
+    "internal/mcp/tools/trace_dependencies_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-02dd835",
+   "arm": "cold",
+   "trial": 1,
+   "ms": 273029,
+   "cost_usd": 0.9599383999999999,
+   "input_tokens": 54,
+   "output_tokens": 24399,
+   "cache_read_tokens": 2011882,
+   "cache_creation_tokens": 78366,
+   "turns": 32,
+   "tool_calls": 31,
+   "tools_used": [
+    "Edit×10",
+    "Glob×2",
+    "Grep×8",
+    "Read×11"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-02dd835-cold-t1.jsonl",
+   "wrote": [
+    "internal/indexing/sourcewatch.go",
+    "internal/watcher/hash.go",
+    "internal/watcher/hash_test.go",
+    "internal/watcher/reconcile.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.75,
+   "recall": 0.6,
+   "missing": [
+    "internal/indexing/sourcewatch_unreadable_test.go",
+    "internal/watcher/hash_unreadable_test.go"
+   ],
+   "spurious": [
+    "internal/watcher/hash_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-02dd835",
+   "arm": "kivgraph",
+   "trial": 1,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 165123,
+   "cost_usd": 0.5263098,
+   "input_tokens": 24,
+   "output_tokens": 15316,
+   "cache_read_tokens": 705329,
+   "cache_creation_tokens": 58009,
+   "turns": 17,
+   "tool_calls": 16,
+   "tools_used": [
+    "Edit×4",
+    "Glob×1",
+    "Grep×3",
+    "Read×6",
+    "mcp__kivgraph__find_by_intent×2"
+   ],
+   "context_tool_calls": 2,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-02dd835-kivgraph-t1.jsonl",
+   "wrote": [
+    "internal/watcher/hash.go",
+    "internal/watcher/hash_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.5,
+   "recall": 0.2,
+   "missing": [
+    "internal/indexing/sourcewatch.go",
+    "internal/indexing/sourcewatch_unreadable_test.go",
+    "internal/watcher/hash_unreadable_test.go",
+    "internal/watcher/reconcile.go"
+   ],
+   "spurious": [
+    "internal/watcher/hash_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-02dd835",
+   "arm": "cold",
+   "trial": 2,
+   "ms": 153502,
+   "cost_usd": 0.5267486,
+   "input_tokens": 20,
+   "output_tokens": 14826,
+   "cache_read_tokens": 578143,
+   "cache_creation_tokens": 65705,
+   "turns": 18,
+   "tool_calls": 17,
+   "tools_used": [
+    "Edit×5",
+    "Glob×1",
+    "Grep×3",
+    "Read×8"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-02dd835-cold-t2.jsonl",
+   "wrote": [
+    "internal/watcher/hash.go",
+    "internal/watcher/hash_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.5,
+   "recall": 0.2,
+   "missing": [
+    "internal/indexing/sourcewatch.go",
+    "internal/indexing/sourcewatch_unreadable_test.go",
+    "internal/watcher/hash_unreadable_test.go",
+    "internal/watcher/reconcile.go"
+   ],
+   "spurious": [
+    "internal/watcher/hash_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-02dd835",
+   "arm": "kivgraph",
+   "trial": 2,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 270465,
+   "cost_usd": 1.0595051999999998,
+   "input_tokens": 56,
+   "output_tokens": 24189,
+   "cache_read_tokens": 2347816,
+   "cache_creation_tokens": 86985,
+   "turns": 31,
+   "tool_calls": 30,
+   "tools_used": [
+    "Edit×12",
+    "Grep×5",
+    "Read×11",
+    "mcp__kivgraph__find_by_intent×2"
+   ],
+   "context_tool_calls": 2,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-02dd835-kivgraph-t2.jsonl",
+   "wrote": [
+    "internal/indexing/sourcewatch.go",
+    "internal/indexing/sourcewatch_test.go",
+    "internal/watcher/hash.go",
+    "internal/watcher/hash_test.go",
+    "internal/watcher/reconcile.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.6,
+   "recall": 0.6,
+   "missing": [
+    "internal/indexing/sourcewatch_unreadable_test.go",
+    "internal/watcher/hash_unreadable_test.go"
+   ],
+   "spurious": [
+    "internal/indexing/sourcewatch_test.go",
+    "internal/watcher/hash_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-ed901b6",
+   "arm": "cold",
+   "trial": 1,
+   "ms": 216071,
+   "cost_usd": 0.7982516,
+   "input_tokens": 52,
+   "output_tokens": 18046,
+   "cache_read_tokens": 1662338,
+   "cache_creation_tokens": 71305,
+   "turns": 30,
+   "tool_calls": 29,
+   "tools_used": [
+    "Edit×6",
+    "Glob×3",
+    "Grep×11",
+    "Read×9"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-ed901b6-cold-t1.jsonl",
+   "wrote": [
+    "internal/storage/generation/backup.go",
+    "internal/storage/generation/store_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 0.6666666666666666,
+   "missing": [
+    "internal/storage/generation/store_candidates_test.go"
+   ],
+   "spurious": null,
+   "exact": false
+  },
+  {
+   "task": "kivgraph-ed901b6",
+   "arm": "kivgraph",
+   "trial": 1,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 217278,
+   "cost_usd": 0.8675422000000002,
+   "input_tokens": 52,
+   "output_tokens": 19111,
+   "cache_read_tokens": 1941041,
+   "cache_creation_tokens": 72030,
+   "turns": 31,
+   "tool_calls": 30,
+   "tools_used": [
+    "Edit×7",
+    "Grep×7",
+    "Read×15",
+    "mcp__kivgraph__find_by_intent×1"
+   ],
+   "context_tool_calls": 1,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-ed901b6-kivgraph-t1.jsonl",
+   "wrote": [
+    "internal/storage/generation/backup.go",
+    "internal/storage/generation/store_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 0.6666666666666666,
+   "missing": [
+    "internal/storage/generation/store_candidates_test.go"
+   ],
+   "spurious": null,
+   "exact": false
+  },
+  {
+   "task": "kivgraph-ed901b6",
+   "arm": "cold",
+   "trial": 2,
+   "ms": 184797,
+   "cost_usd": 0.7689188000000001,
+   "input_tokens": 50,
+   "output_tokens": 14537,
+   "cache_read_tokens": 1657364,
+   "cache_creation_tokens": 72994,
+   "turns": 28,
+   "tool_calls": 27,
+   "tools_used": [
+    "Edit×5",
+    "Glob×2",
+    "Grep×10",
+    "Read×10"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-ed901b6-cold-t2.jsonl",
+   "wrote": [
+    "internal/storage/generation/backup.go",
+    "internal/storage/generation/store_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 0.6666666666666666,
+   "missing": [
+    "internal/storage/generation/store_candidates_test.go"
+   ],
+   "spurious": null,
+   "exact": false
+  },
+  {
+   "task": "kivgraph-ed901b6",
+   "arm": "kivgraph",
+   "trial": 2,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 88168,
+   "cost_usd": 0.4193492,
+   "input_tokens": 26,
+   "output_tokens": 6782,
+   "cache_read_tokens": 760346,
+   "cache_creation_tokens": 49852,
+   "turns": 14,
+   "tool_calls": 13,
+   "tools_used": [
+    "Edit×3",
+    "Glob×1",
+    "Grep×2",
+    "Read×5",
+    "mcp__kivgraph__find_by_intent×1",
+    "mcp__kivgraph__find_references×1"
+   ],
+   "context_tool_calls": 2,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-ed901b6-kivgraph-t2.jsonl",
+   "wrote": [
+    "internal/storage/generation/backup.go",
+    "internal/storage/generation/store_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 0.6666666666666666,
+   "missing": [
+    "internal/storage/generation/store_candidates_test.go"
+   ],
+   "spurious": null,
+   "exact": false
+  },
+  {
+   "task": "kivgraph-dbaebf2",
+   "arm": "cold",
+   "trial": 1,
+   "ms": 173388,
+   "cost_usd": 0.8498218000000001,
+   "input_tokens": 58,
+   "output_tokens": 13110,
+   "cache_read_tokens": 2067129,
+   "cache_creation_tokens": 76295,
+   "turns": 29,
+   "tool_calls": 28,
+   "tools_used": [
+    "Edit×5",
+    "Glob×1",
+    "Grep×13",
+    "Read×8",
+    "Write×1"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-dbaebf2-cold-t1.jsonl",
+   "wrote": [
+    "internal/watcher/ignore.go",
+    "internal/watcher/ignore_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 1,
+   "missing": null,
+   "spurious": null,
+   "exact": true
+  },
+  {
+   "task": "kivgraph-dbaebf2",
+   "arm": "kivgraph",
+   "trial": 1,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 156885,
+   "cost_usd": 0.6391564000000001,
+   "input_tokens": 50,
+   "output_tokens": 12117,
+   "cache_read_tokens": 1480632,
+   "cache_creation_tokens": 55440,
+   "turns": 28,
+   "tool_calls": 27,
+   "tools_used": [
+    "Edit×5",
+    "Glob×1",
+    "Grep×9",
+    "Read×9",
+    "Write×1",
+    "mcp__kivgraph__find_by_intent×2"
+   ],
+   "context_tool_calls": 2,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-dbaebf2-kivgraph-t1.jsonl",
+   "wrote": [
+    "internal/watcher/ignore.go",
+    "internal/watcher/ignore_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 1,
+   "missing": null,
+   "spurious": null,
+   "exact": true
+  },
+  {
+   "task": "kivgraph-dbaebf2",
+   "arm": "cold",
+   "trial": 2,
+   "ms": 146307,
+   "cost_usd": 0.5552168000000001,
+   "input_tokens": 54,
+   "output_tokens": 10959,
+   "cache_read_tokens": 1312494,
+   "cache_creation_tokens": 45755,
+   "turns": 27,
+   "tool_calls": 26,
+   "tools_used": [
+    "Edit×2",
+    "Glob×2",
+    "Grep×14",
+    "Read×7",
+    "Write×1"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-dbaebf2-cold-t2.jsonl",
+   "wrote": [
+    "internal/watcher/ignore.go",
+    "internal/watcher/ignore_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 1,
+   "missing": null,
+   "spurious": null,
+   "exact": true
+  },
+  {
+   "task": "kivgraph-dbaebf2",
+   "arm": "kivgraph",
+   "trial": 2,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 127169,
+   "cost_usd": 0.5271896,
+   "input_tokens": 44,
+   "output_tokens": 10384,
+   "cache_read_tokens": 1187608,
+   "cache_creation_tokens": 46435,
+   "turns": 22,
+   "tool_calls": 21,
+   "tools_used": [
+    "Edit×3",
+    "Glob×2",
+    "Grep×9",
+    "Read×4",
+    "Write×1",
+    "mcp__kivgraph__find_by_intent×1",
+    "mcp__kivgraph__get_source×1"
+   ],
+   "context_tool_calls": 2,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-dbaebf2-kivgraph-t2.jsonl",
+   "wrote": [
+    "internal/watcher/ignore.go",
+    "internal/watcher/ignore_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 1,
+   "missing": null,
+   "spurious": null,
+   "exact": true
+  },
+  {
+   "task": "kivgraph-6809029",
+   "arm": "cold",
+   "trial": 1,
+   "ms": 382993,
+   "cost_usd": 1.4400749999999998,
+   "input_tokens": 122,
+   "output_tokens": 20645,
+   "cache_read_tokens": 4394665,
+   "cache_creation_tokens": 88612,
+   "turns": 60,
+   "tool_calls": 59,
+   "tools_used": [
+    "Edit×13",
+    "Grep×19",
+    "Read×27"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-6809029-cold-t1.jsonl",
+   "wrote": [
+    "internal/mcp/tools/blast_radius.go",
+    "internal/mcp/tools/blast_radius_test.go",
+    "internal/mcp/tools/find_references.go",
+    "internal/mcp/tools/find_references_test.go",
+    "internal/mcp/tools/find_symbol.go",
+    "internal/mcp/tools/find_symbol_test.go",
+    "internal/mcp/tools/trace_dependencies.go",
+    "internal/mcp/tools/trace_dependencies_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.5,
+   "recall": 0.8,
+   "missing": [
+    "internal/mcp/tools/cursor_derived_test.go"
+   ],
+   "spurious": [
+    "internal/mcp/tools/blast_radius_test.go",
+    "internal/mcp/tools/find_references_test.go",
+    "internal/mcp/tools/find_symbol_test.go",
+    "internal/mcp/tools/trace_dependencies_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-6809029",
+   "arm": "kivgraph",
+   "trial": 1,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 196234,
+   "cost_usd": 0.9975110000000003,
+   "input_tokens": 80,
+   "output_tokens": 16825,
+   "cache_read_tokens": 2729505,
+   "cache_creation_tokens": 70800,
+   "turns": 40,
+   "tool_calls": 39,
+   "tools_used": [
+    "Edit×9",
+    "Grep×14",
+    "Read×15",
+    "mcp__kivgraph__find_by_intent×1"
+   ],
+   "context_tool_calls": 1,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-6809029-kivgraph-t1.jsonl",
+   "wrote": [
+    "internal/mcp/tools/blast_radius.go",
+    "internal/mcp/tools/blast_radius_test.go",
+    "internal/mcp/tools/find_references.go",
+    "internal/mcp/tools/find_symbol.go",
+    "internal/mcp/tools/trace_dependencies.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.8,
+   "recall": 0.8,
+   "missing": [
+    "internal/mcp/tools/cursor_derived_test.go"
+   ],
+   "spurious": [
+    "internal/mcp/tools/blast_radius_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-6809029",
+   "arm": "cold",
+   "trial": 2,
+   "ms": 252624,
+   "cost_usd": 1.2978644,
+   "input_tokens": 116,
+   "output_tokens": 21732,
+   "cache_read_tokens": 3749962,
+   "cache_creation_tokens": 82580,
+   "turns": 65,
+   "tool_calls": 64,
+   "tools_used": [
+    "Edit×14",
+    "Glob×1",
+    "Grep×28",
+    "Read×21"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-6809029-cold-t2.jsonl",
+   "wrote": [
+    "internal/mcp/tools/blast_radius.go",
+    "internal/mcp/tools/blast_radius_test.go",
+    "internal/mcp/tools/find_references.go",
+    "internal/mcp/tools/find_references_test.go",
+    "internal/mcp/tools/find_symbol.go",
+    "internal/mcp/tools/find_symbol_test.go",
+    "internal/mcp/tools/trace_dependencies.go",
+    "internal/mcp/tools/trace_dependencies_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.5,
+   "recall": 0.8,
+   "missing": [
+    "internal/mcp/tools/cursor_derived_test.go"
+   ],
+   "spurious": [
+    "internal/mcp/tools/blast_radius_test.go",
+    "internal/mcp/tools/find_references_test.go",
+    "internal/mcp/tools/find_symbol_test.go",
+    "internal/mcp/tools/trace_dependencies_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-6809029",
+   "arm": "kivgraph",
+   "trial": 2,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 211539,
+   "cost_usd": 1.0718916000000003,
+   "input_tokens": 68,
+   "output_tokens": 20329,
+   "cache_read_tokens": 2650908,
+   "cache_creation_tokens": 84571,
+   "turns": 60,
+   "tool_calls": 59,
+   "tools_used": [
+    "Edit×12",
+    "Grep×25",
+    "Read×20",
+    "mcp__kivgraph__find_by_intent×1",
+    "mcp__kivgraph__find_references×1"
+   ],
+   "context_tool_calls": 2,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-6809029-kivgraph-t2.jsonl",
+   "wrote": [
+    "internal/mcp/tools/blast_radius.go",
+    "internal/mcp/tools/blast_radius_test.go",
+    "internal/mcp/tools/find_references.go",
+    "internal/mcp/tools/find_references_test.go",
+    "internal/mcp/tools/find_symbol.go",
+    "internal/mcp/tools/find_symbol_test.go",
+    "internal/mcp/tools/trace_dependencies.go",
+    "internal/mcp/tools/trace_dependencies_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.5,
+   "recall": 0.8,
+   "missing": [
+    "internal/mcp/tools/cursor_derived_test.go"
+   ],
+   "spurious": [
+    "internal/mcp/tools/blast_radius_test.go",
+    "internal/mcp/tools/find_references_test.go",
+    "internal/mcp/tools/find_symbol_test.go",
+    "internal/mcp/tools/trace_dependencies_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-ce38264",
+   "arm": "cold",
+   "trial": 1,
+   "ms": 170612,
+   "cost_usd": 0.7724960000000001,
+   "input_tokens": 50,
+   "output_tokens": 15523,
+   "cache_read_tokens": 1656110,
+   "cache_creation_tokens": 71486,
+   "turns": 26,
+   "tool_calls": 25,
+   "tools_used": [
+    "Edit×3",
+    "Glob×2",
+    "Grep×12",
+    "Read×8"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-ce38264-cold-t1.jsonl",
+   "wrote": [
+    "internal/mcp/tools/get_source.go",
+    "internal/mcp/tools/get_source_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.5,
+   "recall": 0.5,
+   "missing": [
+    "internal/mcp/tools/profiles_test.go"
+   ],
+   "spurious": [
+    "internal/mcp/tools/get_source_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-ce38264",
+   "arm": "kivgraph",
+   "trial": 1,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 138352,
+   "cost_usd": 0.6726171999999999,
+   "input_tokens": 44,
+   "output_tokens": 11209,
+   "cache_read_tokens": 1446036,
+   "cache_creation_tokens": 67808,
+   "turns": 22,
+   "tool_calls": 21,
+   "tools_used": [
+    "Edit×3",
+    "Grep×9",
+    "Read×8",
+    "mcp__kivgraph__find_by_intent×1"
+   ],
+   "context_tool_calls": 1,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-ce38264-kivgraph-t1.jsonl",
+   "wrote": [
+    "internal/mcp/tools/get_source.go",
+    "internal/mcp/tools/get_source_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.5,
+   "recall": 0.5,
+   "missing": [
+    "internal/mcp/tools/profiles_test.go"
+   ],
+   "spurious": [
+    "internal/mcp/tools/get_source_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-ce38264",
+   "arm": "cold",
+   "trial": 2,
+   "ms": 173124,
+   "cost_usd": 0.8151365999999998,
+   "input_tokens": 58,
+   "output_tokens": 16127,
+   "cache_read_tokens": 1838613,
+   "cache_creation_tokens": 71507,
+   "turns": 36,
+   "tool_calls": 35,
+   "tools_used": [
+    "Edit×5",
+    "Glob×1",
+    "Grep×21",
+    "Read×8"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-ce38264-cold-t2.jsonl",
+   "wrote": [
+    "internal/mcp/tools/get_source.go",
+    "internal/mcp/tools/profiles_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 1,
+   "missing": null,
+   "spurious": null,
+   "exact": true
+  },
+  {
+   "task": "kivgraph-ce38264",
+   "arm": "kivgraph",
+   "trial": 2,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 137762,
+   "cost_usd": 0.6683128,
+   "input_tokens": 40,
+   "output_tokens": 12366,
+   "cache_read_tokens": 1355084,
+   "cache_creation_tokens": 68389,
+   "turns": 21,
+   "tool_calls": 20,
+   "tools_used": [
+    "Edit×4",
+    "Grep×5",
+    "Read×9",
+    "mcp__kivgraph__find_by_intent×1",
+    "mcp__kivgraph__find_symbol×1"
+   ],
+   "context_tool_calls": 2,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-ce38264-kivgraph-t2.jsonl",
+   "wrote": [
+    "internal/mcp/tools/get_source.go",
+    "internal/mcp/tools/get_source_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.5,
+   "recall": 0.5,
+   "missing": [
+    "internal/mcp/tools/profiles_test.go"
+   ],
+   "spurious": [
+    "internal/mcp/tools/get_source_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-391184b",
+   "arm": "cold",
+   "trial": 1,
+   "ms": 112503,
+   "cost_usd": 0.6695559999999999,
+   "input_tokens": 52,
+   "output_tokens": 9822,
+   "cache_read_tokens": 1605060,
+   "cache_creation_tokens": 62555,
+   "turns": 30,
+   "tool_calls": 29,
+   "tools_used": [
+    "Edit×9",
+    "Glob×1",
+    "Grep×8",
+    "Read×11"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-391184b-cold-t1.jsonl",
+   "wrote": [
+    "internal/storage/generation/backup.go",
+    "internal/storage/generation/store.go",
+    "internal/storage/generation/store_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.6666666666666666,
+   "recall": 0.6666666666666666,
+   "missing": [
+    "internal/storage/generation/store_lock_test.go"
+   ],
+   "spurious": [
+    "internal/storage/generation/store_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-391184b",
+   "arm": "kivgraph",
+   "trial": 1,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 118228,
+   "cost_usd": 0.7193297999999999,
+   "input_tokens": 42,
+   "output_tokens": 10893,
+   "cache_read_tokens": 1589739,
+   "cache_creation_tokens": 73092,
+   "turns": 28,
+   "tool_calls": 27,
+   "tools_used": [
+    "Edit×5",
+    "Glob×1",
+    "Grep×4",
+    "Read×11",
+    "mcp__kivgraph__find_symbol×6"
+   ],
+   "context_tool_calls": 6,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-391184b-kivgraph-t1.jsonl",
+   "wrote": [
+    "internal/storage/generation/backup.go",
+    "internal/storage/generation/store.go",
+    "internal/storage/generation/store_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.6666666666666666,
+   "recall": 0.6666666666666666,
+   "missing": [
+    "internal/storage/generation/store_lock_test.go"
+   ],
+   "spurious": [
+    "internal/storage/generation/store_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-391184b",
+   "arm": "cold",
+   "trial": 2,
+   "ms": 124215,
+   "cost_usd": 0.6477629999999999,
+   "input_tokens": 40,
+   "output_tokens": 12992,
+   "cache_read_tokens": 1222795,
+   "cache_creation_tokens": 68301,
+   "turns": 23,
+   "tool_calls": 22,
+   "tools_used": [
+    "Edit×7",
+    "Grep×4",
+    "Read×11"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-391184b-cold-t2.jsonl",
+   "wrote": [
+    "internal/storage/generation/backup.go",
+    "internal/storage/generation/store.go",
+    "internal/storage/generation/store_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.6666666666666666,
+   "recall": 0.6666666666666666,
+   "missing": [
+    "internal/storage/generation/store_lock_test.go"
+   ],
+   "spurious": [
+    "internal/storage/generation/store_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-391184b",
+   "arm": "kivgraph",
+   "trial": 2,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 172755,
+   "cost_usd": 0.8308495999999997,
+   "input_tokens": 46,
+   "output_tokens": 16282,
+   "cache_read_tokens": 1707308,
+   "cache_creation_tokens": 81619,
+   "turns": 28,
+   "tool_calls": 27,
+   "tools_used": [
+    "Edit×5",
+    "Grep×5",
+    "Read×11",
+    "mcp__kivgraph__find_references×4",
+    "mcp__kivgraph__find_symbol×2"
+   ],
+   "context_tool_calls": 6,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-391184b-kivgraph-t2.jsonl",
+   "wrote": [
+    "internal/storage/generation/backup.go",
+    "internal/storage/generation/store.go",
+    "internal/storage/generation/store_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 0.6666666666666666,
+   "recall": 0.6666666666666666,
+   "missing": [
+    "internal/storage/generation/store_lock_test.go"
+   ],
+   "spurious": [
+    "internal/storage/generation/store_test.go"
+   ],
+   "exact": false
+  },
+  {
+   "task": "kivgraph-b8a44f1",
+   "arm": "cold",
+   "trial": 1,
+   "ms": 52214,
+   "cost_usd": 0.29104620000000003,
+   "input_tokens": 16,
+   "output_tokens": 4717,
+   "cache_read_tokens": 359081,
+   "cache_creation_tokens": 43007,
+   "turns": 8,
+   "tool_calls": 7,
+   "tools_used": [
+    "Edit×2",
+    "Grep×3",
+    "Read×2"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-b8a44f1-cold-t1.jsonl",
+   "wrote": [
+    "internal/mcp/tools/get_source.go",
+    "internal/mcp/tools/get_source_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 1,
+   "missing": null,
+   "spurious": null,
+   "exact": true
+  },
+  {
+   "task": "kivgraph-b8a44f1",
+   "arm": "kivgraph",
+   "trial": 1,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 53761,
+   "cost_usd": 0.3255802,
+   "input_tokens": 16,
+   "output_tokens": 5378,
+   "cache_read_tokens": 398541,
+   "cache_creation_tokens": 48015,
+   "turns": 8,
+   "tool_calls": 7,
+   "tools_used": [
+    "Edit×2",
+    "Grep×1",
+    "Read×2",
+    "mcp__kivgraph__find_symbol×2"
+   ],
+   "context_tool_calls": 2,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-b8a44f1-kivgraph-t1.jsonl",
+   "wrote": [
+    "internal/mcp/tools/get_source.go",
+    "internal/mcp/tools/get_source_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 1,
+   "missing": null,
+   "spurious": null,
+   "exact": true
+  },
+  {
+   "task": "kivgraph-b8a44f1",
+   "arm": "cold",
+   "trial": 2,
+   "ms": 50391,
+   "cost_usd": 0.28530160000000004,
+   "input_tokens": 16,
+   "output_tokens": 4418,
+   "cache_read_tokens": 357468,
+   "cache_creation_tokens": 42399,
+   "turns": 8,
+   "tool_calls": 7,
+   "tools_used": [
+    "Edit×2",
+    "Glob×1",
+    "Grep×2",
+    "Read×2"
+   ],
+   "context_tool_calls": 0,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-b8a44f1-cold-t2.jsonl",
+   "wrote": [
+    "internal/mcp/tools/get_source.go",
+    "internal/mcp/tools/get_source_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 1,
+   "missing": null,
+   "spurious": null,
+   "exact": true
+  },
+  {
+   "task": "kivgraph-b8a44f1",
+   "arm": "kivgraph",
+   "trial": 2,
+   "directive": "A code graph of this workspace is mounted over MCP as `kivgraph`. Query it first -- to find the declaration, its callers and what a change to it reaches -- and read files once it has told you which ones matter.",
+   "ms": 52330,
+   "cost_usd": 0.2921484,
+   "input_tokens": 16,
+   "output_tokens": 4613,
+   "cache_read_tokens": 383712,
+   "cache_creation_tokens": 42311,
+   "turns": 8,
+   "tool_calls": 7,
+   "tools_used": [
+    "Edit×2",
+    "Glob×1",
+    "Grep×1",
+    "Read×2",
+    "mcp__kivgraph__find_by_intent×1"
+   ],
+   "context_tool_calls": 1,
+   "terminal_reason": "completed",
+   "errored": false,
+   "transcript": "benchmarks/agent-e2e/self-repo/raw/kivgraph-b8a44f1-kivgraph-t2.jsonl",
+   "wrote": [
+    "internal/mcp/tools/get_source.go",
+    "internal/mcp/tools/get_source_test.go"
+   ],
+   "wrote_outside_repo": [],
+   "precision": 1,
+   "recall": 1,
+   "missing": null,
+   "spurious": null,
+   "exact": true
+  }
+ ],
+ "aggregate": {
+  "cold": {
+   "runs": 24,
+   "exact": 5,
+   "precision_mean": 0.6541666666666667,
+   "recall_mean": 0.6486111111111111,
+   "cost_usd_total": 20.537147800000003,
+   "cost_usd_mean": 0.8557144916666668,
+   "tokens_mean": 1968828.125,
+   "tool_calls_mean": 28,
+   "context_tool_calls_mean": 0,
+   "seconds_mean": 214.38612499999996,
+   "errored": 0,
+   "budget_exhausted": 1,
+   "leaks": 0
+  },
+  "kivgraph": {
+   "runs": 24,
+   "exact": 4,
+   "precision_mean": 0.7041666666666666,
+   "recall_mean": 0.6277777777777778,
+   "cost_usd_total": 16.7586482,
+   "cost_usd_mean": 0.6982770083333333,
+   "tokens_mean": 1470380.625,
+   "tool_calls_mean": 22.666666666666668,
+   "context_tool_calls_mean": 2.1666666666666665,
+   "seconds_mean": 172.370375,
+   "errored": 0,
+   "budget_exhausted": 0,
+   "leaks": 0
+  }
+ },
+ "setup": {
+  "index_ms": {
+   "kivgraph": [
+    4031,
+    3822,
+    3703,
+    3295,
+    3760,
+    3726,
+    9766,
+    10013,
+    3339,
+    2275,
+    2030,
+    2241
+   ]
+  }
+ }
+}

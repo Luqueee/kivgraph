@@ -457,6 +457,53 @@ if (failOpen !== undefined) {
 	}
 }
 
+// TestTheOpenCodePluginSurvivesAGateThatExitsBeforeReadingItsInput runs the
+// generated plugin through Node. A gate that exits at once -- KIVGRAPH_DISABLE_HOOK
+// does -- or one handed more than a pipe holds breaks the pipe, and the broken pipe
+// arrives as an 'error' event on the child's stdin. Nothing listened, so the
+// event was uncaught and took the host process down: a gate meant to fail open
+// closed the whole session instead. Node and Bun treat the event alike.
+func TestTheOpenCodePluginSurvivesAGateThatExitsBeforeReadingItsInput(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the shell executable fixture is Unix-specific")
+	}
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skipf("node is not installed: %v", err)
+	}
+	home := t.TempDir()
+	executable := filepath.Join(t.TempDir(), "kivgraph")
+	if err := os.WriteFile(executable, []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	manager, err := New(Options{HomeDir: home, ProjectDir: t.TempDir(),
+		Executable: executable, GOOS: runtime.GOOS})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.InstallHook(TargetOpenCode, ScopeUser, false, false); err != nil {
+		t.Fatalf("InstallHook() error = %v", err)
+	}
+	directory := filepath.Join(home, ".config", "opencode", "plugins")
+	if err := os.WriteFile(filepath.Join(directory, "package.json"), []byte(`{"type":"module"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	harness := `import { pathToFileURL } from "node:url"
+const { KivgraphGate } = await import(pathToFileURL(process.env.OPENCODE_PLUGIN).href)
+const hooks = await KivgraphGate({ directory: "/repo" })
+// Larger than any pipe buffer, so the write is still in flight when the gate exits.
+const command = "x".repeat(8 * 1024 * 1024)
+await hooks["tool.execute.before"]({ tool: "bash" }, { args: { command } })
+// The broken pipe is reported on a later tick; give it room to surface.
+await new Promise((resolve) => setTimeout(resolve, 300))
+`
+	command := exec.Command(node, "--input-type=module", "--eval", harness)
+	command.Env = append(os.Environ(), "OPENCODE_PLUGIN="+filepath.Join(directory, "kivgraph.js"))
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("the plugin let a closed stdin through to the host: %v\n%s", err, output)
+	}
+}
+
 // TestOhMyPiExtensionInstallIsIdempotentAndRemovable keeps the native module
 // on the same lifecycle as the other generated hook integrations.
 func TestOhMyPiExtensionInstallIsIdempotentAndRemovable(t *testing.T) {

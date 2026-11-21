@@ -6,8 +6,8 @@ incluye el binario Go, la biblioteca nativa fijada de LadybugDB, el worker
 TypeScript, las grammars, los avisos de licencia y el visor web bajo `web/`.
 
 El visor viene en la release: tras instalar, `kivgraph ui` sirve el grafo
-publicado en `0.0.0.0:7777` sin construir nada, porque lo normal es indexar
-donde están los repositorios y mirar el grafo desde otra máquina. Un bundle
+publicado en `127.0.0.1:7777` sin construir nada; para mirarlo desde otra máquina
+hay que pedir otra dirección con `--addr` o `web.address`. Un bundle
 generado con `--mcp-only` no lo lleva, y en ese caso la ayuda marca `ui` como
 no disponible en lugar de ofrecer un comando que termina en error.
 
@@ -108,7 +108,7 @@ curl -fsSL https://kivgraph.dev/install.sh | bash
 El instalador no requiere Go, pnpm ni un compilador C. Para fijar una versión:
 
 ```bash
-KIVGRAPH_VERSION=v0.9.10 ./scripts/install.sh
+KIVGRAPH_VERSION=v0.10.0 ./scripts/install.sh
 ```
 
 Si el repositorio de releases es privado, proporciona
@@ -301,7 +301,30 @@ chmod 0755 "$HOME/.local/bin/kivgraph-ts-worker"
 
 Alternativamente, configura `typescript.worker_command` con un comando
 ejecutable que acepte la forma
-`facts REPOSITORY PATH OUTPUT [--provider NAME=PATH]...`.
+`facts REPOSITORY PATH OUTPUT [--provider NAME=PATH]...`, o con el punto de
+entrada del worker sin launcher, como
+`node /ruta/al/checkout/ts-worker/dist/facts-cli.js`: el indexador quita
+entonces la palabra `facts`, que ese fichero no espera, y la huella de la
+caché de hechos sigue los módulos de su directorio `dist`.
+
+Límites de la huella de la caché de hechos con un worker propio, que no son
+fallos sino lo que no se mira:
+
+- Sin `dist/facts-cli.js` bajo el directorio de trabajo, el fallback usa
+  `pnpm --dir ts-worker facts`, que construye `dist` durante la pasada. La
+  primera pasada de un checkout sin `dist` falla una vez con
+  `analyzer configuration changed` y la segunda funciona: nunca sirve hechos
+  viejos, pero el mensaje no apunta a la causa. Ejecuta `pnpm --dir ts-worker
+  build` antes.
+- Un worker cuyo script no está en un directorio `dist`, o un launcher que
+  oculta su `dist`, se identifica sólo por sus propios bytes; un script `.cjs`,
+  `.cts`, `.mts` o `.ts` (también con `tsx`) no aporta ni sus bytes, ni `dist`,
+  ni el motor, y el contenido de un `--require` o `--import` no se mira. Con un
+  bundle basta: el binario cambia con el worker.
+- Si el binario de un demonio vivo se borra (gestor de paquetes, `rm`), el
+  demonio falla cinco veces al observar y al reindexar y desiste
+  (`gave up rebuilding a stale profile`) hasta que se reinicia; sustituirlo
+  converge solo.
 
 Comprueba el binario compilado con:
 
@@ -400,7 +423,7 @@ toolchain; los tags y los tests forman parte del mismo contexto:
 ```yaml
 go:
   synthetic_work_file: ~/.local/state/kivgraph/go.work
-  include_tests: false
+  include_tests: true
   goos: linux
   goarch: amd64
   cgo_enabled: false
@@ -484,14 +507,14 @@ python:
   analyzer_mode: fallback
   python_path: python3
   maximum_workers: 3
-  include_tests: false
+  include_tests: true
   include_generated: false
   include_external_packages: false
 dart:
   analyzer_command: dart
   sdk_path: dart
   maximum_workers: 2
-  include_tests: false
+  include_tests: true
   include_generated: false
   include_external_packages: false
   include_sdk: false
@@ -502,7 +525,7 @@ java:
   indexer_command: scip-java
   build_tool: ""
   maximum_workers: 1
-  include_tests: false
+  include_tests: true
   include_generated: false
   target_directory: ~/.local/state/kivgraph/java-target
   maximum_index_time: 20m
@@ -510,7 +533,7 @@ csharp:
   indexer_command: scip-dotnet
   project: ""
   maximum_workers: 1
-  include_tests: false
+  include_tests: true
   include_generated: false
   skip_restore: false
   target_directory: ~/.local/state/kivgraph/csharp-target

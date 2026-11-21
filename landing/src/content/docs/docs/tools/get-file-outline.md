@@ -222,10 +222,10 @@ token issued against an older generation fails as `CURSOR_SNAPSHOT_EXPIRED`. All
 of them mean the pagination has to restart. `view` is not part of the identity,
 so one cursor can continue the outline in another view.
 
-`kind` and `include_members` filter the page after it is taken, so `total`
-counts every symbol under the path and `returned` counts what survived the
-filter. A page can therefore return fewer rows than `limit` and still be
-truncated.
+`kind` and `include_members` filter the symbols before the page is cut, so
+`total`, `returned` and the rows describe one set: `total` counts the symbols
+that pass the filter, not every symbol under the path. A page that returns fewer
+rows than `limit` and is not truncated is the end of that set.
 
 A path the graph does not know is an error naming both the repository and the
 path, `SYMBOL_NOT_FOUND`, never an empty page. An empty page would read as

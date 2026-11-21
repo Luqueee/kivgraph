@@ -13,8 +13,9 @@ const (
 	// VerdictComplete means nothing the index recorded could add to this
 	// answer: the list is the whole list.
 	VerdictComplete = "COMPLETE"
-	// VerdictLowerBound means the answer is a minimum. The index recorded
-	// places it could not read that this query reaches, and they are listed.
+	// VerdictLowerBound means the answer is a minimum: the index recorded
+	// places it could not read that this query reaches, and they are listed,
+	// or a traversal stopped at its node budget before it finished.
 	VerdictLowerBound = "LOWER_BOUND"
 )
 
@@ -78,12 +79,16 @@ type Fallback struct {
 // repository that could not be read at all, and -- through the second -- a
 // package the index never opened. Passing every one of them is what makes
 // silence mean something.
+//
+// language is the language of the declaration the answer is about, and empty
+// when the question is about a name and not about one declaration.
 func completenessFor(
 	snapshot *hotsnapshot.GraphSnapshot,
 	symbolName string,
+	language string,
 	repository hotsnapshot.RepositoryID,
 ) (Completeness, int, error) {
-	naming, namingTotal := snapshot.UnresolvedNamingSymbol(symbolName, MaximumBlindSpots)
+	naming, namingTotal := snapshot.UnresolvedNamingSymbol(symbolName, language, MaximumBlindSpots)
 	scopes, scopeTotal := snapshot.UnresolvedScopeGroups(repository, MaximumBlindSpots)
 	if namingTotal == 0 && scopeTotal == 0 {
 		return Completeness{Verdict: VerdictComplete}, 0, nil

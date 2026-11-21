@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -138,6 +139,10 @@ type cacheEntry struct {
 	Version  int    `json:"version"`
 	Unit     string `json:"unit"`
 	Analyzer string `json:"analyzer"`
+	// AnalyzerParts is what each part of the analyzer looked like when the entry was
+	// written. It says which part moved when the entry is refused, and decides
+	// nothing: Analyzer does.
+	AnalyzerParts map[string]string `json:"analyzer_parts,omitempty"`
 	// LocalAddress is the content address of source and configuration inputs.
 	// Provider and registry inputs are deliberately excluded: they belong to
 	// the resolution context in Unit and must not turn a local fact into a
@@ -191,6 +196,11 @@ type CacheReport struct {
 	// no_entry; the other values describe an entry found at that address but
 	// rejected during validation.
 	Refusals map[CacheRefusalReason]int
+	// AnalyzerChanged counts, by part of the analyzer, the entries refused because
+	// the analyzer changed: `binary`, `go`, `rust`, `typescript`... An entry that
+	// differs in several parts counts in each. `unrecorded` is an entry that kept no
+	// parts. See CacheReport.AnalyzerChangedNote.
+	AnalyzerChanged map[string]int
 }
 
 // factCache reads and writes one entry per analysis unit.
@@ -202,6 +212,9 @@ type factCache struct {
 	staging   string
 	mode      CacheMode
 	analyzer  string
+	// analyzerParts are the parts of analyzer when this process computed it, nil
+	// when the value came from elsewhere.
+	analyzerParts map[string]string
 
 	trees *fingerprintMemo
 	// goRegistry and rustRegistry are this pass's answer to "who provides
@@ -211,14 +224,15 @@ type factCache struct {
 	semanticRegistry   string
 	typeScriptRegistry string
 
-	hits         atomic.Int64
-	misses       atomic.Int64
-	verified     atomic.Int64
-	refusalMutex sync.Mutex
-	refusals     map[CacheRefusalReason]int
-	pendingMutex sync.Mutex
-	pending      []pendingCacheEntry
-	commitOnce   sync.Once
+	hits            atomic.Int64
+	misses          atomic.Int64
+	verified        atomic.Int64
+	refusalMutex    sync.Mutex
+	refusals        map[CacheRefusalReason]int
+	analyzerChanges map[string]int
+	pendingMutex    sync.Mutex
+	pending         []pendingCacheEntry
+	commitOnce      sync.Once
 }
 
 type pendingCacheEntry struct {
@@ -249,9 +263,12 @@ func newFactCache(options FullOptions) (*factCache, error) {
 	if err := os.MkdirAll(directory, 0o755); err != nil {
 		return nil, fmt.Errorf("fact cache: prepare %q: %w", directory, err)
 	}
-	analyzer, err := AnalyzerFingerprint(options)
-	if err != nil {
-		return nil, fmt.Errorf("fact cache: observe analyzer configuration: %w", err)
+	analyzer := strings.TrimSpace(options.AnalyzerFingerprint)
+	if analyzer == "" {
+		var err error
+		if analyzer, err = AnalyzerFingerprint(options); err != nil {
+			return nil, fmt.Errorf("fact cache: observe analyzer configuration: %w", err)
+		}
 	}
 	staging, err := os.MkdirTemp(directory, ".staging-*")
 	if err != nil {
@@ -264,6 +281,9 @@ func newFactCache(options FullOptions) (*factCache, error) {
 		analyzer:  analyzer,
 		trees:     newFingerprintMemo(),
 		refusals:  make(map[CacheRefusalReason]int),
+
+		analyzerParts:   analyzerPartsOf(analyzer),
+		analyzerChanges: make(map[string]int),
 	}, nil
 }
 
@@ -280,14 +300,32 @@ func (cache *factCache) report() CacheReport {
 	for reason, count := range cache.refusals {
 		refusals[reason] = count
 	}
+	var analyzerChanged map[string]int
+	if len(cache.analyzerChanges) != 0 {
+		analyzerChanged = make(map[string]int, len(cache.analyzerChanges))
+		for part, count := range cache.analyzerChanges {
+			analyzerChanged[part] = count
+		}
+	}
 	cache.refusalMutex.Unlock()
 	return CacheReport{
-		Mode:     cache.mode,
-		Hits:     int(cache.hits.Load()),
-		Misses:   int(cache.misses.Load()),
-		Verified: int(cache.verified.Load()),
-		Refusals: refusals,
+		Mode:            cache.mode,
+		Hits:            int(cache.hits.Load()),
+		Misses:          int(cache.misses.Load()),
+		Verified:        int(cache.verified.Load()),
+		Refusals:        refusals,
+		AnalyzerChanged: analyzerChanged,
 	}
+}
+
+// noteAnalyzerChange records which parts of the analyzer a refused entry differs in.
+func (cache *factCache) noteAnalyzerChange(entry cacheEntry) {
+	changed := changedAnalyzerParts(entry.AnalyzerParts, cache.analyzerParts)
+	cache.refusalMutex.Lock()
+	for _, part := range changed {
+		cache.analyzerChanges[part]++
+	}
+	cache.refusalMutex.Unlock()
 }
 
 func (cache *factCache) refuse(reason CacheRefusalReason) {
@@ -319,6 +357,13 @@ func (cache *factCache) analyse(
 	entry, found, refusal := cache.load(identity, localAddress)
 	if !found {
 		cache.refuse(refusal)
+	} else {
+		// Serving an entry is using it, and prune expires by this time: left
+		// at the day it was written, a unit that never changes was analysed
+		// again every thirty days. Best effort -- a cache that cannot be
+		// touched still answers.
+		now := time.Now()
+		_ = os.Chtimes(cache.path(identity, localAddress), now, now)
 	}
 	if found && cache.mode == CacheOn {
 		cache.hits.Add(1)
@@ -367,6 +412,7 @@ func (cache *factCache) load(identity, localAddress string) (cacheEntry, bool, C
 		return cacheEntry{}, false, CacheRefusalIncompatible
 	}
 	if entry.Analyzer != cache.analyzer {
+		cache.noteAnalyzerChange(entry)
 		return cacheEntry{}, false, CacheRefusalAnalyzer
 	}
 	if entry.LocalAddress != localAddress {
@@ -406,6 +452,7 @@ func (cache *factCache) store(
 		Version:         cacheEntryVersion,
 		Unit:            identity,
 		Analyzer:        cache.analyzer,
+		AnalyzerParts:   cache.analyzerParts,
 		LocalAddress:    localAddress,
 		Inputs:          cache.describeInputs(unit, options, inputs, result),
 		Set:             result.set,
@@ -450,10 +497,18 @@ func (cache *factCache) commit() {
 		pending := append([]pendingCacheEntry(nil), cache.pending...)
 		cache.pending = nil
 		cache.pendingMutex.Unlock()
+		admitted := make(map[string]struct{}, len(pending))
 		for _, entry := range pending {
 			if err := os.Rename(entry.staged, entry.path); err != nil {
 				_ = os.Remove(entry.staged)
+				continue
 			}
+			admitted[entry.path] = struct{}{}
+		}
+		// Only a pass that wrote something can have left a unit with more entries
+		// than it keeps, and reading the headers of every entry is not free.
+		if len(admitted) != 0 {
+			cache.retain(cacheEntriesKept, cacheEntriesPerUnitKept, admitted)
 		}
 	})
 }
@@ -513,13 +568,37 @@ func (cache *factCache) prune(maximumAge time.Duration) {
 		if err != nil || info.ModTime().After(deadline) {
 			continue
 		}
+		// The directory is whatever the configuration names, and it can hold
+		// somebody else's files: only names this cache writes are its to expire.
 		path := filepath.Join(cache.directory, entry.Name())
-		if entry.IsDir() && strings.HasPrefix(entry.Name(), ".staging-") {
-			_ = os.RemoveAll(path)
-			continue
+		switch {
+		case entry.IsDir():
+			if strings.HasPrefix(entry.Name(), ".staging-") {
+				_ = os.RemoveAll(path)
+			}
+		case isCacheFileName(entry.Name()):
+			_ = os.Remove(path)
 		}
-		_ = os.Remove(path)
 	}
+}
+
+// isCacheFileName reports whether name is an admitted entry, as path spells it,
+// or the temporary file write leaves behind when it is interrupted.
+func isCacheFileName(name string) bool {
+	if strings.HasPrefix(name, ".entry-") && strings.HasSuffix(name, ".tmp") {
+		return true
+	}
+	digest, isJSON := strings.CutSuffix(name, ".json")
+	if !isJSON || len(digest) != hex.EncodedLen(sha256.Size) {
+		return false
+	}
+	for _, character := range []byte(digest) {
+		lowerHex := character >= '0' && character <= '9' || character >= 'a' && character <= 'f'
+		if !lowerHex {
+			return false
+		}
+	}
+	return true
 }
 
 // unitIdentity names what the entry is about, never what it read.
@@ -558,7 +637,7 @@ func sourceIdentity(repository workspace.Repository) string {
 }
 
 func (cache *factCache) identity(unit analysisUnit) string {
-	return unitIdentity(unit) + "\x00resolution\x00" + cache.registryContext(unit)
+	return unitIdentity(unit) + cacheResolutionSeparator + cache.registryContext(unit)
 }
 
 func (cache *factCache) registryContext(unit analysisUnit) string {
@@ -673,6 +752,11 @@ func (cache *factCache) describeInputs(
 				packageConfig = filepath.Join(root, packageConfig)
 			}
 			add(inputFile, packageConfig)
+		}
+		if unit.language == facts.LanguageDart {
+			for _, provider := range dartProviderRoots(unit, options, result.composed) {
+				add(inputTree, provider)
+			}
 		}
 		add(inputRegistry, semanticRegistryInput)
 		return described
@@ -874,6 +958,31 @@ var semanticRegistryLanguages = map[string]bool{
 	string(facts.LanguageCSharp): true, "cs": true,
 }
 
+// semanticRegistryName names which semantic repositories are registered and what is
+// in them: each one by name, root and the digest of its tree.
+//
+// The digest is what stops a consumer from being served facts that its provider has
+// outgrown, and it is not an over-approximation that can be trimmed. The Dart loader
+// is handed every registered repository as a provider and reads the files of the one
+// a reference lands in, so the facts of a consumer name symbols of the provider: when
+// the provider renames one, the consumer's entry, whose own sources did not change,
+// is wrong. Without the digest it was served, measured: `references=8` and the old
+// symbol after the rename, where the analysis gives `7` and the new one. A consumer
+// whose reference was unresolved when its entry was taken depends on the provider
+// too, though no composed target names it.
+//
+// The Python worker, the Java and the C# loaders are given no provider and the
+// Python AST worker reads nothing outside its root, so their units do not need the
+// other repositories; but the Python with pyright, Java and C# builds can read a
+// sibling through the environment -- an editable install, a project reference, an
+// included build -- which nothing here can see. Which is why one registry stands for
+// all of them, at the cost of analysing every semantic repository again when any of
+// them changes.
+//
+// Only repositories that declare a semantic language are in it, and the Dart loader
+// looks at all of them: a Dart unit also takes the trees of the registered
+// repositories its package config reaches among its own inputs, whatever language
+// they were registered under (dartProviderRoots).
 func semanticRegistryName(trees *fingerprintMemo, repositories []workspace.Repository) string {
 	entries := make([]string, 0)
 	for _, repository := range repositories {
@@ -997,24 +1106,40 @@ func lockfilePaths(root string) []string {
 // not produce. An unavailable identity fails closed instead of being replaced
 // with a timestamp: a full pass observes it before and after analysis.
 func AnalyzerFingerprint(options FullOptions) (string, error) {
-	hash := sha256.New()
-	fmt.Fprintf(hash, "entry=%d\x00", cacheEntryVersion)
-	fmt.Fprintf(hash, "resolver=%s\x00", strings.TrimSpace(options.ResolverVersion))
+	fingerprint, _, err := observeAnalyzer(options)
+	return fingerprint, err
+}
+
+// observeAnalyzer is AnalyzerFingerprint that also answers the parts the value is
+// made of, and remembers them for the fact cache that is handed the value.
+func observeAnalyzer(options FullOptions) (string, map[string]string, error) {
+	// Asked while everything else is hashed: it starts a process, and is read last.
+	dartAnalyzer := make(chan string, 1)
+	go func() { dartAnalyzer <- dartAnalyzerFingerprint(options) }()
+	hash := newAnalyzerBuilder()
+	hash.part(analyzerPartResolver)
+	hash.printf("entry=%d\x00", cacheEntryVersion)
+	hash.printf("resolver=%s\x00", strings.TrimSpace(options.ResolverVersion))
+	hash.part(analyzerPartGo)
 	cgo := "default"
 	if options.GoCGOEnabled != nil {
 		cgo = fmt.Sprintf("%t", *options.GoCGOEnabled)
 	}
-	fmt.Fprintf(hash, "tests=%t\x00network=%t\x00goos=%s\x00goarch=%s\x00cgo=%s\x00", options.IncludeTests, options.GoAllowNetwork, strings.TrimSpace(options.GoOS), strings.TrimSpace(options.GoARCH), cgo)
+	hash.printf("tests=%t\x00network=%t\x00goos=%s\x00goarch=%s\x00cgo=%s\x00", options.IncludeTests, options.GoAllowNetwork, strings.TrimSpace(options.GoOS), strings.TrimSpace(options.GoARCH), cgo)
 	tags := append([]string(nil), options.GoBuildTags...)
 	sort.Strings(tags)
-	fmt.Fprintf(hash, "tags=%s\x00", strings.Join(tags, ","))
+	hash.printf("tags=%s\x00", strings.Join(tags, ","))
+	hash.part(analyzerPartTypeScript)
 	// A pass with unclaimed sources on reads files a pass with it off never
 	// looked at, so an entry from one analyser is not the other's.
-	fmt.Fprintf(hash, "worker=%s\x00ts-unclaimed=%t\x00",
+	hash.printf("worker=%s\x00ts-unclaimed=%t\x00",
 		strings.TrimSpace(options.TypeScriptWorker), options.TypeScriptIncludeUnclaimedSources)
-	fmt.Fprintf(hash, "python=%s\x00python-analyzer=%s\x00python-mode=%s\x00python-path=%s\x00python-tests=%t\x00python-generated=%t\x00python-external=%t\x00", strings.TrimSpace(options.PythonIndexer), strings.TrimSpace(options.PythonAnalyzer), strings.TrimSpace(options.PythonAnalyzerMode), strings.TrimSpace(options.PythonPath), options.PythonIncludeTests, options.PythonIncludeGenerated, options.PythonIncludeExternal)
-	fmt.Fprintf(hash, "dart=%s\x00dart-sdk=%s\x00dart-generated=%t\x00dart-tests=%t\x00dart-external=%t\x00dart-sdk-index=%t\x00dart-package-config=%s\x00dart-wait=%t\x00dart-time=%s\x00", strings.TrimSpace(options.DartAnalyzer), strings.TrimSpace(options.DartSDKPath), options.DartIncludeGenerated, options.DartIncludeTests, options.DartIncludeExternal, options.DartIncludeSDK, strings.TrimSpace(options.DartPackageConfig), options.DartWaitForAnalysis, options.DartMaximumAnalysisTime)
-	fmt.Fprintf(hash, "java=%s\x00java-build-tool=%s\x00java-tests=%t\x00java-generated=%t\x00java-target=%s\x00",
+	hash.part(analyzerPartPython)
+	hash.printf("python=%s\x00python-analyzer=%s\x00python-mode=%s\x00python-path=%s\x00python-tests=%t\x00python-generated=%t\x00python-external=%t\x00", strings.TrimSpace(options.PythonIndexer), strings.TrimSpace(options.PythonAnalyzer), strings.TrimSpace(options.PythonAnalyzerMode), strings.TrimSpace(options.PythonPath), options.PythonIncludeTests, options.PythonIncludeGenerated, options.PythonIncludeExternal)
+	hash.part(analyzerPartDart)
+	hash.printf("dart=%s\x00dart-sdk=%s\x00dart-generated=%t\x00dart-tests=%t\x00dart-external=%t\x00dart-sdk-index=%t\x00dart-package-config=%s\x00dart-wait=%t\x00dart-time=%s\x00", strings.TrimSpace(options.DartAnalyzer), strings.TrimSpace(options.DartSDKPath), options.DartIncludeGenerated, options.DartIncludeTests, options.DartIncludeExternal, options.DartIncludeSDK, strings.TrimSpace(options.DartPackageConfig), options.DartWaitForAnalysis, options.DartMaximumAnalysisTime)
+	hash.part(analyzerPartJava)
+	hash.printf("java=%s\x00java-build-tool=%s\x00java-tests=%t\x00java-generated=%t\x00java-target=%s\x00",
 		strings.TrimSpace(options.JavaIndexerCommand), strings.TrimSpace(options.JavaBuildTool),
 		options.JavaIncludeTests, options.JavaIncludeGenerated,
 		strings.TrimSpace(options.JavaTargetDirectory))
@@ -1034,30 +1159,40 @@ func AnalyzerFingerprint(options FullOptions) (string, error) {
 	// the fact cache was off, silently, on every machine without scip-java.
 	// A Java repository on such a machine is isolated by analyzerNotInstalled
 	// and its facts are never stored, so there is nothing to serve wrongly.
-	fmt.Fprintf(hash, "java-indexer=%s\x00", javaIndexerFingerprint(options))
-	fmt.Fprintf(hash, "csharp=%s\x00csharp-project=%s\x00csharp-tests=%t\x00csharp-generated=%t\x00csharp-restore=%t\x00csharp-target=%s\x00",
+	hash.printf("java-indexer=%s\x00", javaIndexerFingerprint(options))
+	hash.part(analyzerPartCSharp)
+	hash.printf("csharp=%s\x00csharp-project=%s\x00csharp-tests=%t\x00csharp-generated=%t\x00csharp-restore=%t\x00csharp-target=%s\x00",
 		strings.TrimSpace(options.CSharpIndexerCommand), strings.TrimSpace(options.CSharpProject),
 		options.CSharpIncludeTests, options.CSharpIncludeGenerated, options.CSharpSkipRestore,
 		strings.TrimSpace(options.CSharpTargetDirectory))
-	fmt.Fprintf(hash, "csharp-indexer=%s\x00", cSharpIndexerFingerprint(options))
-	fmt.Fprintf(hash, "python-worker=%s\x00", pythonProducerFingerprint(options))
+	hash.printf("csharp-indexer=%s\x00", cSharpIndexerFingerprint(options))
+	hash.part(analyzerPartPython)
+	hash.printf("python-worker=%s\x00", pythonProducerFingerprint(options))
+	hash.part(analyzerPartBinary)
 	executable, err := os.Executable()
 	if err != nil {
-		return "", fmt.Errorf("resolve Kivgraph executable: %w", err)
+		return "", nil, fmt.Errorf("resolve Kivgraph executable: %w", err)
 	}
 	binaryDigest, err := sourceobservation.FileDigest(context.Background(), executable)
 	if err != nil {
-		return "", fmt.Errorf("digest Kivgraph executable: %w", err)
+		return "", nil, fmt.Errorf("digest Kivgraph executable: %w", err)
 	}
-	fmt.Fprintf(hash, "binary=%s\x00", binaryDigest)
+	hash.printf("binary=%s\x00", binaryDigest)
+	hash.part(analyzerPartGo)
 	goEnvironment, err := goEnvironmentFingerprint()
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
-	fmt.Fprintf(hash, "goenv=%s\x00", goEnvironment)
-	fmt.Fprintf(hash, "rust=%s\x00", rustAnalysisFingerprint(options))
-	fmt.Fprintf(hash, "tsworker=%s\x00", typeScriptWorkerFingerprint(options))
-	return hex.EncodeToString(hash.Sum(nil)), nil
+	hash.printf("goenv=%s\x00", goEnvironment)
+	hash.part(analyzerPartRust)
+	hash.printf("rust=%s\x00", rustAnalysisFingerprint(options))
+	hash.part(analyzerPartTypeScript)
+	hash.printf("tsworker=%s\x00", typeScriptWorkerFingerprint(options))
+	hash.part(analyzerPartDart)
+	hash.printf("dart-analyzer=%s\x00", <-dartAnalyzer)
+	fingerprint, parts := hash.fingerprint(), hash.summary()
+	rememberAnalyzerParts(fingerprint, parts)
+	return fingerprint, parts, nil
 }
 
 // analyzerFingerprint keeps the fact-cache test helpers compact. Production
@@ -1069,6 +1204,29 @@ func analyzerFingerprint(options FullOptions) string {
 		return "unavailable"
 	}
 	return fingerprint
+}
+
+// probeDirectory is where the fingerprint asks a toolchain what it is. The go
+// command switches to the toolchain a go.mod or go.work names, and rustup's
+// proxies to the one a rust-toolchain.toml names, both from the working
+// directory: asked from wherever the process happens to have started, the
+// answer described that directory's pin and not the machine's toolchain, and
+// `go env` in a directory that wants a newer Go downloaded it. A directory that
+// pins nothing gives the default one, whatever started the process. Each
+// repository's own pin is not asked: a change of it is a change of go.mod,
+// go.work or rust-toolchain, which the tree of the unit already records.
+//
+// When the temporary directory is not usable the answer falls back to the
+// process's own, which is what every probe did before.
+func probeDirectory() string {
+	directory := os.TempDir()
+	if !filepath.IsAbs(directory) {
+		return ""
+	}
+	if info, err := os.Stat(directory); err != nil || !info.IsDir() {
+		return ""
+	}
+	return directory
 }
 
 // goEnvironmentFingerprint identifies the go command this pass will run.
@@ -1090,8 +1248,10 @@ func goEnvironmentFingerprint() (string, error) {
 	if _, err := exec.LookPath("go"); err != nil {
 		return "absent", nil
 	}
-	output, err := exec.Command("go", "env",
-		"GOVERSION", "GOROOT", "GOFLAGS", "GOMODCACHE", "GOPATH", "GOPRIVATE").Output()
+	command := exec.Command("go", "env",
+		"GOVERSION", "GOROOT", "GOFLAGS", "GOMODCACHE", "GOPATH", "GOPRIVATE")
+	command.Dir = probeDirectory()
+	output, err := command.Output()
 	if err != nil {
 		return "", fmt.Errorf("read Go environment: %w", err)
 	}
@@ -1115,9 +1275,160 @@ func typeScriptWorkerFingerprint(options FullOptions) string {
 	for _, argument := range arguments {
 		if strings.HasSuffix(argument, ".js") || strings.HasSuffix(argument, ".mjs") {
 			fingerprint += "\x00" + fileFingerprint(argument)
+			// The script imports the rest of the worker, and a build that
+			// changes only those leaves its own bytes alone.
+			fingerprint += "\x00" + workerModulesFingerprint(filepath.Dir(argument))
+			// And the engine the modules import, which lives outside the build.
+			fingerprint += "\x00" + workerEngineFingerprint(filepath.Dir(argument))
 		}
 	}
 	return fingerprint
+}
+
+// workerBuildDirectory is where `tsc` writes the worker, in a checkout and in a
+// bundle alike.
+const workerBuildDirectory = "dist"
+
+// workerModulesFingerprint hashes every module of a worker build by relative path
+// and content, so that a change to any of them is a different analyser.
+//
+// Only a build output directory is a module tree. The script of a worker
+// configured somewhere else keeps being identified by its own bytes: its
+// directory can be anything, a home directory included, and walking it on every
+// observation would cost more than the cache saves.
+//
+// Declarations, source maps and compiled tests are left out: the analysis never
+// loads them, and being wrong in that direction costs one analysis on every
+// rebuild of someone who edits a test.
+func workerModulesFingerprint(directory string) string {
+	if filepath.Base(directory) != workerBuildDirectory {
+		return "entry-only"
+	}
+	return hashTree(directory, isWorkerModule)
+}
+
+// workerEngineFingerprint identifies the TypeScript engine a worker build loads.
+// It is not part of the build: the modules import the `typescript` package, which
+// starts the native executable of the platform package that sits beside it, and
+// a `pnpm install` that changes either leaves every byte of dist alone. Measured:
+// the engine swapped in place under the same command answered the next pass from
+// the cache, for a repository the new engine fails to load.
+//
+// The package is found the way node finds it, by walking up from the build
+// directory. Every package under the sibling `@typescript` directory is hashed,
+// whole: the executable reads the default library files beside it, and which
+// platform node runs on is not something this side should guess. Declarations
+// and source maps of the `typescript` package itself are left out, as they are
+// for the build.
+//
+// As for the build, only a `dist` directory has an engine to look for.
+func workerEngineFingerprint(directory string) string {
+	if filepath.Base(directory) != workerBuildDirectory {
+		return "entry-only"
+	}
+	// A relative path stops the walk at the current directory, and the same
+	// worker found through an absolute one reaches an engine above it: the
+	// watchers observe with a relative path and a pass with an absolute one.
+	absolute, err := filepath.Abs(directory)
+	if err != nil {
+		return "unreadable"
+	}
+	engine, found := resolveEnginePackage(filepath.Dir(absolute))
+	if !found {
+		return "absent"
+	}
+	parts := []string{hashTree(engine, isEngineModule)}
+	platforms := filepath.Join(filepath.Dir(engine), "@typescript")
+	entries, err := os.ReadDir(platforms)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		parts = append(parts, "absent")
+	case err != nil:
+		parts = append(parts, "unreadable")
+	}
+	for _, entry := range entries {
+		// pnpm links each platform package; the content is what counts.
+		real, err := filepath.EvalSymlinks(filepath.Join(platforms, entry.Name()))
+		if err != nil {
+			parts = append(parts, entry.Name()+"\x00unreadable")
+			continue
+		}
+		parts = append(parts, entry.Name()+"\x00"+hashTree(real, nil))
+	}
+	return strings.Join(parts, "\x00")
+}
+
+// resolveEnginePackage finds the `typescript` package a module under directory
+// imports, with links resolved: a pnpm checkout links it into a store whose
+// sibling directories are what the platform package lives in.
+func resolveEnginePackage(directory string) (string, bool) {
+	for {
+		candidate, err := filepath.EvalSymlinks(filepath.Join(directory, "node_modules", "typescript"))
+		if err == nil {
+			if info, statErr := os.Stat(candidate); statErr == nil && info.IsDir() {
+				return candidate, true
+			}
+		}
+		parent := filepath.Dir(directory)
+		if parent == directory {
+			return "", false
+		}
+		directory = parent
+	}
+}
+
+// isEngineModule reports whether a file of the `typescript` package is something
+// the worker can run, as opposed to a declaration or a source map.
+func isEngineModule(name string) bool {
+	return !strings.HasSuffix(name, ".map") && !strings.HasSuffix(name, ".d.ts") &&
+		!strings.HasSuffix(name, ".d.cts") && !strings.HasSuffix(name, ".d.mts")
+}
+
+// hashTree hashes the regular files below directory that include accepts, or all
+// of them when it is nil, by relative path and content. A directory that is not
+// there is `absent` and one that cannot be read is `unreadable`: each is a fact
+// of its own and neither is the hash of nothing.
+func hashTree(directory string, include func(name string) bool) string {
+	hash := sha256.New()
+	err := filepath.WalkDir(directory, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || !entry.Type().IsRegular() || (include != nil && !include(entry.Name())) {
+			return nil
+		}
+		relative, err := filepath.Rel(directory, path)
+		if err != nil {
+			return err
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(hash, "%s\x00%d\x00", filepath.ToSlash(relative), len(content)); err != nil {
+			return err
+		}
+		_, err = hash.Write(content)
+		return err
+	})
+	if errors.Is(err, fs.ErrNotExist) {
+		return "absent"
+	}
+	if err != nil {
+		return "unreadable"
+	}
+	return hex.EncodeToString(hash.Sum(nil))
+}
+
+// isWorkerModule reports whether a file of a worker build is JavaScript the
+// worker can load, and not a compiled test.
+func isWorkerModule(name string) bool {
+	for _, extension := range []string{".js", ".mjs", ".cjs"} {
+		if strings.HasSuffix(name, extension) {
+			return !strings.HasSuffix(strings.TrimSuffix(name, extension), ".test")
+		}
+	}
+	return false
 }
 
 // fingerprintMemo computes each directory tree and file once per pass. Units

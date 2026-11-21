@@ -13,7 +13,8 @@ description: Bounded incoming impact of one symbol, grouped by repository, packa
 | `confidence` | string | none | Gates which incoming edges the traversal may follow, so it changes what counts as affected. Accepted: `EXACT_TYPECHECKED`, `EXACT_DECLARATION_MAPPED`, `EXACT_PACKAGE_MAPPED`, `STRUCTURAL_CERTAIN`, `CANDIDATE`, `UNRESOLVED`. One value, not a list. Anything else is rejected with `INVALID_ARGUMENT`. |
 | `cursor` | string | none | Opaque token taken from `next_cursor`. Resumes the same query at the next offset. |
 | `depth` | integer | `3` | How many hops the walk may take backwards. Must be between 1 and 5. |
-| `edge_kinds` | array of string | none, meaning every reference kind | Gates which relations may be followed, so it also changes what counts as affected. Accepted: `IMPORTS_SYMBOL`, `EXPORTS`, `REEXPORTS`, `REFERENCES`, `CALLS_DIRECT`, `PASSES_AS_CALLBACK`, `ASSIGNS_FUNCTION`, `RETURNS_FUNCTION`, `TYPE_USES`, `IMPLEMENTS`, `EXTENDS`, `EMBEDS`, `OVERRIDES`. Containment and package kinds are rejected. Duplicates collapse; an empty or space-padded entry is rejected. |
+| `edge_kinds` | array of string | none, meaning every reference kind | Gates which relations may be followed, so it also changes what counts as affected. Accepted: `IMPORTS_SYMBOL`, `EXPORTS`, `REEXPORTS`, `REFERENCES`, `CALLS_DIRECT`, `PASSES_AS_CALLBACK`, `ASSIGNS_FUNCTION`, `RETURNS_FUNCTION`, `TYPE_USES`, `IMPLEMENTS`, `EXTENDS`, `EMBEDS`, `OVERRIDES`, `PART_OF`. Containment and package kinds are rejected. Duplicates collapse; an empty or space-padded entry is rejected. |
+| `exclude_tests` | boolean | `false` | Drops the affected symbols declared in a test file, recognised by path: `_test.go`, `_test.py`, `_test.dart`, `test_*.py`, `*.test.*`, `*.spec.*`, Java and C# files ending in `Test` or `Tests`, and a `test`, `tests`, `__tests__`, `spec`, `specs` or `integration_test` directory, or under Maven's `src/it/`. The page and every axis count what is left, and a cursor taken without it is rejected under it. |
 | `include_derived` | boolean | `false` | Includes rows from providers Kivgraph derives from the machine, which take the `rust:` namespace, such as a Rust toolchain's standard library. This tool takes no `repo` argument, so the flag is the only way to ask for them. |
 | `kinds` | array of string | none, meaning every kind except `variable` and `field` | Which symbol kinds count as affected. The default leaves out the local bindings a backwards walk crosses on its way to the consumers a reviewer is looking for, and the response says so under `kinds_default_excluded`. A list replaces that default and is echoed, sorted, under `kinds`; `["*"]` reports every kind the snapshot holds and is echoed as `kinds: ["*"]`. The wildcard stands alone -- mixing it with names asks for a filter and for no filter at once -- and a kind outside the accepted vocabulary is rejected with `INVALID_ARGUMENT` rather than silently matching nothing. Accepted: `alias`, `associated_type`, `attribute`, `class`, `const`, `constant`, `enum`, `enum_member`, `export`, `field`, `func`, `function`, `implementation`, `import`, `interface`, `macro`, `method`, `module`, `namespace`, `parameter`, `property`, `self_parameter`, `static`, `static_method`, `struct`, `trait`, `trait_method`, `type`, `type_alias`, `type_parameter`, `union`, `var`, `variable`. |
 | `limit` | integer | `50` | Rows of `symbols` in this page. Must be between 1 and 500. The aggregates are never paged. |
@@ -32,7 +33,7 @@ What a change to one symbol reaches: the same bounded walk as
 incoming edges. The response is the affected symbols plus four aggregations a
 reviewer acts on, by repository, by package, by depth and by relation kind. The
 root is excluded everywhere, because a symbol is not affected by its own change.
-It states how far its answer reaches in a `completeness` object, as the five
+It states how far its answer reaches in a `completeness` object, as the six
 other tools whose empty answer could be read as proof now do.
 
 Two things shape the answer before you read it. The kind filter decides what
@@ -528,9 +529,12 @@ the counter out, as it does any counter at zero. Only
 it, because a package dependency proves a dependency on the provider and never a
 use of the symbol, and summing the two would report a use nobody saw.
 
-`unresolved_related` is `7` in the answer above while `exact` is `5`. That is not
-an inconsistency: it counts the recorded resolution failures that could belong to
-this question, and it is exactly the number of entries `completeness` lists.
+`unresolved_related` is not `exact`'s counterpart and not a count of what
+`completeness` lists. It counts the recorded resolution failures that asked for
+the root symbol's own name, which are the entries of `blind_spots`. An
+unreadable scope is not one of them: it is why the answer may be short and not
+evidence about this name, so it is reported in `invisible_scopes` alone, and a
+`LOWER_BOUND` answer can carry an `unresolved_related` of `0`.
 
 ### `completeness`
 
@@ -546,7 +550,8 @@ The captured answer is `LOWER_BOUND`. It does not say "something might be
 missing"; it says exactly what it could not see, in `invisible_scopes`. Each
 entry is evidence about a failed request, never an inferred relationship, and
 carries a `reason`, the `repository` it belongs to, the `requested_package` the
-resolver asked for, and a `detail` when the loader wrote one. Two reasons appear
+resolver asked for, a `detail` when the loader wrote one, and `occurrences`, how
+many recorded failures share that scope. Two reasons appear
 above:
 
 - `PACKAGE_NOT_BUILDABLE`: the package exists in the tree and the Go build
@@ -569,8 +574,8 @@ sweep, which costs more than not warning at all.
 
 Two more fields appear when there is more to say than one response should carry.
 `blind_spots` lists recorded references that named this same symbol and could not
-be followed, with the same shape as an invisible scope plus a `file_path` and a
-`start_line`. Each list is capped at 20 entries, and `more_blind_spots` and
+be followed, with the shape of an invisible scope less `occurrences` and plus
+`requested_symbol`, `file_path` and `start_line`. Each list is capped at 20 entries, and `more_blind_spots` and
 `more_invisible_scopes` carry the remainder: the count is always exact even when
 the list is cut, because a truncated warning must not read as a smaller problem
 than it is.
@@ -585,9 +590,11 @@ There are two different truncations:
   fields rather than writing `false` and `null`.
 - `traversal_truncated` is about the walk. It is `true` when the walk hit
   `max_nodes` and stopped discovering symbols, so the impact itself is
-  understated and no cursor will recover it. Raise `max_nodes`, lower `depth`,
-  or narrow with `edge_kinds` or `confidence`. In the captured answer both are
-  `false`, which is why the compact payload carries neither.
+  understated and no cursor will recover it. The answer says so twice more:
+  `completeness.verdict` is `LOWER_BOUND` and `guidance` names `max_nodes`.
+  Raise `max_nodes`, lower `depth`, or narrow with `edge_kinds` or
+  `confidence`. In the captured answer both are `false`, which is why the
+  compact payload carries neither.
 
 To take the next page, repeat the same call and add `cursor` set to the
 `next_cursor` value, unchanged. The token is an opaque base64url wrapper around a
@@ -599,15 +606,16 @@ characters of base64-wrapped JSON. It fails closed:
 | What changed | What you get |
 | --- | --- |
 | A new generation was published | `CURSOR_SNAPSHOT_EXPIRED`; restart pagination |
-| The selector, `depth`, `max_nodes`, `edge_kinds`, `confidence` or `kinds` differ from the call that produced it | `CURSOR_INVALID` |
+| The selector, `depth`, `max_nodes`, `edge_kinds`, `confidence`, `kinds` or `include_derived` differ from the call that produced it | `CURSOR_INVALID` |
 | The token was edited, re-encoded, truncated, or decodes with trailing bytes after the checksum | `CURSOR_INVALID` |
 | The token was minted by a server of the previous cursor version, or before `kinds` existed | `CURSOR_INVALID`; the body declares version 2 and the default filter is part of the identity, so an older page fails closed instead of resuming a different set |
 
-`limit`, `view`, `response_format` and `include_derived` are not part of the
+`limit`, `view` and `response_format` are not part of the
 cursor identity, so changing one of them mid-pagination is accepted: the same
 cursor continues the impact in another view, and changing `limit` shifts what the
 remaining pages contain. `kinds` is the opposite: it decides which rows exist, so
-it is in the identity.
+it is in the identity, and so is `include_derived`: a cursor minted without the
+flag does not continue a call that sets it.
 
 `guidance` appears only when the count alone would mislead: on a truncated page,
 naming `depth`, `max_nodes`, `edge_kinds` and `confidence` as the ways to

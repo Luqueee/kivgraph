@@ -13,17 +13,20 @@ description: Bounded outgoing traversal from one symbol, with the edge each reac
 | `confidence` | string | none | Gates which edges the traversal may follow, so it changes what is reachable. Accepted: `EXACT_TYPECHECKED`, `EXACT_DECLARATION_MAPPED`, `EXACT_PACKAGE_MAPPED`, `STRUCTURAL_CERTAIN`, `CANDIDATE`, `UNRESOLVED`. One value, not a list. Anything else is rejected with `INVALID_ARGUMENT`. |
 | `cursor` | string | none | Opaque token taken from `next_cursor`. Resumes the same query at the next offset. |
 | `depth` | integer | `3` | How many hops the walk may take. Must be between 1 and 5. |
-| `edge_kinds` | array of string | none, meaning every reference kind | Gates which relations the traversal may follow, so it also changes what is reachable. Accepted: `IMPORTS_SYMBOL`, `EXPORTS`, `REEXPORTS`, `REFERENCES`, `CALLS_DIRECT`, `PASSES_AS_CALLBACK`, `ASSIGNS_FUNCTION`, `RETURNS_FUNCTION`, `TYPE_USES`, `IMPLEMENTS`, `EXTENDS`, `EMBEDS`, `OVERRIDES`. Containment and package kinds are rejected. Duplicates collapse; an empty or space-padded entry is rejected. |
+| `edge_kinds` | array of string | none, meaning every reference kind | Gates which relations the traversal may follow, so it also changes what is reachable. Accepted: `IMPORTS_SYMBOL`, `EXPORTS`, `REEXPORTS`, `REFERENCES`, `CALLS_DIRECT`, `PASSES_AS_CALLBACK`, `ASSIGNS_FUNCTION`, `RETURNS_FUNCTION`, `TYPE_USES`, `IMPLEMENTS`, `EXTENDS`, `EMBEDS`, `OVERRIDES`, `PART_OF`. Containment and package kinds are rejected. Duplicates collapse; an empty or space-padded entry is rejected. |
+| `exclude_tests` | boolean | `false` | Drops the reached symbols declared in a test file, matched by path as `get_blast_radius` does. Refused with `to`, since a route missing a link is not a route. |
 | `include_derived` | boolean | `false` | Includes rows from providers Kivgraph derives from the machine, which take the `rust:` namespace, such as a Rust toolchain's standard library. Naming one of them in `repo` has the same effect. |
-| `language` | string | none | Selects which reached symbols are returned: `go`, `typescript` or `rust`. It filters rows after reachability and never changes the walk. |
+| `language` | string | none | Selects which reached symbols are returned, by the language stored for the symbol: `go`, `typescript`, `rust`, `python`, `dart`, `java` or `csharp`. It is compared exactly, so the registry aliases such as `ts`, `rs`, `py` and `cs` match nothing. It filters rows after reachability and never changes the walk. Refused with `to`. |
 | `limit` | integer | `50` | Rows in this page. Must be between 1 and 500. |
-| `max_nodes` | integer | `5000` | Ceiling on how many symbols the walk may discover, the root included. Must be between 1 and 25000. Hitting it sets `traversal_truncated`. |
+| `max_nodes` | integer | `5000` | Ceiling on how many symbols the walk may discover, the root included. The root's own members start the walk with it and do not count. Must be between 1 and 25000. Hitting it sets `traversal_truncated`. |
 | `path` | string | none | Repository-relative path narrowing `qualified_name`. Requires `repository`. Rejected together with `stable_key`. |
 | `qualified_name` | string | none | Names the symbol to start from. Either this or `stable_key` is required, never both. A name matching more than one symbol is rejected with `AMBIGUOUS_SYMBOL` instead of being resolved silently. |
 | `repo` | string | none | Selects which reached symbols are returned, by repository name, compared exactly. A dependency found through a symbol in another repository is still reported. |
 | `repository` | string | none | Repository of the symbol being asked about. Narrows `qualified_name`. |
 | `response_format` | string | `concise` | `concise` or `detailed`. Detailed adds the derived identifiers: `stable_key`, `file_key` and `reached_from_key` in the `full` view, and the stable key alone in the compact one, which is the only way a key reaches a compact row. Anything else is rejected with `INVALID_ARGUMENT`. |
 | `stable_key` | string | none | Names the starting symbol directly. Cannot be combined with `qualified_name`, `repository` or `path`. |
+| `to` | string | none | The unqualified name of the declaration to reach, resolved the way `find_references` resolves `name`: one declaration carrying that name is the target, several are rejected with `AMBIGUOUS_SYMBOL` naming the candidates, and a qualified name such as `Set.Merge` matches nothing because the lookup is on the bare name. It changes the question: the answer is the route itself, one row per hop in order, in the `full` view. Cannot be combined with `repo`, `language`, `include_derived`, `limit`, `cursor` or `view: "compact"`, and requires exactly one named profile. |
+| `to_path` | string | none | Repository-relative file of the `to` symbol, to separate an ambiguous name. Requires `to`. |
 | `view` | string | `compact` | The granularity of the answer, never a different answer. `compact` lifts into a header what every reached symbol shares and groups the rows by file. `full` is the field-per-row shape. The answer is a set of reached symbols and not a set of files, so `files` is rejected with `INVALID_ARGUMENT`, as is any other value. |
 
 ## Answers
@@ -74,6 +77,7 @@ a captured page.
   "coverage": {
     "exact": 37
   },
+  "completeness": { "verdict": "COMPLETE" },
   "guidance": "showing 3 of 37; narrow with depth, max_nodes, edge_kinds or confidence, or pass the cursor for the next page",
   "results": {
     "root_key": "KHXAWFM5ED2YEIFIEMB5NALA7L7YXNHSUJEBLU7SDAMLGKX24UAA",
@@ -138,6 +142,7 @@ The same page in the `full` view:
     "unresolved_related": 0,
     "package_level": 0
   },
+  "completeness": { "verdict": "COMPLETE" },
   "guidance": "showing 3 of 37; narrow with depth, max_nodes, edge_kinds or confidence, or pass the cursor for the next page",
   "results": {
     "root_key": "KHXAWFM5ED2YEIFIEMB5NALA7L7YXNHSUJEBLU7SDAMLGKX24UAA",
@@ -208,12 +213,25 @@ stored answer still says what it was about. `depth` and `max_nodes` echo the
 bounds that produced it, including the defaults you did not pass: the request
 above set `depth` to `1` and left `max_nodes` at `5000`.
 
-`reached` is how many symbols the traversal visited, root excluded.
-`deepest_depth` is the deepest level among the rows that survived the filters,
-not only the ones on this page; here the walk was bounded at one hop, so it is
+`reached` is how many symbols the traversal visited, the root and its own
+members excluded: a method is content of its class, not something it reaches.
+`deepest_depth` is the deepest level the walk reached, counted before the `repo`,
+`language` and derived-provider filters drop any row, so it can be deeper than
+any row that survived them; here the walk was bounded at one hop, so it is
 `1`. `total` is how many rows survived the `repo`, `language` and
 derived-provider filters, and `returned` is how many of them fit in this page:
 3 of 37.
+
+With `to`, the answer is a route and not a set. The rows are the hops of the
+shortest route in the order they are crossed, `total` and `returned` are both the
+number of hops, and `results` carries two more keys that no other answer
+has: `witness_to`, the qualified name of the symbol the route ends at, and
+`witness_hops`, the length of the route in edges. Both are absent when `to` was
+not passed. A route is always spelled in the `full` view, so
+`nodes` holds the hops and `deepest_depth` is the depth of the last one. When no
+route is found `nodes` is empty, the two witness keys are absent
+because the hop count is zero, and `guidance` says which bound produced the
+absence: the node budget, a place the index could not read, or `depth`.
 
 ### Reading a compact row
 
@@ -312,6 +330,7 @@ via_kind)` tuples out of a walk of seven:
   "total": 7,
   "returned": 7,
   "coverage": { "exact": 7 },
+  "completeness": { "verdict": "COMPLETE" },
   "results": {
     "root_key": "EOVNCHGUQS43STPNTZICMD4MI35UUDJQFFRFGLKXRPQFOCTHBUJA",
     "root_repository": "kivgraph",
@@ -377,11 +396,13 @@ There are two different truncations and they mean different things:
   and `null`.
 - `traversal_truncated` is about the walk. It is `true` when the walk hit
   `max_nodes` and stopped discovering new symbols, so rows are missing from the
-  answer itself and no cursor will produce them. Raise `max_nodes`, lower
-  `depth`, or narrow with `edge_kinds` or `confidence`. In the captured answer
-  it is `false`: the walk was complete within its bounds, only the page was
-  short -- which is why the compact payload above does not carry the field at
-  all, while the full one says `false`.
+  answer itself and no cursor will produce them. The answer says so twice
+  more: `completeness.verdict` is `LOWER_BOUND` and `guidance` names
+  `max_nodes`. Raise `max_nodes`, lower `depth`, or narrow with `edge_kinds`
+  or `confidence`. In the captured answer it is `false`: the walk was complete
+  within its bounds, only the page was short -- which is why the compact
+  payload above does not carry the field at all, while the full one says
+  `false`.
 
 To take the next page, repeat the same call and add `cursor` set to the
 `next_cursor` value, unchanged. The token is an opaque base64url wrapper around a
@@ -394,14 +415,15 @@ characters of base64-wrapped JSON. It fails closed:
 | What changed | What you get |
 | --- | --- |
 | A new generation was published | `CURSOR_SNAPSHOT_EXPIRED`; restart pagination |
-| The selector, `depth`, `max_nodes`, `repo`, `language`, `edge_kinds` or `confidence` differ from the call that produced it | `CURSOR_INVALID` |
+| The selector, `depth`, `max_nodes`, `repo`, `language`, `edge_kinds`, `confidence` or `include_derived` differ from the call that produced it | `CURSOR_INVALID` |
 | The token was edited, re-encoded, truncated, or decodes with trailing bytes after the checksum | `CURSOR_INVALID` |
 | The token was minted by a server of the previous cursor version | `CURSOR_INVALID`; the body declares version 2 and version 1 is not reinterpreted under the new layout |
 
-`limit`, `view`, `response_format` and `include_derived` are not part of the
+`limit`, `view` and `response_format` are not part of the
 cursor identity, so changing one of them mid-pagination is accepted: the same
 cursor continues the walk in another view, and changing `limit` shifts what the
-remaining pages contain.
+remaining pages contain. `include_derived` is part of it: a cursor minted
+without the flag does not continue a call that sets it, and the reverse.
 
 `guidance` appears only when the count alone would mislead. On a truncated page
 it names the bounds to narrow and the cursor, exactly as in the capture above.

@@ -5,9 +5,7 @@ description: >-
   operation.
 ---
 
-> Polls an index started by
-> [`start_index_project`](/docs/tools/start-index-project/) without starting or
-> changing any graph operation.
+> Status or result for a start_index_project operation.
 
 ## Arguments
 
@@ -36,9 +34,14 @@ An empty, malformed, unknown, or expired value returns `INVALID_ARGUMENT`.
 
 ## Terminal responses
 
-`completed` includes the same generation, snapshot, and language counts returned
-by synchronous `index_project`. `failed` includes a stable `INDEXING_FAILED`
-code and the observed cause. A failed job is a successful status lookup, so the
+`completed` carries the outcome under `result`, which is the full result of
+synchronous `index_project`: `project`, `projects`, `generation_id`,
+`snapshot_id`, `counts` and `index`. `failed` carries `failure`, an object with
+`code`, always `INDEXING_FAILED`, and `message`, which names the observed cause.
+`started_at` and `updated_at` are RFC 3339 timestamps with nanoseconds, and
+`progress` is present once the operation has reported a step and holds the last
+`phase`, `repository`, `detail`, `completed` and `total` it reported, each
+omitted when empty or zero. A failed job is a successful status lookup, so the
 failure is carried in the response rather than turning the lookup itself into an
 MCP error.
 

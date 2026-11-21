@@ -76,11 +76,11 @@ func hierarchyReferences(
 				SourceID:    source,
 				TargetID:    target,
 				Kind:        string(kind),
-				StartLine:   int(entry.selection.StartLine),
-				StartColumn: int(entry.selection.StartCharacter),
+				StartLine:   int(entry.selection.StartLine) + 1,
+				StartColumn: int(entry.selection.StartCharacter) + 1,
 				Start:       start,
-				EndLine:     int(entry.selection.EndLine),
-				EndColumn:   int(entry.selection.EndCharacter),
+				EndLine:     int(entry.selection.EndLine) + 1,
+				EndColumn:   int(entry.selection.EndCharacter) + 1,
 				End:         end,
 			})
 		}

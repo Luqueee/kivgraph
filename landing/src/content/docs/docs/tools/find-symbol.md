@@ -55,7 +55,8 @@ A search that found nothing and reports no uncertainty is claiming the name does
 not exist, when it may only mean that whatever declares it was never indexed. So
 the answer also carries a `completeness` object, whose `verdict` is `COMPLETE` or
 `LOWER_BOUND`; see [the completeness verdict](/mcp/usage/#read-the-answer). What
-bounds a declaration lookup is the scopes the index could not read, and the scope
+bounds a declaration lookup is the unresolved references that ask for this name
+and the scopes the index could not read, and the scope half
 follows the question -- `repo` narrows it to that repository, because a lookup
 charged for one unreadable package anywhere in the graph would read `LOWER_BOUND`
 on every call of the corpus and the verdict would carry no information. This is
@@ -138,8 +139,9 @@ the `full` view:
 {"snapshot_id":30,"snapshot_age_ms":21769,"total":3,"returned":3,"truncated":false,"next_cursor":null,"coverage":{"exact":0,"candidate":0,"unresolved_related":0,"package_level":0},"results":[{"stable_key":"KHXAWFM5ED2YEIFIEMB5NALA7L7YXNHSUJEBLU7SDAMLGKX24UAA","name":"MergeAll","qualified_name":"MergeAll","kind":"func","signature":"func(sets []github.com/Luqueee/kivgraph/internal/facts.Set) github.com/Luqueee/kivgraph/internal/facts.Set","exported":true,"repository":"kivgraph","file_path":"internal/facts/facts.go","start_line":516,"end_line":542},{"stable_key":"VTNOLFOCZDSMBNROBRVHV2NM5MKA37B72M2K5LPCUPR3UJG2GGIA","name":"PhaseMerge","qualified_name":"PhaseMerge","kind":"const","signature":"github.com/Luqueee/kivgraph/internal/indexer.ProgressPhase","exported":true,"repository":"kivgraph","file_path":"internal/indexer/full.go","start_line":50,"end_line":50},{"stable_key":"XKK3NUCVCH57YKL36U4SUIL3NB7FLCJ2DTSTUH3YV4Q7EW7E5ZWA","name":"Merge","qualified_name":"Set.Merge","kind":"method","signature":"func(other github.com/Luqueee/kivgraph/internal/facts.Set)","exported":true,"repository":"kivgraph","file_path":"internal/facts/facts.go","start_line":505,"end_line":507}]}
 ```
 
-A name nobody declares is an empty `symbols` list -- an empty array in the `full`
-view -- and not an error. With every counter at zero, `coverage` is absent too:
+A name nobody declares is an empty answer and not an error: the compact view has
+no `symbols` key and the `full` view an empty array, and either one carries a
+`completeness` object and a `guidance` sentence. With every counter at zero, `coverage` is absent too:
 
 ```json
 {
@@ -231,8 +233,8 @@ exhaust `total`; the compact view omits both when it does not. The cursor is an
 opaque, checksummed base64url token about 31 characters long -- a binary body,
 not the 314 characters of base64-wrapped JSON the previous version spelled -- and
 it is bound to the snapshot identifier, to the sorting version `stable-key-v1`
-and to the query identity: the tool name, `name`, `mode`, `kind`, `repo` and
-`path_prefix`. Change any of those and the token no longer matches, which fails
+and to the query identity: the tool name, `name`, `mode`, `kind`, `repo`,
+`path_prefix` and `include_derived`. Change any of those and the token no longer matches, which fails
 as `CURSOR_INVALID`, and so does a token edited, truncated, re-encoded or left
 with trailing bytes after its checksum. A token minted by a server of the
 previous cursor version fails closed the same way: the body declares version 2

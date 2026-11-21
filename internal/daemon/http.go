@@ -16,7 +16,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	sdkauth "github.com/modelcontextprotocol/go-sdk/auth"
@@ -284,12 +283,21 @@ func ListenHTTP(options Options, httpOptions HTTPOptions) (*HTTPServer, error) {
 		}
 		if httpOptions.OnWarning != nil {
 			httpOptions.OnWarning(fmt.Sprintf(
-				"serving the graph on %s, which is not loopback: names, paths and source metadata leave this host", address))
+				"serving the graph on %s, which is not loopback: names, paths and source metadata leave this host", address,
+			))
 		}
 	}
 
 	if err := os.MkdirAll(options.StateDirectory, 0o700); err != nil {
 		return nil, fmt.Errorf("create the state directory: %w", err)
+	}
+	// Before anything is written. A second start for the same state directory
+	// used to find the port busy, fall back to a fresh one, persist it and
+	// rewrite the endpoint, and only then be refused at the socket -- leaving
+	// the daemon that was running undiscoverable and on a different port after
+	// its next restart.
+	if err := refuseLiveDaemon(options.StateDirectory); err != nil {
+		return nil, err
 	}
 	token, err := loadOrCreateToken(options.StateDirectory, httpOptions.OnWarning)
 	if err != nil {
@@ -308,7 +316,7 @@ func ListenHTTP(options Options, httpOptions HTTPOptions) (*HTTPServer, error) {
 		})
 	}
 	err = bind()
-	if err != nil && automaticPort && errors.Is(err, syscall.EADDRINUSE) {
+	if err != nil && automaticPort && isAddressInUse(err) {
 		// The historical port is a preference, not an identity. Bind port zero
 		// only after the preferred port is unavailable, then persist the result
 		// so the URL remains stable for every later supervisor restart.
@@ -455,7 +463,8 @@ func mcpHandler(options Options, token string) http.Handler {
 	handler := sdkmcp.NewStreamableHTTPHandler(func(*http.Request) *sdkmcp.Server {
 		return kivmcp.NewServerWithMetricsAndSnapshotStoreAndIndexerOptions(
 			options.Registry, options.SnapshotStore, options.Indexer,
-			kivmcp.ServerOptions{IndexJobs: options.IndexJobs})
+			kivmcp.ServerOptions{IndexJobs: options.IndexJobs},
+		)
 	}, &sdkmcp.StreamableHTTPOptions{CrossOriginProtection: crossOrigin})
 
 	// The comparison is constant-time, and no test in this package proves it:

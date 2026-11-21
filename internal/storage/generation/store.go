@@ -45,6 +45,7 @@ func (store *Store) CheckSpace(ctx context.Context, estimatedSnapshotBytes int64
 func (store *Store) Publish(ctx context.Context, request PublishRequest) (publication Publication, returnErr error) {
 	store.mu.Lock()
 	defer store.mu.Unlock()
+	steps, mark := publishTimer()
 	if err := validatePublishRequest(request); err != nil {
 		return Publication{}, err
 	}
@@ -101,6 +102,7 @@ func (store *Store) Publish(ctx context.Context, request PublishRequest) (public
 		returnErr = errors.Join(returnErr, cleanupErr)
 	}()
 
+	mark("setup")
 	candidate := store.generation(request.ID, candidatePath)
 	if err := request.Build(ctx, candidatePath); err != nil {
 		return Publication{}, fmt.Errorf("build candidate generation: %w", err)
@@ -108,15 +110,19 @@ func (store *Store) Publish(ctx context.Context, request PublishRequest) (public
 	if err := requireRegular(candidate.DatabasePath); err != nil {
 		return Publication{}, fmt.Errorf("candidate database: %w", err)
 	}
+	mark("build")
 	if err := store.syncTree(ctx, candidatePath); err != nil {
 		return Publication{}, fmt.Errorf("sync candidate generation: %w", err)
 	}
+	mark("sync candidate")
 	if err := request.Validate(ctx, candidate); err != nil {
 		return Publication{}, fmt.Errorf("validate candidate generation: %w", err)
 	}
+	mark("validate")
 	if err := store.syncTree(ctx, candidatePath); err != nil {
 		return Publication{}, fmt.Errorf("sync validated generation: %w", err)
 	}
+	mark("sync validated")
 	if err := store.before(OperationRenameGeneration, candidatePath); err != nil {
 		return Publication{}, err
 	}
@@ -150,11 +156,38 @@ func (store *Store) Publish(ctx context.Context, request PublishRequest) (public
 		return Publication{}, fmt.Errorf("clear previous failure: %w", err)
 	}
 	candidateCreated = false
+	mark("commit")
 	return Publication{
 		Generation: store.generation(request.ID, finalPath),
 		PreviousID: previous.ID,
 		Space:      space,
+		Steps:      *steps,
 	}, nil
+}
+
+// publishTimer returns the list of steps Publish has finished and the function
+// that closes the one in progress. It only reads the clock: it changes nothing
+// about what Publish does or in which order.
+func publishTimer() (*[]PublishStep, func(string)) {
+	steps := make([]PublishStep, 0, 6)
+	last := time.Now()
+	return &steps, func(name string) {
+		now := time.Now()
+		steps = append(steps, PublishStep{Name: name, DurationMS: float64(now.Sub(last)) / float64(time.Millisecond)})
+		last = now
+	}
+}
+
+// lockStore takes the cross-process publish lock for an operation that moves
+// a pointer or removes a generation.
+//
+// Publish reads CURRENT, builds for minutes and only then writes the
+// pointers. Anything that changed them in between was overwritten without a
+// word: a rollback reported success and the rebuild in flight undid it.
+// Holding the same lock makes the two exclude each other, and the loser is
+// told with ErrPublishInProgress instead of being undone.
+func (store *Store) lockStore() (*publishLock, error) {
+	return acquirePublishLock(filepath.Join(store.root, "publish.lock"))
 }
 
 func (store *Store) Restore(ctx context.Context, id string, validate ValidateFunc) (returnErr error) {
@@ -169,6 +202,13 @@ func (store *Store) Restore(ctx context.Context, id string, validate ValidateFun
 	if err := store.prepare(ctx); err != nil {
 		return err
 	}
+	lock, err := store.lockStore()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		returnErr = errors.Join(returnErr, lock.release())
+	}()
 	previous, err := store.currentGeneration()
 	if err != nil {
 		return err

@@ -125,7 +125,7 @@ func TestRunUpdatePassesTheDevelopmentChannel(t *testing.T) {
 		}
 		return update.Result{
 			CurrentVersion:  version.Value,
-			LatestVersion:   "0.10.0-dev.1",
+			LatestVersion:   "0.10.1-dev.1",
 			UpdateAvailable: true,
 			Channel:         update.ChannelDevelopment,
 		}, nil
@@ -135,7 +135,7 @@ func TestRunUpdatePassesTheDevelopmentChannel(t *testing.T) {
 		runner, noProcesses, nil, nil, true); got != 0 {
 		t.Fatalf("runUpdateWithRunner(%#v, true) exit code = %d, stderr=%q", args, got, stderr.String())
 	}
-	if got, want := stdout.String(), "kivgraph update available (dev channel): "+version.Value+" -> 0.10.0-dev.1\n"; got != want {
+	if got, want := stdout.String(), "kivgraph update available (dev channel): "+version.Value+" -> 0.10.1-dev.1\n"; got != want {
 		t.Fatalf("runUpdateWithRunner(%#v, true) stdout = %q, want %q", args, got, want)
 	}
 }
@@ -623,8 +623,8 @@ func TestRunConfiguredUIListensOnEveryInterfaceByDefault(t *testing.T) {
 	}
 
 	err := runConfiguredUI(context.Background(), []string{"--config", configPath}, func(_ context.Context, address string, _ http.Handler) error {
-		if address != "0.0.0.0:7777" {
-			t.Fatalf("address = %q, want 0.0.0.0:7777", address)
+		if address != "127.0.0.1:7777" {
+			t.Fatalf("address = %q, want 127.0.0.1:7777", address)
 		}
 		return nil
 	}, true)
@@ -1358,6 +1358,11 @@ func TestRunRollbackPrintsTransitionDigestsAndInvariants(t *testing.T) {
 	}
 	if !strings.Contains(out, "rollback result: PASS") {
 		t.Fatalf("stdout missing overall verdict: %q", out)
+	}
+	// CURRENT moved back, and a server already running never follows it.
+	notice := "running serve, daemon and ui processes keep serving 000002 until they restart: run `kivgraph stop`"
+	if !strings.Contains(out, notice) {
+		t.Fatalf("stdout does not say running servers were left behind: %q", out)
 	}
 }
 
@@ -2112,6 +2117,7 @@ func TestWriteIndexSummaryNamesWhatWasNotLoaded(t *testing.T) {
 		RustWorkspacesNotLoaded:     2,
 		PythonRepositoriesNotLoaded: 3,
 		DartRepositoriesNotLoaded:   4,
+		TypeScriptNotLoaded:         5,
 	})
 
 	report := stdout.String()
@@ -2119,6 +2125,7 @@ func TestWriteIndexSummaryNamesWhatWasNotLoaded(t *testing.T) {
 		"index.go: repositories=0 modules=0 not_loaded=1",
 		"index.rust: repositories=0 workspaces=0 crates=0 not_loaded=2",
 		"index.python: repositories=0 not_loaded=3",
+		"index.typescript: repositories=0 not_loaded=5",
 		"index.dart: repositories=0 not_loaded=4",
 	} {
 		if !strings.Contains(report, want) {
@@ -2130,6 +2137,92 @@ func TestWriteIndexSummaryNamesWhatWasNotLoaded(t *testing.T) {
 	for _, language := range [...]string{"index.go:", "index.typescript:", "index.rust:", "index.python:", "index.dart:"} {
 		if !strings.Contains(report, language) {
 			t.Errorf("report does not name %s:\n%s", language, report)
+		}
+	}
+}
+
+// The counts say that something was not read; these lines are the only place
+// that says what and why. A pass that leaves a repository out now exits 0, so
+// a line that stops being printed is a repository that vanishes unannounced.
+func TestWriteIndexDetailsNamesWhatWasNotRead(t *testing.T) {
+	var stdout bytes.Buffer
+	writeIndexDetails(&stdout, indexer.FullReport{
+		GoModulesNotRead:          []string{"api: example.com/api: no Go files"},
+		GoDiagnostics:             []string{"api/a.go:1:1: undefined: x"},
+		TypeScriptWithoutPackages: []string{"tools"},
+		TypeScriptNotRead: []string{
+			"web: REPOSITORY_NOT_LOADED: parse tsconfig.json",
+			"web: @web/ui: PACKAGE_NOT_LOADED: worker exited",
+		},
+		RustDiagnostics: []string{"core: unresolved macro"},
+		SemanticNotRead: []string{
+			"python: jobs: REPOSITORY_NOT_LOADED: producer exited",
+			"csharp: svc: REPOSITORY_NOT_LOADED: no .sln or .csproj in svc",
+			// A line with no language in front is still printed, and says so.
+			"malformed",
+		},
+		RustWithoutWorkspaces: []string{"docs"},
+	})
+	want := strings.Join([]string{
+		"index.go.not_read: api: example.com/api: no Go files",
+		"index.go.diagnostic: api/a.go:1:1: undefined: x",
+		"index.typescript.no_package: tools declares no package with a TypeScript project, so it contributes nothing",
+		"index.typescript.not_read: web: REPOSITORY_NOT_LOADED: parse tsconfig.json",
+		"index.typescript.not_read: web: @web/ui: PACKAGE_NOT_LOADED: worker exited",
+		"index.rust.diagnostic: core: unresolved macro",
+		"index.python.not_read: jobs: REPOSITORY_NOT_LOADED: producer exited",
+		"index.csharp.not_read: svc: REPOSITORY_NOT_LOADED: no .sln or .csproj in svc",
+		"index.semantic.not_read: malformed",
+		"index.rust.no_workspace: docs declares no Cargo manifest, so it contributes nothing",
+		"",
+	}, "\n")
+	if got := stdout.String(); got != want {
+		t.Errorf("details:\n%s\nwant:\n%s", got, want)
+	}
+
+	// Nothing to name is nothing printed: a clean pass has no warning lines.
+	stdout.Reset()
+	writeIndexDetails(&stdout, indexer.FullReport{})
+	if stdout.Len() != 0 {
+		t.Errorf("a clean report printed %q", stdout.String())
+	}
+
+	// The other languages share one list and are bounded each on its own, so
+	// the line that counts the rest says whose they are, and one language's
+	// failures do not push another's out of the report.
+	var shared []string
+	for index := range 22 {
+		shared = append(shared, fmt.Sprintf("python: p%d: x", index))
+	}
+	shared = append(shared[:5:5], append([]string{"dart: app: x"}, shared[5:]...)...)
+	stdout.Reset()
+	writeIndexDetails(&stdout, indexer.FullReport{SemanticNotRead: shared})
+	printed := strings.Split(strings.TrimSuffix(stdout.String(), "\n"), "\n")
+	if len(printed) != 22 || printed[19] != "index.python.not_read: p19: x" ||
+		printed[20] != "index.python.not_read: and 2 more" || printed[21] != "index.dart.not_read: app: x" {
+		t.Errorf("22 Python failures and one Dart printed %d lines, ending %q", len(printed), printed[max(0, len(printed)-3):])
+	}
+
+	// Twenty are printed and the rest are counted, per list, on both sides
+	// of the limit.
+	for _, testCase := range [...]struct {
+		lines, printed int
+		last           string
+	}{
+		{20, 21, "index.typescript.not_read: web: p19"},
+		{21, 22, "index.typescript.not_read: and 1 more"},
+	} {
+		var lines []string
+		for index := range testCase.lines {
+			lines = append(lines, fmt.Sprintf("web: p%d", index))
+		}
+		stdout.Reset()
+		writeIndexDetails(&stdout, indexer.FullReport{TypeScriptNotRead: lines, SemanticNotRead: []string{"dart: app: x"}})
+		printed := strings.Split(strings.TrimSuffix(stdout.String(), "\n"), "\n")
+		// The limit of one list takes nothing from the next.
+		if len(printed) != testCase.printed || printed[len(printed)-2] != testCase.last ||
+			printed[len(printed)-1] != "index.dart.not_read: app: x" {
+			t.Errorf("%d lines printed %d, ending %q", testCase.lines, len(printed), printed[max(0, len(printed)-2):])
 		}
 	}
 }

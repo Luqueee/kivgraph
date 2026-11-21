@@ -5,6 +5,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
+	"sort"
 	"testing"
 
 	"github.com/Luqueee/kivgraph/internal/workspace"
@@ -1427,4 +1429,169 @@ func implementationCoverageRows(rows []UnresolvedReference) []UnresolvedReferenc
 		}
 	}
 	return coverage
+}
+
+// A qualified name is not unique in a file: every parameter of an arrow function
+// assigned to a `const` is just its own name, and a method of an object literal
+// may share it. `ky`'s `body.ts` has two parameters, a loop variable and two
+// methods all called `value`, and every use of any of them was linked to the
+// last one declared, so a method with no callers reported the uses of every
+// other `value` in the file. The offset where each declaration starts is what
+// tells them apart; a payload from a worker that predates it still resolves.
+func TestNormalizeTypeScriptTellsApartSymbolsThatShareAQualifiedName(t *testing.T) {
+	number := func(value int) *int { return &value }
+	payload := TypeScriptPayload{
+		Version:    TypeScriptWireVersion,
+		Repository: TypeScriptRepository{Name: "core"},
+		Package: &TypeScriptPackage{
+			Name: "@kivgraph-fixture/core", Version: "1.0.0",
+			RootPath: ".", ManifestPath: "package.json",
+		},
+		Files: []string{"src/body.ts"},
+		Symbols: []TypeScriptSymbol{
+			{File: "src/body.ts", Name: "cancelBody", QualifiedName: "cancelBody", Kind: "variable", Signature: "(value: Request) => void", StartLine: 1, EndLine: 3, Start: 0, End: 90},
+			{File: "src/body.ts", Name: "value", QualifiedName: "value", Kind: "parameter", Signature: "Request", StartLine: 1, EndLine: 1, Start: 30, End: 43},
+			{File: "src/body.ts", Name: "value", QualifiedName: "value", Kind: "method", Signature: "() => number", StartLine: 9, EndLine: 11, Start: 300, End: 340},
+		},
+		References: []TypeScriptReference{
+			{
+				File: "src/body.ts", Kind: "REFERENCES", Text: "value", StartLine: 2, Start: 60, End: 65,
+				SourceQualifiedName: "cancelBody", SourceStart: number(0),
+				TargetFile: "src/body.ts", TargetQualifiedName: "value", TargetStart: number(30),
+			},
+			{
+				File: "src/body.ts", Kind: "REFERENCES", Text: "cancelBody", StartLine: 10, Start: 320, End: 330,
+				SourceQualifiedName: "value", SourceStart: number(300),
+				TargetFile: "src/body.ts", TargetQualifiedName: "cancelBody", TargetStart: number(0),
+			},
+			{
+				// What a worker that predates the offsets sends.
+				File: "src/body.ts", Kind: "REFERENCES", Text: "value", StartLine: 2, Start: 70, End: 75,
+				SourceQualifiedName: "cancelBody",
+				TargetFile:          "src/body.ts", TargetQualifiedName: "value",
+			},
+		},
+	}
+	set, report, err := NormalizeTypeScript(context.Background(), payload, workspace.Repository{RealPath: "/repositories/core"})
+	if err != nil {
+		t.Fatalf("NormalizeTypeScript() error = %v", err)
+	}
+	if err := set.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+	if report.EdgesWithoutSource != 0 || report.EdgesWithoutTarget != 0 {
+		t.Fatalf("edges without source/target = %d/%d, want every reference resolved", report.EdgesWithoutSource, report.EdgesWithoutTarget)
+	}
+
+	kinds := map[string]string{}
+	for _, symbol := range set.Symbols {
+		kinds[symbol.Key] = symbol.Kind + " " + symbol.QualifiedName
+	}
+	var got []string
+	for _, edge := range set.Edges {
+		if edge.Kind == References {
+			got = append(got, kinds[edge.SourceKey]+" -> "+kinds[edge.TargetKey])
+		}
+	}
+	sort.Strings(got)
+	if len(got) != 3 {
+		t.Fatalf("edges = %v, want one per reference", got)
+	}
+	if !slices.Contains(got, "method value -> variable cancelBody") {
+		t.Fatalf("the use inside the method was sourced at another value; edges = %v", got)
+	}
+	if !slices.Contains(got, "variable cancelBody -> parameter value") {
+		t.Fatalf("the use of the parameter was linked elsewhere; edges = %v", got)
+	}
+	// The third reference has no offset, so which `value` it reaches is the old
+	// behaviour and not asserted: only that the one with an offset did not.
+	toMethod := 0
+	for _, edge := range got {
+		if edge == "variable cancelBody -> method value" {
+			toMethod++
+		}
+	}
+	if toMethod > 1 {
+		t.Fatalf("%d uses reach the method, want at most the one with no offset: %v", toMethod, got)
+	}
+}
+
+// TestNormalizeTypeScriptKeepsDeclarationsThatShareEveryIdentityComponent pins
+// the case ky has dozens of: the parameter `value: string` of two functions in
+// one file is one identity, and the graph used to hold one symbol for both, so
+// every use of either was an edge to the same node. The first keeps the key it
+// always had, which is what keeps a graph built before this valid.
+func TestNormalizeTypeScriptKeepsDeclarationsThatShareEveryIdentityComponent(t *testing.T) {
+	number := func(value int) *int { return &value }
+	payload := TypeScriptPayload{
+		Version:    TypeScriptWireVersion,
+		Repository: TypeScriptRepository{Name: "core"},
+		Package: &TypeScriptPackage{
+			Name: "@kivgraph-fixture/core", Version: "1.0.0",
+			RootPath: ".", ManifestPath: "package.json",
+		},
+		Files: []string{"src/body.ts"},
+		Symbols: []TypeScriptSymbol{
+			{File: "src/body.ts", Name: "first", QualifiedName: "first", Kind: "function", Signature: "(value: string) => number", StartLine: 1, EndLine: 1, Start: 0, End: 50},
+			{File: "src/body.ts", Name: "value", QualifiedName: "value", Kind: "parameter", Signature: "value: string", StartLine: 1, EndLine: 1, Start: 16, End: 29},
+			{File: "src/body.ts", Name: "second", QualifiedName: "second", Kind: "function", Signature: "(value: string) => number", StartLine: 2, EndLine: 2, Start: 60, End: 110},
+			{File: "src/body.ts", Name: "value", QualifiedName: "value", Kind: "parameter", Signature: "value: string", StartLine: 2, EndLine: 2, Start: 77, End: 90},
+			{File: "src/body.ts", Name: "value", QualifiedName: "value", Kind: "parameter", Signature: "value: string", StartLine: 3, EndLine: 3, Start: 120, End: 133},
+		},
+		References: []TypeScriptReference{
+			{File: "src/body.ts", Kind: "REFERENCES", Text: "value", StartLine: 1, Start: 40, End: 45,
+				SourceQualifiedName: "first", SourceStart: number(0),
+				TargetFile: "src/body.ts", TargetQualifiedName: "value", TargetStart: number(16)},
+			{File: "src/body.ts", Kind: "REFERENCES", Text: "value", StartLine: 2, Start: 100, End: 105,
+				SourceQualifiedName: "second", SourceStart: number(60),
+				TargetFile: "src/body.ts", TargetQualifiedName: "value", TargetStart: number(77)},
+		},
+	}
+	set, _, err := NormalizeTypeScript(context.Background(), payload, workspace.Repository{RealPath: "/repositories/core"})
+	if err != nil {
+		t.Fatalf("NormalizeTypeScript() error = %v", err)
+	}
+	if err := set.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+
+	var values []Symbol
+	for _, symbol := range set.Symbols {
+		if symbol.Kind == "parameter" {
+			values = append(values, symbol)
+		}
+	}
+	if len(values) != 3 {
+		t.Fatalf("parameters = %d, want the three declarations", len(values))
+	}
+	// The set is sorted by key; the declarations are told apart by position.
+	sort.Slice(values, func(i, j int) bool { return values[i].Start.Offset < values[j].Start.Offset })
+	keys := map[string]bool{}
+	for _, symbol := range values {
+		keys[symbol.Key] = true
+	}
+	if len(keys) != 3 {
+		t.Fatalf("parameters share %d keys, want one each", len(keys))
+	}
+	original, err := typeScriptSymbolIdentity("core", "@kivgraph-fixture/core", "src/body.ts", "value", "parameter", "value: string").Key()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if values[0].Key != string(original) {
+		t.Fatalf("the first declaration's key changed: %s, want %s", values[0].Key, original)
+	}
+
+	names := map[string]string{}
+	for _, symbol := range set.Symbols {
+		names[symbol.Key] = symbol.QualifiedName
+	}
+	reached := map[string]string{}
+	for _, edge := range set.Edges {
+		if edge.Kind == References {
+			reached[names[edge.SourceKey]] = edge.TargetKey
+		}
+	}
+	if reached["first"] != values[0].Key || reached["second"] != values[1].Key {
+		t.Fatalf("uses reach %v, want first -> %s and second -> %s", reached, values[0].Key, values[1].Key)
+	}
 }

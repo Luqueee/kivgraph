@@ -32,12 +32,111 @@ def point(node, starts, text):
             "endLine": end_line, "endColumn": end_column, "end": end}
 
 
+# A quoted annotation is source like any other: `def f(ctx: "Context")` uses
+# Context exactly as the unquoted form does, and so does `t.cast("Context", x)`.
+# Read as a string constant it is no occurrence at all -- no edge and no
+# unresolved row -- and a declaration used only that way was answered as used by
+# nobody, with a verdict of COMPLETE.
+def is_quoted_annotation(node):
+    if not (isinstance(node, ast.Constant) and isinstance(node.value, str)):
+        return False
+    child, parent = node, getattr(node, "parent", None)
+    while isinstance(parent, (ast.Subscript, ast.Tuple, ast.List, ast.BinOp)):
+        if isinstance(parent, ast.Subscript):
+            head = parent.value
+            name = head.id if isinstance(head, ast.Name) else getattr(head, "attr", "")
+            # The strings of `Literal["a"]` are values and those of
+            # `Annotated[T, "note"]` are metadata; neither names anything.
+            if name in {"Literal", "Annotated"}:
+                return False
+        child, parent = parent, getattr(parent, "parent", None)
+    if isinstance(parent, (ast.arg, ast.AnnAssign)) and parent.annotation is child:
+        return True
+    if isinstance(parent, (ast.FunctionDef, ast.AsyncFunctionDef)) and parent.returns is child:
+        return True
+    if isinstance(parent, ast.Call) and child is node and parent.args and parent.args[0] is node:
+        callee = parent.func
+        return (callee.id if isinstance(callee, ast.Name) else getattr(callee, "attr", "")) == "cast"
+    return False
+
+
+# quoted_names yields the names a quoted annotation uses, with where each one is
+# in the file. Only a plain one-line ASCII literal is read: anything else -- a
+# prefix, an escape, a concatenation -- would put the offsets somewhere the name
+# is not, and an occurrence with the wrong evidence is worse than none.
+def quoted_names(node, text, start):
+    value = node.value
+    if not value.isascii() or "\n" in value or text[start:start + 1] not in ("'", '"'):
+        return
+    if text[start + 1:start + 1 + len(value)] != value:
+        return
+    try:
+        tree = ast.parse(value, mode="eval")
+    except SyntaxError:
+        return
+    for inner in ast.walk(tree):
+        if isinstance(inner, ast.Name):
+            yield inner.id, start + 1 + inner.col_offset, False
+        elif isinstance(inner, ast.Attribute):
+            yield inner.attr, start + 1 + inner.end_col_offset - len(inner.attr), True
+
+
+def span(text, start, length):
+    line_start = text.rfind("\n", 0, start) + 1
+    line = text.count("\n", 0, start) + 1
+    column = start - line_start
+    return {"startLine": line, "startColumn": column, "start": start,
+            "endLine": line, "endColumn": column + length, "end": start + length}
+
+
 def module_name(root, path):
     relative = pathlib.Path(path).relative_to(root).with_suffix("")
     parts = list(relative.parts)
     if parts and parts[-1] == "__init__":
         parts.pop()
     return ".".join(parts) or root.name
+
+
+# is_test_path is internal/testpath.Is, the one rule that says a path is a test
+# file. It is written twice because this worker has to decide what to read
+# before the graph exists, and a test in internal/pythonloader holds the two to
+# the same answer over a corpus of paths. With a rule of its own the worker
+# left `test_models.py` in the graph as production code while `exclude_tests`
+# filtered it as a test.
+TEST_DIRECTORIES = {"test", "tests", "__tests__", "spec", "specs", "integration_test"}
+
+
+def is_test_path(relative):
+    normalized = relative.lower()
+    directory, _, base = normalized.rpartition("/")
+    if (base.endswith(("_test.go", "_test.py", "_test.dart")) or
+            (base.startswith("test_") and base.endswith(".py")) or base == "conftest.py" or
+            ".test." in base or ".spec." in base):
+        return True
+    original = relative.rpartition("/")[2]
+    stem, dot, extension = original.rpartition(".")
+    if dot and extension in {"java", "cs"} and stem.endswith(("Test", "Tests")):
+        return True
+    if any(component in TEST_DIRECTORIES for component in directory.split("/")):
+        return True
+    return "/src/it/" in "/" + directory + "/"
+
+
+# package_name is what a module is imported as when a directory above it is the
+# import root: `src/click/core.py` is `click.core`, because `click` is a package
+# and `src` is not. It is empty when that is the name the file already has, or
+# when the file is in no package at all.
+def package_name(root, path):
+    parts = list(pathlib.Path(path).relative_to(root).with_suffix("").parts)
+    directory, kept = pathlib.Path(path).parent, 1
+    while directory != root and ((directory / "__init__.py").is_file() or (directory / "__init__.pyi").is_file()):
+        directory, kept = directory.parent, kept + 1
+    if kept == 1 or kept >= len(parts):
+        return ""
+    name = parts[-kept:]
+    if name[-1] == "__init__":
+        name.pop()
+    return ".".join(name)
 
 
 def exported(name):
@@ -57,7 +156,7 @@ def main():
         if not path.is_file() or path.suffix not in (".py", ".pyi"):
             continue
         relative_parts = path.relative_to(root).parts
-        if not args.include_tests and any(part in {"test", "tests", "integration_test"} for part in relative_parts):
+        if not args.include_tests and is_test_path("/".join(relative_parts)):
             continue
         if not args.include_generated and any(part.endswith(("_generated.py", ".generated.py", ".pyc")) or part in {"__pycache__", "build", "dist", ".tox"} for part in relative_parts):
             continue
@@ -132,6 +231,93 @@ def main():
 
         visit(tree, module, None)
 
+    # A module is also reachable by its package name, which is the one an import
+    # outside the package writes. A name two modules would claim, or one that is
+    # already some module's own, is left out: this worker does not choose.
+    aliases = {}
+    for path in tree_by_path:
+        alias = package_name(root, path)
+        if alias:
+            aliases[module_name(root, path)] = alias
+    claimed = {}
+    for alias in aliases.values():
+        claimed[alias] = claimed.get(alias, 0) + 1
+    aliases = {module: alias for module, alias in aliases.items()
+               if claimed[alias] == 1 and (alias, "__module__") not in symbol_by_module_name}
+    module_of_id = {symbol_id: module for (module, name), symbol_id in symbol_by_module_name.items()
+                    if name == "__module__"}
+    for (module, name), symbol_id in list(symbol_by_module_name.items()):
+        if module in aliases:
+            symbol_by_module_name.setdefault((aliases[module], name), symbol_id)
+
+    def import_base(module, path, node):
+        base = node.module or ""
+        if not node.level:
+            return base
+        # One dot is the package the module is in. For `__init__` that is the
+        # module itself, which is its own package.
+        up = node.level - 1 if path.stem == "__init__" else node.level
+        prefix = module.split(".")
+        prefix = prefix[:len(prefix) - up] if up else prefix
+        return ".".join(prefix + ([base] if base else []))
+
+    # What a module makes available without declaring it: `from .core import
+    # Command` in `__init__` is why `click.Command` exists. Followed until
+    # nothing new resolves, because a package re-exports what its subpackages
+    # re-export.
+    exports = {}
+
+    # A name one module binds to two declarations: an import under a platform
+    # test and a `def` in the other branch, or two imports under `try`. Which
+    # one a use means is decided when the program runs, and this worker does
+    # not choose. It attributed every use to one of them, and the other was
+    # answered as used by nobody, COMPLETE.
+    contested = set()
+
+    def lookup(module, name):
+        if (module, name) in contested:
+            return None
+        return (symbol_by_module_name.get((module, name)) or exports.get((module, name)) or
+                symbol_by_module_name.get((module + "." + name, "__module__")))
+
+    imported = []
+    for path, tree in tree_by_path.items():
+        module = module_name(root, path)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom):
+                base = import_base(module, path, node)
+                imported.extend((module, base, alias.name, alias.asname or alias.name) for alias in node.names)
+
+    def follow_imports():
+        for _ in range(16):
+            progressed = False
+            for module, base, name, local in imported:
+                if (module, local) in symbol_by_module_name or (module, local) in exports or (module, local) in contested:
+                    continue
+                target = lookup(base, name)
+                if target:
+                    exports[(module, local)] = target
+                    if module in aliases:
+                        exports.setdefault((aliases[module], local), target)
+                    progressed = True
+            if not progressed:
+                break
+
+    follow_imports()
+    bound = {}
+    for module, base, name, local in imported:
+        targets = bound.setdefault((module, local), {symbol_by_module_name.get((module, local))})
+        targets.add(lookup(base, name))
+    for (module, local), targets in bound.items():
+        if len(targets - {None}) > 1:
+            contested.add((module, local))
+            if module in aliases:
+                contested.add((aliases[module], local))
+    if contested:
+        # What was re-exported through a contested name is not known either.
+        exports.clear()
+        follow_imports()
+
     # A dynamic module can assign the same name more than once. The canonical
     # graph has one DEFINES edge per durable symbol, so retain the first
     # declaration and let later assignments remain ordinary references or
@@ -146,6 +332,12 @@ def main():
     for symbol in symbols:
         module = symbol["qualifiedName"].split(".")
         symbols_by_short.setdefault((".".join(module[:-1]), symbol["name"]), []).append(symbol)
+
+    def named(module, name, bindings):
+        if (module, name) in contested:
+            return None
+        candidates = symbols_by_short.get((module, name), [])
+        return bindings.get(name) or (candidates[0]["id"] if len(candidates) == 1 else None)
 
     def source_symbol(path, offset):
         candidates = [symbol for symbol in symbols
@@ -180,24 +372,17 @@ def main():
                     if target:
                         local_bindings[local] = target
             elif isinstance(node, ast.ImportFrom):
-                base = node.module or ""
-                if node.level:
-                    prefix = module.split(".")[:-node.level]
-                    base = ".".join(prefix + ([base] if base else []))
+                base = import_base(module, path, node)
                 for alias in node.names:
                     local = alias.asname or alias.name
-                    target = symbol_by_module_name.get((base, alias.name))
+                    target = lookup(base, alias.name)
                     imports.append({"file": relative, "requestedPackage": base, "requestedSymbol": alias.name,
                                     "targetId": target or "", **point(node, starts, text)})
                     if target:
                         local_bindings[local] = target
             elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
                 source_id = source_symbol(relative, getattr(node, "col_offset", 0) + starts[getattr(node, "lineno", 1) - 1])
-                target = local_bindings.get(node.id)
-                if not target:
-                    candidates = symbols_by_short.get((module, node.id), [])
-                    if len(candidates) == 1:
-                        target = candidates[0]["id"]
+                target = named(module, node.id, local_bindings)
                 if not target:
                     unresolved.append({"file": relative, "sourceId": source_id, "requestedSymbol": node.id,
                                        "reason": "NAME_NOT_RESOLVED", **point(node, starts, text)})
@@ -218,6 +403,39 @@ def main():
                 else:
                     kind = "REFERENCES"
                 references.append({"file": relative, "sourceId": source_id, "targetId": target, "kind": kind, **point(node, starts, text), "text": node.id})
+            elif isinstance(node, ast.Attribute):
+                # This worker reads names, not types, so it cannot say what
+                # `ctx.scope` or `termui.prompt` is. It can say that it saw one
+                # and did not resolve it, and it has to: with no row at all, a
+                # method used through every one of its receivers was answered
+                # as used by nobody, and the answer said COMPLETE.
+                end = point(node, starts, text)["end"]
+                occurrence = span(text, end - len(node.attr), len(node.attr))
+                # The one member it can name: `module.member`, where the module
+                # is one this file imported. That is reading an import, which
+                # is what the worker does, and not inferring a type.
+                owner = local_bindings.get(node.value.id) if isinstance(node.value, ast.Name) else None
+                target = lookup(module_of_id[owner], node.attr) if owner in module_of_id else None
+                if target:
+                    parent = getattr(node, "parent", None)
+                    kind = "CALLS_DIRECT" if isinstance(parent, ast.Call) and parent.func is node else (
+                        "TYPE_USES" if is_type_position(node) else "REFERENCES")
+                    references.append({"file": relative, "sourceId": source_symbol(relative, occurrence["start"]),
+                                       "targetId": target, "kind": kind, **occurrence, "text": node.attr})
+                    continue
+                unresolved.append({"file": relative, "sourceId": source_symbol(relative, occurrence["start"]),
+                                   "requestedSymbol": node.attr, "reason": "NAME_NOT_RESOLVED", **occurrence})
+            elif is_quoted_annotation(node):
+                for name, offset, member in quoted_names(node, text, point(node, starts, text)["start"]):
+                    occurrence = span(text, offset, len(name))
+                    source_id = source_symbol(relative, offset)
+                    target = None if member else named(module, name, local_bindings)
+                    if not target:
+                        unresolved.append({"file": relative, "sourceId": source_id, "requestedSymbol": name,
+                                           "reason": "NAME_NOT_RESOLVED", **occurrence})
+                        continue
+                    references.append({"file": relative, "sourceId": source_id, "targetId": target,
+                                       "kind": "TYPE_USES", **occurrence, "text": name})
 
     # Keep a source-text fallback for call expressions whose AST parent is a
     # selector or a wrapped expression.

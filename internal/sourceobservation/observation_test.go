@@ -852,6 +852,12 @@ func TestIsAnalyzedSourceRecognizesSourceAndBuildInputs(t *testing.T) {
 		{name: "main.go", want: true},
 		{name: "Cargo.lock", want: true},
 		{name: "requirements-dev.txt", want: true},
+		{name: "rust-toolchain.toml", want: true},
+		{name: "rust-toolchain", want: true},
+		{name: "crates/engine/rust-toolchain.toml", want: true},
+		{name: "Rust-Toolchain.TOML", want: true},
+		{name: "my-rust-toolchain.toml", want: false},
+		{name: "rust-toolchain.toml.bak", want: false},
 		{name: "README.md", want: false},
 	}
 	for _, test := range cases {

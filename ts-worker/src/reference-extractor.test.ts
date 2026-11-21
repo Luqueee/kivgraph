@@ -154,6 +154,177 @@ target(2);
     ).toBe(true);
   });
 
+  it("resolves uses of ES private names to the private declaration", async () => {
+    const workspace = await createWorkspace({
+      "src/counter.ts": `
+export class Counter {
+  #count = 0;
+
+  #bump(by: number): number {
+    this.#count += by;
+    return this.#count;
+  }
+
+  run(other: Counter): number {
+    this.#bump(1);
+    other.#bump(2);
+    return this.#count + other.#count;
+  }
+}
+`,
+    });
+    const service = openService(workspace);
+    await service.openProject(workspace.configFileName);
+    const view = service.project(workspace.configFileName);
+    const symbols = await extractLocalSymbols(service, view);
+    const extraction = await extractLocalReferences(service, view, symbols);
+
+    expect(
+      extraction.references
+        .filter((reference) => reference.target.name.startsWith("#"))
+        .map(
+          (reference) =>
+            `${reference.kind}:${reference.text}:${reference.target.name}:${reference.source?.name}`,
+        ),
+    ).toEqual([
+      "REFERENCES:#count:#count:#bump",
+      "REFERENCES:#count:#count:#bump",
+      "CALLS_DIRECT:#bump:#bump:run",
+      "CALLS_DIRECT:#bump:#bump:run",
+      "REFERENCES:#count:#count:run",
+      "REFERENCES:#count:#count:run",
+    ]);
+  });
+
+  it("resolves object literal keys and destructured properties to the property they name", async () => {
+    const workspace = await createWorkspace({
+      "src/options.ts": `
+export interface Options {
+  retries?: number;
+  name: string;
+}
+
+export interface Other {
+  retries: boolean;
+}
+
+export function configure(options: Options): void {}
+
+export const defaults: Options = { retries: 1, name: "a" };
+
+export function build(): Options {
+  return { name: "b", retries: 2 };
+}
+
+configure({ name: "c", retries: 3 });
+
+export const unrelated: Other = { retries: true };
+
+export function read(options: Options): number {
+  const { retries } = options;
+  const { name: alias } = options;
+  return (retries ?? 0) + alias.length;
+}
+
+export function readParameter({ retries = 1 }: Options): number {
+  return retries;
+}
+
+export function readOptional(options?: Options): number {
+  if (options === undefined) return 0;
+  const { retries } = options;
+  return retries ?? 0;
+}
+
+export function readIndexed(value: Record<string, number>): number {
+  const { retries } = value;
+  return retries;
+}
+`,
+    });
+    const service = openService(workspace);
+    await service.openProject(workspace.configFileName);
+    const view = service.project(workspace.configFileName);
+    const symbols = await extractLocalSymbols(service, view);
+    const extraction = await extractLocalReferences(service, view, symbols);
+    const found = extraction.references
+      .filter(
+        (reference) =>
+          "kind" in reference.target && reference.target.kind === "property",
+      )
+      .map(
+        (reference) =>
+          `${reference.startLine}:${reference.text}->${reference.target.qualifiedName}`,
+      );
+
+    // Line 24 and 29 destructure a property with no `propertyName`, line 25
+    // names one. `readIndexed` has no declared property to point at.
+    expect(found).toEqual([
+      "13:retries->Options.retries",
+      "13:name->Options.name",
+      "16:name->Options.name",
+      "16:retries->Options.retries",
+      "19:name->Options.name",
+      "19:retries->Options.retries",
+      "21:retries->Other.retries",
+      "24:retries->Options.retries",
+      "25:name->Options.name",
+      "29:retries->Options.retries",
+      "35:retries->Options.retries",
+    ]);
+  });
+
+  it("resolves property names written as string literals to the property they name", async () => {
+    const workspace = await createWorkspace({
+      "src/indexed.ts": `
+export interface Options {
+  retries?: number;
+  name: string;
+  onDone?: () => void;
+}
+
+export interface Other {
+  retries: boolean;
+}
+
+export type Retries = Options["retries"];
+export type Both = Options["retries" | "name"];
+export type Callback = NonNullable<Options["onDone"]>;
+export type OtherRetries = Other["retries"];
+export type FromRecord = Record<string, number>["retries"];
+
+export function read(options: Options): number | undefined {
+  return options["retries"];
+}
+`,
+    });
+    const service = openService(workspace);
+    await service.openProject(workspace.configFileName);
+    const view = service.project(workspace.configFileName);
+    const symbols = await extractLocalSymbols(service, view);
+    const extraction = await extractLocalReferences(service, view, symbols);
+    const found = extraction.references
+      .filter(
+        (reference) =>
+          "kind" in reference.target && reference.target.kind === "property",
+      )
+      .map(
+        (reference) =>
+          `${reference.startLine}:${reference.text}->${reference.target.qualifiedName}`,
+      );
+
+    // `FromRecord` indexes a type with no declared `retries`, so nothing
+    // local is named there.
+    expect(found).toEqual([
+      '12:"retries"->Options.retries',
+      '13:"retries"->Options.retries',
+      '13:"name"->Options.name',
+      '14:"onDone"->Options.onDone',
+      '15:"retries"->Other.retries',
+      '19:"retries"->Options.retries',
+    ]);
+  });
+
   it("limits files and never emits imported external symbols", async () => {
     const workspace = await createWorkspace({
       "src/first.ts": `export function first(): number { return second(); }

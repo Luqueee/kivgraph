@@ -100,11 +100,12 @@ func main() {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		if err := runConfiguredUI(ctx, os.Args[2:], func(ctx context.Context, address string, handler http.Handler) error {
-			// The default bind is every interface, so this warning is
-			// the only thing standing between an unauthenticated
-			// viewer and the network it is on. It names what travels
-			// in a response and how to close it, because a warning
-			// that only says "unauthenticated" is one nobody acts on.
+			// A non-loopback bind is a choice -- or a configuration an
+			// older `init` wrote with 0.0.0.0 -- and this warning is the
+			// only thing standing between an unauthenticated viewer and
+			// the network it is on. It names what travels in a response
+			// and how to close it, because a warning that only says
+			// "unauthenticated" is one nobody acts on.
 			if !isLoopbackListenAddress(address) {
 				logger.Warn("web viewer is unauthenticated and reachable from the network",
 					"command", "ui", "address", address,
@@ -236,8 +237,10 @@ type graphRebuilder func(context.Context, rebuild.Options) (rebuild.Report, erro
 // It receives the loaded configuration because a runner that binds a socket has
 // to know which state directory it belongs to: that directory is the key that
 // keeps two configurations from sharing one daemon.
-type configuredMCPRunner func(context.Context, config.Loaded, *hotsnapshot.SnapshotStore, indexing.ProjectIndexer, *eventlog.Writer) error
-type configuredWebRunner func(context.Context, string, http.Handler) error
+type (
+	configuredMCPRunner func(context.Context, config.Loaded, *hotsnapshot.SnapshotStore, indexing.ProjectIndexer, *eventlog.Writer) error
+	configuredWebRunner func(context.Context, string, http.Handler) error
+)
 
 // ensureConfiguration writes the default configuration when there is none.
 //
@@ -425,7 +428,8 @@ func runConfiguredUI(
 	if !assetsAvailable {
 		return errors.New(
 			"ui: this binary carries no web bundle; build one with scripts/build-bundle.sh " +
-				"(without --mcp-only), or run the viewer from a source checkout with the webassets build tag")
+				"(without --mcp-only), or run the viewer from a source checkout with the webassets build tag",
+		)
 	}
 	if err := ensureConfiguration(configPath); err != nil {
 		return err
@@ -681,6 +685,7 @@ func watchConfiguredProfiles(
 	var monitorStartsWG sync.WaitGroup
 	monitorStartContext, cancelMonitorStarts := context.WithCancel(ctx)
 	var nextMonitorStart uint64
+	var registryWatchers profileWatchers
 	closed := false
 	indexer.setDefaultProfile(loaded.Config.Profiles.Default)
 	startFreshnessMonitor := func(name string, profileLoaded config.Loaded, profileStore *hotsnapshot.SnapshotStore) {
@@ -745,29 +750,30 @@ func watchConfiguredProfiles(
 		}
 		watchersMu.Unlock()
 		startFreshnessMonitor(name, profileLoaded, profileStore)
+		// The follower reads the store root, which a profile keeps for life.
+		// The other two read the registry, which changes: see profileWatchers.
+		registryWatchers.replace(name, func() func() {
+			resyncStop := resyncOnBranchChange(ctx, profileLoaded, profileStore, namedProfileReindexer{indexer, name}, command)
+			if !profileLoaded.Config.Watcher.Enabled {
+				return resyncStop
+			}
+			sourceStop := watchProfileSources(ctx, profileLoaded, manager, scheduler, command)
+			return func() {
+				sourceStop()
+				resyncStop()
+			}
+		})
 		if found {
 			return
 		}
 		followStop := followPublishedGeneration(ctx, profileLoaded, profileStore, command, indexing.FollowOptions{})
-		resyncStop := resyncOnBranchChange(ctx, profileLoaded, profileStore, namedProfileReindexer{indexer, name}, command)
-		var sourceStop func()
-		if profileLoaded.Config.Watcher.Enabled {
-			sourceStop = watchProfileSources(ctx, profileLoaded, manager, scheduler, command)
-		}
 		watchersMu.Lock()
 		if closed {
 			watchersMu.Unlock()
-			if sourceStop != nil {
-				sourceStop()
-			}
-			resyncStop()
 			followStop()
 			return
 		}
-		stops = append(stops, followStop, resyncStop)
-		if sourceStop != nil {
-			stops = append(stops, sourceStop)
-		}
+		stops = append(stops, followStop)
 		watchersMu.Unlock()
 	}
 	cleanup := func() {
@@ -785,6 +791,9 @@ func watchConfiguredProfiles(
 			delete(monitorStops, name)
 		}
 		watchersMu.Unlock()
+		// Before the scheduler, which is the first entry of current: no
+		// callback may enqueue work while the queue is shutting down.
+		registryWatchers.close()
 		for index := len(current) - 1; index >= 0; index-- {
 			current[index]()
 		}
@@ -1172,8 +1181,10 @@ func runUpdateWithRunnerAndPostInstall(
 		signal, restart, graceful, executable, postInstallWithResult)
 }
 
-type updatePostInstall func(executable string, stdout, stderr io.Writer) error
-type updatePostInstallWithResult func(executable string, stdout, stderr io.Writer) updatePostInstallResult
+type (
+	updatePostInstall           func(executable string, stdout, stderr io.Writer) error
+	updatePostInstallWithResult func(executable string, stdout, stderr io.Writer) updatePostInstallResult
+)
 
 type updatePostInstallResult struct {
 	RefreshedDaemonPID  int
@@ -1583,7 +1594,8 @@ func indexFullFlagSet(options *indexFullOptions) *flag.FlagSet {
 // counted before they were printed, and a count nobody prints is a warning
 // nobody has.
 func writeIndexSummary(stdout io.Writer, indexReport indexer.FullReport) {
-	writeInfo(stdout, "index.go: repositories=%d modules=%d not_loaded=%d workspaces=%d loads=%d definitions=%d references=%d unresolved=%d diagnostics=%d",
+	writeInfo(
+		stdout, "index.go: repositories=%d modules=%d not_loaded=%d workspaces=%d loads=%d definitions=%d references=%d unresolved=%d diagnostics=%d",
 		indexReport.GoRepositories,
 		indexReport.GoModules,
 		indexReport.GoModulesNotLoaded,
@@ -1594,13 +1606,16 @@ func writeIndexSummary(stdout io.Writer, indexReport indexer.FullReport) {
 		indexReport.GoUnresolved,
 		indexReport.GoLoadDiagnostics,
 	)
-	writeInfo(stdout, "index.typescript: repositories=%d symbols=%d references=%d unresolved=%d",
+	writeInfo(
+		stdout, "index.typescript: repositories=%d not_loaded=%d symbols=%d references=%d unresolved=%d",
 		indexReport.TypeScriptRepositories,
+		indexReport.TypeScriptNotLoaded,
 		indexReport.TypeScriptSymbols,
 		indexReport.TypeScriptReferences,
 		indexReport.TypeScriptUnresolved,
 	)
-	writeInfo(stdout, "index.rust: repositories=%d workspaces=%d crates=%d not_loaded=%d symbols=%d references=%d unresolved=%d",
+	writeInfo(
+		stdout, "index.rust: repositories=%d workspaces=%d crates=%d not_loaded=%d symbols=%d references=%d unresolved=%d",
 		indexReport.RustRepositories,
 		indexReport.RustWorkspaces,
 		indexReport.RustCrates,
@@ -1609,34 +1624,83 @@ func writeIndexSummary(stdout io.Writer, indexReport indexer.FullReport) {
 		indexReport.RustReferences,
 		indexReport.RustUnresolved,
 	)
-	writeInfo(stdout, "index.python: repositories=%d not_loaded=%d symbols=%d references=%d unresolved=%d",
+	writeInfo(
+		stdout, "index.python: repositories=%d not_loaded=%d symbols=%d references=%d unresolved=%d",
 		indexReport.PythonRepositories,
 		indexReport.PythonRepositoriesNotLoaded,
 		indexReport.PythonSymbols,
 		indexReport.PythonReferences,
 		indexReport.PythonUnresolved,
 	)
-	writeInfo(stdout, "index.dart: repositories=%d not_loaded=%d symbols=%d references=%d unresolved=%d",
+	writeInfo(
+		stdout, "index.dart: repositories=%d not_loaded=%d symbols=%d references=%d unresolved=%d",
 		indexReport.DartRepositories,
 		indexReport.DartRepositoriesNotLoaded,
 		indexReport.DartSymbols,
 		indexReport.DartReferences,
 		indexReport.DartUnresolved,
 	)
-	writeInfo(stdout, "index.java: repositories=%d not_loaded=%d symbols=%d references=%d unresolved=%d",
+	writeInfo(
+		stdout, "index.java: repositories=%d not_loaded=%d symbols=%d references=%d unresolved=%d",
 		indexReport.JavaRepositories,
 		indexReport.JavaRepositoriesNotLoaded,
 		indexReport.JavaSymbols,
 		indexReport.JavaReferences,
 		indexReport.JavaUnresolved,
 	)
-	writeInfo(stdout, "index.csharp: repositories=%d not_loaded=%d symbols=%d references=%d unresolved=%d",
+	writeInfo(
+		stdout, "index.csharp: repositories=%d not_loaded=%d symbols=%d references=%d unresolved=%d",
 		indexReport.CSharpRepositories,
 		indexReport.CSharpRepositoriesNotLoaded,
 		indexReport.CSharpSymbols,
 		indexReport.CSharpReferences,
 		indexReport.CSharpUnresolved,
 	)
+}
+
+// writeIndexDetails names what the summary only counts.
+func writeIndexDetails(stdout io.Writer, indexReport indexer.FullReport) {
+	// A count says something happened; the lines say what. Both are on
+	// stdout with the rest of the report, because a warning in a log the
+	// caller is not reading is a warning nobody has.
+	for _, module := range boundedReportLines(indexReport.GoModulesNotRead, 20) {
+		writeWarning(stdout, "index.go.not_read: %s", module)
+	}
+	for _, diagnostic := range boundedReportLines(indexReport.GoDiagnostics, 20) {
+		writeWarning(stdout, "index.go.diagnostic: %s", diagnostic)
+	}
+	for _, repository := range boundedReportLines(indexReport.TypeScriptWithoutPackages, 20) {
+		writeWarning(stdout, "index.typescript.no_package: %s declares no package with a TypeScript project, so it contributes nothing", repository)
+	}
+	for _, line := range boundedReportLines(indexReport.TypeScriptNotRead, 20) {
+		writeWarning(stdout, "index.typescript.not_read: %s", line)
+	}
+	for _, diagnostic := range boundedReportLines(indexReport.RustDiagnostics, 20) {
+		writeWarning(stdout, "index.rust.diagnostic: %s", diagnostic)
+	}
+	// `language: repository: reason: detail`, printed under its language like
+	// the lists above and bounded per language like them: bounded as one list,
+	// the line that counts the rest had no language to be printed under.
+	var languages []string
+	notRead := map[string][]string{}
+	for _, line := range indexReport.SemanticNotRead {
+		language, rest, found := strings.Cut(line, ": ")
+		if !found {
+			language, rest = "semantic", line
+		}
+		if _, seen := notRead[language]; !seen {
+			languages = append(languages, language)
+		}
+		notRead[language] = append(notRead[language], rest)
+	}
+	for _, language := range languages {
+		for _, line := range boundedReportLines(notRead[language], 20) {
+			writeWarning(stdout, "index.%s.not_read: %s", language, line)
+		}
+	}
+	for _, repository := range boundedReportLines(indexReport.RustWithoutWorkspaces, 20) {
+		writeWarning(stdout, "index.rust.no_workspace: %s declares no Cargo manifest, so it contributes nothing", repository)
+	}
 }
 
 func runIndexFull(args []string, stdout, stderr io.Writer) int {
@@ -1715,27 +1779,18 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 	indexReport := fullResult.IndexReport
 	writeResult(stdout, err == nil, "index.full: %s", passFail(err == nil))
 	writeIndexSummary(stdout, indexReport)
-	// A count says something happened; the lines say what. Both are on
-	// stdout with the rest of the report, because a warning in a log the
-	// caller is not reading is a warning nobody has.
-	for _, module := range boundedReportLines(indexReport.GoModulesNotRead, 20) {
-		writeWarning(stdout, "index.go.not_read: %s", module)
-	}
-	for _, diagnostic := range boundedReportLines(indexReport.GoDiagnostics, 20) {
-		writeWarning(stdout, "index.go.diagnostic: %s", diagnostic)
-	}
-	for _, repository := range boundedReportLines(indexReport.TypeScriptWithoutPackages, 20) {
-		writeWarning(stdout, "index.typescript.no_package: %s declares no package with a TypeScript project, so it contributes nothing", repository)
-	}
-	for _, diagnostic := range boundedReportLines(indexReport.RustDiagnostics, 20) {
-		writeWarning(stdout, "index.rust.diagnostic: %s", diagnostic)
-	}
-	for _, repository := range boundedReportLines(indexReport.RustWithoutWorkspaces, 20) {
-		writeWarning(stdout, "index.rust.no_workspace: %s declares no Cargo manifest, so it contributes nothing", repository)
-	}
+	writeIndexDetails(stdout, indexReport)
 	if cache := indexReport.Cache; cache.Mode != "" && cache.Mode != indexer.CacheOff {
-		writeInfo(stdout, "index.cache: mode=%s hits=%d misses=%d verified=%d",
-			cache.Mode, cache.Hits, cache.Misses, cache.Verified)
+		note := ""
+		if changed := cache.AnalyzerChangedNote(); changed != "" {
+			note = " analyzer_changed=" + changed
+		}
+		writeInfo(stdout, "index.cache: mode=%s hits=%d misses=%d verified=%d%s",
+			cache.Mode, cache.Hits, cache.Misses, cache.Verified, note)
+	}
+	if verification := fullResult.SourceVerification; verification.Mode == indexing.SourceVerificationSignature {
+		writeInfo(stdout, "index.source_verification: mode=%s trees=%d reused=%d",
+			verification.Mode, verification.Repositories, verification.Reused)
 	}
 	rebuildReport := fullResult.RebuildReport
 	writeResult(stdout, err == nil && rebuildReport.Passed, "rebuild: %s generation=%s", passFail(err == nil && rebuildReport.Passed), rebuildReport.GenerationID)
@@ -2072,7 +2127,9 @@ func readDoctorConfiguration(configPath string) (loadedConfiguration config.Load
 	}
 	profiles := filepath.Join(filepath.Dir(loadedConfiguration.Config.Storage.DatabasePath), "profiles")
 	if _, err := os.Stat(profiles); errors.Is(err, os.ErrNotExist) {
-		return loadedConfiguration, nil, nil
+		// Not migrated yet is not a defect. Not being able to migrate is, and
+		// it is the one every other command dies of without doctor noticing.
+		return loadedConfiguration, config.InspectProfileMigration(configPath), nil
 	} else if err != nil {
 		return config.Loaded{}, nil, fmt.Errorf("inspect profiles: %w", err)
 	}
@@ -2112,7 +2169,10 @@ func runDoctor(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	doctorResult("config", true, fmt.Sprintf("schema=%d", loaded.Config.Version))
-	if profileErr != nil {
+	if errors.Is(profileErr, config.ErrProfileMigrationBackup) {
+		doctorResult("profiles", false, profileErr.Error()+
+			"; every command that needs the graph fails until that directory is moved aside or removed")
+	} else if profileErr != nil {
 		doctorResult("profiles", false, profileErr.Error())
 	}
 	// A retired key is not a defect in the store and not a reason to fail: the
@@ -2120,7 +2180,8 @@ func runDoctor(args []string, stdout, stderr io.Writer) int {
 	// so is what lets someone delete it; silence would leave it there forever.
 	if len(loaded.RetiredKeys) > 0 {
 		doctorResult("config.retired", true, fmt.Sprintf(
-			"%s: accepted and ignored, safe to delete", strings.Join(loaded.RetiredKeys, ", ")))
+			"%s: accepted and ignored, safe to delete", strings.Join(loaded.RetiredKeys, ", "),
+		))
 	}
 
 	for _, stateDirectory := range []struct {
@@ -2153,6 +2214,9 @@ func runDoctor(args []string, stdout, stderr io.Writer) int {
 		runDoctorToolchains(stdout, doctorResult, loaded.Config, registry.List())
 	} else {
 		doctorResult("toolchains", false, "repository metadata unavailable")
+	}
+	if registryErr == nil {
+		reportDoctorCacheDirectories(context.Background(), doctorResult, registry.List())
 	}
 
 	root := filepath.Dir(loaded.Config.Storage.DatabasePath)
@@ -2367,8 +2431,12 @@ func reportRustToolchain(report func(string, bool, string), configuration config
 		report("toolchain.rust", false, fmt.Sprintf("command %q is unavailable", command[0]))
 		return
 	}
+	// Neither question may be answered by an installation: both commands are
+	// usually rustup's proxies, and a proxy with no toolchain downloads one.
 	arguments := append(append([]string(nil), command[1:]...), "--version")
-	output, err := exec.CommandContext(context.Background(), resolved, arguments...).CombinedOutput()
+	analyzer := exec.CommandContext(context.Background(), resolved, arguments...)
+	analyzer.Env = rustloader.ProbeEnvironment()
+	output, err := analyzer.CombinedOutput()
 	if err != nil {
 		report("toolchain.rust", false, fmt.Sprintf("%s --version failed: %v", resolved, err))
 		return
@@ -2380,7 +2448,9 @@ func reportRustToolchain(report func(string, bool, string), configuration config
 	// The analyzer cannot load a Cargo workspace without cargo, and the bundle
 	// does not ship a Rust toolchain: a missing cargo is a failure even when
 	// the analyzer travels inside the installation.
-	cargoOutput, cargoErr := exec.CommandContext(context.Background(), "cargo", "--version").CombinedOutput()
+	cargo := exec.CommandContext(context.Background(), "cargo", "--version")
+	cargo.Env = rustloader.ProbeEnvironment()
+	cargoOutput, cargoErr := cargo.CombinedOutput()
 	if cargoErr != nil {
 		report("toolchain.cargo", false, "cargo is unavailable, so no workspace can be loaded")
 		return
@@ -2637,7 +2707,8 @@ func runGenerateGraph(args []string, stdout, stderr io.Writer) int {
 		writeCommandError(stderr, "generate-graph: %v", err)
 		return 1
 	}
-	writeSuccess(stdout, "generated %d repositories, %d files, %d symbols, %d edges at %s (seed %d)",
+	writeSuccess(
+		stdout, "generated %d repositories, %d files, %d symbols, %d edges at %s (seed %d)",
 		manifest.Repositories,
 		manifest.Files,
 		manifest.Symbols,
@@ -2956,6 +3027,14 @@ func runRollback(args []string, stdout, stderr io.Writer, rollback graphRollback
 	if !report.Passed {
 		writeCommandError(stderr, "rollback: report did not pass despite no error")
 		return 1
+	}
+	// A running server only ever installs a newer generation, so it keeps
+	// answering from the one this just left until it is restarted. Identifiers
+	// are fixed-width, so they order as text.
+	if report.To.ID < report.From.ID {
+		fmt.Fprintf(stdout,
+			"running serve, daemon and ui processes keep serving %s until they restart: run `kivgraph stop`\n",
+			report.From.ID)
 	}
 	return 0
 }

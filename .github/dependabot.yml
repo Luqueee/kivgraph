@@ -1,0 +1,74 @@
+version: 2
+
+# One weekly pass per ecosystem, grouped, so a week of updates is a handful of
+# pull requests and not forty. Security advisories open their own pull request
+# immediately and ignore the schedule and the grouping.
+#
+# Three pnpm projects, each with its own lockfile and none sharing a workspace
+# (AGENTS.md), so each one is declared separately. Dependabot reads
+# `pnpm-lock.yaml` and `pnpm-workspace.yaml` through the `npm` ecosystem.
+#
+# Not here: `go.mod` toolchain bumps are the maintainers' call (the language
+# ceiling of the binary is the toolchain that compiled it), and the pinned
+# manifests (`tools/manifest.json`, `grammars/manifest.json`) are produced by
+# their scripts.
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "build(deps)"
+    groups:
+      go-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /ts-worker
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "build(deps)"
+    groups:
+      worker-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "build(deps)"
+    groups:
+      web-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /landing
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "build(deps)"
+    groups:
+      landing-minor-and-patch:
+        update-types: [minor, patch]
+
+  # Every action is pinned to a commit with its tag in a comment; Dependabot
+  # keeps both in step.
+  - package-ecosystem: github-actions
+    directories:
+      - /
+      - /.github/actions/setup-go
+      - /.github/actions/setup-semantic-indexers
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+    groups:
+      actions:
+        patterns: ["*"]

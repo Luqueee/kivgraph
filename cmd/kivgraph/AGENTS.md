@@ -209,6 +209,13 @@ superficie observable.
   las filas `MODULE_NOT_LOADED` del grafo publicado, que ningún comando lee.
   `index.go.diagnostic` es otra clase -- lo que el cargador dijo de un módulo que
   **sí** leyó-- y mezclarlas perdería justo esa distinción.
+  Python, Dart, Java y C# tienen la misma línea desde el ADR 0147:
+  `index.<lenguaje>.not_read: <repositorio>: REPOSITORY_NOT_LOADED: <detalle>`,
+  una por repositorio que su analizador ejecutó y no pudo leer. No sale para un
+  analizador que no está instalado: eso lo dice `doctor`, una vez, de la máquina.
+  TypeScript tiene la suya, `index.typescript.not_read`, para un repositorio
+  cuyos proyectos no se pudieron descubrir y para un paquete en el que el worker
+  falló, y su línea de resumen lleva `not_loaded` como las demás.
 - **`counts` y `index` del `result` no miden lo mismo, y hay que decirlo.**
   `counts` es lo que el grafo publicado guarda: hechos canónicos distintos.
   `index` es lo que cada pasada de lenguaje **observó**. Un fichero que
@@ -272,7 +279,14 @@ superficie observable.
   predomina está defendiendo `10`-`15 MB`.
 - **Declinar no es fallar.** Sin endpoint publicado, con un endpoint que nadie
   contesta, o con `KIVGRAPH_SERVE_IN_PROCESS` puesto, `serve` contesta él mismo
-  y en esos caminos nada queda peor que antes. La variable de entorno existe
+  y en esos caminos nada queda peor que antes. Tampoco instala un demonio
+  cuando corre bajo un `HOME` que no es el de la cuenta (`foreignHome`): el
+  supervisor lo arrancaría con el de la cuenta, contra otra instalación, y la
+  unidad quedaría registrada cuando el directorio desde el que se instaló ya no
+  existe. La ruta explícita -`ensureDaemon`, detrás de `configure` y de
+  `mcp install`- aplica la misma comprobación: escribe la entrada
+  stdio y dice por qué, y un `--daemon` explícito se rechaza en vez de
+  degradarse. La variable de entorno existe
   porque el relé es el defecto en un proceso que lanza un cliente sin
   supervisión: sin escape, una máquina donde el relé se porte mal no tiene
   vuelta que no pase por parar el demonio que usan los demás.

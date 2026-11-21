@@ -35,6 +35,27 @@ Las reglas del motor están en `internal/AGENTS.md`.
   `--offline --locked`, y una comprobación posterior de que el repositorio no
   ganó `target/` ni un `Cargo.lock` nuevo. `rust.allow_network` es la única
   salida declarada.
+- `sysroot: "discover"` no llega al analizador tal cual. Un analizador que
+  descubre un sysroot sin `rust-src` ejecuta él mismo
+  `rustup component add rust-src`: una descarga y una escritura en el
+  toolchain desde una pasada offline. Dos pasadas simultáneas competían por esa
+  instalación y la que perdía indexaba sin biblioteca estándar. `Run` pregunta
+  `rustc --print sysroot` desde el workspace y le pasa la ruta, con la que el
+  analizador carga lo que haya y no instala nada. El `rustc` se busca donde lo
+  busca el analizador -`$RUSTC`, `$CARGO_HOME/bin`, y sólo después el `PATH`-,
+  porque un proceso con `PATH` mínimo no veía toolchain y el analizador sí. Si
+  no contesta ninguno se le pasa `none` con un diagnóstico; `discover` sólo le
+  llega con `rust.allow_network`. La huella de la caché de hechos registra si
+  el toolchain trae `rust-src`. Ver ADR 0120.
+- Preguntar al toolchain tampoco instala. `rustc` y `cargo` suelen ser los
+  proxies de rustup, y un proxy sin su toolchain activo lo descarga antes de
+  contestar: `rustc --version` con un `HOME` vacío tardó de 15 a 19 s en el
+  runner de macOS y dejó 1,4 GB cada vez. Toda pregunta va con
+  `rustloader.ProbeEnvironment()`, que lleva `RUSTUP_AUTO_INSTALL=0`. El
+  analizador y `cargo metadata` la llevan también cuando la red está apagada.
+  El analizador fijado ya se la pone a todo lo que lanza -doce invocaciones
+  distintas de `cargo` y `rustc` sobre el fixture, medido-, pero el analizador
+  es el que nombre `rust.analyzer_command`.
 - La unidad de análisis es el workspace Cargo, no el crate: el analizador
   carga el workspace entero en cada invocación. El techo de concurrencia es
   bajo por memoria.
@@ -65,6 +86,11 @@ Las reglas del motor están en `internal/AGENTS.md`.
   destino de un `OVERRIDES` se compone desde el símbolo del trait y solo se
   emite si el índice lo observó; una implementación que la gramática no ve
   -generada por una macro- queda ausente y no se adivina.
+- Un nombre escrito dentro del cuerpo de un `macro_rules!` no tiene ocurrencia
+  en el índice: el analizador no resuelve nada ahí. La gramática lee esas rutas
+  (`MacroPaths`) y se publica una referencia `CANDIDATE` con procedencia
+  `TREE_SITTER_SYNTAX` solo cuando exactamente una declaración del crate de la
+  macro termina con esa ruta. Nunca `EXACT`; ver ADR 0128.
 - Nombrar una función no es llamarla, y las tres formas en que Rust la mueve
   son tres relaciones distintas: argumento de una llamada
   (`PASSES_AS_CALLBACK`, con procedencia propia `RUST_SYNTAX_CALLBACK`, el
@@ -183,7 +209,7 @@ Los tests que ejecutan el analizador se saltan cuando `rust-analyzer` no está
 instalado, así que la verificación exige tenerlo:
 
 ```bash
-rustup component add rust-analyzer
+rustup component add rust-analyzer rust-src
 go test ./internal/rustloader/... ./internal/indexer/ -run Rust
 ```
 

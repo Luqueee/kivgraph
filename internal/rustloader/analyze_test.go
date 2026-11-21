@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/Luqueee/kivgraph/internal/syntax"
@@ -12,11 +13,37 @@ import (
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
-// analyzeFixture runs the whole Rust path over the recorded workspace: the
-// external analyzer, the decoder, the grammar and the crate registry.
+// fixtureAnalysis holds the one analysis of the recorded workspace that every
+// test here reads. Each of them used to run the analyzer over the same
+// fixture for itself: eight runs of five to seven seconds on the macOS
+// runner, and most of what this package cost. Nothing mutates the result.
+var fixtureAnalysis struct {
+	once     sync.Once
+	analysis Analysis
+	ready    bool
+}
+
+// analyzeFixture answers the analysis of the recorded workspace, running the
+// analyzer the first time it is asked.
 func analyzeFixture(t *testing.T) Analysis {
 	t.Helper()
 	requireAnalyzer(t)
+	// A failure inside ends the first caller through t.Fatalf and leaves
+	// ready unset, so the tests after it fail here instead of reading zero.
+	fixtureAnalysis.once.Do(func() {
+		fixtureAnalysis.analysis = runFixtureAnalysis(t)
+		fixtureAnalysis.ready = true
+	})
+	if !fixtureAnalysis.ready {
+		t.Fatal("the analysis of the fixture failed in an earlier test")
+	}
+	return fixtureAnalysis.analysis
+}
+
+// runFixtureAnalysis runs the whole Rust path over the recorded workspace: the
+// external analyzer, the decoder, the grammar and the crate registry.
+func runFixtureAnalysis(t *testing.T) Analysis {
+	t.Helper()
 	root, output := analyzerFixture(t)
 	repository := workspace.Repository{Name: "fixture", Path: root, RealPath: root}
 
@@ -411,6 +438,41 @@ func TestAnalyzeReadsFunctionValues(t *testing.T) {
 			t.Errorf("analysis has no reference %q; observed %v", edge, observed)
 		} else if got != want {
 			t.Errorf("reference %q = %q, want %q", edge, got, want)
+		}
+	}
+}
+
+// TestAnalyzePublishesNamesInsideMacroBodiesAsCandidates pins what the analyzer
+// leaves out: it resolves nothing inside a `macro_rules!` body, so the uses of
+// `double`, `helper_user` and `private_helper` there reach the graph only
+// through the grammar, as candidates sourced at the macro.
+func TestAnalyzePublishesNamesInsideMacroBodiesAsCandidates(t *testing.T) {
+	analysis := analyzeFixture(t)
+	names := map[string]string{}
+	for _, definition := range analysis.Definitions {
+		names[string(definition.StableKey)] = definition.QualifiedName
+	}
+	type edge struct {
+		kind      ReferenceKind
+		candidate bool
+	}
+	observed := map[string]edge{}
+	for _, reference := range analysis.References {
+		if strings.HasPrefix(names[reference.SourceKey], "doubled") {
+			observed[names[reference.SourceKey]+" -> "+names[reference.TargetKey]] = edge{reference.Kind, reference.Candidate}
+		}
+	}
+	want := map[string]edge{
+		"doubled -> double":         {ReferenceCall, true},
+		"doubled -> helper_user":    {ReferenceCall, true},
+		"doubled -> private_helper": {ReferenceCall, true},
+	}
+	if len(observed) != len(want) {
+		t.Fatalf("references from the macro = %v, want %v", observed, want)
+	}
+	for key, value := range want {
+		if observed[key] != value {
+			t.Errorf("reference %q = %v, want %v; observed %v", key, observed[key], value, observed)
 		}
 	}
 }

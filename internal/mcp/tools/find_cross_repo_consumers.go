@@ -13,6 +13,7 @@ import (
 
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
+	"github.com/Luqueee/kivgraph/internal/testpath"
 )
 
 const (
@@ -44,6 +45,7 @@ type FindCrossRepoConsumersInput struct {
 	Path           string   `json:"path,omitempty" jsonschema:"The repository-relative file that declares the target symbol."`
 	Repo           string   `json:"repo,omitempty" jsonschema:"Keep only consumers found in this repository."`
 	Language       string   `json:"language,omitempty" jsonschema:"Keep only consumers written in this language."`
+	ExcludeTests   bool     `json:"exclude_tests,omitempty" jsonschema:"Drop consumers in test files, matched by path."`
 	Limit          int      `json:"limit,omitempty" jsonschema:"Consumers in one page. Defaults to 50."`
 	Cursor         string   `json:"cursor,omitempty" jsonschema:"Previous next_cursor; keep other arguments unchanged."`
 	ResponseFormat string   `json:"response_format,omitempty" jsonschema:"concise (default), or detailed with derived identifiers."`
@@ -228,12 +230,13 @@ func (page CrossRepoConsumers) MarshalJSON() ([]byte, error) {
 }
 
 type findCrossRepoConsumersOptions struct {
-	Selector symbolSelector
-	Repo     string
-	Language string
-	Limit    int
-	Format   string
-	View     string
+	Selector     symbolSelector
+	Repo         string
+	Language     string
+	ExcludeTests bool
+	Limit        int
+	Format       string
+	View         string
 }
 
 type findCrossRepoConsumersQuery struct {
@@ -244,6 +247,7 @@ type findCrossRepoConsumersQuery struct {
 	Path          string `json:"path,omitempty"`
 	Repo          string `json:"repo,omitempty"`
 	Language      string `json:"language,omitempty"`
+	ExcludeTests  bool   `json:"exclude_tests,omitempty"`
 }
 
 type consumerLocation struct {
@@ -353,7 +357,7 @@ func findCrossRepoConsumersAcrossProfiles(
 	}{findCrossRepoConsumersToolName, names, findCrossRepoConsumersQuery{
 		Tool: findCrossRepoConsumersToolName, StableKey: options.Selector.StableKey,
 		QualifiedName: options.Selector.QualifiedName, Repository: options.Selector.Repository,
-		Path: options.Selector.Path, Repo: options.Repo, Language: options.Language,
+		Path: options.Selector.Path, Repo: options.Repo, Language: options.Language, ExcludeTests: options.ExcludeTests,
 	}})
 	if err != nil {
 		return nil, Response[CrossRepoConsumers]{}, err
@@ -388,7 +392,7 @@ func findCrossRepoConsumersAcrossProfiles(
 				return nil, Response[CrossRepoConsumers]{}, WrapToolError(CodeSnapshotUnavailable, "active snapshot contains invalid consumer metadata", collectErr)
 			}
 			addCoverage(&coverage, profileCoverage)
-			completeness, _, completenessErr := completenessFor(snapshot, target.SymbolName, hotsnapshot.InvalidRepositoryID)
+			completeness, _, completenessErr := completenessFor(snapshot, target.SymbolName, symbolLanguage(snapshot, targetID), hotsnapshot.InvalidRepositoryID)
 			if completenessErr != nil {
 				return nil, Response[CrossRepoConsumers]{}, WrapToolError(CodeSnapshotUnavailable, "active snapshot contains invalid unresolved metadata", completenessErr)
 			}
@@ -451,7 +455,7 @@ func findCrossRepoConsumers(
 	queryHash, err := HashQuery(findCrossRepoConsumersQuery{
 		Tool: findCrossRepoConsumersToolName, StableKey: options.Selector.StableKey,
 		QualifiedName: options.Selector.QualifiedName, Repository: options.Selector.Repository,
-		Path: options.Selector.Path, Repo: options.Repo, Language: options.Language,
+		Path: options.Selector.Path, Repo: options.Repo, Language: options.Language, ExcludeTests: options.ExcludeTests,
 	})
 	if err != nil {
 		return nil, Response[CrossRepoConsumers]{}, err
@@ -522,7 +526,7 @@ func findCrossRepoConsumers(
 	// Its count does not go into coverage: the cross-repository failures are
 	// already listed as UNRESOLVED rows of this answer and counted there, and
 	// adding them twice would inflate the only number a caller can audit.
-	completeness, _, err := completenessFor(snapshot, target.SymbolName, hotsnapshot.InvalidRepositoryID)
+	completeness, _, err := completenessFor(snapshot, target.SymbolName, symbolLanguage(snapshot, targetID), hotsnapshot.InvalidRepositoryID)
 	if err != nil {
 		return nil, Response[CrossRepoConsumers]{}, WrapToolError(
 			CodeSnapshotUnavailable, "active snapshot contains invalid unresolved metadata", err)
@@ -573,9 +577,20 @@ func normalizeFindCrossRepoConsumersInput(arguments FindCrossRepoConsumersInput)
 		return findCrossRepoConsumersOptions{}, err
 	}
 	return findCrossRepoConsumersOptions{
-		Selector: selector, Repo: repo, Language: language,
+		Selector: selector, Repo: repo, Language: language, ExcludeTests: arguments.ExcludeTests,
 		Limit: limit, Format: format, View: view,
 	}, nil
+}
+
+// symbolLanguage is the language a declaration is written in, or empty when the
+// snapshot does not say, which a completeness check reads as "any".
+func symbolLanguage(snapshot *hotsnapshot.GraphSnapshot, id hotsnapshot.SymbolID) string {
+	symbol, found := snapshot.Symbol(id)
+	if !found {
+		return ""
+	}
+	language, _ := snapshot.Strings().String(symbol.Language)
+	return language
 }
 
 func collectCrossRepoConsumers(
@@ -912,6 +927,9 @@ func crossRepoUnresolvedMatchesTarget(snapshot *hotsnapshot.GraphSnapshot, refer
 // triple selector accepts.
 func consumerLocationMatches(location consumerLocation, options findCrossRepoConsumersOptions) bool {
 	if options.Repo != "" && location.RepositoryName != options.Repo {
+		return false
+	}
+	if options.ExcludeTests && testpath.Is(location.FilePath) {
 		return false
 	}
 	return options.Language == "" || containsString(location.Languages, options.Language)

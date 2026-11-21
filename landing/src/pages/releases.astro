@@ -45,15 +45,17 @@ export const prerender = true;
             <Content />
           </div>
 
-          <div class="compare">
-            <a
-              href={`https://github.com/Luqueee/kivgraph/compare/${data.version}^...${data.version}`}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              View changes in {data.version}
-            </a>
-          </div>
+          {data.tagged && (
+            <div class="compare">
+              <a
+                href={`https://github.com/Luqueee/kivgraph/compare/${data.version}^...${data.version}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                View changes in {data.version}
+              </a>
+            </div>
+          )}
         </article>
       ))
     }

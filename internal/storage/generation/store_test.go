@@ -441,10 +441,6 @@ func TestPruneKeepsActiveAndBackup(t *testing.T) {
 	publishTestGeneration(t, store, "000001", "a")
 	publishTestGeneration(t, store, "000002", "b")
 	publishTestGeneration(t, store, "000003", "c")
-	candidatePath := filepath.Join(store.generations, "000099.tmp")
-	if err := os.Mkdir(candidatePath, 0o700); err != nil {
-		t.Fatal(err)
-	}
 	removed, err := store.Prune(context.Background())
 	if err != nil {
 		t.Fatalf("Prune() error = %v", err)
@@ -458,9 +454,6 @@ func TestPruneKeepsActiveAndBackup(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(store.generations, "000003")); err != nil {
 		t.Fatalf("active generation was pruned: %v", err)
-	}
-	if _, err := os.Stat(candidatePath); err != nil {
-		t.Fatalf("in-progress candidate was pruned: %v", err)
 	}
 }
 

@@ -107,6 +107,7 @@ func TestTraceWitnessRefusesWhatWouldHoleTheRoute(t *testing.T) {
 	for name, arguments := range map[string]TraceDependenciesInput{
 		"repo":            {StableKey: "sym-root", To: "Level3", Repo: "root"},
 		"language":        {StableKey: "sym-root", To: "Level3", Language: "go"},
+		"exclude_tests":   {StableKey: "sym-root", To: "Level3", ExcludeTests: true},
 		"include_derived": {StableKey: "sym-root", To: "Level3", IncludeDerived: true},
 		"limit":           {StableKey: "sym-root", To: "Level3", Limit: 2},
 		"cursor":          {StableKey: "sym-root", To: "Level3", Cursor: "whatever"},

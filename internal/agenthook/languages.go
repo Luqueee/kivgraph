@@ -1,6 +1,11 @@
 package agenthook
 
-import "github.com/Luqueee/kivgraph/internal/config"
+import (
+	"slices"
+	"strings"
+
+	"github.com/Luqueee/kivgraph/internal/config"
+)
 
 // ExtensionsFor is every extension the named languages are written in.
 //
@@ -12,4 +17,14 @@ import "github.com/Luqueee/kivgraph/internal/config"
 // what a configuration may declare in the first place.
 func ExtensionsFor(languages []string) []string {
 	return config.SourceExtensions(languages)
+}
+
+// namesLanguageType reports whether an extension spells a language rather than
+// a file type. A type filter reaches the gate as a glob -- `--type rust` as
+// `*.rust` -- and no file ends that way: it is a search over that language's
+// code, whatever the spelling says.
+func namesLanguageType(extension string) bool {
+	languages := config.SupportedLanguages()
+	return slices.Contains(languages, strings.TrimPrefix(extension, ".")) &&
+		!slices.Contains(config.SourceExtensions(languages), extension)
 }

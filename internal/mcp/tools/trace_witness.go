@@ -33,6 +33,7 @@ func normalizeWitnessTarget(arguments TraceDependenciesInput, view string) (stri
 	}{
 		{arguments.Repo != "", "repo", "it selects rows after reachability and would leave a hole in the route"},
 		{arguments.Language != "", "language", "it selects rows after reachability and would leave a hole in the route"},
+		{arguments.ExcludeTests, "exclude_tests", "it selects rows after reachability and would leave a hole in the route"},
 		{arguments.IncludeDerived, "include_derived", "a route is reported whole, whichever repositories it crosses"},
 		{arguments.Limit != 0, "limit", "a route is at most one row per hop and is never paged"},
 		{arguments.Cursor != "", "cursor", "a route is at most one row per hop and is never paged"},

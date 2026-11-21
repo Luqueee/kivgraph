@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"reflect"
+	"slices"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -954,5 +956,94 @@ func TestFindReferencesWillNotGuessBetweenTwoImplementations(t *testing.T) {
 	})
 	if answered.Total != 1 {
 		t.Fatalf("one implementation was not bridged: total %d", answered.Total)
+	}
+}
+
+// testCallersSnapshot has one target called from a source file, a test file by
+// name and a test file by directory. The filter has to tell them apart by path
+// alone, because the graph stores no "is a test" bit.
+func testCallersSnapshot(t *testing.T, id uint64) *hotsnapshot.SnapshotStore {
+	t.Helper()
+	edge := func(source string) hotsnapshot.EdgeRow {
+		return hotsnapshot.EdgeRow{
+			SourceKey: hotsnapshot.StableKey(source), TargetKey: "symbol-target",
+			Kind:       mustFactsEdgeCode(t, facts.CallsDirect),
+			Confidence: mustFactsConfidenceCode(t, facts.ExactTypechecked),
+			Provenance: mustFactsProvenanceCode(t, facts.GoTypesUse), EvidenceKind: "checker",
+			EvidenceSourceFileKey: "file-" + source, EvidenceTargetFileKey: "file-target",
+		}
+	}
+	files := map[string]string{"source": "src/a.go", "named": "src/a_test.go", "directory": "tests/b.go", "target": "src/target.go"}
+	rows := hotsnapshot.LadybugSnapshotRows{
+		Repositories: []hotsnapshot.RepositoryRow{{Key: "repository:repo", Name: "repo", Path: "/repo", Languages: "go"}},
+		Packages:     []hotsnapshot.PackageRow{{Key: "package", RepositoryKey: "repository:repo", Name: "pkg", ModulePath: "example.com/pkg"}},
+	}
+	for _, name := range []string{"source", "named", "directory", "target"} {
+		rows.Files = append(rows.Files, hotsnapshot.FileRow{Key: "file-" + name, RepositoryKey: "repository:repo", PackageKey: "package", Path: files[name], Language: "go"})
+		rows.Symbols = append(rows.Symbols, hotsnapshot.SymbolRow{
+			StableKey: hotsnapshot.StableKey(name), CanonicalIdentity: "go:" + name, FileKey: "file-" + name,
+			Language: "go", Name: name, QualifiedName: "pkg." + name, Kind: "function", StartLine: 1, EndLine: 5,
+		})
+	}
+	rows.Symbols[3].StableKey = "symbol-target"
+	rows.Edges = []hotsnapshot.EdgeRow{edge("source"), edge("named"), edge("directory")}
+	snapshot, err := hotsnapshot.BuildGraphSnapshot(rows, id, time.Unix(1_700_000_000+int64(id), 0).UTC(), 1)
+	if err != nil {
+		t.Fatalf("BuildGraphSnapshot() error = %v", err)
+	}
+	return hotsnapshot.NewSnapshotStore(snapshot)
+}
+
+func callerPaths(response Response[ReferenceResult]) []string {
+	var paths []string
+	for _, row := range response.Results.References {
+		paths = append(paths, row.FilePath)
+	}
+	sort.Strings(paths)
+	return paths
+}
+
+// The filter is about which rows exist, so it has to apply before the total and
+// before the page: a total that still counted the dropped rows would promise a
+// next page that is empty.
+func TestFindReferencesExcludesTestFilesWhenAsked(t *testing.T) {
+	client := newFindReferencesToolClient(t, testCallersSnapshot(t, 1))
+	for _, testCase := range []struct {
+		name      string
+		arguments map[string]any
+		want      []string
+	}{
+		{name: "tests are rows by default", arguments: map[string]any{"name": "target"}, want: []string{"src/a.go", "src/a_test.go", "tests/b.go"}},
+		{name: "explicit false is the default", arguments: map[string]any{"name": "target", "exclude_tests": false}, want: []string{"src/a.go", "src/a_test.go", "tests/b.go"}},
+		{name: "excluded by file name and by directory", arguments: map[string]any{"name": "target", "exclude_tests": true}, want: []string{"src/a.go"}},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			response := callFindReferences(t, client, testCase.arguments)
+			if got := callerPaths(response); !slices.Equal(got, testCase.want) {
+				t.Fatalf("paths = %v, want %v", got, testCase.want)
+			}
+			if response.Total != len(testCase.want) || response.Truncated || response.NextCursor != nil {
+				t.Fatalf("total=%d truncated=%v cursor=%v, want a complete answer of %d", response.Total, response.Truncated, response.NextCursor, len(testCase.want))
+			}
+		})
+	}
+}
+
+// A page minted with one filter cannot be resumed under another: the rows it
+// points at are not the rows the new filter would have produced.
+func TestFindReferencesCursorDoesNotSurviveTheTestFilter(t *testing.T) {
+	client := newFindReferencesToolClient(t, testCallersSnapshot(t, 1))
+	first := callFindReferences(t, client, map[string]any{"name": "target", "limit": 1})
+	if first.NextCursor == nil {
+		t.Fatal("first page has no cursor to resume")
+	}
+	result, err := client.CallTool(context.Background(), &sdkmcp.CallToolParams{
+		Name: findReferencesToolName, Arguments: map[string]any{"name": "target", "limit": 1, "exclude_tests": true, "cursor": *first.NextCursor},
+	})
+	if err != nil {
+		t.Fatalf("CallTool() error = %v", err)
+	}
+	if !result.IsError {
+		t.Fatalf("a cursor minted without exclude_tests was accepted with it: %s", contentText(result))
 	}
 }

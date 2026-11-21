@@ -53,7 +53,7 @@ rule with its status and violation count, and up to twenty samples beneath each
 failure with the table, key and row detail that breaks it.
 
 ```bash
-kivgraph doctor graph --database /var/lib/kivgraph/graph/CURRENT/graph.db
+kivgraph doctor graph --database <state>/generations/000123/graph.db
 ```
 
 - **`exact_edge_without_source`** — a semantic edge with exact `confidence`
@@ -81,8 +81,7 @@ The command returns `0` only if all six rules pass, and never modifies the
 database it inspects. A candidate generation that fails these checks never
 becomes `CURRENT`.
 
-## Incremental deltas
+## There are no incremental deltas
 
-Every fact asserted by a file is withdrawn and re-asserted together with that
-file. Package edges are withdrawn by their evidence too, even when both of
-their endpoints survive.
+A rebuild is a full pass over every registered repository: every generation is
+built from all of its facts, and none is patched from the one before it.

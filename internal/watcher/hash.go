@@ -12,7 +12,13 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 )
+
+// ErrUnreadablePath reports paths in a batch that exist and could not be read.
+// The result returned beside it is complete for every other path: one
+// unreadable file is not a reason to lose the changes around it.
+var ErrUnreadablePath = errors.New("watcher: path could not be read")
 
 const (
 	// ContentHashAlgorithm is the stable digest algorithm used for source bytes.
@@ -48,7 +54,8 @@ type HashResult struct {
 }
 
 // ContentHasher compares filesystem content against the last indexed hash.
-// Process is serialized so a failed batch cannot partially update the cache.
+// Process is serialized, and a cancelled batch does not partially update the
+// cache.
 type ContentHasher struct {
 	mu    sync.Mutex
 	known map[FileKey]string
@@ -118,6 +125,12 @@ func (hasher *ContentHasher) KnownFiles() []FileHash {
 // missing or non-regular path is Removed only when it was previously known,
 // otherwise it is Skipped so directory notifications cannot masquerade as
 // source-file deletions.
+//
+// A path that exists and cannot be read does not fail the batch. The rest is
+// processed and recorded, and the error returned beside the result wraps
+// ErrUnreadablePath. Such a path leaves the tracked set -- it is Removed if it
+// was known -- because its content is no longer something the cache can vouch
+// for; it is announced once, and comes back as Changed when it can be read.
 func (hasher *ContentHasher) Process(ctx context.Context, batch Batch) (HashResult, error) {
 	if hasher == nil {
 		return HashResult{}, errors.New("process nil content hasher")
@@ -135,6 +148,7 @@ func (hasher *ContentHasher) Process(ctx context.Context, batch Batch) (HashResu
 	result := HashResult{}
 	updates := make(map[FileKey]string, len(events))
 	deletes := make(map[FileKey]struct{})
+	var unreadable []error
 	for _, event := range events {
 		if err := ctx.Err(); err != nil {
 			return HashResult{}, err
@@ -143,7 +157,15 @@ func (hasher *ContentHasher) Process(ctx context.Context, batch Batch) (HashResu
 		knownHash, known := hasher.known[key]
 		state, regular, exists, err := observeFile(ctx, event)
 		if err != nil {
-			return HashResult{}, fmt.Errorf("hash %s: %w", key, err)
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return HashResult{}, ctxErr
+			}
+			unreadable = append(unreadable, fmt.Errorf("hash %s: %w", key, err))
+			if known {
+				result.Removed = append(result.Removed, state)
+				deletes[key] = struct{}{}
+			}
+			continue
 		}
 		if !exists || !regular {
 			if known {
@@ -166,6 +188,9 @@ func (hasher *ContentHasher) Process(ctx context.Context, batch Batch) (HashResu
 	}
 	for key := range deletes {
 		delete(hasher.known, key)
+	}
+	if len(unreadable) != 0 {
+		return result, fmt.Errorf("%w: %w", ErrUnreadablePath, errors.Join(unreadable...))
 	}
 	return result, nil
 }
@@ -227,7 +252,9 @@ func observeFile(ctx context.Context, event Event) (state FileState, regular, ex
 	}
 	info, err := os.Lstat(event.Path)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
+		// ENOTDIR is a parent that became a file: the path is as gone as one
+		// whose parent was removed.
+		if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ENOTDIR) {
 			return state, false, false, nil
 		}
 		return state, false, false, fmt.Errorf("inspect: %w", err)

@@ -248,6 +248,12 @@ nada**: el grafo se queda obsoleto en silencio hasta que alguien pide un pase.
 Ése es el problema que queda vivo de la issue `#106`, y no es un problema de
 coste.
 
+> **Nota del 2026-09-02.** Ese párrafo describe el código del commit medido. El
+> ADR 0099 le dio al vigilante su llamante en producción: un `serve` o el
+> demonio vigilan las fuentes de cada perfil cuando `watcher.enabled` está
+> activo, marcan el perfil obsoleto ante una edición sin commitear y planifican
+> una reconstrucción completa. La decisión de este ADR no cambia.
+
 **Lo que la medición no establece.** Se midió una forma de edición -- una
 declaración añadida a un fichero-- sobre un corpus y una máquina. Publicar **no
 se observó moverse** con la edición (`13,891`–`14,942 s` en los diez pases, y

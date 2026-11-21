@@ -302,13 +302,15 @@ func TestHTTPAndSocketServeTheSameGraph(t *testing.T) {
 		Registry:       metrics.NewRegistry(),
 		Indexer:        stubIndexer{},
 	}
-	listener, err := Listen(options)
-	if err != nil {
-		t.Fatalf("Listen() error = %v", err)
-	}
+	// HTTP first and the socket second, the order runDaemon uses: a bound
+	// socket is what ListenHTTP reads as a daemon already running.
 	served, err := ListenHTTP(options, HTTPOptions{Address: "127.0.0.1:0"})
 	if err != nil {
 		t.Fatalf("ListenHTTP() error = %v", err)
+	}
+	listener, err := Listen(options)
+	if err != nil {
+		t.Fatalf("Listen() error = %v", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	var running sync.WaitGroup
@@ -417,6 +419,50 @@ func TestListenHTTPChoosesAndPersistsAPortWhenTheDefaultIsBusy(t *testing.T) {
 	}
 	if persistedPort != selectedPort {
 		t.Fatalf("persisted port = %d, want selected endpoint port %d", persistedPort, selectedPort)
+	}
+}
+
+// A second start for a state directory whose daemon is running must change
+// nothing. It used to fall back from the busy port, persist the new one and
+// rewrite the endpoint before the socket refused it, and then withdraw the
+// endpoint on its way out: the running daemon became undiscoverable.
+func TestListenHTTPRefusesASecondDaemonWithoutTouchingTheFirst(t *testing.T) {
+	directory := shortTempDir(t)
+	options := Options{StateDirectory: directory}
+	first, err := ListenHTTP(options, HTTPOptions{})
+	if err != nil {
+		t.Fatalf("ListenHTTP() error = %v", err)
+	}
+	defer func() { _ = first.Close() }()
+	socket, err := Listen(options)
+	if err != nil {
+		t.Fatalf("Listen() error = %v", err)
+	}
+	defer func() { _ = socket.Close() }()
+
+	read := func(path string) string {
+		t.Helper()
+		content, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		return string(content)
+	}
+	port, endpoint := read(PortPath(directory)), read(EndpointPath(directory))
+
+	second, err := ListenHTTP(options, HTTPOptions{})
+	if err == nil {
+		_ = second.Close()
+		t.Fatal("ListenHTTP() started a second daemon for a state directory that has one")
+	}
+	if !strings.Contains(err.Error(), "a daemon is already listening") {
+		t.Fatalf("ListenHTTP() error = %v, want it to say a daemon is already listening", err)
+	}
+	if got := read(PortPath(directory)); got != port {
+		t.Fatalf("%s = %q after the refused start, want %q", PortName, got, port)
+	}
+	if got := read(EndpointPath(directory)); got != endpoint {
+		t.Fatalf("endpoint file changed after the refused start:\n%s\nwant\n%s", got, endpoint)
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -327,6 +328,11 @@ func runGit(ctx context.Context, directory string, arguments ...string) (string,
 	}
 	command := exec.CommandContext(ctx, "git", arguments...)
 	command.Dir = directory
+	// Every call here is an observation. Without this, `git status` refreshes
+	// the index and takes `.git/index.lock` to write it back: the repository
+	// is modified, and a `git add` or `git commit` the user runs at the same
+	// moment fails on the lock.
+	command.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0")
 	var stderr bytes.Buffer
 	command.Stderr = &stderr
 	output, err := command.Output()

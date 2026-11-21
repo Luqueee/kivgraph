@@ -330,6 +330,8 @@ type findSymbolQuery struct {
 	Kind       string `json:"kind,omitempty"`
 	Repo       string `json:"repo,omitempty"`
 	PathPrefix string `json:"path_prefix,omitempty"`
+	// See blastRadiusQuery for why this one is `omitempty`.
+	IncludeDerived bool `json:"include_derived,omitempty"`
 }
 
 // RegisterFindSymbol adds the read-only symbol search tool without a graph
@@ -562,6 +564,7 @@ func findSymbol(
 	queryHash, err := HashQuery(findSymbolQuery{
 		Tool: findSymbolToolName, Name: name, Mode: mode,
 		Kind: filter.Kind, Repo: filter.RepositoryName, PathPrefix: filter.PathPrefix,
+		IncludeDerived: arguments.IncludeDerived,
 	})
 	if err != nil {
 		return nil, Response[SymbolResults]{}, err
@@ -642,7 +645,7 @@ func findSymbol(
 			scope = id
 		}
 	}
-	completeness, unresolvedRelated, err := completenessFor(snapshot, name, scope)
+	completeness, unresolvedRelated, err := completenessFor(snapshot, name, "", scope)
 	if err != nil {
 		return nil, Response[SymbolResults]{}, WrapToolError(
 			CodeSnapshotUnavailable, "active snapshot contains invalid unresolved metadata", err)

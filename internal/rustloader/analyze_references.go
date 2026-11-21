@@ -368,3 +368,50 @@ func sortedUnresolved(unresolved map[string]UnresolvedReference) []UnresolvedRef
 	})
 	return result
 }
+
+// collectMacroReferences publishes the uses the analyzer cannot see: a name
+// written inside a `macro_rules!` body. They are candidates, never exact --
+// rust-analyzer resolved nothing there and the grammar alone cannot prove which
+// declaration a path in a token tree reaches -- and the macro is their source.
+func collectMacroReferences(
+	document *documentAnalysis,
+	resolver *targetResolver,
+	index macroIndex,
+	analysis *Analysis,
+) {
+	for _, path := range document.source.MacroPaths() {
+		sourceKey, sourceCrate := document.enclosing(path.Start, path.End, resolver)
+		if sourceKey == "" {
+			continue
+		}
+		target, ok := index.resolve(path, sourceCrate.Name)
+		if !ok || target.key == sourceKey {
+			continue
+		}
+		kind := ReferenceUse
+		if path.Called {
+			kind = ReferenceCall
+		}
+		line := 1
+		for _, offset := range document.source.lineOffsets[1:] {
+			if offset > path.Start {
+				break
+			}
+			line++
+		}
+		analysis.References = append(analysis.References, Reference{
+			SourceKey:   sourceKey,
+			TargetKey:   target.key,
+			Kind:        kind,
+			Candidate:   true,
+			SourceCrate: sourceCrate,
+			TargetCrate: sourceCrate,
+			File:        document.path,
+			StartLine:   line,
+			StartColumn: path.Start - document.source.lineOffsets[line-1],
+			StartOffset: path.Start,
+			EndOffset:   path.End,
+			Text:        document.source.Text(path.Start, path.End),
+		})
+	}
+}

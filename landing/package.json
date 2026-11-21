@@ -22,18 +22,18 @@
     "test": "node --test src/**/*.test.mjs"
   },
   "dependencies": {
-    "@astrojs/markdown-remark": "7.2.2",
-    "@astrojs/node": "11.1.1",
-    "@astrojs/sitemap": "3.7.3",
+    "@astrojs/markdown-remark": "7.3.9",
+    "@astrojs/node": "11.1.13",
+    "@astrojs/sitemap": "3.7.5",
     "@astrojs/starlight": "0.41.7",
     "@astrojs/starlight-tailwind": "5.0.0",
     "@fontsource-variable/geist": "5.3.0",
     "@fontsource-variable/geist-mono": "5.3.0",
-    "astro": "7.2.1",
-    "gsap": "^3.15.0",
-    "posthog-js": "^1.420.0",
+    "astro": "7.4.12",
+    "gsap": "^3.15.1",
+    "posthog-js": "^1.450.0",
     "tailwindcss": "4.3.3",
-    "zod": "4.4.3"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@astrojs/check": "0.9.10",

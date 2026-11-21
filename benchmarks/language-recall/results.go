@@ -1,0 +1,232 @@
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"math"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+)
+
+func sqrt(value float64) float64 { return math.Sqrt(value) }
+
+type environment struct {
+	OS         string `json:"os"`
+	Arch       string `json:"arch"`
+	Go         string `json:"go"`
+	Kivgraph   string `json:"kivgraph"`
+	Node       string `json:"node,omitempty"`
+	TypeScript string `json:"typescript,omitempty"`
+	Rust       string `json:"rust,omitempty"`
+	Java       string `json:"java,omitempty"`
+	Dotnet     string `json:"dotnet,omitempty"`
+	Python     string `json:"python,omitempty"`
+	Mypy       string `json:"mypy,omitempty"`
+	Pyright    string `json:"pyright,omitempty"`
+}
+
+type metric struct {
+	Value   float64 `json:"value"`
+	Low     float64 `json:"low"`
+	High    float64 `json:"high"`
+	Num     int     `json:"numerator"`
+	Den     int     `json:"denominator"`
+	Symbols int     `json:"symbols"`
+}
+
+type kindResult struct {
+	Kind    string `json:"kind"`
+	Symbols int    `json:"symbols_with_dependents"`
+	Recall  metric `json:"file_recall"`
+}
+
+type languageResult struct {
+	Arm                       string         `json:"arm"`
+	Language                  string         `json:"language"`
+	Listed                    int            `json:"declarations_listed"`
+	Eligible                  int            `json:"declarations_eligible"`
+	Skipped                   map[string]int `json:"not_sampled"`
+	Sampled                   int            `json:"declarations_measured"`
+	WithDependents            int            `json:"with_dependents"`
+	OracleFailures            int            `json:"oracle_failures"`
+	KivgraphFailures          int            `json:"kivgraph_failures"`
+	Recall                    metric         `json:"file_recall"`
+	RecallNonTest             metric         `json:"file_recall_non_test"`
+	RecallTest                metric         `json:"file_recall_test"`
+	RecallPrivate             metric         `json:"file_recall_private_names"`
+	RecallNonPrivate          metric         `json:"file_recall_without_private_names"`
+	Precision                 metric         `json:"file_precision"`
+	FullRecallSymbols         metric         `json:"symbols_fully_recalled"`
+	WithoutDependentsReported metric         `json:"symbols_without_dependents_that_report_references"`
+	Verdicts                  map[string]int `json:"completeness_verdicts"`
+	CompleteWithMiss          int            `json:"complete_verdicts_that_missed_a_non_test_file"`
+	ByKind                    []kindResult   `json:"by_kind"`
+	Symbols                   []symbolResult `json:"symbols"`
+}
+
+type results struct {
+	Benchmark   string             `json:"benchmark"`
+	Command     string             `json:"command"`
+	Date        string             `json:"date"`
+	Seed        int64              `json:"seed"`
+	Count       int                `json:"declarations_per_language"`
+	Environment environment        `json:"environment"`
+	Corpus      []corpusRepository `json:"corpus"`
+	Languages   []languageResult   `json:"languages"`
+	Limitations []string           `json:"limitations"`
+	WallSeconds float64            `json:"wall_seconds"`
+}
+
+// limitations are the same for every run except for the ones about a language
+// that is measured only when asked for and has an oracle of another kind.
+func limitations(languages map[string]bool) []string {
+	out := []string{
+		"The oracle and Kivgraph share each language's type checker for Go, TypeScript and Dart. Go is checked with `go/packages` and `go/types` on both sides, TypeScript with the repository's own `tsc` on one side and the same checker inside the worker on the other, Dart with `dart analyze` on one side and the Analysis Server on the other. Type resolution is not what this measures there: it measures which files and build variants are loaded, how resolved uses become edges, and what is filtered on the way out. Rust is the exception: the oracle is `rustc` through `cargo check` and Kivgraph reads `rust-analyzer`, two different front ends.",
+		"The unit is the file, not the reference. A rename makes the compiler reject some uses and not others (after a failed import, the uses of the imported name are not reported), so reference-level ground truth would differ by language. A file is a dependent if it gains an error.",
+		"Implementation and inheritance relations are left out of the truth: an error that says a type no longer satisfies an interface or a base class is not a use of the renamed name, and `find_references` is not the tool for it.",
+		"The sample frame is what Kivgraph lists for each file, so a declaration Kivgraph never recorded cannot be sampled. A recall measured this way is conditional on the declaration being known.",
+		"Only declarations whose name appears in its declaring position on its first line are renamed, so the rename is exact. Declarations written another way are counted as not sampled.",
+		"Go and Dart declarations are sampled from non-test files; references from test files are part of the truth and are reported apart, and the default arm reads them (`go.include_tests` and `dart.include_tests` are true by default). The `tests_excluded` arm sets that key to false for one language, and its test files are then missed by construction.",
+		"One repository per language: the figures describe these repositories at these commits, not the language. A second repository would show how much they move.",
+		"A declaration with no dependents says nothing about recall. It is reported through the share of such declarations for which Kivgraph still reports a reference.",
+		"The TypeScript dependencies are installed with `npm install` and are not pinned by a lockfile, so a rerun can resolve other versions. The Rust dependencies are fetched with `--locked`.",
+		"`rustc` stops after name resolution when that fails, so an error that needs type inference can be hidden behind an unresolved name elsewhere. The same holds across a workspace: a crate that fails to compile hides every crate and target that depends on it, so on a multi-crate workspace the truth is a lower bound and the precision is too (on `ripgrep`, 25 of 33 extra files are in other crates and 8 in targets of the declaring crate). The Rust truth cannot contain a file that does not use the name.",
+		"Renaming a Dart class breaks its constructors' own declarations (a constructor is written with the class's name), and an `implements` clause is an implementation relation: those errors are left out of the truth. The Dart dependencies are resolved with `dart pub get`, and the repository ships no lockfile.",
+		"Java and C# read their tests by default too (ADR 0142); their `tests_excluded` arm misses every test file by construction.",
+		"`scip-dotnet` resolves a call written as an extension method (`Guard.Against.Negative(0L)`) to the first overload of the name whatever its arguments, and records no occurrence for a generic call with explicit type arguments (`Negative<int>(...)`). The C# corpus is a library of overloaded extension methods, so its recall is mostly that: the other overloads have no reference in the index, and Kivgraph answers `COMPLETE` for them.",
+		"Java is checked by running `javac` over the main and the test sources at once, with the classpath Maven resolves, so one failing file does not hide another; Kivgraph reads `scip-java`, which drives the same compiler through the build. A Java or C# constructor is written with its type's name, so renaming the type breaks the constructors' own declarations: those errors are left out, as for Dart.",
+		"C# is checked with `dotnet build` on the solution, and MSBuild does not compile a project whose reference failed: a rename in the library leaves the test project unbuilt, so its files are missing from the truth. The C# truth is a lower bound and so is its precision, as for a Rust workspace. Kivgraph reads `scip-dotnet`, which drives Roslyn, the same compiler.",
+	}
+	if languages["python"] {
+		out = append(out,
+			"Python is checked with mypy, which Kivgraph does not use: its exact mode reads Pyright and its default mode a syntactic worker. mypy reports nothing through a value it types as `Any` -- an unannotated parameter, which is what a pytest fixture is -- so a use reached only that way is not in the truth. The Python truth is a lower bound: a file Kivgraph reports beyond it counts against precision whether or not it is a real use.",
+			"After an import fails mypy binds the imported name to `Any`, which would hide every use behind a re-export in a package's `__init__`. The oracle follows the rename through: each import that fails for the renamed name is rewritten to the new name and the check runs again until none fails.",
+			"`python.tests_excluded`, `python.exact` and `python.exact.tests_excluded` are the default configuration with `python.include_tests: false`, with `analyzer_mode: exact` over Pyright, and with both. Each samples from what its own graph lists, and the two modes do not list the same declarations, so the four do not draw the same sample.",
+			"mypy checks the package and its tests. The repository's `docs` and `examples` are scripts that each define modules of the same name, which it cannot check together, so a file Kivgraph reports there is left out of the comparison instead of being counted against it.",
+			"A name bound in more than one place survives the rename of one binding: a constant assigned in both branches of an `if`, an attribute annotated on one line and assigned on the next. mypy reports nothing then, and the uses count against precision. So do the uses on a line marked `# type: ignore`.",
+			"mypy does not check code under a platform test that is false where it runs (`if sys.platform == \"win32\"`), so declarations used only there have no truth on this machine and their uses count against precision.",
+		)
+	}
+	return out
+}
+
+func writeResults(directory string, measured results) error {
+	if err := os.MkdirAll(directory, 0o755); err != nil {
+		return err
+	}
+	encoded, err := json.MarshalIndent(measured, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(directory, "results.json"), append(encoded, '\n'), 0o644); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(directory, "report.md"), []byte(renderReport(measured)), 0o644)
+}
+
+func percent(m metric) string {
+	if m.Den == 0 {
+		return "n/a"
+	}
+	return fmt.Sprintf("%.1f %% (%.1f to %.1f)", 100*m.Value, 100*m.Low, 100*m.High)
+}
+
+func renderReport(measured results) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "# Recall on real code, by language\n\n")
+	fmt.Fprintf(&b, "How many of the files that depend on a declaration does `find_references` report? The ground truth is the language's own type checker: rename the declaration, type-check again, and the files that gain an error are the files that use it.\n\n")
+	fmt.Fprintf(&b, "- Command: `%s`\n- Date: %s, seed %d, up to %d declarations per language\n", measured.Command, measured.Date, measured.Seed, measured.Count)
+	fmt.Fprintf(&b, "- Kivgraph `%s` on %s/%s, %s", measured.Environment.Kivgraph, measured.Environment.OS, measured.Environment.Arch, measured.Environment.Go)
+	if measured.Environment.TypeScript != "" {
+		fmt.Fprintf(&b, ", %s, node %s", measured.Environment.TypeScript, measured.Environment.Node)
+	}
+	if measured.Environment.Rust != "" {
+		fmt.Fprintf(&b, ", %s", measured.Environment.Rust)
+	}
+	if measured.Environment.Java != "" {
+		fmt.Fprintf(&b, ", %s", measured.Environment.Java)
+	}
+	if measured.Environment.Dotnet != "" {
+		fmt.Fprintf(&b, ", dotnet %s", measured.Environment.Dotnet)
+	}
+	if measured.Environment.Mypy != "" {
+		fmt.Fprintf(&b, ", %s, %s, %s", measured.Environment.Python, measured.Environment.Mypy, measured.Environment.Pyright)
+	}
+	fmt.Fprintf(&b, "\n\n## Corpus\n\n|language|repository|commit|\n|---|---|---|\n")
+	for _, repository := range measured.Corpus {
+		fmt.Fprintf(&b, "|%s|[%s](%s)|`%s`|\n", repository.Language, repository.Name, strings.TrimSuffix(repository.URL, ".git"), repository.Commit[:12])
+	}
+	fmt.Fprintf(&b, "\n## Result\n\nIntervals are 95 %% percentile intervals from resampling declarations.\n\n")
+	fmt.Fprintf(&b, "|language|configuration|declarations measured|with dependents|file recall|file precision|fully recalled|\n|---|---|---|---|---|---|---|\n")
+	for _, language := range measured.Languages {
+		fmt.Fprintf(&b, "|%s|%s|%d|%d|%s|%s|%s|\n", language.Language, language.Arm, language.Sampled, language.WithDependents,
+			percent(language.Recall), percent(language.Precision), percent(language.FullRecallSymbols))
+	}
+	fmt.Fprintf(&b, "\n`file recall` pools the dependent files of every declaration. `fully recalled` is the share of declarations with dependents for which no file was missed (Wilson interval). A `tests_excluded` configuration is the default one with that language's `include_tests: false`; each pair draws the same declarations.\n")
+	for _, language := range measured.Languages {
+		fmt.Fprintf(&b, "\n## %s (%s)\n\n", language.Language, language.Arm)
+		fmt.Fprintf(&b, "- Declarations listed %d, eligible for the rename %d, measured %d (oracle failed on %d, Kivgraph refused %d).\n",
+			language.Listed, language.Eligible, language.Sampled, language.OracleFailures, language.KivgraphFailures)
+		fmt.Fprintf(&b, "- Recall on non-test files: %s. On test files: %s.\n", percent(language.RecallNonTest), percent(language.RecallTest))
+		if language.RecallPrivate.Den > 0 {
+			fmt.Fprintf(&b, "- Recall on ES private names (`#x`): %s over %d declarations. On every other declaration: %s.\n",
+				percent(language.RecallPrivate), language.RecallPrivate.Symbols, percent(language.RecallNonPrivate))
+		}
+		fmt.Fprintf(&b, "- Declarations with no dependents for which Kivgraph still reports a file: %d of %d.\n",
+			language.WithoutDependentsReported.Num, language.WithoutDependentsReported.Den)
+		var verdicts []string
+		for verdict, n := range language.Verdicts {
+			verdicts = append(verdicts, fmt.Sprintf("%s %d", verdict, n))
+		}
+		sort.Strings(verdicts)
+		fmt.Fprintf(&b, "- Completeness verdicts: %s.\n", strings.Join(verdicts, ", "))
+		fmt.Fprintf(&b, "- Answers that said `COMPLETE` and missed at least one non-test file: %d of %d.\n", language.CompleteWithMiss, language.Verdicts["COMPLETE"])
+		var skipped []string
+		for reason, n := range language.Skipped {
+			skipped = append(skipped, fmt.Sprintf("%s: %d", reason, n))
+		}
+		sort.Strings(skipped)
+		fmt.Fprintf(&b, "- Not sampled: %s.\n\n", strings.Join(skipped, "; "))
+		fmt.Fprintf(&b, "|kind|declarations with dependents|file recall|\n|---|---|---|\n")
+		for _, kind := range language.ByKind {
+			fmt.Fprintf(&b, "|%s|%d|%s|\n", kind.Kind, kind.Symbols, percent(kind.Recall))
+		}
+		var missed []symbolResult
+		for _, symbol := range language.Symbols {
+			if len(symbol.Missed) > 0 {
+				missed = append(missed, symbol)
+			}
+		}
+		if len(missed) > 0 {
+			fmt.Fprintf(&b, "\nDeclarations with a missed file (first 15 of %d):\n\n|declaration|kind|missed|verdict|\n|---|---|---|---|\n", len(missed))
+			for i, symbol := range missed {
+				if i == 15 {
+					break
+				}
+				fmt.Fprintf(&b, "|`%s` (%s:%d)|%s|%s|%s|\n", symbol.Name, symbol.Path, symbol.Line, symbol.Kind, strings.Join(symbol.Missed, ", "), symbol.Verdict)
+			}
+		}
+		var extra []symbolResult
+		for _, symbol := range language.Symbols {
+			if len(symbol.Extra) > 0 {
+				extra = append(extra, symbol)
+			}
+		}
+		if len(extra) > 0 {
+			fmt.Fprintf(&b, "\nDeclarations with a reported file the compiler did not flag (first 15 of %d). These are unaudited: a use the compiler does not reject, such as one in a comment, is not a false positive.\n\n|declaration|kind|extra|\n|---|---|---|\n", len(extra))
+			for i, symbol := range extra {
+				if i == 15 {
+					break
+				}
+				fmt.Fprintf(&b, "|`%s` (%s:%d)|%s|%s|\n", symbol.Name, symbol.Path, symbol.Line, symbol.Kind, strings.Join(symbol.Extra, ", "))
+			}
+		}
+	}
+	fmt.Fprintf(&b, "\n## What this does not show\n\n")
+	for _, limitation := range measured.Limitations {
+		fmt.Fprintf(&b, "- %s\n", limitation)
+	}
+	return b.String()
+}

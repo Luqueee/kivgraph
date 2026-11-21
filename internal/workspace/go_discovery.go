@@ -3,6 +3,7 @@ package workspace
 import (
 	"context"
 	"fmt"
+	"go/ast"
 	"go/parser"
 	"go/token"
 	"os"
@@ -53,6 +54,14 @@ func DiscoverGo(ctx context.Context, repository Repository) (GoDiscovery, error)
 		case "go.mod":
 			parsed, err := parseGoModule(filePath, root)
 			if err != nil {
+				// Below testdata, or a directory the go tool skips by name, a
+				// manifest is a fixture and may be malformed on purpose. It is
+				// still a module when it parses, which is what lets a go.mod
+				// replace a dependency with one; when it does not, nothing
+				// the go tool builds can reach it.
+				if isOutsideModulePackages(root, filepath.Dir(filePath)) {
+					return nil
+				}
 				return fmt.Errorf("parse module manifest %q: %w", filePath, err)
 			}
 			modules[parsed.module.ManifestPath] = parsed.module
@@ -101,6 +110,12 @@ func walkGoFiles(ctx context.Context, base, current string, exclusions []string,
 	}
 	entries, err := os.ReadDir(current)
 	if err != nil {
+		// A directory below the root that vanished between being listed and being
+		// read -- a build's temporary directory -- holds nothing to discover. The
+		// root going away is not that, and stays an error.
+		if os.IsNotExist(err) && current != base {
+			return nil
+		}
 		return fmt.Errorf("read directory %q: %w", current, err)
 	}
 	for _, entry := range entries {
@@ -130,13 +145,16 @@ func walkGoFiles(ctx context.Context, base, current string, exclusions []string,
 			continue
 		}
 		info, err := entry.Info()
+		if os.IsNotExist(err) {
+			continue
+		}
 		if err != nil {
 			return fmt.Errorf("inspect file %q: %w", entryPath, err)
 		}
 		if !info.Mode().IsRegular() {
 			continue
 		}
-		if err := visit(entryPath); err != nil {
+		if err := visitUnlessVanished(entryPath, visit); err != nil {
 			return err
 		}
 	}
@@ -150,6 +168,9 @@ func isGoDiscoveryExcluded(base, candidate, name string, isDirectory bool, exclu
 	}
 	if isDirectory {
 		if _, excluded := defaultGoExcludedDirectories[name]; excluded {
+			return true, nil
+		}
+		if IsCacheDirectory(candidate) {
 			return true, nil
 		}
 	}
@@ -210,13 +231,21 @@ func discoverGoPackages(ctx context.Context, repositoryRoot string, exclusions [
 		if excluded {
 			continue
 		}
+		module := moduleForDirectory(directory, moduleRoots)
+		packageRoot := module.RootPath
+		if module.ModulePath == "" {
+			packageRoot = repositoryRoot
+		}
+		// The go tool never matches testdata, nor a name beginning with "_" or
+		// ".", as a package of the module it sits in, and its files need not even
+		// parse. A module whose own root lies inside one is still a module and is
+		// judged from that root.
+		if isOutsideModulePackages(packageRoot, directory) {
+			continue
+		}
 		files := append([]string(nil), filesByDirectory[directory]...)
 		sort.Strings(files)
-		name, packageFiles, err := parseGoPackage(directory, files)
-		if err != nil {
-			return nil, err
-		}
-		module := moduleForDirectory(directory, moduleRoots)
+		name, packageFiles := parseGoPackage(files)
 		goPackage := GoPackage{
 			Directory: directory,
 			Name:      name,
@@ -250,38 +279,91 @@ func isGoDiscoveryExcludedPath(base, directory string, exclusions []string) (boo
 	return isGoDiscoveryExcluded(base, directory, filepath.Base(directory), true, exclusions)
 }
 
-func parseGoPackage(directory string, files []string) (string, []string, error) {
-	filesByName := make(map[string][]string)
-	for _, filePath := range files {
-		file, err := parser.ParseFile(token.NewFileSet(), filePath, nil, parser.PackageClauseOnly)
-		if err != nil {
-			return "", nil, fmt.Errorf("parse Go package file %q: %w", filePath, err)
-		}
-		filesByName[file.Name.Name] = append(filesByName[file.Name.Name], filePath)
+// parseGoPackage names the package a directory holds and lists its files. It
+// never fails: the go command is what decides whether a directory is a valid
+// package, and it reports each one that is not, so refusing here would stop the
+// whole index for one directory and hide that answer. A file that does not parse
+// is kept in the list so that the error go reports can be attributed to it.
+//
+// A file excluded by an `ignore` build constraint -- the generator idiom, a
+// `package main` beside a library -- is not part of the package and does not
+// name it. When the files that remain still name several packages, the one with
+// the most files is reported, ties to the first by name, and go reports the
+// conflict.
+func parseGoPackage(files []string) (string, []string) {
+	type declared struct {
+		name    string
+		ignored bool
+		path    string
 	}
-	candidateNames := make([]string, 0, len(filesByName))
+	var (
+		parsed     []declared
+		unparsable []string
+	)
+	for _, filePath := range files {
+		file, err := parser.ParseFile(token.NewFileSet(), filePath, nil, parser.PackageClauseOnly|parser.ParseComments)
+		if err != nil || file.Name == nil {
+			unparsable = append(unparsable, filePath)
+			continue
+		}
+		parsed = append(parsed, declared{name: file.Name.Name, ignored: hasIgnoreConstraint(file), path: filePath})
+	}
+	live := make([]declared, 0, len(parsed))
+	for _, entry := range parsed {
+		if !entry.ignored {
+			live = append(live, entry)
+		}
+	}
+	if len(live) == 0 {
+		live = parsed
+	}
+	filesByName := make(map[string][]string)
+	for _, entry := range live {
+		filesByName[entry.name] = append(filesByName[entry.name], entry.path)
+	}
+	candidates := make([]string, 0, len(filesByName))
 	for name := range filesByName {
 		if strings.HasSuffix(name, "_test") {
-			baseName := strings.TrimSuffix(name, "_test")
-			if _, exists := filesByName[baseName]; exists {
+			if _, exists := filesByName[strings.TrimSuffix(name, "_test")]; exists {
 				continue
 			}
 		}
-		candidateNames = append(candidateNames, name)
+		candidates = append(candidates, name)
 	}
-	if len(candidateNames) == 0 {
+	if len(candidates) == 0 {
 		for name := range filesByName {
-			candidateNames = append(candidateNames, name)
+			candidates = append(candidates, name)
 		}
 	}
-	if len(candidateNames) != 1 {
-		sort.Strings(candidateNames)
-		return "", nil, fmt.Errorf("directory %q contains multiple Go packages: %s", directory, strings.Join(candidateNames, ", "))
+	sort.Strings(candidates)
+	name := ""
+	for _, candidate := range candidates {
+		if name == "" || len(filesByName[candidate]) > len(filesByName[name]) {
+			name = candidate
+		}
 	}
-	name := candidateNames[0]
 	packageFiles := append([]string(nil), filesByName[name]...)
+	packageFiles = append(packageFiles, unparsable...)
 	sort.Strings(packageFiles)
-	return name, packageFiles, nil
+	return name, packageFiles
+}
+
+// hasIgnoreConstraint reports whether a file opts out of every build with
+// `//go:build ignore` or the older `// +build ignore`, written before the
+// package clause.
+func hasIgnoreConstraint(file *ast.File) bool {
+	for _, group := range file.Comments {
+		if group.Pos() >= file.Package {
+			break
+		}
+		for _, comment := range group.List {
+			text := strings.TrimSpace(comment.Text)
+			if text == "//go:build ignore" || text == "// +build ignore" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func moduleForDirectory(directory string, modules []GoModule) GoModule {
@@ -316,4 +398,21 @@ func sortedGoWorkspaces(workspaces map[string]GoWorkspace) []GoWorkspace {
 		return result[left].Path < result[right].Path
 	})
 	return result
+}
+
+// isOutsideModulePackages reports whether the go tool would leave directory out
+// of the packages of the module rooted at moduleRoot: a path component below the
+// root that is testdata or begins with "_" or ".". The root itself is never
+// judged, so a repository checked out under a directory called testdata works.
+func isOutsideModulePackages(moduleRoot, directory string) bool {
+	relative, err := filepath.Rel(moduleRoot, directory)
+	if err != nil || relative == "." {
+		return false
+	}
+	for _, component := range strings.Split(filepath.ToSlash(relative), "/") {
+		if component == "testdata" || strings.HasPrefix(component, "_") || strings.HasPrefix(component, ".") {
+			return true
+		}
+	}
+	return false
 }

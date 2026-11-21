@@ -30,6 +30,7 @@ go_test(
         "classify_test.go",
         "decision_test.go",
         "edges_test.go",
+        "gate_paths_test.go",
         "gate_test.go",
         "graph_session_test.go",
         "graph_test.go",

@@ -45,6 +45,12 @@ La primera invocación de `make test-ladybug` tarda unos `150 s`: compila cgo
 desde cero. Después el coste es el de ejecutar, y la caché de test no lo baja
 porque el enlazado con la biblioteca nativa se rehace igual.
 
+`make test` corre `go test -p 2 ./...`. Go prueba por defecto un paquete por
+núcleo, y en un Mac de 10 núcleos eso dejó `0 %` de CPU libre en cuatro de once
+muestras. Con `-p 2` el mínimo libre fue `15 %` y la suite tardó `70 s` en vez
+de `61 s`. CI no usa `make test`, así que no le afecta; a mano, `go test ./...`
+sigue valiendo si la máquina no hace otra cosa.
+
 `go test ./...` **no compila** los archivos con `//go:build ladybug`: son 22
 archivos con **75 tests** que la suite corriente no ve, repartidos en
 `internal/storage/ladybug`, `internal/indexer`, `internal/app` e

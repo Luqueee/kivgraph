@@ -1188,3 +1188,86 @@ func TestSiblingExecutableAcceptsOnlyARunnableFile(t *testing.T) {
 		}
 	}
 }
+
+// A `package main` kept out of every build with an ignore constraint is the
+// ordinary way a Go repository carries a generator beside the package it
+// generates for. It is not a second package: the index completes and the real
+// package contributes its symbols.
+func TestFullIndexesAPackageBesideAnIgnoredGenerator(t *testing.T) {
+	root := testsupport.TempDir(t)
+	writeFullFixture(t, filepath.Join(root, "go.mod"), "module example.com/fullfixture\n\ngo 1.24\n")
+	writeFullFixture(t, filepath.Join(root, "fixture.go"), "package fixture\n\nfunc Greeting() string { return \"hello\" }\n")
+	writeFullFixture(t, filepath.Join(root, "gen.go"), "//go:build ignore\n\npackage main\n\nfunc main() {}\n")
+
+	set, report, err := Full(context.Background(), FullOptions{
+		Repositories:      []workspace.Repository{{Name: "fixture", Path: root, RealPath: root, Languages: []string{"go"}}},
+		SyntheticWorkFile: filepath.Join(testsupport.TempDir(t), "go.work"),
+	})
+	if err != nil {
+		t.Fatalf("Full() error = %v, want the generator left alone", err)
+	}
+	if report.GoModulesNotLoaded != 0 || report.GoLoadErrors != 0 || report.GoLoadDiagnostics != 0 {
+		t.Fatalf("full report = %+v, want a clean load", report)
+	}
+	found := false
+	for _, symbol := range set.Symbols {
+		found = found || symbol.Name == "Greeting"
+	}
+	if !found {
+		t.Fatalf("symbols = %d, want Greeting indexed", len(set.Symbols))
+	}
+}
+
+// A directory that is not one valid package -- two package names, a file that
+// is not Go -- is the go command's to report. It must not stop the index for
+// every other repository: the module that holds it is declared not loaded, with
+// the reason go gave, and the rest of the pass completes.
+func TestFullGoesOnWhenAGoModuleHoldsADirectoryThatIsNotOnePackage(t *testing.T) {
+	for name, files := range map[string]map[string]string{
+		"two package names":     {"broken/a.go": "package a\n", "broken/b.go": "package b\n"},
+		"a file that is not Go": {"broken/bad.go": "this is not go code\n"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			broken := testsupport.TempDir(t)
+			writeFullFixture(t, filepath.Join(broken, "go.mod"), "module example.com/broken\n\ngo 1.24\n")
+			writeFullFixture(t, filepath.Join(broken, "broken.go"), "package brokenroot\n")
+			for file, contents := range files {
+				writeFullFixture(t, filepath.Join(broken, file), contents)
+			}
+			healthy := testsupport.TempDir(t)
+			writeFullFixture(t, filepath.Join(healthy, "go.mod"), "module example.com/healthy\n\ngo 1.24\n")
+			writeFullFixture(t, filepath.Join(healthy, "healthy.go"), "package healthy\n\nfunc Greeting() string { return \"hello\" }\n")
+
+			set, report, err := Full(context.Background(), FullOptions{
+				Repositories: []workspace.Repository{
+					{Name: "broken", Path: broken, RealPath: broken, Languages: []string{"go"}},
+					{Name: "healthy", Path: healthy, RealPath: healthy, Languages: []string{"go"}},
+				},
+				SyntheticWorkFile: filepath.Join(testsupport.TempDir(t), "go.work"),
+			})
+			if err != nil {
+				t.Fatalf("Full() error = %v, want the pass to complete", err)
+			}
+			if err := set.Validate(); err != nil {
+				t.Fatalf("full facts validation error = %v", err)
+			}
+			if report.GoModulesNotLoaded != 1 {
+				t.Fatalf("full report = %+v, want exactly the broken module declared not loaded", report)
+			}
+			declared := false
+			for _, entry := range set.Unresolved {
+				declared = declared || (entry.Reason == "MODULE_NOT_LOADED" && entry.RequestedPackage == "example.com/broken")
+			}
+			if !declared {
+				t.Fatalf("unresolved = %#v, want the broken module declared", set.Unresolved)
+			}
+			found := false
+			for _, symbol := range set.Symbols {
+				found = found || symbol.Name == "Greeting"
+			}
+			if !found {
+				t.Fatalf("symbols = %d, want the healthy repository indexed", len(set.Symbols))
+			}
+		})
+	}
+}

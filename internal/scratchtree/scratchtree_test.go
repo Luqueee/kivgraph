@@ -4,8 +4,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Luqueee/kivgraph/internal/testsupport"
 	"github.com/Luqueee/kivgraph/internal/workspace"
@@ -67,6 +69,62 @@ func TestMaterialiseReproducesTheWorkingTreeNotHead(t *testing.T) {
 	}
 }
 
+// Three shapes of a dirty working tree that the overlay used to get wrong, each
+// leaving the analyzer a tree nobody has: a staged rename kept the old file
+// beside the new one, a new directory was skipped whole, and an edit under a
+// source directory that merely shares a build tool's name was ignored.
+func TestMaterialiseFollowsRenamesNewDirectoriesAndBuildNamedPackages(t *testing.T) {
+	root := testsupport.TempDir(t)
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is not installed")
+	}
+	write(t, filepath.Join(root, "src", "old_name.txt"), "renamed\n")
+	write(t, filepath.Join(root, "src", "build", "Tool.txt"), "before\n")
+	write(t, filepath.Join(root, "src", "build", "Gone.txt"), "doomed\n")
+	run(t, root, "init", "-q")
+	run(t, root, "add", "-A")
+	run(t, root, "-c", "user.email=a@b", "-c", "user.name=t", "commit", "-qm", "fixture")
+
+	run(t, root, "mv", "src/old_name.txt", "src/new_name.txt")
+	write(t, filepath.Join(root, "src", "build", "Tool.txt"), "after\n")
+	if err := os.Remove(filepath.Join(root, "src", "build", "Gone.txt")); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(root, "newpkg", "inner", "New.txt"), "untracked\n")
+	// Untracked build output still stays behind.
+	write(t, filepath.Join(root, "target", "classes", "Thing.class"), "binary\n")
+
+	tree, err := Materialise(t.Context(),
+		workspace.Repository{Name: "fixture", Path: root, RealPath: root},
+		testsupport.TempDir(t))
+	if err != nil {
+		t.Fatalf("materialise: %v", err)
+	}
+	defer tree.Close()
+	if tree.Strategy != StrategyArchive {
+		t.Fatalf("strategy = %q, want %q", tree.Strategy, StrategyArchive)
+	}
+
+	if got := read(t, filepath.Join(tree.Path, "src", "new_name.txt")); got != "renamed\n" {
+		t.Errorf("new_name.txt = %q, want the renamed file", got)
+	}
+	if _, err := os.Stat(filepath.Join(tree.Path, "src", "old_name.txt")); !os.IsNotExist(err) {
+		t.Error("the old name of a staged rename survived beside the new one")
+	}
+	if got := read(t, filepath.Join(tree.Path, "newpkg", "inner", "New.txt")); got != "untracked\n" {
+		t.Errorf("newpkg/inner/New.txt = %q, want the file of an untracked directory", got)
+	}
+	if got := read(t, filepath.Join(tree.Path, "src", "build", "Tool.txt")); got != "after\n" {
+		t.Errorf("src/build/Tool.txt = %q, want the edit to a tracked file under a build-named directory", got)
+	}
+	if _, err := os.Stat(filepath.Join(tree.Path, "src", "build", "Gone.txt")); !os.IsNotExist(err) {
+		t.Error("a tracked file deleted under a build-named directory survived")
+	}
+	if _, err := os.Stat(filepath.Join(tree.Path, "target")); !os.IsNotExist(err) {
+		t.Error("untracked build output was carried into the scratch tree")
+	}
+}
+
 func TestMaterialiseLeavesBuildOutputBehind(t *testing.T) {
 	root := gitRepository(t)
 	tree, err := Materialise(t.Context(),
@@ -119,6 +177,34 @@ func TestMaterialiseWritesNothingInsideTheRepository(t *testing.T) {
 	// The specific thing `git worktree add` would have left behind.
 	if _, err := os.Stat(filepath.Join(root, ".git", "worktrees")); !os.IsNotExist(err) {
 		t.Error("a worktree registration was left inside .git")
+	}
+}
+
+// The test above leaves `.git` out because reading a repository with git used
+// to refresh its index. It no longer does: a tracked file whose stat data moved
+// is exactly what made `git status` rewrite `.git/index` under its lock, in a
+// repository this package promises not to modify.
+func TestMaterialiseLeavesTheGitIndexAlone(t *testing.T) {
+	root := gitRepository(t)
+	moved := time.Now().Add(-48 * time.Hour)
+	if err := os.Chtimes(filepath.Join(root, "src", "kept.txt"), moved, moved); err != nil {
+		t.Fatal(err)
+	}
+	index := filepath.Join(root, ".git", "index")
+	before := read(t, index)
+
+	tree, err := Materialise(t.Context(),
+		workspace.Repository{Name: "fixture", Path: root, RealPath: root},
+		testsupport.TempDir(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tree.Close()
+	if tree.Strategy != StrategyArchive {
+		t.Fatalf("strategy = %q, want %q: the copy fallback never asks git", tree.Strategy, StrategyArchive)
+	}
+	if read(t, index) != before {
+		t.Fatal("materialising the tree rewrote .git/index of the repository it read")
 	}
 }
 
@@ -178,6 +264,49 @@ func TestMaterialiseRefusesABaseInsideTheRepository(t *testing.T) {
 		filepath.Join(root, "scratch"))
 	if err == nil || !strings.Contains(err.Error(), "inside the repository") {
 		t.Fatalf("err = %v, want a refusal", err)
+	}
+}
+
+// A refused entry stops the reader while git still has most of the archive to
+// write. git then blocks on the full pipe, so waiting for it before letting go
+// of the pipe never returns: the pass hung instead of falling back.
+func TestMaterialiseFallsBackWhenExtractionStopsMidArchive(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fixture needs a colon in a file name")
+	}
+	root := gitRepository(t)
+	// Sorts first, so it is refused with the rest of the archive unread, and
+	// that rest is larger than any pipe buffer.
+	write(t, filepath.Join(root, "a:colon.txt"), "refused\n")
+	write(t, filepath.Join(root, "src", "large.txt"), strings.Repeat("x", 4<<20))
+	run(t, root, "add", "-A")
+	run(t, root, "-c", "user.email=a@b", "-c", "user.name=t", "commit", "-qm", "large")
+
+	type outcome struct {
+		tree *Tree
+		err  error
+	}
+	done := make(chan outcome, 1)
+	base := testsupport.TempDir(t)
+	go func() {
+		tree, err := Materialise(t.Context(),
+			workspace.Repository{Name: "fixture", Path: root, RealPath: root}, base)
+		done <- outcome{tree, err}
+	}()
+	select {
+	case result := <-done:
+		if result.err != nil {
+			t.Fatal(result.err)
+		}
+		defer result.tree.Close()
+		if result.tree.Strategy != StrategyCopy {
+			t.Fatalf("strategy = %q, want the copy fallback", result.tree.Strategy)
+		}
+		if got := read(t, filepath.Join(result.tree.Path, "a:colon.txt")); got != "refused\n" {
+			t.Fatalf("a:colon.txt = %q", got)
+		}
+	case <-time.After(30 * time.Second):
+		t.Fatal("Materialise did not return: git archive is blocked on an unread pipe")
 	}
 }
 
