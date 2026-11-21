@@ -18,7 +18,7 @@ build: test version
 	go build ./cmd/kivgraph
 
 test:
-	go test ./...
+	go test -p 2 ./...
 
 # bazel-build exercises the optional Go-only Bazel graph. Packaging, the
 # native LadybugDB build, and the independent pnpm projects remain on their

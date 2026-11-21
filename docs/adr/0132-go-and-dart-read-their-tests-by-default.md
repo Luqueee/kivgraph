@@ -30,6 +30,25 @@ collisions between test files of one package are fixed. Measured after those
 fixes, reading tests on those three costs 1.5x to 3x the edges, 0 to 6 seconds
 of indexing and 13 to 202 MB of state.
 
+Measured on the same repositories and `cobra`, with the binary serving the
+published graph:
+
+| Repository | Index peak RSS | Serving RSS | Query p95 | Default answer |
+|---|---|---|---|---|
+| `cobra` | 0.61 to 0.74 GB | 78 to 80 MB | 0.6 to 0.5 ms | 544 to 707 B |
+| `gin` | 1.15 to 1.36 GB | 82 to 83 MB | 0.2 to 0.7 ms | 432 to 662 B |
+| `caddy` | 2.23 to 2.77 GB | 98 to 104 MB | 0.6 to 0.6 ms | 484 to 589 B |
+| `prometheus` | 5.50 to 6.62 GB | 111 to 146 MB | 1.9 to 4.0 ms | 1388 to 1458 B |
+
+Serving is cheap: at most `35 MB` more, and a query stays under `5 ms`. A
+default `find_references` answer grows by `5 %` to `53 %` because the compact view
+groups rows by file; with `view: full` and every edge kind the mean answer grows
+`1.4x` to `3.7x`. The peak while indexing is the cost that matters: `+0.1` to
+`+1.1 GB`, on top of a baseline that is already `5.5 GB` for `prometheus`. It is
+Go heap, mostly the syntax trees and type-checker tables of every dependency
+(`GOMEMLIMIT` cannot go below the `3.9 GB` that is live), and no cheap setting
+lowers it: see the roadmap.
+
 The cost to the reader is that tests become rows. `find_references` had no way
 to ask for production uses only, which is a fair question, so the default could
 not change without one.

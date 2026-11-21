@@ -101,8 +101,9 @@ backlog and the acceptance gate of every phase are in [`TASKS.md`](TASKS.md).
 - **Semantic dependencies:** Python and Dart imports can publish a package
   dependency when exactly one registered provider owns the requested package;
   symbol-level cross-repository edges require an explicit provider identity.
-- **Surface:** thirteen read-only tools over STDIO, plus two consent-gated
-  mutations (`index_project` and `start_index_project`). The contract is
+- **Surface:** thirteen read-only tools, over STDIO or through a local daemon,
+  plus two consent-gated mutations (`index_project` and `start_index_project`).
+  The contract is
   [docs/protocol/mcp-surface-v3.md](docs/protocol/mcp-surface-v3.md).
 - **Storage:** LadybugDB is canonical; queries are served from an immutable
   HotSnapshot published atomically, never from the database.
