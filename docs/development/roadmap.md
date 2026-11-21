@@ -2601,9 +2601,13 @@ of the precision column, and `exclude_tests` on the traversal tools.
   - C#: recall on overloads is `49.1 %` and comes from `scip-dotnet`, which
     resolves an extension-method call to the first overload.
   - Indexing: the Java, C# and Python tools still build or read excluded
-    files.
-    Whether the Dart loader's own rule for a test agrees with
-    `internal/testpath` was not checked.
+    files. Whether the Dart loader's own rule for a test agrees with
+    `internal/testpath` was not checked. TypeScript isolation: the worker
+    failing on one package was exercised with a stand-in, never with the real
+    worker, which tolerated every broken configuration it was given; the
+    branch that refuses a worker which disappears between being found and
+    being started has no test; and neither `index.<language>.not_read` nor
+    `index.typescript.no_package` is asserted from the CLI.
   - Processes: `internal/proctree` is Unix only, and its runs with the real
     tools were on macOS. `ensureDaemon`, the explicit path, does not apply the
     foreign-home check that `serve` does.
