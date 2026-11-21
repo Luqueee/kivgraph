@@ -2545,8 +2545,13 @@ of the precision column, and `exclude_tests` on the traversal tools.
   the name it is imported as, follows re-exports and resolves `module.member`,
   which takes the default from `43.7 %` to `82.9 %` recall at `85.6 %`
   precision; both workers apply `internal/testpath`; and `exclusions` reach
-  the Python graph. Still open: the default mode recalls no use of a method,
-  which needs a type; `analyzer_mode` stays `fallback`.
+  the Python graph. The last wrong `COMPLETE` went after that (ADR 0144, second
+  amendment): a name one module binds to two declarations, an import under a
+  platform test and a `def` in the other branch, was attributed to the import.
+  The worker now leaves such a use unresolved, in that module and in whoever
+  imports the name from it: `1` of `60` to `0` of `59`, recall and precision
+  unchanged. Still open: the default mode recalls no use of a method, which
+  needs a type; `analyzer_mode` stays `fallback`.
 - **`exclusions` mean one thing in every loader.** Checked for the four that
   were left: Rust already applied the registry's matcher. Java and C# did not
   read the key at all -- the indexer builds the whole project and every document
@@ -2595,9 +2600,11 @@ of the precision column, and `exclude_tests` on the traversal tools.
     each for Java, C# and Python; `etcd` needs a Go `1.27` build.
   - Python: the default mode recalls no use of a method, which needs a type,
     and `analyzer_mode` stays `fallback` because `exact` needs Pyright
-    installed. One `COMPLETE` answer still misses a file, a function defined
-    twice under a platform test. Pyright does not navigate from the string of
-    a `cast`.
+    installed. Pyright does not navigate from the string of a `cast`. The
+    syntactic worker's bindings are per file, not per scope: an import inside
+    one function binds the name in the whole file. A name bound twice to an
+    import outside the repository and a local `def` is attributed to the
+    `def`.
   - C#: recall on overloads is `49.1 %` and comes from `scip-dotnet`, which
     resolves an extension-method call to the first overload.
   - Indexing: the Java, C# and Python tools still build or read excluded

@@ -3,7 +3,7 @@
 How many of the files that depend on a declaration does `find_references` report? The ground truth is the language's own type checker: rename the declaration, type-check again, and the files that gain an error are the files that use it.
 
 - Command: `go run ./benchmarks/language-recall -kivgraph <binary> -repo-root .`
-- Date: 2026-11-20, seed 1, up to 100 declarations per language
+- Date: 2026-11-21, seed 1, up to 100 declarations per language
 - Kivgraph `0.10.0` on darwin/arm64, go1.26.11, rustc 1.100.0 (0ef1bc386 2026-11-09) (Homebrew), Python 3.14.10, mypy 2.4.1 (compiled: yes), pyright 1.1.414
 
 ## Corpus
@@ -30,8 +30,8 @@ Intervals are 95 % percentile intervals from resampling declarations.
 - Declarations listed 638, eligible for the rename 621, measured 100 (oracle failed on 0, Kivgraph refused 0).
 - Recall on non-test files: 86.0 % (77.2 to 92.5). On test files: 76.5 % (58.3 to 87.5).
 - Declarations with no dependents for which Kivgraph still reports a file: 10 of 29.
-- Completeness verdicts: COMPLETE 60, LOWER_BOUND 40.
-- Answers that said `COMPLETE` and missed at least one non-test file: 1 of 60.
+- Completeness verdicts: COMPLETE 59, LOWER_BOUND 41.
+- Answers that said `COMPLETE` and missed at least one non-test file: 0 of 59.
 - Not sampled: kind not sampled: 16; name not found in declaring position: 1.
 
 |kind|declarations with dependents|file recall|
@@ -57,7 +57,7 @@ Declarations with a missed file (first 15 of 23):
 |`shell_complete` (src/click/core.py:965)|method|src/click/core.py, src/click/shell_completion.py|LOWER_BOUND|
 |`KeepOpenFile` (src/click/utils.py:194)|class|tests/test_utils.py|LOWER_BOUND|
 |`secho` (src/click/termui.py:603)|function|tests/test_termui.py|LOWER_BOUND|
-|`_get_windows_console_stream` (src/click/_compat.py:561)|function|src/click/_compat.py|COMPLETE|
+|`_get_windows_console_stream` (src/click/_compat.py:561)|function|src/click/_compat.py|LOWER_BOUND|
 |`abort` (src/click/core.py:693)|method|src/click/decorators.py|LOWER_BOUND|
 |`FuncParamType` (src/click/types.py:165)|class|tests/test_info_dict.py|LOWER_BOUND|
 
@@ -82,8 +82,8 @@ Declarations with a reported file the compiler did not flag (first 15 of 11). Th
 - Declarations listed 638, eligible for the rename 621, measured 100 (oracle failed on 0, Kivgraph refused 0).
 - Recall on non-test files: 86.0 % (77.2 to 92.5). On test files: 0.0 % (0.0 to 0.0).
 - Declarations with no dependents for which Kivgraph still reports a file: 10 of 29.
-- Completeness verdicts: COMPLETE 71, LOWER_BOUND 29.
-- Answers that said `COMPLETE` and missed at least one non-test file: 1 of 71.
+- Completeness verdicts: COMPLETE 70, LOWER_BOUND 30.
+- Answers that said `COMPLETE` and missed at least one non-test file: 0 of 70.
 - Not sampled: kind not sampled: 16; name not found in declaring position: 1.
 
 |kind|declarations with dependents|file recall|

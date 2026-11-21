@@ -1,7 +1,7 @@
 {
   "benchmark": "language-recall",
   "command": "go run ./benchmarks/language-recall -kivgraph \u003cbinary\u003e -repo-root .",
-  "date": "2026-11-20",
+  "date": "2026-11-21",
   "seed": 1,
   "declarations_per_language": 100,
   "environment": {
@@ -103,10 +103,10 @@
         "symbols": 29
       },
       "completeness_verdicts": {
-        "COMPLETE": 60,
-        "LOWER_BOUND": 40
+        "COMPLETE": 59,
+        "LOWER_BOUND": 41
       },
-      "complete_verdicts_that_missed_a_non_test_file": 1,
+      "complete_verdicts_that_missed_a_non_test_file": 0,
       "by_kind": [
         {
           "kind": "class",
@@ -827,7 +827,7 @@
           "missed_files": [
             "src/click/_compat.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -1804,10 +1804,10 @@
         "symbols": 29
       },
       "completeness_verdicts": {
-        "COMPLETE": 71,
-        "LOWER_BOUND": 29
+        "COMPLETE": 70,
+        "LOWER_BOUND": 30
       },
-      "complete_verdicts_that_missed_a_non_test_file": 1,
+      "complete_verdicts_that_missed_a_non_test_file": 0,
       "by_kind": [
         {
           "kind": "class",
@@ -2522,7 +2522,7 @@
           "missed_files": [
             "src/click/_compat.py"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "click",
@@ -6943,5 +6943,5 @@
     "A name bound in more than one place survives the rename of one binding: a constant assigned in both branches of an `if`, an attribute annotated on one line and assigned on the next. mypy reports nothing then, and the uses count against precision. So do the uses on a line marked `# type: ignore`.",
     "mypy does not check code under a platform test that is false where it runs (`if sys.platform == \"win32\"`), so declarations used only there have no truth on this machine and their uses count against precision."
   ],
-  "wall_seconds": 476.862596959
+  "wall_seconds": 468.910351208
 }

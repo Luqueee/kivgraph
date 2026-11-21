@@ -267,7 +267,16 @@ def main():
     # re-export.
     exports = {}
 
+    # A name one module binds to two declarations: an import under a platform
+    # test and a `def` in the other branch, or two imports under `try`. Which
+    # one a use means is decided when the program runs, and this worker does
+    # not choose. It attributed every use to one of them, and the other was
+    # answered as used by nobody, COMPLETE.
+    contested = set()
+
     def lookup(module, name):
+        if (module, name) in contested:
+            return None
         return (symbol_by_module_name.get((module, name)) or exports.get((module, name)) or
                 symbol_by_module_name.get((module + "." + name, "__module__")))
 
@@ -278,19 +287,36 @@ def main():
             if isinstance(node, ast.ImportFrom):
                 base = import_base(module, path, node)
                 imported.extend((module, base, alias.name, alias.asname or alias.name) for alias in node.names)
-    for _ in range(16):
-        progressed = False
-        for module, base, name, local in imported:
-            if (module, local) in symbol_by_module_name or (module, local) in exports:
-                continue
-            target = lookup(base, name)
-            if target:
-                exports[(module, local)] = target
-                if module in aliases:
-                    exports.setdefault((aliases[module], local), target)
-                progressed = True
-        if not progressed:
-            break
+
+    def follow_imports():
+        for _ in range(16):
+            progressed = False
+            for module, base, name, local in imported:
+                if (module, local) in symbol_by_module_name or (module, local) in exports or (module, local) in contested:
+                    continue
+                target = lookup(base, name)
+                if target:
+                    exports[(module, local)] = target
+                    if module in aliases:
+                        exports.setdefault((aliases[module], local), target)
+                    progressed = True
+            if not progressed:
+                break
+
+    follow_imports()
+    bound = {}
+    for module, base, name, local in imported:
+        targets = bound.setdefault((module, local), {symbol_by_module_name.get((module, local))})
+        targets.add(lookup(base, name))
+    for (module, local), targets in bound.items():
+        if len(targets - {None}) > 1:
+            contested.add((module, local))
+            if module in aliases:
+                contested.add((aliases[module], local))
+    if contested:
+        # What was re-exported through a contested name is not known either.
+        exports.clear()
+        follow_imports()
 
     # A dynamic module can assign the same name more than once. The canonical
     # graph has one DEFINES edge per durable symbol, so retain the first
@@ -306,6 +332,12 @@ def main():
     for symbol in symbols:
         module = symbol["qualifiedName"].split(".")
         symbols_by_short.setdefault((".".join(module[:-1]), symbol["name"]), []).append(symbol)
+
+    def named(module, name, bindings):
+        if (module, name) in contested:
+            return None
+        candidates = symbols_by_short.get((module, name), [])
+        return bindings.get(name) or (candidates[0]["id"] if len(candidates) == 1 else None)
 
     def source_symbol(path, offset):
         candidates = [symbol for symbol in symbols
@@ -350,11 +382,7 @@ def main():
                         local_bindings[local] = target
             elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
                 source_id = source_symbol(relative, getattr(node, "col_offset", 0) + starts[getattr(node, "lineno", 1) - 1])
-                target = local_bindings.get(node.id)
-                if not target:
-                    candidates = symbols_by_short.get((module, node.id), [])
-                    if len(candidates) == 1:
-                        target = candidates[0]["id"]
+                target = named(module, node.id, local_bindings)
                 if not target:
                     unresolved.append({"file": relative, "sourceId": source_id, "requestedSymbol": node.id,
                                        "reason": "NAME_NOT_RESOLVED", **point(node, starts, text)})
@@ -401,11 +429,7 @@ def main():
                 for name, offset, member in quoted_names(node, text, point(node, starts, text)["start"]):
                     occurrence = span(text, offset, len(name))
                     source_id = source_symbol(relative, offset)
-                    target = "" if member else local_bindings.get(name)
-                    if not target and not member:
-                        candidates = symbols_by_short.get((module, name), [])
-                        if len(candidates) == 1:
-                            target = candidates[0]["id"]
+                    target = None if member else named(module, name, local_bindings)
                     if not target:
                         unresolved.append({"file": relative, "sourceId": source_id, "requestedSymbol": name,
                                            "reason": "NAME_NOT_RESOLVED", **occurrence})

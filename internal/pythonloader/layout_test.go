@@ -283,3 +283,59 @@ func TestWithoutExcludedMatchesEverySectionOnItsOwn(t *testing.T) {
 		}
 	}
 }
+
+// unresolvedNames lists, for one file, the names it used and nobody resolved.
+func unresolvedNames(payload facts.SemanticPayload, file string) []string {
+	var out []string
+	for _, row := range payload.Unresolved {
+		if row.File == file {
+			out = append(out, row.RequestedSymbol)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// A name one module binds to two declarations -- an import under a platform
+// test and a `def` in the other branch. The worker attributed every use to the
+// import, so the `def` was answered as used by nobody, and the answer said
+// COMPLETE. Which of the two a use means is decided when the program runs.
+func TestFallbackDoesNotChooseBetweenTwoDeclarationsOfOneName(t *testing.T) {
+	root, repository := writeProject(t, map[string]string{
+		"pkg/__init__.py": "from .compat import stream\nfrom .compat import plain\n",
+		"pkg/win.py":      "def stream():\n    return 1\n\n\ndef other():\n    return 2\n",
+		"pkg/posix.py":    "def other():\n    return 3\n",
+		"pkg/compat.py": "import sys\n\nif sys.platform == 'win32':\n    from .win import stream\nelse:\n    def stream():\n        return 0\n\n" +
+			"try:\n    from .win import other\nexcept ImportError:\n    from .posix import other\n\n" +
+			// Not contested: the other binding is outside the repository, or
+			// is the same declaration a second time.
+			"try:\n    from os import getcwd\nexcept ImportError:\n    def getcwd():\n        return ''\n\n" +
+			"from .win import stream as again\nfrom .win import stream as again\n\n\n" +
+			"def plain():\n    return 4\n\n\n" +
+			"def run(value: 'stream'):\n    return stream(), other(), getcwd(), again(), plain()\n",
+		// The same doubt reaches whoever imports the name, directly or through
+		// the package that re-exports it.
+		"pkg/direct.py": "from .compat import stream, plain\n\n\ndef run():\n    return stream(), plain()\n",
+		"use.py":        "from pkg import stream, plain\n\n\ndef run():\n    return stream(), plain()\n",
+	})
+	payload, err := Run(context.Background(), "missing-scippython", "python3", repository, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]struct{ uses, unresolved []string }{
+		"pkg/compat.py": {
+			[]string{"pkg.compat.getcwd (CALLS_DIRECT)", "pkg.compat.plain (CALLS_DIRECT)", "pkg.win.stream (CALLS_DIRECT)"},
+			[]string{"ImportError", "ImportError", "other", "platform", "stream", "stream", "sys"},
+		},
+		"pkg/direct.py": {[]string{"pkg.compat.plain (CALLS_DIRECT)"}, []string{"stream"}},
+		"use.py":        {[]string{"pkg.compat.plain (CALLS_DIRECT)"}, []string{"stream"}},
+	}
+	for file, expected := range want {
+		if got := uses(payload, file); !reflect.DeepEqual(got, expected.uses) {
+			t.Errorf("%s references %q, want %q", file, got, expected.uses)
+		}
+		if got := unresolvedNames(payload, file); !reflect.DeepEqual(got, expected.unresolved) {
+			t.Errorf("%s left %q unresolved, want %q", file, got, expected.unresolved)
+		}
+	}
+}

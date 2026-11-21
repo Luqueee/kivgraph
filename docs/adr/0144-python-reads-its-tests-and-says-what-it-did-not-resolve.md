@@ -118,3 +118,34 @@ registry's own matcher, so an external producer is covered and there is no
 second grammar. A use that stays of a declaration that goes becomes an
 unresolved occurrence, `TARGET_NOT_INDEXED`. The producer still reads the
 excluded files; only the graph loses them.
+
+## Amendment: a name bound to two declarations
+
+The one `COMPLETE` left above that missed a file, closed. `click/_compat.py`
+imports `_get_windows_console_stream` from `_winconsole` under a platform
+test and defines a function of that name in the other branch. The syntactic
+worker bound the name to the import, so the three calls in that file went to
+the Windows function and the local one was answered as used by nobody.
+
+Which of the two a use means is decided when the program runs. The worker now
+calls a name **contested** when one module binds it to more than one
+declaration of the repository -- by `from` imports, or by an import and a
+declaration of its own -- and resolves no use of it: not in that module, not
+in a module that imports the name from it, not through a package that
+re-exports it. Each use is an unresolved occurrence, so both declarations
+answer `LOWER_BOUND`.
+
+| arm | wrong `COMPLETE`, before | now | recall | precision |
+|---|---|---|---|---|
+| default | `1` of `60` | `0` of `59` | `82.9 %` | `85.6 %` |
+| `python.tests_excluded` | `1` of `71` | `0` of `70` | `58.2 %` | `88.5 %` |
+
+Recall and precision are unchanged: the uses it gives up were attributed to
+the wrong declaration, and mypy has no truth for the Windows one here.
+
+Not contested, and unchanged: a name imported from outside the repository and
+also declared (`try: from tomllib import loads` / `except: def loads`) goes to
+the local declaration, the only one the graph has; the same declaration
+imported twice; two declarations of one name and kind in one module, which are
+one symbol. Bindings are still read per file and not per scope. The exact mode
+had no such miss and is untouched.
