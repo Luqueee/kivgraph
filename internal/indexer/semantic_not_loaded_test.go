@@ -174,3 +174,216 @@ func failingAnalyzer(t *testing.T) string {
 type errorString string
 
 func (e errorString) Error() string { return string(e) }
+
+// TypeScript was the last unit that ended the pass: one package the worker
+// could not read, of one repository, and no repository got a graph.
+func TestFullIndexesTheRestWhenATypeScriptPackageCannotBeRead(t *testing.T) {
+	failing := failingAnalyzer(t)
+	root := testsupport.TempDir(t)
+	healthy := filepath.Join(root, "healthy")
+	writeFullFixture(t, filepath.Join(healthy, "go.mod"), "module example.com/healthy\n\ngo 1.24\n")
+	writeFullFixture(t, filepath.Join(healthy, "a.go"), "package healthy\n\nfunc Healthy() int { return 1 }\n")
+	web := filepath.Join(root, "web")
+	for _, name := range []string{"one", "two"} {
+		packageRoot := filepath.Join(web, "packages", name)
+		writeFullFixture(t, filepath.Join(packageRoot, "package.json"), `{"name":"@fixture/`+name+`","version":"1.0.0"}`)
+		writeFullFixture(t, filepath.Join(packageRoot, "tsconfig.json"), `{"compilerOptions":{"strict":true}}`)
+		writeFullFixture(t, filepath.Join(packageRoot, "src", "index.ts"), "export const value = 1;\n")
+	}
+	repositories := []workspace.Repository{
+		{Name: "healthy", Path: healthy, RealPath: healthy, Languages: []string{"go"}},
+		{Name: "web", Path: web, RealPath: web, Languages: []string{"typescript"}},
+	}
+
+	set, report, err := Full(context.Background(), FullOptions{
+		Repositories: repositories,
+		// Installed, started, and exits non-zero on every package.
+		TypeScriptWorker:  failing,
+		WorkingDirectory:  root,
+		SyntheticWorkFile: filepath.Join(testsupport.TempDir(t), "go.work"),
+	})
+	if err != nil {
+		t.Fatalf("Full() error = %v, want the Go repository indexed anyway", err)
+	}
+	if err := set.Validate(); err != nil {
+		t.Fatalf("the published facts do not validate: %v", err)
+	}
+	healthySymbols := 0
+	for _, symbol := range set.Symbols {
+		if symbol.Name == "Healthy" {
+			healthySymbols++
+		}
+	}
+	if healthySymbols != 1 {
+		t.Fatal("a TypeScript package that could not be read took an unrelated Go repository down with it")
+	}
+	if report.TypeScriptNotLoaded != 2 || len(report.TypeScriptNotRead) != 2 {
+		t.Fatalf("not loaded = %d, lines = %q, want both packages", report.TypeScriptNotLoaded, report.TypeScriptNotRead)
+	}
+	scopes := map[string]facts.UnresolvedReference{}
+	for _, row := range set.Unresolved {
+		if row.Reason == UnresolvedPackageNotLoaded {
+			scopes[row.RequestedPackage] = row
+		}
+	}
+	lines := strings.Join(report.TypeScriptNotRead, "\n")
+	for _, name := range []string{"@fixture/one", "@fixture/two"} {
+		row, found := scopes[name]
+		if !found {
+			t.Errorf("%s: no %s row in the graph", name, UnresolvedPackageNotLoaded)
+			continue
+		}
+		if row.Language != facts.LanguageTypeScript || row.RepositoryKey != facts.RepositoryKey("web") || row.FileKey != "" {
+			t.Errorf("%s: row = %+v, want the web repository, TypeScript and no file", name, row)
+		}
+		if strings.TrimSpace(row.Detail) == "" || strings.Contains(row.Detail, "\n") {
+			t.Errorf("%s: detail = %q, want one line saying why", name, row.Detail)
+		}
+		if want := "web: " + name + ": " + UnresolvedPackageNotLoaded + ": "; !strings.Contains(lines, want) {
+			t.Errorf("the report has no line starting %q:\n%s", want, lines)
+		}
+	}
+
+	// The two things that are not a package that could not be read: a worker
+	// that is not there, and a command that cannot be prepared. The worker
+	// ships with Kivgraph, so both are a broken installation, and counting every
+	// package as unread and exiting 0 would hide it.
+	for name, worker := range map[string]string{"absent": "kivgraph-no-such-typescript-worker", "empty": "   "} {
+		if _, _, err := Full(context.Background(), FullOptions{
+			Repositories:      repositories,
+			TypeScriptWorker:  worker,
+			WorkingDirectory:  root,
+			SyntheticWorkFile: filepath.Join(testsupport.TempDir(t), "go.work"),
+		}); err == nil {
+			t.Errorf("%s worker: the pass succeeded with packages counted as unread", name)
+		}
+	}
+}
+
+func TestACancelledPassIsNotATypeScriptPackageThatCouldNotBeRead(t *testing.T) {
+	root := testsupport.TempDir(t)
+	writeFullFixture(t, filepath.Join(root, "package.json"), `{"name":"@fixture/one","version":"1.0.0"}`)
+	writeFullFixture(t, filepath.Join(root, "tsconfig.json"), `{"compilerOptions":{"strict":true}}`)
+	writeFullFixture(t, filepath.Join(root, "src", "index.ts"), "export const value = 1;\n")
+	repository := workspace.Repository{Name: "web", Path: root, RealPath: root, Languages: []string{"typescript"}}
+	discovered, err := discoverTypeScriptPackages(context.Background(), []workspace.Repository{repository}, false)
+	if err != nil || len(discovered.packages) != 1 {
+		t.Fatalf("discover: %d packages, %v", len(discovered.packages), err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	result, err := indexTypeScriptPackage(ctx, FullOptions{TypeScriptWorker: failingAnalyzer(t), WorkingDirectory: root},
+		analysisUnit{kind: unitTypeScript, repository: repository, pkg: discovered.packages[0]}, nil)
+	if err == nil {
+		t.Fatalf("indexTypeScriptPackage() on a cancelled pass = %+v, want the cancellation", result)
+	}
+	if result.notLoaded || len(result.set.Unresolved) != 0 {
+		t.Errorf("a cancelled pass published %+v", result)
+	}
+}
+
+// A tsconfig that does not parse is found before any worker runs, when the
+// projects are discovered, and it ended the pass from there. So did a pass
+// whose only TypeScript repository has no project at all -- which is what
+// `init --languages go,typescript` leaves a Go repository as.
+func TestFullIndexesTheRestWhenATypeScriptRepositoryCannotBeDiscovered(t *testing.T) {
+	root := testsupport.TempDir(t)
+	healthy := filepath.Join(root, "healthy")
+	writeFullFixture(t, filepath.Join(healthy, "go.mod"), "module example.com/healthy\n\ngo 1.24\n")
+	writeFullFixture(t, filepath.Join(healthy, "a.go"), "package healthy\n\nfunc Healthy() int { return 1 }\n")
+	broken := filepath.Join(root, "broken")
+	writeFullFixture(t, filepath.Join(broken, "package.json"), `{"name":"@fixture/broken","version":"1.0.0"}`)
+	writeFullFixture(t, filepath.Join(broken, "tsconfig.json"), `{"compilerOptions": {"strict": true,, }`)
+	writeFullFixture(t, filepath.Join(broken, "src", "index.ts"), "export const value = 1;\n")
+
+	healthySymbols := func(set facts.Set) int {
+		total := 0
+		for _, symbol := range set.Symbols {
+			if symbol.Name == "Healthy" {
+				total++
+			}
+		}
+		return total
+	}
+
+	set, report, err := Full(context.Background(), FullOptions{
+		Repositories: []workspace.Repository{
+			{Name: "healthy", Path: healthy, RealPath: healthy, Languages: []string{"go"}},
+			{Name: "broken", Path: broken, RealPath: broken, Languages: []string{"typescript"}},
+		},
+		// Never started: there is no package left to run it on.
+		TypeScriptWorker:  "kivgraph-no-such-typescript-worker",
+		WorkingDirectory:  root,
+		SyntheticWorkFile: filepath.Join(testsupport.TempDir(t), "go.work"),
+	})
+	if err != nil {
+		t.Fatalf("Full() error = %v, want the Go repository indexed anyway", err)
+	}
+	if err := set.Validate(); err != nil {
+		t.Fatalf("the published facts do not validate: %v", err)
+	}
+	if healthySymbols(set) != 1 {
+		t.Fatal("a tsconfig that does not parse took an unrelated Go repository down with it")
+	}
+	if report.TypeScriptNotLoaded != 1 || len(report.TypeScriptNotRead) != 1 ||
+		!strings.HasPrefix(report.TypeScriptNotRead[0], "broken: "+UnresolvedRepositoryNotLoaded+": ") ||
+		!strings.Contains(report.TypeScriptNotRead[0], "tsconfig.json") {
+		t.Errorf("not loaded = %d, lines = %q, want the broken repository named with its tsconfig",
+			report.TypeScriptNotLoaded, report.TypeScriptNotRead)
+	}
+	declared := 0
+	for _, row := range set.Unresolved {
+		if row.Reason != UnresolvedRepositoryNotLoaded {
+			continue
+		}
+		declared++
+		if row.Language != facts.LanguageTypeScript || row.RepositoryKey != facts.RepositoryKey("broken") || row.FileKey != "" {
+			t.Errorf("row = %+v, want the broken repository, TypeScript and no file", row)
+		}
+	}
+	if declared != 1 {
+		t.Errorf("%d %s rows, want the one repository", declared, UnresolvedRepositoryNotLoaded)
+	}
+	// A repository that could not be discovered is not one that has no project.
+	if len(report.TypeScriptWithoutPackages) != 0 {
+		t.Errorf("without packages = %q, want the broken repository reported once, as not read", report.TypeScriptWithoutPackages)
+	}
+
+	// The other shape: registered as TypeScript, and no project in it.
+	set, report, err = Full(context.Background(), FullOptions{
+		Repositories: []workspace.Repository{
+			{Name: "healthy", Path: healthy, RealPath: healthy, Languages: []string{"go", "typescript"}},
+		},
+		TypeScriptWorker:  "kivgraph-no-such-typescript-worker",
+		WorkingDirectory:  root,
+		SyntheticWorkFile: filepath.Join(testsupport.TempDir(t), "go.work"),
+	})
+	if err != nil {
+		t.Fatalf("Full() over a Go repository also registered as TypeScript = %v", err)
+	}
+	if healthySymbols(set) != 1 {
+		t.Fatal("the Go half of a repository with no TypeScript project was not indexed")
+	}
+	if len(report.TypeScriptWithoutPackages) != 1 || report.TypeScriptWithoutPackages[0] != "healthy" || report.TypeScriptNotLoaded != 0 {
+		t.Errorf("without packages = %q, not loaded = %d, want it named as contributing nothing",
+			report.TypeScriptWithoutPackages, report.TypeScriptNotLoaded)
+	}
+}
+
+// A scope row has to name something. A package with no name is named by the
+// project it was going to be built from.
+func TestAPackageWithNoNameIsDeclaredByItsProject(t *testing.T) {
+	unit := analysisUnit{kind: unitTypeScript, repository: workspace.Repository{Name: "web", RealPath: "/web"}}
+	unit.pkg.packageValue.ProjectPath = "/web/tsconfig.json"
+	result := packageNotLoadedFacts(unit, errorString("worker exited"))
+	row := result.set.Unresolved[0]
+	if row.RequestedPackage != "/web/tsconfig.json" || row.Reason != UnresolvedPackageNotLoaded || row.Detail != "worker exited" {
+		t.Errorf("row = %+v, want the project path as the scope", row)
+	}
+	if err := result.set.Validate(); err != nil {
+		t.Errorf("the declared facts do not validate: %v", err)
+	}
+	if !result.notLoaded || result.unresolved != 1 || !strings.HasPrefix(result.notRead, "web: /web/tsconfig.json: ") {
+		t.Errorf("result = %+v", result)
+	}
+}

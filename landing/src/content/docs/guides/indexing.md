@@ -260,7 +260,11 @@ repository with no solution, a Java build that fails, a Python or Dart producer
 that exits. It publishes no facts and is declared `REPOSITORY_NOT_LOADED`, the
 report names it on an `index.<language>.not_read` line with the reason, and
 every answer about that repository says `LOWER_BOUND`. A Rust workspace the
-analyzer cannot load is declared `WORKSPACE_NOT_LOADED` the same way. Fixing the
+analyzer cannot load is declared `WORKSPACE_NOT_LOADED` the same way. So is a
+TypeScript repository whose projects cannot be discovered -- a `tsconfig.json`
+that does not parse -- and a package the worker fails on, as
+`PACKAGE_NOT_LOADED`. A repository registered as TypeScript with no project in
+it contributes nothing and is named on an `index.typescript.no_package` line. Fixing the
 repository and indexing again restores it: a failure to read is never cached.
 
 A package name declared by several manifests is an ambiguity, not a broken

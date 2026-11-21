@@ -68,3 +68,42 @@ Three things stay errors:
 - The detail is cut at `600` bytes: the loaders quote the tail of a build log.
 - The C# loader's "no solution" message names the repository and not the scratch
   copy it built in.
+
+## Amendment: TypeScript
+
+The third item above was wrong about the worker -- it runs once per package,
+not once per pass -- and TypeScript had three ways of ending a pass. Indexed
+beside `cobra`, with the real worker:
+
+| shape | before | now |
+|---|---|---|
+| a `tsconfig.json` that does not parse | exit `1` | `REPOSITORY_NOT_LOADED` |
+| the only TypeScript repository has no project | exit `1` | `no_package` line |
+| the worker fails on a package | exit `1` | `PACKAGE_NOT_LOADED` |
+
+- **Discovery.** Kivgraph reads every project of a repository before any
+  worker starts, to know what its packages are, and a project that does not
+  parse failed there. The repository is now declared `REPOSITORY_NOT_LOADED`;
+  it is the whole repository because the project graph is what could not be
+  read.
+- **No project anywhere.** A pass refused to run when no TypeScript repository
+  had a named package with a project. `init --languages go,typescript`
+  registers both languages for every repository it is given, so a Go
+  repository was enough. Such a repository was already named as contributing
+  nothing when another one had packages; it is now named in every case.
+- **The worker.** A failure of the worker process on one package is declared
+  `PACKAGE_NOT_LOADED`, with the package as the scope.
+
+`index.typescript` gains `not_loaded`, and `index.typescript.not_read` names
+each one.
+
+Still errors: a cancelled pass, a worker command that cannot be prepared, an
+answer that cannot be read or does not normalise, and **a worker that is not
+there**. That last one is not the analyzer of another language that a machine
+may not have: it ships with Kivgraph, and a pass that counted every package as
+unread and exited `0` would hide an installation that cannot index TypeScript
+at all.
+
+Not measured with the real worker: the third row. The worker tolerated every
+broken configuration it was given, so that path is exercised with a stand-in
+that exits non-zero.

@@ -1607,8 +1607,9 @@ func writeIndexSummary(stdout io.Writer, indexReport indexer.FullReport) {
 		indexReport.GoLoadDiagnostics,
 	)
 	writeInfo(
-		stdout, "index.typescript: repositories=%d symbols=%d references=%d unresolved=%d",
+		stdout, "index.typescript: repositories=%d not_loaded=%d symbols=%d references=%d unresolved=%d",
 		indexReport.TypeScriptRepositories,
+		indexReport.TypeScriptNotLoaded,
 		indexReport.TypeScriptSymbols,
 		indexReport.TypeScriptReferences,
 		indexReport.TypeScriptUnresolved,
@@ -1744,6 +1745,9 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 	}
 	for _, repository := range boundedReportLines(indexReport.TypeScriptWithoutPackages, 20) {
 		writeWarning(stdout, "index.typescript.no_package: %s declares no package with a TypeScript project, so it contributes nothing", repository)
+	}
+	for _, line := range boundedReportLines(indexReport.TypeScriptNotRead, 20) {
+		writeWarning(stdout, "index.typescript.not_read: %s", line)
 	}
 	for _, diagnostic := range boundedReportLines(indexReport.RustDiagnostics, 20) {
 		writeWarning(stdout, "index.rust.diagnostic: %s", diagnostic)

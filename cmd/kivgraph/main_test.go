@@ -2117,6 +2117,7 @@ func TestWriteIndexSummaryNamesWhatWasNotLoaded(t *testing.T) {
 		RustWorkspacesNotLoaded:     2,
 		PythonRepositoriesNotLoaded: 3,
 		DartRepositoriesNotLoaded:   4,
+		TypeScriptNotLoaded:         5,
 	})
 
 	report := stdout.String()
@@ -2124,6 +2125,7 @@ func TestWriteIndexSummaryNamesWhatWasNotLoaded(t *testing.T) {
 		"index.go: repositories=0 modules=0 not_loaded=1",
 		"index.rust: repositories=0 workspaces=0 crates=0 not_loaded=2",
 		"index.python: repositories=0 not_loaded=3",
+		"index.typescript: repositories=0 not_loaded=5",
 		"index.dart: repositories=0 not_loaded=4",
 	} {
 		if !strings.Contains(report, want) {

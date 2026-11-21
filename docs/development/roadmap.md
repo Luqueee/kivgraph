@@ -2578,7 +2578,12 @@ of the precision column, and `exclude_tests` on the traversal tools.
   to it. Python, Dart, Java and C# now do what Go and Rust did: the repository
   publishes a scope-level `REPOSITORY_NOT_LOADED`, the report names it on an
   `index.<language>.not_read` line, and the rest is indexed. A cancelled pass is
-  still an error.
+  still an error. TypeScript followed (ADR 0147, amended): a `tsconfig.json`
+  that does not parse ended the pass at discovery, and so did a pass whose only
+  TypeScript repository has no project -- a Go repository registered with
+  `--languages go,typescript`. Both are isolated, and so is a package the
+  worker fails on. A worker that is not there is still an error: it ships with
+  Kivgraph.
 - **Open after the language-recall work** (none has an owner or a date):
   - Dart: explicit extension application (`IterableExtension(this)`) and `/** */`
     doc links. Rust: methods on a receiver, names passed through a metavariable
@@ -2596,7 +2601,7 @@ of the precision column, and `exclude_tests` on the traversal tools.
   - C#: recall on overloads is `49.1 %` and comes from `scip-dotnet`, which
     resolves an extension-method call to the first overload.
   - Indexing: the Java, C# and Python tools still build or read excluded
-    files. A TypeScript package that fails still ends the pass.
+    files.
     Whether the Dart loader's own rule for a test agrees with
     `internal/testpath` was not checked.
   - Processes: `internal/proctree` is Unix only, and its runs with the real

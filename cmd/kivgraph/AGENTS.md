@@ -213,6 +213,9 @@ superficie observable.
   `index.<lenguaje>.not_read: <repositorio>: REPOSITORY_NOT_LOADED: <detalle>`,
   una por repositorio que su analizador ejecutó y no pudo leer. No sale para un
   analizador que no está instalado: eso lo dice `doctor`, una vez, de la máquina.
+  TypeScript tiene la suya, `index.typescript.not_read`, para un repositorio
+  cuyos proyectos no se pudieron descubrir y para un paquete en el que el worker
+  falló, y su línea de resumen lleva `not_loaded` como las demás.
 - **`counts` y `index` del `result` no miden lo mismo, y hay que decirlo.**
   `counts` es lo que el grafo publicado guarda: hechos canónicos distintos.
   `index` es lo que cada pasada de lenguaje **observó**. Un fichero que

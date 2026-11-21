@@ -257,9 +257,15 @@ type FullReport struct {
 	GoReferences           int
 	GoUnresolved           int
 	TypeScriptRepositories int
-	TypeScriptSymbols      int
-	TypeScriptReferences   int
-	TypeScriptUnresolved   int
+	// TypeScriptNotLoaded counts what could not be read -- a package the
+	// worker failed on, or a repository whose projects could not be discovered
+	// -- and TypeScriptNotRead names each with its reason, one line each. The
+	// pass publishes the rest.
+	TypeScriptNotLoaded  int
+	TypeScriptNotRead    []string
+	TypeScriptSymbols    int
+	TypeScriptReferences int
+	TypeScriptUnresolved int
 	// TypeScriptAmbiguous counts the package names several manifests of one
 	// repository declare. No manifest provides them.
 	TypeScriptAmbiguous int
@@ -475,6 +481,15 @@ func FullWithRepositories(ctx context.Context, options FullOptions, repositories
 		sets = append(sets, ambiguousPackageFacts(entry))
 		report.TypeScriptAmbiguous++
 	}
+	for _, entry := range typeScriptDiscovered.notLoaded {
+		declared := repositoryNotLoadedFacts(
+			analysisUnit{language: facts.LanguageTypeScript, repository: entry.repository}, entry.failure)
+		sets = append(sets, declared.set)
+		report.TypeScriptNotLoaded++
+		report.TypeScriptUnresolved += declared.unresolved
+		report.TypeScriptNotRead = append(report.TypeScriptNotRead,
+			strings.TrimPrefix(declared.notRead, string(facts.LanguageTypeScript)+": "))
+	}
 
 	rustUnits, rustCrateRegistry, rustParsers, err := prepareRust(ctx, options, rustRepositories, &report)
 	if err != nil {
@@ -602,6 +617,12 @@ func FullWithRepositories(ctx context.Context, options FullOptions, repositories
 		case unitSemantic:
 			report.addSemantic(unit.language, result)
 		default:
+			if result.notLoaded {
+				report.TypeScriptNotLoaded++
+				if result.notRead != "" {
+					report.TypeScriptNotRead = append(report.TypeScriptNotRead, result.notRead)
+				}
+			}
 			report.TypeScriptSymbols += result.symbols
 			report.TypeScriptReferences += result.references
 			report.TypeScriptUnresolved += result.unresolved
@@ -741,6 +762,8 @@ func countSourceFiles(roots []string) int {
 type typeScriptDiscovery struct {
 	packages  []typeScriptPackageUnit
 	conflicts []typeScriptConflict
+	// notLoaded names the repositories whose projects could not be discovered.
+	notLoaded []typeScriptNotLoaded
 	// withoutPackages names the repositories that declare no named package
 	// with an applicable project.
 	withoutPackages []string
@@ -763,6 +786,11 @@ type typeScriptDiscovery struct {
 // to the package unit that encloses each one, because a file belongs to a
 // package and is analysed beside a project, and the enclosing package is the
 // only one whose project can see it at all.
+type typeScriptNotLoaded struct {
+	repository workspace.Repository
+	failure    error
+}
+
 func discoverTypeScriptPackages(
 	ctx context.Context,
 	repositories []workspace.Repository,
@@ -778,7 +806,15 @@ func discoverTypeScriptPackages(
 		discovered := 0
 		registry, err := workspace.NewTypeScriptPackageRegistry(ctx, repository)
 		if err != nil {
-			return typeScriptDiscovery{}, fmt.Errorf("discover TypeScript packages for %q: %w", repository.Name, err)
+			err = fmt.Errorf("discover TypeScript packages for %q: %w", repository.Name, err)
+			if ctx.Err() != nil {
+				return typeScriptDiscovery{}, err
+			}
+			// A tsconfig that does not parse is this repository's, and it is
+			// found here, before any worker runs: discovery reads every project
+			// to know what the packages are. It ended the pass for everybody.
+			result.notLoaded = append(result.notLoaded, typeScriptNotLoaded{repository: repository, failure: err})
+			continue
 		}
 		first := len(result.packages)
 		for _, packageValue := range registry.List() {
@@ -809,9 +845,6 @@ func discoverTypeScriptPackages(
 		if discovered == 0 {
 			result.withoutPackages = append(result.withoutPackages, repository.Name)
 		}
-	}
-	if len(result.packages) == 0 && len(result.conflicts) == 0 && len(repositories) != 0 {
-		return typeScriptDiscovery{}, fmt.Errorf("TypeScript repositories have no named package with a project")
 	}
 	packages := result.packages
 	sort.Slice(packages, func(left, right int) bool {
@@ -1257,6 +1290,11 @@ func unresolvedFromEdge(
 	return entry
 }
 
+// errTypeScriptWorkerFailed marks the failure of the worker process on one
+// package, as opposed to a command that could not be prepared or an answer that
+// could not be read.
+var errTypeScriptWorkerFailed = errors.New("typescript worker failed")
+
 func collectTypeScriptFacts(
 	ctx context.Context,
 	options FullOptions,
@@ -1313,12 +1351,15 @@ func collectTypeScriptFacts(
 		if detail == "" {
 			detail = strings.TrimSpace(stdout.String())
 		}
+		// Marked as the worker's own failure, which is the one a pass survives:
+		// it ran, or could not be started, for this package. Everything else
+		// this function returns is a broken installation or a broken contract.
 		if detail != "" {
-			return facts.TypeScriptPayload{}, fmt.Errorf("run TypeScript facts for %q package %q: %w: %s",
-				repository.Name, packageValue.Name, err, detail)
+			return facts.TypeScriptPayload{}, fmt.Errorf("%w: run TypeScript facts for %q package %q: %w: %s",
+				errTypeScriptWorkerFailed, repository.Name, packageValue.Name, err, detail)
 		}
-		return facts.TypeScriptPayload{}, fmt.Errorf("run TypeScript facts for %q package %q: %w",
-			repository.Name, packageValue.Name, err)
+		return facts.TypeScriptPayload{}, fmt.Errorf("%w: run TypeScript facts for %q package %q: %w",
+			errTypeScriptWorkerFailed, repository.Name, packageValue.Name, err)
 	}
 	data, err := os.ReadFile(outputPath)
 	if err != nil {
@@ -1693,7 +1734,20 @@ func indexTypeScriptPackage(
 	repository, packageValue := unit.repository, unit.pkg.packageValue
 	payload, err := collectTypeScriptFacts(ctx, options, unit.pkg, providers)
 	if err != nil {
-		return analysisResult{}, err
+		// A cancelled pass learned nothing about this package.
+		if ctx.Err() != nil {
+			return analysisResult{}, err
+		}
+		// A command that could not be prepared, or an answer that could not be
+		// read, is a broken installation or a broken contract, and is not a
+		// fact about this package either. So is a worker that is not there:
+		// unlike the analyzer of another language, it ships with Kivgraph, and
+		// a pass that counted every package as unread and exited 0 would hide
+		// an installation that cannot index TypeScript at all.
+		if !errors.Is(err, errTypeScriptWorkerFailed) || errors.Is(err, exec.ErrNotFound) {
+			return analysisResult{}, err
+		}
+		return packageNotLoadedFacts(unit, err), nil
 	}
 	set, _, err := facts.NormalizeTypeScript(ctx, payload, repository)
 	if err != nil {
@@ -1709,6 +1763,47 @@ func indexTypeScriptPackage(
 		detail: fmt.Sprintf("package=%s symbols=%d references=%d",
 			packageValue.Name, len(payload.Symbols), len(payload.References)),
 	}, nil
+}
+
+// UnresolvedPackageNotLoaded is the reason of the scope-level failure a
+// TypeScript package gets when the worker ran on it and failed.
+const UnresolvedPackageNotLoaded = "PACKAGE_NOT_LOADED"
+
+// packageNotLoadedFacts declares a TypeScript package the worker could not
+// read: a tsconfig it rejects, a program that runs it out of memory.
+//
+// It was the last unit that ended the pass. One package of one repository took
+// the graph of every repository with it, and a monorepo has dozens. The row
+// names no file, because nothing was read, and that is what makes every answer
+// about the repository say LOWER_BOUND with this as the reason.
+func packageNotLoadedFacts(unit analysisUnit, failure error) analysisResult {
+	repositoryKey := facts.RepositoryKey(unit.repository.Name)
+	name := unit.pkg.packageValue.Name
+	if strings.TrimSpace(name) == "" {
+		name = unit.pkg.packageValue.ProjectPath
+	}
+	detail := boundedFailure(failure)
+	return analysisResult{
+		set: facts.Set{
+			Repositories: []facts.Repository{{
+				Key:       repositoryKey,
+				Name:      unit.repository.Name,
+				RootPath:  unit.repository.RealPath,
+				Languages: []facts.Language{facts.LanguageTypeScript},
+			}},
+			Unresolved: []facts.UnresolvedReference{{
+				RepositoryKey:    repositoryKey,
+				Language:         facts.LanguageTypeScript,
+				RequestedPackage: name,
+				Reason:           UnresolvedPackageNotLoaded,
+				Detail:           detail,
+			}},
+		},
+		notLoaded:  true,
+		unresolved: 1,
+		detail:     fmt.Sprintf("package=%s not loaded", name),
+		notRead:    fmt.Sprintf("%s: %s: %s: %s", unit.repository.Name, name, UnresolvedPackageNotLoaded, detail),
+	}
 }
 
 // requestedTypeScriptPackages names every package the worker asked about.

@@ -106,6 +106,15 @@ const UnresolvedRepositoryNotLoaded = "REPOSITORY_NOT_LOADED"
 // went wrong and the rest belongs in the run's own output.
 const maximumNotLoadedDetail = 600
 
+// boundedFailure is an analyzer's failure as one line of bounded length.
+func boundedFailure(failure error) string {
+	detail := strings.Join(strings.Fields(failure.Error()), " ")
+	if len(detail) > maximumNotLoadedDetail {
+		detail = strings.ToValidUTF8(detail[:maximumNotLoadedDetail], "") + " ..."
+	}
+	return detail
+}
+
 // repositoryNotLoadedFacts declares a repository its analyzer could not read:
 // a C# repository with no solution, a Java build that fails, an indexer that
 // writes no index.
@@ -122,10 +131,7 @@ const maximumNotLoadedDetail = 600
 // would answer COMPLETE over nothing.
 func repositoryNotLoadedFacts(unit analysisUnit, failure error) analysisResult {
 	repositoryKey := facts.RepositoryKey(unit.repository.Name)
-	detail := strings.Join(strings.Fields(failure.Error()), " ")
-	if len(detail) > maximumNotLoadedDetail {
-		detail = strings.ToValidUTF8(detail[:maximumNotLoadedDetail], "") + " ..."
-	}
+	detail := boundedFailure(failure)
 	return analysisResult{
 		set: facts.Set{
 			Repositories: []facts.Repository{{

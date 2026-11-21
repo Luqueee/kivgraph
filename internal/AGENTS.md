@@ -36,9 +36,11 @@ superficie MCP el suyo en `internal/mcp/AGENTS.md`.
   sale como `LOWER_BOUND`. Los cuatro últimos lo hacen desde el ADR 0147: antes
   devolvían error y un repositorio C# sin solución dejaba sin grafo a todos los
   demás. Una pasada cancelada no es un repositorio ilegible y sigue siendo un
-  error. TypeScript devuelve error -`indexTypeScriptPackage`- y la pasada
-  **aborta sin publicar**, así que no se sirve ninguna respuesta sobre un
-  repositorio que no cargó. Las dos formas son
+  error. TypeScript hace lo mismo desde la enmienda a ese ADR, en dos sitios: un
+  repositorio cuyos proyectos no se pueden descubrir -un `tsconfig.json` que
+  no parsea- sale como `REPOSITORY_NOT_LOADED`, y un paquete en el que el
+  worker falla como `PACKAGE_NOT_LOADED`. Un worker que no está es otra cosa:
+  viaja con Kivgraph, así que es una instalación rota y sigue siendo un error. Las dos formas son
   honestas y ninguna afirma una ausencia; sólo la primera es medible desde un
   grafo servido, y por eso es la única que `benchmarks/tool-honesty` ejercita.
   Que la fila no lleve archivo es el contrato, no un detalle:
