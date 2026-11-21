@@ -3,7 +3,7 @@
 How many of the files that depend on a declaration does `find_references` report? The ground truth is the language's own type checker: rename the declaration, type-check again, and the files that gain an error are the files that use it.
 
 - Command: `go run ./benchmarks/language-recall -kivgraph <binary> -repo-root .`
-- Date: 2026-11-20, seed 1, up to 100 declarations per language
+- Date: 2026-11-21, seed 1, up to 100 declarations per language
 - Kivgraph `0.10.0` on darwin/arm64, go1.26.11, Version 6.0.3, node v25.9.0, rustc 1.100.0 (0ef1bc386 2026-11-09) (Homebrew)
 
 ## Corpus
@@ -118,8 +118,8 @@ Declarations with a reported file the compiler did not flag (first 15 of 10). Th
 - Declarations listed 252, eligible for the rename 163, measured 100 (oracle failed on 0, Kivgraph refused 0).
 - Recall on non-test files: 100.0 % (100.0 to 100.0). On test files: 100.0 % (100.0 to 100.0).
 - Declarations with no dependents for which Kivgraph still reports a file: 0 of 12.
-- Completeness verdicts: COMPLETE 99, LOWER_BOUND 1.
-- Answers that said `COMPLETE` and missed at least one non-test file: 0 of 99.
+- Completeness verdicts: COMPLETE 100.
+- Answers that said `COMPLETE` and missed at least one non-test file: 0 of 100.
 - Not sampled: kind not sampled: 86; name not found in declaring position: 3.
 
 |kind|declarations with dependents|file recall|

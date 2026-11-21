@@ -645,7 +645,7 @@ func findSymbol(
 			scope = id
 		}
 	}
-	completeness, unresolvedRelated, err := completenessFor(snapshot, name, scope)
+	completeness, unresolvedRelated, err := completenessFor(snapshot, name, "", scope)
 	if err != nil {
 		return nil, Response[SymbolResults]{}, WrapToolError(
 			CodeSnapshotUnavailable, "active snapshot contains invalid unresolved metadata", err)

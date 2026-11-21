@@ -15,9 +15,19 @@ import "strings"
 // or ends in it after a dot. The resolver records what it looked for, so a
 // failed `Connection.Close` is a failure that concerns `Close`.
 //
+// language narrows them to the failures that could have been looking for a
+// declaration of that language, and empty means any. A reference is resolved
+// by its own language's analyzer and can only land on a declaration of that
+// language: an unresolved `Command` in a Rust file is `std::process::Command`
+// or something like it, and never the `Command` a Go repository declares. Read
+// without the language, one such failure bounded every answer about the name in
+// the whole snapshot, so the same question about the same Go type answered
+// COMPLETE alone and LOWER_BOUND with a Rust repository indexed beside it. A
+// failure that recorded no language is kept: it cannot be ruled out.
+//
 // total is the number of matches before limit, so a caller can say how much it
 // is not showing instead of implying it showed everything.
-func (snapshot *GraphSnapshot) UnresolvedNamingSymbol(name string, limit int) ([]UnresolvedReferenceRecord, int) {
+func (snapshot *GraphSnapshot) UnresolvedNamingSymbol(name, language string, limit int) ([]UnresolvedReferenceRecord, int) {
 	if snapshot == nil || name == "" || limit < 0 {
 		return nil, 0
 	}
@@ -30,6 +40,11 @@ func (snapshot *GraphSnapshot) UnresolvedNamingSymbol(name string, limit int) ([
 		requested, found := snapshot.strings.String(reference.RequestedSymbol)
 		if !found || !requestedNames(requested, name) {
 			continue
+		}
+		if language != "" {
+			if recorded, known := snapshot.strings.String(reference.Language); known && recorded != "" && recorded != language {
+				continue
+			}
 		}
 		total++
 		if len(matched) < limit {

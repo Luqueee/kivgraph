@@ -3,7 +3,7 @@
 How many of the files that depend on a declaration does `find_references` report? The ground truth is the language's own type checker: rename the declaration, type-check again, and the files that gain an error are the files that use it.
 
 - Command: `go run ./benchmarks/language-recall -kivgraph <binary> -repo-root .`
-- Date: 2026-11-20, seed 1, up to 100 declarations per language
+- Date: 2026-11-21, seed 1, up to 100 declarations per language
 - Kivgraph `0.10.0` on darwin/arm64, go1.26.11, Version 5.9.3, node v25.9.0, rustc 1.100.0 (0ef1bc386 2026-11-09) (Homebrew)
 
 ## Corpus
@@ -35,8 +35,8 @@ Intervals are 95 % percentile intervals from resampling declarations.
 - Declarations listed 443, eligible for the rename 442, measured 100 (oracle failed on 0, Kivgraph refused 0).
 - Recall on non-test files: 100.0 % (100.0 to 100.0). On test files: 100.0 % (100.0 to 100.0).
 - Declarations with no dependents for which Kivgraph still reports a file: 0 of 4.
-- Completeness verdicts: COMPLETE 95, LOWER_BOUND 5.
-- Answers that said `COMPLETE` and missed at least one non-test file: 0 of 95.
+- Completeness verdicts: COMPLETE 96, LOWER_BOUND 4.
+- Answers that said `COMPLETE` and missed at least one non-test file: 0 of 96.
 - Not sampled: name not found in declaring position: 1; outline refused: 1.
 
 |kind|declarations with dependents|file recall|
@@ -55,8 +55,8 @@ Intervals are 95 % percentile intervals from resampling declarations.
 - Recall on non-test files: 100.0 % (100.0 to 100.0). On test files: n/a.
 - Recall on ES private names (`#x`): 100.0 % (100.0 to 100.0) over 13 declarations. On every other declaration: 100.0 % (100.0 to 100.0).
 - Declarations with no dependents for which Kivgraph still reports a file: 3 of 15.
-- Completeness verdicts: COMPLETE 98, LOWER_BOUND 2.
-- Answers that said `COMPLETE` and missed at least one non-test file: 0 of 98.
+- Completeness verdicts: COMPLETE 100.
+- Answers that said `COMPLETE` and missed at least one non-test file: 0 of 100.
 - Not sampled: kind not sampled: 425; name not found in declaring position: 311; outline refused: 21.
 
 |kind|declarations with dependents|file recall|
@@ -116,8 +116,8 @@ Declarations with a reported file the compiler did not flag (first 15 of 3). The
 - Declarations listed 772, eligible for the rename 540, measured 100 (oracle failed on 0, Kivgraph refused 0).
 - Recall on non-test files: 98.7 % (95.6 to 100.0). On test files: 100.0 % (100.0 to 100.0).
 - Declarations with no dependents for which Kivgraph still reports a file: 7 of 27.
-- Completeness verdicts: COMPLETE 99, LOWER_BOUND 1.
-- Answers that said `COMPLETE` and missed at least one non-test file: 1 of 99.
+- Completeness verdicts: COMPLETE 100.
+- Answers that said `COMPLETE` and missed at least one non-test file: 1 of 100.
 - Not sampled: kind not sampled: 204; name not found in declaring position: 28.
 
 |kind|declarations with dependents|file recall|

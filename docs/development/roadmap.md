@@ -2565,6 +2565,13 @@ of the precision column, and `exclude_tests` on the traversal tools.
   declaration's errors for the next one in the same file. It runs without a
   cache, and the audit that caught it -- the same declaration must get the same
   truth in every configuration -- found `0` differences in `179` afterwards.
+- **A failure bounds answers in its own language (ADR 0146).** The lookup
+  behind every `completeness` verdict read a failure's name and not its
+  language, over the whole snapshot: `find_references` for `Command` in `cobra`
+  answered `COMPLETE` alone and `LOWER_BOUND` with `fd` indexed beside it,
+  because of `std::process::Command` in a Rust file. A failure now bounds an
+  answer about a declaration only if it is in that declaration's language, or
+  recorded none. `find_symbol`, which asks about a name, is unchanged.
 - **Open after the language-recall work** (none has an owner or a date):
   - Dart: explicit extension application (`IterableExtension(this)`) and `/** */`
     doc links. Rust: methods on a receiver, names passed through a metavariable
@@ -2581,10 +2588,6 @@ of the precision column, and `exclude_tests` on the traversal tools.
     a `cast`.
   - C#: recall on overloads is `49.1 %` and comes from `scip-dotnet`, which
     resolves an extension-method call to the first overload.
-  - Completeness: a failure that names a symbol bounds every answer about that
-    name in the snapshot, whichever repository it was recorded in. `Command`
-    in `cobra` answers `LOWER_BOUND` when a Rust repository is indexed beside
-    it and `COMPLETE` alone. Seen while re-measuring; not looked into.
   - Indexing: a registered repository with no project for its language (C#
     with no solution, Java when `scip-java` writes no index) aborts the whole
     pass. The Java, C# and Python tools still build or read excluded files.

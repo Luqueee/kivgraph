@@ -1,7 +1,7 @@
 {
   "benchmark": "language-recall",
   "command": "go run ./benchmarks/language-recall -kivgraph \u003cbinary\u003e -repo-root .",
-  "date": "2026-11-20",
+  "date": "2026-11-21",
   "seed": 1,
   "declarations_per_language": 100,
   "environment": {
@@ -6156,5 +6156,5 @@
     "Java is checked by running `javac` over the main and the test sources at once, with the classpath Maven resolves, so one failing file does not hide another; Kivgraph reads `scip-java`, which drives the same compiler through the build. A Java or C# constructor is written with its type's name, so renaming the type breaks the constructors' own declarations: those errors are left out, as for Dart.",
     "C# is checked with `dotnet build` on the solution, and MSBuild does not compile a project whose reference failed: a rename in the library leaves the test project unbuilt, so its files are missing from the truth. The C# truth is a lower bound and so is its precision, as for a Rust workspace. Kivgraph reads `scip-dotnet`, which drives Roslyn, the same compiler."
   ],
-  "wall_seconds": 886.28635825
+  "wall_seconds": 732.420553459
 }

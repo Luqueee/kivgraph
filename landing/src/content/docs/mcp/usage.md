@@ -400,11 +400,11 @@ them**, so each one looks at a different set of recorded failures:
 
 | Tool | What can bound its answer |
 | --- | --- |
-| `find_references` | Failures that asked for this name, plus unreadable scopes of the subject's repository. `direction` does not change the verdict: it is charged with the naming question either way. |
+| `find_references` | Failures that asked for this name **in the subject's language**, plus unreadable scopes of the subject's repository. A reference is resolved by its own language's analyzer, so an unresolved `Command` in a Rust file says nothing about a Go `Command`; a failure that recorded no language still counts. `direction` does not change the verdict: it is charged with the naming question either way. |
 | `find_implementations` | The same pair as `find_references`, except that the scope half is **global** rather than the subject's repository. A generation older than schema 5 is always `LOWER_BOUND`. |
 | `get_blast_radius` | The same pair, taken from the repository the walk starts in. |
 | `trace_dependencies` | Failures **this symbol itself** made, plus unreadable scopes of its repository. "What does this reach" is never bounded by who asked for its name -- somebody else's unreadable call hides a caller, not a dependency. |
-| `find_symbol` | Failures that asked for this name, plus unreadable scopes. Narrowed with `repo`, only that repository's; unnarrowed, every one in the graph. |
+| `find_symbol` | Failures that asked for this name in any language -- the question is about a name, not one declaration -- plus unreadable scopes. Narrowed with `repo`, only that repository's; unnarrowed, every one in the graph. |
 | `get_file_outline` | Unreadable scopes of the repository asked for. There is no symbol name here, so nothing else can bound it. |
 | `find_cross_repo_consumers` | Unreadable scopes **anywhere in the graph**, deliberately. A package nobody could read in any repository is exactly where an outside consumer hides. |
 

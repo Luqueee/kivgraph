@@ -79,12 +79,16 @@ type Fallback struct {
 // repository that could not be read at all, and -- through the second -- a
 // package the index never opened. Passing every one of them is what makes
 // silence mean something.
+//
+// language is the language of the declaration the answer is about, and empty
+// when the question is about a name and not about one declaration.
 func completenessFor(
 	snapshot *hotsnapshot.GraphSnapshot,
 	symbolName string,
+	language string,
 	repository hotsnapshot.RepositoryID,
 ) (Completeness, int, error) {
-	naming, namingTotal := snapshot.UnresolvedNamingSymbol(symbolName, MaximumBlindSpots)
+	naming, namingTotal := snapshot.UnresolvedNamingSymbol(symbolName, language, MaximumBlindSpots)
 	scopes, scopeTotal := snapshot.UnresolvedScopeGroups(repository, MaximumBlindSpots)
 	if namingTotal == 0 && scopeTotal == 0 {
 		return Completeness{Verdict: VerdictComplete}, 0, nil

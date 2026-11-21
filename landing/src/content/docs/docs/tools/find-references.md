@@ -501,7 +501,7 @@ response, in either view: a `verdict` of `COMPLETE` means nothing the index
 recorded could add to this page, `LOWER_BOUND` that the page is a floor. What
 can bound a reference answer is what the index could not read that asks for
 this name -- the references it recorded and could not resolve for the subject's
-name, in `blind_spots`, and the scopes of the subject's repository it could not
+name in the subject's language, in `blind_spots`, and the scopes of the subject's repository it could not
 read at all, in `invisible_scopes` -- with `fallback` carrying the pattern and
 the paths that close the gap. The distinction is load-bearing on an empty page:
 `COMPLETE` is the absence, `LOWER_BOUND` is a minimum, `guidance` says which of

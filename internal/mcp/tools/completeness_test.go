@@ -394,3 +394,76 @@ func completenessSnapshot(t *testing.T, id uint64, unresolved ...hotsnapshot.Unr
 	}
 	return hotsnapshot.NewSnapshotStore(snapshot)
 }
+
+// A failure is a reference some language's analyzer could not follow, so it can
+// only have been looking for a declaration of that language. Read without it,
+// an unresolved `Core` in a Rust file bounded every answer about the Go `Core`:
+// on real code `Command` in cobra answered LOWER_BOUND whenever a Rust
+// repository was indexed beside it, and COMPLETE alone.
+func TestAFailureInAnotherLanguageDoesNotBoundTheAnswer(t *testing.T) {
+	failure := func(language string) hotsnapshot.UnresolvedReferenceRow {
+		return hotsnapshot.UnresolvedReferenceRow{
+			Key: "unresolved-core-" + language, RepositoryKey: "repo-app", FileKey: "file-app",
+			Language: language, RequestedPackage: "std::process", RequestedSymbol: "Core",
+			Reason: "TARGET_NOT_INDEXED", StartLine: 7, StartColumn: 3,
+		}
+	}
+	verdicts := func(t *testing.T, store *hotsnapshot.SnapshotStore) map[string]string {
+		t.Helper()
+		out := map[string]string{}
+		_, references, err := findReferences(context.Background(), nil,
+			FindReferencesInput{StableKey: "sym-core", Direction: FindReferencesDirectionIncoming}, store)
+		if err != nil {
+			t.Fatalf("find_references: %v", err)
+		}
+		out["find_references"] = fmt.Sprintf("%s/%d", references.Completeness.Verdict, references.Coverage.UnresolvedRelated)
+		_, radius, err := getBlastRadius(context.Background(), nil, GetBlastRadiusInput{StableKey: "sym-core"}, store)
+		if err != nil {
+			t.Fatalf("get_blast_radius: %v", err)
+		}
+		out["get_blast_radius"] = fmt.Sprintf("%s/%d", radius.Completeness.Verdict, radius.Coverage.UnresolvedRelated)
+		_, consumers, err := findCrossRepoConsumers(context.Background(), nil,
+			FindCrossRepoConsumersInput{StableKey: "sym-core"}, store)
+		if err != nil {
+			t.Fatalf("find_cross_repo_consumers: %v", err)
+		}
+		out["find_cross_repo_consumers"] = consumers.Completeness.Verdict
+		return out
+	}
+
+	for name, test := range map[string]struct {
+		language string
+		want     map[string]string
+	}{
+		"another language": {"rust", map[string]string{
+			"find_references": "COMPLETE/0", "get_blast_radius": "COMPLETE/0", "find_cross_repo_consumers": "COMPLETE",
+		}},
+		"the declaration's language": {"go", map[string]string{
+			"find_references": "LOWER_BOUND/1", "get_blast_radius": "LOWER_BOUND/1", "find_cross_repo_consumers": "LOWER_BOUND",
+		}},
+		// It cannot be ruled out, so it still bounds.
+		"no language recorded": {"", map[string]string{
+			"find_references": "LOWER_BOUND/1", "get_blast_radius": "LOWER_BOUND/1", "find_cross_repo_consumers": "LOWER_BOUND",
+		}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := verdicts(t, completenessSnapshot(t, 71, failure(test.language)))
+			for tool, want := range test.want {
+				if got[tool] != want {
+					t.Errorf("%s = %s, want %s", tool, got[tool], want)
+				}
+			}
+		})
+	}
+
+	// A search by name is not about one declaration: a `Core` nobody could
+	// resolve, in any language, is a `Core` this graph may not hold.
+	_, symbols, err := findSymbol(context.Background(), nil, FindSymbolInput{Name: "Core"},
+		completenessSnapshot(t, 72, failure("rust")))
+	if err != nil {
+		t.Fatalf("find_symbol: %v", err)
+	}
+	if symbols.Completeness == nil || symbols.Completeness.Verdict != VerdictLowerBound {
+		t.Errorf("find_symbol by name = %#v, want the failure in another language to bound it", symbols.Completeness)
+	}
+}

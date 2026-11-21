@@ -3,7 +3,7 @@
 How many of the files that depend on a declaration does `find_references` report? The ground truth is the language's own type checker: rename the declaration, type-check again, and the files that gain an error are the files that use it.
 
 - Command: `go run ./benchmarks/language-recall -kivgraph <binary> -repo-root .`
-- Date: 2026-11-20, seed 1, up to 100 declarations per language
+- Date: 2026-11-21, seed 1, up to 100 declarations per language
 - Kivgraph `0.10.0` on darwin/arm64, go1.26.11, rustc 1.100.0 (0ef1bc386 2026-11-09) (Homebrew), javac 21.0.13.1, dotnet 8.0.134
 
 ## Corpus

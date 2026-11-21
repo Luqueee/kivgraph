@@ -763,12 +763,14 @@ func findReferences(
 	// resolve which asked for this very name. Without this check the answer
 	// said "an absence rather than a miss" over a recorded miss.
 	subjectRepository := hotsnapshot.InvalidRepositoryID
+	subjectLanguage := ""
 	if startSymbol, found := snapshot.Symbol(startID); found {
 		if file, fileFound := snapshot.File(startSymbol.File); fileFound {
 			subjectRepository = file.Repository
 		}
+		subjectLanguage, _ = snapshot.Strings().String(startSymbol.Language)
 	}
-	completeness, unresolvedRelated, err := completenessFor(snapshot, subject.Name, func() hotsnapshot.RepositoryID {
+	completeness, unresolvedRelated, err := completenessFor(snapshot, subject.Name, subjectLanguage, func() hotsnapshot.RepositoryID {
 		if options.implementationsOnly {
 			return hotsnapshot.InvalidRepositoryID
 		}

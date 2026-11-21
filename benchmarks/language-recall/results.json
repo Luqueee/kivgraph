@@ -1,7 +1,7 @@
 {
   "benchmark": "language-recall",
   "command": "go run ./benchmarks/language-recall -kivgraph \u003cbinary\u003e -repo-root .",
-  "date": "2026-11-20",
+  "date": "2026-11-21",
   "seed": 1,
   "declarations_per_language": 100,
   "environment": {
@@ -119,8 +119,8 @@
         "symbols": 4
       },
       "completeness_verdicts": {
-        "COMPLETE": 95,
-        "LOWER_BOUND": 5
+        "COMPLETE": 96,
+        "LOWER_BOUND": 4
       },
       "complete_verdicts_that_missed_a_non_test_file": 0,
       "by_kind": [
@@ -1132,7 +1132,7 @@
             "zsh_completions.go",
             "zsh_completions_test.go"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "cobra",
@@ -1999,8 +1999,7 @@
         "symbols": 15
       },
       "completeness_verdicts": {
-        "COMPLETE": 98,
-        "LOWER_BOUND": 2
+        "COMPLETE": 100
       },
       "complete_verdicts_that_missed_a_non_test_file": 0,
       "by_kind": [
@@ -2272,7 +2271,7 @@
           "line": 149,
           "truth_files": null,
           "reported_files": null,
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "ky",
@@ -2902,7 +2901,7 @@
           "reported_files": [
             "source/core/Ky.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "ky",
@@ -5344,8 +5343,7 @@
         "symbols": 27
       },
       "completeness_verdicts": {
-        "COMPLETE": 99,
-        "LOWER_BOUND": 1
+        "COMPLETE": 100
       },
       "complete_verdicts_that_missed_a_non_test_file": 1,
       "by_kind": [
@@ -6241,7 +6239,7 @@
           "reported_files": [
             "lib/src/equality.dart"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "collection",
@@ -10367,5 +10365,5 @@
     "Java is checked by running `javac` over the main and the test sources at once, with the classpath Maven resolves, so one failing file does not hide another; Kivgraph reads `scip-java`, which drives the same compiler through the build. A Java or C# constructor is written with its type's name, so renaming the type breaks the constructors' own declarations: those errors are left out, as for Dart.",
     "C# is checked with `dotnet build` on the solution, and MSBuild does not compile a project whose reference failed: a rename in the library leaves the test project unbuilt, so its files are missing from the truth. The C# truth is a lower bound and so is its precision, as for a Rust workspace. Kivgraph reads `scip-dotnet`, which drives Roslyn, the same compiler."
   ],
-  "wall_seconds": 345.58954425
+  "wall_seconds": 299.202631958
 }
