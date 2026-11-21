@@ -2633,6 +2633,9 @@ of the precision column, and `exclude_tests` on the traversal tools.
   - Benchmarks: `agent-e2e` was not rerun after its harness stopped relaying.
     The `BUILD.bazel` files do not list the packages and files added since
     `internal/goloader/dependency_bodies.go`; CI does not check them.
+  - `get_test_health` (issue #145) has a contract and no code: ADR 0148,
+    `Proposed`, stage 1 of 7. It keeps runtime coverage and static test
+    support in two fields.
   - CI: `internal/daemon` reported `setup failed` once on Windows and passed
     on the next run; `Set up the semantic indexers` and the macOS runners fail
     to start often enough to need a rerun.
