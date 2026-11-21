@@ -2611,10 +2611,12 @@ of the precision column, and `exclude_tests` on the traversal tools.
     files. Whether the Dart loader's own rule for a test agrees with
     `internal/testpath` was not checked. TypeScript isolation: the worker
     failing on one package was exercised with a stand-in, never with the real
-    worker, which tolerated every broken configuration it was given; the
+    worker, which tolerated every broken configuration it was given; and the
     branch that refuses a worker which disappears between being found and
-    being started has no test; and neither `index.<language>.not_read` nor
-    `index.typescript.no_package` is asserted from the CLI.
+    being started has no test. The lines that name what was not read are
+    asserted from the report the CLI prints, not from a pass run through it.
+    When a list of other languages' failures passes twenty, its `and N more`
+    line is printed under `index.semantic.not_read`, without the language.
   - Processes: `internal/proctree` is Unix only, and its runs with the real
     tools were on macOS. `ensureDaemon`, the explicit path, does not apply the
     foreign-home check that `serve` does.

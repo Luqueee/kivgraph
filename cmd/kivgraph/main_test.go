@@ -2141,6 +2141,76 @@ func TestWriteIndexSummaryNamesWhatWasNotLoaded(t *testing.T) {
 	}
 }
 
+// The counts say that something was not read; these lines are the only place
+// that says what and why. A pass that leaves a repository out now exits 0, so
+// a line that stops being printed is a repository that vanishes unannounced.
+func TestWriteIndexDetailsNamesWhatWasNotRead(t *testing.T) {
+	var stdout bytes.Buffer
+	writeIndexDetails(&stdout, indexer.FullReport{
+		GoModulesNotRead:          []string{"api: example.com/api: no Go files"},
+		GoDiagnostics:             []string{"api/a.go:1:1: undefined: x"},
+		TypeScriptWithoutPackages: []string{"tools"},
+		TypeScriptNotRead: []string{
+			"web: REPOSITORY_NOT_LOADED: parse tsconfig.json",
+			"web: @web/ui: PACKAGE_NOT_LOADED: worker exited",
+		},
+		RustDiagnostics: []string{"core: unresolved macro"},
+		SemanticNotRead: []string{
+			"python: jobs: REPOSITORY_NOT_LOADED: producer exited",
+			"csharp: svc: REPOSITORY_NOT_LOADED: no .sln or .csproj in svc",
+			// A line with no language in front is still printed, and says so.
+			"malformed",
+		},
+		RustWithoutWorkspaces: []string{"docs"},
+	})
+	want := strings.Join([]string{
+		"index.go.not_read: api: example.com/api: no Go files",
+		"index.go.diagnostic: api/a.go:1:1: undefined: x",
+		"index.typescript.no_package: tools declares no package with a TypeScript project, so it contributes nothing",
+		"index.typescript.not_read: web: REPOSITORY_NOT_LOADED: parse tsconfig.json",
+		"index.typescript.not_read: web: @web/ui: PACKAGE_NOT_LOADED: worker exited",
+		"index.rust.diagnostic: core: unresolved macro",
+		"index.python.not_read: jobs: REPOSITORY_NOT_LOADED: producer exited",
+		"index.csharp.not_read: svc: REPOSITORY_NOT_LOADED: no .sln or .csproj in svc",
+		"index.semantic.not_read: malformed",
+		"index.rust.no_workspace: docs declares no Cargo manifest, so it contributes nothing",
+		"",
+	}, "\n")
+	if got := stdout.String(); got != want {
+		t.Errorf("details:\n%s\nwant:\n%s", got, want)
+	}
+
+	// Nothing to name is nothing printed: a clean pass has no warning lines.
+	stdout.Reset()
+	writeIndexDetails(&stdout, indexer.FullReport{})
+	if stdout.Len() != 0 {
+		t.Errorf("a clean report printed %q", stdout.String())
+	}
+
+	// Twenty are printed and the rest are counted, per list, on both sides
+	// of the limit.
+	for _, testCase := range [...]struct {
+		lines, printed int
+		last           string
+	}{
+		{20, 21, "index.typescript.not_read: web: p19"},
+		{21, 22, "index.typescript.not_read: and 1 more"},
+	} {
+		var lines []string
+		for index := range testCase.lines {
+			lines = append(lines, fmt.Sprintf("web: p%d", index))
+		}
+		stdout.Reset()
+		writeIndexDetails(&stdout, indexer.FullReport{TypeScriptNotRead: lines, SemanticNotRead: []string{"dart: app: x"}})
+		printed := strings.Split(strings.TrimSuffix(stdout.String(), "\n"), "\n")
+		// The limit of one list takes nothing from the next.
+		if len(printed) != testCase.printed || printed[len(printed)-2] != testCase.last ||
+			printed[len(printed)-1] != "index.dart.not_read: app: x" {
+			t.Errorf("%d lines printed %d, ending %q", testCase.lines, len(printed), printed[max(0, len(printed)-2):])
+		}
+	}
+}
+
 // A generation is named by an unsigned decimal, and anything else is a
 // request the command cannot honour rather than a generation zero: reading a
 // rejected identifier as 0 would point every malformed request at the same

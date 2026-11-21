@@ -1658,6 +1658,40 @@ func writeIndexSummary(stdout io.Writer, indexReport indexer.FullReport) {
 	)
 }
 
+// writeIndexDetails names what the summary only counts.
+func writeIndexDetails(stdout io.Writer, indexReport indexer.FullReport) {
+	// A count says something happened; the lines say what. Both are on
+	// stdout with the rest of the report, because a warning in a log the
+	// caller is not reading is a warning nobody has.
+	for _, module := range boundedReportLines(indexReport.GoModulesNotRead, 20) {
+		writeWarning(stdout, "index.go.not_read: %s", module)
+	}
+	for _, diagnostic := range boundedReportLines(indexReport.GoDiagnostics, 20) {
+		writeWarning(stdout, "index.go.diagnostic: %s", diagnostic)
+	}
+	for _, repository := range boundedReportLines(indexReport.TypeScriptWithoutPackages, 20) {
+		writeWarning(stdout, "index.typescript.no_package: %s declares no package with a TypeScript project, so it contributes nothing", repository)
+	}
+	for _, line := range boundedReportLines(indexReport.TypeScriptNotRead, 20) {
+		writeWarning(stdout, "index.typescript.not_read: %s", line)
+	}
+	for _, diagnostic := range boundedReportLines(indexReport.RustDiagnostics, 20) {
+		writeWarning(stdout, "index.rust.diagnostic: %s", diagnostic)
+	}
+	for _, line := range boundedReportLines(indexReport.SemanticNotRead, 20) {
+		// `language: repository: reason: detail`, printed under its language
+		// like the two lists above.
+		language, rest, found := strings.Cut(line, ": ")
+		if !found {
+			language, rest = "semantic", line
+		}
+		writeWarning(stdout, "index.%s.not_read: %s", language, rest)
+	}
+	for _, repository := range boundedReportLines(indexReport.RustWithoutWorkspaces, 20) {
+		writeWarning(stdout, "index.rust.no_workspace: %s declares no Cargo manifest, so it contributes nothing", repository)
+	}
+}
+
 func runIndexFull(args []string, stdout, stderr io.Writer) int {
 	var options indexFullOptions
 	flags := indexFullFlagSet(&options)
@@ -1734,36 +1768,7 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 	indexReport := fullResult.IndexReport
 	writeResult(stdout, err == nil, "index.full: %s", passFail(err == nil))
 	writeIndexSummary(stdout, indexReport)
-	// A count says something happened; the lines say what. Both are on
-	// stdout with the rest of the report, because a warning in a log the
-	// caller is not reading is a warning nobody has.
-	for _, module := range boundedReportLines(indexReport.GoModulesNotRead, 20) {
-		writeWarning(stdout, "index.go.not_read: %s", module)
-	}
-	for _, diagnostic := range boundedReportLines(indexReport.GoDiagnostics, 20) {
-		writeWarning(stdout, "index.go.diagnostic: %s", diagnostic)
-	}
-	for _, repository := range boundedReportLines(indexReport.TypeScriptWithoutPackages, 20) {
-		writeWarning(stdout, "index.typescript.no_package: %s declares no package with a TypeScript project, so it contributes nothing", repository)
-	}
-	for _, line := range boundedReportLines(indexReport.TypeScriptNotRead, 20) {
-		writeWarning(stdout, "index.typescript.not_read: %s", line)
-	}
-	for _, diagnostic := range boundedReportLines(indexReport.RustDiagnostics, 20) {
-		writeWarning(stdout, "index.rust.diagnostic: %s", diagnostic)
-	}
-	for _, line := range boundedReportLines(indexReport.SemanticNotRead, 20) {
-		// `language: repository: reason: detail`, printed under its language
-		// like the two lists above.
-		language, rest, found := strings.Cut(line, ": ")
-		if !found {
-			language, rest = "semantic", line
-		}
-		writeWarning(stdout, "index.%s.not_read: %s", language, rest)
-	}
-	for _, repository := range boundedReportLines(indexReport.RustWithoutWorkspaces, 20) {
-		writeWarning(stdout, "index.rust.no_workspace: %s declares no Cargo manifest, so it contributes nothing", repository)
-	}
+	writeIndexDetails(stdout, indexReport)
 	if cache := indexReport.Cache; cache.Mode != "" && cache.Mode != indexer.CacheOff {
 		note := ""
 		if changed := cache.AnalyzerChangedNote(); changed != "" {
