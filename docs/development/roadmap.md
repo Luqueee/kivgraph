@@ -2573,8 +2573,35 @@ of the precision column, and `exclude_tests` on the traversal tools.
     ADR 0137), and function-typed properties under the structural
     implementation rule.
   - The benchmark measures one repository per language apart from Go, and one
-    for Java and C#; Python has no oracle independent of Pyright, and `etcd`
-    needs a Go `1.27` build.
+    each for Java, C# and Python; `etcd` needs a Go `1.27` build.
+  - Python: the default mode recalls no use of a method, which needs a type,
+    and `analyzer_mode` stays `fallback` because `exact` needs Pyright
+    installed. One `COMPLETE` answer still misses a file, a function defined
+    twice under a platform test. Pyright does not navigate from the string of
+    a `cast`.
+  - C#: recall on overloads is `49.1 %` and comes from `scip-dotnet`, which
+    resolves an extension-method call to the first overload.
+  - Completeness: a failure that names a symbol bounds every answer about that
+    name in the snapshot, whichever repository it was recorded in. `Command`
+    in `cobra` answers `LOWER_BOUND` when a Rust repository is indexed beside
+    it and `COMPLETE` alone. Seen while re-measuring; not looked into.
+  - Indexing: a registered repository with no project for its language (C#
+    with no solution, Java when `scip-java` writes no index) aborts the whole
+    pass. The Java, C# and Python tools still build or read excluded files.
+    Whether the Dart loader's own rule for a test agrees with
+    `internal/testpath` was not checked.
+  - Processes: `internal/proctree` is Unix only, and its runs with the real
+    tools were on macOS. `ensureDaemon`, the explicit path, does not apply the
+    foreign-home check that `serve` does.
+  - Memory: about `0.7 GB` above the heap at the peak of a large Go index is
+    not broken down; no `linux/amd64` measurement; the collector setting is
+    process-wide and was not measured with a daemon serving while it indexes.
+  - Benchmarks: `agent-e2e` was not rerun after its harness stopped relaying.
+    The `BUILD.bazel` files do not list the packages and files added since
+    `internal/goloader/dependency_bodies.go`; CI does not check them.
+  - CI: `internal/daemon` reported `setup failed` once on Windows and passed
+    on the next run; `Set up the semantic indexers` and the macOS runners fail
+    to start often enough to need a rerun.
   - Site, done: `/github` answers `302` (the earlier `404` is gone, and the
     redirect lives in the edge Worker, not in this repository). The compare link
     of a release with no tag (`v0.10.0`, `v0.10.0-dev.1`) is hidden by
