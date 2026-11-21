@@ -2615,11 +2615,18 @@ of the precision column, and `exclude_tests` on the traversal tools.
     branch that refuses a worker which disappears between being found and
     being started has no test. The lines that name what was not read are
     asserted from the report the CLI prints, not from a pass run through it.
-    When a list of other languages' failures passes twenty, its `and N more`
-    line is printed under `index.semantic.not_read`, without the language.
+    They are bounded per language, so the line that counts the rest names
+    the language it counts.
   - Processes: `internal/proctree` is Unix only, and its runs with the real
-    tools were on macOS. `ensureDaemon`, the explicit path, does not apply the
-    foreign-home check that `serve` does.
+    tools were on macOS. The explicit path to a daemon, behind `configure` and
+    `mcp install`, now applies the foreign-home check `serve` does:
+    it writes the stdio entry and says why, and refuses an explicit
+    `--daemon`. The check comes after the consent question, so a terminal
+    under another home is asked and then told. `daemon install` does not
+    apply it: it installs what it is told to. A test binary
+    that reaches `supervisor.Install` registers itself as the daemon and
+    reruns its own suite from the supervisor; nothing but that check keeps
+    the suite from doing so.
   - Memory: about `0.7 GB` above the heap at the peak of a large Go index is
     not broken down; no `linux/amd64` measurement; the collector setting is
     process-wide and was not measured with a daemon serving while it indexes.

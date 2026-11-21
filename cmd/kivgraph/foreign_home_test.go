@@ -1,11 +1,16 @@
 package main
 
 import (
+	"bytes"
+	"errors"
 	"os"
 	"os/user"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/Luqueee/kivgraph/internal/integrations"
+	"github.com/Luqueee/kivgraph/internal/supervisor"
 	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
@@ -59,5 +64,50 @@ func TestSameDirectoryFallsBackToThePathWhenNeitherExists(t *testing.T) {
 	}
 	if sameDirectory(missing, missing+"-other") {
 		t.Error("two different missing paths compared equal")
+	}
+}
+
+// The explicit path -- `mcp install`, `configure` -- installed the same
+// unit `serve` no longer does. Under a home that is not the account's it writes
+// the stdio entry and says why; an explicit --daemon is refused, because it
+// cannot be downgraded.
+func TestTheExplicitPathInstallsNoDaemonUnderAnotherHome(t *testing.T) {
+	current, err := user.Current()
+	if err != nil || current.HomeDir == "" {
+		t.Skipf("the account cannot be looked up here: %v", err)
+	}
+	loaded := initialisedHome(t)
+	spec, _, err := supervisorSpec("", supervisorOptions{})
+	if err != nil {
+		t.Fatalf("supervisorSpec: %v", err)
+	}
+	report, err := supervisor.Status(spec)
+	if err != nil {
+		t.Fatalf("supervisor.Status: %v", err)
+	}
+	absent := func(supervisor.Spec) (supervisor.Report, error) {
+		return supervisor.Report{State: supervisor.StateAbsent}, nil
+	}
+
+	var stdout bytes.Buffer
+	_, err = integrationManagerOptionsWithStatus(
+		integrationOptions{Scope: integrations.ScopeUser, Daemon: true}, true, strings.NewReader(""), &stdout, absent)
+	if err == nil || !strings.Contains(err.Error(), "--daemon: ") || !strings.Contains(err.Error(), current.HomeDir) ||
+		!strings.Contains(err.Error(), "--stdio") {
+		t.Errorf("--daemon error = %v, want it refused, naming the account's home and the way out", err)
+	}
+
+	// With consent given, which a test cannot give through the prompt: that
+	// one only believes a terminal.
+	_, err = ensureDaemon(loaded.ConfigPath, stateDirectory(loaded), integrationOptions{}, &stdout)
+	var fallback errStdioFallback
+	if !errors.As(err, &fallback) || !strings.Contains(fallback.reason, current.HomeDir) {
+		t.Errorf("ensureDaemon() error = %v, want a declared stdio fallback", err)
+	}
+
+	if report.Path != "" {
+		if _, err := os.Stat(report.Path); !os.IsNotExist(err) {
+			t.Errorf("a unit was written at %q (stat error %v)", report.Path, err)
+		}
 	}
 }

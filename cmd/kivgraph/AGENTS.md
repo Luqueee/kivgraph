@@ -283,7 +283,10 @@ superficie observable.
   cuando corre bajo un `HOME` que no es el de la cuenta (`foreignHome`): el
   supervisor lo arrancaría con el de la cuenta, contra otra instalación, y la
   unidad quedaría registrada cuando el directorio desde el que se instaló ya no
-  existe. La variable de entorno existe
+  existe. La ruta explícita -`ensureDaemon`, detrás de `configure` y de
+  `mcp install`- aplica la misma comprobación: escribe la entrada
+  stdio y dice por qué, y un `--daemon` explícito se rechaza en vez de
+  degradarse. La variable de entorno existe
   porque el relé es el defecto en un proceso que lanza un cliente sin
   supervisión: sin escape, una máquina donde el relé se porte mal no tiene
   vuelta que no pase por parar el demonio que usan los demás.

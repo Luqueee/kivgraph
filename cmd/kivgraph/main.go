@@ -1678,14 +1678,25 @@ func writeIndexDetails(stdout io.Writer, indexReport indexer.FullReport) {
 	for _, diagnostic := range boundedReportLines(indexReport.RustDiagnostics, 20) {
 		writeWarning(stdout, "index.rust.diagnostic: %s", diagnostic)
 	}
-	for _, line := range boundedReportLines(indexReport.SemanticNotRead, 20) {
-		// `language: repository: reason: detail`, printed under its language
-		// like the two lists above.
+	// `language: repository: reason: detail`, printed under its language like
+	// the lists above and bounded per language like them: bounded as one list,
+	// the line that counts the rest had no language to be printed under.
+	var languages []string
+	notRead := map[string][]string{}
+	for _, line := range indexReport.SemanticNotRead {
 		language, rest, found := strings.Cut(line, ": ")
 		if !found {
 			language, rest = "semantic", line
 		}
-		writeWarning(stdout, "index.%s.not_read: %s", language, rest)
+		if _, seen := notRead[language]; !seen {
+			languages = append(languages, language)
+		}
+		notRead[language] = append(notRead[language], rest)
+	}
+	for _, language := range languages {
+		for _, line := range boundedReportLines(notRead[language], 20) {
+			writeWarning(stdout, "index.%s.not_read: %s", language, line)
+		}
 	}
 	for _, repository := range boundedReportLines(indexReport.RustWithoutWorkspaces, 20) {
 		writeWarning(stdout, "index.rust.no_workspace: %s declares no Cargo manifest, so it contributes nothing", repository)

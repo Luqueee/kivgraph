@@ -2187,6 +2187,22 @@ func TestWriteIndexDetailsNamesWhatWasNotRead(t *testing.T) {
 		t.Errorf("a clean report printed %q", stdout.String())
 	}
 
+	// The other languages share one list and are bounded each on its own, so
+	// the line that counts the rest says whose they are, and one language's
+	// failures do not push another's out of the report.
+	var shared []string
+	for index := range 22 {
+		shared = append(shared, fmt.Sprintf("python: p%d: x", index))
+	}
+	shared = append(shared[:5:5], append([]string{"dart: app: x"}, shared[5:]...)...)
+	stdout.Reset()
+	writeIndexDetails(&stdout, indexer.FullReport{SemanticNotRead: shared})
+	printed := strings.Split(strings.TrimSuffix(stdout.String(), "\n"), "\n")
+	if len(printed) != 22 || printed[19] != "index.python.not_read: p19: x" ||
+		printed[20] != "index.python.not_read: and 2 more" || printed[21] != "index.dart.not_read: app: x" {
+		t.Errorf("22 Python failures and one Dart printed %d lines, ending %q", len(printed), printed[max(0, len(printed)-3):])
+	}
+
 	// Twenty are printed and the rest are counted, per list, on both sides
 	// of the limit.
 	for _, testCase := range [...]struct {

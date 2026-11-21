@@ -192,7 +192,18 @@ func endpointOptions(endpoint daemon.Endpoint) integrations.Options {
 }
 
 // ensureDaemon brings a supervised daemon up and returns its endpoint.
+//
+// It installs nothing under a home that is not the account's, for the reason
+// `serve` does not (foreignHome). An explicit --daemon is refused rather than
+// downgraded: the caller asked for the thing this process cannot set up.
 func ensureDaemon(configPath, directory string, options integrationOptions, stdout io.Writer) (daemon.Endpoint, error) {
+	if reason, foreign := foreignHomeReason(); foreign {
+		if options.Daemon {
+			return daemon.Endpoint{}, fmt.Errorf(
+				"--daemon: %s: run this under the account's home, or pass --stdio", reason)
+		}
+		return daemon.Endpoint{}, errStdioFallback{reason: reason}
+	}
 	spec, err := daemonSpec(configPath, directory)
 	if err != nil {
 		return daemon.Endpoint{}, err
@@ -386,6 +397,15 @@ func foreignHome() (account string, foreign bool) {
 		return "", false
 	}
 	return current.HomeDir, true
+}
+
+// foreignHomeReason is foreignHome as the sentence an operator reads.
+func foreignHomeReason() (string, bool) {
+	account, foreign := foreignHome()
+	if !foreign {
+		return "", false
+	}
+	return fmt.Sprintf("this process does not run under the account's home (%s), and a supervised daemon would", account), true
 }
 
 // sameDirectory compares two paths as the file system does, so a link or a
