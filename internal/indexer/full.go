@@ -313,6 +313,12 @@ type FullReport struct {
 	CSharpReferences            int
 	CSharpUnresolved            int
 	CSharpRepositoriesNotLoaded int
+	// SemanticNotRead names each repository an analyzer ran on and could not
+	// read, one line each: `language: repository: reason: detail`. It is to
+	// the four `...RepositoriesNotLoaded` counts what GoModulesNotRead is to
+	// GoModulesNotLoaded, and it does not list a repository whose analyzer is
+	// simply not installed: `doctor` says that, once, for the machine.
+	SemanticNotRead []string
 	// EdgesWithoutProvider counts the edges the merge dropped because the
 	// repository that provides the target does not publish its declaration.
 	// Each one is declared as an unresolved reference with the position that
@@ -1437,6 +1443,9 @@ func (report *FullReport) addSemantic(language facts.Language, result analysisRe
 	*symbols += result.symbols
 	*references += result.references
 	*unresolved += result.unresolved
+	if result.notRead != "" {
+		report.SemanticNotRead = append(report.SemanticNotRead, result.notRead)
+	}
 	if result.notLoaded {
 		*notLoaded++
 	}

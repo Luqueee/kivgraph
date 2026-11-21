@@ -209,6 +209,10 @@ superficie observable.
   las filas `MODULE_NOT_LOADED` del grafo publicado, que ningún comando lee.
   `index.go.diagnostic` es otra clase -- lo que el cargador dijo de un módulo que
   **sí** leyó-- y mezclarlas perdería justo esa distinción.
+  Python, Dart, Java y C# tienen la misma línea desde el ADR 0147:
+  `index.<lenguaje>.not_read: <repositorio>: REPOSITORY_NOT_LOADED: <detalle>`,
+  una por repositorio que su analizador ejecutó y no pudo leer. No sale para un
+  analizador que no está instalado: eso lo dice `doctor`, una vez, de la máquina.
 - **`counts` y `index` del `result` no miden lo mismo, y hay que decirlo.**
   `counts` es lo que el grafo publicado guarda: hechos canónicos distintos.
   `index` es lo que cada pasada de lenguaje **observó**. Un fichero que

@@ -2572,6 +2572,13 @@ of the precision column, and `exclude_tests` on the traversal tools.
   because of `std::process::Command` in a Rust file. A failure now bounds an
   answer about a declaration only if it is in that declaration's language, or
   recorded none. `find_symbol`, which asks about a name, is unchanged.
+- **One repository that cannot be read does not fail the pass (ADR 0147).**
+  A C# repository with no solution, a Java build that fails or a Python
+  producer that exits ended the pass, and every other repository lost its graph
+  to it. Python, Dart, Java and C# now do what Go and Rust did: the repository
+  publishes a scope-level `REPOSITORY_NOT_LOADED`, the report names it on an
+  `index.<language>.not_read` line, and the rest is indexed. A cancelled pass is
+  still an error.
 - **Open after the language-recall work** (none has an owner or a date):
   - Dart: explicit extension application (`IterableExtension(this)`) and `/** */`
     doc links. Rust: methods on a receiver, names passed through a metavariable
@@ -2588,9 +2595,8 @@ of the precision column, and `exclude_tests` on the traversal tools.
     a `cast`.
   - C#: recall on overloads is `49.1 %` and comes from `scip-dotnet`, which
     resolves an extension-method call to the first overload.
-  - Indexing: a registered repository with no project for its language (C#
-    with no solution, Java when `scip-java` writes no index) aborts the whole
-    pass. The Java, C# and Python tools still build or read excluded files.
+  - Indexing: the Java, C# and Python tools still build or read excluded
+    files. A TypeScript package that fails still ends the pass.
     Whether the Dart loader's own rule for a test agrees with
     `internal/testpath` was not checked.
   - Processes: `internal/proctree` is Unix only, and its runs with the real

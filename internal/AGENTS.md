@@ -29,13 +29,16 @@ superficie MCP el suyo en `internal/mcp/AGENTS.md`.
   pasada continúa. Cualquier otro diagnóstico del cargador sigue abortándola.
   Indexar este repositorio exige el tag `ladybug`.
 - Ante el fallo de un **repositorio entero** hay dos contratos, y cuál aplica
-  depende del lenguaje. Go y Rust registran una fila `UNRESOLVED` **sin
-  archivo** -`MODULE_NOT_LOADED`, `WORKSPACE_NOT_LOADED`,
-  `ANALYZER_UNAVAILABLE`- y la pasada continúa: el grafo se publica declarando
-  el hueco, y toda respuesta sobre ese repositorio sale como `LOWER_BOUND`.
-  TypeScript, Python y Dart devuelven error -`indexSemantic`,
-  `indexTypeScriptPackage`- y la pasada **aborta sin publicar**, así que no se
-  sirve ninguna respuesta sobre un repositorio que no cargó. Las dos formas son
+  depende del lenguaje. Go, Rust, Python, Dart, Java y C# registran una fila
+  `UNRESOLVED` **sin archivo** -`MODULE_NOT_LOADED`, `WORKSPACE_NOT_LOADED`,
+  `ANALYZER_UNAVAILABLE`, `REPOSITORY_NOT_LOADED`- y la pasada continúa: el
+  grafo se publica declarando el hueco, y toda respuesta sobre ese repositorio
+  sale como `LOWER_BOUND`. Los cuatro últimos lo hacen desde el ADR 0147: antes
+  devolvían error y un repositorio C# sin solución dejaba sin grafo a todos los
+  demás. Una pasada cancelada no es un repositorio ilegible y sigue siendo un
+  error. TypeScript devuelve error -`indexTypeScriptPackage`- y la pasada
+  **aborta sin publicar**, así que no se sirve ninguna respuesta sobre un
+  repositorio que no cargó. Las dos formas son
   honestas y ninguna afirma una ausencia; sólo la primera es medible desde un
   grafo servido, y por eso es la única que `benchmarks/tool-honesty` ejercita.
   Que la fila no lleve archivo es el contrato, no un detalle:

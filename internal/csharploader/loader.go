@@ -107,7 +107,10 @@ func Run(ctx context.Context, options Options) (facts.SemanticPayload, error) {
 	// tree is found and one that exists only in a stale `obj/` is not.
 	project, err := resolveProject(tree.Path, options.Project)
 	if err != nil {
-		return facts.SemanticPayload{}, err
+		// Said about the repository, not about the scratch copy of it: the
+		// reader of this has the first and has never seen the second.
+		return facts.SemanticPayload{}, fmt.Errorf("csharp indexer: %s",
+			strings.ReplaceAll(err.Error(), tree.Path, root))
 	}
 
 	arguments := append([]string{}, fields[1:]...)

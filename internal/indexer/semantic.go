@@ -97,6 +97,59 @@ func analyzerNotInstalled(unit analysisUnit, err error) analysisResult {
 	}
 }
 
+// UnresolvedRepositoryNotLoaded is the reason of the scope-level failure a
+// repository gets when its analyzer ran and could not read it.
+const UnresolvedRepositoryNotLoaded = "REPOSITORY_NOT_LOADED"
+
+// maximumNotLoadedDetail bounds what of an analyzer's failure travels into the
+// graph. The loaders quote the tail of a build log; the first lines say what
+// went wrong and the rest belongs in the run's own output.
+const maximumNotLoadedDetail = 600
+
+// repositoryNotLoadedFacts declares a repository its analyzer could not read:
+// a C# repository with no solution, a Java build that fails, an indexer that
+// writes no index.
+//
+// It is the judgement moduleNotLoadedFacts and workspaceNotLoadedFacts already
+// make for Go and Rust, and it was missing here: the error went up and ended
+// the pass, so one repository registered with a language it has no project for
+// took the graph of every other repository with it. Nothing about the other
+// repositories had changed and none of them got indexed.
+//
+// The failure is published and not only counted. A scope-level unresolved row
+// -- no file, because nothing was read -- is what makes every answer about this
+// repository say LOWER_BOUND and name the reason, where an absent repository
+// would answer COMPLETE over nothing.
+func repositoryNotLoadedFacts(unit analysisUnit, failure error) analysisResult {
+	repositoryKey := facts.RepositoryKey(unit.repository.Name)
+	detail := strings.Join(strings.Fields(failure.Error()), " ")
+	if len(detail) > maximumNotLoadedDetail {
+		detail = strings.ToValidUTF8(detail[:maximumNotLoadedDetail], "") + " ..."
+	}
+	return analysisResult{
+		set: facts.Set{
+			Repositories: []facts.Repository{{
+				Key:       repositoryKey,
+				Name:      unit.repository.Name,
+				RootPath:  unit.repository.RealPath,
+				Languages: []facts.Language{unit.language},
+			}},
+			Unresolved: []facts.UnresolvedReference{{
+				RepositoryKey:    repositoryKey,
+				Language:         unit.language,
+				RequestedPackage: unit.repository.Name,
+				Reason:           UnresolvedRepositoryNotLoaded,
+				Detail:           detail,
+			}},
+		},
+		notLoaded:  true,
+		unresolved: 1,
+		detail:     fmt.Sprintf("%s not loaded", unit.language),
+		notRead: fmt.Sprintf("%s: %s: %s: %s",
+			unit.language, unit.repository.Name, UnresolvedRepositoryNotLoaded, detail),
+	}
+}
+
 func indexSemantic(ctx context.Context, options FullOptions, unit analysisUnit) (analysisResult, error) {
 	var payload facts.SemanticPayload
 	var err error
@@ -153,7 +206,12 @@ func indexSemantic(ctx context.Context, options FullOptions, unit analysisUnit) 
 		if errors.Is(err, exec.ErrNotFound) {
 			return analyzerNotInstalled(unit, err), nil
 		}
-		return analysisResult{}, err
+		// The pass itself was cancelled or ran out of time: that is not a
+		// fact about this repository, and there is no pass left to continue.
+		if ctx.Err() != nil {
+			return analysisResult{}, err
+		}
+		return repositoryNotLoadedFacts(unit, err), nil
 	}
 	set, err := facts.NormalizeSemantic(ctx, unit.repository, payload)
 	if err != nil {

@@ -255,6 +255,14 @@ trustworthy — and is declared `MODULE_NOT_LOADED` with the diagnostics
 observed. One repository whose dependencies nobody downloaded does not decide
 whether the others have a graph.
 
+The same holds for a repository an analyzer ran on and could not read: a C#
+repository with no solution, a Java build that fails, a Python or Dart producer
+that exits. It publishes no facts and is declared `REPOSITORY_NOT_LOADED`, the
+report names it on an `index.<language>.not_read` line with the reason, and
+every answer about that repository says `LOWER_BOUND`. A Rust workspace the
+analyzer cannot load is declared `WORKSPACE_NOT_LOADED` the same way. Fixing the
+repository and indexing again restores it: a failure to read is never cached.
+
 A package name declared by several manifests is an ambiguity, not a broken
 repository: nobody provides it, every manifest leaves the registry, and it is
 declared `AMBIGUOUS_PACKAGE_PROVIDER`. Go modules and Rust crates get the same

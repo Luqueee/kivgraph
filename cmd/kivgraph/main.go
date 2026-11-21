@@ -1748,6 +1748,15 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 	for _, diagnostic := range boundedReportLines(indexReport.RustDiagnostics, 20) {
 		writeWarning(stdout, "index.rust.diagnostic: %s", diagnostic)
 	}
+	for _, line := range boundedReportLines(indexReport.SemanticNotRead, 20) {
+		// `language: repository: reason: detail`, printed under its language
+		// like the two lists above.
+		language, rest, found := strings.Cut(line, ": ")
+		if !found {
+			language, rest = "semantic", line
+		}
+		writeWarning(stdout, "index.%s.not_read: %s", language, rest)
+	}
 	for _, repository := range boundedReportLines(indexReport.RustWithoutWorkspaces, 20) {
 		writeWarning(stdout, "index.rust.no_workspace: %s declares no Cargo manifest, so it contributes nothing", repository)
 	}
