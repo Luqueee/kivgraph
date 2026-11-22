@@ -88,9 +88,9 @@ No other project is opened. The edge is `IMPORTS_SYMBOL`, `EXACT_TYPECHECKED`.
   import it. On the monorepo above `api` went from no symbol to `29` files.
 - A repository whose packages import a sibling's **class** now carries
   `IMPLEMENTATION_COVERAGE_PARTIAL`, the scope already recorded for an
-  imported target that is not an interface or a type alias. It bounds every
-  TypeScript answer in the repository, as it does for a consumer of another
-  repository. Narrowing it to the questions it limits is open.
+  imported target that is not an interface or a type alias. It bounded every
+  TypeScript answer in the repository; ADR 0146, as amended with this change,
+  keeps it to the answers an implementation relation could be part of.
 - The fact cache already fingerprints a requested package by its tree, so a
   consumer is read again when a sibling changes.
 

@@ -2790,10 +2790,15 @@ of the precision column, and `exclude_tests` on the traversal tools.
     without a project, and the answer said `COMPLETE`. A sibling is a
     provider now, resolved at the source the checker reaches. On the monorepo
     above an export every page imports went from no symbol to `29` files.
-    Open: importing a sibling's class records
-    `IMPLEMENTATION_COVERAGE_PARTIAL`, which bounds every TypeScript answer
-    of the repository; the chosen compiler options were not tried on a
-    package that needs path aliases.
+    Open: the chosen compiler options were not tried on a package that needs
+    path aliases.
+  - Done (ADR 0146, amended): `IMPLEMENTATION_COVERAGE_PARTIAL` bounds the
+    answers an implementation relation could be part of -- implementations,
+    walks, and the uses of a class, a type or a member -- and no longer who
+    calls a function or what a file declares. Importing one class of a
+    sibling had made every TypeScript answer of a repository `LOWER_BOUND`.
+    Open: the scope names a package, not the declarations it could not
+    relate, so every class of the repository is still bounded.
   - Done (ADR 0052, amended): a Rust use no declaration of its file contains
     belongs to the file's scope, as in Go and TypeScript. A fuzz target whose
     body is one macro call is in the answers about what it uses; ten of

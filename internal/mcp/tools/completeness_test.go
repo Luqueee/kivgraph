@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -561,5 +562,119 @@ func TestAScopeInAnotherLanguageDoesNotBoundTheAnswer(t *testing.T) {
 	}
 	if symbols.Completeness == nil || symbols.Completeness.Verdict != VerdictLowerBound {
 		t.Errorf("find_symbol by name = %#v, want the scope to bound it", symbols.Completeness)
+	}
+}
+
+// A package whose implementation relations are incomplete -- it imports a
+// class of a sibling, say -- read everything else. Recorded as a scope, it
+// made a lower bound of every TypeScript answer in the repository: who calls
+// a function, what a file declares. It bounds the answers such a relation
+// could be part of and no other.
+func TestImplementationCoverageBoundsOnlyWhatAnImplementationCouldAnswer(t *testing.T) {
+	symbol := func(key, name, kind string) hotsnapshot.SymbolRow {
+		return hotsnapshot.SymbolRow{
+			StableKey: hotsnapshot.StableKey(key), CanonicalIdentity: "ts:" + name, FileKey: "file-lib",
+			Language: "typescript", Name: name, QualifiedName: name, Kind: kind,
+			Exported: true, StartLine: 1, EndLine: 3,
+		}
+	}
+	snapshot, err := hotsnapshot.BuildGraphSnapshot(hotsnapshot.LadybugSnapshotRows{
+		Repositories: []hotsnapshot.RepositoryRow{{Key: "repo", Name: "web", Languages: "typescript"}},
+		Packages:     []hotsnapshot.PackageRow{{Key: "pkg", RepositoryKey: "repo", Language: "typescript", Name: "@w/lib"}},
+		Files: []hotsnapshot.FileRow{
+			{Key: "file-lib", RepositoryKey: "repo", PackageKey: "pkg", Path: "src/lib.ts", Language: "typescript"},
+		},
+		Symbols: []hotsnapshot.SymbolRow{
+			symbol("sym-function", "createApi", "function"),
+			symbol("sym-class", "ApiError", "class"),
+			symbol("sym-interface", "Model", "interface"),
+			symbol("sym-method", "send", "method"),
+			// A kind nobody listed keeps the bound.
+			symbol("sym-unknown", "later", "decorator"),
+		},
+		Unresolved: []hotsnapshot.UnresolvedReferenceRow{{
+			Key: "coverage", RepositoryKey: "repo", Language: "typescript",
+			RequestedPackage: "@w/app", Reason: hotsnapshot.ImplementationCoverageReason,
+			Detail: "Imported targets that are not an interface or a type alias are excluded.",
+		}},
+	}, 91, time.Unix(1_700_000_091, 0).UTC(), 1)
+	if err != nil {
+		t.Fatalf("BuildGraphSnapshot() error = %v", err)
+	}
+	store := hotsnapshot.NewSnapshotStore(snapshot)
+
+	verdict := func(completeness *Completeness) string {
+		if completeness == nil {
+			return VerdictComplete
+		}
+		return completeness.Verdict
+	}
+	for key, want := range map[string]string{
+		"sym-function": VerdictComplete, "sym-class": VerdictLowerBound, "sym-interface": VerdictLowerBound,
+		"sym-method": VerdictLowerBound, "sym-unknown": VerdictLowerBound,
+	} {
+		_, references, err := findReferences(context.Background(), nil,
+			FindReferencesInput{StableKey: key, Direction: FindReferencesDirectionIncoming}, store)
+		if err != nil {
+			t.Fatalf("find_references %s: %v", key, err)
+		}
+		if got := verdict(references.Completeness); got != want {
+			t.Errorf("find_references %s = %s, want %s", key, got, want)
+		}
+		_, consumers, err := findCrossRepoConsumers(context.Background(), nil,
+			FindCrossRepoConsumersInput{StableKey: key}, store)
+		if err != nil {
+			t.Fatalf("find_cross_repo_consumers %s: %v", key, err)
+		}
+		if got := verdict(consumers.Completeness); got != want {
+			t.Errorf("find_cross_repo_consumers %s = %s, want %s", key, got, want)
+		}
+	}
+
+	// Asked for implementations, the kind does not excuse the question; and a
+	// walk crosses any relation, so both stay bounded for a function too.
+	_, implementations, err := findImplementations(context.Background(), nil,
+		FindImplementationsInput{StableKey: "sym-function"}, store)
+	if err != nil {
+		t.Fatalf("find_implementations: %v", err)
+	}
+	// By its reason: this fixture's generation predates implementation
+	// analysis, which bounds the answer on its own.
+	if implementations.Completeness == nil || !slices.ContainsFunc(implementations.Completeness.InvisibleScopes,
+		func(spot BlindSpot) bool { return spot.Reason == hotsnapshot.ImplementationCoverageReason }) {
+		t.Errorf("find_implementations = %#v, want the coverage scope named", implementations.Completeness)
+	}
+	_, radius, err := getBlastRadius(context.Background(), nil, GetBlastRadiusInput{StableKey: "sym-function"}, store)
+	if err != nil {
+		t.Fatalf("get_blast_radius: %v", err)
+	}
+	if got := verdict(radius.Completeness); got != VerdictLowerBound {
+		t.Errorf("get_blast_radius = %s, want %s", got, VerdictLowerBound)
+	}
+	_, trace, err := traceDependencies(context.Background(), nil, TraceDependenciesInput{StableKey: "sym-function"}, store)
+	if err != nil {
+		t.Fatalf("trace_dependencies: %v", err)
+	}
+	if got := verdict(trace.Completeness); got != VerdictLowerBound {
+		t.Errorf("trace_dependencies = %s, want %s", got, VerdictLowerBound)
+	}
+
+	// Where a name is declared and what a file declares are not relations.
+	_, symbols, err := findSymbol(context.Background(), nil, FindSymbolInput{Name: "ApiError"}, store)
+	if err != nil {
+		t.Fatalf("find_symbol: %v", err)
+	}
+	if got := verdict(symbols.Completeness); got != VerdictComplete {
+		t.Errorf("find_symbol = %s, want %s", got, VerdictComplete)
+	}
+	for _, path := range [...]string{"src/lib.ts", "src"} {
+		_, outline, err := getFileOutline(context.Background(), nil,
+			GetFileOutlineInput{Repository: "web", Path: path}, store)
+		if err != nil {
+			t.Fatalf("get_file_outline %s: %v", path, err)
+		}
+		if got := verdict(outline.Completeness); got != VerdictComplete {
+			t.Errorf("get_file_outline %s = %s, want %s", path, got, VerdictComplete)
+		}
 	}
 }

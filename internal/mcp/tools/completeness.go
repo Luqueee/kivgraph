@@ -82,14 +82,18 @@ type Fallback struct {
 //
 // language is the language of the declaration the answer is about, and empty
 // when the question is about a name and not about one declaration.
+//
+// implementations says whether a relation of implementing, extending or
+// overriding could be part of the answer: see answersWithImplementations.
 func completenessFor(
 	snapshot *hotsnapshot.GraphSnapshot,
 	symbolName string,
 	language string,
 	repository hotsnapshot.RepositoryID,
+	implementations bool,
 ) (Completeness, int, error) {
 	naming, namingTotal := snapshot.UnresolvedNamingSymbol(symbolName, language, MaximumBlindSpots)
-	scopes, scopeTotal := snapshot.UnresolvedScopeGroups(repository, language, MaximumBlindSpots)
+	scopes, scopeTotal := snapshot.UnresolvedScopeGroups(repository, language, implementations, MaximumBlindSpots)
 	if namingTotal == 0 && scopeTotal == 0 {
 		return Completeness{Verdict: VerdictComplete}, 0, nil
 	}
@@ -132,6 +136,31 @@ func completenessFor(
 	return result, namingTotal, nil
 }
 
+// neverImplemented are the kinds of declaration nothing implements, extends or
+// overrides. The list is of what is certain and everything else counts: a
+// kind this does not know keeps the bound, which is the safe way to be wrong.
+var neverImplemented = map[string]bool{
+	"function": true, "variable": true, "enum": true, "enum_member": true,
+	"namespace": true, "parameter": true, "type_parameter": true,
+	"import": true, "export": true, "module": true,
+}
+
+// answersWithImplementations reports whether the direct uses of a declaration
+// can include an implementation relation: a class that extends it, a type
+// that implements it, a member that overrides it.
+//
+// It decides whether a package whose implementation relations are incomplete
+// bounds the answer. Who calls a function is not among what such a package
+// left out; who uses a class is.
+func answersWithImplementations(snapshot *hotsnapshot.GraphSnapshot, symbol hotsnapshot.SymbolID) bool {
+	record, found := snapshot.Symbol(symbol)
+	if !found {
+		return true
+	}
+	kind, known := snapshot.Strings().String(record.Kind)
+	return !known || !neverImplemented[kind]
+}
+
 // completenessOutwardFor builds the verdict for an answer about what a symbol
 // reaches, which is bounded by a different set of failures than an answer about
 // who reaches it: the ones the resolver recorded while reading that symbol.
@@ -146,7 +175,8 @@ func completenessOutwardFor(
 	repository hotsnapshot.RepositoryID,
 ) (Completeness, int, error) {
 	sourced, sourcedTotal := snapshot.UnresolvedFromSymbol(symbol, MaximumBlindSpots)
-	scopes, scopeTotal := snapshot.UnresolvedScopeGroups(repository, symbolLanguage(snapshot, symbol), MaximumBlindSpots)
+	// A walk outward crosses any relation, an implementation among them.
+	scopes, scopeTotal := snapshot.UnresolvedScopeGroups(repository, symbolLanguage(snapshot, symbol), true, MaximumBlindSpots)
 	if sourcedTotal == 0 && scopeTotal == 0 {
 		return Completeness{Verdict: VerdictComplete}, 0, nil
 	}
@@ -204,7 +234,8 @@ func completenessScopes(
 	repository hotsnapshot.RepositoryID,
 	language string,
 ) (Completeness, error) {
-	scopes, scopeTotal := snapshot.UnresolvedScopeGroups(repository, language, MaximumBlindSpots)
+	// What a file declares is not a relation between two declarations.
+	scopes, scopeTotal := snapshot.UnresolvedScopeGroups(repository, language, false, MaximumBlindSpots)
 	if scopeTotal == 0 {
 		return Completeness{Verdict: VerdictComplete}, nil
 	}

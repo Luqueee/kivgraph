@@ -392,7 +392,8 @@ func findCrossRepoConsumersAcrossProfiles(
 				return nil, Response[CrossRepoConsumers]{}, WrapToolError(CodeSnapshotUnavailable, "active snapshot contains invalid consumer metadata", collectErr)
 			}
 			addCoverage(&coverage, profileCoverage)
-			completeness, _, completenessErr := completenessFor(snapshot, target.SymbolName, symbolLanguage(snapshot, targetID), hotsnapshot.InvalidRepositoryID)
+			completeness, _, completenessErr := completenessFor(snapshot, target.SymbolName, symbolLanguage(snapshot, targetID), hotsnapshot.InvalidRepositoryID,
+				answersWithImplementations(snapshot, targetID))
 			if completenessErr != nil {
 				return nil, Response[CrossRepoConsumers]{}, WrapToolError(CodeSnapshotUnavailable, "active snapshot contains invalid unresolved metadata", completenessErr)
 			}
@@ -526,7 +527,8 @@ func findCrossRepoConsumers(
 	// Its count does not go into coverage: the cross-repository failures are
 	// already listed as UNRESOLVED rows of this answer and counted there, and
 	// adding them twice would inflate the only number a caller can audit.
-	completeness, _, err := completenessFor(snapshot, target.SymbolName, symbolLanguage(snapshot, targetID), hotsnapshot.InvalidRepositoryID)
+	completeness, _, err := completenessFor(snapshot, target.SymbolName, symbolLanguage(snapshot, targetID), hotsnapshot.InvalidRepositoryID,
+		answersWithImplementations(snapshot, targetID))
 	if err != nil {
 		return nil, Response[CrossRepoConsumers]{}, WrapToolError(
 			CodeSnapshotUnavailable, "active snapshot contains invalid unresolved metadata", err)
