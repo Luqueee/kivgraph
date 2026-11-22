@@ -2779,6 +2779,15 @@ of the precision column, and `exclude_tests` on the traversal tools.
     slice at a time now, `289 MB` without the indentation, and the worker
     peaks at `3.7 GB`. What is left is the engine's program and the worker's
     copy of the syntax trees, and neither was looked into.
+  - Found indexing a real monorepo, and fixed: with
+    `typescript.include_unclaimed_sources` on, the audit said every repository
+    declared what a pass needs while the files of a package with a manifest
+    and no `tsconfig.json` were read by nobody; the pass knew which and
+    printed nothing. Both name them now
+    (`index.typescript.unclaimed_not_read`). Open: those files are still not
+    indexed, so a module every page imports from such a package is in no
+    graph; and ten fuzz targets whose body is one macro have no symbol, so
+    their uses are in no edge and no failure.
   - Memory: about `0.7 GB` above the heap at the peak of a large Go index is
     not broken down; no `linux/amd64` measurement; the collector setting is
     process-wide and was not measured with a daemon serving while it indexes.

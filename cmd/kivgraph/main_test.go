@@ -2166,7 +2166,8 @@ func TestWriteIndexDetailsNamesWhatWasNotRead(t *testing.T) {
 			"web: REPOSITORY_NOT_LOADED: parse tsconfig.json",
 			"web: @web/ui: PACKAGE_NOT_LOADED: worker exited",
 		},
-		RustDiagnostics: []string{"core: unresolved macro"},
+		TypeScriptUnclaimedWithoutPackage: []string{"/repo/packages/api/src/index.ts"},
+		RustDiagnostics:                   []string{"core: unresolved macro"},
 		SemanticNotRead: []string{
 			"python: jobs: REPOSITORY_NOT_LOADED: producer exited",
 			"csharp: svc: REPOSITORY_NOT_LOADED: no .sln or .csproj in svc",
@@ -2182,6 +2183,7 @@ func TestWriteIndexDetailsNamesWhatWasNotRead(t *testing.T) {
 		"index.typescript.ambiguous: api: api: declared by .worktrees/x/package.json, package.json, so none of them is indexed",
 		"index.typescript.not_read: web: REPOSITORY_NOT_LOADED: parse tsconfig.json",
 		"index.typescript.not_read: web: @web/ui: PACKAGE_NOT_LOADED: worker exited",
+		"index.typescript.unclaimed_not_read: /repo/packages/api/src/index.ts is in no package that declares a project, so nothing reads it",
 		"index.rust.diagnostic: core: unresolved macro",
 		"index.python.not_read: jobs: REPOSITORY_NOT_LOADED: producer exited",
 		"index.csharp.not_read: svc: REPOSITORY_NOT_LOADED: no .sln or .csproj in svc",

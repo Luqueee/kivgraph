@@ -250,3 +250,45 @@ func TestAuditRunsOnceForTypeScriptAndJavaScript(t *testing.T) {
 		}
 	}
 }
+
+// With `include_unclaimed_sources` on, an unclaimed file is read through the
+// package that holds it -- if that package declares a project. One that
+// declares none is still read by nobody, and the audit said everything was.
+func TestAuditNamesUnclaimedSourcesTheInferredProjectDoesNotReach(t *testing.T) {
+	root := testsupport.TempDir(t)
+	write(t, filepath.Join(root, "apps", "web", "package.json"), `{"name":"web","version":"1.0.0"}`)
+	write(t, filepath.Join(root, "apps", "web", "tsconfig.json"), `{"include":["src"]}`)
+	write(t, filepath.Join(root, "apps", "web", "src", "index.ts"), "export const index = 1\n")
+	// Unclaimed, in a package with a project: the inferred project reads it.
+	write(t, filepath.Join(root, "apps", "web", "e2e", "spec.ts"), "export const spec = 1\n")
+	// Unclaimed, in a package with none.
+	write(t, filepath.Join(root, "packages", "api", "package.json"), `{"name":"api","version":"1.0.0"}`)
+	write(t, filepath.Join(root, "packages", "api", "src", "index.ts"), "export const api = 1\n")
+	repositories := []workspace.Repository{repositoryAt(root, "typescript")}
+
+	off, err := Run(context.Background(), repositories, Options{})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if finding := only(t, off); finding.Code != CodeTypeScriptUnclaimedSources || !strings.Contains(finding.Detail, "2 source file(s)") ||
+		finding.Remedy.ConfigKey != "typescript.include_unclaimed_sources" {
+		t.Fatalf("with the key off: %#v", finding)
+	}
+	on, err := Run(context.Background(), repositories, Options{IncludeUnclaimedSources: true})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	finding := only(t, on)
+	if finding.Code != CodeTypeScriptUnclaimedSources || finding.Severity != SeverityPartial ||
+		!strings.Contains(finding.Detail, "1 source file(s)") || !strings.Contains(finding.Detail, "packages/api/src/index.ts") ||
+		finding.Remedy.ConfigKey != "" || !strings.Contains(finding.Remedy.Summary, "tsconfig.json") {
+		t.Fatalf("with the key on: %#v", finding)
+	}
+
+	// Nothing left once the package declares a project that claims the file.
+	write(t, filepath.Join(root, "packages", "api", "tsconfig.json"), `{"include":["src"]}`)
+	clean, err := Run(context.Background(), repositories, Options{IncludeUnclaimedSources: true})
+	if err != nil || len(clean.Findings) != 0 {
+		t.Fatalf("after the package declares a project: %#v, %v", clean.Findings, err)
+	}
+}
