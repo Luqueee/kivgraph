@@ -1894,8 +1894,8 @@ not a draft, not a prerelease, it is the `latest` of the API, and it has the
 `11` assets; `SHA256SUMS` verifies the `10` files it lists from outside the
 workspace.
 
-Checked with a temporary `HOME`: `install.sh` with `KIVGRAPH_VERSION=v0.10.0`
-installs `0.10.0`; the one-liner without a version
+Checked with a temporary `HOME`: `install.sh` with `KIVGRAPH_VERSION` set to
+`v0.10.0` installs `0.10.0`; the one-liner without a version
 (`releases/latest/download/install.sh`) now works and also installs `0.10.0`;
 `kivgraph version` says `0.10.0` and `kivgraph update` "is up to date
 (0.10.0)"; with a copy of a real Go repository, `init`, `doctor` (`PASS`),
