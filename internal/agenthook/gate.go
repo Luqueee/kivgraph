@@ -42,6 +42,8 @@ type Graph interface {
 	Symbol(ctx context.Context, name string) (Facts, error)
 	// Intent answers what a loose description most likely names.
 	Intent(ctx context.Context, intent, repository string) (Facts, error)
+	// Declares answers whether a repository holds a declaration of a name.
+	Declares(ctx context.Context, name, repository string) (bool, error)
 }
 
 // ambiguousAt is the number of declarations at which `grep` stops being able to
@@ -138,7 +140,10 @@ func (gate Gate) searchesOnlyUncoveredFiles(question Question) bool {
 	uncovered := false
 	for _, name := range question.Paths {
 		extension := strings.ToLower(path.Ext(strings.TrimSpace(name)))
-		if extension == "" {
+		// A lone dot is no file type: `.`, `..` and `src/.` are directories,
+		// and `grep -rn Name .` was let through as a search of files the
+		// graph does not cover.
+		if len(extension) < 2 {
 			continue
 		}
 		if gate.Indexed(name) || namesLanguageType(extension) {
@@ -215,6 +220,18 @@ func (gate Gate) decideSymbol(ctx context.Context, question Question) Decision {
 	if facts.Declarations < ambiguousAt {
 		return Allow
 	}
+	// The count is of the whole graph, and the search is in one repository.
+	// When the graph holds no declaration of the name there, it is not what
+	// that search was about to read -- and it may hold nothing of the
+	// repository at all: a search over a backend whose packages were not
+	// indexed was refused because an application in another language declares
+	// `build`. It costs a second call, paid only by a search about to be
+	// refused.
+	if gate.Repository != "" {
+		if declared, err := gate.Graph.Declares(ctx, question.Pattern, gate.Repository); err != nil || !declared {
+			return Allow
+		}
+	}
 	return denySymbol(question, facts, fmt.Sprintf(
 		"has %d declarations in %d %s, and a text search cannot tell them apart",
 		facts.Declarations, facts.Repositories,
@@ -227,7 +244,10 @@ func denySymbol(question Question, facts Facts, because string) Decision {
 	lines := []string{
 		fmt.Sprintf("STOP: %s %s.", quote(name), because),
 		"  find_references(name=" + quote(name) + ")      who calls it",
-		"  get_blast_radius(name=" + quote(name) + ")     what breaks if you change it",
+		// find_references takes the bare name and answers with the candidates;
+		// get_blast_radius has no `name`, and the call this line used to print
+		// was refused by the tool.
+		"  get_blast_radius(repository=…, path=…, qualified_name=…)   what breaks if you change the one you mean",
 	}
 	if len(facts.Sample) > 0 {
 		lines = append(lines, "Declared at:")

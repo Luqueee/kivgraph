@@ -102,11 +102,14 @@ func classifySearchProgram(program string, arguments []string) Question {
 				if argument == "-e" || argument == "--regexp" {
 					pattern = arguments[index]
 				}
+				paths = appendFileFilter(paths, argument, arguments[index])
 			}
 		case strings.HasPrefix(argument, "--") && strings.Contains(argument, "="):
-			if name, value, _ := strings.Cut(argument, "="); name == "--regexp" {
+			name, value, _ := strings.Cut(argument, "=")
+			if name == "--regexp" {
 				pattern = value
 			}
+			paths = appendFileFilter(paths, name, value)
 		case strings.HasPrefix(argument, "-") && argument != "-":
 			// A bundle of short switches, or a long one without a value.
 		case pattern == "":
@@ -121,6 +124,26 @@ func classifySearchProgram(program string, arguments []string) Question {
 	}
 	question.Paths, question.Tool = paths, program
 	return question
+}
+
+// appendFileFilter reads the flag that says which files a search looks at as
+// the native tool's `glob` and `type` are read: it is where the search looks.
+//
+// Without it `grep -rn version --include=*.json .` named no file type at all
+// -- its one path is a directory -- and was refused as a search over code.
+// An exclusion says where it does not look, which proves nothing.
+func appendFileFilter(paths []string, flag, value string) []string {
+	switch flag {
+	case "--include", "-g", "--glob":
+		if value != "" && !strings.HasPrefix(value, "!") {
+			return append(paths, value)
+		}
+	case "-t", "--type":
+		if value != "" {
+			return append(paths, "*."+value)
+		}
+	}
+	return paths
 }
 
 // classifyRGFiles reads ripgrep's file-listing mode. Its positional arguments

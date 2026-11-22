@@ -250,3 +250,38 @@ mensaje se lee sólo para citar las filas que la negativa devuelve.
 entorno del propio comando, que es como un usuario la apaga para una sesión, y
 al principio de la línea que se está evaluando, que es como funciona el consejo
 que da la propia negativa.
+
+## Enmienda: el nombre tiene que estar declarado en el repositorio
+
+La cuenta de declaraciones es de todo el grafo y la búsqueda es en un
+repositorio. En un workspace real la puerta negó `grep -rn build src` en un
+backend TypeScript cuyos paquetes no estaban en el grafo, porque una aplicación
+Dart de otro repositorio declara `build` `495` veces: se negaba la única
+herramienta que podía contestar.
+
+La negativa se mantiene sólo cuando el repositorio de la búsqueda declara el
+nombre. Cuesta una segunda llamada, `find_symbol` con `repo`, que paga
+únicamente una búsqueda a punto de ser negada; si falla, la puerta se aparta.
+Se pierde el caso de un nombre ambiguo declarado sólo en otros repositorios y
+usado en éste.
+
+Y la negativa recomendaba `get_blast_radius(name=…)`, que la tool rechaza: no
+tiene `name`. Un test comprueba ahora cada llamada que una negativa imprime
+contra los argumentos que la tool declara.
+
+## Enmienda: el grafo de un proyecto
+
+La puerta leía sólo la configuración del usuario, así que un repositorio
+indexado con `kivgraph index` -- cuyo grafo vive en su `.kivgraph/` -- no
+tenía puerta. Ahora, cuando el directorio de trabajo no pertenece a ningún
+repositorio del registro del usuario, se busca el `.kivgraph/config.yaml` del
+checkout.
+
+Ese directorio está dentro de un repositorio, y un repositorio es algo que un
+extraño puede entregar. Se lee sólo si `.kivgraph` y su configuración no son
+enlaces, si el estado que la configuración nombra queda dentro de `.kivgraph`,
+y si el endpoint publicado ahí es `http` sobre loopback: la puerta le envía el
+nombre que se busca y lee de vuelta las palabras con las que niega. Todo lo
+demás es un permiso.
+
+No ejecutado: la puerta contra un demonio real que sirva un grafo de proyecto.

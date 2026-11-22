@@ -32,6 +32,11 @@ func TestGateLeavesASearchOverFilesTheGraphDoesNotCover(t *testing.T) {
 		{"a source glob", KindSymbol, []string{"*.go"}, true},
 		{"a directory, which can hold anything", KindSymbol, []string{"internal"}, true},
 		{"a directory with a trailing separator", KindSymbol, []string{"docs/"}, true},
+		// `grep -rn Name .`: a lone dot is a directory, not a file type.
+		{"the current directory", KindSymbol, []string{"."}, true},
+		{"the parent directory", KindSymbol, []string{".."}, true},
+		{"a directory spelled through a dot", KindSymbol, []string{"src/."}, true},
+		{"a name that ends in a dot", KindSymbol, []string{"notes."}, true},
 		{"a document beside a source file", KindSymbol, []string{"README.md", "main.go"}, true},
 		// `--type rust` reaches here as *.rust: a language named by its type
 		// rather than its extension is still a search over code.
@@ -74,6 +79,21 @@ func TestGateDecidesRealSearchesByWhereTheyLook(t *testing.T) {
 		{"Bash", bashInput{Command: "rg version docs/config.yaml"}, false},
 		{"Grep", grepInput{Pattern: "version", Glob: "*.yaml"}, false},
 		{"Grep", grepInput{Pattern: "version", Path: "deploy", Glob: "*.toml"}, false},
+		// The shell's file filters are where the search looks, as the native
+		// tool's glob and type are.
+		{"Bash", bashInput{Command: "grep -rn version --include=*.json ."}, false},
+		{"Bash", bashInput{Command: "grep -rn version --include '*.json' ."}, false},
+		{"Bash", bashInput{Command: "rg -n version -g '*.yaml' deploy"}, false},
+		{"Bash", bashInput{Command: "rg -n version --glob=*.toml"}, false},
+		{"Bash", bashInput{Command: "rg -n version -t yaml"}, false},
+		{"Bash", bashInput{Command: "rg -n version --type=json ."}, false},
+		{"Bash", bashInput{Command: "grep -rn version --include=*.go ."}, true},
+		{"Bash", bashInput{Command: "rg -n version -g '*.yaml' -g '*.go'"}, true},
+		{"Bash", bashInput{Command: "rg -n version -t go"}, true},
+		// An exclusion says where it does not look, which proves nothing.
+		{"Bash", bashInput{Command: "rg -n version -g '!*.json'"}, true},
+		{"Bash", bashInput{Command: "grep -rn version --exclude=*.json ."}, true},
+		{"Bash", bashInput{Command: "rg -n version -g"}, true},
 		{"Bash", bashInput{Command: "grep -rn version internal/"}, true},
 		{"Bash", bashInput{Command: "rg version cmd/main.go"}, true},
 		{"Grep", grepInput{Pattern: "version"}, true},
