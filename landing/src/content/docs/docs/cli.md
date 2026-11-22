@@ -9,13 +9,17 @@ it is answered with this same table. An **unknown** command writes a single
 line to `stderr` and exits `2`, rather than dumping the whole surface at
 someone who mistyped one word.
 
+The first word of a family answers too: `kivgraph profile`, `kivgraph mcp`,
+`kivgraph hook`, `kivgraph skill` and `kivgraph toolchain`, with or without
+`--help`, list the commands of that family and exit `0`.
+
 ## Getting started
 
 | Invocation | Summary |
 | --- | --- |
 | `init [--repository NAME=PATH] [--languages LIST]` | Write the configuration and register repositories |
 | `index [--config PATH] [--repositories PATH] [--json]` | Detect the current project languages and publish a local full index |
-| `index --full [--profile NAME] [--json]` | Index every repository in one profile and publish a generation |
+| `index --full [--profile NAME] [--unattended] [--json]` | Index every repository in one profile and publish a generation |
 | `serve [--introspection]` | Run the MCP server over stdio |
 | `daemon [--addr HOST:PORT] [--allow-remote]` | Serve MCP to many clients from one process, over HTTP and a unix socket |
 | `daemon install [--addr HOST:PORT] [--allow-remote]` | Give the daemon an owner, so the platform starts it and restarts it |
@@ -23,17 +27,53 @@ someone who mistyped one word.
 | `ui [--addr HOST:PORT] [--profile NAME]` | Serve every profile in the read-only graph viewer, or pin one by name |
 | `stop [--dry-run]` | Stop every running serve, daemon and ui of this user |
 
+`init` reads every `--repository` before it creates anything. A path that is
+not a directory, or a name in the reserved `rust:` namespace, is refused and
+no file is written.
+
 `index` without `--full` indexes the project the shell is standing in. It
-resolves the nearest containing Git repository as the project root, or uses the
-current directory when there is none, detects the supported languages from
-source extensions and project manifests, creates or reuses
+resolves the nearest containing Git repository as the project root, detects
+the supported languages from source extensions and project manifests, creates
+or reuses
 `.kivgraph/config.yaml` and `.kivgraph/repositories.yaml` in that project, adds
 or updates a repository named `project` there, and runs the same complete
 rebuild as `index --full`. The shared user registry is not touched. An entry
 that already exists keeps its manifests, roots and exclusions; only its
 languages are updated. A project in which no supported language is detected is
-an error and publishes nothing. With `--json`, `stdout` carries only the event
-stream and the detection messages go to `stderr`. See ADR 0086.
+an error and publishes nothing. So is a directory that cannot be registered,
+such as one outside any Git repository: the registry is asked before
+`.kivgraph/` is created, and the refusal says that nothing was written. With
+`--json`, `stdout` carries only the event stream and the detection messages go
+to `stderr`. See ADR 0086.
+
+Source files of a language no loader reads are named and counted, not
+skipped in silence:
+
+```text
+not read: 70 .swift (no loader for that language)
+```
+
+After a pass, both forms of `index` print one line when
+[`doctor repositories`](/guides/maintenance/#audit-the-registered-repositories)
+would report something. The findings themselves are not repeated:
+
+```text
+index.audit: 2 finding(s), 1 blocking: the repositories do not declare something a pass needs; run "kivgraph doctor repositories"
+```
+
+`index --full` serves the registry entries it can read. An entry it cannot --
+a path that is gone, a directory that is no longer a repository -- is named on
+an `index.repository.not_read` line and the rest are indexed. With no entry
+left it is an error.
+
+`--unattended` is what the daemon passes when a pass starts because a file
+changed and nobody asked. Such a pass publishes nothing when a file that held
+declarations in the active generation is still on disk, holds none in the
+candidate, and its repository recorded a `_NOT_LOADED` failure: a module that
+stopped loading does not take its symbols out of a graph that is being
+served. The active generation stays, the `--json` result lists up to twenty
+`repository:path` entries under `lost`, and the next change tries again. A
+pass somebody asked for publishes what it could read.
 
 ## Profiles
 
@@ -129,7 +169,9 @@ It reads the graph the last index published and does not index. Its limits:
   of, and `no_symbol` the changed lines no symbol holds, such as a comment or
   an import. Untracked files that are not in the graph are not reported.
 - A ref that names no commit is refused, and so is a checkout that is not a
-  registered repository.
+  registered repository. A linked worktree is the exception: when exactly one
+  registered repository shares its Git common directory, the graph of that
+  repository answers, with a warning that the two trees may differ.
 
 ## Maintenance
 

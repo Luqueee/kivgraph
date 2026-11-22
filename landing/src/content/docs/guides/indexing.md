@@ -263,9 +263,75 @@ every answer about that repository says `LOWER_BOUND`. A Rust workspace the
 analyzer cannot load is declared `WORKSPACE_NOT_LOADED` the same way. So is a
 TypeScript repository whose projects cannot be discovered -- a `tsconfig.json`
 that does not parse -- and a package the worker fails on, as
-`PACKAGE_NOT_LOADED`. A repository registered as TypeScript with no project in
+`PACKAGE_NOT_LOADED`. A repository registered as TypeScript with no package in
 it contributes nothing and is named on an `index.typescript.no_package` line. Fixing the
 repository and indexing again restores it: a failure to read is never cached.
+
+## What a pass does not read, and says so
+
+Some source is in the tree and outside what an analyzer reads. A use in it
+is in no edge, so the pass records that it did not look. Each of these is an
+unresolved row on the file, naming the declaration it writes, and makes an
+answer about that declaration `LOWER_BOUND` with the file listed. Other
+answers are not affected.
+
+| Reason | What was not read |
+| --- | --- |
+| `COMPONENT_FILE_NOT_READ` | An `.astro`, `.vue` or `.svelte` file that writes the name of a declaration its package exports. The TypeScript engine does not read a template. |
+| `TARGET_NOT_BUILDABLE` | A Rust file of an indexed crate that the build configuration left out, such as a module behind a `cfg` that is false on this machine. |
+| `DEFINITION_NOT_INDEXED` | A Rust declaration the grammar sees and the analyzer did not index, or a use of one. |
+| `DART_TARGET_NOT_INDEXED` | A Dart use of a library nobody registered. It is recorded once for each declaration that uses the library, named as an import names it: `dart:core`, `package:collection`. |
+
+These are read as words, not as code: a name in a comment or in markup
+counts, which errs towards saying an answer is bounded.
+
+Three more things are named on the report of the pass:
+
+- `index.typescript.inferred` -- a package with a `package.json` and no
+  `tsconfig.json`. Its TypeScript is read anyway, through a project written
+  for the pass outside the repository, under compiler options Kivgraph chose.
+  A package that needs its own options declares a project.
+- `index.typescript.unclaimed_not_read` -- a TypeScript file in no package at
+  all. A file is read as part of a package, so nothing reads it.
+- `index.repository.not_read` -- a registry entry that could not be opened.
+
+## Packages of one repository
+
+An import of a package of the same repository is an edge to the declaration
+it reaches. In a workspace whose packages publish their source --
+`"main": "src/index.ts"` behind a `workspace:*` link -- the compiler resolves
+the import to that source, and the edge is `IMPORTS_SYMBOL`,
+`EXACT_TYPECHECKED`, whether or not the imported package declares a project.
+A dependency installed under `node_modules` is still a package nobody
+provides.
+
+## Top-level code
+
+A use that no declaration contains belongs to the scope of its file: a
+symbol of kind `module`, created only where a use needs it. That is where a
+call in a test callback, a top-level statement, or the body of a Rust macro
+invoked at the top of a file -- a fuzz target -- is recorded. It applies to
+Go, TypeScript and Rust.
+
+## Checkouts and ignored paths
+
+Every walk skips three kinds of directory, and
+[`kivgraph doctor`](/guides/maintenance/#inspect) lists each:
+
+- one that carries a `CACHEDIR.TAG` (`walk.cache_tag`);
+- another Git checkout below the repository, a clone or a linked worktree
+  (`walk.checkout`). Nothing of it is read with the parent, so it can be
+  registered beside it as a repository of its own. A submodule is read with
+  its parent;
+- a path Git ignores that holds source of a registered language
+  (`walk.ignored`): the types a framework generates, a build that copies
+  `src`. `include_git_ignored: true` on the registry entry keeps it.
+
+## Java builds
+
+With no build at the repository root, the outermost build of each branch is
+run and their indexes are merged, with paths relative to the repository. One
+build that fails still fails the repository.
 
 A package name declared by several manifests is an ambiguity, not a broken
 repository: nobody provides it, every manifest leaves the registry, and it is

@@ -29,6 +29,11 @@ The call returns before analysis finishes:
 }
 ```
 
+A project that could never be indexed is refused by this call, before an
+operation exists: a name that is reserved or malformed, a path that is not a
+directory, a language Kivgraph does not read. What only the registry or the
+pass can find still fails in the operation.
+
 Treat `operation_id` as opaque. Poll
 [`get_index_status`](/docs/tools/get-index-status/) at the suggested interval
 until it reports `completed` or `failed`. Do not repeat `start_index_project`
