@@ -536,14 +536,10 @@ export function GraphPreview() {
           layoutOverrides={visibleGraph.layoutOverrides}
           animated={false}
           // The adapter decides which nodes carry a caption at all - only
-          // repositories and hubs do - so the canvas draws every label it is
-          // given. Reagraph's own `auto` mode is evaluated once at mount and
-          // never again, which on a camera that moves means captions that
-          // never come back.
-          // Troika labels stay mounted: the governor only flips their
-          // visibility while the camera moves, because unmounting them
-          // rebuilds every glyph mesh and stalls the gesture it should cheapen.
-          labelType="nodes"
+          // repositories and hubs do - and the node renderer draws it as a
+          // sprite. Reagraph's own labels are Troika: they fetch their fonts
+          // from a CDN, and their glyph material does not run under WebGPU.
+          labelType="none"
           // A quarter of a million triangles per thousand nodes instead of a
           renderNode={
             rendererSelection.backend === "webgpu"
@@ -605,7 +601,7 @@ export function GraphPreview() {
         </span>
       </div>
       <details
-        className="pointer-events-auto absolute bottom-3 left-3 border border-rule bg-panel/90 font-mono text-[10px] text-gray-400 shadow-xl backdrop-blur"
+        className="pointer-events-auto absolute bottom-14 left-3 border border-rule bg-panel/90 font-mono text-[10px] text-gray-400 shadow-xl backdrop-blur lg:bottom-3"
         data-testid="graph-legend"
       >
         <summary className="cursor-pointer list-none px-3 py-2 font-semibold uppercase tracking-[0.14em] text-gray-300 [&::-webkit-details-marker]:hidden">
@@ -656,7 +652,9 @@ export function GraphPreview() {
         </div>
       </details>
       <div className="pointer-events-none absolute inset-x-3 bottom-3 flex items-center justify-center font-mono text-[10px]">
-        <div className="pointer-events-auto flex items-center border border-rule bg-panel/90 shadow-xl backdrop-blur">
+        {/* On a narrow screen the bar scrolls: centred and wider than the
+            screen, its first and last controls were past both edges. */}
+        <div className="pointer-events-auto flex max-w-full items-center overflow-x-auto border border-rule bg-panel/90 shadow-xl backdrop-blur [&>*]:shrink-0">
           {LOD_LABELS.map((label, level) => (
             <button
               key={label}
@@ -694,7 +692,7 @@ export function GraphPreview() {
               onChange={(event) =>
                 setRequestedBudget(Number(event.currentTarget.value))
               }
-              className="h-1 w-40 cursor-pointer accent-primary"
+              className="h-1 w-24 cursor-pointer accent-primary sm:w-40"
               aria-label="nodes per view"
             />
             <span className="w-10 text-right tabular-nums text-gray-100">

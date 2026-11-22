@@ -12,6 +12,8 @@ import {
   type NodeProps,
   Position,
   ReactFlow,
+  useReactFlow,
+  useStore,
 } from "@xyflow/react";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import "@xyflow/react/dist/style.css";
@@ -31,6 +33,40 @@ import {
 } from "@/topology-layout";
 
 export const TOPOLOGY_FLOW_ARIA_LABEL = "Profile topology map";
+
+const TOPOLOGY_FIT = { padding: 0.24, minZoom: 0.35, maxZoom: 1.25 };
+
+/**
+ * Frames the map again whenever the set of nodes changes.
+ *
+ * React Flow's `fitView` prop frames what is there at the first render, and
+ * the map arrives after it: the profile was framed, and the repository column
+ * that came with the answer was drawn past the right edge. A filter that
+ * leaves three nodes of thirty had the same effect in the other direction.
+ * Hovering and selecting change no identity, so they do not move the camera.
+ */
+function FitToNodes({ signature }: { signature: string }): null {
+  const { fitView } = useReactFlow();
+  // How many nodes the canvas has measured. `useNodesInitialized` reads the
+  // nodes this component is given, and those never carry a measurement: the
+  // map is controlled and applies no change back to them.
+  const measured = useStore((state) => {
+    let count = 0;
+    for (const node of state.nodeLookup.values()) {
+      if (node.measured.width && node.measured.height) count += 1;
+    }
+    return count === state.nodeLookup.size ? count : 0;
+  });
+  // The size of the canvas itself: a window made narrower is a new frame too.
+  const pane = useStore((state) => `${state.width}x${state.height}`);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the signature and the pane are triggers, not inputs.
+  useEffect(() => {
+    if (measured === 0) return;
+    const frame = requestAnimationFrame(() => void fitView(TOPOLOGY_FIT));
+    return () => cancelAnimationFrame(frame);
+  }, [measured, signature, pane, fitView]);
+  return null;
+}
 
 const HOVER_DIRECT_EDGE_WIDTH = 2.4;
 const HOVER_DIMMED_EDGE_WIDTH = 1.2;
@@ -1393,7 +1429,7 @@ export function TopologyFlow({
           edgeTypes={topologyEdgeTypes}
           colorMode="dark"
           fitView
-          fitViewOptions={{ padding: 0.24, minZoom: 0.35, maxZoom: 1.25 }}
+          fitViewOptions={TOPOLOGY_FIT}
           minZoom={0.25}
           maxZoom={2}
           nodesDraggable={false}
@@ -1422,6 +1458,7 @@ export function TopologyFlow({
           className="topology-flow"
           aria-label={TOPOLOGY_FLOW_ARIA_LABEL}
         >
+          <FitToNodes signature={nodes.map((node) => node.id).join("|")} />
           <Background
             color="#333a42"
             gap={28}

@@ -54,3 +54,43 @@ func TestNewServesVersionedBundle(t *testing.T) {
 		t.Fatalf("asset cache control = %q", cacheControl)
 	}
 }
+
+// The viewer loads from its own origin and nowhere else, and the browser is
+// told so on every response: the page, an asset, a miss and a refusal.
+func TestEveryResponseCarriesAPolicyThatNamesNoOtherOrigin(t *testing.T) {
+	root := t.TempDir()
+	webRoot := filepath.Join(root, "web", "dist")
+	if err := os.MkdirAll(filepath.Join(webRoot, "assets"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(webRoot, "index.html"), []byte("<html>viewer</html>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(webRoot, "assets", "app.js"), []byte("1"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(root)
+	handler := New()
+	for _, call := range []struct{ method, path string }{
+		{http.MethodGet, "/"}, {http.MethodGet, "/assets/app.js"},
+		{http.MethodGet, "/missing.js"}, {http.MethodPost, "/"},
+	} {
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, httptest.NewRequest(call.method, call.path, nil))
+		policy := response.Header().Get("Content-Security-Policy")
+		if policy != contentSecurityPolicy {
+			t.Errorf("%s %s: policy = %q", call.method, call.path, policy)
+		}
+		if response.Header().Get("X-Content-Type-Options") != "nosniff" {
+			t.Errorf("%s %s: no nosniff", call.method, call.path)
+		}
+	}
+	if !strings.HasPrefix(contentSecurityPolicy, "default-src 'self';") {
+		t.Errorf("policy does not default to its own origin: %q", contentSecurityPolicy)
+	}
+	for _, word := range []string{"http:", "https:", "*", "unsafe-eval"} {
+		if strings.Contains(contentSecurityPolicy, word) {
+			t.Errorf("policy admits %q: %q", word, contentSecurityPolicy)
+		}
+	}
+}
