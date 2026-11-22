@@ -104,6 +104,35 @@ func writeHelp(writer io.Writer, program string) {
 		paint.dim, program, paint.reset)
 }
 
+// commandFamily answers the commands that begin with word, in declaration
+// order: what `kivgraph mcp` could have meant.
+func commandFamily(word string) []commandSpec {
+	declared := commandTable()
+	declared = append(declared, integrationCommands()...)
+	family := make([]commandSpec, 0, 4)
+	for _, spec := range declared {
+		if !spec.hidden && len(spec.words) > 1 && spec.words[0] == word {
+			family = append(family, spec)
+		}
+	}
+	return family
+}
+
+// writeFamilyHelp lists them the way the whole help does.
+func writeFamilyHelp(writer io.Writer, program, word string, family []commandSpec) {
+	paint := styleFor(writer)
+	width := 0
+	for _, spec := range family {
+		width = max(width, len(spec.usage))
+	}
+	fmt.Fprintf(writer, "%sUsage%s\n  %s %s <command> [flags]\n\n", paint.bold, paint.reset, program, word)
+	for _, spec := range family {
+		fmt.Fprintf(writer, "  %-*s  %s\n", width, spec.usage, spec.summary)
+	}
+	fmt.Fprintf(writer, "\n%sRun \"%s %s <command> --help\" for the flags of one command.%s\n",
+		paint.dim, program, word, paint.reset)
+}
+
 // helpOrder answers one group's commands in declaration order.
 func helpOrder(group string) []commandSpec {
 	declared := commandTable()

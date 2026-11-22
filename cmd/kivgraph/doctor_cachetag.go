@@ -22,11 +22,38 @@ const doctorCacheDirectoriesShown = 5
 // A repository whose tree cannot be walked is a failure and not an empty list:
 // "no tagged directory" would be a claim about a tree nobody read.
 func reportDoctorCacheDirectories(ctx context.Context, report func(string, bool, string), repositories []workspace.Repository) {
+	reportDoctorSkipped(ctx, report, repositories, "walk.cache_tag", workspace.CacheDirectories,
+		"no directory carries a cache tag", " (remove a directory's CACHEDIR.TAG to index it)")
+}
+
+// reportDoctorOtherCheckouts says the other reason a walk does not enter a
+// directory, for the same reason: a worktree or a clone below a repository is
+// not indexed with it, and nothing else would say so.
+func reportDoctorOtherCheckouts(ctx context.Context, report func(string, bool, string), repositories []workspace.Repository) {
+	reportDoctorSkipped(ctx, report, repositories, "walk.checkout", workspace.OtherCheckouts,
+		"no directory is another Git checkout", " (register a checkout as its own repository to index it)")
+}
+
+// reportDoctorIgnoredSources names the sources left out because Git ignores
+// them: generated code is the one thing a repository can want back.
+func reportDoctorIgnoredSources(ctx context.Context, report func(string, bool, string), repositories []workspace.Repository) {
+	reportDoctorSkipped(ctx, report, repositories, "walk.ignored", workspace.IgnoredSources,
+		"no source is ignored by Git", " (set include_git_ignored on the repository to index them)")
+}
+
+func reportDoctorSkipped(
+	ctx context.Context,
+	report func(string, bool, string),
+	repositories []workspace.Repository,
+	check string,
+	list func(context.Context, workspace.Repository) ([]string, error),
+	none, remedy string,
+) {
 	var listed []string
 	for _, repository := range repositories {
-		directories, err := workspace.CacheDirectories(ctx, repository)
+		directories, err := list(ctx, repository)
 		if err != nil {
-			report("walk.cache_tag", false, fmt.Sprintf("%s: %v", repository.Name, err))
+			report(check, false, fmt.Sprintf("%s: %v", repository.Name, err))
 			continue
 		}
 		if len(directories) == 0 {
@@ -51,9 +78,8 @@ func reportDoctorCacheDirectories(ctx context.Context, report func(string, bool,
 		listed = append(listed, entry)
 	}
 	if len(listed) == 0 {
-		report("walk.cache_tag", true, "no directory carries a cache tag")
+		report(check, true, none)
 		return
 	}
-	report("walk.cache_tag", true, "skipped by every walk and never indexed: "+strings.Join(listed, "; ")+
-		" (remove a directory's CACHEDIR.TAG to index it)")
+	report(check, true, "skipped by every walk and never indexed: "+strings.Join(listed, "; ")+remedy)
 }

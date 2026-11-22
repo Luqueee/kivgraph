@@ -3,7 +3,10 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"github.com/Luqueee/kivgraph/internal/daemon"
 	"io"
+	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -80,9 +83,6 @@ func hookDecision(stdin io.Reader) (agenthook.Decision, agenthook.Dialect) {
 	}
 
 	loaded, ok := loadForHook()
-	if !ok {
-		return agenthook.Allow, dialect
-	}
 
 	// A call to Kivgraph's own tools is never measured against the graph,
 	// so it takes neither the repository lookup nor the daemon: it needs
@@ -91,6 +91,9 @@ func hookDecision(stdin io.Reader) (agenthook.Decision, agenthook.Dialect) {
 	// every registered repository, so a session driving them from a
 	// directory outside all of them is still a session worth briefing.
 	if question.Kind == agenthook.KindGraphTool {
+		if !ok {
+			return agenthook.Allow, dialect
+		}
 		gate := agenthook.Gate{
 			Briefing:  agenthook.Briefing{Directory: briefDirectory(loaded)},
 			SessionID: payload.SessionID,
@@ -98,9 +101,16 @@ func hookDecision(stdin io.Reader) (agenthook.Decision, agenthook.Dialect) {
 		return gate.Decide(context.Background(), question), dialect
 	}
 
-	repository, inside := repositoryHolding(loaded, payload.CWD)
+	repository, inside := config.Repository{}, false
+	if ok {
+		repository, inside = repositoryHolding(loaded, payload.CWD)
+	}
 	if !inside {
-		return agenthook.Allow, dialect
+		// A repository indexed with `kivgraph index` keeps its graph in its
+		// own `.kivgraph`, and the user's registry has never heard of it.
+		if loaded, repository, inside = projectGraphAbove(payload.CWD); !inside {
+			return agenthook.Allow, dialect
+		}
 	}
 
 	gate := agenthook.Gate{
@@ -114,6 +124,77 @@ func hookDecision(stdin io.Reader) (agenthook.Decision, agenthook.Dialect) {
 		gate.Graph = graph
 	}
 	return gate.Decide(ctx, question), dialect
+}
+
+// projectGraphAbove finds the project graph of the checkout a directory is in:
+// the `.kivgraph/config.yaml` that `kivgraph index` writes at its root.
+//
+// That directory is inside a repository, and a repository is something a
+// stranger can hand over. So it is read only when it could not have been
+// committed to mean something else: `.kivgraph` and its configuration are not
+// links, the state the configuration names is inside `.kivgraph`, and the
+// endpoint published there is on this machine -- the gate sends the name being
+// searched to it, and reads back the words it refuses with.
+func projectGraphAbove(cwd string) (config.Loaded, config.Repository, bool) {
+	none := func() (config.Loaded, config.Repository, bool) { return config.Loaded{}, config.Repository{}, false }
+	directory, err := filepath.Abs(strings.TrimSpace(cwd))
+	if err != nil || strings.TrimSpace(cwd) == "" {
+		return none()
+	}
+	for {
+		state := filepath.Join(directory, ".kivgraph")
+		if info, err := os.Lstat(state); err == nil {
+			if !info.IsDir() {
+				return none()
+			}
+			break
+		}
+		parent := filepath.Dir(directory)
+		if parent == directory {
+			return none()
+		}
+		directory = parent
+	}
+	state := filepath.Join(directory, ".kivgraph")
+	configPath := filepath.Join(state, "config.yaml")
+	if info, err := os.Lstat(configPath); err != nil || !info.Mode().IsRegular() {
+		return none()
+	}
+	loaded, err := config.Load(configPath)
+	if err != nil {
+		return none()
+	}
+	served := stateDirectory(loaded)
+	if resolved, err := filepath.EvalSymlinks(served); err != nil || !under(resolved, state) && !underResolved(resolved, state) {
+		return none()
+	}
+	endpoint, err := daemon.ReadEndpoint(served)
+	if err != nil || !loopbackURL(endpoint.URL) {
+		return none()
+	}
+	repository, inside := repositoryHolding(loaded, cwd)
+	return loaded, repository, inside
+}
+
+// underResolved is under for a parent that is itself reached through a link,
+// as a temporary directory on macOS is.
+func underResolved(path, parent string) bool {
+	resolved, err := filepath.EvalSymlinks(parent)
+	return err == nil && under(path, resolved)
+}
+
+// loopbackURL reports whether an endpoint is on this machine.
+func loopbackURL(raw string) bool {
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme != "http" {
+		return false
+	}
+	host := parsed.Hostname()
+	if host == "localhost" {
+		return true
+	}
+	address := net.ParseIP(host)
+	return address != nil && address.IsLoopback()
 }
 
 // briefDirectory is where the gate remembers which sessions it has briefed.

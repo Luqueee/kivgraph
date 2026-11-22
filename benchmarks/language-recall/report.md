@@ -3,7 +3,7 @@
 How many of the files that depend on a declaration does `find_references` report? The ground truth is the language's own type checker: rename the declaration, type-check again, and the files that gain an error are the files that use it.
 
 - Command: `go run ./benchmarks/language-recall -kivgraph <binary> -repo-root .`
-- Date: 2026-11-21, seed 1, up to 100 declarations per language
+- Date: 2026-11-22, seed 1, up to 100 declarations per language
 - Kivgraph `0.10.0` on darwin/arm64, go1.26.11, Version 5.9.3, node v25.9.0, rustc 1.100.0 (0ef1bc386 2026-11-09) (Homebrew)
 
 ## Corpus
@@ -24,9 +24,9 @@ Intervals are 95 % percentile intervals from resampling declarations.
 |go|default|100|96|100.0 % (100.0 to 100.0)|100.0 % (100.0 to 100.0)|100.0 % (96.2 to 100.0)|
 |typescript|default|100|85|100.0 % (100.0 to 100.0)|96.8 % (93.8 to 99.3)|100.0 % (95.7 to 100.0)|
 |rust|default|100|86|100.0 % (100.0 to 100.0)|97.8 % (94.9 to 100.0)|100.0 % (95.7 to 100.0)|
-|dart|default|100|73|99.0 % (96.8 to 100.0)|88.4 % (81.0 to 94.6)|98.6 % (92.6 to 99.8)|
+|dart|default|100|73|100.0 % (100.0 to 100.0)|88.5 % (81.3 to 94.8)|100.0 % (95.0 to 100.0)|
 |go|go.tests_excluded|100|96|65.9 % (59.4 to 74.6)|100.0 % (100.0 to 100.0)|57.3 % (47.3 to 66.7)|
-|dart|dart.tests_excluded|100|73|74.0 % (65.1 to 82.7)|92.5 % (86.2 to 97.6)|67.1 % (55.7 to 76.8)|
+|dart|dart.tests_excluded|100|73|75.0 % (65.9 to 83.5)|92.6 % (86.3 to 97.6)|68.5 % (57.1 to 78.0)|
 
 `file recall` pools the dependent files of every declaration. `fully recalled` is the share of declarations with dependents for which no file was missed (Wilson interval). A `tests_excluded` configuration is the default one with that language's `include_tests: false`; each pair draws the same declarations.
 
@@ -84,8 +84,8 @@ Declarations with a reported file the compiler did not flag (first 15 of 5). The
 - Declarations listed 646, eligible for the rename 487, measured 100 (oracle failed on 0, Kivgraph refused 0).
 - Recall on non-test files: 100.0 % (100.0 to 100.0). On test files: n/a.
 - Declarations with no dependents for which Kivgraph still reports a file: 2 of 14.
-- Completeness verdicts: COMPLETE 96, LOWER_BOUND 4.
-- Answers that said `COMPLETE` and missed at least one non-test file: 0 of 96.
+- Completeness verdicts: COMPLETE 98, LOWER_BOUND 2.
+- Answers that said `COMPLETE` and missed at least one non-test file: 0 of 98.
 - Not sampled: kind not sampled: 50; name not found in declaring position: 109.
 
 |kind|declarations with dependents|file recall|
@@ -114,26 +114,20 @@ Declarations with a reported file the compiler did not flag (first 15 of 3). The
 ## dart (default)
 
 - Declarations listed 772, eligible for the rename 540, measured 100 (oracle failed on 0, Kivgraph refused 0).
-- Recall on non-test files: 98.7 % (95.6 to 100.0). On test files: 100.0 % (100.0 to 100.0).
+- Recall on non-test files: 100.0 % (100.0 to 100.0). On test files: 100.0 % (100.0 to 100.0).
 - Declarations with no dependents for which Kivgraph still reports a file: 7 of 27.
 - Completeness verdicts: COMPLETE 100.
-- Answers that said `COMPLETE` and missed at least one non-test file: 1 of 100.
+- Answers that said `COMPLETE` and missed at least one non-test file: 0 of 100.
 - Not sampled: kind not sampled: 204; name not found in declaring position: 28.
 
 |kind|declarations with dependents|file recall|
 |---|---|---|
 |class|20|100.0 % (100.0 to 100.0)|
-|extension|1|0.0 % (0.0 to 0.0)|
+|extension|1|100.0 % (100.0 to 100.0)|
 |field|21|100.0 % (100.0 to 100.0)|
 |function|20|100.0 % (100.0 to 100.0)|
 |method|3|100.0 % (100.0 to 100.0)|
 |variable|8|100.0 % (100.0 to 100.0)|
-
-Declarations with a missed file (first 15 of 1):
-
-|declaration|kind|missed|verdict|
-|---|---|---|---|
-|`IterableExtension` (lib/src/iterable_extensions.dart:20)|extension|lib/src/iterable_extensions.dart|COMPLETE|
 
 Declarations with a reported file the compiler did not flag (first 15 of 11). These are unaudited: a use the compiler does not reject, such as one in a comment, is not a false positive.
 
@@ -193,26 +187,25 @@ Declarations with a missed file (first 15 of 41):
 ## dart (dart.tests_excluded)
 
 - Declarations listed 772, eligible for the rename 540, measured 100 (oracle failed on 0, Kivgraph refused 0).
-- Recall on non-test files: 98.7 % (95.6 to 100.0). On test files: 0.0 % (0.0 to 0.0).
+- Recall on non-test files: 100.0 % (100.0 to 100.0). On test files: 0.0 % (0.0 to 0.0).
 - Declarations with no dependents for which Kivgraph still reports a file: 3 of 27.
 - Completeness verdicts: COMPLETE 100.
-- Answers that said `COMPLETE` and missed at least one non-test file: 1 of 100.
+- Answers that said `COMPLETE` and missed at least one non-test file: 0 of 100.
 - Not sampled: kind not sampled: 204; name not found in declaring position: 28.
 
 |kind|declarations with dependents|file recall|
 |---|---|---|
 |class|20|63.6 % (47.1 to 80.0)|
-|extension|1|0.0 % (0.0 to 0.0)|
+|extension|1|100.0 % (100.0 to 100.0)|
 |field|21|95.5 % (87.5 to 100.0)|
-|function|20|72.7 % (56.7 to 86.2)|
+|function|20|72.7 % (56.7 to 86.5)|
 |method|3|0.0 % (0.0 to 0.0)|
 |variable|8|100.0 % (100.0 to 100.0)|
 
-Declarations with a missed file (first 15 of 24):
+Declarations with a missed file (first 15 of 23):
 
 |declaration|kind|missed|verdict|
 |---|---|---|---|
-|`IterableExtension` (lib/src/iterable_extensions.dart:20)|extension|lib/src/iterable_extensions.dart|COMPLETE|
 |`binarySearch` (lib/src/algorithms.dart:21)|function|test/algorithms_test.dart|COMPLETE|
 |`binarySearchByCompare` (lib/src/list_extensions.dart:38)|method|test/extensions_test.dart|COMPLETE|
 |`CombinedIterableView` (lib/src/combined_wrappers/combined_iterable.dart:16)|class|test/combined_wrapper/iterable_test.dart|COMPLETE|
@@ -227,6 +220,7 @@ Declarations with a missed file (first 15 of 24):
 |`UnorderedIterableEquality` (lib/src/equality.dart:254)|class|test/algorithms_test.dart, test/equality_test.dart, test/extensions_test.dart|COMPLETE|
 |`mapMap` (lib/src/functions.dart:15)|function|test/functions_test.dart|COMPLETE|
 |`IdentityEquality` (lib/src/equality.dart:95)|class|test/equality_test.dart|COMPLETE|
+|`UnionSet` (lib/src/union_set.dart:16)|class|test/union_set_test.dart|COMPLETE|
 
 Declarations with a reported file the compiler did not flag (first 15 of 6). These are unaudited: a use the compiler does not reject, such as one in a comment, is not a false positive.
 

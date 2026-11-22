@@ -125,7 +125,9 @@ nombre lo declaran dos cosas o más, así que una búsqueda de texto no puede
 separar lo que encuentra. Un nombre sin homónimo se deja pasar por muchos sitios
 que lo usen, porque ahí `grep` es más barato y está medido -- ver ADR 0077 para
 la tabla y para lo que haría falta medir para cerrarla también sobre recuentos
-altos.
+altos. Y el repositorio de la búsqueda tiene que declarar el nombre: la cuenta
+es de todo el grafo, y negar una búsqueda en un repositorio del que el grafo no
+tiene nada deja sin ninguna herramienta.
 
 Una búsqueda que todavía no sabe el nombre toma la ruta de intención. Una regex
 con forma de código, o cuatro o más identificadores alternativos como
@@ -191,6 +193,15 @@ identidad y la ruta no pertenece directamente a ninguno, la puerta no elige.
 Las búsquedas por intención se acotan al repositorio así identificado y leen
 los candidatos dentro de `results.symbols`, el envelope profile-aware de la
 respuesta.
+
+Un repositorio indexado con `kivgraph index` guarda su grafo en su propio
+`.kivgraph/`, y el registro del usuario no lo conoce. Cuando el directorio de
+trabajo no cae en ningún repositorio de ese registro, la puerta busca el
+`.kivgraph/config.yaml` del checkout y lo lee sólo si nada en él pudo
+commitearse para decir otra cosa: ni `.kivgraph` ni su configuración son
+enlaces, el estado que nombra queda dentro de `.kivgraph`, y el endpoint
+publicado ahí es de esta máquina. Sin demonio para ese grafo, la puerta se
+aparta como siempre.
 
 ## Herramientas MCP en Oh My Pi
 

@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"github.com/Luqueee/kivgraph/internal/indexing"
 	"log/slog"
 	"strings"
 	"testing"
@@ -116,6 +118,37 @@ func TestInvalidationSchedulerGivesUpAfterTheRetryBudget(t *testing.T) {
 	if !strings.Contains(logs.String(), "gave up rebuilding a stale profile") ||
 		!strings.Contains(logs.String(), "kivgraph index --full") {
 		t.Fatalf("scheduler log = %q, want the give-up remedy", logs.String())
+	}
+}
+
+// A pass that refused to replace the active generation would refuse again on
+// the same sources: it is logged with what to do and not retried on a timer.
+func TestInvalidationSchedulerDoesNotRetryARefusalToLoseFiles(t *testing.T) {
+	manager := schedulerTestStaleManager(t)
+	var logs bytes.Buffer
+	fake := &schedulerTestReindexer{
+		calls: make(chan string, 1),
+		err:   fmt.Errorf("reindex: %w: 3 file(s)", indexing.ErrGenerationLostFiles),
+	}
+	scheduler := newInvalidationScheduler(context.Background(), manager, fake,
+		slog.New(slog.NewTextHandler(&logs, nil)))
+	defer scheduler.Close()
+	scheduler.mu.Lock()
+	scheduler.attempts["default"] = 2
+	scheduler.mu.Unlock()
+
+	scheduler.reindex("default")
+	<-fake.calls
+	scheduler.retries.Wait()
+	scheduler.mu.Lock()
+	attempts, counted := scheduler.attempts["default"]
+	_, pending := scheduler.pending["default"]
+	scheduler.mu.Unlock()
+	if counted || pending {
+		t.Fatalf("retry state = attempts:%d pending:%t, want neither", attempts, pending)
+	}
+	if !strings.Contains(logs.String(), "kept the active generation") || !strings.Contains(logs.String(), "kivgraph index --full") {
+		t.Fatalf("scheduler log = %q, want the refusal and its remedy", logs.String())
 	}
 }
 

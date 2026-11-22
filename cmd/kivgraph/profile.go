@@ -48,11 +48,20 @@ func runProfile(command string, args []string, stdout, stderr io.Writer) int {
 		}
 		return 0
 	}
-	if flags.NArg() != 1 {
+	// `profile remove NAME --yes` is the form the help prints, and the flag
+	// package stops at the first argument that is not a flag.
+	var names []string
+	for flags.NArg() > 0 {
+		names = append(names, flags.Arg(0))
+		if parsed, code := parseCommandFlags("profile "+command, flags, flags.Args()[1:], stdout, stderr); !parsed {
+			return code
+		}
+	}
+	if len(names) != 1 {
 		writeCommandError(stderr, "profile %s: expected one profile name", command)
 		return 2
 	}
-	name := flags.Arg(0)
+	name := names[0]
 	var err error
 	switch command {
 	case "create":

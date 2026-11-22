@@ -25,10 +25,12 @@ import (
 	"golang.org/x/mod/semver"
 
 	"github.com/Luqueee/kivgraph/internal/app"
+	"github.com/Luqueee/kivgraph/internal/audit"
 	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/eventlog"
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/freshness"
+	"github.com/Luqueee/kivgraph/internal/goloader"
 	"github.com/Luqueee/kivgraph/internal/goworkspace"
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 	"github.com/Luqueee/kivgraph/internal/indexer"
@@ -901,7 +903,10 @@ func resyncOnBranchChange(
 		// So the watcher discovers the workspace on its own time. It already never
 		// fails the command and never outlives it; this only stops it from holding
 		// the door shut on the way in.
-		registry, err := registryForProfile(resyncCtx, loaded)
+		registry, unregistered, err := registryOfWhatRegisters(resyncCtx, loaded)
+		for _, line := range unregistered {
+			logger.Warn("a registered repository is not watched", "command", command, "repository", line)
+		}
 		if err != nil {
 			// Moving discovery off the startup path put it in reach of shutdown:
 			// a command that exits while git is still being asked about the
@@ -1052,6 +1057,16 @@ func runWithSnapshotBuilder(args []string, stdout, stderr io.Writer, diagnose st
 	}
 	if spec, consumed, found := findCommand(args[1:]); found && spec.run != nil {
 		return spec.run(deps, args[1+consumed:], stdout, stderr)
+	}
+	// `mcp`, `hook` and `profile` are only the first word of their commands.
+	// Asked for help, or run bare, each said it was an unknown command.
+	if family := commandFamily(args[1]); len(family) > 0 {
+		if len(args) == 2 || args[2] == "--help" || args[2] == "-h" {
+			writeFamilyHelp(stdout, program, args[1], family)
+			return 0
+		}
+		writeUsageError(stderr, program, fmt.Sprintf("unknown %s command %q; run \"%s %s --help\"", args[1], args[2], program, args[1]))
+		return 2
 	}
 	writeUsageError(stderr, program, fmt.Sprintf("unknown command %q", args[1]))
 	return 2
@@ -1485,6 +1500,26 @@ func runInit(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
+	// What was asked is read before anything is written: a repository that
+	// could not be registered left a configuration behind, and the second
+	// `init` found one that "already exists".
+	additions := make([]config.Repository, 0, len(options.Repository))
+	if len(options.Repository) > 0 {
+		parsedLanguages, err := parseLanguages(options.Languages)
+		if err != nil {
+			writeCommandError(stderr, "init: %v", err)
+			return 2
+		}
+		for _, specification := range options.Repository {
+			repository, err := parseRepositorySpec(specification, parsedLanguages)
+			if err != nil {
+				writeCommandError(stderr, "init: %v", err)
+				return 2
+			}
+			additions = append(additions, repository)
+		}
+	}
+
 	result, err := config.Initialize(config.InitOptions{
 		ConfigPath:       options.ConfigPath,
 		RepositoriesPath: options.RepositoriesPath,
@@ -1497,22 +1532,8 @@ func runInit(args []string, stdout, stderr io.Writer) int {
 	writeInfo(stdout, "config: %s (%s)", initFileState(result.ConfigCreated), result.ConfigPath)
 	writeInfo(stdout, "repositories: %s (%s)", initFileState(result.RepositoriesCreated), result.RepositoriesPath)
 
-	if len(options.Repository) == 0 {
+	if len(additions) == 0 {
 		return 0
-	}
-	parsedLanguages, err := parseLanguages(options.Languages)
-	if err != nil {
-		writeCommandError(stderr, "init: %v", err)
-		return 2
-	}
-	additions := make([]config.Repository, 0, len(options.Repository))
-	for _, specification := range options.Repository {
-		repository, err := parseRepositorySpec(specification, parsedLanguages)
-		if err != nil {
-			writeCommandError(stderr, "init: %v", err)
-			return 2
-		}
-		additions = append(additions, repository)
 	}
 	if err := config.RegisterRepositories(result.RepositoriesPath, additions); err != nil {
 		writeCommandError(stderr, "init: register repositories: %v", err)
@@ -1557,6 +1578,26 @@ func parseRepositorySpec(specification string, languages []string) (config.Repos
 	if !found || name == "" || path == "" {
 		return config.Repository{}, fmt.Errorf("repository %q must use NAME=PATH", specification)
 	}
+	// The registry refuses a path with a symlink in it, and reads a relative
+	// one against the configuration's directory. So the path that is there is
+	// written as the directory it is: `/tmp/x` on macOS is `/private/tmp/x`,
+	// and `x` is under the directory the command ran in. One that is not
+	// there, or is not a directory, was registered all the same and every
+	// later command failed on it.
+	if workspace.IsSyntheticRepository(name) {
+		return config.Repository{}, fmt.Errorf("repository name %q is reserved: the %q namespace names the providers Kivgraph derives from the toolchain",
+			name, workspace.SyntheticRepositoryPrefix)
+	}
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return config.Repository{}, fmt.Errorf("repository %q: %w", name, err)
+	}
+	if info, err := os.Stat(resolved); err != nil || !info.IsDir() {
+		return config.Repository{}, fmt.Errorf("repository %q: %s is not a directory", name, path)
+	}
+	if absolute, err := filepath.Abs(resolved); err == nil {
+		path = absolute
+	}
 	return config.Repository{
 		Name:      name,
 		Path:      path,
@@ -1571,6 +1612,7 @@ type indexFullOptions struct {
 	ResolverVersion  string
 	Profile          string
 	JSONOutput       bool
+	Unattended       bool
 }
 
 // indexFullFlagSet declares them in one place, so the parser that runs the
@@ -1584,6 +1626,7 @@ func indexFullFlagSet(options *indexFullOptions) *flag.FlagSet {
 	flags.StringVar(&options.ResolverVersion, "resolver-version", version.Value, "resolver version recorded in the graph")
 	flags.StringVar(&options.Profile, "profile", "", "graph profile (defaults to profiles.default)")
 	flags.BoolVar(&options.JSONOutput, "json", false, "write the pass as a JSON event stream on stdout")
+	flags.BoolVar(&options.Unattended, "unattended", false, "publish nothing if files the active generation reads were not loaded")
 	return flags
 }
 
@@ -1658,6 +1701,23 @@ func writeIndexSummary(stdout io.Writer, indexReport indexer.FullReport) {
 	)
 }
 
+// writeIndexAudit says that the repositories do not declare something a pass
+// needs, and where to read what.
+//
+// The audit has always known: a `cargo metadata` that failed offline and left
+// a crate with no dependency, a package whose manifest names no project, files
+// no project claims. It was a command nobody runs after a pass that said PASS,
+// so the pass says it, in one line. An audit that cannot run says nothing: it
+// is a second opinion, and its failure is not the pass's.
+func writeIndexAudit(ctx context.Context, stdout io.Writer, repositories []workspace.Repository, options audit.Options) {
+	report, err := audit.Run(ctx, repositories, options)
+	if err != nil || len(report.Findings) == 0 {
+		return
+	}
+	writeWarning(stdout, "index.audit: %d finding(s), %d blocking: the repositories do not declare something a pass needs; run \"kivgraph doctor repositories\"",
+		len(report.Findings), report.Blocking())
+}
+
 // writeIndexDetails names what the summary only counts.
 func writeIndexDetails(stdout io.Writer, indexReport indexer.FullReport) {
 	// A count says something happened; the lines say what. Both are on
@@ -1671,6 +1731,9 @@ func writeIndexDetails(stdout io.Writer, indexReport indexer.FullReport) {
 	}
 	for _, repository := range boundedReportLines(indexReport.TypeScriptWithoutPackages, 20) {
 		writeWarning(stdout, "index.typescript.no_package: %s declares no package with a TypeScript project, so it contributes nothing", repository)
+	}
+	for _, line := range boundedReportLines(indexReport.TypeScriptAmbiguousPackages, 20) {
+		writeWarning(stdout, "index.typescript.ambiguous: %s", line)
 	}
 	for _, line := range boundedReportLines(indexReport.TypeScriptNotRead, 20) {
 		writeWarning(stdout, "index.typescript.not_read: %s", line)
@@ -1727,10 +1790,17 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 			return 1
 		}
 	}
-	registry, err := registryForProfile(ctx, loaded)
+	registry, unregistered, err := registryOfWhatRegisters(ctx, loaded)
 	if err != nil {
 		writeCommandError(stderr, "index --full: register profile repositories: %v", err)
 		return 1
+	}
+	notRead := stdout
+	if options.JSONOutput {
+		notRead = stderr
+	}
+	for _, line := range unregistered {
+		writeWarning(notRead, "index.repository.not_read: %s", line)
 	}
 	if !options.JSONOutput {
 		writeProfileDiagnostics(stdout, loaded.Profile, registry)
@@ -1752,6 +1822,7 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 	}
 	indexOptions.WorkingDirectory = workingDirectory
 	indexOptions.ResolverVersion = options.ResolverVersion
+	indexOptions.Unattended = options.Unattended
 	invalidationManager, err := invalidation.Open(stateDirectory(loaded))
 	if err != nil {
 		writeCommandError(stderr, "index --full: open invalidation state: %v", err)
@@ -1780,6 +1851,7 @@ func runIndexFull(args []string, stdout, stderr io.Writer) int {
 	writeResult(stdout, err == nil, "index.full: %s", passFail(err == nil))
 	writeIndexSummary(stdout, indexReport)
 	writeIndexDetails(stdout, indexReport)
+	writeIndexAudit(ctx, stdout, registry.List(), audit.OptionsFromConfig(loaded.Config))
 	if cache := indexReport.Cache; cache.Mode != "" && cache.Mode != indexer.CacheOff {
 		note := ""
 		if changed := cache.AnalyzerChangedNote(); changed != "" {
@@ -2013,7 +2085,10 @@ func runClean(args []string, stdout, stderr io.Writer) int {
 	}
 
 	ctx := context.Background()
-	loaded, err := config.Load(options.ConfigPath)
+	// The profile, because that is where a pass publishes: the directory the
+	// configuration names holds no generation since profiles exist, and this
+	// reported nothing to remove beside every graph on the machine.
+	loaded, err := config.LoadProfile(options.ConfigPath, "")
 	if err != nil {
 		writeCommandError(stderr, "clean: load configuration: %v", err)
 		return 1
@@ -2217,6 +2292,8 @@ func runDoctor(args []string, stdout, stderr io.Writer) int {
 	}
 	if registryErr == nil {
 		reportDoctorCacheDirectories(context.Background(), doctorResult, registry.List())
+		reportDoctorOtherCheckouts(context.Background(), doctorResult, registry.List())
+		reportDoctorIgnoredSources(context.Background(), doctorResult, registry.List())
 	}
 
 	root := filepath.Dir(loaded.Config.Storage.DatabasePath)
@@ -2326,7 +2403,13 @@ func runDoctorToolchains(stdout io.Writer, report func(string, bool, string), co
 	}
 	if needsGo {
 		output, err := exec.CommandContext(context.Background(), "go", "version").CombinedOutput()
-		report("toolchain.go", err == nil, strings.TrimSpace(string(output)))
+		detail := strings.TrimSpace(string(output))
+		if pin := goloader.ToolchainPin(); pin != "" {
+			// The line names the `go` that is installed; this is the one a
+			// pass runs as, and why.
+			detail += "; loads run as " + pin + ", the toolchain this build type-checks"
+		}
+		report("toolchain.go", err == nil, detail)
 		reportGoLanguageCeiling(report, repositories)
 	} else {
 		report("toolchain.go", true, "not configured")

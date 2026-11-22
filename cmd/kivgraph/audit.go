@@ -57,10 +57,15 @@ func runDoctorRepositories(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	ctx := context.Background()
-	registry, err := workspace.NewRegistry(ctx, loaded.Repositories)
+	// An entry that cannot be registered is named and the rest are audited:
+	// this is the command asked what is wrong with the registry.
+	registry, notRead, err := registryOfWhatRegisters(ctx, loaded)
 	if err != nil {
 		writeCommandError(stderr, "doctor repositories: register repositories: %v", err)
 		return 1
+	}
+	for _, line := range notRead {
+		writeWarning(stderr, "doctor.repository.not_read: %s", line)
 	}
 	repositories := registry.List()
 	if options.Repository != "" && !namesRepository(repositories, options.Repository) {

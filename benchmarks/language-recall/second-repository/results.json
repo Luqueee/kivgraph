@@ -1,7 +1,7 @@
 {
   "benchmark": "language-recall",
   "command": "go run ./benchmarks/language-recall -kivgraph \u003cbinary\u003e -repo-root .",
-  "date": "2026-11-21",
+  "date": "2026-11-22",
   "seed": 1,
   "declarations_per_language": 100,
   "environment": {
@@ -49,26 +49,26 @@
       "oracle_failures": 0,
       "kivgraph_failures": 0,
       "file_recall": {
-        "value": 0.9865470852017937,
-        "low": 0.96,
+        "value": 1,
+        "low": 1,
         "high": 1,
-        "numerator": 220,
+        "numerator": 223,
         "denominator": 223,
         "symbols": 86
       },
       "file_recall_non_test": {
-        "value": 0.9814814814814815,
-        "low": 0.9514563106796117,
+        "value": 1,
+        "low": 1,
         "high": 1,
-        "numerator": 106,
+        "numerator": 108,
         "denominator": 108,
         "symbols": 86
       },
       "file_recall_test": {
-        "value": 0.991304347826087,
-        "low": 0.9649122807017544,
+        "value": 1,
+        "low": 1,
         "high": 1,
-        "numerator": 114,
+        "numerator": 115,
         "denominator": 115,
         "symbols": 20
       },
@@ -81,26 +81,26 @@
         "symbols": 4
       },
       "file_recall_without_private_names": {
-        "value": 0.9863013698630136,
-        "low": 0.961352657004831,
+        "value": 1,
+        "low": 1,
         "high": 1,
-        "numerator": 216,
+        "numerator": 219,
         "denominator": 219,
         "symbols": 82
       },
       "file_precision": {
-        "value": 0.7028753993610224,
-        "low": 0.5563636363636364,
-        "high": 0.824773413897281,
-        "numerator": 220,
-        "denominator": 313,
-        "symbols": 93
+        "value": 0.7056962025316456,
+        "low": 0.5672371638141809,
+        "high": 0.8275862068965517,
+        "numerator": 223,
+        "denominator": 316,
+        "symbols": 95
       },
       "symbols_fully_recalled": {
-        "value": 0.9767441860465116,
-        "low": 0.9191198537004109,
-        "high": 0.9935990738533299,
-        "numerator": 84,
+        "value": 1,
+        "low": 0.9572418020685576,
+        "high": 1,
+        "numerator": 86,
         "denominator": 86,
         "symbols": 86
       },
@@ -113,7 +113,7 @@
         "symbols": 14
       },
       "completeness_verdicts": {
-        "LOWER_BOUND": 100
+        "COMPLETE": 100
       },
       "complete_verdicts_that_missed_a_non_test_file": 0,
       "by_kind": [
@@ -157,10 +157,10 @@
           "kind": "method",
           "symbols_with_dependents": 10,
           "file_recall": {
-            "value": 0.7272727272727273,
-            "low": 0.4166666666666667,
+            "value": 1,
+            "low": 1,
             "high": 1,
-            "numerator": 8,
+            "numerator": 11,
             "denominator": 11,
             "symbols": 10
           }
@@ -259,7 +259,7 @@
           "extra_files": [
             "source/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -277,7 +277,7 @@
           "extra_files": [
             "source/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -314,7 +314,7 @@
             "test/timed-out.ts",
             "test/timeout.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -324,7 +324,7 @@
           "line": 815,
           "truth_files": null,
           "reported_files": null,
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -358,7 +358,7 @@
             "test/response-parse.ts",
             "test/timings.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -376,7 +376,7 @@
           "extra_files": [
             "source/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -390,7 +390,7 @@
           "reported_files": [
             "source/core/options.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -444,7 +444,7 @@
             "test/types/events.ts",
             "test/unix-socket.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -463,7 +463,7 @@
             "source/core/index.ts",
             "source/core/response.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -477,7 +477,7 @@
           "reported_files": [
             "source/as-promise/types.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -491,7 +491,7 @@
           "reported_files": [
             "source/core/utils/http2-client.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -505,7 +505,7 @@
           "reported_files": [
             "source/core/utils/dns-cache.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -519,7 +519,7 @@
           "reported_files": [
             "source/core/utils/http2-client.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -533,7 +533,7 @@
           "reported_files": [
             "source/core/options.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -561,7 +561,7 @@
           "extra_files": [
             "source/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -575,7 +575,7 @@
           "reported_files": [
             "source/core/options.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -589,7 +589,7 @@
           "reported_files": [
             "source/core/utils/dns-cache.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -603,7 +603,7 @@
           "reported_files": [
             "source/core/utils/http2-client.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -617,7 +617,7 @@
           "reported_files": [
             "source/core/options.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -631,7 +631,7 @@
           "reported_files": [
             "benchmark/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -653,7 +653,7 @@
           "extra_files": [
             "source/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -671,7 +671,7 @@
           "extra_files": [
             "source/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -710,7 +710,7 @@
             "test/response-parse.ts",
             "test/stream.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -724,7 +724,7 @@
           "reported_files": [
             "source/core/utils/dns-cache.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -744,7 +744,7 @@
           "extra_files": [
             "source/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -758,7 +758,7 @@
           "reported_files": [
             "source/core/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -808,7 +808,7 @@
           "extra_files": [
             "source/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -826,7 +826,7 @@
           "extra_files": [
             "source/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -840,7 +840,7 @@
           "reported_files": [
             "source/core/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -854,7 +854,7 @@
           "reported_files": [
             "source/core/utils/http2-client.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -874,7 +874,7 @@
           "extra_files": [
             "source/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -888,7 +888,7 @@
           "reported_files": [
             "source/core/utils/http2-client.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -905,7 +905,7 @@
             "source/core/index.ts",
             "test/weakable-map.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -919,7 +919,7 @@
           "reported_files": [
             "source/core/options.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -933,7 +933,7 @@
           "reported_files": [
             "source/core/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -967,7 +967,7 @@
             "test/timeout.ts",
             "test/types/extend.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -987,7 +987,7 @@
           "extra_files": [
             "source/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1001,7 +1001,7 @@
           "reported_files": [
             "source/core/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1023,7 +1023,7 @@
           "extra_files": [
             "source/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1038,7 +1038,7 @@
           "extra_files": [
             "source/core/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1052,7 +1052,7 @@
           "reported_files": [
             "source/core/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1066,7 +1066,7 @@
           "reported_files": [
             "source/core/utils/http2-client.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1088,7 +1088,7 @@
           "extra_files": [
             "source/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1102,7 +1102,7 @@
           "reported_files": [
             "source/core/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1116,7 +1116,7 @@
           "reported_files": [
             "source/core/utils/http2-client.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1134,7 +1134,7 @@
           "extra_files": [
             "source/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1148,7 +1148,7 @@
           "reported_files": [
             "source/core/options.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1168,7 +1168,7 @@
             "test/normalize-arguments.ts",
             "test/retry.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1186,7 +1186,7 @@
           "extra_files": [
             "source/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1200,7 +1200,7 @@
           "reported_files": [
             "source/core/utils/http2-client.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1226,7 +1226,7 @@
           "extra_files": [
             "source/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1240,7 +1240,7 @@
           "reported_files": [
             "source/core/options.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1254,7 +1254,7 @@
           "reported_files": [
             "source/core/options.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1268,7 +1268,7 @@
           "reported_files": [
             "source/core/utils/http2-client.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1282,7 +1282,7 @@
           "reported_files": [
             "source/core/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1302,7 +1302,7 @@
           "extra_files": [
             "source/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1328,7 +1328,7 @@
           "extra_files": [
             "source/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1342,7 +1342,7 @@
           "reported_files": [
             "source/core/options.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1354,12 +1354,11 @@
             "source/core/options.ts",
             "test/create.ts"
           ],
-          "reported_files": null,
-          "missed_files": [
+          "reported_files": [
             "source/core/options.ts",
             "test/create.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1399,7 +1398,7 @@
           "extra_files": [
             "test/helpers/with-server.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1417,7 +1416,7 @@
           "extra_files": [
             "source/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1431,7 +1430,7 @@
           "reported_files": [
             "source/core/options.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1445,7 +1444,7 @@
           "reported_files": [
             "source/core/utils/http2-client.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1459,7 +1458,7 @@
           "reported_files": [
             "source/core/options.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1473,7 +1472,7 @@
           "reported_files": [
             "source/core/utils/http2-client.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1523,7 +1522,7 @@
             "test/timeout.ts",
             "test/types/extend.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1541,7 +1540,7 @@
           "extra_files": [
             "source/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1561,7 +1560,7 @@
           "extra_files": [
             "source/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1581,7 +1580,7 @@
           "extra_files": [
             "source/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1595,7 +1594,7 @@
           "reported_files": [
             "source/core/options.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1605,7 +1604,7 @@
           "line": 1222,
           "truth_files": null,
           "reported_files": null,
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1619,7 +1618,7 @@
           "reported_files": [
             "source/core/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1633,7 +1632,7 @@
           "reported_files": [
             "source/core/standard-schema.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1653,7 +1652,7 @@
             "source/core/index.ts",
             "test/timer-utils.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1679,7 +1678,7 @@
           "extra_files": [
             "source/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1697,7 +1696,7 @@
           "extra_files": [
             "source/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1707,7 +1706,7 @@
           "line": 658,
           "truth_files": null,
           "reported_files": null,
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1721,7 +1720,7 @@
           "reported_files": [
             "source/core/utils/http2-client.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1735,7 +1734,7 @@
           "reported_files": [
             "source/core/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1749,7 +1748,7 @@
           "reported_files": [
             "source/core/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1771,7 +1770,7 @@
             "source/core/utils/http2-client.ts",
             "test/timed-out.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1785,7 +1784,7 @@
           "reported_files": [
             "source/core/utils/is-unix-socket-url.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1795,7 +1794,7 @@
           "line": 1431,
           "truth_files": null,
           "reported_files": null,
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1809,7 +1808,7 @@
           "reported_files": [
             "source/core/utils/http2-client.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1827,7 +1826,7 @@
           "extra_files": [
             "source/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1841,7 +1840,7 @@
           "reported_files": [
             "source/core/utils/dns-cache.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1859,7 +1858,7 @@
             "test/create.ts",
             "test/https.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1877,7 +1876,7 @@
           "extra_files": [
             "source/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1888,11 +1887,10 @@
           "truth_files": [
             "source/core/options.ts"
           ],
-          "reported_files": null,
-          "missed_files": [
+          "reported_files": [
             "source/core/options.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1908,7 +1906,7 @@
             "source/core/options.ts",
             "source/create.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1926,7 +1924,7 @@
           "extra_files": [
             "source/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1950,7 +1948,7 @@
           "extra_files": [
             "source/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -1984,7 +1982,7 @@
           "extra_files": [
             "source/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -2003,7 +2001,7 @@
             "source/index.ts",
             "test/parse-link-header.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -2018,7 +2016,7 @@
           "extra_files": [
             "source/core/options.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -2028,7 +2026,7 @@
           "line": 171,
           "truth_files": null,
           "reported_files": null,
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -2042,7 +2040,7 @@
           "reported_files": [
             "source/core/timed-out.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -2056,7 +2054,7 @@
           "reported_files": [
             "source/core/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -2083,7 +2081,7 @@
             "test/dns-cache.ts",
             "test/timings.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "got",
@@ -2098,7 +2096,7 @@
           "extra_files": [
             "source/core/index.ts"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         }
       ]
     },
@@ -2109,8 +2107,7 @@
       "declarations_eligible": 4211,
       "not_sampled": {
         "kind not sampled": 195,
-        "name not found in declaring position": 422,
-        "outline refused": 1
+        "name not found in declaring position": 422
       },
       "declarations_measured": 100,
       "with_dependents": 87,
@@ -2181,8 +2178,8 @@
         "symbols": 13
       },
       "completeness_verdicts": {
-        "COMPLETE": 97,
-        "LOWER_BOUND": 3
+        "COMPLETE": 93,
+        "LOWER_BOUND": 7
       },
       "complete_verdicts_that_missed_a_non_test_file": 0,
       "by_kind": [
@@ -2414,7 +2411,7 @@
           "reported_files": [
             "crates/ignore/src/walk.rs"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "ripgrep",
@@ -2438,7 +2435,7 @@
           "line": 14,
           "truth_files": null,
           "reported_files": null,
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "ripgrep",
@@ -2614,7 +2611,7 @@
           "reported_files": [
             "crates/regex/src/ast.rs"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "ripgrep",
@@ -2688,7 +2685,7 @@
           "reported_files": [
             "crates/globset/src/lib.rs"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "ripgrep",
@@ -2810,7 +2807,7 @@
           "reported_files": [
             "crates/regex/src/literal.rs"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "ripgrep",
@@ -3260,7 +3257,7 @@
           "reported_files": [
             "crates/ignore/src/walk.rs"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "ripgrep",
@@ -3610,7 +3607,7 @@
             "crates/searcher/src/searcher/mod.rs",
             "crates/searcher/src/testutil.rs"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "ripgrep",
@@ -3810,7 +3807,7 @@
             "crates/core/flags/hiargs.rs",
             "crates/core/flags/lowargs.rs"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "ripgrep",
@@ -7467,5 +7464,5 @@
     "Java is checked by running `javac` over the main and the test sources at once, with the classpath Maven resolves, so one failing file does not hide another; Kivgraph reads `scip-java`, which drives the same compiler through the build. A Java or C# constructor is written with its type's name, so renaming the type breaks the constructors' own declarations: those errors are left out, as for Dart.",
     "C# is checked with `dotnet build` on the solution, and MSBuild does not compile a project whose reference failed: a rename in the library leaves the test project unbuilt, so its files are missing from the truth. The C# truth is a lower bound and so is its precision, as for a Rust workspace. Kivgraph reads `scip-dotnet`, which drives Roslyn, the same compiler."
   ],
-  "wall_seconds": 486.031160833
+  "wall_seconds": 520.5875145
 }

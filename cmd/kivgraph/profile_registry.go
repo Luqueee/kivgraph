@@ -50,3 +50,45 @@ func writeProfileDiagnostics(stdout io.Writer, profile string, registry *workspa
 			repository.ID, worktree.ID, worktree.Path)
 	}
 }
+
+// repositoriesThatRegister splits a registry into the entries that can be
+// registered on their own and a line for each one that cannot.
+//
+// A directory that was deleted, one that is not a Git checkout or a path with
+// a symlink in it failed the registry, and with it the pass: every other
+// repository lost its graph to an entry that had nothing to do with it. Such
+// an entry is left out and named. What involves two entries -- a duplicate
+// name or path -- is not decided here and still fails.
+func repositoriesThatRegister(ctx context.Context, source config.RepositoriesFile) (kept []config.Repository, unregistered []string) {
+	for _, repository := range source.Repositories {
+		alone := config.RepositoriesFile{Version: source.Version, Repositories: []config.Repository{repository}}
+		if _, err := workspace.NewRegistry(ctx, alone); err != nil {
+			unregistered = append(unregistered, fmt.Sprintf("%s: %v", repository.Name, err))
+			continue
+		}
+		kept = append(kept, repository)
+	}
+	return kept, unregistered
+}
+
+// registryOfWhatRegisters is registryForProfile for a caller that goes on
+// without the entries that cannot be registered: a pass, and the watcher that
+// schedules one. It answers a line for each entry left out. A registry where
+// nothing registers, or that fails for a reason no single entry explains, is
+// the error it always was.
+func registryOfWhatRegisters(ctx context.Context, loaded config.Loaded) (*workspace.Registry, []string, error) {
+	registry, err := registryForProfile(ctx, loaded)
+	if err == nil {
+		return registry, nil, nil
+	}
+	kept, unregistered := repositoriesThatRegister(ctx, loaded.Repositories)
+	if len(unregistered) == 0 || len(kept) == 0 {
+		return nil, nil, err
+	}
+	loaded.Repositories.Repositories = kept
+	registry, err = registryForProfile(ctx, loaded)
+	if err != nil {
+		return nil, nil, err
+	}
+	return registry, unregistered, nil
+}

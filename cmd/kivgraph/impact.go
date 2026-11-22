@@ -15,6 +15,7 @@ import (
 	"github.com/Luqueee/kivgraph/internal/freshness"
 	"github.com/Luqueee/kivgraph/internal/gitdiff"
 	"github.com/Luqueee/kivgraph/internal/mcp/tools"
+	"github.com/Luqueee/kivgraph/internal/watcher"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
@@ -157,10 +158,21 @@ func computeImpact(ctx context.Context, options impactOptions, stderr io.Writer)
 		writeWarning(stderr, "impact: the graph's freshness is %s (%s)", state.State, state.Detail)
 	}
 
-	report, err := tools.Impact(ctx, snapshot, tools.ImpactOptions{
+	impactOptions := tools.ImpactOptions{
 		RepositoryRoot: root, Changes: diff.Changes,
 		Depth: options.Depth, MaxNodes: options.MaxNodes, Limit: options.Limit,
-	})
+	}
+	report, err := tools.Impact(ctx, snapshot, impactOptions)
+	if errors.Is(err, tools.ErrRepositoryNotIndexed) {
+		// A linked worktree is the same repository at another path. The graph
+		// was built from the checkout that is registered, so it is used -- and
+		// said, because the two trees may not hold the same lines.
+		if registered, found := registeredCheckoutOf(loaded, root); found {
+			writeWarning(stderr, "impact: this is a linked worktree; the graph was built from %s, and symbols may be misplaced where the two differ", registered)
+			impactOptions.RepositoryRoot = registered
+			report, err = tools.Impact(ctx, snapshot, impactOptions)
+		}
+	}
 	if err != nil {
 		if errors.Is(err, tools.ErrRepositoryNotIndexed) {
 			return impactResult{}, fmt.Errorf("%w; register it with \"kivgraph index\" or use --config", err)
@@ -232,4 +244,24 @@ func testMark(test bool) string {
 		return " (test)"
 	}
 	return ""
+}
+
+// registeredCheckoutOf answers the registered repository that shares a Git
+// common directory with root, which is what makes two paths one repository. It
+// declines when two registered entries do: nothing says which one is meant.
+func registeredCheckoutOf(loaded config.Loaded, root string) (string, bool) {
+	common, err := watcher.GitCommonDirectory(root)
+	if err != nil {
+		return "", false
+	}
+	matched, matches := "", 0
+	for _, repository := range loaded.Repositories.Repositories {
+		registered, err := watcher.GitCommonDirectory(repository.Path)
+		if err != nil || registered != common {
+			continue
+		}
+		matched = repository.Path
+		matches++
+	}
+	return matched, matches == 1
 }
