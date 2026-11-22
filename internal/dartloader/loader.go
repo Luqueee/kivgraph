@@ -1575,7 +1575,7 @@ func dartLibraryOf(path string) (string, bool) {
 	if owner == "" || below == "" {
 		return "", false
 	}
-	if owner == "dart-sdk" {
+	if owner == "dart-sdk" || holdsDartSDK(path[:at]) {
 		library, _, _ := strings.Cut(below, "/")
 		return "dart:" + strings.TrimSuffix(library, ".dart"), true
 	}
@@ -1584,6 +1584,18 @@ func dartLibraryOf(path string) (string, bool) {
 		owner = owner[:dash]
 	}
 	return "package:" + owner, true
+}
+
+// holdsDartSDK reports whether a directory is an SDK that is not called
+// `dart-sdk`: an installer unpacks one under the name of its architecture, and
+// `dart:core` was named `package:x64`. An SDK declares `dart:core` and is no
+// package.
+func holdsDartSDK(root string) bool {
+	if _, err := os.Stat(filepath.Join(filepath.FromSlash(root), "pubspec.yaml")); err == nil {
+		return false
+	}
+	_, err := os.Stat(filepath.Join(filepath.FromSlash(root), "lib", "core", "core.dart"))
+	return err == nil
 }
 
 func providerForPath(path string, providers []workspace.Repository) (workspace.Repository, bool) {

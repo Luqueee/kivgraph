@@ -809,6 +809,34 @@ func TestDartLibraryOfNamesADependencyTheWayAnImportDoes(t *testing.T) {
 	}
 }
 
+// An SDK is not always in a directory called `dart-sdk`: a hosted runner
+// unpacks it as `<version>/x64`. It is told by what it holds, and a package
+// that happens to have a `lib/core` is still a package.
+func TestDartLibraryOfNamesAnSDKByWhatItHolds(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{
+		"x64/lib/core/core.dart", "x64/lib/core/string.dart",
+		"pkg/lib/core/core.dart", "pkg/pubspec.yaml",
+	} {
+		path := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for name, want := range map[string]string{
+		"x64/lib/core/string.dart":  "dart:core",
+		"x64/lib/async/future.dart": "dart:async",
+		"pkg/lib/core/core.dart":    "package:pkg",
+	} {
+		if got, _ := dartLibraryOf(filepath.Join(root, filepath.FromSlash(name))); got != want {
+			t.Errorf("dartLibraryOf(%s) = %q, want %q", name, got, want)
+		}
+	}
+}
+
 // A dependency nobody registered is declared once for each declaration that
 // uses it and each kind of thing used, not once for each use, and by the name
 // an import gives it and not by a path of this machine.
