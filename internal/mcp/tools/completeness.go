@@ -89,7 +89,7 @@ func completenessFor(
 	repository hotsnapshot.RepositoryID,
 ) (Completeness, int, error) {
 	naming, namingTotal := snapshot.UnresolvedNamingSymbol(symbolName, language, MaximumBlindSpots)
-	scopes, scopeTotal := snapshot.UnresolvedScopeGroups(repository, MaximumBlindSpots)
+	scopes, scopeTotal := snapshot.UnresolvedScopeGroups(repository, language, MaximumBlindSpots)
 	if namingTotal == 0 && scopeTotal == 0 {
 		return Completeness{Verdict: VerdictComplete}, 0, nil
 	}
@@ -146,7 +146,7 @@ func completenessOutwardFor(
 	repository hotsnapshot.RepositoryID,
 ) (Completeness, int, error) {
 	sourced, sourcedTotal := snapshot.UnresolvedFromSymbol(symbol, MaximumBlindSpots)
-	scopes, scopeTotal := snapshot.UnresolvedScopeGroups(repository, MaximumBlindSpots)
+	scopes, scopeTotal := snapshot.UnresolvedScopeGroups(repository, symbolLanguage(snapshot, symbol), MaximumBlindSpots)
 	if sourcedTotal == 0 && scopeTotal == 0 {
 		return Completeness{Verdict: VerdictComplete}, 0, nil
 	}
@@ -196,11 +196,15 @@ func completenessOutwardFor(
 // It reports no coverage counter. Every failure it finds is a scope, and a
 // scope is not one of the four disjoint things `coverage` counts about an
 // answer; a reader learns of it from InvisibleScopes.
+//
+// language is the language of the one file the answer is about, and empty for
+// a directory: what is missing under a directory can be in any language.
 func completenessScopes(
 	snapshot *hotsnapshot.GraphSnapshot,
 	repository hotsnapshot.RepositoryID,
+	language string,
 ) (Completeness, error) {
-	scopes, scopeTotal := snapshot.UnresolvedScopeGroups(repository, MaximumBlindSpots)
+	scopes, scopeTotal := snapshot.UnresolvedScopeGroups(repository, language, MaximumBlindSpots)
 	if scopeTotal == 0 {
 		return Completeness{Verdict: VerdictComplete}, nil
 	}

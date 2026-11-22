@@ -45,6 +45,16 @@ func (snapshot *GraphSnapshot) UnresolvedNamingSymbol(name, language string, lim
 			if recorded, known := snapshot.strings.String(reference.Language); known && recorded != "" && recorded != language {
 				continue
 			}
+			// The question is about a declaration the graph holds, so its
+			// crate has a provider. A failure whose crate has none --
+			// `std::path::impl::PathBuf::new` -- was not looking for it,
+			// whatever the last name of its path is. Only Rust: its row is
+			// the path the analyzer resolved. A Go or TypeScript row is the
+			// member a checker could not resolve, on a value a dependency
+			// returned, and that value may be of a type this graph declares.
+			if reason, _ := snapshot.strings.String(reference.Reason); reason == "CRATE_PROVIDER_NOT_FOUND" {
+				continue
+			}
 		}
 		total++
 		if len(matched) < limit {
@@ -54,15 +64,36 @@ func (snapshot *GraphSnapshot) UnresolvedNamingSymbol(name, language string, lim
 	return matched, total
 }
 
+// providerNotFound are the reasons a loader records, as a scope, for a crate,
+// a package or a module no registered repository provides: a dependency. What
+// such a scope says was not read is the dependency's own code, and that is not
+// where a declaration this graph holds is used. A use of one on a value the
+// dependency returned is a failure with a file, and those still bound.
+var providerNotFound = map[string]bool{
+	"CRATE_PROVIDER_NOT_FOUND":   true,
+	"PACKAGE_PROVIDER_NOT_FOUND": true,
+	"MODULE_PROVIDER_NOT_FOUND":  true,
+}
+
 // requestedNames reports whether a requested symbol concerns name. The
 // resolver stores the selector it tried, which for a member access is
 // `Owner.Member`, so an exact match and a trailing member both count. A
 // substring match would not: `Closer` is not `Close`.
+//
+// Rust records the path it tried, `module::Name`. Read with the dot alone, a
+// failed use of anything below the root of a crate asked for no name, and the
+// answer about it said COMPLETE.
 func requestedNames(requested, name string) bool {
 	if requested == name {
 		return true
 	}
-	return strings.HasSuffix(requested, "."+name)
+	if strings.HasSuffix(requested, "::impl::"+name) {
+		// The `impl` block of the type, which SCIP mentions for `-> Self` and
+		// never defines: a type naming itself inside its own block, not a use
+		// of it somebody else made. Counting it bounded every type with one.
+		return false
+	}
+	return strings.HasSuffix(requested, "."+name) || strings.HasSuffix(requested, "::"+name)
 }
 
 // UnresolvedFromSymbol returns the failures the resolver recorded while reading
@@ -105,9 +136,15 @@ type UnresolvedScopeGroup struct {
 // rather than one reference, one row per distinct scope. Passing
 // InvalidRepositoryID returns them for every repository.
 //
+// language keeps the scopes recorded in that language or in none, and empty
+// keeps them all: a package nobody registered in one language is not where a
+// use of a declaration of another was lost. Without it every answer in a
+// repository of two languages was a lower bound for good -- a Rust
+// declaration, because of npm packages.
+//
 // total is the number of distinct scopes before limit, so a cut list still
 // reports the size of the problem instead of the size of the page.
-func (snapshot *GraphSnapshot) UnresolvedScopeGroups(repository RepositoryID, limit int) ([]UnresolvedScopeGroup, int) {
+func (snapshot *GraphSnapshot) UnresolvedScopeGroups(repository RepositoryID, language string, limit int) ([]UnresolvedScopeGroup, int) {
 	if snapshot == nil || limit < 0 {
 		return nil, 0
 	}
@@ -129,6 +166,17 @@ func (snapshot *GraphSnapshot) UnresolvedScopeGroups(repository RepositoryID, li
 		}
 		if repository != InvalidRepositoryID && reference.Repository != repository {
 			continue
+		}
+		if language != "" {
+			if recorded, known := snapshot.strings.String(reference.Language); known && recorded != "" && recorded != language {
+				continue
+			}
+			// A dependency nobody registered bounded every answer in its
+			// language: `vitest`, imported once, made a lower bound of each of
+			// a repository's answers. See providerNotFound.
+			if reason, _ := snapshot.strings.String(reference.Reason); providerNotFound[reason] {
+				continue
+			}
 		}
 		key := identity{
 			repository:       reference.Repository,

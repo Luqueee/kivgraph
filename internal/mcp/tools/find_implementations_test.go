@@ -97,9 +97,40 @@ func implementationFilterSnapshot(t *testing.T) *hotsnapshot.SnapshotStore {
 		},
 		Edges: []hotsnapshot.EdgeRow{edge("declared", facts.TypeScriptImplementationDeclared), edge("structural", facts.TypeScriptImplementationStructural)},
 	}
+	// A class that extends one of the implementations, and names nothing else.
+	rows.Files = append(rows.Files, hotsnapshot.FileRow{Key: "file-sub", RepositoryKey: "repository:repo-a", PackageKey: "package-a", Path: "cached.ts", Language: "typescript"})
+	rows.Symbols = append(rows.Symbols, hotsnapshot.SymbolRow{StableKey: "sub", CanonicalIdentity: "ts:Cached", FileKey: "file-sub", Language: "typescript", Name: "Cached", QualifiedName: "Cached", Kind: "class", StartLine: 1, EndLine: 3})
+	extends := edge("sub", facts.TypeScriptChecker)
+	extends.TargetKey, extends.Kind, extends.EvidenceTargetFileKey = "declared", mustFactsEdgeCode(t, facts.Extends), "file-declared"
+	rows.Edges = append(rows.Edges, extends)
 	snapshot, err := hotsnapshot.BuildGraphSnapshot(rows, 200, time.Unix(1_700_000_200, 0).UTC(), 5)
 	if err != nil {
 		t.Fatalf("BuildGraphSnapshot() error = %v", err)
 	}
 	return hotsnapshot.NewSnapshotStore(snapshot)
+}
+
+// Asked who implements a class, the answer left out every class that extends
+// it: only IMPLEMENTS and OVERRIDES were read.
+func TestImplementationsOfAClassAreItsSubclasses(t *testing.T) {
+	store := implementationFilterSnapshot(t)
+	for detection, want := range map[string]int{"": 1, "declared": 1, "structural": 0} {
+		_, page, err := findImplementations(context.Background(), nil, FindImplementationsInput{StableKey: "declared", Detection: detection}, store)
+		if err != nil || page.Total != want {
+			t.Fatalf("detection %q: total = %d, %v, want %d", detection, page.Total, err, want)
+		}
+		if want == 1 {
+			row := page.Results.Implementations[0]
+			if row.StableKey != "sub" || row.EdgeKind != "EXTENDS" || row.Detection != "declared" {
+				t.Errorf("detection %q: row = %#v, want the subclass, declared", detection, row)
+			}
+		}
+	}
+	// A class nothing extends has none, and the interface keeps its two.
+	if _, page, err := findImplementations(context.Background(), nil, FindImplementationsInput{StableKey: "sub"}, store); err != nil || page.Total != 0 {
+		t.Errorf("a leaf class: %d, %v", page.Total, err)
+	}
+	if _, page, err := findImplementations(context.Background(), nil, FindImplementationsInput{StableKey: "contract"}, store); err != nil || page.Total != 2 {
+		t.Errorf("the interface: %d, %v", page.Total, err)
+	}
 }

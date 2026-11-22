@@ -132,6 +132,16 @@ func RegisterIndexProjectJobs(
 				return nil, StartIndexProjectResult{}, err
 			}
 		}
+		for index, project := range batch {
+			if checkErr := indexing.CheckProject(project); checkErr != nil {
+				// The words index_project answers with, now instead of
+				// one poll later.
+				err := WrapToolError(CodeIndexingFailed,
+					fmt.Sprintf("project indexing failed: project %d: %v", index+1, checkErr), checkErr)
+				observeCall(nil, callObserver, startIndexProjectToolName, request, started, err)
+				return nil, StartIndexProjectResult{}, err
+			}
+		}
 		operation, err := jobs.start(profile, batch)
 		observeCall(nil, callObserver, startIndexProjectToolName, request, started, err)
 		if err != nil {

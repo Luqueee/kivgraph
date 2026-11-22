@@ -18,7 +18,7 @@ rows. Detection accepts `declared` or `structural`; omitting it includes every
 supported typed mechanism. `paths` contains repository-relative files or
 directories. `profile` selects one or more independently indexed graphs.
 
-It reads the typed `IMPLEMENTS` and `OVERRIDES` relations of the selected
+It reads the typed `IMPLEMENTS`, `EXTENDS` and `OVERRIDES` relations of the selected
 generation, incoming to the subject.
 
 ## Arguments

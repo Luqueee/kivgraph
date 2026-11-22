@@ -24,7 +24,8 @@ func (snapshot *GraphSnapshot) RepositoryByName(name string) (RepositoryID, bool
 // holding a path does not know, and should not have to say, which it has.
 //
 // A directory match requires the separator, so `internal/facts` never matches
-// `internal/factsheet`.
+// `internal/factsheet`. The repository's own directory is `.`: every stored
+// path is relative to it, so there was no way to ask what a repository holds.
 func (snapshot *GraphSnapshot) FilesUnder(repository RepositoryID, path string) []FileID {
 	if snapshot == nil || path == "" {
 		return nil
@@ -36,6 +37,9 @@ func (snapshot *GraphSnapshot) FilesUnder(repository RepositoryID, path string) 
 		return []FileID{id}
 	}
 	prefix := strings.TrimSuffix(path, "/") + "/"
+	if path == "." {
+		prefix = ""
+	}
 	matched := make([]FileID, 0)
 	for index, file := range snapshot.files {
 		if file.Repository != repository {
@@ -47,6 +51,27 @@ func (snapshot *GraphSnapshot) FilesUnder(repository RepositoryID, path string) 
 		}
 	}
 	return matched
+}
+
+// FilesHoldingSymbols returns, in order, the files at least one symbol is
+// declared in.
+func (snapshot *GraphSnapshot) FilesHoldingSymbols() []FileID {
+	if snapshot == nil {
+		return nil
+	}
+	holds := make([]bool, len(snapshot.files))
+	for _, symbol := range snapshot.symbols {
+		if uint64(symbol.File) < uint64(len(holds)) {
+			holds[symbol.File] = true
+		}
+	}
+	files := make([]FileID, 0, len(holds))
+	for index, held := range holds {
+		if held {
+			files = append(files, FileID(index))
+		}
+	}
+	return files
 }
 
 // internedPath resolves a path to its interned identifier, or to the invalid

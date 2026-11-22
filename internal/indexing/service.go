@@ -255,7 +255,7 @@ func (service *Service) IndexProjects(
 		service.loaded.Repositories = candidate
 	}
 
-	document, err := service.runIndex(ctx, progress)
+	document, err := service.runIndex(ctx, progress, false)
 	if err != nil {
 		if !registered {
 			return ProjectResult{}, err
@@ -324,7 +324,7 @@ func (service *Service) Reindex(ctx context.Context) error {
 		return nil
 	}
 
-	document, err := service.runIndex(ctx, nil)
+	document, err := service.runIndex(ctx, nil, true)
 	if err != nil {
 		return fmt.Errorf("reindex registered repositories: %w", err)
 	}
@@ -347,6 +347,7 @@ func (service *Service) Reindex(ctx context.Context) error {
 func (service *Service) runIndex(
 	ctx context.Context,
 	progress func(ProjectProgress),
+	unattended bool,
 ) (FullDocument, error) {
 	run := service.index
 	if run == nil {
@@ -359,6 +360,7 @@ func (service *Service) runIndex(
 		Profile:          service.loaded.Profile,
 		WorkingDirectory: service.workingDirectory,
 		Progress:         progress,
+		Unattended:       unattended,
 		// The child logs what a loader reported without failing the pass, and
 		// this is where a server's own records already go.
 		Log: os.Stderr,
@@ -488,6 +490,7 @@ func upsertRepository(registry *config.RepositoriesFile, entry config.Repository
 		// file survive it. Dropping them would silently widen the index
 		// to directories the operator excluded on purpose.
 		entry.Exclusions = append([]string(nil), existing.Exclusions...)
+		entry.IncludeGitIgnored = existing.IncludeGitIgnored
 		registry.Repositories[index] = entry
 		return true, nil
 	}
@@ -508,6 +511,24 @@ func sameRepositoryEntry(existing, entry config.Repository) bool {
 		}
 	}
 	return true
+}
+
+var errRelativeProjectPath = errors.New("project path is relative but working directory is unavailable")
+
+// CheckProject answers what a pass would refuse about one project before it
+// reads anything: a name that is no identifier, a path that is not a
+// directory, a language nothing loads.
+//
+// It is for a caller that starts the pass and answers before it ends. Without
+// it `start_index_project` handed an operation to a project `index_project`
+// refuses, and the refusal was one poll away. A relative path is the one thing
+// it cannot judge -- the directory it is relative to is the pass's -- and so
+// are a registry's own rules, which need the registry.
+func CheckProject(project Project) error {
+	if _, err := normalizeProject(project, ""); err != nil && !errors.Is(err, errRelativeProjectPath) {
+		return err
+	}
+	return nil
 }
 
 func normalizeProject(project Project, workingDirectory string) (Project, error) {
@@ -531,7 +552,7 @@ func normalizeProject(project Project, workingDirectory string) (Project, error)
 	}
 	if !filepath.IsAbs(project.Path) {
 		if workingDirectory == "" {
-			return Project{}, errors.New("project path is relative but working directory is unavailable")
+			return Project{}, errRelativeProjectPath
 		}
 		project.Path = filepath.Join(workingDirectory, project.Path)
 	}

@@ -33,7 +33,7 @@ const (
 type GetFileOutlineInput struct {
 	Profile    []string `json:"profile,omitempty" jsonschema:"Profiles; omit for default or use * alone for all."`
 	Repository string   `json:"repository" jsonschema:"The repository that holds the path, as list_repositories names it."`
-	Path       string   `json:"path" jsonschema:"A repository-relative file, or a directory whose files are all wanted."`
+	Path       string   `json:"path" jsonschema:"A repository-relative file, or a directory for all its files (. is the root)."`
 	Kind       string   `json:"kind,omitempty" jsonschema:"Filter kind, e.g. function, struct or interface."`
 	// IncludeMembers adds struct fields, properties and enum members. They
 	// are off by default because they are not declarations a reader chooses
@@ -670,6 +670,8 @@ func getFileOutline(
 		outline.Files[index].Symbols = append(outline.Files[index].Symbols, row)
 		kept++
 	}
+	// The language of the file, when the path names one file.
+	fileLanguage := ""
 	for _, file := range files {
 		record, found := snapshot.File(file)
 		if !found {
@@ -677,6 +679,9 @@ func getFileOutline(
 		}
 		if language, ok := snapshot.Strings().String(record.Language); ok && language != "" {
 			languages[language] = struct{}{}
+			if recorded, ok := snapshot.Strings().String(record.Path); ok && len(files) == 1 && recorded == path {
+				fileLanguage = language
+			}
 		}
 	}
 	outline.Packages = sortedKeys(packages)
@@ -700,7 +705,7 @@ func getFileOutline(
 	// and everything in the source, so the verdict is spent where the answer
 	// could be mistaken for that -- empty or partial -- and on every lower
 	// bound. A page of declarations claims no absence.
-	completeness, err := completenessScopes(snapshot, repositoryID)
+	completeness, err := completenessScopes(snapshot, repositoryID, fileLanguage)
 	if err != nil {
 		return nil, Response[FileOutline]{}, WrapToolError(
 			CodeSnapshotUnavailable, "active snapshot contains invalid unresolved metadata", err)
@@ -809,7 +814,14 @@ func normalizeOutlinePath(value string) (string, error) {
 			return "", NewToolError(CodeInvalidArgument, "path must not contain a .. segment")
 		}
 	}
-	return strings.TrimSuffix(path, "/"), nil
+	// `.` is the repository's own directory, and `./x` is `x`.
+	for strings.HasPrefix(path, "./") {
+		path = strings.TrimPrefix(path, "./")
+	}
+	if path = strings.TrimSuffix(path, "/"); path == "" {
+		path = "."
+	}
+	return path, nil
 }
 
 // sortedKeys returns the set's members in a stable order: two calls on the

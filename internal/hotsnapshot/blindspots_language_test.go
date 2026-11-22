@@ -25,6 +25,10 @@ func TestUnresolvedNamingSymbolReadsTheLanguageOfTheFailure(t *testing.T) {
 			row("rust-member", "rust", "process.Command"),
 			row("unknown", "", "Command"),
 			row("go-other", "go", "Commander"),
+			// A crate nobody provides is not where a declaration of this
+			// graph is used; it still bounds a search by name.
+			{Key: "rust-std", RepositoryKey: "repo", FileKey: "file", Language: "rust", RequestedPackage: "std",
+				RequestedSymbol: "process::Command", Reason: "CRATE_PROVIDER_NOT_FOUND", StartLine: 1},
 			// A scope failure names no file and is not a failure about a name.
 			{Key: "scope", RepositoryKey: "repo", Language: "go", RequestedPackage: "example.com/other", RequestedSymbol: "Command", Reason: "PACKAGE_NOT_BUILDABLE"},
 		},
@@ -33,7 +37,7 @@ func TestUnresolvedNamingSymbolReadsTheLanguageOfTheFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	for language, want := range map[string]int{
-		"":       5, // any: every failure that asked for the name
+		"":       6, // any: every failure that asked for the name
 		"go":     3, // its own two, and the one that recorded no language
 		"rust":   3,
 		"python": 1, // only the one that cannot be ruled out
@@ -53,5 +57,29 @@ func TestUnresolvedNamingSymbolReadsTheLanguageOfTheFailure(t *testing.T) {
 	}
 	if matched, total := snapshot.UnresolvedNamingSymbol("Command", "go", -1); total != 0 || matched != nil {
 		t.Errorf("a negative limit matched %d failures", total)
+	}
+}
+
+// The shapes a failure records the name in: bare, after a dot and, for Rust,
+// after a path separator.
+func TestRequestedNames(t *testing.T) {
+	for requested, want := range map[string]bool{
+		"Close":                  true,
+		"io.Close":               true,
+		"replay::Close":          true,
+		"a::impl::Window::Close": true,
+		// The impl block of a type named Close, not a use of it.
+		"a::impl::Close":   false,
+		"Closer":           false,
+		"io.Closer":        false,
+		"replay::Closer":   false,
+		"replay::NotClose": false,
+		"Close::other":     false,
+		"replay:Close":     false,
+		"":                 false,
+	} {
+		if got := requestedNames(requested, "Close"); got != want {
+			t.Errorf("requestedNames(%q, Close) = %t, want %t", requested, got, want)
+		}
 	}
 }

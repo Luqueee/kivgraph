@@ -44,7 +44,7 @@ func TestUnresolvedScopeGroupsCountsScopesAndKeepsACutListHonest(t *testing.T) {
 		t.Fatalf("repository alpha is missing from the snapshot")
 	}
 
-	groups, total := snapshot.UnresolvedScopeGroups(repository, 10)
+	groups, total := snapshot.UnresolvedScopeGroups(repository, "", 10)
 	if len(groups) != 4 || total != 4 {
 		t.Fatalf("groups = %d, total = %d, want 4 and 4: twelve failures of four packages", len(groups), total)
 	}
@@ -54,7 +54,7 @@ func TestUnresolvedScopeGroupsCountsScopesAndKeepsACutListHonest(t *testing.T) {
 		}
 	}
 
-	cut, cutTotal := snapshot.UnresolvedScopeGroups(repository, 2)
+	cut, cutTotal := snapshot.UnresolvedScopeGroups(repository, "", 2)
 	if len(cut) != 2 {
 		t.Fatalf("cut groups = %d, want the page size", len(cut))
 	}
@@ -65,5 +65,34 @@ func TestUnresolvedScopeGroupsCountsScopesAndKeepsACutListHonest(t *testing.T) {
 		if group.Occurrences != 3 {
 			t.Fatalf("cut occurrences = %d, want a shown scope to keep its own count", group.Occurrences)
 		}
+	}
+}
+
+// A scope is recorded in the language whose analyzer could not read it, and
+// bounds answers in that language or when it recorded none.
+func TestUnresolvedScopeGroupsReadsTheLanguageOfTheScope(t *testing.T) {
+	rows := scopeRows(2, 1)
+	rows.Unresolved = append(rows.Unresolved,
+		UnresolvedReferenceRow{Key: "ts", RepositoryKey: "repo-a", Language: "typescript",
+			RequestedPackage: "@scope/pkg", Reason: "PACKAGE_PROVIDER_NOT_FOUND"},
+		UnresolvedReferenceRow{Key: "none", RepositoryKey: "repo-a",
+			RequestedPackage: "somewhere", Reason: "REPOSITORY_NOT_LOADED"},
+	)
+	snapshot, err := BuildGraphSnapshot(rows, 9, time.Unix(1_700_000_000, 0).UTC(), 1)
+	if err != nil {
+		t.Fatalf("BuildGraphSnapshot() error = %v", err)
+	}
+	repository, _ := snapshot.RepositoryByName("alpha")
+	// The TypeScript scope is a dependency nobody registered: it bounds a
+	// search by name, and no answer about a declaration, in any language.
+	for language, want := range map[string]int{"": 4, "go": 3, "typescript": 1, "rust": 1} {
+		groups, total := snapshot.UnresolvedScopeGroups(repository, language, 10)
+		if len(groups) != want || total != want {
+			t.Errorf("language %q: %d groups, total %d, want %d", language, len(groups), total, want)
+		}
+	}
+	// The total is of what the language keeps, also when the page is cut.
+	if groups, total := snapshot.UnresolvedScopeGroups(repository, "go", 1); len(groups) != 1 || total != 3 {
+		t.Errorf("cut: %d groups, total %d, want 1 and 3", len(groups), total)
 	}
 }

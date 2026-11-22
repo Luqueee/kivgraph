@@ -125,6 +125,11 @@ type FullOptions struct {
 
 	Progress        func(indexer.ProgressEvent)
 	RebuildProgress func(rebuild.StageName)
+
+	// Unattended says nobody asked for this pass and nobody will read its
+	// report: the watcher started it. Such a pass does not publish a
+	// generation that lost files the active one reads; see lostFiles.
+	Unattended bool
 }
 
 // OptionsFromConfig maps a loaded configuration onto a full index request.
@@ -502,6 +507,8 @@ type Counts struct {
 // FullResult contains the reports needed by CLI and MCP callers without
 // exposing the temporary facts set after the rebuild has completed.
 type FullResult struct {
+	// Lost names what an unattended pass refused to publish without.
+	Lost          []string
 	Counts        Counts
 	IndexReport   indexer.FullReport
 	RebuildReport rebuild.Report
@@ -603,6 +610,22 @@ func RunFull(ctx context.Context, options FullOptions) (result FullResult, resul
 	snapshotID, err := strconv.ParseInt(layout.NextID, 10, 64)
 	if err != nil {
 		return result, fmt.Errorf("parse next generation %q: %w", layout.NextID, err)
+	}
+	if options.Unattended && layout.Active.ID != "" {
+		// A generation that cannot be read is no reason to keep it: the
+		// comparison is skipped and the pass publishes, as it always did.
+		if activeID, parseErr := strconv.ParseUint(layout.Active.ID, 10, 64); parseErr == nil {
+			active, _, loadErr := rebuild.LoadOrBuildSnapshot(ctx, rebuild.BuildSnapshotOptions{
+				DatabasePath: layout.Active.DatabasePath, SnapshotID: activeID,
+			})
+			if loadErr == nil && active != nil {
+				result.Lost = lostFiles(active, factSet, fileExists)
+			}
+		}
+		if len(result.Lost) > 0 {
+			return result, fmt.Errorf("%w: %d file(s) of generation %s, the first %s; nothing was published",
+				ErrGenerationLostFiles, len(result.Lost), layout.Active.ID, result.Lost[0])
+		}
 	}
 
 	rebuildReport, err := rebuild.Run(ctx, rebuild.Options{
