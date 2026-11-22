@@ -208,7 +208,8 @@ func TestClaimedSourcesResolveTheConfigDirectoryOfABase(t *testing.T) {
 	}
 
 	// A pattern without the variable is the one it was.
-	if got := inConfigDirectory([]string{"/a/src/**/*", "/base/${configDir}/x"}, "/project"); !reflect.DeepEqual(got, []string{"/a/src/**/*", "/project/x"}) {
+	// Joined the way the platform joins: on Windows that is a backslash.
+	if got := inConfigDirectory([]string{"/a/src/**/*", "/base/${configDir}/x"}, "/project"); !reflect.DeepEqual(got, []string{"/a/src/**/*", filepath.Join("/project", "x")}) {
 		t.Errorf("inConfigDirectory = %v", got)
 	}
 	if inConfigDirectory(nil, "/project") != nil {
