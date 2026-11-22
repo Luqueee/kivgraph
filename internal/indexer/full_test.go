@@ -989,6 +989,48 @@ func TestDiscoverTypeScriptPackagesReadsAPackageThatDeclaresNoProject(t *testing
 	}
 }
 
+// Telling which files no project claims resolves every project, and a
+// project whose `extends` names a dependency nobody installed does not
+// resolve. With the key off that is nobody's question: the packages that
+// declare a project are read as before and the pass says what it skipped.
+// With the key on it is the question asked, and it fails as it did.
+func TestDiscoverTypeScriptPackagesSurvivesAProjectItCannotResolve(t *testing.T) {
+	repository := unclaimedMonorepo(t)
+	root := repository.RealPath
+	writeFullFixture(t, filepath.Join(root, "site", "package.json"), `{"name":"@fixture/site","version":"1.0.0"}`)
+	writeFullFixture(t, filepath.Join(root, "site", "tsconfig.json"), `{"extends":"not-installed/tsconfig"}`)
+	writeFullFixture(t, filepath.Join(root, "site", "src", "index.ts"), "export const site = 1\n")
+	writeFullFixture(t, filepath.Join(root, "packages", "client", "package.json"),
+		`{"name":"@fixture/client","version":"1.0.0"}`)
+	writeFullFixture(t, filepath.Join(root, "packages", "client", "src", "index.ts"), "export const client = 1\n")
+
+	discovered, err := discoverTypeScriptPackages(context.Background(), []workspace.Repository{repository}, false)
+	if err != nil {
+		t.Fatalf("discoverTypeScriptPackages() error = %v, want the declared packages read", err)
+	}
+	names := make([]string, 0, len(discovered.packages))
+	for _, unit := range discovered.packages {
+		names = append(names, unit.packageValue.Name)
+	}
+	if want := []string{"@fixture/core", "@fixture/site", "@fixture/util"}; !slices.Equal(names, want) {
+		t.Fatalf("packages = %q, want %q", names, want)
+	}
+	if len(discovered.inferred) != 1 || !strings.HasPrefix(discovered.inferred[0], "repo: a package that declares no project is not read") ||
+		!strings.Contains(discovered.inferred[0], "not-installed/tsconfig") {
+		t.Fatalf("inferred = %q, want the skipped packages and the reason named", discovered.inferred)
+	}
+
+	if _, err := discoverTypeScriptPackages(context.Background(), []workspace.Repository{repository}, true); err == nil ||
+		!strings.Contains(err.Error(), "not-installed/tsconfig") {
+		t.Fatalf("with the key on: error = %v, want the project that does not resolve", err)
+	}
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := discoverTypeScriptPackages(cancelled, []workspace.Repository{repository}, false); err == nil {
+		t.Fatal("a cancelled pass was reported as discovered")
+	}
+}
+
 // The worker is told three different things about the packages around the one
 // it reads, and each has its own argument: the package itself when the project
 // is not its own, a package of the same repository by its root, a package of

@@ -800,7 +800,8 @@ type typeScriptDiscovery struct {
 	// dropped in silence.
 	unclaimedWithoutPackage []string
 	// inferred names the packages that declare no project and were read
-	// through one written for the pass.
+	// through one written for the pass, and the repositories where they
+	// could not be told and were not.
 	inferred []string
 }
 
@@ -849,7 +850,16 @@ func discoverTypeScriptPackages(
 		}
 		owners, err := unclaimedOwners(ctx, repository, registry.List())
 		if err != nil {
-			return typeScriptDiscovery{}, err
+			if includeUnclaimed || ctx.Err() != nil {
+				return typeScriptDiscovery{}, err
+			}
+			// Nobody asked for the files no project claims, and telling which
+			// they are resolves every project of the repository -- one whose
+			// `extends` names a dependency that is not installed fails here
+			// and nowhere else. The packages that declare a project are read
+			// as they always were; the ones that declare none are named.
+			result.inferred = append(result.inferred, fmt.Sprintf("%s: a package that declares no project is not read, because the files no project claims could not be told: %s",
+				repository.Name, boundedFailure(err)))
 		}
 		for _, packageValue := range registry.List() {
 			unit := typeScriptPackageUnit{
