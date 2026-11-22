@@ -60,8 +60,19 @@ El servidor que publica las tiles y el payload `LGVB` está en `internal/`.
   se hace con color y grosor; las aristas entre clusters se curvan para no
   atravesar el centro en línea recta.
 - Sólo los repositorios y los hubs llevan rótulo permanente; el resto sale al
-  pasar el cursor. Reagraph dibuja cada etiqueta a tamaño fijo en unidades de
-  mundo, así que rotularlo todo sólo produce una mancha gris.
+  pasar el cursor. Cada rótulo tiene tamaño fijo en unidades de mundo, así que
+  rotularlo todo sólo produce una mancha gris.
+- El rótulo lo dibuja el renderer de nodos como un sprite, con el texto pintado
+  por el navegador en una textura, y `labelType` es `none`. Las etiquetas de
+  Reagraph son Troika, y Troika resuelve la fuente de cada carácter con datos
+  que pide a un CDN: un visor local hacía una petición a un tercero en cada
+  carga, y sin ruta hasta él el lienzo esperaba una respuesta que no llegaba y
+  no dibujaba ningún nodo. Además su material de glifos es GLSL que el renderer
+  WebGPU no ejecuta, así que ahí cada rótulo era un punto.
+- El visor no pide nada fuera de su origen. El servidor lo dice en cada
+  respuesta con `Content-Security-Policy` (`internal/webassets`), sin `blob:`
+  en `script-src` y sin ningún otro host: una dependencia que vuelva a pedir
+  algo fuera queda bloqueada y nombrada en la consola.
 - Al posar el cursor sobre un nodo se ilumina su vecindario y se atenúa el
   resto; al salir se apaga. Reagraph sólo atenúa cuando hay selección, así que
   el nodo apuntado va en `selections` y lo que toca en `actives`. Encender y
@@ -110,9 +121,8 @@ El servidor que publica las tiles y el payload `LGVB` está en `internal/`.
   las etiquetas con `visible = false`. Todo se restaura al quedar inactivo, y
   cada cambio del drawing buffer se repinta sincrónicamente antes de exponerse
   al navegador, para no mostrar un frame negro.
-- Las etiquetas no se desmontan durante un gesto: `labelType` permanece fijo
-  porque conmutarlo reconstruye todas las mallas de glifos y detiene el
-  arrastre más de `130 ms` en cada extremo del gesto.
+- Los rótulos no se desmontan durante un gesto: el gobernador sólo cambia su
+  `visible`, y los reconoce por la marca `userData.caption` de su material.
 - El rótulo del nodo apuntado no vive en el estado del visor: viaja por un
   canal propio (`createStatusChannel`) porque un `setState` por nodo rozado
   reconstruye el árbol de elementos de todo el grafo. La selección y su

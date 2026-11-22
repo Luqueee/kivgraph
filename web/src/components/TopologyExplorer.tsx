@@ -755,7 +755,7 @@ export function TopologyExplorer(): React.ReactElement {
       data-testid="topology-explorer"
     >
       <div className="mx-auto flex h-full min-h-0 w-full max-w-none flex-col gap-2 overflow-hidden p-2 md:p-3">
-        <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 pr-28 sm:pr-36">
+        <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 pr-36">
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
             <div className="flex items-center gap-2 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-graph-package">
               <span className="h-2 w-2 rounded-full bg-graph-package" />

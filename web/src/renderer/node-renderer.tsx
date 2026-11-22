@@ -1,11 +1,17 @@
 import type { NodeRendererProps } from "reagraph";
 import {
+  CanvasTexture,
   Color,
   type ColorRepresentation,
+  LinearFilter,
   MeshBasicMaterial,
   SphereGeometry,
+  SpriteMaterial,
+  SRGBColorSpace,
 } from "three";
-import { MeshBasicNodeMaterial } from "three/webgpu";
+import { MeshBasicNodeMaterial, SpriteNodeMaterial } from "three/webgpu";
+
+import { captionPlacement } from "./text-labels";
 
 /**
  * One geometry for every node in the scene.
@@ -91,25 +97,119 @@ function renderNode(
   );
 }
 
+/** Reagraph's dark theme: a caption, and the caption of the node pointed at. */
+const CAPTION_COLOR = "#ACBAC7";
+const CAPTION_ACTIVE_COLOR = "#1DE9AC";
+/** Pixels of texture per caption line. */
+const CAPTION_PIXELS = 64;
+
+interface Caption {
+  readonly material: SpriteMaterial | SpriteNodeMaterial;
+  readonly width: number;
+  readonly height: number;
+}
+
+const CAPTIONS = new Map<string, Caption>();
+
+/**
+ * A caption as a sprite: its text drawn by the browser onto a texture.
+ *
+ * Reagraph draws captions with Troika, and the viewer stopped asking it to.
+ * Troika resolves the font of every character through data it fetches from a
+ * CDN: a local, read-only viewer made a request to a third party on each load,
+ * and without a route to it the canvas waited for an answer that never came
+ * and drew no node at all. And its glyph material is a GLSL patch the WebGPU
+ * renderer does not run, so there every caption was one untransformed quad --
+ * a dot under each repository. The browser already draws text, in every
+ * script and with nothing to fetch, and only repositories and hubs are
+ * captioned.
+ */
+function caption(text: string, color: string, webgpu: boolean): Caption {
+  const key = `${webgpu ? "gpu" : "gl"}:${color}:${text}`;
+  const known = CAPTIONS.get(key);
+  if (known !== undefined) return known;
+  const canvas = document.createElement("canvas");
+  const font = `500 ${CAPTION_PIXELS * 0.72}px "Geist Variable", system-ui, sans-serif`;
+  const context = canvas.getContext("2d");
+  let width = CAPTION_PIXELS;
+  if (context !== null) {
+    context.font = font;
+    width = Math.max(1, Math.ceil(context.measureText(text).width) + 8);
+  }
+  canvas.width = width;
+  canvas.height = CAPTION_PIXELS;
+  if (context !== null) {
+    // Resizing a canvas resets its state.
+    context.font = font;
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillStyle = color;
+    context.fillText(text, width / 2, CAPTION_PIXELS / 2);
+  }
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  texture.minFilter = LinearFilter;
+  texture.generateMipmaps = false;
+  const options = { map: texture, transparent: true, depthWrite: false };
+  // Three's WebGPU renderer does not accept a classic SpriteMaterial.
+  const material = webgpu
+    ? new SpriteNodeMaterial(options)
+    : new SpriteMaterial(options);
+  // What the frame governor hides while the camera moves.
+  material.userData = { caption: true };
+  const made = { material, width, height: CAPTION_PIXELS };
+  CAPTIONS.set(key, made);
+  return made;
+}
+
+function renderCaptioned(
+  sphere: React.ReactElement,
+  { size, node, active, selected }: NodeRendererProps,
+  webgpu: boolean,
+): React.ReactElement {
+  if (typeof node.label !== "string" || node.label === "") return sphere;
+  const drawn = caption(
+    node.label,
+    active || selected ? CAPTION_ACTIVE_COLOR : CAPTION_COLOR,
+    webgpu,
+  );
+  const placement = captionPlacement(size, drawn.width, drawn.height);
+  return (
+    <>
+      {sphere}
+      <sprite
+        material={drawn.material}
+        position={placement.position}
+        scale={placement.scale}
+        renderOrder={1}
+        // Shared by every node with this caption.
+        dispose={null}
+      />
+    </>
+  );
+}
+
 /**
  * Draws a node as a flat-shaded sphere using the standard WebGL material.
  */
-export function renderGraphNode({
-  color,
-  size,
-  opacity,
-}: NodeRendererProps): React.ReactElement {
-  return renderNode(nodeMaterial(color, opacity), size);
+export function renderGraphNode(props: NodeRendererProps): React.ReactElement {
+  return renderCaptioned(
+    renderNode(nodeMaterial(props.color, props.opacity), props.size),
+    props,
+    false,
+  );
 }
 
 /**
  * Draws the same node with a TSL node material. Three's WebGPU renderer does
  * not accept classic MeshBasicMaterial instances.
  */
-export function renderGraphNodeWebGPU({
-  color,
-  size,
-  opacity,
-}: NodeRendererProps): React.ReactElement {
-  return renderNode(nodeMaterialWebGPU(color, opacity), size);
+export function renderGraphNodeWebGPU(
+  props: NodeRendererProps,
+): React.ReactElement {
+  return renderCaptioned(
+    renderNode(nodeMaterialWebGPU(props.color, props.opacity), props.size),
+    props,
+    true,
+  );
 }

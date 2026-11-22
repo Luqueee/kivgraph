@@ -1,6 +1,12 @@
 interface MaterialLike {
   readonly isTroikaTextMaterial?: boolean;
+  /** A caption the node renderer draws as a sprite carries this mark. */
+  readonly userData?: { readonly caption?: boolean };
 }
+
+const isCaption = (material: MaterialLike | undefined): boolean =>
+  material?.isTroikaTextMaterial === true ||
+  material?.userData?.caption === true;
 
 interface SceneObjectLike {
   visible: boolean;
@@ -15,8 +21,8 @@ function isTextLabel(object: SceneObjectLike): boolean {
   const material = object.material;
   if (material === undefined) return false;
   return Array.isArray(material)
-    ? material.some((entry) => entry?.isTroikaTextMaterial === true)
-    : (material as MaterialLike).isTroikaTextMaterial === true;
+    ? material.some(isCaption)
+    : isCaption(material as MaterialLike);
 }
 
 /**
@@ -41,4 +47,27 @@ export function setTextLabelsHidden(
     changed += 1;
   });
   return changed;
+}
+
+/** The height of a caption in world units: Reagraph's own label size. */
+export const CAPTION_HEIGHT = 7 * 1.2;
+
+/**
+ * Where a caption sprite sits and how large it is, for a node of `size` and a
+ * texture of `width` by `height` pixels: below the node, as tall as a Reagraph
+ * label, as wide as its text.
+ */
+export function captionPlacement(
+  size: number,
+  width: number,
+  height: number,
+): {
+  position: [number, number, number];
+  scale: [number, number, number];
+} {
+  const aspect = height > 0 ? width / height : 1;
+  return {
+    position: [0, -(size + CAPTION_HEIGHT), 2],
+    scale: [CAPTION_HEIGHT * aspect, CAPTION_HEIGHT, 1],
+  };
 }

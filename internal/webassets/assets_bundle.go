@@ -44,7 +44,26 @@ func assetRoots() []string {
 	return roots
 }
 
+// contentSecurityPolicy lets the viewer load from its own origin and nowhere
+// else.
+//
+// The viewer is local and read-only, and for a while it was neither private
+// nor able to work offline: a dependency fetched its fonts from a CDN on every
+// load, and nothing said so. With this the browser refuses such a request and
+// names it in the console. `blob:` is the text worker the canvas starts, and
+// the inline styles are the ones React writes on elements.
+const contentSecurityPolicy = "default-src 'self'; " +
+	"script-src 'self'; " +
+	"worker-src 'self' blob:; " +
+	"style-src 'self' 'unsafe-inline'; " +
+	"img-src 'self' data: blob:; " +
+	"font-src 'self' data:; " +
+	"connect-src 'self' blob: data:; " +
+	"object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+
 func serveBundle(writer http.ResponseWriter, request *http.Request, roots []string) {
+	writer.Header().Set("Content-Security-Policy", contentSecurityPolicy)
+	writer.Header().Set("X-Content-Type-Options", "nosniff")
 	if request.Method != http.MethodGet && request.Method != http.MethodHead {
 		writer.Header().Set("Allow", http.MethodGet+", "+http.MethodHead)
 		http.Error(writer, "method not allowed", http.StatusMethodNotAllowed)

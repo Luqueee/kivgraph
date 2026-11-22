@@ -39,6 +39,9 @@ A configuration written by an earlier `kivgraph init` carries
 The command logs the address it actually bound, including the one a port `0`
 resolves to.
 
+The viewer loads nothing from outside its own origin, so it works with no
+network, and every response carries a `Content-Security-Policy` that says so.
+
 ## Builds without the viewer
 
 `ui` refuses to start when the binary was not built with the `webassets` tag,
