@@ -377,15 +377,24 @@ func TestRunDoctorRejectsInaccessibleRepository(t *testing.T) {
 	testsupport.SetHome(t, home)
 	configPath := filepath.Join(root, "config.yaml")
 	repositoriesPath := filepath.Join(root, "repositories.yaml")
+	// `init` refuses a path that is not there, so the repository is one that
+	// was there when it was registered and is gone.
+	gone := filepath.Join(root, "does-not-exist")
+	if err := os.Mkdir(gone, 0o700); err != nil {
+		t.Fatal(err)
+	}
 	var initStdout, initStderr bytes.Buffer
 	if got := run([]string{
 		"kivgraph",
 		"init",
 		"--config", configPath,
 		"--repositories", repositoriesPath,
-		"--repository", "missing=" + filepath.Join(root, "does-not-exist"),
+		"--repository", "missing=" + gone,
 	}, &initStdout, &initStderr); got != 0 {
 		t.Fatalf("init exit code = %d, stderr=%q", got, initStderr.String())
+	}
+	if err := os.Remove(gone); err != nil {
+		t.Fatal(err)
 	}
 
 	var stdout, stderr bytes.Buffer
@@ -2150,6 +2159,9 @@ func TestWriteIndexDetailsNamesWhatWasNotRead(t *testing.T) {
 		GoModulesNotRead:          []string{"api: example.com/api: no Go files"},
 		GoDiagnostics:             []string{"api/a.go:1:1: undefined: x"},
 		TypeScriptWithoutPackages: []string{"tools"},
+		TypeScriptAmbiguousPackages: []string{
+			"api: api: declared by .worktrees/x/package.json, package.json, so none of them is indexed",
+		},
 		TypeScriptNotRead: []string{
 			"web: REPOSITORY_NOT_LOADED: parse tsconfig.json",
 			"web: @web/ui: PACKAGE_NOT_LOADED: worker exited",
@@ -2167,6 +2179,7 @@ func TestWriteIndexDetailsNamesWhatWasNotRead(t *testing.T) {
 		"index.go.not_read: api: example.com/api: no Go files",
 		"index.go.diagnostic: api/a.go:1:1: undefined: x",
 		"index.typescript.no_package: tools declares no package with a TypeScript project, so it contributes nothing",
+		"index.typescript.ambiguous: api: api: declared by .worktrees/x/package.json, package.json, so none of them is indexed",
 		"index.typescript.not_read: web: REPOSITORY_NOT_LOADED: parse tsconfig.json",
 		"index.typescript.not_read: web: @web/ui: PACKAGE_NOT_LOADED: worker exited",
 		"index.rust.diagnostic: core: unresolved macro",

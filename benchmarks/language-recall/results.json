@@ -1,7 +1,7 @@
 {
   "benchmark": "language-recall",
   "command": "go run ./benchmarks/language-recall -kivgraph \u003cbinary\u003e -repo-root .",
-  "date": "2026-11-21",
+  "date": "2026-11-22",
   "seed": 1,
   "declarations_per_language": 100,
   "environment": {
@@ -3662,8 +3662,8 @@
         "symbols": 14
       },
       "completeness_verdicts": {
-        "COMPLETE": 96,
-        "LOWER_BOUND": 4
+        "COMPLETE": 98,
+        "LOWER_BOUND": 2
       },
       "complete_verdicts_that_missed_a_non_test_file": 0,
       "by_kind": [
@@ -3955,7 +3955,7 @@
           "reported_files": [
             "src/error.rs"
           ],
-          "verdict": "COMPLETE"
+          "verdict": "LOWER_BOUND"
         },
         {
           "repository": "fd",
@@ -4833,7 +4833,7 @@
           "line": 14,
           "truth_files": null,
           "reported_files": null,
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "fd",
@@ -4940,7 +4940,7 @@
           "line": 47,
           "truth_files": null,
           "reported_files": null,
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "fd",
@@ -5169,7 +5169,7 @@
           "extra_files": [
             "src/dir_entry.rs"
           ],
-          "verdict": "LOWER_BOUND"
+          "verdict": "COMPLETE"
         },
         {
           "repository": "fd",
@@ -5279,18 +5279,18 @@
       "oracle_failures": 0,
       "kivgraph_failures": 0,
       "file_recall": {
-        "value": 0.99,
-        "low": 0.968421052631579,
+        "value": 1,
+        "low": 1,
         "high": 1,
-        "numerator": 99,
+        "numerator": 100,
         "denominator": 100,
         "symbols": 73
       },
       "file_recall_non_test": {
-        "value": 0.9866666666666667,
-        "low": 0.9558823529411765,
+        "value": 1,
+        "low": 1,
         "high": 1,
-        "numerator": 74,
+        "numerator": 75,
         "denominator": 75,
         "symbols": 61
       },
@@ -5311,26 +5311,26 @@
         "symbols": 0
       },
       "file_recall_without_private_names": {
-        "value": 0.99,
-        "low": 0.967032967032967,
+        "value": 1,
+        "low": 1,
         "high": 1,
-        "numerator": 99,
+        "numerator": 100,
         "denominator": 100,
         "symbols": 73
       },
       "file_precision": {
-        "value": 0.8839285714285714,
-        "low": 0.8095238095238095,
-        "high": 0.9459459459459459,
-        "numerator": 99,
-        "denominator": 112,
-        "symbols": 79
+        "value": 0.8849557522123894,
+        "low": 0.8130841121495327,
+        "high": 0.9482758620689655,
+        "numerator": 100,
+        "denominator": 113,
+        "symbols": 80
       },
       "symbols_fully_recalled": {
-        "value": 0.9863013698630136,
-        "low": 0.9264026265348793,
-        "high": 0.997577748560291,
-        "numerator": 72,
+        "value": 1,
+        "low": 0.9500079912950344,
+        "high": 0.9999999999999999,
+        "numerator": 73,
         "denominator": 73,
         "symbols": 73
       },
@@ -5345,7 +5345,7 @@
       "completeness_verdicts": {
         "COMPLETE": 100
       },
-      "complete_verdicts_that_missed_a_non_test_file": 1,
+      "complete_verdicts_that_missed_a_non_test_file": 0,
       "by_kind": [
         {
           "kind": "class",
@@ -5363,10 +5363,10 @@
           "kind": "extension",
           "symbols_with_dependents": 1,
           "file_recall": {
-            "value": 0,
-            "low": 0,
-            "high": 0,
-            "numerator": 0,
+            "value": 1,
+            "low": 1,
+            "high": 1,
+            "numerator": 1,
             "denominator": 1,
             "symbols": 1
           }
@@ -5444,8 +5444,7 @@
           "truth_files": [
             "lib/src/iterable_extensions.dart"
           ],
-          "reported_files": null,
-          "missed_files": [
+          "reported_files": [
             "lib/src/iterable_extensions.dart"
           ],
           "verdict": "COMPLETE"
@@ -8793,18 +8792,18 @@
       "oracle_failures": 0,
       "kivgraph_failures": 0,
       "file_recall": {
-        "value": 0.74,
-        "low": 0.6513761467889908,
-        "high": 0.826530612244898,
-        "numerator": 74,
+        "value": 0.75,
+        "low": 0.6593406593406593,
+        "high": 0.8350515463917526,
+        "numerator": 75,
         "denominator": 100,
         "symbols": 73
       },
       "file_recall_non_test": {
-        "value": 0.9866666666666667,
-        "low": 0.9558823529411765,
+        "value": 1,
+        "low": 1,
         "high": 1,
-        "numerator": 74,
+        "numerator": 75,
         "denominator": 75,
         "symbols": 61
       },
@@ -8825,26 +8824,26 @@
         "symbols": 0
       },
       "file_recall_without_private_names": {
-        "value": 0.74,
-        "low": 0.6534653465346535,
-        "high": 0.8279569892473119,
-        "numerator": 74,
+        "value": 0.75,
+        "low": 0.6666666666666666,
+        "high": 0.8365384615384616,
+        "numerator": 75,
         "denominator": 100,
         "symbols": 73
       },
       "file_precision": {
-        "value": 0.925,
-        "low": 0.8625,
-        "high": 0.9759036144578314,
-        "numerator": 74,
-        "denominator": 80,
-        "symbols": 65
+        "value": 0.9259259259259259,
+        "low": 0.863013698630137,
+        "high": 0.9761904761904762,
+        "numerator": 75,
+        "denominator": 81,
+        "symbols": 66
       },
       "symbols_fully_recalled": {
-        "value": 0.6712328767123288,
-        "low": 0.5572900604786939,
-        "high": 0.7680551420196056,
-        "numerator": 49,
+        "value": 0.684931506849315,
+        "low": 0.5714090666885439,
+        "high": 0.7799637520096194,
+        "numerator": 50,
         "denominator": 73,
         "symbols": 73
       },
@@ -8859,7 +8858,7 @@
       "completeness_verdicts": {
         "COMPLETE": 100
       },
-      "complete_verdicts_that_missed_a_non_test_file": 1,
+      "complete_verdicts_that_missed_a_non_test_file": 0,
       "by_kind": [
         {
           "kind": "class",
@@ -8877,10 +8876,10 @@
           "kind": "extension",
           "symbols_with_dependents": 1,
           "file_recall": {
-            "value": 0,
-            "low": 0,
-            "high": 0,
-            "numerator": 0,
+            "value": 1,
+            "low": 1,
+            "high": 1,
+            "numerator": 1,
             "denominator": 1,
             "symbols": 1
           }
@@ -8903,7 +8902,7 @@
           "file_recall": {
             "value": 0.7272727272727273,
             "low": 0.5666666666666667,
-            "high": 0.8620689655172413,
+            "high": 0.8648648648648649,
             "numerator": 24,
             "denominator": 33,
             "symbols": 20
@@ -8958,8 +8957,7 @@
           "truth_files": [
             "lib/src/iterable_extensions.dart"
           ],
-          "reported_files": null,
-          "missed_files": [
+          "reported_files": [
             "lib/src/iterable_extensions.dart"
           ],
           "verdict": "COMPLETE"
@@ -10365,5 +10363,5 @@
     "Java is checked by running `javac` over the main and the test sources at once, with the classpath Maven resolves, so one failing file does not hide another; Kivgraph reads `scip-java`, which drives the same compiler through the build. A Java or C# constructor is written with its type's name, so renaming the type breaks the constructors' own declarations: those errors are left out, as for Dart.",
     "C# is checked with `dotnet build` on the solution, and MSBuild does not compile a project whose reference failed: a rename in the library leaves the test project unbuilt, so its files are missing from the truth. The C# truth is a lower bound and so is its precision, as for a Rust workspace. Kivgraph reads `scip-dotnet`, which drives Roslyn, the same compiler."
   ],
-  "wall_seconds": 299.202631958
+  "wall_seconds": 299.229073083
 }

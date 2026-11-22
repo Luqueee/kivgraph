@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"github.com/Luqueee/kivgraph/internal/daemon"
 	"io"
 	"os"
 	"path/filepath"
@@ -402,5 +403,138 @@ func TestACallOutsideEveryRegisteredRepositoryIsAllowed(t *testing.T) {
 	}
 	if out.Len() != 0 {
 		t.Fatalf("refused a call the graph does not cover: %q", out.String())
+	}
+}
+
+// A repository indexed with `kivgraph index` keeps its graph in its own
+// `.kivgraph`. The gate reads it -- and only when nothing in it could have been
+// committed to send a search somewhere else.
+func TestProjectGraphAboveReadsOnlyAGraphThatIsTheProjectsOwn(t *testing.T) {
+	testsupport.SetHome(t, t.TempDir())
+	project := func(t *testing.T, endpoint string) (root string, state string) {
+		t.Helper()
+		root, err := filepath.EvalSymlinks(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		configPath := filepath.Join(root, ".kivgraph", "config.yaml")
+		if _, err := config.Initialize(config.InitOptions{ConfigPath: configPath}); err != nil {
+			t.Fatal(err)
+		}
+		loaded, err := config.Load(configPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := config.RegisterRepositories(loaded.RepositoriesPath, []config.Repository{
+			{Name: "project", Path: root, Languages: []string{"go"}},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		state = stateDirectory(loaded)
+		if err := os.MkdirAll(state, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if endpoint != "" {
+			if err := os.WriteFile(daemon.EndpointPath(state), []byte(endpoint), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := os.MkdirAll(filepath.Join(root, "internal", "deep"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		return root, state
+	}
+	const local = `{"url":"http://127.0.0.1:7788/mcp","token":"t"}`
+
+	root, _ := project(t, local)
+	for _, cwd := range []string{root, filepath.Join(root, "internal", "deep")} {
+		loaded, repository, found := projectGraphAbove(cwd)
+		if !found || repository.Name != "project" || loaded.ConfigPath != filepath.Join(root, ".kivgraph", "config.yaml") {
+			t.Errorf("projectGraphAbove(%s) = %q, %t, want the project", cwd, repository.Name, found)
+		}
+	}
+	for _, cwd := range []string{"", filepath.Dir(root), filepath.Join(root, "missing", "..", "..")} {
+		if _, _, found := projectGraphAbove(cwd); found {
+			t.Errorf("projectGraphAbove(%q) found a graph", cwd)
+		}
+	}
+
+	for name, endpoint := range map[string]string{
+		"no daemon published an endpoint": "",
+		"an endpoint on another machine":  `{"url":"http://203.0.113.9:7788/mcp","token":"t"}`,
+		"a name that is not this machine": `{"url":"http://graph.example/mcp","token":"t"}`,
+		"another scheme":                  `{"url":"https://127.0.0.1:7788/mcp","token":"t"}`,
+		"not an endpoint":                 `{`,
+	} {
+		root, _ := project(t, endpoint)
+		if _, _, found := projectGraphAbove(root); found {
+			t.Errorf("%s: the project graph was read", name)
+		}
+	}
+
+	// `.kivgraph` that is a link, and a configuration that is one.
+	root, _ = project(t, local)
+	moved := filepath.Join(t.TempDir(), "elsewhere")
+	if err := os.Rename(filepath.Join(root, ".kivgraph"), moved); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(moved, filepath.Join(root, ".kivgraph")); err == nil {
+		if _, _, found := projectGraphAbove(root); found {
+			t.Error("a linked .kivgraph was read")
+		}
+	}
+	root, _ = project(t, local)
+	configPath := filepath.Join(root, ".kivgraph", "config.yaml")
+	if err := os.Rename(configPath, configPath+".real"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(configPath+".real", configPath); err == nil {
+		if _, _, found := projectGraphAbove(root); found {
+			t.Error("a linked configuration was read")
+		}
+	}
+
+	// A configuration that names state outside the project.
+	root, _ = project(t, "")
+	outside, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	configPath = filepath.Join(root, ".kivgraph", "config.yaml")
+	body, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inside := filepath.Join(root, ".kivgraph", "state")
+	if !strings.Contains(string(body), inside) {
+		t.Fatalf("the configuration does not name %s:\n%s", inside, body)
+	}
+	if err := os.WriteFile(configPath, []byte(strings.ReplaceAll(string(body), inside, filepath.Join(outside, "state"))), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := config.Load(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(stateDirectory(reloaded), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(daemon.EndpointPath(stateDirectory(reloaded)), []byte(local), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, found := projectGraphAbove(root); found {
+		t.Error("state outside the project was read")
+	}
+}
+
+func TestLoopbackURLIsThisMachineAndNothingElse(t *testing.T) {
+	for raw, want := range map[string]bool{
+		"http://127.0.0.1:7788/mcp": true, "http://localhost:1/mcp": true, "http://[::1]:7788/mcp": true,
+		"http://127.0.0.1.example.com/mcp": false, "http://10.0.0.1/mcp": false, "https://127.0.0.1/mcp": false,
+		"unix:///tmp/x.sock": false, "": false, "http://": false, "://": false,
+	} {
+		if got := loopbackURL(raw); got != want {
+			t.Errorf("loopbackURL(%q) = %t, want %t", raw, got, want)
+		}
 	}
 }

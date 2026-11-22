@@ -181,6 +181,12 @@ superficie observable.
 
 ## Protocolo de `index --full --json`
 
+- Una entrada del registro que no se puede registrar -directorio borrado, uno
+  que no es un checkout, ruta con un enlace simbólico- ya no tumba
+  `index --full`: se deja fuera y se nombra en
+  `index.repository.not_read`, por `stderr` con `--json`. Si no se registra
+  ninguna sigue siendo un error. `clean` lee el perfil, que es donde publica una
+  pasada.
 - `kivgraph index` es la forma local de la misma pasada: resuelve el directorio
   actual, detecta los lenguajes soportados, prepara `.kivgraph/` y registra el
   repositorio `project` antes de delegar en `runIndexFull`. Si no se pasa
@@ -193,6 +199,13 @@ superficie observable.
   los seis lenguajes viajan en el `result`; derivarlos del `msg` de un registro
   convertiría texto para humanos en una API. Un lector ignora una clase de
   evento que no conoce.
+- `--unattended` es la pasada que nadie pidió: la que arranca el vigilante. No
+  publica si un archivo que la generación activa lee, y que sigue en disco, se
+  queda sin declaraciones en un repositorio y lenguaje donde la pasada anota un
+  fallo `_NOT_LOADED`. El `result` lleva entonces `lost`, hasta veinte
+  `repositorio:ruta`, y el demonio no reintenta con temporizador: las mismas
+  fuentes dan la misma negativa. Una pasada pedida publica como siempre. Ver
+  ADR 0152.
 - **Lo que no se cargó viaja con lo que sí.** `go_modules_not_loaded`,
   `rust_workspaces_not_loaded`, `python_repositories_not_loaded`,
   `dart_repositories_not_loaded` y `java_repositories_not_loaded` están en el

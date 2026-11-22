@@ -2,9 +2,11 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -149,5 +151,36 @@ func TestDoctorListsRelativeToTheRegisteredPathWhenNothingWasResolved(t *testing
 	reports := cacheTagReports(t, workspace.Repository{Name: "bare", Path: root})
 	if len(reports) != 1 || !strings.Contains(reports[0].detail, "bare: target") {
 		t.Fatalf("reports = %+v", reports)
+	}
+}
+
+// The other reason a walk skips a directory, on its own line.
+func TestDoctorNamesTheCheckoutsEveryWalkSkips(t *testing.T) {
+	root := testsupport.TempDir(t)
+	for name, body := range map[string]string{
+		".worktrees/feature/.git": "gitdir: /elsewhere/.git/worktrees/feature\n",
+		"sub/.git":                "gitdir: ../.git/modules/sub\n",
+	} {
+		filename := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(filename), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filename, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var lines []string
+	report := func(name string, passed bool, detail string) {
+		lines = append(lines, fmt.Sprintf("%s %t %s", name, passed, detail))
+	}
+	repository := workspace.Repository{Name: "app", Path: root, RealPath: root}
+	reportDoctorOtherCheckouts(context.Background(), report, []workspace.Repository{repository})
+	reportDoctorOtherCheckouts(context.Background(), report, nil)
+	want := []string{
+		"walk.checkout true skipped by every walk and never indexed: app: .worktrees/feature (register a checkout as its own repository to index it)",
+		"walk.checkout true no directory is another Git checkout",
+	}
+	if !reflect.DeepEqual(lines, want) {
+		t.Errorf("lines = %q, want %q", lines, want)
 	}
 }

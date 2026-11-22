@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -8,9 +9,12 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sort"
+	"strings"
 
 	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/version"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 // indexProjectOptions carries the flags of the convenient `kivgraph index`
@@ -62,6 +66,11 @@ func runIndexProject(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if len(languages) == 0 {
+		if unread, err := config.UnreadSources(projectRoot); err == nil && len(unread) > 0 {
+			writeCommandError(stderr, "index: no supported source language detected in %s: it holds %s, and there is no loader for that",
+				projectRoot, describeUnreadSources(unread))
+			return 1
+		}
 		writeCommandError(stderr, "index: no supported source language detected in %s", projectRoot)
 		return 1
 	}
@@ -69,6 +78,14 @@ func runIndexProject(args []string, stdout, stderr io.Writer) int {
 	configPath, repositoriesPath := projectIndexPaths(projectRoot, options)
 	if err := rejectProjectStateSymlink(projectRoot, options, configPath, repositoriesPath); err != nil {
 		writeCommandError(stderr, "index: %v", err)
+		return 1
+	}
+	// Asked before any state is written: a directory that is not a Git
+	// checkout failed in the pass, after `.kivgraph/` had been created in it.
+	if _, err := workspace.NewRegistry(context.Background(), config.RepositoriesFile{Repositories: []config.Repository{
+		{Name: "project", Path: projectRoot, Languages: languages},
+	}}); err != nil {
+		writeCommandError(stderr, "index: %s cannot be indexed, and nothing was written: %v", projectRoot, err)
 		return 1
 	}
 	initialised, err := config.Initialize(config.InitOptions{
@@ -104,6 +121,11 @@ func runIndexProject(args []string, stdout, stderr io.Writer) int {
 	}
 	writeInfo(messageWriter, "project: %s", projectRoot)
 	writeInfo(messageWriter, "languages: %s", joinLanguages(languages))
+	// Said here and not found out later: a project mostly in a language that
+	// is not read was indexed for what little it holds in another, and PASS.
+	if unread, err := config.UnreadSources(projectRoot); err == nil && len(unread) > 0 {
+		writeWarning(messageWriter, "not read: %s (no loader for that language)", describeUnreadSources(unread))
+	}
 	if initialised.ConfigCreated || initialised.RepositoriesCreated || changed {
 		writeSuccess(messageWriter, "project registry: %s (%s)", repositoryName, loaded.RepositoriesPath)
 	} else {
@@ -152,9 +174,9 @@ func currentProjectRoot() (string, error) {
 	return filepath.Clean(projectRoot), nil
 }
 
-// containingRepositoryRoot finds the nearest Git repository marker. A project
-// without Git metadata keeps the current directory as its root, so the local
-// command remains useful in unpacked source trees too.
+// containingRepositoryRoot finds the nearest Git repository marker. Without one
+// the current directory is the root, and the command refuses it by name: a
+// repository's identity and freshness are read from Git.
 func containingRepositoryRoot(start string) (string, error) {
 	candidate := filepath.Clean(start)
 	for {
@@ -277,4 +299,23 @@ func joinLanguages(languages []string) string {
 		joined += "," + language
 	}
 	return joined
+}
+
+// describeUnreadSources renders the count per extension, largest first.
+func describeUnreadSources(unread map[string]int) string {
+	extensions := make([]string, 0, len(unread))
+	for extension := range unread {
+		extensions = append(extensions, extension)
+	}
+	sort.Slice(extensions, func(left, right int) bool {
+		if unread[extensions[left]] != unread[extensions[right]] {
+			return unread[extensions[left]] > unread[extensions[right]]
+		}
+		return extensions[left] < extensions[right]
+	})
+	parts := make([]string, 0, len(extensions))
+	for _, extension := range extensions {
+		parts = append(parts, fmt.Sprintf("%d %s", unread[extension], extension))
+	}
+	return strings.Join(parts, ", ")
 }

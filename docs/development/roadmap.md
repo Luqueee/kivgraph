@@ -2627,6 +2627,158 @@ of the precision column, and `exclude_tests` on the traversal tools.
     that reaches `supervisor.Install` registers itself as the daemon and
     reruns its own suite from the supervisor; nothing but that check keeps
     the suite from doing so.
+  - `kivgraph index`, the project form, was broken in `v0.10.0` and is fixed
+    after it (ADR 0086 and ADR 0147, amended): the profile put the synthetic
+    `go.work` and the indexers' build directories back inside the repository,
+    and two Cargo workspaces declaring one crate ended the pass. No test runs
+    that form end to end; it was checked with a built binary on two
+    repositories. Of two such workspaces the later one is left out whole.
+  - Found by running `v0.10.0` by hand and fixed after it: `clean` read the
+    pre-profile directory and removed nothing; the search gate let through any
+    search whose path was `.`; one registry entry that could not be registered
+    ended the pass (ADR 0147, amended); `init` wrote a symlinked or relative
+    path as typed; `profile remove NAME --yes` did not parse. And, found
+    querying a real repository: an answer about a Rust declaration was
+    `LOWER_BOUND` because of npm packages nobody registered, since
+    `invisible_scopes` was not read by language (ADR 0146, amended). Behind
+    it was a wrong `COMPLETE`: a Rust failure records `module::Name` and the
+    lookup matched a name only bare or after a dot.
+  - Found the same way and open: `init` accepts a path that does not exist
+    and the reserved name `rust:<release>`, and leaves a configuration behind
+    when it fails; a `repo` filter that names no repository is never refused
+    (`repository` is); `kivgraph index` outside a checkout fails after
+    creating `.kivgraph`; `start_index_project` accepts what `index_project`
+    refuses; a new installation leaves an empty `pre-profiles` backup; a
+    group name with `--help` (`mcp --help`) is an unknown command; the gate
+    does not read `--include` or `-g` of a shell command as a glob; `serve`
+    and `doctor` still fail on a registry entry that cannot be registered.
+  - Found querying two real repositories indexed with `kivgraph index`, and
+    open. Every answer checked against the text was right, and the misses were
+    homonyms the text search could not tell apart. What is wrong is around
+    them: a use in one Cargo workspace of a crate
+    another workspace of the same repository declares is
+    `DEFINITION_NOT_INDEXED`; `index` does not say that `cargo metadata` failed
+    offline and the crate was loaded with no dependency, nor that a package
+    with a manifest and no `tsconfig.json` was left out -- only `doctor
+    repositories` does, and it prints one finding twice; the analyzer's own
+    log lines fill the twenty `index.rust.diagnostic` lines (`104` on one
+    crate); and `.kivgraph` itself makes the repository `indexed_dirty` until
+    it is ignored.
+  - Found on a workspace of six repositories and fixed after `v0.10.0`: a `go`
+    newer than the build left every Go module unloaded, and a daemon published
+    that (ADR 0149); a worktree linked inside a repository took its TypeScript
+    out of the graph, and a workspace root with nested clones ran out of
+    memory (ADR 0122, amended); `index` did not name an ambiguous package;
+    `get_source` called every file changed, because no loader wrote the digest
+    (ADR 0040, amended); the search gate refused a search in a repository the
+    graph holds nothing of, and recommended a call the tool rejects (ADR 0077,
+    amended); the Python workers read `node_modules`.
+  - Found there and open: a pass run by the daemon publishes a generation that
+    lost a module the active one had; `impact` does not work from a linked
+    worktree, which the gate does recognise; the gate reads only the user
+    configuration, never a project one; Dart records one row per use of the
+    SDK, `210914` of `217689` unresolved rows on one application; a scope
+    such as an npm package nobody registered still bounds every answer in its
+    language; `find_implementations` does not count `extends`; generated types
+    git ignores (`.react-router/types`, `.next/types`) are indexed; a nested
+    clone cannot be registered beside its parent; `get_file_outline` cannot
+    list a repository's root; `init --languages` applies every language to
+    every repository; a use from a file no `tsconfig.json` includes is missed,
+    and only `doctor repositories` says there are such files.
+  - Found on four more repositories and fixed: the TypeScript engine panics
+    when asked for the type of the `const` in `[] as const`, and the worker
+    died with it -- one empty tuple took a program of `2760` files, and the
+    six packages that share it, out of the graph. The worker now skips a node
+    the engine cannot type. That program then took `1494 s`, which nobody had
+    seen because it never finished: the owner of each reference was found by
+    scanning every symbol of the program, `73 %` of the time. Grouped by file,
+    the same output, byte for byte, takes `40 s`. And a Rust file behind a
+    `cfg` that is false on the host was in no edge and no failure, so an
+    answer about a declaration it uses said `COMPLETE` (ADR 0150).
+  - Found on four more repositories, and open. Java is read only from a
+    build at the repository's root: a repository of several Gradle projects
+    gets nothing.
+    A use from an `.astro` file, and one through `await import()`, are neither
+    in the graph nor declared. `doctor repositories` reports
+    `TS_PROJECT_CLAIMS_NOTHING` as blocking for a JavaScript project the pass
+    indexed. A repository in a language Kivgraph does not read is indexed for
+    the two scripts it holds in another, and nothing names the `70` files it
+    left.
+  - Of the entries above marked open, closed after `v0.10.0` (ADR 0151):
+    `init` refuses a path that is not a directory and a reserved name before
+    it writes anything; `kivgraph index` outside a checkout writes nothing;
+    `start_index_project` refuses at once what `index_project` refuses about
+    one project; a new installation keeps no `pre-profiles` copy; `mcp`,
+    `hook` and `profile` answer `--help`; the gate reads `--include`, `-g`,
+    `--glob` and `-t` as where a search looks; `serve`, `doctor` and the
+    watcher name a registry entry that cannot be registered and go on with
+    the rest; `impact` works from a linked worktree, with a warning; a clone
+    or worktree registers beside the repository above it; `get_file_outline`
+    takes `.` for a repository's root; a dependency nobody registered no
+    longer bounds an answer about a declaration (ADR 0146, amended); `index`
+    says in one line that the audit has findings, and names the files of a
+    language it does not read; `doctor repositories` prints a finding once,
+    and reads `${configDir}` in an inherited `tsconfig.json`, which is what
+    made a project the pass indexed "claim nothing"; a repeated line of the
+    analyzer's log is one diagnostic with a count; the watcher and the audit
+    skip another checkout as the walks do.
+  - Found while closing them, and fixed: a bare `name` resolved only kinds on
+    a list that predates most loaders, so `find_references` for a Go `var` or
+    `alias`, a Rust `macro` or a Dart `extension` said the name was "only
+    imported or re-exported". And the one wrong `COMPLETE` of the Dart
+    benchmark: the Analysis Server gives no navigation region for the name in
+    `Extension(receiver).member`, so that use of the extension was recorded
+    nowhere; it is read beside the resolved member now.
+  - Withdrawn: refusing a `repo` filter that names no repository. Four tools
+    accept a repository key there and answer an unknown one with an empty
+    page and guidance, by contract; an error would break both.
+  - Visible only since the verdicts above stopped being blanket, and fixed: a
+    TypeScript `set` accessor had no reference, because every use of an
+    accessor pair went to the declaration that came first. Two of `100`
+    answers on `got` said `COMPLETE` and missed a file for it. A write reaches
+    the `set` now and a read the `get` (ADR 0146, third amendment).
+  - Decided and done (ADR 0152): a pass the watcher starts publishes nothing
+    when files the active generation reads were not loaded; the daemon keeps
+    the generation and says so once. A pass somebody asked for publishes as
+    before. Not run: a daemon left serving while a module breaks and recovers.
+  - Done (ADR 0147, amended): a use in one Cargo workspace of a crate another
+    workspace of the same repository declares is an edge, resolved as one that
+    crosses repositories. Open, seen while checking it: a Rust file whose body
+    is one macro invocation declares nothing, so its uses have no source and
+    are in no edge and no failure.
+  - Done (ADR 0153): a path Git ignores that holds source is an exclusion,
+    named by `doctor` on `walk.ignored`, with `include_git_ignored` on the
+    registry entry to keep it. Found with it: an exclusion never kept a
+    TypeScript file of a discovered project out of the graph; it does now.
+    Not checked on a repository that ignores generated Go or Rust.
+  - Done (ADR 0129, amended): Dart no longer records a use of a parameter or
+    a local as a failure, and records a library nobody registered once for
+    each declaration that uses it, named as an import names it. `217689`
+    failures on one application are `47187`.
+  - Done: `find_implementations` reads `EXTENDS` beside `IMPLEMENTS` and
+    `OVERRIDES`, so the subclasses of a class are among its implementations,
+    with detection `declared`.
+  - Done (ADR 0077, amended): the search gate reads the graph of a project
+    indexed with `kivgraph index`, when the user's registry does not cover the
+    directory and nothing in `.kivgraph` could have been committed to point
+    elsewhere. Not run against a daemon serving a project graph.
+  - Done: Java is indexed from every build of a repository. With no build at
+    the root, the outermost build of each branch is run and their indexes are
+    merged, paths relative to the repository. One build that fails still
+    fails the repository, and two builds that declare one class share its
+    identity. Gradle was not run; the test uses two Maven builds.
+  - Done (ADR 0154): an `.astro`, `.vue` or `.svelte` file that writes the
+    name of an exported declaration is declared, `COMPONENT_FILE_NOT_READ`, so
+    an answer about that name is `LOWER_BOUND` with the file named; and a
+    destructured `await import()` is a use. The cost of common names on a
+    large application was not measured.
+  - Measured: the memory of the TypeScript worker on a program of `2760`
+    files. The engine holds about `4 GB` and the worker about `2.5 GB` while
+    they run together. The worker then went to `5.9 GB` in its last second,
+    serialising `377 MB` of JSON as one indented string; it is written a
+    slice at a time now, `289 MB` without the indentation, and the worker
+    peaks at `3.7 GB`. What is left is the engine's program and the worker's
+    copy of the syntax trees, and neither was looked into.
   - Memory: about `0.7 GB` above the heap at the peak of a large Go index is
     not broken down; no `linux/amd64` measurement; the collector setting is
     process-wide and was not measured with a daemon serving while it indexes.

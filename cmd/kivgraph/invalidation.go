@@ -175,6 +175,15 @@ func (scheduler *invalidationScheduler) reindex(profile string) {
 		scheduler.clearAttempts(profile)
 		return
 	}
+	if errors.Is(err, indexing.ErrGenerationLostFiles) {
+		// The same sources give the same refusal: the next change is what
+		// tries again, not a timer.
+		scheduler.clearAttempts(profile)
+		scheduler.logger.Error("kept the active generation: a rebuild nobody asked for could not load files it reads",
+			"profile", profile, "error", err,
+			"remedy", "fix the analyzer failure, or run `kivgraph index --full` to publish without them")
+		return
+	}
 	if err == nil {
 		err = errors.New("rebuild completed without clearing stale source state")
 	}
@@ -253,7 +262,10 @@ func watchProfileSources(
 		options.Profile = loaded.Profile
 		options.Repositories = nil
 		options.ResolverVersion = version.Value
-		registry, err := registryForProfile(watchCtx, loaded)
+		registry, unregistered, err := registryOfWhatRegisters(watchCtx, loaded)
+		for _, line := range unregistered {
+			logger.Warn("a registered repository is not watched", "command", command, "profile", loaded.Profile, "repository", line)
+		}
 		if err != nil {
 			if stateErr := handleUnavailableProfileSources(watchCtx, manager, loaded.Profile, err, logger, command); stateErr != nil {
 				logger.Error("could not synchronize unavailable source state", "command", command, "profile", loaded.Profile, "error", stateErr)
@@ -319,7 +331,10 @@ func refreshInvalidationForProfile(
 	options := indexing.OptionsFromConfig(loaded.Config)
 	options.Profile = loaded.Profile
 	options.ResolverVersion = version.Value
-	registry, err := registryForProfile(ctx, loaded)
+	registry, unregistered, err := registryOfWhatRegisters(ctx, loaded)
+	for _, line := range unregistered {
+		logger.Warn("a registered repository is not indexed", "command", command, "profile", loaded.Profile, "repository", line)
+	}
 	if err != nil {
 		if stateErr := handleUnavailableProfileSources(ctx, manager, loaded.Profile, err, logger, command); stateErr != nil {
 			return stateErr
