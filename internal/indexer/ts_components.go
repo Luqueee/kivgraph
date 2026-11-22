@@ -9,16 +9,13 @@ import (
 	"strings"
 
 	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/sourceobservation"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 // UnresolvedComponentNotRead is the reason of a component file the TypeScript
 // engine does not read and that writes the name of an exported declaration.
 const UnresolvedComponentNotRead = "COMPONENT_FILE_NOT_READ"
-
-// componentExtensions are the files a TypeScript project is made of that the
-// engine cannot read: a template with a script in it.
-var componentExtensions = map[string]bool{".astro": true, ".vue": true, ".svelte": true}
 
 // maximumComponentFile bounds a file read only to look for names.
 const maximumComponentFile = 1 << 20
@@ -73,7 +70,7 @@ func declareUnreadComponents(set *facts.Set, repository workspace.Repository, pa
 			}
 			return nil
 		}
-		if !componentExtensions[strings.ToLower(filepath.Ext(path))] {
+		if !sourceobservation.IsComponentFile(path) {
 			return nil
 		}
 		if excluded, err := workspace.MatchesExclusion(root, path, repository.Exclusions); err != nil || excluded {

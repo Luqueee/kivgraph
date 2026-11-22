@@ -1625,5 +1625,7 @@ export async function writePayload(
   }
   await write(`${separator === "{" ? "{" : ""}}\n`);
   stream.end();
-  await Promise.race([once(stream, "finish"), failed]);
+  // 'finish' fires before the descriptor is closed, so a close failure would
+  // be lost after the promise had already resolved.
+  await Promise.race([once(stream, "close"), failed]);
 }

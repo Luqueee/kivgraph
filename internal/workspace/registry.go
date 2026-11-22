@@ -169,7 +169,10 @@ func registerRepository(ctx context.Context, configured config.Repository, valid
 	}
 	var ignored []string
 	if !configured.IncludeGitIgnored {
-		ignored = ignoredSources(ctx, git, realPath, languages)
+		ignored, err = ignoredSources(ctx, git, realPath, languages)
+		if err != nil {
+			return Repository{}, fmt.Errorf("list Git-ignored sources: %w", err)
+		}
 		exclusions = append(exclusions, ignored...)
 	}
 	return Repository{

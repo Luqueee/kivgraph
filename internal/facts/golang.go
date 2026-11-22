@@ -48,10 +48,11 @@ type GoReport struct {
 	// UnresolvedWithoutFile counts module-level failures with no file.
 	UnresolvedWithoutFile int
 	// FactsOutsideRepository counts facts dropped because the file holding
-	// them is not inside the repository being indexed. Asking the Go loader
-	// for compiled files means a cgo or generated package reports positions
-	// inside the build cache; those are retained as unresolved, never as
-	// evidence.
+	// them is not inside the repository being indexed, or is excluded from
+	// it. Asking the Go loader for compiled files means a cgo or generated
+	// package reports positions inside the build cache; those are retained
+	// as unresolved, never as evidence. An excluded file is dropped whole,
+	// because go/packages loads its package with the tracked files.
 	FactsOutsideRepository int
 	// EdgesOwnedByModule counts uses whose owner is the file's own scope: a
 	// use at file level, with no declaration enclosing it. They were dropped
@@ -127,6 +128,13 @@ func NormalizeGo(ctx context.Context, input GoInput) (Set, GoReport, error) {
 	}}}
 	repositoryKey := set.Repositories[0].Key
 
+	// go/packages loads an excluded file's package whole, so its facts arrive
+	// beside the tracked files' and are dropped at each containment check.
+	excluded, err := workspace.ExclusionMatcher(root, input.Repository.Exclusions)
+	if err != nil {
+		return Set{}, GoReport{}, fmt.Errorf("%w: repository %q exclusions: %w", ErrInvalidFacts, name, err)
+	}
+
 	packages := make(map[string]Package)
 	files := make(map[string]File)
 	symbolsByKey := make(map[string]Symbol)
@@ -170,6 +178,10 @@ func NormalizeGo(ctx context.Context, input GoInput) (Set, GoReport, error) {
 					Offset: definition.NameOffset,
 				},
 			})
+			continue
+		}
+		if excluded(relative) {
+			report.FactsOutsideRepository++
 			continue
 		}
 		packageKey := PackageKey(LanguageGo, name, definition.PackagePath)
@@ -358,7 +370,7 @@ func NormalizeGo(ctx context.Context, input GoInput) (Set, GoReport, error) {
 		// no owner to look for, and the module fallback below needs the
 		// repository-relative path the file is keyed by.
 		relative, inside := repositoryRelativePath(root, reference.FileName)
-		if !inside {
+		if !inside || excluded(relative) {
 			report.FactsOutsideRepository++
 			continue
 		}
@@ -437,7 +449,7 @@ func NormalizeGo(ctx context.Context, input GoInput) (Set, GoReport, error) {
 			continue
 		}
 		relative, inside := repositoryRelativePath(root, relation.FileName)
-		if !inside {
+		if !inside || excluded(relative) {
 			report.FactsOutsideRepository++
 			continue
 		}
@@ -485,7 +497,7 @@ func NormalizeGo(ctx context.Context, input GoInput) (Set, GoReport, error) {
 			continue
 		}
 		relative, inside := repositoryRelativePath(root, dependency.FileName)
-		if !inside {
+		if !inside || excluded(relative) {
 			report.FactsOutsideRepository++
 			continue
 		}
@@ -561,6 +573,10 @@ func NormalizeGo(ctx context.Context, input GoInput) (Set, GoReport, error) {
 		}
 		if entry.FileName != "" {
 			if relative, inside := repositoryRelativePath(root, entry.FileName); inside {
+				if excluded(relative) {
+					report.FactsOutsideRepository++
+					continue
+				}
 				fileKey := FileKey(name, relative)
 				if _, exists := files[fileKey]; exists {
 					unresolved.FileKey = fileKey

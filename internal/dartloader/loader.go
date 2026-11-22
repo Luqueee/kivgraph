@@ -639,12 +639,22 @@ func appendNavigationReferences(ctx context.Context, lsp *client, command, sdkPa
 	owners := constructorOwners(symbols)
 	extensions := extensionOwners(symbols)
 	seen := make(map[string]struct{})
+	navigations := make(map[string]navigationResult, len(results))
+	navigated := make(map[string][]offsetRange, len(results))
 	for id, result := range results {
-		sourcePath := requestPaths[id]
 		var navigation navigationResult
 		if len(result) == 0 || string(result) == "null" || json.Unmarshal(result, &navigation) != nil {
 			continue
 		}
+		navigations[id] = navigation
+		sourcePath := requestPaths[id]
+		for _, region := range navigation.Regions {
+			start := analyzerOffset(contents[sourcePath], region.Offset)
+			navigated[sourcePath] = append(navigated[sourcePath], offsetRange{start, analyzerOffset(contents[sourcePath], region.Offset+region.Length)})
+		}
+	}
+	for id, navigation := range navigations {
+		sourcePath := requestPaths[id]
 		for _, region := range navigation.Regions {
 			sourceData := contents[sourcePath]
 			sourceOffset := analyzerOffset(sourceData, region.Offset)
@@ -740,7 +750,9 @@ func appendNavigationReferences(ctx context.Context, lsp *client, command, sdkPa
 				// `Extension(receiver).member` names the extension, and the
 				// Analysis Server navigates the member and not the name.
 				if extension, member := extensions[targetID]; member && extension.ID != source.ID {
-					if nameStart, nameEnd, written := extensionOverride(sourceData, sourceOffset); written && string(sourceData[nameStart:nameEnd]) == extension.Name {
+					// A name the server navigated is a local or another declaration
+					// that shadows the extension, not a use of the extension.
+					if nameStart, nameEnd, written := extensionOverride(sourceData, sourceOffset); written && string(sourceData[nameStart:nameEnd]) == extension.Name && !navigatedBy(navigated[sourcePath], nameStart, nameEnd) {
 						overrideKey := fmt.Sprintf("%s\x00%s\x00%d\x00%d", source.ID, extension.ID, nameStart, nameEnd-nameStart)
 						if _, ok := seen[overrideKey]; !ok {
 							seen[overrideKey] = struct{}{}
@@ -838,6 +850,19 @@ func extensionOverride(data []byte, memberOffset int) (int, int, bool) {
 		index--
 	}
 	return index, end, index < end
+}
+
+// offsetRange is a half-open span of source bytes.
+type offsetRange struct{ start, end int }
+
+// navigatedBy reports whether a navigated range covers [start, end).
+func navigatedBy(ranges []offsetRange, start, end int) bool {
+	for _, span := range ranges {
+		if span.start <= start && end <= span.end {
+			return true
+		}
+	}
+	return false
 }
 
 func skipSpaceBackwards(data []byte, index int) int {
@@ -2100,7 +2125,7 @@ func dartFilesForRepository(root string, roots, exclusions []string, includeGene
 			if pathExcluded(path) || !pathInRoots(root, path, roots) {
 				return filepath.SkipDir
 			}
-			if path != root && workspace.IsOtherCheckout(path) {
+			if path != root && workspace.IsSkippedDirectory(path) {
 				return filepath.SkipDir
 			}
 			return nil

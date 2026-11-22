@@ -49,6 +49,10 @@ export function viaVariable(): number {
 export default function fallback(): number {
   return 4;
 }
+function internal(): number {
+  return 5;
+}
+export { internal as load };
 `,
   );
   await writeFile(
@@ -63,6 +67,10 @@ export async function two(): Promise<number> {
 export async function three(): Promise<number> {
   const lib = await import("./lib");
   return lib.viaVariable() + lib.default();
+}
+export async function four(): Promise<number> {
+  const { load } = await import("./lib");
+  return load();
 }
 `,
   );
@@ -80,6 +88,7 @@ export async function three(): Promise<number> {
   // The destructured name is a local of `one`, and that local is what reaches
   // the export: the binding is where the module's name is written.
   expect([...new Set(uses)].sort()).toEqual([
+    "four.load -> internal",
     "one.destructured -> destructured",
     "three -> fallback",
     "three -> viaVariable",

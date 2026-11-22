@@ -30,6 +30,7 @@ func TestNewRegistryRecordsMetadataAndCopiesResults(t *testing.T) {
 		"rev-parse HEAD":                              "deadbeef\n",
 		"symbolic-ref --quiet --short HEAD":           "main\n",
 		"status --porcelain=v1 --untracked-files=all": " M README.md\n",
+		"-c core.quotepath=off ls-files --others --ignored --exclude-standard --directory": "",
 	}, nil)
 
 	registry, err := newRegistry(context.Background(), source, git)
@@ -114,6 +115,7 @@ func TestNewRegistryRejectsInvalidEntriesAndContext(t *testing.T) {
 		"rev-parse HEAD":                              "commit",
 		"symbolic-ref --quiet --short HEAD":           "main",
 		"status --porcelain=v1 --untracked-files=all": "",
+		"-c core.quotepath=off ls-files --others --ignored --exclude-standard --directory": "",
 	}, nil)
 	tests := []struct {
 		name      string
@@ -181,6 +183,24 @@ func TestNewRegistryRejectsInvalidEntriesAndContext(t *testing.T) {
 	_, err := newRegistry(canceled, config.RepositoriesFile{Repositories: []config.Repository{{Name: "service", Path: root, Languages: []string{"go"}}}}, git)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("newRegistry(canceled) error = %v, want context.Canceled", err)
+	}
+}
+
+func TestNewRegistryFailsWhenGitCannotListIgnoredPaths(t *testing.T) {
+	root := testsupport.TempDir(t)
+	cause := errors.New("ls-files failed")
+	git := fakeGit(map[string]string{
+		"rev-parse HEAD":                              "commit",
+		"symbolic-ref --quiet --short HEAD":           "main",
+		"status --porcelain=v1 --untracked-files=all": "",
+	}, map[string]error{
+		"-c core.quotepath=off ls-files --others --ignored --exclude-standard --directory": cause,
+	})
+	source := config.RepositoriesFile{Version: 1, Repositories: []config.Repository{{
+		Name: "service", Path: root, Languages: []string{"typescript"},
+	}}}
+	if _, err := newRegistry(context.Background(), source, git); !errors.Is(err, cause) {
+		t.Fatalf("newRegistry() error = %v, want the ls-files failure", err)
 	}
 }
 

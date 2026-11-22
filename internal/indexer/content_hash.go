@@ -1,6 +1,7 @@
 package indexer
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"os"
@@ -20,8 +21,9 @@ import (
 // The digest has to be of the bytes that were analysed, and this runs after
 // the analysis. So a file modified since the pass started gets none: it can
 // only be reported as not fresh, never as fresh, which is the direction ADR
-// 0040 allows. A file that cannot be read gets none either.
-func stampContentHashes(set *facts.Set, started time.Time) {
+// 0040 allows. A file that cannot be read gets none either. A cancelled pass
+// stops before the next read and returns the context's error.
+func stampContentHashes(ctx context.Context, set *facts.Set, started time.Time) error {
 	roots := make(map[string]string, len(set.Repositories))
 	for _, repository := range set.Repositories {
 		roots[repository.Key] = repository.RootPath
@@ -32,16 +34,34 @@ func stampContentHashes(set *facts.Set, started time.Time) {
 		if file.ContentHash != "" || root == "" {
 			continue
 		}
-		filename := filepath.Join(root, filepath.FromSlash(file.Path))
-		info, err := os.Stat(filename)
-		if err != nil || !info.Mode().IsRegular() || !info.ModTime().Before(started) {
-			continue
+		if err := ctx.Err(); err != nil {
+			return err
 		}
-		data, err := os.ReadFile(filename)
-		if err != nil {
-			continue
+		digest, ok := analysedDigest(filepath.Join(root, filepath.FromSlash(file.Path)), started)
+		if ok {
+			file.ContentHash = digest
 		}
-		digest := sha256.Sum256(data)
-		file.ContentHash = hex.EncodeToString(digest[:])
 	}
+	return nil
+}
+
+// analysedDigest hashes a file only when it provably did not change while it
+// was read: its metadata agrees before and after the read, and it predates the
+// pass. A write that keeps the modification time is not detected.
+func analysedDigest(filename string, started time.Time) (string, bool) {
+	before, err := os.Stat(filename)
+	if err != nil || !before.Mode().IsRegular() || !before.ModTime().Before(started) {
+		return "", false
+	}
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return "", false
+	}
+	after, err := os.Stat(filename)
+	if err != nil || !after.Mode().IsRegular() ||
+		after.Size() != before.Size() || !after.ModTime().Equal(before.ModTime()) {
+		return "", false
+	}
+	digest := sha256.Sum256(data)
+	return hex.EncodeToString(digest[:]), true
 }

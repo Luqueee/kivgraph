@@ -1,6 +1,8 @@
 package javaloader
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -15,7 +17,7 @@ import (
 
 func buildTree(t *testing.T, files ...string) string {
 	t.Helper()
-	root := t.TempDir()
+	root := testsupport.TempDir(t)
 	for _, name := range files {
 		path := filepath.Join(root, filepath.FromSlash(name))
 		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
@@ -62,9 +64,32 @@ func TestBuildRootsFindsTheBuildsBelowARootThatHasNone(t *testing.T) {
 		if excluded == nil {
 			excluded = none
 		}
-		if got := buildRoots(buildTree(t, testCase.files...), excluded); !reflect.DeepEqual(got, testCase.want) {
+		got, err := buildRoots(buildTree(t, testCase.files...), excluded)
+		if err != nil {
+			t.Errorf("%s: buildRoots: %v", name, err)
+			continue
+		}
+		if !reflect.DeepEqual(got, testCase.want) {
 			t.Errorf("%s: buildRoots = %v, want %v", name, got, testCase.want)
 		}
+	}
+}
+
+// A subtree the walk cannot read must fail the discovery: dropping it would
+// leave its build out of the index while the pass reported success.
+func TestBuildRootsFailsOnASubtreeItCannotRead(t *testing.T) {
+	testsupport.SkipWithoutModeBits(t)
+	if os.Geteuid() == 0 {
+		t.Skip("root reads a directory whatever its mode")
+	}
+	root := buildTree(t, "app/pom.xml", "locked/service/pom.xml")
+	locked := filepath.Join(root, "locked")
+	if err := os.Chmod(locked, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o700) })
+	if got, err := buildRoots(root, func(string) bool { return false }); !errors.Is(err, fs.ErrPermission) {
+		t.Fatalf("buildRoots = %v, err %v; want a permission error", got, err)
 	}
 }
 

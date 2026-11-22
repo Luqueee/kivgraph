@@ -1,8 +1,30 @@
 import { readFile, rm } from "node:fs/promises";
+import type * as NodeFs from "node:fs";
 import path from "node:path";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { writePayload } from "./facts-cli.js";
 import { temporaryRoot } from "./temporary-root.js";
+
+const injected = vi.hoisted(() => ({ closeFailure: false }));
+
+// Destroying a stream right after it finishes writing is the only way to make
+// closing fail on demand: the error arrives after 'finish' and before 'close'.
+vi.mock("node:fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof NodeFs>();
+  return {
+    ...actual,
+    createWriteStream: (
+      ...args: Parameters<typeof actual.createWriteStream>
+    ) => {
+      const stream = actual.createWriteStream(...args);
+      if (injected.closeFailure) {
+        injected.closeFailure = false;
+        stream.once("finish", () => stream.destroy(new Error("close failed")));
+      }
+      return stream;
+    },
+  };
+});
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -45,4 +67,15 @@ it("writes a payload that reads back as the value it was given", async () => {
   await expect(
     writePayload(path.join(root, "no", "such", "directory.json"), { a: 1 }),
   ).rejects.toThrow();
+});
+
+// A failure closing the descriptor happens after 'finish', so the write has to
+// wait for 'close' to report it.
+it("rejects when closing the file fails after its last write", async () => {
+  const root = await temporaryRoot("kivgraph-write-payload-close-");
+  roots.push(root);
+  injected.closeFailure = true;
+  await expect(
+    writePayload(path.join(root, "payload.json"), { a: 1 }),
+  ).rejects.toThrow("close failed");
 });

@@ -357,3 +357,22 @@ func TestLoadProfileKeepsWhatIndexersRefuseOutOfTheRepository(t *testing.T) {
 		t.Errorf("paths = %v, want them as configured: %v", got, want)
 	}
 }
+
+// An empty backups directory is what Initialize makes before the default
+// profile is built; it is not state from before profiles, so a fresh
+// installation keeps no recovery point.
+func TestInitializeKeepsNoRecoveryPointForEmptyBackups(t *testing.T) {
+	testsupport.SetHome(t, testsupport.TempDir(t))
+	configPath := filepath.Join(testsupport.TempDir(t), ".kivgraph", "config.yaml")
+	if _, err := Initialize(InitOptions{ConfigPath: configPath}); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := LoadProfile(configPath, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := filepath.Dir(loaded.Config.Storage.DatabasePath)
+	if _, err := os.Stat(state + ".pre-profiles"); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("a fresh installation kept a recovery point (%v)", err)
+	}
+}

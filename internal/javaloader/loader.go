@@ -123,7 +123,11 @@ func Run(ctx context.Context, options Options) (facts.SemanticPayload, error) {
 	// from one build to a declaration of another is the same symbol string in
 	// both, so it resolves once the documents are side by side.
 	var index scipwire.Index
-	for number, build := range buildRoots(tree.Path, excluded) {
+	builds, err := buildRoots(tree.Path, excluded)
+	if err != nil {
+		return facts.SemanticPayload{}, fmt.Errorf("java indexer: discover builds: %w", err)
+	}
+	for number, build := range builds {
 		buildOutput, buildTarget := output, targetRoot
 		if number > 0 {
 			// The indexer reads the format from the extension.
@@ -188,13 +192,18 @@ func holdsBuild(directory string) bool {
 // nothing. A build at the root is still the only one: it is the one that says
 // which of the directories below are its modules. Without one, the outermost
 // build of each branch is taken, and what is below it is that build's.
-func buildRoots(root string, excluded func(string) bool) []string {
+func buildRoots(root string, excluded func(string) bool) ([]string, error) {
 	if holdsBuild(root) {
-		return []string{"."}
+		return []string{"."}, nil
 	}
 	builds := make([]string, 0)
-	_ = filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
-		if err != nil || !entry.IsDir() || path == root {
+	// A subtree that cannot be read is an error, not a missing build: a silent
+	// skip would drop its build from the index and still report a pass.
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return fmt.Errorf("%s: %w", path, err)
+		}
+		if !entry.IsDir() || path == root {
 			return nil
 		}
 		relative, relErr := filepath.Rel(root, path)
@@ -212,13 +221,16 @@ func buildRoots(root string, excluded func(string) bool) []string {
 		}
 		return nil
 	})
+	if err != nil {
+		return nil, err
+	}
 	if len(builds) == 0 {
 		// Nothing to choose between: the indexer is asked at the root, and
 		// says what it found there.
-		return []string{"."}
+		return []string{"."}, nil
 	}
 	sort.Strings(builds)
-	return builds
+	return builds, nil
 }
 
 func buildLabel(build string) string {
@@ -298,7 +310,8 @@ func outputPaths(options Options, root string) (string, string, error) {
 	// output. The Rust loader refuses the same shape for the same reason.
 	if within(absolute, root) {
 		return "", "", fmt.Errorf(
-			"java target directory %q is inside the indexed repository %q", absolute, root)
+			"java target directory %q is inside the indexed repository %q", absolute, root,
+		)
 	}
 	directory := filepath.Join(absolute, sanitise(options.Repository.Name))
 	if err := os.MkdirAll(directory, 0o755); err != nil {

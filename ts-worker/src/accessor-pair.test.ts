@@ -56,6 +56,12 @@ export function grow(box: Box): void {
 export function step(box: Box): void {
   box.size++;
 }
+export function parenWrite(box: Box): void {
+  (box.size) = 2;
+}
+export function parenStep(box: Box): void {
+  (box.size)++;
+}
 `,
   );
   const payload = await collectFacts(
@@ -86,6 +92,9 @@ export function step(box: Box): void {
   expect(uses).toEqual([
     "grow -> get size",
     "grow -> set size",
+    "parenStep -> get size",
+    "parenStep -> set size",
+    "parenWrite -> set size",
     "read -> get only",
     "read -> get size",
     "step -> get size",

@@ -656,7 +656,9 @@ func FullWithRepositories(ctx context.Context, options FullOptions, repositories
 	merged, withoutProvider := closeCrossRepositoryEdges(merged, composed)
 	merged = resolveSemanticPackageDependencies(merged)
 	report.EdgesWithoutProvider = withoutProvider
-	stampContentHashes(&merged, started)
+	if err := stampContentHashes(ctx, &merged, started); err != nil {
+		return facts.Set{}, report, err
+	}
 	if err := merged.Validate(); err != nil {
 		return facts.Set{}, report, fmt.Errorf("validate full indexed facts: %w", err)
 	}

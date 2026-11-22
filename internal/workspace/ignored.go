@@ -30,15 +30,23 @@ const ignoredWalkBudget = 4000
 // compares to know that the sources moved, and a log directory that comes and
 // goes would make every pass a stale one.
 //
-// A failure of Git lists nothing, which is what was done before.
-func ignoredSources(ctx context.Context, git gitRunner, root string, languages []string) []string {
-	output, err := git(ctx, root, "ls-files", "--others", "--ignored", "--exclude-standard", "--directory")
-	if err != nil || output == "" {
-		return nil
+// A failure of Git is returned, not read as an empty list: that would register
+// the repository without the exclusions it needs.
+func ignoredSources(ctx context.Context, git gitRunner, root string, languages []string) ([]string, error) {
+	output, err := git(ctx, root, "-c", "core.quotepath=off", "ls-files", "--others", "--ignored", "--exclude-standard", "--directory")
+	if err != nil {
+		return nil, err
+	}
+	if output == "" {
+		return nil, nil
 	}
 	// A TypeScript project reads the JavaScript beside it, and a build of one
 	// is JavaScript.
-	if slices.Contains(languages, "typescript") {
+	typeScript := slices.ContainsFunc(languages, func(language string) bool {
+		name := strings.ToLower(strings.TrimSpace(language))
+		return name == "typescript" || name == "ts"
+	})
+	if typeScript {
 		languages = append(slices.Clone(languages), "javascript")
 	}
 	extensions := config.SourceExtensions(languages)
@@ -54,20 +62,28 @@ func ignoredSources(ctx context.Context, git gitRunner, root string, languages [
 		if segments := strings.Split(entry, "/"); slices.Contains(segments, "node_modules") || slices.Contains(segments, ".git") {
 			continue
 		}
-		if holdsSource(filepath.Join(root, filepath.FromSlash(entry)), extensions) {
+		holds, err := holdsSource(ctx, filepath.Join(root, filepath.FromSlash(entry)), extensions)
+		if err != nil {
+			return nil, err
+		}
+		if holds {
 			ignored = append(ignored, entry)
 		}
 	}
 	sort.Strings(ignored)
-	return ignored
+	return ignored, nil
 }
 
 // holdsSource reports whether path is, or holds, a file with one of the
 // extensions.
-func holdsSource(path string, extensions []string) bool {
+func holdsSource(ctx context.Context, path string, extensions []string) (bool, error) {
 	budget := ignoredWalkBudget
 	found := false
-	_ = filepath.WalkDir(path, func(current string, entry fs.DirEntry, err error) error {
+	walkErr := filepath.WalkDir(path, func(current string, entry fs.DirEntry, err error) error {
+		// Checked before the error branch, which would otherwise swallow it.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
+		}
 		if err != nil {
 			return nil
 		}
@@ -87,7 +103,7 @@ func holdsSource(path string, extensions []string) bool {
 		}
 		return nil
 	})
-	return found
+	return found, walkErr
 }
 
 // IgnoredSources lists, as absolute paths, what the registry left out of the

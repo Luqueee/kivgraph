@@ -403,3 +403,24 @@ func TestResolveTypeScriptConfigImpliesAllowJsForAJsconfig(t *testing.T) {
 		}
 	}
 }
+
+// TestRebaseTypeScriptPathListKeepsConfigDirForTheProject guards the path a
+// shared base takes through ${configDir}: the entry must stay unresolved until
+// the project, not the base's directory, is known.
+func TestRebaseTypeScriptPathListKeepsConfigDirForTheProject(t *testing.T) {
+	root := testsupport.TempDir(t)
+	base := filepath.Join(root, "config", "base.json")
+	project := filepath.Join(root, "packages", "app", "tsconfig.json")
+	writeDiscoveryFile(t, base, `{"include":["${configDir}/../shared/**/*.ts"]}`)
+	writeDiscoveryFile(t, project, `{"extends":"../../config/base.json"}`)
+	writeDiscoveryFile(t, filepath.Join(root, "packages", "shared", "util.ts"), "export {}")
+
+	resolved, err := resolveTypeScriptConfig(project, root)
+	if err != nil {
+		t.Fatalf("resolveTypeScriptConfig() error = %v", err)
+	}
+	want := []string{filepath.Join(root, "packages", "shared", "**", "*.ts")}
+	if !equalStrings(resolved.Include, want) {
+		t.Fatalf("Include = %#v, want %#v", resolved.Include, want)
+	}
+}

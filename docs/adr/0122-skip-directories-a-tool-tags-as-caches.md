@@ -218,6 +218,8 @@ Measured on that backend: `0` to `35346` TypeScript symbols. On the workspace
 root: see the roadmap.
 
 Not changed: a copy that is not a checkout -- a directory of files somebody
-duplicated -- is still a duplicate; `.gitignore` is still not read; the
-watcher and the audit keep their own lists. A nested clone registered as a
-repository of its own is still refused beside its parent.
+duplicated -- is still a duplicate. No walk reads `.gitignore`: what Git
+ignores is left out at registration instead, unless the entry sets
+`include_git_ignored` (ADR 0153). A nested clone registered as a repository of
+its own is accepted beside its parent, since no walk of the parent enters it;
+a plain directory and a submodule are still refused (ADR 0151).

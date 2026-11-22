@@ -378,7 +378,9 @@ def source_files(root):
     for directory, names, files in os.walk(root):
         names[:] = [name for name in names
                     if name not in SKIPPED_DIRECTORIES and not other_checkout(os.path.join(directory, name))]
-        found.extend(pathlib.Path(directory, name) for name in files if name.endswith((".py", ".pyi")))
+        # A named pipe called `x.py` is listed too, and reading one blocks.
+        found.extend(pathlib.Path(directory, name) for name in files
+                     if name.endswith((".py", ".pyi")) and os.path.isfile(os.path.join(directory, name)))
     return sorted(found)
 
 

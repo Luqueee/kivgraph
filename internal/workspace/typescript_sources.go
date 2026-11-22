@@ -228,7 +228,7 @@ func walkTypeScriptGlobDirectory(
 		entryPath := filepath.Join(directory, entry.Name())
 		entrySegments := splitAbsolutePathSegments(entryPath)
 		if entry.IsDir() {
-			if matchesAnyGlobPattern(entrySegments, excludePatternSegments) {
+			if matchesAnyGlobPattern(entrySegments, excludePatternSegments) || IsSkippedDirectory(entryPath) {
 				continue
 			}
 			if err := walkTypeScriptGlobDirectory(entryPath, patternSegments, excludePatternSegments, filterByExtension, allowedExtensions, matches); err != nil {

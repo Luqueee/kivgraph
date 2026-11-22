@@ -168,6 +168,7 @@ func TestRegistryWithoutCompositionReportsNoProvenance(t *testing.T) {
 		"rev-parse HEAD":                              "commit",
 		"symbolic-ref --quiet --short HEAD":           "main",
 		"status --porcelain=v1 --untracked-files=all": "",
+		"-c core.quotepath=off ls-files --others --ignored --exclude-standard --directory": "",
 	}, nil)
 	registry, err := newRegistry(context.Background(), source, git)
 	if err != nil {
@@ -368,6 +369,7 @@ func TestNewComposedRegistryUsesSelectedWorktreesAndRetainsProviderMetadata(t *t
 		"rev-parse HEAD":                              "commit",
 		"symbolic-ref --quiet --short HEAD":           "feature",
 		"status --porcelain=v1 --untracked-files=all": "",
+		"-c core.quotepath=off ls-files --others --ignored --exclude-standard --directory": "",
 	}, nil)
 
 	registry, err := newComposedRegistry(context.Background(), source, composition, git)
@@ -435,6 +437,7 @@ func TestNewComposedRegistryKeepsWorktreeVariantsIsolated(t *testing.T) {
 		"rev-parse HEAD":                              "commit",
 		"symbolic-ref --quiet --short HEAD":           "branch",
 		"status --porcelain=v1 --untracked-files=all": "",
+		"-c core.quotepath=off ls-files --others --ignored --exclude-standard --directory": "",
 	}, nil)
 	composition := func(worktreeID topology.WorktreeID, path string) topology.ProfileComposition {
 		return topology.ProfileComposition{

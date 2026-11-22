@@ -53,7 +53,10 @@ it("finds the same owner as a scan of every symbol", () => {
   for (const fileName of [...files, "absent.ts"]) {
     for (let position = -1; position <= 245; position++) {
       const expected = scan(symbols, fileName, position);
-      expect(findOwner(symbols, fileName, position)).toBe(expected);
+      expect(
+        findOwner(symbols, fileName, position),
+        `${fileName} @${position}`,
+      ).toBe(expected);
       if (expected !== undefined) owned++;
     }
   }
