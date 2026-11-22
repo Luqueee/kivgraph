@@ -43,7 +43,7 @@
  *
  *   pnpm facts <repository-name> <repository-root> <output.json> \
  *     [--project <path>] [--provider <name>=<path>]... \
- *     [--unclaimed <absolute path>]...
+ *     [--unclaimed <absolute path>]... [--package-root <absolute path>] [--sibling <absolute path>].....
  *
  * `--project <path>` selects the project relative to the repository root.
  * Without it the CLI uses `<repository-root>/tsconfig.json`.
@@ -67,6 +67,11 @@
  * `extends` and package dependencies all grade their identity by a
  * provider's configuration, and an inferred project has none. The Go side
  * only passes this when `typescript.include_unclaimed_sources` is on.
+ *
+ * `--package-root <absolute path>` is for a package that declares no project.
+ * The caller writes one for it outside the repository and names it with an
+ * absolute `--project`; the package's identity and what counts as its own
+ * files are then read from this root and not from where the project is.
  *
  * The cross-repository v4 goldens are frozen compatibility inputs: this v5
  * worker must not overwrite them. Regenerate the v5 implementation contract
@@ -316,14 +321,16 @@ export async function collectFacts(
   registry: PackageProviderRegistry,
   projectPath?: string,
   unclaimedPaths: readonly string[] = [],
+  packageRoot?: string,
 ): Promise<FactsPayload> {
   const root = path.resolve(repositoryRoot);
-  const configFileName = resolveProjectPath(root, projectPath);
+  const ownRoot = resolvePackageRoot(root, packageRoot);
+  const configFileName = resolveProjectPath(root, projectPath, ownRoot);
   const unclaimed = resolveUnclaimedPaths(root, unclaimedPaths);
   const service = LanguageService.create({ cwd: root });
   try {
     await service.openProject(configFileName);
-    const view = service.project(configFileName);
+    const view = service.project(configFileName, ownRoot);
 
     const symbols = await extractLocalSymbols(service, view);
     // Resolved first: reference extraction needs the "import" bindings this
@@ -343,6 +350,7 @@ export async function collectFacts(
       repositoryName,
       root,
       configFileName,
+      ownRoot,
     );
     const dependencyResolution = await resolvePackageDependencies(
       service,
@@ -398,7 +406,7 @@ export async function collectFacts(
       root,
       dependencyResolution.dependencies,
     );
-    const manifest = await readPackage(root, configFileName);
+    const manifest = await readPackage(root, configFileName, ownRoot);
     const extendsFacts = extendsFactSymbols(
       root,
       extendsResolution.extends,
@@ -1066,9 +1074,10 @@ function compareUnresolved(
 async function readPackage(
   repositoryRoot: string,
   projectPath: string,
+  ownRoot?: string,
 ): Promise<FactsPayload["package"]> {
   const root = path.resolve(repositoryRoot);
-  const packageRoot = await findPackageRoot(root, projectPath);
+  const packageRoot = ownRoot ?? (await findPackageRoot(root, projectPath));
   const manifestPath = path.join(packageRoot, "package.json");
   const manifest = await readManifest(manifestPath);
   if (manifest === undefined) {
@@ -1083,10 +1092,42 @@ async function readPackage(
   };
 }
 
+/**
+ * `--package-root`: the package a project was written for, when the package
+ * declares none of its own. It is inside the repository; the project is not.
+ */
+function resolvePackageRoot(
+  root: string,
+  packageRoot: string | undefined,
+): string | undefined {
+  if (packageRoot === undefined) {
+    return undefined;
+  }
+  if (!path.isAbsolute(packageRoot)) {
+    throw new Error(`package root ${packageRoot} must be absolute`);
+  }
+  const resolved = path.resolve(packageRoot);
+  if (!isWithin(root, resolved)) {
+    throw new Error(
+      `package root ${packageRoot} escapes repository root ${root}`,
+    );
+  }
+  return resolved;
+}
+
 function resolveProjectPath(
   root: string,
   projectPath: string | undefined,
+  ownRoot?: string,
 ): string {
+  if (ownRoot !== undefined) {
+    // Written by the caller for this pass, outside the repository on purpose:
+    // nothing is created in a tree that is only being read.
+    if (projectPath === undefined || !path.isAbsolute(projectPath)) {
+      throw new Error("a package root needs an absolute --project");
+    }
+    return path.resolve(projectPath);
+  }
   const resolved = path.resolve(root, projectPath ?? "tsconfig.json");
   if (!isWithin(root, resolved)) {
     throw new Error(
@@ -1223,10 +1264,11 @@ async function loadProvider(
   repository: string,
   rootPath: string,
   projectPathOverride?: string,
+  ownRoot?: string,
 ): Promise<PackageProvider> {
   const root = path.resolve(rootPath);
-  const projectPath = resolveProjectPath(root, projectPathOverride);
-  const packageRoot = await findPackageRoot(root, projectPath);
+  const projectPath = resolveProjectPath(root, projectPathOverride, ownRoot);
+  const packageRoot = ownRoot ?? (await findPackageRoot(root, projectPath));
   const manifestPath = path.join(packageRoot, "package.json");
   const manifest = await readManifest(manifestPath);
   if (manifest === undefined) {
@@ -1268,8 +1310,9 @@ async function loadProvider(
 
 async function buildRegistry(
   providerArgs: readonly ProviderArg[],
+  siblings: readonly PackageProvider[] = [],
 ): Promise<PackageProviderRegistry> {
-  const providers: PackageProvider[] = [];
+  const providers: PackageProvider[] = [...siblings];
   for (const providerArg of providerArgs) {
     providers.push(
       await loadProvider(
@@ -1292,6 +1335,43 @@ interface ProviderArg {
   readonly projectPath: string | undefined;
 }
 
+/**
+ * The other packages of the repository being indexed, as providers.
+ *
+ * A package is read on its own, so an import of the one next door is an
+ * import of a package like any other, and needs the same registry entry to
+ * become an edge. It needs no project: such an import reaches the source
+ * itself or it does not resolve at all.
+ */
+export async function siblingProviders(
+  repository: string,
+  rootPath: string,
+  packageRoots: readonly string[],
+): Promise<PackageProvider[]> {
+  const root = path.resolve(rootPath);
+  const providers: PackageProvider[] = [];
+  for (const packageRoot of packageRoots) {
+    const manifestPath = path.join(
+      resolvePackageRoot(root, packageRoot) ?? root,
+      "package.json",
+    );
+    const manifest = await readManifest(manifestPath);
+    if (manifest === undefined) {
+      throw new Error(
+        `repository ${repository} (${rootPath}): no valid package.json at ${manifestPath}`,
+      );
+    }
+    providers.push({
+      name: manifest.name,
+      version: manifest.version,
+      repository,
+      rootPath: root,
+      manifestPath,
+    });
+  }
+  return providers;
+}
+
 interface CliArgs {
   readonly repositoryName: string;
   readonly repositoryRoot: string;
@@ -1299,9 +1379,11 @@ interface CliArgs {
   readonly projectPath: string | undefined;
   readonly providers: readonly ProviderArg[];
   readonly unclaimed: readonly string[];
+  readonly packageRoot: string | undefined;
+  readonly siblings: readonly string[];
 }
 
-const USAGE = `usage: pnpm facts <repository-name> <repository-root> <output.json> [--project <path>] [--provider <name>=<path>]... [--provider-project <name>=<path>]... [--unclaimed <absolute path>]...
+const USAGE = `usage: pnpm facts <repository-name> <repository-root> <output.json> [--project <path>] [--provider <name>=<path>]... [--provider-project <name>=<path>]... [--unclaimed <absolute path>]... [--package-root <absolute path>] [--sibling <absolute path>].....
 
 Emits the ts-facts-v5 payload of <repository-root>, named <repository-name>.
 
@@ -1317,6 +1399,13 @@ Emits the ts-facts-v5 payload of <repository-root>, named <repository-name>.
                               indexed through the inferred project. Must be
                               absolute and inside the repository root.
                               Repeatable.
+  --package-root <absolute path>
+                              The package to index, when it declares no project
+                              of its own: --project is then absolute and may
+                              sit outside the repository.
+  --sibling <absolute path>   Another package of this same repository, by its
+                              root. An import that resolves to its source
+                              becomes an edge. Repeatable.
 
 Example — regenerate the ts-facts-v5 goldens, from ts-worker/:
 
@@ -1340,6 +1429,8 @@ function parseArgs(argv: readonly string[]): CliArgs | undefined {
   const providers: ProviderArg[] = [];
   const providerProjectPaths = new Map<string, string[]>();
   const unclaimed: string[] = [];
+  let packageRoot: string | undefined;
+  const siblings: string[] = [];
   for (let index = 0; index < rest.length; index += 1) {
     const option = rest[index];
     const value = rest[index + 1];
@@ -1392,6 +1483,22 @@ function parseArgs(argv: readonly string[]): CliArgs | undefined {
       index += 1;
       continue;
     }
+    if (option === "--sibling") {
+      if (value === undefined || value === "") {
+        return undefined;
+      }
+      siblings.push(value);
+      index += 1;
+      continue;
+    }
+    if (option === "--package-root") {
+      if (packageRoot !== undefined || value === undefined || value === "") {
+        return undefined;
+      }
+      packageRoot = value;
+      index += 1;
+      continue;
+    }
     return undefined;
   }
 
@@ -1414,6 +1521,8 @@ function parseArgs(argv: readonly string[]): CliArgs | undefined {
     projectPath,
     providers: assignedProviders,
     unclaimed,
+    packageRoot,
+    siblings,
   };
 }
 
@@ -1435,13 +1544,21 @@ if (isEntryPoint(process.argv[1], import.meta.url)) {
       process.exitCode = 1;
     } else {
       try {
-        const registry = await buildRegistry(args.providers);
+        const registry = await buildRegistry(
+          args.providers,
+          await siblingProviders(
+            args.repositoryName,
+            args.repositoryRoot,
+            args.siblings,
+          ),
+        );
         const payload = await collectFacts(
           args.repositoryName,
           args.repositoryRoot,
           registry,
           args.projectPath,
           args.unclaimed,
+          args.packageRoot,
         );
         await mkdir(path.dirname(path.resolve(args.output)), {
           recursive: true,

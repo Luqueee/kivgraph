@@ -16,6 +16,8 @@ export type DeclarationSourceStatus =
   | "PROVIDER_REGISTRY"
   | "ROOT_DIR_OUT_DIR"
   | "INSTALLED_PACKAGE"
+  /** The checker resolved the import to the source itself: nothing to map. */
+  | "SOURCE"
   | "UNRESOLVED";
 
 /** File-level mapping from a declaration artifact to its source files. */
@@ -584,7 +586,7 @@ function resolveSourcePath(
   return path.resolve(path.dirname(mapFile), sourceRoot, source);
 }
 
-function isDeclarationFile(fileName: string): boolean {
+export function isDeclarationFile(fileName: string): boolean {
   return /\.d\.(?:ts|mts|cts)$/.test(fileName);
 }
 

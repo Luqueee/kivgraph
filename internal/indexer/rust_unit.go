@@ -337,16 +337,11 @@ func rustDiagnostics(unit rustWorkspaceUnit, analysis rustloader.Analysis, repor
 		diagnostics = append(diagnostics, fmt.Sprintf("%s %s: %d symbols name a crate no manifest declares",
 			unit.repository.Name, rustUnitDetail(unit), report.DefinitionsWithoutCrate))
 	}
-	if analysis.ReferencesWithoutSource != 0 {
-		diagnostics = append(diagnostics, fmt.Sprintf("%s %s: %d uses have no enclosing declaration",
-			unit.repository.Name, rustUnitDetail(unit), analysis.ReferencesWithoutSource))
-	}
-	// The report counts every edge with no source, the analysis counter
-	// included. What is left is what normalisation dropped: an end the pass
-	// decided not to publish, which no merge would ever close.
-	if dropped := report.EdgesWithoutSource - analysis.ReferencesWithoutSource; dropped > 0 {
+	// What normalisation dropped: an end the pass decided not to publish,
+	// which no merge would ever close.
+	if report.EdgesWithoutSource != 0 {
 		diagnostics = append(diagnostics, fmt.Sprintf("%s %s: %d edges name a source this pass does not publish",
-			unit.repository.Name, rustUnitDetail(unit), dropped))
+			unit.repository.Name, rustUnitDetail(unit), report.EdgesWithoutSource))
 	}
 	if report.FilesWithoutPackage != 0 {
 		diagnostics = append(diagnostics, fmt.Sprintf("%s %s: %d indexed files belong to no crate this workspace declares",

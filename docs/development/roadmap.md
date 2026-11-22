@@ -2743,9 +2743,7 @@ of the precision column, and `exclude_tests` on the traversal tools.
     before. Not run: a daemon left serving while a module breaks and recovers.
   - Done (ADR 0147, amended): a use in one Cargo workspace of a crate another
     workspace of the same repository declares is an edge, resolved as one that
-    crosses repositories. Open, seen while checking it: a Rust file whose body
-    is one macro invocation declares nothing, so its uses have no source and
-    are in no edge and no failure.
+    crosses repositories.
   - Done (ADR 0153): a path Git ignores that holds source is an exclusion,
     named by `doctor` on `walk.ignored`, with `include_git_ignored` on the
     registry entry to keep it. Found with it: an exclusion never kept a
@@ -2784,10 +2782,22 @@ of the precision column, and `exclude_tests` on the traversal tools.
     declared what a pass needs while the files of a package with a manifest
     and no `tsconfig.json` were read by nobody; the pass knew which and
     printed nothing. Both name them now
-    (`index.typescript.unclaimed_not_read`). Open: those files are still not
-    indexed, so a module every page imports from such a package is in no
-    graph; and ten fuzz targets whose body is one macro have no symbol, so
-    their uses are in no edge and no failure.
+    (`index.typescript.unclaimed_not_read`).
+  - Done (ADR 0155): a package with a manifest and no `tsconfig.json` is read
+    through a project written for the pass, outside the repository, and the
+    pass names it (`index.typescript.inferred`). Found with it, and fixed: an
+    import of a package of the same repository was never an edge, with or
+    without a project, and the answer said `COMPLETE`. A sibling is a
+    provider now, resolved at the source the checker reaches. On the monorepo
+    above an export every page imports went from no symbol to `29` files.
+    Open: importing a sibling's class records
+    `IMPLEMENTATION_COVERAGE_PARTIAL`, which bounds every TypeScript answer
+    of the repository; the chosen compiler options were not tried on a
+    package that needs path aliases.
+  - Done (ADR 0052, amended): a Rust use no declaration of its file contains
+    belongs to the file's scope, as in Go and TypeScript. A fuzz target whose
+    body is one macro call is in the answers about what it uses; ten of
+    sixteen had no symbol.
   - Memory: about `0.7 GB` above the heap at the peak of a large Go index is
     not broken down; no `linux/amd64` measurement; the collector setting is
     process-wide and was not measured with a daemon serving while it indexes.

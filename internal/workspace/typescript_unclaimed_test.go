@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"testing"
 
@@ -221,5 +222,38 @@ func TestUnclaimedTypeScriptSourcesHonorsCancellation(t *testing.T) {
 	cancel()
 	if _, err := UnclaimedTypeScriptSources(ctx, repository, discovery); !errors.Is(err, context.Canceled) {
 		t.Fatalf("UnclaimedTypeScriptSources(canceled) error = %v, want context.Canceled", err)
+	}
+}
+
+// A file belongs to the deepest package that contains it: the root manifest of
+// a monorepo contains every package, and a root that is only a prefix of
+// another's name contains none of its files.
+func TestAttributeUnclaimedTypeScriptSourcesNamesTheDeepestPackage(t *testing.T) {
+	root := filepath.Join("r", "repo")
+	core := filepath.Join(root, "packages", "core")
+	coreExtra := filepath.Join(root, "packages", "core-extra")
+	packages := []TypeScriptPackage{
+		{Name: "root", RootPath: root},
+		{Name: "core", RootPath: core, ProjectPath: filepath.Join(core, "tsconfig.json")},
+		{Name: "core-extra", RootPath: coreExtra},
+	}
+	inCore := filepath.Join(core, "tests", "a.ts")
+	inExtra := filepath.Join(coreExtra, "src", "b.ts")
+	inRoot := filepath.Join(root, "scripts", "c.ts")
+	outside := filepath.Join("r", "elsewhere", "d.ts")
+
+	got := AttributeUnclaimedTypeScriptSources(packages, []string{inCore, inExtra, inRoot, outside})
+	want := UnclaimedTypeScriptOwners{
+		WithProject:    map[string][]string{core: {inCore}},
+		WithoutProject: map[string][]string{coreExtra: {inExtra}, root: {inRoot}},
+		Orphans:        []string{outside},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("owners = %#v, want %#v", got, want)
+	}
+
+	none := AttributeUnclaimedTypeScriptSources(nil, []string{inCore})
+	if !slices.Equal(none.Orphans, []string{inCore}) || len(none.WithProject)+len(none.WithoutProject) != 0 {
+		t.Fatalf("with no package: %#v", none)
 	}
 }
