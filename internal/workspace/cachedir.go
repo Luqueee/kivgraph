@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/Luqueee/kivgraph/internal/checkout"
 )
 
 // cacheDirectoryTag and cacheDirectorySignature are the Cache Directory Tagging
@@ -46,52 +48,18 @@ func IsCacheDirectory(directory string) bool {
 	return string(prefix) == cacheDirectorySignature
 }
 
-// IsOtherCheckout reports whether directory is the root of another Git
-// checkout: a clone, or a worktree linked from any repository.
-//
-// What is under it belongs to that checkout. Git itself does not look inside,
-// and a walk that did read every file twice: a worktree repeats the
-// `package.json` of the repository it was linked from, the name had two
-// providers, and neither was indexed -- a pass over a repository with one
-// worktree published no TypeScript and said PASS.
-//
-// A submodule is not one. It is how the repository says that code is part of
-// it, and its `.git` is a file that points under `modules`.
-// Callers never ask about the repository root.
-func IsOtherCheckout(directory string) bool {
-	marker := filepath.Join(directory, ".git")
-	info, err := os.Lstat(marker)
-	if err != nil {
-		return false
-	}
-	if info.IsDir() {
-		return true
-	}
-	if !info.Mode().IsRegular() {
-		return false
-	}
-	pointer, err := os.ReadFile(marker)
-	if err != nil {
-		return false
-	}
-	target, found := strings.CutPrefix(strings.TrimSpace(string(pointer)), "gitdir:")
-	if !found {
-		return false
-	}
-	return !strings.Contains(filepath.ToSlash(target), "/modules/")
-}
-
 // IsSkippedDirectory is the one question every walk asks before entering a
-// directory below the root: a tagged cache, or another checkout.
+// directory below the root: a tagged cache, or another checkout
+// (checkout.IsOtherCheckout).
 func IsSkippedDirectory(directory string) bool {
-	return IsCacheDirectory(directory) || IsOtherCheckout(directory)
+	return IsCacheDirectory(directory) || checkout.IsOtherCheckout(directory)
 }
 
 // OtherCheckouts lists the directories below the repository's root that the
 // walks skip because they are another checkout, as CacheDirectories lists the
 // tagged ones.
 func OtherCheckouts(ctx context.Context, repository Repository) ([]string, error) {
-	return skippedBelow(ctx, repository, IsOtherCheckout)
+	return skippedBelow(ctx, repository, checkout.IsOtherCheckout)
 }
 
 // CacheDirectories lists, as absolute sorted paths, the directories below the

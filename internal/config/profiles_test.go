@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -374,5 +375,28 @@ func TestInitializeKeepsNoRecoveryPointForEmptyBackups(t *testing.T) {
 	state := filepath.Dir(loaded.Config.Storage.DatabasePath)
 	if _, err := os.Stat(state + ".pre-profiles"); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("a fresh installation kept a recovery point (%v)", err)
+	}
+}
+
+// Java and C# both name their target `target`. Inside one repository they are
+// both moved outside it, and must not be sent to the same directory: each
+// build would overwrite the other's output. A name nobody else took is kept.
+func TestKeepOutOfRepositoriesGivesEachTargetItsOwnDirectory(t *testing.T) {
+	repository := testsupport.TempDir(t)
+	outside := testsupport.TempDir(t)
+	configuration := Config{}
+	configuration.Rust.TargetDirectory = filepath.Join(repository, "rust-out")
+	configuration.Java.TargetDirectory = filepath.Join(repository, "target")
+	configuration.CSharp.TargetDirectory = filepath.Join(repository, "nested", "target")
+	keepOutOfRepositories(&configuration, "default", outside, []Repository{{Name: "project", Path: repository}})
+
+	got := []string{configuration.Rust.TargetDirectory, configuration.Java.TargetDirectory, configuration.CSharp.TargetDirectory}
+	want := []string{
+		filepath.Join(outside, "rust-out"),
+		filepath.Join(outside, "target"),
+		filepath.Join(outside, "csharp-target"),
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("targets = %q, want %q", got, want)
 	}
 }

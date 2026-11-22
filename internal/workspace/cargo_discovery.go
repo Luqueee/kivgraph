@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/Luqueee/kivgraph/internal/checkout"
 )
 
 var defaultCargoExcludedDirectories = map[string]struct{}{
@@ -363,7 +365,7 @@ func isCargoDiscoveryExcluded(base, candidate, name string, isDirectory bool, ex
 		if _, excluded := defaultCargoExcludedDirectories[name]; excluded {
 			return true, nil
 		}
-		if IsOtherCheckout(candidate) {
+		if checkout.IsOtherCheckout(candidate) {
 			return true, nil
 		}
 	}

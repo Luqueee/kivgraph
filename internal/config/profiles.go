@@ -615,14 +615,28 @@ func keepOutOfRepositories(configuration *Config, profile, outside string, repos
 		// creates nothing. The `go` tool takes any absolute GOWORK.
 		configuration.Go.SyntheticWorkFile = filepath.Join(outside, "go."+profile+".work")
 	}
-	for _, target := range []*string{
-		&configuration.Rust.TargetDirectory,
-		&configuration.Java.TargetDirectory,
-		&configuration.CSharp.TargetDirectory,
+	// Two languages may call theirs the same -- Java and C# both say `target`
+	// -- and would then share one directory outside and overwrite each other.
+	// The first keeps the name, as it always did; a later one takes its
+	// language in front.
+	taken := make(map[string]bool)
+	for _, target := range []struct {
+		path     *string
+		language string
+	}{
+		{&configuration.Rust.TargetDirectory, "rust"},
+		{&configuration.Java.TargetDirectory, "java"},
+		{&configuration.CSharp.TargetDirectory, "csharp"},
 	} {
-		if inside(*target) {
-			*target = filepath.Join(outside, filepath.Base(*target))
+		if !inside(*target.path) {
+			continue
 		}
+		moved := filepath.Join(outside, filepath.Base(*target.path))
+		if taken[moved] {
+			moved = filepath.Join(outside, target.language+"-"+filepath.Base(*target.path))
+		}
+		taken[moved] = true
+		*target.path = moved
 	}
 }
 

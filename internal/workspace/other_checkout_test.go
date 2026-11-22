@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Luqueee/kivgraph/internal/checkout"
 	"github.com/Luqueee/kivgraph/internal/config"
 )
 
@@ -17,7 +18,8 @@ import (
 //
 //	worktree    `.git` is a file that points under `worktrees`: another checkout
 //	clone       `.git` is a directory: another checkout
-//	submodule   `.git` is a file that points under `modules`: part of this one
+//	submodule   `.git` is a file that points under `modules`, and the root's
+//	            .gitmodules lists it: part of this one
 //	plain       no `.git`
 func otherCheckoutTree(t *testing.T) (root string) {
 	t.Helper()
@@ -52,6 +54,7 @@ func otherCheckoutTree(t *testing.T) (root string) {
 	put(".worktrees/feature/.git", "gitdir: "+filepath.Join(root, ".git", "worktrees", "feature")+"\n")
 	put("vendor-clone/.git/HEAD", "ref: refs/heads/main\n")
 	put("sub/.git", "gitdir: ../.git/modules/sub\n")
+	put(".gitmodules", "[submodule \"sub\"]\n\tpath = sub\n")
 	return root
 }
 
@@ -82,8 +85,75 @@ func TestIsOtherCheckoutTellsAWorktreeAndACloneFromASubmodule(t *testing.T) {
 		}
 	}
 	for directory, expected := range want {
-		if got := IsOtherCheckout(filepath.Join(root, filepath.FromSlash(directory))); got != expected {
-			t.Errorf("IsOtherCheckout(%s) = %t, want %t", directory, got, expected)
+		if got := checkout.IsOtherCheckout(filepath.Join(root, filepath.FromSlash(directory))); got != expected {
+			t.Errorf("checkout.IsOtherCheckout(%s) = %t, want %t", directory, got, expected)
+		}
+	}
+}
+
+// Git once declared a submodule by an embedded `.git` directory, which has the
+// shape of a clone. The root's .gitmodules is what tells them apart.
+func TestIsOtherCheckoutFollowsTheRootsGitmodulesForAnEmbeddedGitDirectory(t *testing.T) {
+	root := otherCheckoutTree(t)
+	legacy := filepath.Join(root, "legacy")
+	if err := os.MkdirAll(filepath.Join(legacy, ".git"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(legacy, ".git", "HEAD"), []byte("ref: refs/heads/main\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	gitmodules := filepath.Join(root, ".gitmodules")
+	listed := "[submodule \"sub\"]\n\tpath = sub\n[submodule \"legacy\"]\n\tpath = legacy\n"
+	if err := os.WriteFile(gitmodules, []byte(listed), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if checkout.IsOtherCheckout(legacy) {
+		t.Error("a submodule the root lists was skipped as another checkout")
+	}
+	unlisted := "[submodule \"sub\"]\n\tpath = sub\n"
+	if err := os.WriteFile(gitmodules, []byte(unlisted), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if !checkout.IsOtherCheckout(legacy) {
+		t.Error("an embedded .git directory the root does not list was walked")
+	}
+}
+
+// The gitdir of a linked worktree is an absolute path. An ancestor named modules
+// in it declares nothing: only the enclosing repository's list does.
+func TestIsOtherCheckoutDoesNotReadAModulesAncestorAsASubmodule(t *testing.T) {
+	root := otherCheckoutTree(t)
+	worktree := filepath.Join(root, "worktree")
+	if err := os.MkdirAll(worktree, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	pointer := "gitdir: /srv/modules/app/.git/worktrees/feature\n"
+	if err := os.WriteFile(filepath.Join(worktree, ".git"), []byte(pointer), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if !checkout.IsOtherCheckout(worktree) {
+		t.Error("a linked worktree with a modules ancestor in its gitdir was walked as a submodule")
+	}
+}
+
+// A `.git` file that is not a gitdir pointer leaves its directory walked, so a
+// broken file cannot hide a tree from every walk.
+func TestIsOtherCheckoutWalksADirectoryWithAMalformedGitFile(t *testing.T) {
+	root := otherCheckoutTree(t)
+	for name, body := range map[string]string{
+		"empty":   "",
+		"nocolon": "gitdir\n",
+		"text":    "not a pointer\n",
+	} {
+		directory := filepath.Join(root, name)
+		if err := os.MkdirAll(directory, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(directory, ".git"), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if checkout.IsOtherCheckout(directory) {
+			t.Errorf("%s: a malformed .git was skipped as another checkout", name)
 		}
 	}
 }

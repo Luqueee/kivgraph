@@ -203,10 +203,20 @@ them and said PASS. The same pass over a workspace root that holds its
 applications as nested clones, and twelve more clones of them, ran for `464 s`
 to `9.8 GB` and failed in the store.
 
-`IsOtherCheckout` answers for a directory that holds a `.git`: a directory is a
-clone, a file that points under `worktrees` is a linked worktree. Git itself
-does not look inside either. A file that points under `modules` is a submodule,
-which is how a repository says the code is part of it, and is still walked.
+`checkout.IsOtherCheckout` answers for a directory that holds a `.git`: a
+directory is a clone, and a file that starts with `gitdir:` is a linked
+worktree. Git itself does not look inside either. A submodule has the same two
+forms of `.git`, so its shape cannot tell it apart: it is what the repository
+above it lists in `.gitmodules`, which is how that repository says the code
+is part of it, and it is still walked. A `.git` file that is not a `gitdir:`
+pointer leaves its directory walked.
+
+This replaced reading the pointer for `/modules/`. That read a submodule with
+an embedded `.git` directory, the form Git used before it absorbed them, as a
+clone and left its code out; and it read a worktree linked from a repository
+that lives under a directory named `modules` as a submodule and walked it
+twice. The rule is one function in a package of its own, so that language
+detection, every walk and both Python workers ask the same question.
 
 `IsSkippedDirectory` is the one question now, a tag or a checkout, and it is
 asked by the TypeScript, Go and Cargo discovery, the Dart loader, the two

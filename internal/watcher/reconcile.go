@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Luqueee/kivgraph/internal/checkout"
 	"github.com/Luqueee/kivgraph/internal/config"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
@@ -317,7 +318,7 @@ func (reconciler *Reconciler) scan(ctx context.Context) ([]scannedFile, error) {
 				// Another checkout below the root is not this repository's
 				// code and no pass reads it; reconciling it made every
 				// edit in a worktree a change of the repository above.
-				if path != repository.root && (repository.ignored.ignored(path) || workspace.IsOtherCheckout(path)) {
+				if path != repository.root && (repository.ignored.ignored(path) || checkout.IsOtherCheckout(path)) {
 					return filepath.SkipDir
 				}
 				return nil

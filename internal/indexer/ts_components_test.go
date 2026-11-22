@@ -4,10 +4,12 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
 	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
@@ -97,5 +99,65 @@ func TestDeclareUnreadComponentsNamesTheExportedNamesAFileWrites(t *testing.T) {
 		if file.Path == "src/pages/huge.astro" {
 			t.Error("a file above the limit was read")
 		}
+	}
+}
+
+// A component file the scan cannot open may write any exported name. It is
+// declared for the package, with no file, so that no answer about the
+// repository says it looked everywhere; it used to be skipped in silence.
+func TestDeclareUnreadComponentsDeclaresWhatItCouldNotRead(t *testing.T) {
+	testsupport.SkipWithoutModeBits(t)
+	if os.Geteuid() == 0 {
+		t.Skip("root reads a file whatever its mode")
+	}
+	root := testsupport.TempDir(t)
+	page := filepath.Join(root, "src", "pages", "index.astro")
+	locked := filepath.Join(root, "src", "locked")
+	for _, directory := range []string{filepath.Dir(page), locked} {
+		if err := os.MkdirAll(directory, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(page, []byte("loadPosts\n"), 0o000); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(locked, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o700) })
+
+	repositoryKey := facts.RepositoryKey("site")
+	packageKey := facts.PackageKey(facts.LanguageTypeScript, "site", "site")
+	fileKey := facts.FileKey("site", "src/lib/posts.ts")
+	set := facts.Set{
+		Repositories: []facts.Repository{{Key: repositoryKey, Name: "site", RootPath: root, Languages: []facts.Language{facts.LanguageTypeScript}}},
+		Packages:     []facts.Package{{Key: packageKey, RepositoryKey: repositoryKey, Language: facts.LanguageTypeScript, Name: "site"}},
+		Files:        []facts.File{{Key: fileKey, RepositoryKey: repositoryKey, PackageKey: packageKey, Path: "src/lib/posts.ts", Language: facts.LanguageTypeScript}},
+		Symbols: []facts.Symbol{
+			{Key: "s1", RepositoryKey: repositoryKey, PackageKey: packageKey, FileKey: fileKey, Language: facts.LanguageTypeScript, Name: "loadPosts", Exported: true},
+		},
+	}
+	before := len(set.Files)
+	declareUnreadComponents(&set, workspace.Repository{Name: "site", RealPath: root}, root)
+	var named []string
+	for _, row := range set.Unresolved {
+		if row.FileKey != "" || row.RequestedSymbol != "" || row.Reason != UnresolvedComponentNotRead ||
+			row.Language != facts.LanguageTypeScript || row.RequestedPackage != set.Packages[0].Name {
+			t.Errorf("row = %#v, want a scope of the package that says it was not read", row)
+		}
+		for _, path := range []string{page, locked} {
+			if strings.Contains(row.Detail, path+":") {
+				named = append(named, path)
+			}
+		}
+	}
+	sort.Strings(named)
+	want := []string{locked, page}
+	sort.Strings(want)
+	if !reflect.DeepEqual(named, want) {
+		t.Errorf("unread = %v, want %v in %#v", named, want, set.Unresolved)
+	}
+	if len(set.Files) != before {
+		t.Errorf("a file nobody read was published: %#v", set.Files)
 	}
 }

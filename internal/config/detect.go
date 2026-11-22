@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/Luqueee/kivgraph/internal/checkout"
 )
 
 // detectedLanguageOrder is the canonical order used by the project-local
@@ -139,9 +141,9 @@ func walkLanguages(root string, unread map[string]int) ([]string, error) {
 			if _, ignored := directoriesIgnoredDuringDetection[strings.ToLower(entry.Name())]; ignored {
 				return fs.SkipDir
 			}
-			// Another checkout's languages are its own: see
-			// workspace.IsOtherCheckout, which this package cannot import.
-			if _, err := os.Lstat(filepath.Join(path, ".git")); err == nil {
+			// Another checkout's languages are its own. The workspace walks use
+			// the same rule, so detection and indexing skip the same trees.
+			if checkout.IsOtherCheckout(path) {
 				return fs.SkipDir
 			}
 			return nil
