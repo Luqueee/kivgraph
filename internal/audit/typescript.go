@@ -102,12 +102,37 @@ func auditTypeScript(
 		findings = append(findings, noProjectFinding(repository, packages))
 	}
 
-	if withProject != 0 && !options.IncludeUnclaimedSources {
+	if withProject != 0 {
 		unclaimed, err := workspace.UnclaimedTypeScriptSources(ctx, repository, discovery)
 		if err != nil {
 			return nil, fmt.Errorf("resolve unclaimed sources: %w", err)
 		}
-		if len(unclaimed) != 0 {
+		if options.IncludeUnclaimedSources {
+			// The inferred project reads an unclaimed file through the
+			// package that holds it, and a package is a unit of the pass only
+			// if it declares a project. A file in one that declares none is
+			// still read by nobody, and with the key on this said nothing.
+			orphans := make([]string, 0)
+			for _, source := range unclaimed {
+				if !inPackageWithProject(packages, source) {
+					orphans = append(orphans, source)
+				}
+			}
+			if len(orphans) != 0 {
+				findings = append(findings, Finding{
+					Repository: repository.Name,
+					Language:   "typescript",
+					Code:       CodeTypeScriptUnclaimedSources,
+					Severity:   SeverityPartial,
+					Detail: fmt.Sprintf("%d source file(s) are in no package that declares a project, starting at %s; typescript.include_unclaimed_sources does not reach them, so nothing reads them and nothing reports them absent",
+						len(orphans), relativePath(repository.RealPath, orphans[0])),
+					Remedy: Remedy{
+						Summary: "give the package that holds them a tsconfig.json, or a jsconfig.json if it ships JavaScript",
+						Path:    relativePath(repository.RealPath, filepath.Dir(orphans[0])),
+					},
+				})
+			}
+		} else if len(unclaimed) != 0 {
 			findings = append(findings, Finding{
 				Repository: repository.Name,
 				Language:   "typescript",
@@ -124,6 +149,21 @@ func auditTypeScript(
 		}
 	}
 	return findings, nil
+}
+
+// inPackageWithProject reports whether a package that declares a project
+// encloses source: the rule the pass attributes an unclaimed file by.
+func inPackageWithProject(packages []workspace.TypeScriptPackage, source string) bool {
+	for _, packageValue := range packages {
+		if strings.TrimSpace(packageValue.ProjectPath) == "" {
+			continue
+		}
+		relative, err := filepath.Rel(packageValue.RootPath, source)
+		if err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
 }
 
 // noProjectFinding proposes the config file the repository's own sources ask

@@ -1738,6 +1738,11 @@ func writeIndexDetails(stdout io.Writer, indexReport indexer.FullReport) {
 	for _, line := range boundedReportLines(indexReport.TypeScriptNotRead, 20) {
 		writeWarning(stdout, "index.typescript.not_read: %s", line)
 	}
+	// The pass knew these and said nothing: an unclaimed file is read through
+	// the package that holds it, and these are in one that declares no project.
+	for _, file := range boundedReportLines(indexReport.TypeScriptUnclaimedWithoutPackage, 20) {
+		writeWarning(stdout, "index.typescript.unclaimed_not_read: %s is in no package that declares a project, so nothing reads it", file)
+	}
 	for _, diagnostic := range boundedReportLines(indexReport.RustDiagnostics, 20) {
 		writeWarning(stdout, "index.rust.diagnostic: %s", diagnostic)
 	}
