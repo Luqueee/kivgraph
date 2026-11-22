@@ -268,10 +268,15 @@ func validateRepositoryRelationships(paths []validatedRepositoryPath, repositori
 			if paths[left].realPath == paths[right].realPath {
 				return fmt.Errorf("validate repositories[%d] %q and repositories[%d] %q: duplicate realpath %q", left, repositories[left].Name, right, repositories[right].Name, paths[left].realPath)
 			}
-			if pathContains(paths[left].realPath, paths[right].realPath) {
+			// A checkout of its own below another one is not read with it --
+			// every walk stops at it (IsOtherCheckout) -- so the two entries
+			// hold no file in common, and a workspace whose root is a
+			// repository can be registered beside the repositories it holds.
+			// A plain directory of the outer one would be read twice.
+			if pathContains(paths[left].realPath, paths[right].realPath) && !IsOtherCheckout(paths[right].realPath) {
 				return fmt.Errorf("validate repositories[%d] %q and repositories[%d] %q: nested repositories (%q contains %q)", left, repositories[left].Name, right, repositories[right].Name, paths[left].realPath, paths[right].realPath)
 			}
-			if pathContains(paths[right].realPath, paths[left].realPath) {
+			if pathContains(paths[right].realPath, paths[left].realPath) && !IsOtherCheckout(paths[left].realPath) {
 				return fmt.Errorf("validate repositories[%d] %q and repositories[%d] %q: nested repositories (%q contains %q)", right, repositories[right].Name, left, repositories[left].Name, paths[right].realPath, paths[left].realPath)
 			}
 		}

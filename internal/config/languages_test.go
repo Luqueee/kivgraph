@@ -117,3 +117,42 @@ func writeDetectionFile(t *testing.T, path string) {
 		t.Fatalf("WriteFile(%q): %v", path, err)
 	}
 }
+
+// A project in a language that is not read was indexed for the two scripts it
+// holds in another. The files that are left are counted, so that it can be said.
+func TestUnreadSourcesCountsWhatNoLoaderReads(t *testing.T) {
+	root := t.TempDir()
+	for name, body := range map[string]string{
+		"App/Main.swift":           "struct Main {}\n",
+		"App/View.swift":           "struct View {}\n",
+		"scripts/tool.py":          "print(1)\n",
+		"web/Page.astro":           "---\n---\n",
+		"node_modules/x/dep.swift": "struct Dep {}\n",
+		"README.md":                "# readme\n",
+	} {
+		filename := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(filename), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filename, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	unread, err := UnreadSources(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := map[string]int{".swift": 2, ".astro": 1}; !reflect.DeepEqual(unread, want) {
+		t.Errorf("unread = %v, want %v", unread, want)
+	}
+	languages, err := DetectLanguages(root)
+	if err != nil || !reflect.DeepEqual(languages, []string{"python"}) {
+		t.Errorf("languages = %v, %v, want python alone", languages, err)
+	}
+	if clean, err := UnreadSources(filepath.Join(root, "scripts")); err != nil || len(clean) != 0 {
+		t.Errorf("a tree every loader reads: %v, %v", clean, err)
+	}
+	if _, err := UnreadSources(filepath.Join(root, "missing")); err == nil {
+		t.Error("a path that is not there was counted")
+	}
+}

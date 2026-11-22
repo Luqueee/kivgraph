@@ -4,8 +4,11 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
 func TestProfilePointerCannotDangle(t *testing.T) {
@@ -254,5 +257,103 @@ func TestLegacyMigrationRecoversBackupAfterInterruptedRename(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(state, "profiles", "default", "CURRENT")); err != nil {
 		t.Fatalf("recovered migrated CURRENT: %v", err)
+	}
+}
+
+// `kivgraph index` keeps a project's configuration and state in `.kivgraph`,
+// inside the repository it indexes. The indexers refuse a synthetic `go.work`
+// or a build directory there, so the profile has to point them elsewhere --
+// and it pointed the workspace back inside after the configuration had moved
+// it out.
+func TestLoadProfileKeepsWhatIndexersRefuseOutOfTheRepository(t *testing.T) {
+	testsupport.SetHome(t, t.TempDir())
+	project := t.TempDir()
+	configPath := filepath.Join(project, ".kivgraph", "config.yaml")
+	if _, err := Initialize(InitOptions{ConfigPath: configPath}); err != nil {
+		t.Fatal(err)
+	}
+	inside := func(path string) bool {
+		relative, err := filepath.Rel(project, path)
+		return err == nil && !strings.HasPrefix(relative, "..")
+	}
+	paths := func(loaded Loaded) map[string]string {
+		return map[string]string{
+			"go.work": loaded.Config.Go.SyntheticWorkFile,
+			"rust":    loaded.Config.Rust.TargetDirectory,
+			"java":    loaded.Config.Java.TargetDirectory,
+			"csharp":  loaded.Config.CSharp.TargetDirectory,
+		}
+	}
+
+	// Nothing registered yet: no repository to be inside of, nothing moves.
+	before, err := LoadProfile(configPath, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !inside(before.Config.Rust.TargetDirectory) {
+		t.Fatalf("the fixture is not the case: rust target = %q", before.Config.Rust.TargetDirectory)
+	}
+
+	registry := "version: 1\nrepositories:\n  - name: project\n    path: " + project + "\n    languages: [go]\n"
+	if err := os.WriteFile(before.RepositoriesPath, []byte(registry), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := LoadProfile(configPath, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]string{}
+	for name, path := range paths(loaded) {
+		if inside(path) {
+			t.Errorf("%s = %q, inside the repository %q", name, path, project)
+		}
+		if other, taken := seen[path]; taken {
+			t.Errorf("%s and %s share %q", name, other, path)
+		}
+		seen[path] = name
+	}
+	// And the directory it moved to is there, which is what `doctor` checks.
+	if _, err := os.Stat(filepath.Dir(loaded.Config.Go.SyntheticWorkFile)); err != nil {
+		t.Errorf("the parent of the moved go.work is not there: %v", err)
+	}
+	// The graph stays where the project keeps it.
+	if !inside(loaded.Config.Storage.DatabasePath) {
+		t.Errorf("the graph moved out of the project: %q", loaded.Config.Storage.DatabasePath)
+	}
+
+	// Two projects do not meet outside, and neither do two profiles of one.
+	other := t.TempDir()
+	otherConfig := filepath.Join(other, ".kivgraph", "config.yaml")
+	if _, err := Initialize(InitOptions{ConfigPath: otherConfig}); err != nil {
+		t.Fatal(err)
+	}
+	otherLoaded, err := LoadProfile(otherConfig, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherRegistry := "version: 1\nrepositories:\n  - name: other\n    path: " + other + "\n    languages: [go]\n"
+	if err := os.WriteFile(otherLoaded.RepositoriesPath, []byte(otherRegistry), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if otherLoaded, err = LoadProfile(otherConfig, ""); err != nil {
+		t.Fatal(err)
+	}
+	for name, path := range paths(otherLoaded) {
+		if path == paths(loaded)[name] {
+			t.Errorf("two projects share %s = %q", name, path)
+		}
+	}
+
+	// A registered repository that holds none of the state moves nothing.
+	elsewhere := "version: 1\nrepositories:\n  - name: elsewhere\n    path: " + t.TempDir() + "\n    languages: [go]\n"
+	if err := os.WriteFile(before.RepositoriesPath, []byte(elsewhere), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	untouched, err := LoadProfile(configPath, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := paths(untouched), paths(before); !reflect.DeepEqual(got, want) {
+		t.Errorf("paths = %v, want them as configured: %v", got, want)
 	}
 }

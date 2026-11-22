@@ -90,18 +90,46 @@ func resolveTypeScriptConfig(configPath, repositoryRoot string) (parsedTypeScrip
 		}
 	}
 
+	directory := filepath.Dir(cleanConfigPath)
 	return parsedTypeScriptConfig{
 		ConfigPath:      cleanConfigPath,
-		Directory:       filepath.Dir(cleanConfigPath),
+		Directory:       directory,
 		ExtendsChain:    resolved.chain,
 		CompilerOptions: compilerOptions,
-		Files:           resolved.files,
-		Include:         resolved.include,
-		Exclude:         resolved.exclude,
+		Files:           inConfigDirectory(resolved.files, directory),
+		Include:         inConfigDirectory(resolved.include, directory),
+		Exclude:         inConfigDirectory(resolved.exclude, directory),
 		HasFiles:        resolved.hasFiles,
 		HasInclude:      resolved.hasInclude,
 		HasExclude:      resolved.hasExclude,
 	}, nil
+}
+
+// configDirectoryVariable is the template TypeScript 5.5 reads in a path of a
+// configuration: the directory of the project that is being loaded, whichever
+// file of its "extends" chain wrote the path.
+const configDirectoryVariable = "${configDir}"
+
+// inConfigDirectory resolves that variable in patterns that were already made
+// absolute against the file that declared them.
+//
+// A shared base writes `"include": ["${configDir}/**/*"]` so that it means the
+// project and not the base's own directory -- Astro's does. Read as a literal,
+// the pattern named a directory called `${configDir}` beside the base: the
+// project claimed no file, and an audit called blocking a project the engine
+// indexed whole.
+func inConfigDirectory(patterns []string, directory string) []string {
+	if patterns == nil {
+		return nil
+	}
+	resolved := make([]string, len(patterns))
+	for index, pattern := range patterns {
+		resolved[index] = pattern
+		if at := strings.Index(pattern, configDirectoryVariable); at >= 0 {
+			resolved[index] = filepath.Join(directory, pattern[at+len(configDirectoryVariable):])
+		}
+	}
+	return resolved
 }
 
 // cloneCompilerOptions returns a deep copy of options: nested maps and

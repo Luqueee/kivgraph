@@ -331,7 +331,9 @@ func (watcher *Watcher) addTree(root repositoryRoot, start string) error {
 		if !entry.IsDir() {
 			return nil
 		}
-		if path != start && root.ignored.ignored(path) {
+		// Another checkout is not watched, as it is not indexed: a clone or
+		// a linked worktree below the root. The root itself is one, always.
+		if path != start && root.ignored.ignored(path) || path != root.path && workspace.IsOtherCheckout(path) {
 			return filepath.SkipDir
 		}
 		if err := watcher.addDirectory(path); err != nil {

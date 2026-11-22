@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -222,5 +223,30 @@ func TestAuditRestrictsItselfToOneRepository(t *testing.T) {
 	}
 	if finding := only(t, report); finding.Repository != "second" {
 		t.Fatalf("finding = %#v, want it to be about the requested repository", finding)
+	}
+}
+
+// TypeScript and JavaScript are one audit. `kivgraph index` registers both for
+// a repository that holds both, and every finding was reported twice.
+func TestAuditRunsOnceForTypeScriptAndJavaScript(t *testing.T) {
+	root := testsupport.TempDir(t)
+	write(t, filepath.Join(root, "package.json"), `{"name":"probe","version":"1.0.0"}`)
+	write(t, filepath.Join(root, "tsconfig.json"), `{"include":["sources"]}`)
+	write(t, filepath.Join(root, "src", "index.ts"), "export const index = 1\n")
+
+	alone, err := Run(context.Background(), []workspace.Repository{repositoryAt(root, "typescript")}, Options{})
+	if err != nil || len(alone.Findings) == 0 {
+		t.Fatalf("Run(typescript) = %#v, %v, want findings to count", alone, err)
+	}
+	for _, languages := range [][]string{
+		{"typescript", "javascript"}, {"javascript", "typescript"}, {"ts", "js", "typescript"},
+	} {
+		report, err := Run(context.Background(), []workspace.Repository{repositoryAt(root, languages...)}, Options{})
+		if err != nil {
+			t.Fatalf("Run(%v) error = %v", languages, err)
+		}
+		if !reflect.DeepEqual(report.Findings, alone.Findings) {
+			t.Errorf("languages %v: %d findings, want the %d of one audit", languages, len(report.Findings), len(alone.Findings))
+		}
 	}
 }

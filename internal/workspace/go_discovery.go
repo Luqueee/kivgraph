@@ -170,7 +170,7 @@ func isGoDiscoveryExcluded(base, candidate, name string, isDirectory bool, exclu
 		if _, excluded := defaultGoExcludedDirectories[name]; excluded {
 			return true, nil
 		}
-		if IsCacheDirectory(candidate) {
+		if IsSkippedDirectory(candidate) {
 			return true, nil
 		}
 	}

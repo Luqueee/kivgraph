@@ -86,6 +86,34 @@ var directoriesIgnoredDuringDetection = map[string]struct{}{
 // directories, and it ignores generated/dependency trees so autodetection
 // cannot widen an index from a vendored artifact.
 func DetectLanguages(root string) ([]string, error) {
+	languages, _, err := detectSources(root)
+	return languages, err
+}
+
+// unreadSourceExtensions are source files of languages Kivgraph does not read.
+// They are counted so that a project in one of them is not indexed for the two
+// scripts it holds in another without a word about the rest.
+var unreadSourceExtensions = map[string]struct{}{
+	".swift": {}, ".kt": {}, ".kts": {}, ".scala": {}, ".php": {}, ".rb": {},
+	".c": {}, ".h": {}, ".cc": {}, ".cpp": {}, ".hpp": {}, ".m": {}, ".mm": {},
+	".ex": {}, ".exs": {}, ".lua": {}, ".zig": {}, ".vue": {}, ".svelte": {},
+	".astro": {},
+}
+
+// UnreadSources counts, by extension, the source files below root that are in
+// a language Kivgraph does not read. It walks what DetectLanguages walks.
+func UnreadSources(root string) (map[string]int, error) {
+	_, unread, err := detectSources(root)
+	return unread, err
+}
+
+func detectSources(root string) ([]string, map[string]int, error) {
+	unread := make(map[string]int)
+	languages, err := walkLanguages(root, unread)
+	return languages, unread, err
+}
+
+func walkLanguages(root string, unread map[string]int) ([]string, error) {
 	absolute, err := filepath.Abs(root)
 	if err != nil {
 		return nil, fmt.Errorf("resolve project path: %w", err)
@@ -111,6 +139,11 @@ func DetectLanguages(root string) ([]string, error) {
 			if _, ignored := directoriesIgnoredDuringDetection[strings.ToLower(entry.Name())]; ignored {
 				return fs.SkipDir
 			}
+			// Another checkout's languages are its own: see
+			// workspace.IsOtherCheckout, which this package cannot import.
+			if _, err := os.Lstat(filepath.Join(path, ".git")); err == nil {
+				return fs.SkipDir
+			}
 			return nil
 		}
 		if path == absolute || !entry.Type().IsRegular() {
@@ -126,6 +159,9 @@ func DetectLanguages(root string) ([]string, error) {
 		}
 		if language, ok := detectedLanguageExtensions[strings.ToLower(filepath.Ext(name))]; ok {
 			found[language] = struct{}{}
+		}
+		if _, ok := unreadSourceExtensions[strings.ToLower(filepath.Ext(name))]; ok {
+			unread[strings.ToLower(filepath.Ext(name))]++
 		}
 		return nil
 	})

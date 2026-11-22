@@ -67,3 +67,31 @@ what was not, so that absence is not presented as successful semantic data.
 ## Status
 
 Accepted.
+
+## Amendment: what indexers refuse stays out of the repository
+
+The project's state is `.kivgraph`, inside the repository being indexed, and
+three things cannot be written there: the synthetic `go.work` and the build
+directories of the Rust, Java and C# indexers. Each is refused where it is
+used. The configuration already placed `go.work` under
+`~/.local/state/kivgraph/workspaces/<digest of the config path>/`, and loading
+a profile then pointed it back inside.
+
+With `v0.10.0`, `kivgraph index`:
+
+| project | result |
+|---|---|
+| a Go repository of several modules | exit `1`, no generation |
+| a Cargo workspace at the root | `PASS`, the workspace left out |
+
+Loading a profile now moves any of the four that falls inside a registered
+repository to that same directory outside it; the workspace is one file per
+profile there, `go.<profile>.work`. The graph, the backups and the event log
+stay in `.kivgraph`. A
+configuration whose state is outside every repository is not touched, and
+nothing is rewritten on disk, so a project configuration written by an earlier
+version is covered.
+
+Measured on a repository with a Cargo workspace at its root: `79` Rust symbols
+before, `4575` after, the other languages unchanged. Not run on a Java or a C#
+project; their directories move by the same rule.

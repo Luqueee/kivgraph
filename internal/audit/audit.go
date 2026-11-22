@@ -138,18 +138,33 @@ func Run(ctx context.Context, repositories []workspace.Repository, options Optio
 			continue
 		}
 		report.Repositories++
+		// TypeScript and JavaScript are one audit, and a repository that
+		// registers both -- which is what `kivgraph index` detects for one
+		// that holds both -- got every finding of it twice.
+		audited := make(map[string]bool, len(repository.Languages))
 		for _, language := range repository.Languages {
 			var findings []Finding
 			var err error
+			auditor := ""
 			switch strings.ToLower(strings.TrimSpace(language)) {
-			case "typescript", "javascript":
+			case "typescript", "javascript", "ts", "js":
+				auditor = "typescript"
+			case "go":
+				auditor = "go"
+			case "rust", "rs":
+				auditor = "rust"
+			}
+			if auditor == "" || audited[auditor] {
+				continue
+			}
+			audited[auditor] = true
+			switch auditor {
+			case "typescript":
 				findings, err = auditTypeScript(ctx, repository, options)
 			case "go":
 				findings, err = auditGo(ctx, repository, options)
 			case "rust":
 				findings, err = auditRust(ctx, repository, options)
-			default:
-				continue
 			}
 			if err != nil {
 				return Report{}, fmt.Errorf("audit %q: %w", repository.Name, err)
