@@ -151,7 +151,7 @@ reference. Accepting another word would promise behaviour no code implements.
 | Key | Default | Notes |
 | --- | --- | --- |
 | `indexer_command` | `scip-java` | Must not be empty. Java is indexed by building it: `scip-java` drives the repository's own build tool. |
-| `build_tool` | *(empty)* | Empty lets `scip-java` detect Maven, Gradle, sbt and mill on its own; name one for a repository that carries two. Accepts `maven`, `gradle`, `sbt`, `mill` or `bazel`. |
+| `build_tool` | *(empty)* | Empty lets `scip-java` detect Maven, Gradle, sbt and mill on its own; name one for a repository whose build carries two. Accepts `maven`, `gradle`, `sbt`, `mill` or `bazel`. A repository with no build at its root is indexed from the outermost build of each branch. |
 | `maximum_workers` | `1` | Must be positive. |
 | `include_tests` | `true` | Whether the Java tests are indexed. A test is a file under a `test` or `tests` directory or `src/it/`, or named `*Test.java` or `*Tests.java`, the same rule `exclude_tests` applies. A `config.yaml` written by an earlier `init` spells the key out as `false` and keeps it until edited. |
 | `include_generated` | `false` | |
@@ -260,7 +260,7 @@ isolated configuration write into the real installation.
 | `languages` | At least one of `go`, `typescript`, `javascript`, `ts`, `js`, `rust`, `rs`, `python`, `py`, `dart`, `java`, `csharp`, `cs`. Compared without regard to case or surrounding space; a duplicate is refused. Validated when the registry is written, not only when a pass runs. |
 | `manifests` | Optional. Explicit manifest paths. |
 | `roots` | Optional. Explicit analysis roots. |
-| `exclusions` | Optional. Directories and files left out of the graph, for every language of the repository. A pattern is relative to the repository root: `vendor` is the root's `vendor`, `**/vendor` is one at any depth, and `./x`, an absolute path inside the repository, `*` and `**` are read. Go, TypeScript, Rust and Dart never walk them; Java, C# and Python are analysed whole by their tools and lose the excluded files afterwards. |
+| `exclusions` | Optional. Directories and files left out of the graph, for every language of the repository. A pattern is relative to the repository root: `vendor` is the root's `vendor`, `**/vendor` is one at any depth, and `./x`, an absolute path inside the repository, `*` and `**` are read. Go, Rust and Dart never walk them; TypeScript, Java, C# and Python are analysed by their tools, which follow the project's own file selection, and lose the excluded files afterwards. |
 | `include_git_ignored` | Optional, `false` by default. Whether the sources Git ignores are indexed. Left out, a path Git ignores that holds source of a registered language is an exclusion: the types a framework generates, a build that copies `src`. `kivgraph doctor` names them on its `walk.ignored` line. Set it for a repository whose generated code is ignored and should be in the graph. |
 
 ```yaml

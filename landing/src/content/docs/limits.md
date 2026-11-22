@@ -80,8 +80,35 @@ above that ceiling is rejected by name — repository, module and version — ra
 than being allowed to escalate the synthetic `go.work` toolchain and break the
 load of every other repository inside the standard library.
 
-`kivgraph doctor` reports that ceiling. It is not the `go` on your `PATH`, and
-it is the number that decides whether a repository can be indexed.
+`kivgraph doctor` reports that ceiling on `toolchain.typecheck`. It is not the
+`go` on your `PATH`, and it is the number that decides whether a repository
+can be indexed.
+
+When the installed `go` is newer than that toolchain, a load runs as the
+toolchain the binary was built with, by setting `GOTOOLCHAIN`: a newer
+standard library is one this build cannot parse. `doctor` says so on
+`toolchain.go`. The pass is offline, so the toolchain has to be in the module
+cache already; if it is not, the module is not loaded and the message says
+which toolchain is missing. A `GOTOOLCHAIN` already in the environment is
+left alone.
+
+## A component template is read as words
+
+An `.astro`, `.vue` or `.svelte` file is not compiled. Kivgraph records which
+exported names it writes, so an answer about one of them is `LOWER_BOUND` with
+the file named, and produces no edge from it. See
+[what a pass does not read](/guides/indexing/#what-a-pass-does-not-read-and-says-so).
+
+## Incomplete implementation relations bound some answers
+
+A TypeScript package records `IMPLEMENTATION_COVERAGE_PARTIAL` when it could
+not prove every relation of implementing, extending or overriding -- for
+example when it imports a class, not an interface, from another package. That
+bounds `find_implementations`, `get_blast_radius` and `trace_dependencies`
+for the repository, and `find_references` for a class, a type or a member. It
+does not bound who calls a function, `find_symbol` or `get_file_outline`. The
+scope names the package, not the declarations it could not relate, so every
+class of that repository is bounded.
 
 ## Published platforms
 

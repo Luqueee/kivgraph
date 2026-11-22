@@ -19,8 +19,13 @@ load a workspace without cargo.
 
 Beyond those checks it reports `config.retired` when the configuration carries
 a key that is accepted and ignored, `daemon.supervisor` (`absent`, `installed`,
-`stale` or `unsupported`; it never fails), `walk.cache_tag` (directories that
-carry a `CACHEDIR.TAG` file, which every walk skips) and `snapshot.published`
+`stale` or `unsupported`; it never fails), `toolchain.go` (the `go` a load
+runs as, and whether it was pinned to the toolchain this binary was built
+with), `walk.cache_tag` (directories that carry a `CACHEDIR.TAG` file, which
+every walk skips), `walk.checkout` (other Git checkouts below a repository,
+skipped the same way), `walk.ignored` (paths Git ignores that hold source,
+skipped unless the registry entry sets `include_git_ignored`) and
+`snapshot.published`
 (whether the active generation carries a usable snapshot file, or every server
 derives the graph from the canonical store).
 
@@ -54,6 +59,10 @@ Each finding carries a remedy — a file to write with its exact content, a
 configuration key, or a command to run. Remedies are proposals: Kivgraph never
 writes inside the code it indexes. `--json` emits the whole report, with the
 stable `code` of every finding, for an agent to act on.
+
+An entry of the registry that cannot be opened is named and the rest are
+audited. `index` points here with one `index.audit` line when there is
+something to report.
 
 ## Validate a database
 
