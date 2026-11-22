@@ -12,10 +12,14 @@ import (
 	"errors"
 	"fmt"
 	"go/token"
+	"go/version"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
 
 	"golang.org/x/tools/go/packages"
 )
@@ -332,9 +336,52 @@ func loadEnvironment(options Options) ([]string, error) {
 	if !options.AllowNetwork {
 		environment = append(environment, "GOPROXY=off", "GOFLAGS=-mod=readonly")
 	}
+	if pin := ToolchainPin(); pin != "" {
+		environment = append(environment, "GOTOOLCHAIN="+pin)
+	}
 	environment = append(environment, options.Environment...)
 	return environment, nil
 }
+
+// ToolchainPin is the toolchain the loads are run with when the `go` command
+// installed here is newer than this build, and empty when nothing is pinned.
+//
+// go/types is linked into this binary and reads the standard library of
+// whatever toolchain `go list` ran as. A newer one is written in a language
+// this build does not parse, so every module failed to load -- and with one
+// that does not load no longer failing the pass, a daemon replaced a whole Go
+// graph with nothing and said nothing. Asking the `go` command for the
+// toolchain this build was made with is what it has GOTOOLCHAIN for. It is
+// found in the module cache or the load says it is not there: the pass is
+// offline.
+//
+// A GOTOOLCHAIN the user set is theirs and is left alone.
+func ToolchainPin() string {
+	if os.Getenv("GOTOOLCHAIN") != "" {
+		return ""
+	}
+	return toolchainPin(installedGoVersion(), runtime.Version())
+}
+
+// toolchainPin decides from the two versions alone.
+func toolchainPin(installed, built string) string {
+	if !version.IsValid(installed) || !version.IsValid(built) || version.Compare(installed, built) <= 0 {
+		return ""
+	}
+	return built
+}
+
+// installedGoVersion asks the `go` command on PATH what it is, once, without
+// letting it switch: the question is about the one that is installed.
+var installedGoVersion = sync.OnceValue(func() string {
+	command := exec.Command("go", "env", "GOVERSION")
+	command.Env = append(os.Environ(), "GOTOOLCHAIN=local")
+	output, err := command.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(output))
+})
 
 // buildTagFlags turns the requested build tags into the go command flag that
 // carries them. A tag the go command cannot express is rejected here rather

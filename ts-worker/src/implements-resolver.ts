@@ -223,8 +223,12 @@ export async function resolveImplementations(
         }
       }
       if (!isTypeReferenceNode(node) && !isNewExpression(node)) continue;
+      // The engine panics on some type nodes and answers the request with
+      // an error: the `const` of `[] as const` is a type reference it then
+      // reads as a tuple. One node it cannot type is one node skipped, not a
+      // package that is not indexed -- which is what one empty tuple cost.
       const type = isTypeReferenceNode(node)
-        ? await checker.getTypeFromTypeNode(node)
+        ? await checker.getTypeFromTypeNode(node).catch(() => undefined)
         : await checker.getTypeAtLocation(node);
       if (!valid(type)) continue;
       const symbol = await type.getSymbol();

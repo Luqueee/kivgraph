@@ -180,7 +180,7 @@ func run(ctx context.Context) error {
 			"El corpus son dos paquetes pub de un solo repositorio: prueba los contratos, no la escala ni el camino cross-repository.",
 			"La medición depende del SDK que respalda el `dart` del PATH: el Analysis Server viaja con él, y esta pasada usó el 1.40.1 del Dart SDK 3.13.1.",
 			"La identidad de una arista es `clase nombre -> nombre`, así que dos relaciones de la misma clase entre homónimos colapsan en una fila: `OVERRIDES drive -> drive` cubre a la vez la superclase y la interfaz de `testdata/dart/basic/lib/models.dart:7`.",
-			"Un objetivo que el Analysis Server resuelve fuera del conjunto publicado -- el SDK, un parámetro, un parámetro de tipo, un prefijo de import -- no es una arista: se retiene como `UNRESOLVED` con motivo `DART_TARGET_NOT_INDEXED` (`internal/dartloader/loader.go:635-648`).",
+			"Un objetivo que el Analysis Server resuelve fuera del conjunto publicado -- el SDK, un paquete que nadie registró -- no es una arista: se retiene como `UNRESOLVED` con motivo `DART_TARGET_NOT_INDEXED`, una vez por declaración que lo usa, biblioteca y clase de objetivo, con la biblioteca nombrada como la escribe un import (`dart:core`). Un parámetro, una variable local, un parámetro de tipo o un prefijo del propio repositorio no se publica por diseño y su uso no se retiene.",
 		},
 	}
 	if sdkErr != nil {
@@ -361,12 +361,6 @@ func auditCases() []auditCase {
 				// `String` at lib/language_features.dart:18 and :21, `int` at
 				// :17 and :21.
 				{Reason: "DART_TARGET_NOT_INDEXED", File: "lib/language_features.dart", Symbol: "CLASS"},
-				// `T` at lib/language_features.dart:9, :10 and :15, and `R`
-				// at :15: a type parameter is not a published declaration.
-				{Reason: "DART_TARGET_NOT_INDEXED", File: "lib/language_features.dart", Symbol: "TYPE_PARAMETER"},
-				// `kind` at lib/language_features.dart:22: a parameter is not
-				// a published declaration either.
-				{Reason: "DART_TARGET_NOT_INDEXED", File: "lib/language_features.dart", Symbol: "PARAMETER"},
 			},
 		},
 	}

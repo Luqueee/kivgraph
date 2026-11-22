@@ -2,6 +2,7 @@ package rustloader
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
 
 	"github.com/Luqueee/kivgraph/internal/workspace"
@@ -44,6 +45,11 @@ type targetResolver struct {
 	// what an enclosing body is named by.
 	byKey    map[string]Definition
 	registry *CrateRegistry
+	// workspace is the manifest of the Cargo workspace being analysed, which
+	// is how a crate names the workspace it belongs to. A crate of
+	// this repository that another workspace declares is that workspace's to
+	// publish.
+	workspace string
 }
 
 // resolution is what the resolver could prove about a referenced symbol.
@@ -102,8 +108,8 @@ func (resolver *targetResolver) resolve(identity SymbolIdentity) resolution {
 			crate: identity.Crate, reason: UnresolvedCrateSymbolNotMatched, detail: err.Error(),
 		}
 	}
-	if provider.Repository == resolver.repository {
-		// The crate is this repository's own, and this pass did not index
+	if provider.Repository == resolver.repository && !resolver.declaredElsewhere(provider) {
+		// The crate is this workspace's own, and this pass did not index
 		// the declaration: an `impl` block, which SCIP mentions but never
 		// defines, or an item the build configuration left out. Naming a key
 		// nobody publishes is a dangling edge, so it is declared instead.
@@ -119,6 +125,21 @@ func (resolver *targetResolver) resolve(identity SymbolIdentity) resolution {
 		crate:         identity.Crate,
 		qualifiedName: identity.QualifiedName(),
 	}
+}
+
+// declaredElsewhere reports whether a crate of this repository belongs to
+// another of its Cargo workspaces.
+//
+// A repository can hold several: an application beside the workspace of its
+// libraries, depending on them by path. Each is analysed alone, so the use of
+// a library crate from the application found the crate in its own repository
+// and no declaration in its own index, and was declared `DEFINITION_NOT_INDEXED`
+// -- no edge, for a declaration the same pass publishes. It is the case of two
+// repositories and is treated as one: the key is composed from the identity,
+// and the merge keeps the edge only if the other workspace publishes it.
+func (resolver *targetResolver) declaredElsewhere(provider CrateProvider) bool {
+	return resolver.workspace != "" && provider.WorkspacePath != "" &&
+		filepath.Clean(provider.WorkspacePath) != filepath.Clean(resolver.workspace)
 }
 
 // collectReferences turns the non-definition occurrences of one document into

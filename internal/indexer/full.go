@@ -269,6 +269,11 @@ type FullReport struct {
 	// TypeScriptAmbiguous counts the package names several manifests of one
 	// repository declare. No manifest provides them.
 	TypeScriptAmbiguous int
+	// TypeScriptAmbiguousPackages names each of them with the manifests that
+	// declare it: `repository: name: declared by a, b`. A count nobody
+	// prints is a package that left the graph unannounced -- a whole backend,
+	// on real code, to a copy of its own package.json.
+	TypeScriptAmbiguousPackages []string
 	// TypeScriptUnclaimedSources counts the source files no project of a
 	// repository claims and that this pass indexed anyway, through the
 	// inferred project. It is zero unless
@@ -436,6 +441,7 @@ func FullWithRepositories(ctx context.Context, options FullOptions, repositories
 		return facts.Set{}, FullReport{}, err
 	}
 	options.Repositories = repositories
+	started := time.Now()
 	if options.WorkingDirectory == "" {
 		workingDirectory, err := os.Getwd()
 		if err != nil {
@@ -480,6 +486,17 @@ func FullWithRepositories(ctx context.Context, options FullOptions, repositories
 	for _, entry := range typeScriptDiscovered.conflicts {
 		sets = append(sets, ambiguousPackageFacts(entry))
 		report.TypeScriptAmbiguous++
+		manifests := make([]string, 0, len(entry.conflict.Manifests))
+		for _, manifest := range entry.conflict.Manifests {
+			relative, err := filepath.Rel(entry.repository.RealPath, manifest)
+			if err != nil {
+				relative = manifest
+			}
+			manifests = append(manifests, filepath.ToSlash(relative))
+		}
+		report.TypeScriptAmbiguousPackages = append(report.TypeScriptAmbiguousPackages, fmt.Sprintf(
+			"%s: %s: declared by %s, so none of them is indexed",
+			entry.repository.Name, entry.conflict.Name, strings.Join(manifests, ", ")))
 	}
 	for _, entry := range typeScriptDiscovered.notLoaded {
 		declared := repositoryNotLoadedFacts(
@@ -634,6 +651,7 @@ func FullWithRepositories(ctx context.Context, options FullOptions, repositories
 	merged, withoutProvider := closeCrossRepositoryEdges(merged, composed)
 	merged = resolveSemanticPackageDependencies(merged)
 	report.EdgesWithoutProvider = withoutProvider
+	stampContentHashes(&merged, started)
 	if err := merged.Validate(); err != nil {
 		return facts.Set{}, report, fmt.Errorf("validate full indexed facts: %w", err)
 	}
@@ -1754,6 +1772,7 @@ func indexTypeScriptPackage(
 		return analysisResult{}, fmt.Errorf("normalise TypeScript facts for %q package %q: %w",
 			repository.Name, packageValue.Name, err)
 	}
+	declareUnreadComponents(&set, repository, packageValue.RootPath)
 	return analysisResult{
 		set:        set,
 		symbols:    len(payload.Symbols),

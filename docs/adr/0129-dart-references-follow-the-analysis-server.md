@@ -51,3 +51,24 @@ reproduced on that repository:
   the server gives no navigation target for the extension name there.
 - Block doc comments (`/** */`) are not recognised and keep their links.
 - Existing Dart graphs need `kivgraph index --full`.
+
+## Amendment: what is not a failure, and a library once
+
+A use whose target is not published was one `DART_TARGET_NOT_INDEXED` row, with
+the absolute path of the target's file. On one application that was `217689`
+failures, and two kinds of them said nothing.
+
+- A parameter, a local variable, a type parameter or an import prefix of the
+  repository is not published because it means nothing outside its
+  declaration. A use of one is no longer recorded. They were `45597` of the
+  `71566` rows of that application's own code.
+- A target outside the repository -- the SDK, a package nobody registered --
+  is recorded once for each declaration that uses it, library and kind of
+  target, at the first use, and the library is named the way an import spells
+  it: `dart:core`, `package:flutter`. The path was that of one machine.
+
+The same application records `47187` rows. A target inside the repository
+that is a declaration and was not found is recorded as before, one row for
+each use.
+
+`Extension(receiver).member` is a use of the extension (ADR 0151).

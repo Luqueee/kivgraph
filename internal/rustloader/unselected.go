@@ -1,0 +1,128 @@
+package rustloader
+
+import (
+	"io/fs"
+	"os"
+	"path/filepath"
+	"regexp"
+	"sort"
+	"strings"
+
+	"github.com/Luqueee/kivgraph/internal/testpath"
+)
+
+// maximumUnselectedFile bounds a file read only to look for names.
+const maximumUnselectedFile = 1 << 20
+
+var (
+	rustIdentifier   = regexp.MustCompile(`[A-Za-z_][A-Za-z0-9_]*`)
+	rustBlockComment = regexp.MustCompile(`(?s)/\*.*?\*/`)
+	rustLineComment  = regexp.MustCompile(`//[^\n]*`)
+)
+
+// collectUnselectedFiles declares the source files of an indexed crate that
+// the build configuration left out: a module behind a `cfg` that is false on
+// this machine. The analyzer writes no document for one, so its uses were in
+// no edge and in no failure, and an answer about a declaration it uses said
+// COMPLETE.
+//
+// Nothing here knows what a name in such a file resolves to. What can be said
+// is that the file was not read and that it writes the name of a declaration
+// this workspace publishes, and that is said once per name, at the first line
+// that writes it -- which is what bounds an answer about that name and no
+// other. A file that names nothing this workspace declares is not listed.
+//
+// A test file is not one of them: it is left out by what `include_tests` asks
+// for, and the files a configuration excludes do not bound an answer.
+func collectUnselectedFiles(options AnalyzeOptions, analysis *Analysis, unresolved map[string]UnresolvedReference) {
+	root := options.Repository.RealPath
+	if strings.TrimSpace(root) == "" {
+		return
+	}
+	indexed := make(map[string]struct{}, len(analysis.Files))
+	crates := make(map[string]struct{})
+	for _, file := range analysis.Files {
+		indexed[file.Path] = struct{}{}
+		crates[file.Crate.Name] = struct{}{}
+	}
+	declared := make(map[string]struct{}, len(analysis.Definitions))
+	for _, definition := range analysis.Definitions {
+		declared[definition.Name] = struct{}{}
+	}
+	for _, crate := range options.Crates {
+		if _, selected := crates[crate.Name]; !selected {
+			// No file of it at all: collectEmptyCrates declares the crate.
+			continue
+		}
+		var unselected []string
+		_ = filepath.WalkDir(filepath.Join(crate.RootPath, "src"), func(path string, entry fs.DirEntry, err error) error {
+			if err != nil || entry.IsDir() || filepath.Ext(path) != ".rs" {
+				return nil
+			}
+			relative, err := filepath.Rel(root, path)
+			if err != nil {
+				return nil
+			}
+			relative = filepath.ToSlash(relative)
+			if _, read := indexed[relative]; !read && !testpath.Is(relative) {
+				unselected = append(unselected, relative)
+			}
+			return nil
+		})
+		sort.Strings(unselected)
+		for _, relative := range unselected {
+			names := namesWritten(filepath.Join(root, filepath.FromSlash(relative)), declared)
+			if len(names) == 0 {
+				continue
+			}
+			analysis.Files = append(analysis.Files, IndexedFile{Path: relative, Crate: CrateRef{Name: crate.Name, Version: crate.Version}})
+			for name, line := range names {
+				unresolved[string(UnresolvedTargetNotBuildable)+"\x00"+relative+"\x00"+name] = UnresolvedReference{
+					Crate:           CrateRef{Name: crate.Name, Version: crate.Version},
+					File:            relative,
+					RequestedCrate:  crate.Name,
+					RequestedSymbol: name,
+					Reason:          UnresolvedTargetNotBuildable,
+					Detail:          "the build configuration of this index did not select this file, and it writes this name",
+					StartLine:       line,
+				}
+			}
+		}
+	}
+}
+
+// namesWritten answers the names of `declared` a file writes outside its
+// comments, each with the first line that does. It reads words, not Rust: a
+// name inside a string counts, which errs towards saying an answer is bounded.
+func namesWritten(filename string, declared map[string]struct{}) map[string]int {
+	info, err := os.Stat(filename)
+	if err != nil || info.Size() > maximumUnselectedFile {
+		return nil
+	}
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return nil
+	}
+	// A comment is blanked and not removed, so that lines keep their number.
+	blank := func(comment string) string {
+		return strings.Map(func(character rune) rune {
+			if character == '\n' {
+				return '\n'
+			}
+			return ' '
+		}, comment)
+	}
+	text := rustLineComment.ReplaceAllStringFunc(rustBlockComment.ReplaceAllStringFunc(string(data), blank), blank)
+	names := make(map[string]int)
+	for number, line := range strings.Split(text, "\n") {
+		for _, word := range rustIdentifier.FindAllString(line, -1) {
+			if _, known := declared[word]; !known {
+				continue
+			}
+			if _, seen := names[word]; !seen {
+				names[word] = number + 1
+			}
+		}
+	}
+	return names
+}

@@ -1271,3 +1271,29 @@ func TestFullGoesOnWhenAGoModuleHoldsADirectoryThatIsNotOnePackage(t *testing.T)
 		})
 	}
 }
+
+// The count existed and nothing printed it: a package that left the graph to a
+// copy of its own manifest did so in a pass that said PASS and nothing else.
+func TestFullNamesTheAmbiguousTypeScriptPackages(t *testing.T) {
+	root := testsupport.TempDir(t)
+	for _, directory := range []string{"a", "b"} {
+		packageRoot := filepath.Join(root, directory)
+		writeFullFixture(t, filepath.Join(packageRoot, "package.json"), `{"name":"@fixture/same","version":"1.0.0"}`)
+		writeFullFixture(t, filepath.Join(packageRoot, "tsconfig.json"), `{"compilerOptions":{"strict":true}}`)
+		writeFullFixture(t, filepath.Join(packageRoot, "src", "index.ts"), "export const value = 1;\n")
+	}
+	_, report, err := Full(context.Background(), FullOptions{
+		Repositories: []workspace.Repository{{Name: "repo", Path: root, RealPath: root, Languages: []string{"typescript"}}},
+		// Never started: no package is left to run it on.
+		TypeScriptWorker:  "kivgraph-no-such-typescript-worker",
+		WorkingDirectory:  root,
+		SyntheticWorkFile: filepath.Join(testsupport.TempDir(t), "go.work"),
+	})
+	if err != nil {
+		t.Fatalf("Full() error = %v", err)
+	}
+	want := []string{"repo: @fixture/same: declared by a/package.json, b/package.json, so none of them is indexed"}
+	if report.TypeScriptAmbiguous != 1 || !equalStringSlices(report.TypeScriptAmbiguousPackages, want) {
+		t.Errorf("ambiguous = %d, lines = %q, want %q", report.TypeScriptAmbiguous, report.TypeScriptAmbiguousPackages, want)
+	}
+}

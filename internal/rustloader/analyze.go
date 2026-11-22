@@ -309,6 +309,7 @@ func Analyze(ctx context.Context, options AnalyzeOptions) (Analysis, error) {
 		definitions: definitions,
 		byKey:       byDefinitionKey,
 		registry:    options.Registry,
+		workspace:   options.Workspace.ManifestPath,
 	}
 	dependencies := make(map[string]CrateDependency)
 	unresolved := make(map[string]UnresolvedReference)
@@ -324,6 +325,7 @@ func Analyze(ctx context.Context, options AnalyzeOptions) (Analysis, error) {
 		collectMissingDefinitions(document, unresolved)
 	}
 	collectEmptyCrates(options, analysis.Files, unresolved)
+	collectUnselectedFiles(options, &analysis, unresolved)
 	if !options.ProcMacros {
 		key := string(UnresolvedMacroExpansionDisabled)
 		unresolved[key] = UnresolvedReference{

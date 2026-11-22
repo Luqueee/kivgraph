@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -403,7 +404,26 @@ func NormalizeTypeScript(
 	report := TypeScriptReport{}
 	files := make(map[string]struct{}, len(payload.Files))
 	outside := make(map[string]struct{})
+	// excluded holds the files the repository's exclusions name. The engine
+	// loads whatever the project's `tsconfig.json` includes -- it has to, to
+	// type-check -- so an exclusion only kept a package from being discovered
+	// and every file of an included one was published all the same: the
+	// generated route types, a build that copies `src`. They are retired like
+	// a file outside the repository, without a row: leaving them out is what
+	// was asked.
+	excluded := make(map[string]struct{})
 	for _, file := range payload.Files {
+		if !escapesRepository(file) && len(repository.Exclusions) > 0 {
+			matched, err := workspace.MatchesExclusion(rootPath, filepath.Join(rootPath, filepath.FromSlash(file)), repository.Exclusions)
+			if err != nil {
+				return Set{}, TypeScriptReport{}, fmt.Errorf("%w: repository %q exclusions: %w", ErrInvalidFacts, name, err)
+			}
+			if matched {
+				excluded[file] = struct{}{}
+				outside[file] = struct{}{}
+				continue
+			}
+		}
 		if escapesRepository(file) {
 			if _, seen := outside[file]; seen {
 				continue
@@ -953,6 +973,10 @@ func NormalizeTypeScript(
 	}
 
 	for _, entry := range payload.Unresolved {
+		if _, retired := excluded[entry.File]; retired {
+			// With no file it would be a failure of the whole repository.
+			continue
+		}
 		unresolved := UnresolvedReference{
 			RepositoryKey:    repositoryKey,
 			Language:         LanguageTypeScript,

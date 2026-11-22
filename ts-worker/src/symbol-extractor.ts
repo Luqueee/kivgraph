@@ -13,8 +13,10 @@ import {
   isExportAssignment,
   isExportDeclaration,
   isExportSpecifier,
+  isGetAccessorDeclaration,
   isIdentifier,
   isNamedExports,
+  isSetAccessorDeclaration,
   isVariableDeclaration,
   isVariableDeclarationList,
   isVariableStatement,
@@ -56,6 +58,11 @@ export interface LocalSymbol {
   signature: string;
   exported: boolean;
   exportedNames: string[];
+  /**
+   * Which half of an accessor pair this is. The checker has one symbol for
+   * both, so nothing else tells a read of the property from a write.
+   */
+  accessor?: "get" | "set";
 }
 
 /**
@@ -517,6 +524,11 @@ function makeLocalSymbol(
     signature: compactSignature(candidate.declaration, candidate.file),
     exported: directExportNames.length > 0,
     exportedNames: directExportNames,
+    ...(isGetAccessorDeclaration(candidate.declaration)
+      ? { accessor: "get" as const }
+      : isSetAccessorDeclaration(candidate.declaration)
+        ? { accessor: "set" as const }
+        : {}),
   };
 }
 

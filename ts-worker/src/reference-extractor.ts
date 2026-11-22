@@ -51,6 +51,8 @@ import {
   isParameterDeclaration,
   isParenthesizedTypeNode,
   isPrivateIdentifier,
+  isPostfixUnaryExpression,
+  isPrefixUnaryExpression,
   isPropertyAccessExpression,
   isPropertyAssignment,
   isPropertyDeclaration,
@@ -142,6 +144,45 @@ export interface LocalReferenceExtraction {
 
 type ContextKind = LocalReferenceKind | undefined;
 
+/**
+ * The declarations a use of an accessor pair reaches: the setter when the
+ * property is assigned, the getter when it is read, both for `+=` and `++`.
+ * A pair with one half, and anything that is not an accessor, is its target.
+ */
+function accessorTargets<T extends { symbolId: number }>(
+  target: T,
+  node: Node,
+  getters: ReadonlyMap<number, T & LocalSymbol>,
+  setters: ReadonlyMap<number, T & LocalSymbol>,
+): T[] {
+  const getter = getters.get(target.symbolId);
+  const setter = setters.get(target.symbolId);
+  if (getter === undefined || setter === undefined) {
+    return [target];
+  }
+  const access = node.parent;
+  if (!isPropertyAccessExpression(access) || !sameNode(access.name, node)) {
+    return [getter];
+  }
+  const user = access.parent;
+  if (isBinaryExpression(user) && sameNode(user.left, access)) {
+    if (user.operatorToken.kind === SyntaxKind.EqualsToken) {
+      return [setter];
+    }
+    if (isAssignmentOperator(user.operatorToken.kind)) {
+      return [getter, setter];
+    }
+  }
+  if (
+    (isPrefixUnaryExpression(user) || isPostfixUnaryExpression(user)) &&
+    (user.operator === SyntaxKind.PlusPlusToken ||
+      user.operator === SyntaxKind.MinusMinusToken)
+  ) {
+    return [getter, setter];
+  }
+  return [getter];
+}
+
 interface ReferenceRequest {
   file: SourceFile;
   node: Identifier | PrivateIdentifier;
@@ -214,6 +255,14 @@ export async function extractLocalReferences(
       .filter((local) => local.kind === "property" || local.kind === "method")
       .map((local) => local.name),
   );
+  // `const { load } = await import("./x")` names an export of a module, of
+  // any kind. The binding is a new local, so nothing else points it at the
+  // declaration, and what a route or a command loads this way had no use.
+  const exportedNames = new Set(
+    symbols.symbols
+      .filter((local) => local.exported)
+      .map((local) => local.name),
+  );
   const functionValueNodes: Identifier[] = [];
   const sourceFiles = new Map<string, SourceFile>();
 
@@ -231,7 +280,13 @@ export async function extractLocalReferences(
   for (const fileName of localFiles) {
     const sourceFile = sourceFiles.get(fileName);
     if (sourceFile !== undefined) {
-      collectFileReferences(sourceFile, requests, propertyKeys, propertyNames);
+      collectFileReferences(
+        sourceFile,
+        requests,
+        propertyKeys,
+        propertyNames,
+        exportedNames,
+      );
     }
   }
 
@@ -284,27 +339,48 @@ export async function extractLocalReferences(
     importBindingById,
   );
 
+  // The checker has one symbol for a `get`/`set` pair and both declarations
+  // are published. Every use went to whichever came first, so the other had
+  // no reference at all and an answer about it said nothing uses it.
+  const setters = new Map<number, LocalSymbol>();
+  const getters = new Map<number, LocalSymbol>();
+  for (const local of symbols.symbols) {
+    if (local.accessor === "set" && !setters.has(local.symbolId)) {
+      setters.set(local.symbolId, local);
+    } else if (local.accessor === "get" && !getters.has(local.symbolId)) {
+      getters.set(local.symbolId, local);
+    }
+  }
+
   const references: LocalReference[] = [];
   for (const [index, request] of requestList.entries()) {
-    const target = localTargets[index];
-    if (target === undefined) {
+    const resolved = localTargets[index];
+    if (resolved === undefined) {
       continue;
     }
-    const kind = normaliseKind(request.kind, functionSymbolIds, target);
-    const start = request.node.getStart(request.file);
-    const end = request.node.getEnd();
-    const endPosition = Math.max(start, end - 1);
-    references.push({
-      fileName: request.file.fileName,
-      kind,
-      source: findOwner(symbols.symbols, request.file.fileName, start),
-      target,
-      start,
-      end,
-      startLine: request.file.getLineAndCharacterOfPosition(start).line + 1,
-      endLine: request.file.getLineAndCharacterOfPosition(endPosition).line + 1,
-      text: request.node.getText(request.file),
-    });
+    for (const target of accessorTargets(
+      resolved,
+      request.node,
+      getters,
+      setters,
+    )) {
+      const kind = normaliseKind(request.kind, functionSymbolIds, target);
+      const start = request.node.getStart(request.file);
+      const end = request.node.getEnd();
+      const endPosition = Math.max(start, end - 1);
+      references.push({
+        fileName: request.file.fileName,
+        kind,
+        source: findOwner(symbols.symbols, request.file.fileName, start),
+        target,
+        start,
+        end,
+        startLine: request.file.getLineAndCharacterOfPosition(start).line + 1,
+        endLine:
+          request.file.getLineAndCharacterOfPosition(endPosition).line + 1,
+        text: request.node.getText(request.file),
+      });
+    }
   }
 
   const keyList = [...propertyKeys.values()];
@@ -387,6 +463,7 @@ function collectFileReferences(
   requests: Map<string, ReferenceRequest>,
   propertyKeys: Map<string, PropertyKeyRequest>,
   propertyNames: ReadonlySet<string>,
+  exportedNames: ReadonlySet<string>,
 ): void {
   const visit = (
     node: Node,
@@ -397,7 +474,11 @@ function collectFileReferences(
     if (!ignoredHere && (isIdentifier(node) || isStringLiteral(node))) {
       const key = propertyKeyContainer(node);
       const name = isStringLiteral(node) ? node.text : node.getText(file);
-      if (key !== undefined && propertyNames.has(name)) {
+      if (
+        key !== undefined &&
+        (propertyNames.has(name) ||
+          (exportedNames.has(name) && destructuresDynamicImport(key.container)))
+      ) {
         propertyKeys.set(`${file.fileName}\u0000${node.pos}:${node.end}`, {
           file,
           node,
@@ -433,6 +514,29 @@ function collectFileReferences(
   };
 
   file.forEachChild((child) => visit(child, undefined, false));
+}
+
+/** Whether a binding pattern destructures `await import(...)`. */
+function destructuresDynamicImport(pattern: Node): boolean {
+  const declaration = pattern.parent;
+  if (
+    declaration === undefined ||
+    !isVariableDeclaration(declaration) ||
+    declaration.initializer === undefined
+  ) {
+    return false;
+  }
+  let value: Node = declaration.initializer;
+  while (
+    value.kind === SyntaxKind.AwaitExpression ||
+    value.kind === SyntaxKind.ParenthesizedExpression
+  ) {
+    value = (value as unknown as { expression: Node }).expression;
+  }
+  return (
+    isCallExpression(value) &&
+    value.expression.kind === SyntaxKind.ImportKeyword
+  );
 }
 
 function propertyKeyContainer(
@@ -541,9 +645,10 @@ async function resolvePropertyKeys(
           request.container as Expression,
         );
       } else if (request.source === "indexed-type") {
-        types[index] = await checker.getTypeFromTypeNode(
-          request.container as TypeNode,
-        );
+        // See implements-resolver: the engine cannot type every node.
+        types[index] = await checker
+          .getTypeFromTypeNode(request.container as TypeNode)
+          .catch(() => undefined);
       }
     }),
   );
@@ -812,18 +917,40 @@ function normaliseKind(
   return kind;
 }
 
-function findOwner(
+// symbolsByFile groups a symbol list by file, once per list. findOwner is
+// asked once per reference, and scanning every symbol of the program each time
+// made the pass quadratic: a program of 2760 files took 25 minutes, 73 % of
+// them here.
+const symbolsByFile = new WeakMap<
+  readonly LocalSymbol[],
+  Map<string, LocalSymbol[]>
+>();
+
+/**
+ * The narrowest symbol of a file that contains a position, and the earliest
+ * of two of the same width.
+ */
+export function findOwner(
   symbols: readonly LocalSymbol[],
   fileName: string,
   position: number,
 ): LocalSymbol | undefined {
+  let byFile = symbolsByFile.get(symbols);
+  if (byFile === undefined) {
+    byFile = new Map();
+    for (const symbol of symbols) {
+      const inFile = byFile.get(symbol.fileName);
+      if (inFile === undefined) {
+        byFile.set(symbol.fileName, [symbol]);
+      } else {
+        inFile.push(symbol);
+      }
+    }
+    symbolsByFile.set(symbols, byFile);
+  }
   let owner: LocalSymbol | undefined;
-  for (const candidate of symbols) {
-    if (
-      candidate.fileName !== fileName ||
-      position < candidate.start ||
-      position >= candidate.end
-    ) {
+  for (const candidate of byFile.get(fileName) ?? []) {
+    if (position < candidate.start || position >= candidate.end) {
       continue;
     }
     if (

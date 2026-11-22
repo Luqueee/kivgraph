@@ -5,7 +5,7 @@ de LUQUE-1816: verdad de referencia escrita a mano leyendo los fuentes.
 Se regenera con `go run ./benchmarks/dart-semantic`.
 
 Resultado: `DART_SEMANTIC_PASS_WITH_LIMITS` -- 0 falsas exactas, 0 relaciones esperadas ausentes
-sobre 31 esperadas, y 6/6 fallos declarados. Los hallazgos están abajo.
+sobre 31 esperadas, y 4/4 fallos declarados. Los hallazgos están abajo.
 
 ## Fixtures
 
@@ -14,13 +14,13 @@ sobre 31 esperadas, y 6/6 fallos declarados. Los hallazgos están abajo.
 
 ## Totales
 
-- ocurrencias de arista exacta entre símbolos: 36
+- ocurrencias de arista exacta entre símbolos: 37
 - aristas esperadas: 31
 - true positives: 31
 - false negatives: 0
 - false exact edges: 0
 - símbolos publicados: 41
-- no resueltas declaradas: 6/6 esperadas, 41 filas publicadas
+- no resueltas declaradas: 4/4 esperadas, 17 filas publicadas
 - aristas de directiva sin `evidence_key`: 0
 - referencias cuyo origen es el módulo del archivo y no una declaración: 0
 - aristas con los dos extremos en el mismo símbolo: 0
@@ -31,7 +31,7 @@ sobre 31 esperadas, y 6/6 fallos declarados. Los hallazgos están abajo.
 | Caso | Esperadas | TP | FN | Falsas exactas | Exactas | Símbolos | No resueltas |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | basic | 8 | 8 | 0 | 0 | 9 | 12 | 1/1 |
-| advanced | 23 | 23 | 0 | 0 | 27 | 29 | 5/5 |
+| advanced | 23 | 23 | 0 | 0 | 28 | 29 | 3/3 |
 
 ## No resueltas observadas
 
@@ -46,11 +46,8 @@ silencio es el defecto que esta auditoría existe para no repetir.
 
 ### advanced
 
-- DART_TARGET_NOT_INDEXED lib/conditional.dart PREFIX x3
-- DART_TARGET_NOT_INDEXED lib/language_features.dart CLASS x11
+- DART_TARGET_NOT_INDEXED lib/language_features.dart CLASS x7
 - DART_TARGET_NOT_INDEXED lib/language_features.dart METHOD x2
-- DART_TARGET_NOT_INDEXED lib/language_features.dart PARAMETER x9
-- DART_TARGET_NOT_INDEXED lib/language_features.dart TYPE_PARAMETER x8
 - DART_TARGET_NOT_INDEXED lib/library.dart CLASS x1
 - DART_TARGET_NOT_INDEXED lib/models.dart CLASS x1
 - DART_TARGET_NOT_INDEXED lib/part.dart CLASS x1
@@ -80,7 +77,7 @@ no, dicen por qué no se tocaron.
 - El corpus son dos paquetes pub de un solo repositorio: prueba los contratos, no la escala ni el camino cross-repository.
 - La medición depende del SDK que respalda el `dart` del PATH: el Analysis Server viaja con él, y esta pasada usó el 1.40.1 del Dart SDK 3.13.1.
 - La identidad de una arista es `clase nombre -> nombre`, así que dos relaciones de la misma clase entre homónimos colapsan en una fila: `OVERRIDES drive -> drive` cubre a la vez la superclase y la interfaz de `testdata/dart/basic/lib/models.dart:7`.
-- Un objetivo que el Analysis Server resuelve fuera del conjunto publicado -- el SDK, un parámetro, un parámetro de tipo, un prefijo de import -- no es una arista: se retiene como `UNRESOLVED` con motivo `DART_TARGET_NOT_INDEXED` (`internal/dartloader/loader.go:635-648`).
+- Un objetivo que el Analysis Server resuelve fuera del conjunto publicado -- el SDK, un paquete que nadie registró -- no es una arista: se retiene como `UNRESOLVED` con motivo `DART_TARGET_NOT_INDEXED`, una vez por declaración que lo usa, biblioteca y clase de objetivo, con la biblioteca nombrada como la escribe un import (`dart:core`). Un parámetro, una variable local, un parámetro de tipo o un prefijo del propio repositorio no se publica por diseño y su uso no se retiene.
 
 ## Gate
 

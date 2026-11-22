@@ -708,3 +708,182 @@ func TestDartFilesReadExclusionsAsTheRegistryDoes(t *testing.T) {
 		t.Error("a pattern the registry refuses was read as matching nothing")
 	}
 }
+
+func TestExtensionOverrideFindsTheNameBeforeTheReceiver(t *testing.T) {
+	for source, want := range map[string]string{
+		"return IterableExtension(this).isSorted(compare);": "IterableExtension",
+		"IterableExtension<T>(this).isSorted(compare)":      "IterableExtension",
+		"Ext<Map<K, V>> (a.b(c), (d))\n    .isSorted()":     "Ext",
+		"p.$Ext(x).isSorted":                                "$Ext",
+		// Not an override: a member of a value, of a call's result with no
+		// name, of nothing.
+		"values.isSorted(compare)": "",
+		"(a + b).isSorted":         "",
+		"isSorted(compare)":        "",
+		"x) .isSorted":             "",
+		"Ext<T(x).isSorted":        "Ext<T"[len("Ext<"):],
+		"> (x).isSorted":           "",
+	} {
+		data := []byte(source)
+		start, end, found := extensionOverride(data, strings.Index(source, "isSorted"))
+		got := ""
+		if found {
+			got = source[start:end]
+		}
+		if got != want {
+			t.Errorf("extensionOverride(%q) = %q, want %q", source, got, want)
+		}
+	}
+	if _, _, found := extensionOverride(nil, 5); found {
+		t.Error("an offset beyond the file named an extension")
+	}
+}
+
+// The one place code names an extension is `Extension(receiver).member`, and
+// the Analysis Server navigates the member and not the name: an answer about
+// the extension was COMPLETE and missed the file.
+func TestRunRecordsAnExplicitExtensionApplicationAsAUseOfTheExtension(t *testing.T) {
+	if _, err := exec.LookPath("dart"); err != nil {
+		t.Skip("dart SDK is not installed")
+	}
+	root := t.TempDir()
+	for name, content := range map[string]string{
+		"pubspec.yaml":  "name: sorted\npublish_to: none\nenvironment:\n  sdk: \">=3.0.0 <4.0.0\"\n",
+		"lib/any.dart":  "extension AnyList<T> on List<T> {\n  bool isSorted(int Function(T, T) compare) => true;\n}\n\nextension Other<T> on List<T> {\n  bool isOther() => false;\n}\n",
+		"lib/uses.dart": "import 'any.dart';\n\nbool applied(List<int> values) => AnyList(values).isSorted((a, b) => a - b);\nbool implicit(List<int> values) => values.isSorted((a, b) => a - b);\nbool Other(List<int> values) => values.isOther();\n",
+	} {
+		path := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	repository := workspace.Repository{Name: "sorted", Path: root, RealPath: root}
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	payload, err := Run(ctx, "dart", "dart", repository, true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := map[string]string{}
+	for _, symbol := range payload.Symbols {
+		names[symbol.ID] = symbol.QualifiedName + " " + symbol.Kind
+	}
+	found := map[string]int{}
+	for _, reference := range payload.References {
+		if strings.HasSuffix(names[reference.TargetID], " extension") {
+			found[names[reference.SourceID]+" -> "+names[reference.TargetID]+" "+reference.Text[reference.StartColumn:reference.EndColumn]]++
+		}
+	}
+	// The explicit application names the extension; a member reached through a
+	// value names nothing.
+	if want := map[string]int{"applied function -> AnyList extension AnyList": 1}; !reflect.DeepEqual(found, want) {
+		t.Errorf("uses of an extension = %v, want %v", found, want)
+	}
+}
+
+func TestDartLibraryOfNamesADependencyTheWayAnImportDoes(t *testing.T) {
+	for path, want := range map[string]string{
+		"/opt/flutter/bin/cache/dart-sdk/lib/core/string.dart":              "dart:core",
+		"/opt/flutter/bin/cache/dart-sdk/lib/async/future.dart":             "dart:async",
+		"/opt/dart-sdk/lib/html.dart":                                       "dart:html",
+		"/home/u/.pub-cache/hosted/pub.dev/collection-1.19.0/lib/a.dart":    "package:collection",
+		"/home/u/.pub-cache/hosted/pub.dev/go_router-14.2.0/lib/src/x.dart": "package:go_router",
+		"/opt/flutter/packages/flutter/lib/src/widgets/framework.dart":      "package:flutter",
+		// A package whose own name ends in a word and not a version.
+		"/work/my-app/lib/main.dart": "package:my-app",
+		// The innermost `lib` is the package's.
+		"/work/lib/vendored/thing/lib/thing.dart": "package:thing",
+		// Not a library of a package: nothing to name.
+		"/work/tool/build.dart": "",
+		"/lib/x.dart":           "",
+		"/work/pkg/lib/":        "",
+		"":                      "",
+	} {
+		got, named := dartLibraryOf(path)
+		if got != want || named != (want != "") {
+			t.Errorf("dartLibraryOf(%q) = %q, %t, want %q", path, got, named, want)
+		}
+	}
+}
+
+// An SDK is not always in a directory called `dart-sdk`: a hosted runner
+// unpacks it as `<version>/x64`. It is told by what it holds, and a package
+// that happens to have a `lib/core` is still a package.
+func TestDartLibraryOfNamesAnSDKByWhatItHolds(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{
+		"x64/lib/core/core.dart", "x64/lib/core/string.dart",
+		"pkg/lib/core/core.dart", "pkg/pubspec.yaml",
+	} {
+		path := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for name, want := range map[string]string{
+		"x64/lib/core/string.dart":  "dart:core",
+		"x64/lib/async/future.dart": "dart:async",
+		"pkg/lib/core/core.dart":    "package:pkg",
+	} {
+		if got, _ := dartLibraryOf(filepath.Join(root, filepath.FromSlash(name))); got != want {
+			t.Errorf("dartLibraryOf(%s) = %q, want %q", name, got, want)
+		}
+	}
+}
+
+// A dependency nobody registered is declared once for each declaration that
+// uses it and each kind of thing used, not once for each use, and by the name
+// an import gives it and not by a path of this machine.
+func TestRunDeclaresAnUnregisteredLibraryOncePerDeclaration(t *testing.T) {
+	if _, err := exec.LookPath("dart"); err != nil {
+		t.Skip("dart SDK is not installed")
+	}
+	root := t.TempDir()
+	for name, content := range map[string]string{
+		"pubspec.yaml":   "name: words\npublish_to: none\nenvironment:\n  sdk: \">=3.0.0 <4.0.0\"\n",
+		"lib/words.dart": "String join(String a, String b, String c) {\n  String all = a + b;\n  return all + c;\n}\n\nString other(String a) => a;\n",
+	} {
+		path := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	payload, err := Run(ctx, "dart", "dart", workspace.Repository{Name: "words", Path: root, RealPath: root}, true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := map[string]string{}
+	for _, symbol := range payload.Symbols {
+		names[symbol.ID] = symbol.QualifiedName
+	}
+	classes := map[string]int{}
+	for _, unresolved := range payload.Unresolved {
+		// `a`, `b`, `c` and `all` are used in the function that declares them:
+		// that is no failure.
+		if unresolved.RequestedSymbol == "PARAMETER" || unresolved.RequestedSymbol == "LOCAL_VARIABLE" {
+			t.Errorf("a use of a name scoped to its declaration was recorded as a failure: %#v", unresolved)
+		}
+		if unresolved.Reason != "DART_TARGET_NOT_INDEXED" || unresolved.RequestedSymbol != "CLASS" {
+			continue
+		}
+		if strings.Contains(unresolved.RequestedPackage, string(filepath.Separator)) {
+			t.Errorf("a failure names a path of this machine: %q", unresolved.RequestedPackage)
+		}
+		classes[names[unresolved.SourceID]+" "+unresolved.RequestedPackage]++
+	}
+	// `join` writes `String` five times and `other` twice.
+	if want := map[string]int{"join dart:core": 1, "other dart:core": 1}; !reflect.DeepEqual(classes, want) {
+		t.Errorf("uses of a class of an unregistered library = %v, want %v", classes, want)
+	}
+}
