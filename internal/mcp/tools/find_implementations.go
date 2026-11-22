@@ -42,6 +42,15 @@ type ImplementationResult struct {
 	Scope           string                  `json:"scope"`
 }
 
+// implementationDetectionOf is the detection of one relation. A subclass says
+// `extends` in its own declaration, whatever resolved the name it wrote.
+func implementationDetectionOf(kind facts.EdgeKind, provenance facts.Provenance) string {
+	if kind == facts.Extends {
+		return "declared"
+	}
+	return implementationDetection(provenance)
+}
+
 func implementationDetection(provenance facts.Provenance) string {
 	switch provenance {
 	case facts.TypeScriptImplementationDeclared:
@@ -59,6 +68,9 @@ func findImplementations(ctx context.Context, request *sdkmcp.CallToolRequest, a
 	if arguments.Detection != "" && arguments.Detection != "declared" && arguments.Detection != "structural" {
 		return nil, Response[ImplementationResult]{}, NewToolError(CodeInvalidArgument, "detection must be declared or structural")
 	}
+	// A subclass is an implementation of its base: asked who implements a
+	// class, the answer left out every class that extends it. EXTENDS is read
+	// with IMPLEMENTS and OVERRIDES below.
 	paths := slices.Clone(arguments.Paths)
 	for _, prefix := range paths {
 		if prefix == "" || prefix == "." || strings.ContainsRune(prefix, '\x00') || path.IsAbs(prefix) || path.Clean(prefix) != strings.TrimSuffix(prefix, "/") || prefix == ".." || strings.HasPrefix(prefix, "../") {
@@ -66,7 +78,7 @@ func findImplementations(ctx context.Context, request *sdkmcp.CallToolRequest, a
 		}
 	}
 	slices.Sort(paths)
-	query := FindReferencesInput{implementationPaths: paths, Profile: arguments.Profile, StableKey: arguments.StableKey, Name: arguments.Name, QualifiedName: arguments.QualifiedName, Repository: arguments.Repository, Path: arguments.Path, Repo: arguments.Repo, Language: arguments.Language, ExcludeTests: arguments.ExcludeTests, Limit: arguments.Limit, Cursor: arguments.Cursor, EdgeKinds: []string{string(facts.Implements), string(facts.Overrides)}, Direction: FindReferencesDirectionIncoming, ResponseFormat: ResponseFormatDetailed, View: ViewFull, implementationsOnly: true, implementationDetection: arguments.Detection}
+	query := FindReferencesInput{implementationPaths: paths, Profile: arguments.Profile, StableKey: arguments.StableKey, Name: arguments.Name, QualifiedName: arguments.QualifiedName, Repository: arguments.Repository, Path: arguments.Path, Repo: arguments.Repo, Language: arguments.Language, ExcludeTests: arguments.ExcludeTests, Limit: arguments.Limit, Cursor: arguments.Cursor, EdgeKinds: []string{string(facts.Implements), string(facts.Extends), string(facts.Overrides)}, Direction: FindReferencesDirectionIncoming, ResponseFormat: ResponseFormatDetailed, View: ViewFull, implementationsOnly: true, implementationDetection: arguments.Detection}
 	selected, count, err := resolveProfileSelection(store, arguments.Profile, arguments.StableKey)
 	if err != nil {
 		return nil, Response[ImplementationResult]{}, err
@@ -87,7 +99,7 @@ func findImplementations(ctx context.Context, request *sdkmcp.CallToolRequest, a
 	}
 	rows := make([]ImplementationSummary, 0, len(references.Results.References))
 	for _, row := range references.Results.References {
-		rows = append(rows, ImplementationSummary{ReferenceSummary: row, Detection: implementationDetection(facts.Provenance(row.Provenance))})
+		rows = append(rows, ImplementationSummary{ReferenceSummary: row, Detection: implementationDetectionOf(facts.EdgeKind(row.EdgeKind), facts.Provenance(row.Provenance))})
 	}
 	// Schema 5 attests that this generation ran implementation analysis. An old
 	// graph can still answer Go relations, but its empty TS page proves nothing.

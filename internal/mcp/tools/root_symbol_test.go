@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -288,5 +289,64 @@ func TestANameThatIsNotASymbolIsSentToFindByIntent(t *testing.T) {
 					testCase.symbol, err.Error(), findByIntentToolName)
 			}
 		})
+	}
+}
+
+// The kinds that declare were a list, and the loaders publish more than it
+// held: a bare name of a Go `var`, a Rust `macro` or a Dart `extension` was
+// answered "only imported or re-exported here, never declared".
+func TestResolveDeclarationByNameResolvesEveryKindThatDeclares(t *testing.T) {
+	kinds := []string{
+		"var", "alias", "macro", "static", "union", "trait_method", "type_alias",
+		"extension", "extension_type", "mixin", "getter", "constructor",
+		"property", "enum_member", "constant", "symbol", "a_kind_no_list_names",
+	}
+	rows := hotsnapshot.LadybugSnapshotRows{
+		Repositories: []hotsnapshot.RepositoryRow{
+			{Key: "repo-alpha", Name: "alpha", Path: "/tmp/alpha", Languages: "go"},
+		},
+		Packages: []hotsnapshot.PackageRow{
+			{Key: "package-alpha", RepositoryKey: "repo-alpha", Language: "go", Name: "example.com/alpha/pkg", ModulePath: "example.com/alpha"},
+		},
+		Files: []hotsnapshot.FileRow{
+			{Key: "file-alpha", RepositoryKey: "repo-alpha", PackageKey: "package-alpha", Path: "src/uses.go", Language: "go"},
+		},
+	}
+	symbol := func(name, kind string, line int) hotsnapshot.SymbolRow {
+		return hotsnapshot.SymbolRow{
+			StableKey: hotsnapshot.StableKey(fmt.Sprintf("%s-%s-%d", name, kind, line)), CanonicalIdentity: fmt.Sprintf("go:alpha:%s:%s:%d", name, kind, line),
+			FileKey: "file-alpha", Language: "go", Name: name, QualifiedName: "pkg." + name,
+			Kind: kind, StartLine: uint32(line), EndLine: uint32(line),
+		}
+	}
+	for index, kind := range kinds {
+		name := fmt.Sprintf("Declared%d", index)
+		// Beside what only mentions the name, and what is scoped to one
+		// declaration: neither makes the one declaration ambiguous.
+		rows.Symbols = append(rows.Symbols,
+			symbol(name, kind, 10*index+1), symbol(name, "import", 10*index+2),
+			symbol(name, "parameter", 10*index+3), symbol(name, "local_variable", 10*index+4))
+	}
+	rows.Symbols = append(rows.Symbols, symbol("ctx", "parameter", 900), symbol("ctx", "type_parameter", 901))
+	snapshot, err := hotsnapshot.BuildGraphSnapshot(rows, 83, time.Unix(1_700_000_083, 0).UTC(), 1)
+	if err != nil {
+		t.Fatalf("BuildGraphSnapshot() error = %v", err)
+	}
+	for index, kind := range kinds {
+		name := fmt.Sprintf("Declared%d", index)
+		id, qualifiedName, err := resolveDeclarationByName(snapshot, name, "", "")
+		if err != nil || qualifiedName != "pkg."+name {
+			t.Errorf("a %s: resolveDeclarationByName(%q) = %q, %v, want its declaration", kind, name, qualifiedName, err)
+			continue
+		}
+		resolved, _ := snapshot.Symbol(id)
+		if got, _ := snapshot.Strings().String(resolved.Kind); got != kind {
+			t.Errorf("%q resolved to a %s, want the %s", name, got, kind)
+		}
+	}
+	// A name that is only ever scoped is not one a bare name asks about, and it
+	// is not "imported" either.
+	if _, _, err := resolveDeclarationByName(snapshot, "ctx", "", ""); err == nil || strings.Contains(err.Error(), "imported") {
+		t.Errorf("resolveDeclarationByName(ctx) error = %v, want not found and no word about imports", err)
 	}
 }

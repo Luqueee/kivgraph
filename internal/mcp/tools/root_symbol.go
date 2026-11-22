@@ -164,15 +164,27 @@ func errSelectorAmbiguous(
 // An import row and a re-export row are facts about the same name, but a
 // question about references is a question about the declaration: resolving to
 // the import of a name would answer for the file that borrowed it.
-var declarationKinds = map[string]struct{}{
-	"function": {}, "func": {}, "method": {}, "class": {}, "interface": {},
-	"struct": {}, "enum": {}, "type": {}, "trait": {}, "const": {},
-	"variable": {}, "field": {}, "module": {}, "namespace": {},
+//
+// It was a list of the kinds that do declare, and every loader added since
+// publishes one it never learned: a Go `var` and `alias`, a Rust `macro` and
+// `static`, a Dart `extension` and `mixin`, a `constructor`, a `property`. A
+// bare name of any of them was answered "only imported or re-exported here,
+// never declared" beside a find_symbol that listed its declaration. So the
+// list is of what does not: a kind nobody named is a declaration.
+var mentionKinds = map[string]struct{}{"import": {}, "export": {}, "reexport": {}}
+
+// scopedKinds declare a name that means something only inside one declaration
+// -- `ctx` is a parameter of half the functions of a repository -- and a bare
+// name never asks about one of them.
+var scopedKinds = map[string]struct{}{
+	"parameter": {}, "self_parameter": {}, "type_parameter": {},
+	"local_variable": {}, "prefix": {}, "file": {},
 }
 
 func isDeclarationKind(kind string) bool {
-	_, found := declarationKinds[kind]
-	return found
+	_, mention := mentionKinds[kind]
+	_, scoped := scopedKinds[kind]
+	return !mention && !scoped
 }
 
 // resolveDeclarationByName turns an unqualified name into the one symbol that
@@ -219,7 +231,9 @@ func resolveDeclarationByName(
 			declarations = append(declarations, id)
 			continue
 		}
-		mentions++
+		if _, mention := mentionKinds[kind]; mention {
+			mentions++
+		}
 	}
 
 	switch len(declarations) {

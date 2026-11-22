@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"reflect"
+	"slices"
+	"sort"
 	"testing"
 	"time"
 
@@ -635,4 +637,33 @@ func memberKindSnapshot(t *testing.T, id uint64) *hotsnapshot.SnapshotStore {
 		t.Fatalf("BuildGraphSnapshot() error = %v", err)
 	}
 	return hotsnapshot.NewSnapshotStore(snapshot)
+}
+
+// Every stored path is relative to the repository, so there was no way to ask
+// what a repository holds: `.` was a path nothing was under.
+func TestGetFileOutlineListsARepositoryFromItsRoot(t *testing.T) {
+	client := newFileOutlineToolClient(t, fileOutlineSnapshot(t, 47))
+	paths := func(path string) []string {
+		t.Helper()
+		outline := callFileOutline(t, client, map[string]any{"repository": "alpha-repo", "path": path})
+		listed := make([]string, 0, len(outline.Results.Files))
+		for _, group := range outline.Results.Files {
+			listed = append(listed, group.Path)
+		}
+		sort.Strings(listed)
+		return listed
+	}
+	whole := paths(".")
+	// A file beside the directory is under the root and not under the directory.
+	if below := paths("internal/facts"); len(whole) <= len(below) || !slices.Contains(whole, "internal/factsheet.go") {
+		t.Fatalf("the root lists %v, the directory %v", whole, below)
+	}
+	for _, spelling := range []string{"./", "././"} {
+		if got := paths(spelling); !reflect.DeepEqual(got, whole) {
+			t.Errorf("path %q lists %v, want what . lists: %v", spelling, got, whole)
+		}
+	}
+	if got, want := paths("./internal/facts/"), paths("internal/facts"); !reflect.DeepEqual(got, want) {
+		t.Errorf("./internal/facts/ lists %v, want %v", got, want)
+	}
 }

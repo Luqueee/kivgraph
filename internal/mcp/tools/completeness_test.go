@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -465,5 +466,100 @@ func TestAFailureInAnotherLanguageDoesNotBoundTheAnswer(t *testing.T) {
 	}
 	if symbols.Completeness == nil || symbols.Completeness.Verdict != VerdictLowerBound {
 		t.Errorf("find_symbol by name = %#v, want the failure in another language to bound it", symbols.Completeness)
+	}
+}
+
+// The same rule for a scope: a package nobody registered in one language is
+// not where a use of a declaration of another was lost. Without it every
+// answer in a repository of two languages was a lower bound for good -- on
+// real code a Rust declaration, because of npm packages.
+func TestAScopeInAnotherLanguageDoesNotBoundTheAnswer(t *testing.T) {
+	scopesOf := func(language, reason string) []hotsnapshot.UnresolvedReferenceRow {
+		var rows []hotsnapshot.UnresolvedReferenceRow
+		for _, repository := range [...]string{"repo-app", "repo-core"} {
+			rows = append(rows, hotsnapshot.UnresolvedReferenceRow{
+				Key: "scope-" + repository + "-" + language, RepositoryKey: repository,
+				Language: language, RequestedPackage: "@scope/pkg", Reason: reason,
+			})
+		}
+		return rows
+	}
+	scopes := func(language string) []hotsnapshot.UnresolvedReferenceRow {
+		return scopesOf(language, "REPOSITORY_NOT_LOADED")
+	}
+	verdicts := func(t *testing.T, store *hotsnapshot.SnapshotStore) map[string]string {
+		t.Helper()
+		out := map[string]string{}
+		_, references, err := findReferences(context.Background(), nil,
+			FindReferencesInput{StableKey: "sym-core", Direction: FindReferencesDirectionIncoming}, store)
+		if err != nil {
+			t.Fatalf("find_references: %v", err)
+		}
+		out["find_references"] = references.Completeness.Verdict
+		_, radius, err := getBlastRadius(context.Background(), nil, GetBlastRadiusInput{StableKey: "sym-core"}, store)
+		if err != nil {
+			t.Fatalf("get_blast_radius: %v", err)
+		}
+		out["get_blast_radius"] = radius.Completeness.Verdict
+		_, trace, err := traceDependencies(context.Background(), nil, TraceDependenciesInput{StableKey: "sym-caller"}, store)
+		if err != nil {
+			t.Fatalf("trace_dependencies: %v", err)
+		}
+		out["trace_dependencies"] = trace.Completeness.Verdict
+		_, outline, err := getFileOutline(context.Background(), nil,
+			GetFileOutlineInput{Repository: "core", Path: "core.go"}, store)
+		if err != nil {
+			t.Fatalf("get_file_outline: %v", err)
+		}
+		out["outline of the file"] = VerdictComplete
+		if outline.Completeness != nil {
+			out["outline of the file"] = outline.Completeness.Verdict
+		}
+		return out
+	}
+	all := func(verdict string) map[string]string {
+		return map[string]string{
+			"find_references": verdict, "get_blast_radius": verdict, "trace_dependencies": verdict,
+			"outline of the file": verdict,
+		}
+	}
+	// Not covered here: the outline of a directory, which keeps every scope
+	// because what is missing under it can be in any language. This fixture
+	// has no directory.
+	for name, test := range map[string]struct {
+		language string
+		want     map[string]string
+	}{
+		"another language":           {"typescript", all(VerdictComplete)},
+		"the declaration's language": {"go", all(VerdictLowerBound)},
+		"no language recorded":       {"", all(VerdictLowerBound)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := verdicts(t, completenessSnapshot(t, 81, scopes(test.language)...))
+			if !reflect.DeepEqual(got, test.want) {
+				t.Errorf("verdicts = %v, want %v", got, test.want)
+			}
+		})
+	}
+
+	// A dependency nobody registered is a scope too, and what it says was not
+	// read is the dependency: `vitest`, imported once, made a lower bound of
+	// every answer in a repository. It bounds none about a declaration, in the
+	// declaration's own language either.
+	for _, reason := range [...]string{"PACKAGE_PROVIDER_NOT_FOUND", "MODULE_PROVIDER_NOT_FOUND", "CRATE_PROVIDER_NOT_FOUND"} {
+		got := verdicts(t, completenessSnapshot(t, 83, scopesOf("go", reason)...))
+		if !reflect.DeepEqual(got, all(VerdictComplete)) {
+			t.Errorf("%s as a scope: verdicts = %v, want every one COMPLETE", reason, got)
+		}
+	}
+
+	// A search by name is still bounded by a scope of any language.
+	_, symbols, err := findSymbol(context.Background(), nil, FindSymbolInput{Name: "Core"},
+		completenessSnapshot(t, 82, scopes("typescript")...))
+	if err != nil {
+		t.Fatalf("find_symbol: %v", err)
+	}
+	if symbols.Completeness == nil || symbols.Completeness.Verdict != VerdictLowerBound {
+		t.Errorf("find_symbol by name = %#v, want the scope to bound it", symbols.Completeness)
 	}
 }

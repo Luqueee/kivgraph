@@ -64,3 +64,79 @@ and skips failures recorded in another.
   recall and precision figure.
 - A graph that ever holds edges across languages -- a contract edge, phase 8 of
   the roadmap -- has to revisit this: the premise is that none exists.
+
+## Amendment: a scope is read by language too
+
+The decision above filtered the failures that name a symbol and left the other
+half of the verdict as it was: the scopes the index could not read at all,
+`invisible_scopes`. They were taken for the whole repository, so in a
+repository of two languages no answer was ever `COMPLETE`. Found on a real
+one: every answer about a Rust declaration was `LOWER_BOUND` because of npm
+packages nobody registered, `PACKAGE_PROVIDER_NOT_FOUND`.
+
+A scope now bounds an answer about a declaration under the same rule: if it
+was recorded in that declaration's language, or in none.
+`trace_dependencies` reads the language of its root, and `get_file_outline`
+that of the file when the path names one file.
+
+Unchanged: `find_symbol`, which asks about a name, and the outline of a
+directory, under which what is missing can be in any language.
+
+On that repository the outline of a Rust file goes from `LOWER_BOUND` to
+`COMPLETE`, and its answer from `1835` to `1018` bytes.
+
+Removing the scopes showed what they had been covering. A Rust failure records
+the path it tried, `replay::ReplayWindow`, and the lookup matched a name only
+bare or after a dot: a failed use of anything below the root of a crate asked
+for no name. With the scopes gone, `find_references` for a struct that a
+second Cargo workspace of the same repository uses answered `COMPLETE` and
+missed that file. A name now also matches after `::`. The one shape left out
+is `module::impl::Name`, the `impl` block SCIP mentions for `-> Self` and never
+defines: a type naming itself in its own block, which would bound every type
+that has one.
+
+So that struct answers `LOWER_BOUND` again, now for the reason that is true,
+with the file named.
+
+Matching after `::` alone was too much: on `fd` it turned `16` complete answers
+of `100` into `LOWER_BOUND`, because `new`, `push` and `parse` are the last name
+of `std::path::impl::PathBuf::new` and the like. A failure whose crate no
+registered repository provides, `CRATE_PROVIDER_NOT_FOUND`, was not looking for
+a declaration the graph holds, and no longer bounds an answer about one. It
+still bounds `find_symbol`.
+
+Measured again, `100` declarations each, recall and precision unchanged and no
+`COMPLETE` answer missing a non-test file before or after:
+
+| repository | `COMPLETE`, before | `COMPLETE`, now |
+|---|---|---|
+| `fd` | `96` | `98` |
+| `ripgrep` | `97` | `96` |
+
+The Go, TypeScript and Dart verdicts did not move.
+
+## Amendment: a dependency nobody registered bounds no declaration
+
+The same holds for a scope, and in every language: a package, crate or module
+that no registered repository provides (`PACKAGE_PROVIDER_NOT_FOUND`,
+`CRATE_PROVIDER_NOT_FOUND`, `MODULE_PROVIDER_NOT_FOUND`) was not looking for a
+declaration the graph holds. It no longer makes an answer about one
+`LOWER_BOUND`. It still bounds `find_symbol`. A provider failure recorded on a
+file still bounds, except `CRATE_PROVIDER_NOT_FOUND`.
+
+Measured, `100` declarations each, precision unchanged:
+
+| repository | `COMPLETE`, before | `COMPLETE`, now | wrong, now |
+|---|---|---|---|
+| `got` | `0` | `100` | `0` |
+| `ky` | `100` | `100` | `0` |
+| `fd` | `96` | `98` | `0` |
+| `ripgrep` | `97` | `93` | `0` |
+
+On `got` every answer had been `LOWER_BOUND` because of npm packages, which
+said nothing. Without them two answers were wrong, and had always missed the
+same files: `dnsCache` and `maxHeaderSize` are `set` accessors. The checker
+has one symbol for a `get`/`set` pair, and the worker attached every use to
+whichever was declared first. An assignment now reaches the `set`, a read the
+`get`, and `+=` or `++` both; file recall on `got` went from `220` of `223`
+to `223` of `223`. The key of an object literal still reaches the `get`.

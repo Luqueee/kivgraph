@@ -44,7 +44,13 @@ type FullDocument struct {
 	// RecordingError means the generation passed and was published, but derived
 	// freshness or invalidation state was not persisted.
 	RecordingError string `json:"recording_error,omitempty"`
+	// Lost names the files an unattended pass refused to publish without, at
+	// most maximumLostFiles of them. It is how the refusal crosses the process
+	// boundary as a fact and not as the words of an error.
+	Lost []string `json:"lost,omitempty"`
 }
+
+const maximumLostFiles = 20
 
 // DocumentFromResult projects one in-process result onto the wire form.
 func DocumentFromResult(result FullResult) FullDocument {
@@ -53,6 +59,9 @@ func DocumentFromResult(result FullResult) FullDocument {
 		GenerationID: result.RebuildReport.GenerationID,
 		Counts:       result.Counts,
 		Index:        SummaryFromReport(result.IndexReport),
+	}
+	if document.Lost = result.Lost; len(document.Lost) > maximumLostFiles {
+		document.Lost = document.Lost[:maximumLostFiles]
 	}
 	if result.RecordingError != nil {
 		document.RecordingError = result.RecordingError.Error()

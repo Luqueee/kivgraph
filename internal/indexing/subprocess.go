@@ -52,6 +52,9 @@ type DetachedOptions struct {
 	// nobody can read is a diagnostic nobody has; a server passes the stream it
 	// already logs to. The tail is kept to explain a failure either way.
 	Log io.Writer
+
+	// Unattended is FullOptions.Unattended, for the child.
+	Unattended bool
 }
 
 // RunDetached indexes the registered repositories in a child process and
@@ -92,6 +95,10 @@ func RunDetached(ctx context.Context, options DetachedOptions) (FullDocument, er
 		}
 	}
 
+	if options.Unattended {
+		arguments = append(arguments, "--unattended")
+	}
+
 	command := exec.CommandContext(ctx, executable, arguments...)
 	command.Dir = options.WorkingDirectory
 	command.WaitDelay = childWaitDelay
@@ -116,6 +123,8 @@ func RunDetached(ctx context.Context, options DetachedOptions) (FullDocument, er
 	waitErr := command.Wait()
 
 	switch {
+	case decoded && len(document.Lost) > 0:
+		return document, fmt.Errorf("%w: %w: %s", ErrIndexProcess, ErrGenerationLostFiles, document.Error)
 	case waitErr != nil && decoded && document.Error != "":
 		// The child said why before it exited; its own message is the useful
 		// one, and the exit code adds nothing to it.

@@ -217,3 +217,38 @@ func TestRunDetachedMirrorsTheChildLog(t *testing.T) {
 		t.Fatalf("log = %q, want the child's own record", log.String())
 	}
 }
+
+// A refusal to replace the active generation crosses the process boundary as a
+// fact, so the caller can tell it from a pass that failed and is worth trying
+// again -- and the child is told nobody is there to read its report.
+func TestRunDetachedCarriesAnUnattendedRefusal(t *testing.T) {
+	executable, argumentsFile := fakeIndexChild(t, fakeChildScript{
+		Stdout: []string{
+			`{"event":"result","result":{"passed":false,"error":"the pass lost files","lost":["app:a.go"]}}`,
+		},
+		ExitCode: 1,
+	})
+	document, err := RunDetached(context.Background(), DetachedOptions{Executable: executable, Unattended: true})
+	if !errors.Is(err, ErrGenerationLostFiles) || !errors.Is(err, ErrIndexProcess) {
+		t.Fatalf("RunDetached() error = %v, want the refusal", err)
+	}
+	if len(document.Lost) != 1 || document.Lost[0] != "app:a.go" {
+		t.Fatalf("document.Lost = %v", document.Lost)
+	}
+	recorded, err := os.ReadFile(argumentsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Fields(string(recorded)); got[len(got)-1] != "--unattended" {
+		t.Fatalf("arguments = %v, want --unattended", got)
+	}
+
+	// A pass that failed for another reason is not one.
+	executable, _ = fakeIndexChild(t, fakeChildScript{
+		Stdout:   []string{`{"event":"result","result":{"passed":false,"error":"gates"}}`},
+		ExitCode: 1,
+	})
+	if _, err := RunDetached(context.Background(), DetachedOptions{Executable: executable}); errors.Is(err, ErrGenerationLostFiles) {
+		t.Fatalf("an ordinary failure was read as a refusal: %v", err)
+	}
+}

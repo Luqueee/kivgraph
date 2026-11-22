@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -343,12 +345,40 @@ func TestStartIndexProjectRequiresExplicitConsent(t *testing.T) {
 
 func TestStartIndexProjectRejectsInvalidInputBeforeStarting(t *testing.T) {
 	indexer := newControlledProjectIndexer()
+	notADirectory := filepath.Join(t.TempDir(), "file")
+	if err := os.WriteFile(notADirectory, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
 	session := connectToServer(t, NewServerWithIndexer(indexer))
 	for name, arguments := range map[string]map[string]any{
 		"missing project": {"confirmed": true},
 		"unsupported profile": {
 			"profile": "other", "name": "demo", "path": "/tmp/demo",
 			"languages": []any{"go"}, "confirmed": true,
+		},
+		// What index_project refuses, refused here and not one poll later.
+		"a path that is not there": {
+			"name": "demo", "path": filepath.Join(t.TempDir(), "missing"),
+			"languages": []any{"go"}, "confirmed": true,
+		},
+		"a path that is a file": {
+			"name": "demo", "path": notADirectory,
+			"languages": []any{"go"}, "confirmed": true,
+		},
+		"a name that is no identifier": {
+			"name": "a/b", "path": t.TempDir(),
+			"languages": []any{"go"}, "confirmed": true,
+		},
+		"a language nothing loads": {
+			"name": "demo", "path": t.TempDir(),
+			"languages": []any{"cobol"}, "confirmed": true,
+		},
+		"the second of a batch": {
+			"projects": []any{
+				map[string]any{"name": "one", "path": t.TempDir(), "languages": []any{"go"}},
+				map[string]any{"name": "two", "path": filepath.Join(t.TempDir(), "missing"), "languages": []any{"go"}},
+			},
+			"confirmed": true,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -377,7 +407,7 @@ func TestStartIndexProjectReturnsBeforeTheIndexFinishes(t *testing.T) {
 	result, err := session.CallTool(callContext, &sdkmcp.CallToolParams{
 		Name: "start_index_project",
 		Arguments: map[string]any{
-			"name": "demo", "path": "/tmp/demo", "languages": []any{"go"}, "confirmed": true,
+			"name": "demo", "path": t.TempDir(), "languages": []any{"go"}, "confirmed": true,
 		},
 	})
 	if err != nil {
@@ -438,7 +468,7 @@ func TestStartIndexProjectRoutesANamedProfileAsynchronously(t *testing.T) {
 	result, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{
 		Name: "start_index_project",
 		Arguments: map[string]any{
-			"profile": "other", "name": "demo", "path": "/tmp/demo",
+			"profile": "other", "name": "demo", "path": t.TempDir(),
 			"languages": []any{"go"}, "confirmed": true,
 		},
 	})
@@ -459,7 +489,7 @@ func TestIndexStatusBoundsCompletedHistory(t *testing.T) {
 		result, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{
 			Name: "start_index_project",
 			Arguments: map[string]any{
-				"name": fmt.Sprintf("demo-%d", index), "path": fmt.Sprintf("/tmp/demo-%d", index),
+				"name": fmt.Sprintf("demo-%d", index), "path": t.TempDir(),
 				"languages": []any{"go"}, "confirmed": true,
 			},
 		})
@@ -485,7 +515,7 @@ func TestStartIndexProjectRejectsASecondActiveOperation(t *testing.T) {
 	indexer := newControlledProjectIndexer()
 	session := connectToServer(t, NewServerWithIndexer(indexer))
 	arguments := map[string]any{
-		"name": "demo", "path": "/tmp/demo", "languages": []any{"go"}, "confirmed": true,
+		"name": "demo", "path": t.TempDir(), "languages": []any{"go"}, "confirmed": true,
 	}
 	first, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{
 		Name: "start_index_project", Arguments: arguments,
@@ -519,7 +549,7 @@ func TestGetIndexStatusReportsProgressAndFailure(t *testing.T) {
 	result, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{
 		Name: "start_index_project",
 		Arguments: map[string]any{
-			"name": "demo", "path": "/tmp/demo", "languages": []any{"go"}, "confirmed": true,
+			"name": "demo", "path": t.TempDir(), "languages": []any{"go"}, "confirmed": true,
 		},
 	})
 	if err != nil || result == nil || result.IsError {
@@ -555,7 +585,7 @@ func TestIndexStatusSurvivesAcrossDaemonStyleSessions(t *testing.T) {
 	result, err := starter.CallTool(context.Background(), &sdkmcp.CallToolParams{
 		Name: "start_index_project",
 		Arguments: map[string]any{
-			"name": "demo", "path": "/tmp/demo", "languages": []any{"go"}, "confirmed": true,
+			"name": "demo", "path": t.TempDir(), "languages": []any{"go"}, "confirmed": true,
 		},
 	})
 	if err != nil || result == nil || result.IsError {
@@ -586,7 +616,7 @@ func TestIndexJobsCloseCancelsRunningOperation(t *testing.T) {
 	result, err := session.CallTool(t.Context(), &sdkmcp.CallToolParams{
 		Name: "start_index_project",
 		Arguments: map[string]any{
-			"name": "demo", "path": "/tmp/demo", "languages": []any{"go"}, "confirmed": true,
+			"name": "demo", "path": t.TempDir(), "languages": []any{"go"}, "confirmed": true,
 		},
 	})
 	if err != nil || result == nil || result.IsError {

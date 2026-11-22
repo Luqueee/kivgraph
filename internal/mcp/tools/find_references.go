@@ -1091,7 +1091,7 @@ func referenceMatches(
 	decoded decodedReferenceEdge,
 	options findReferencesOptions,
 ) (bool, error) {
-	if options.implementationsOnly && (!decoded.Confidence.Exact() || (options.implementationDetection != "" && implementationDetection(decoded.Provenance) != options.implementationDetection)) {
+	if options.implementationsOnly && (!decoded.Confidence.Exact() || (options.implementationDetection != "" && implementationDetectionOf(decoded.Kind, decoded.Provenance) != options.implementationDetection)) {
 		return false, nil
 	}
 	if options.implementationsOnly && len(options.implementationPaths) > 0 {

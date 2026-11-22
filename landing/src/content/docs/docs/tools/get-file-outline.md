@@ -11,7 +11,7 @@ description: List the declarations under a file or a directory, grouped by file,
 | --- | --- | --- | --- |
 | `profile` | array of strings | configured default | Profiles to query. `["*"]` alone selects all. |
 | `repository` | string | none, required | The repository name. Rejected with `INVALID_ARGUMENT` when empty or padded with whitespace, and with `REPOSITORY_NOT_FOUND` when the published graph does not hold it. |
-| `path` | string | none, required | A repository-relative file, or a directory whose files are all wanted. An absolute path is rejected, and so is any `..` segment; a trailing `/` is trimmed. |
+| `path` | string | none, required | A repository-relative file, or a directory whose files are all wanted; `.` is the whole repository. An absolute path is rejected, and so is any `..` segment; a trailing `/` is trimmed. |
 | `kind` | string | unset | Keeps only rows whose `kind` is exactly this string. |
 | `include_members` | boolean | `false` | Adds the rows that belong to the declaration above them: `field`, `property`, `enum_member` and `variant`. They are off by default because on a real file they are about half the payload. |
 | `limit` | integer | `200` | Symbols per page. Must be between 1 and 500; anything else is rejected with `INVALID_ARGUMENT`. |

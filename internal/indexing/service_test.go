@@ -39,7 +39,7 @@ func TestUpsertRepositoryIsIdempotentForTheSameProject(t *testing.T) {
 func TestUpsertRepositoryKeepsExclusionsWhenLanguagesChange(t *testing.T) {
 	registry := config.RepositoriesFile{Version: 1, Repositories: []config.Repository{
 		{Name: "kivgraph", Path: "/repos/kivgraph", Languages: []string{"go"},
-			Exclusions: []string{"**/testdata", "**/dist"}},
+			Exclusions: []string{"**/testdata", "**/dist"}, IncludeGitIgnored: true},
 	}}
 
 	changed, err := upsertRepository(&registry, config.Repository{
@@ -57,6 +57,9 @@ func TestUpsertRepositoryKeepsExclusionsWhenLanguagesChange(t *testing.T) {
 	}
 	if strings.Join(entry.Exclusions, ",") != "**/testdata,**/dist" {
 		t.Fatalf("exclusions = %v, want the ones already on file", entry.Exclusions)
+	}
+	if !entry.IncludeGitIgnored {
+		t.Fatal("include_git_ignored was dropped: the request cannot express it either")
 	}
 }
 

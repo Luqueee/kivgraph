@@ -352,7 +352,7 @@ func TestDaemonSharesIndexStatusAcrossSessions(t *testing.T) {
 		&sdkmcp.CallToolParams{
 			Name: "start_index_project",
 			Arguments: map[string]any{
-				"name": "demo", "path": "/tmp/demo",
+				"name": "demo", "path": t.TempDir(),
 				"languages": []any{"go"}, "confirmed": true,
 			},
 		},
