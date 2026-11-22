@@ -261,6 +261,7 @@ isolated configuration write into the real installation.
 | `manifests` | Optional. Explicit manifest paths. |
 | `roots` | Optional. Explicit analysis roots. |
 | `exclusions` | Optional. Directories and files left out of the graph, for every language of the repository. A pattern is relative to the repository root: `vendor` is the root's `vendor`, `**/vendor` is one at any depth, and `./x`, an absolute path inside the repository, `*` and `**` are read. Go, TypeScript, Rust and Dart never walk them; Java, C# and Python are analysed whole by their tools and lose the excluded files afterwards. |
+| `include_git_ignored` | Optional, `false` by default. Whether the sources Git ignores are indexed. Left out, a path Git ignores that holds source of a registered language is an exclusion: the types a framework generates, a build that copies `src`. `kivgraph doctor` names them on its `walk.ignored` line. Set it for a repository whose generated code is ignored and should be in the graph. |
 
 ```yaml
 version: 1

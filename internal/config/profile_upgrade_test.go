@@ -256,3 +256,38 @@ func TestProfileUpgradeRejectsUnsafeArtifactsWithoutPublication(t *testing.T) {
 // a concurrent filesystem change) have no deterministic injection seam here.
 // Tests exercise real read failures and locks rather than adding test-only
 // filesystem hooks to the migration.
+
+// A recovery point is of state that was there. An installation that starts
+// with profiles got one all the same, holding a copy of the registry.
+func TestANewInstallationKeepsNoRecoveryPoint(t *testing.T) {
+	path, state := legacyProfileFixture(t)
+	if err := os.RemoveAll(state); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(state, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := LoadProfile(path, "")
+	if err != nil {
+		t.Fatalf("LoadProfile() on a new installation: %v", err)
+	}
+	if _, err := os.Stat(state + ".pre-profiles"); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("a new installation kept a recovery point (%v)", err)
+	}
+	if _, err := os.Stat(loaded.RepositoriesPath); err != nil {
+		t.Errorf("the default profile has no registry: %v", err)
+	}
+	// And the second load is the first one's.
+	if _, err := LoadProfile(path, ""); err != nil {
+		t.Errorf("LoadProfile() again: %v", err)
+	}
+
+	// State that was there is kept, as before.
+	legacyPath, legacyState := legacyProfileFixture(t)
+	if _, err := LoadProfile(legacyPath, ""); err != nil {
+		t.Fatalf("LoadProfile() on legacy state: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(legacyState+".pre-profiles", "CURRENT")); err != nil {
+		t.Errorf("legacy state kept no recovery point: %v", err)
+	}
+}

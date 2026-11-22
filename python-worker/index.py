@@ -143,6 +143,39 @@ def exported(name):
     return not name.startswith("_")
 
 
+# Directories that hold no source of this repository: a dependency tree, an
+# environment, or what git keeps.
+SKIPPED_DIRECTORIES = {".git", ".venv", "venv", "__pycache__", ".tox", "node_modules"}
+
+
+def other_checkout(directory):
+    """Another Git checkout below the root: a clone or a linked worktree. A
+    submodule is not one. The same rule as workspace.IsOtherCheckout."""
+    marker = os.path.join(directory, ".git")
+    if os.path.isdir(marker) and not os.path.islink(marker):
+        return True
+    if not os.path.isfile(marker) or os.path.islink(marker):
+        return False
+    try:
+        with open(marker, encoding="utf-8", errors="replace") as handle:
+            pointer = handle.read().strip()
+    except OSError:
+        return False
+    return pointer.startswith("gitdir:") and "/modules/" not in pointer.replace(os.sep, "/")
+
+
+def source_files(root):
+    """The Python files below root, in path order, without entering a skipped
+    directory: listing everything and filtering read every file of
+    node_modules, and indexed the Python some packages ship there."""
+    found = []
+    for directory, names, files in os.walk(root):
+        names[:] = [name for name in names
+                    if name not in SKIPPED_DIRECTORIES and not other_checkout(os.path.join(directory, name))]
+        found.extend(pathlib.Path(directory, name) for name in files if name.endswith((".py", ".pyi")))
+    return sorted(found)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", required=True)
@@ -152,9 +185,7 @@ def main():
     args = parser.parse_args()
     root = pathlib.Path(args.root).resolve()
     paths = []
-    for path in sorted(root.rglob("*")):
-        if not path.is_file() or path.suffix not in (".py", ".pyi"):
-            continue
+    for path in source_files(root):
         relative_parts = path.relative_to(root).parts
         if not args.include_tests and is_test_path("/".join(relative_parts)):
             continue

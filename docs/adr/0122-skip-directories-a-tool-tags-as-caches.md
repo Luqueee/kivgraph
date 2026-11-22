@@ -192,3 +192,32 @@ Not established by this record:
   directories, or on Linux;
 - whether another tool's tag, such as a Python cache, is worth the same walk
   change. The rule applies to them by construction and has not been measured.
+
+## Amendment: another Git checkout is skipped too
+
+A second kind of directory no walk should enter, found on real code: the root
+of another Git checkout below the repository. A worktree linked inside a
+repository repeats its `package.json`; the name had two providers, neither was
+indexed, and a pass over a backend of `652` TypeScript files published none of
+them and said PASS. The same pass over a workspace root that holds its
+applications as nested clones, and twelve more clones of them, ran for `464 s`
+to `9.8 GB` and failed in the store.
+
+`IsOtherCheckout` answers for a directory that holds a `.git`: a directory is a
+clone, a file that points under `worktrees` is a linked worktree. Git itself
+does not look inside either. A file that points under `modules` is a submodule,
+which is how a repository says the code is part of it, and is still walked.
+
+`IsSkippedDirectory` is the one question now, a tag or a checkout, and it is
+asked by the TypeScript, Go and Cargo discovery, the Dart loader, the two
+Python workers, the freshness walk, the source observation and the language
+detection. `kivgraph doctor` names what it skips on a `walk.checkout` line, as
+it does for a tag.
+
+Measured on that backend: `0` to `35346` TypeScript symbols. On the workspace
+root: see the roadmap.
+
+Not changed: a copy that is not a checkout -- a directory of files somebody
+duplicated -- is still a duplicate; `.gitignore` is still not read; the
+watcher and the audit keep their own lists. A nested clone registered as a
+repository of its own is still refused beside its parent.

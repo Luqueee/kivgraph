@@ -363,6 +363,9 @@ func isCargoDiscoveryExcluded(base, candidate, name string, isDirectory bool, ex
 		if _, excluded := defaultCargoExcludedDirectories[name]; excluded {
 			return true, nil
 		}
+		if IsOtherCheckout(candidate) {
+			return true, nil
+		}
 	}
 	return excluded, nil
 }

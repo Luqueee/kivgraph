@@ -524,6 +524,9 @@ type Repository struct {
 	Manifests  []string `yaml:"manifests,omitempty"`
 	Roots      []string `yaml:"roots,omitempty"`
 	Exclusions []string `yaml:"exclusions,omitempty"`
+	// IncludeGitIgnored indexes the sources Git ignores -- generated code a
+	// build writes -- which are left out by default.
+	IncludeGitIgnored bool `yaml:"include_git_ignored,omitempty"`
 }
 
 // Loaded combines the validated configuration and its repository registry.

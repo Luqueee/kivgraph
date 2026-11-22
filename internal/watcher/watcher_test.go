@@ -212,3 +212,62 @@ func containsPath(paths []string, want string) bool {
 	}
 	return false
 }
+
+// Another checkout below the root is not indexed, so it is neither watched nor
+// reconciled; a submodule is part of the repository and is both. The root has
+// a `.git` of its own and is the one checkout that is always read.
+func TestAnotherCheckoutBelowTheRootIsNeitherWatchedNorReconciled(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	clone := filepath.Join(root, "artifacts", "clone")
+	submodule := filepath.Join(root, "third_party", "module")
+	for _, directory := range []string{
+		filepath.Join(root, ".git"), filepath.Join(root, "src"),
+		filepath.Join(clone, ".git"), filepath.Join(clone, "pkg"), filepath.Join(submodule, "pkg"),
+	} {
+		if err := os.MkdirAll(directory, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeTestFile(t, filepath.Join(submodule, ".git"), "gitdir: ../../.git/modules/module\n")
+	own := filepath.Join(root, "src", "own.go")
+	inSubmodule := filepath.Join(submodule, "pkg", "module.go")
+	inClone := filepath.Join(clone, "pkg", "clone.go")
+	for _, file := range []string{own, inSubmodule, inClone} {
+		writeTestFile(t, file, "package p\n")
+	}
+	repositories := []workspace.Repository{{Name: "repo", RealPath: root, Languages: []string{"go"}}}
+
+	watcher, err := New(repositories)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	t.Cleanup(func() { _ = watcher.Close() })
+	paths := watcher.WatchedPaths()
+	for _, want := range []string{root, filepath.Join(root, "src"), filepath.Join(root, "artifacts"), submodule, filepath.Join(submodule, "pkg")} {
+		if !containsPath(paths, want) {
+			t.Errorf("WatchedPaths() misses %q", want)
+		}
+	}
+	for _, skipped := range []string{clone, filepath.Join(clone, "pkg")} {
+		if containsPath(paths, skipped) {
+			t.Errorf("WatchedPaths() holds %q, which is another checkout", skipped)
+		}
+	}
+
+	hasher, err := NewContentHasher(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reconciler, err := NewReconciler(repositories, hasher)
+	if err != nil {
+		t.Fatalf("NewReconciler() error = %v", err)
+	}
+	result, err := reconciler.Reconcile(context.Background())
+	if err != nil {
+		t.Fatalf("Reconcile() error = %v", err)
+	}
+	assertStatePaths(t, "added", result.Added, own, inSubmodule)
+}

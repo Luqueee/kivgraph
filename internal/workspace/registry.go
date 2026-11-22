@@ -37,6 +37,10 @@ type Repository struct {
 	Manifests  []string
 	Roots      []string
 	Exclusions []string
+	// Ignored are the repository-relative paths Git ignores that hold source
+	// of a registered language. They are among Exclusions; they are kept
+	// apart so that what was left out for that reason can be named.
+	Ignored []string
 }
 
 // Registry is an immutable, name-indexed set of registered repositories.
@@ -163,6 +167,11 @@ func registerRepository(ctx context.Context, configured config.Repository, valid
 	if err != nil {
 		return Repository{}, err
 	}
+	var ignored []string
+	if !configured.IncludeGitIgnored {
+		ignored = ignoredSources(ctx, git, realPath, languages)
+		exclusions = append(exclusions, ignored...)
+	}
 	return Repository{
 		Name:       name,
 		Path:       path,
@@ -174,6 +183,7 @@ func registerRepository(ctx context.Context, configured config.Repository, valid
 		Manifests:  manifests,
 		Roots:      roots,
 		Exclusions: exclusions,
+		Ignored:    ignored,
 	}, nil
 }
 
@@ -216,6 +226,7 @@ func cloneRepository(repository Repository) Repository {
 	repository.Manifests = append([]string(nil), repository.Manifests...)
 	repository.Roots = append([]string(nil), repository.Roots...)
 	repository.Exclusions = append([]string(nil), repository.Exclusions...)
+	repository.Ignored = append([]string(nil), repository.Ignored...)
 	return repository
 }
 

@@ -144,6 +144,7 @@ func ensureDefaultProfile(configuration Config, repositoriesPath string) (result
 	if err := copyProfileRegistry(repositoriesPath, filepath.Join(temporaryProfile, "repositories.yaml")); err != nil {
 		return err
 	}
+	legacy := false
 	for _, name := range legacyProfileArtifacts {
 		source := filepath.Join(stateRoot, name)
 		if _, err := os.Lstat(source); errors.Is(err, os.ErrNotExist) {
@@ -151,6 +152,7 @@ func ensureDefaultProfile(configuration Config, repositoriesPath string) (result
 		} else if err != nil {
 			return fmt.Errorf("inspect copied profile artifact %q: %w", source, err)
 		}
+		legacy = true
 		if err := copyProfileArtifact(source, filepath.Join(temporaryProfile, name)); err != nil {
 			return fmt.Errorf("place copied profile artifact %q: %w", name, err)
 		}
@@ -175,7 +177,10 @@ func ensureDefaultProfile(configuration Config, repositoriesPath string) (result
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("inspect profile migration backup: %w", err)
-	} else {
+	} else if legacy {
+		// A recovery point is of state that was there. An installation that
+		// starts with profiles has none, and got a `.pre-profiles` holding a
+		// copy of a registry that is still where it was.
 		temporaryBackup := filepath.Join(temporaryParent, "backup")
 		if err := copyProfileArtifact(temporaryProfile, temporaryBackup); err != nil {
 			return fmt.Errorf("prepare legacy profile backup: %w", err)
@@ -563,8 +568,51 @@ func loadProfile(configPath, name string, migrate bool) (Loaded, error) {
 	loaded.Config.Storage.DatabasePath = filepath.Join(profile.StateDirectory, "graph.lbdb")
 	loaded.Config.Storage.BackupsPath = filepath.Join(profile.StateDirectory, "backups")
 	loaded.Config.Indexing.FactCachePath = sharedFactCache
+	outside := filepath.Dir(loaded.Config.Go.SyntheticWorkFile)
 	loaded.Config.Go.SyntheticWorkFile = filepath.Join(profile.StateDirectory, "go.work")
+	keepOutOfRepositories(&loaded.Config, name, outside, repositories.Repositories)
 	return loaded, nil
+}
+
+// keepOutOfRepositories moves what the indexers refuse to write inside a
+// repository to `outside`, the directory of the configured synthetic
+// workspace.
+//
+// `kivgraph index` keeps a project's state in `.kivgraph`, inside the
+// repository it indexes. The graph can live there; the synthetic `go.work`
+// and the analyzers' build directories cannot, and each is refused where it is
+// used: a Go repository of several modules ended the pass, and a Cargo
+// workspace at the root was left out of a pass that said PASS. A
+// configuration whose state is outside every repository is not touched.
+func keepOutOfRepositories(configuration *Config, profile, outside string, repositories []Repository) {
+	inside := func(path string) bool {
+		for _, repository := range repositories {
+			relative, err := filepath.Rel(filepath.Clean(repository.Path), filepath.Clean(path))
+			if err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+				return true
+			}
+		}
+		return false
+	}
+	if inside(outside) {
+		// Nowhere better is known. The indexers say so, as they did.
+		return
+	}
+	if inside(configuration.Go.SyntheticWorkFile) {
+		// A file of its own per profile in a directory that already exists:
+		// `doctor` checks that the parent is there, and reading a profile
+		// creates nothing. The `go` tool takes any absolute GOWORK.
+		configuration.Go.SyntheticWorkFile = filepath.Join(outside, "go."+profile+".work")
+	}
+	for _, target := range []*string{
+		&configuration.Rust.TargetDirectory,
+		&configuration.Java.TargetDirectory,
+		&configuration.CSharp.TargetDirectory,
+	} {
+		if inside(*target) {
+			*target = filepath.Join(outside, filepath.Base(*target))
+		}
+	}
 }
 
 // CreateProfile creates an empty repository registry without indexing it.

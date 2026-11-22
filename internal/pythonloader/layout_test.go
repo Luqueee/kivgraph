@@ -339,3 +339,32 @@ func TestFallbackDoesNotChooseBetweenTwoDeclarationsOfOneName(t *testing.T) {
 		}
 	}
 }
+
+// The workers listed every file below the root and filtered afterwards: they
+// read all of node_modules, indexed the Python some npm packages ship, and
+// indexed a worktree linked inside the repository a second time.
+func TestFallbackStaysOutOfDependenciesAndOtherCheckouts(t *testing.T) {
+	root, repository := writeProject(t, map[string]string{
+		"app/main.py":                            "def run():\n    return 1\n",
+		"node_modules/flatted/python/flatted.py": "def parse():\n    return 2\n",
+		".worktrees/feature/.git":                "gitdir: /somewhere/.git/worktrees/feature\n",
+		".worktrees/feature/app/main.py":         "def run():\n    return 1\n",
+		"clone/.git/HEAD":                        "ref: refs/heads/main\n",
+		"clone/tool.py":                          "def tool():\n    return 3\n",
+		// A submodule is part of the repository.
+		"sub/.git":   "gitdir: ../.git/modules/sub\n",
+		"sub/lib.py": "def lib():\n    return 4\n",
+	})
+	payload, err := Run(context.Background(), "missing-scippython", "python3", repository, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var files []string
+	for _, file := range payload.Files {
+		files = append(files, file.Path)
+	}
+	sort.Strings(files)
+	if want := []string{"app/main.py", "sub/lib.py"}; !reflect.DeepEqual(files, want) {
+		t.Errorf("files = %q, want %q", files, want)
+	}
+}

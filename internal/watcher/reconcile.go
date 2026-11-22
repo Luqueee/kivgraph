@@ -314,7 +314,10 @@ func (reconciler *Reconciler) scan(ctx context.Context) ([]scannedFile, error) {
 				return nil
 			}
 			if entry.IsDir() {
-				if path != repository.root && repository.ignored.ignored(path) {
+				// Another checkout below the root is not this repository's
+				// code and no pass reads it; reconciling it made every
+				// edit in a worktree a change of the repository above.
+				if path != repository.root && (repository.ignored.ignored(path) || workspace.IsOtherCheckout(path)) {
 					return filepath.SkipDir
 				}
 				return nil

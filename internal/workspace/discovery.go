@@ -169,7 +169,7 @@ func isDiscoveryExcluded(base, candidate, name string, isDirectory bool, exclusi
 		if _, excluded := defaultTypeScriptExcludedDirectories[name]; excluded {
 			return true, nil
 		}
-		if IsCacheDirectory(candidate) {
+		if IsSkippedDirectory(candidate) {
 			return true, nil
 		}
 	}

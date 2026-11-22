@@ -201,6 +201,10 @@ func countByExtension(root string, exclusions []string) map[string]int {
 			if _, excluded := skip[entry.Name()]; excluded {
 				return filepath.SkipDir
 			}
+			// What no pass reads is not counted as what a pass missed.
+			if path != root && workspace.IsSkippedDirectory(path) {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		extension := filepath.Ext(path)
