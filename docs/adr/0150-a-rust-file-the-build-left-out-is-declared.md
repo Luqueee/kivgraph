@@ -49,6 +49,10 @@ no `COMPLETE` answer missing a non-test file before or after: `fd` keeps `98`
 `HashMap` and `build`: names a file that was not read also writes, on answers
 that were complete. That is the cost, and it is paid by common names.
 
+The benchmark counts after this change are recorded, with the command and the
+corpus revisions, in `benchmarks/language-recall/report.md` (fd) and
+`benchmarks/language-recall/second-repository/report.md` (ripgrep).
+
 - The words are read, not Rust: a name inside a string counts, and so does a
   local variable of the same name. Both err towards saying an answer is
   bounded.

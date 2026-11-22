@@ -97,7 +97,12 @@ func TestDoctorFailsWhenTheProfileMigrationCanNeverRun(t *testing.T) {
 	if err := os.RemoveAll(filepath.Join(state, "profiles")); err != nil {
 		t.Fatal(err)
 	}
+	// The older recovery point is this test's own: a fresh installation no
+	// longer leaves one for an empty `backups`.
 	backup := state + ".pre-profiles"
+	if err := os.MkdirAll(backup, 0o700); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(filepath.Join(backup, "CURRENT"), []byte("000076\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}

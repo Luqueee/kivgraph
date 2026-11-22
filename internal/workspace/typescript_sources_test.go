@@ -383,3 +383,25 @@ func TestResolveTypeScriptSourcesNodeModulesStaysExcludedEvenViaExplicitInclude(
 		t.Fatalf("resolveTypeScriptSources() = %#v, want %#v", got, want)
 	}
 }
+
+func TestResolveTypeScriptSourcesSkipsNestedCheckoutsOfAGlobExpansion(t *testing.T) {
+	root := testsupport.TempDir(t)
+	writeDiscoveryFile(t, filepath.Join(root, "kept.ts"), "export {}")
+	writeDiscoveryFile(t, filepath.Join(root, "nested", ".git", "HEAD"), "ref: refs/heads/main\n")
+	writeDiscoveryFile(t, filepath.Join(root, "nested", "clone.ts"), "export {}")
+
+	configuration := parsedTypeScriptConfig{
+		ConfigPath: filepath.Join(root, "tsconfig.json"),
+		Directory:  root,
+		HasInclude: true,
+		Include:    []string{filepath.Join(root, "**", "*.ts")},
+	}
+	got, err := resolveTypeScriptSources(configuration, root)
+	if err != nil {
+		t.Fatalf("resolveTypeScriptSources() error = %v", err)
+	}
+	want := []string{filepath.Join(root, "kept.ts")}
+	if !equalStrings(got, want) {
+		t.Fatalf("resolveTypeScriptSources() = %#v, want %#v", got, want)
+	}
+}

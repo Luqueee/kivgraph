@@ -9,13 +9,15 @@ import (
 	"strings"
 
 	"github.com/Luqueee/kivgraph/internal/testpath"
+	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
 // maximumUnselectedFile bounds a file read only to look for names.
 const maximumUnselectedFile = 1 << 20
 
 var (
-	rustIdentifier   = regexp.MustCompile(`[A-Za-z_][A-Za-z0-9_]*`)
+	// Rust identifiers are Unicode: `[A-Za-z_]` read `größe` as `gr` and `e`.
+	rustIdentifier   = regexp.MustCompile(`[\p{L}_][\p{L}\p{N}_]*`)
 	rustBlockComment = regexp.MustCompile(`(?s)/\*.*?\*/`)
 	rustLineComment  = regexp.MustCompile(`//[^\n]*`)
 )
@@ -49,6 +51,13 @@ func collectUnselectedFiles(options AnalyzeOptions, analysis *Analysis, unresolv
 	for _, definition := range analysis.Definitions {
 		declared[definition.Name] = struct{}{}
 	}
+	// A file the repository excludes was left out by the registry, not by the
+	// build: it does not bound an answer. An unreadable list excludes nothing,
+	// which errs towards declaring.
+	excluded, err := workspace.ExclusionMatcher(root, options.Repository.Exclusions)
+	if err != nil {
+		excluded = func(string) bool { return false }
+	}
 	for _, crate := range options.Crates {
 		if _, selected := crates[crate.Name]; !selected {
 			// No file of it at all: collectEmptyCrates declares the crate.
@@ -64,7 +73,7 @@ func collectUnselectedFiles(options AnalyzeOptions, analysis *Analysis, unresolv
 				return nil
 			}
 			relative = filepath.ToSlash(relative)
-			if _, read := indexed[relative]; !read && !testpath.Is(relative) {
+			if _, read := indexed[relative]; !read && !testpath.Is(relative) && !excluded(relative) {
 				unselected = append(unselected, relative)
 			}
 			return nil

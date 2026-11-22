@@ -67,3 +67,16 @@ a worker test for the three ways of using a dynamic import. On the site above
 the helper answers `LOWER_BOUND` with the twelve files named.
 
 Not measured: how many answers on a large application the common names cost.
+
+## Amendment: a component file is an observed source
+
+The rows this decision records are facts about a file no analyzer reads, and
+nothing watched that file. Editing, adding or removing an `.astro`, `.vue` or
+`.svelte` file left the fact cache serving the unit as it was and the
+generation reporting itself fresh, with rows about a file that no longer said
+that. The three extensions are analysed sources now
+(`sourceobservation.IsComponentFile`): they enter the tree digest of a unit,
+the digest a generation records, and what the watcher reacts to.
+
+A generation published before this records a digest without them, so a
+repository that holds such files reads as changed until its next pass.

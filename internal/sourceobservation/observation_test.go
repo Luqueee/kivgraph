@@ -859,6 +859,11 @@ func TestIsAnalyzedSourceRecognizesSourceAndBuildInputs(t *testing.T) {
 		{name: "my-rust-toolchain.toml", want: false},
 		{name: "rust-toolchain.toml.bak", want: false},
 		{name: "README.md", want: false},
+		// Not read by an analyzer, and recorded by a pass all the same.
+		{name: "src/pages/index.astro", want: true},
+		{name: "src/App.VUE", want: true},
+		{name: "src/Card.svelte", want: true},
+		{name: "src/page.astro.bak", want: false},
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
@@ -933,5 +938,39 @@ func runGit(t *testing.T, directory string, arguments ...string) {
 	command := exec.Command("git", append([]string{"-C", directory}, arguments...)...)
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("git %s: %v\n%s", strings.Join(arguments, " "), err, output)
+	}
+}
+
+// A pass records which exported names a component file writes, so the digest
+// of a tree has to move with one: a cached unit or a published generation
+// that did not notice kept rows about a file that no longer said that.
+func TestTreeDigestFollowsAComponentFile(t *testing.T) {
+	root := testsupport.TempDir(t)
+	page := filepath.Join(root, "src", "pages", "index.astro")
+	if err := os.MkdirAll(filepath.Dir(page), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	digestOf := func() string {
+		t.Helper()
+		digest, err := TreeDigest(context.Background(), root)
+		if err != nil {
+			t.Fatalf("TreeDigest() error = %v", err)
+		}
+		return digest
+	}
+	if err := os.WriteFile(filepath.Join(root, "src", "lib.ts"), []byte("export const load = 1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	without := digestOf()
+	if err := os.WriteFile(page, []byte("---\nload\n---\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	added := digestOf()
+	if err := os.WriteFile(page, []byte("---\n---\n<p>nothing</p>\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	edited := digestOf()
+	if without == added || added == edited {
+		t.Fatalf("digests = %q, %q, %q: want each change of the component seen", without, added, edited)
 	}
 }

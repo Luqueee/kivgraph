@@ -883,7 +883,22 @@ func IsAnalyzedSource(name string) bool {
 			return true
 		}
 	}
-	return config.HasSourceExtension(analyzedExtensions, name)
+	return IsComponentFile(name) || config.HasSourceExtension(analyzedExtensions, name)
+}
+
+// IsComponentFile reports whether a path is a file a TypeScript project is
+// made of that the engine cannot read: a template with a script in it.
+//
+// It is an analysed source although no analyzer reads it. A pass records which
+// exported names such a file writes (`COMPONENT_FILE_NOT_READ`), so editing,
+// adding or removing one changes the facts: a cached unit or a generation that
+// did not notice kept rows about a file that no longer said that.
+func IsComponentFile(name string) bool {
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".astro", ".vue", ".svelte":
+		return true
+	}
+	return false
 }
 
 var analyzedExtensions = config.SourceExtensionSet(config.SupportedLanguages())

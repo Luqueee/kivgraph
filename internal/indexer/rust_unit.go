@@ -472,6 +472,16 @@ func prepareRust(
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("build Rust crate registry: %w", err)
 	}
+	shadowed := make(map[string]struct{})
+	for _, unit := range units {
+		if unit.shadowedCrate == "" {
+			continue
+		}
+		for _, crate := range unit.crates {
+			shadowed[crate.ManifestPath] = struct{}{}
+		}
+	}
+	registry.WithoutManifests(shadowed)
 	parsers, err := syntax.NewParserManager(rustWorkspaceLimit(options))
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("create Rust parsers: %w", err)

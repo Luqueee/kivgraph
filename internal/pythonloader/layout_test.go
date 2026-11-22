@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/testpath"
@@ -365,6 +366,34 @@ func TestFallbackStaysOutOfDependenciesAndOtherCheckouts(t *testing.T) {
 	}
 	sort.Strings(files)
 	if want := []string{"app/main.py", "sub/lib.py"}; !reflect.DeepEqual(files, want) {
+		t.Errorf("files = %q, want %q", files, want)
+	}
+}
+
+// A named pipe is no source: os.walk lists it, and reading it blocks the worker
+// until someone writes to it, so the worker must never open it.
+func TestFallbackSkipsNamedPipes(t *testing.T) {
+	if _, err := exec.LookPath("mkfifo"); err != nil {
+		t.Skip("mkfifo is not available")
+	}
+	root, repository := writeProject(t, map[string]string{
+		"sibling.py": "def sibling():\n    return 1\n",
+	})
+	if out, err := exec.Command("mkfifo", filepath.Join(root, "channel.py")).CombinedOutput(); err != nil {
+		t.Fatalf("mkfifo: %v: %s", err, out)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	payload, err := Run(ctx, "missing-scippython", "python3", repository, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var files []string
+	for _, file := range payload.Files {
+		files = append(files, file.Path)
+	}
+	sort.Strings(files)
+	if want := []string{"sibling.py"}; !reflect.DeepEqual(files, want) {
 		t.Errorf("files = %q, want %q", files, want)
 	}
 }

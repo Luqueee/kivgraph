@@ -18,12 +18,14 @@ func TestNamesWrittenReadsWordsOutsideComments(t *testing.T) {
 	source := "// Display is only mentioned here\n" +
 		"/* and Display\n   here */ use crate::Display;\n" +
 		"fn capture(d: &Display) -> Displayed { render(d) }\n" +
-		"fn again() { render(); let display = 1; }\n"
+		"fn again() { render(); let display = 1; }\n" +
+		"fn wide() { let _ = größe; }\n"
 	if err := os.WriteFile(filename, []byte(source), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	declared := map[string]struct{}{"Display": {}, "render": {}, "absent": {}, "Displayed": {}}
-	want := map[string]int{"Display": 3, "Displayed": 4, "render": 4}
+	// `gr` and `e` are what an ASCII-only reader makes of `größe`.
+	declared := map[string]struct{}{"Display": {}, "render": {}, "absent": {}, "Displayed": {}, "größe": {}, "gr": {}, "e": {}}
+	want := map[string]int{"Display": 3, "Displayed": 4, "render": 4, "größe": 6}
 	if got := namesWritten(filename, declared); !reflect.DeepEqual(got, want) {
 		t.Errorf("names = %v, want %v", got, want)
 	}
@@ -64,6 +66,8 @@ func TestCollectUnselectedFilesDeclaresWhatTheBuildLeftOut(t *testing.T) {
 	write("crates/app/src/unrelated.rs", "pub fn other() -> u8 { 1 }\n")
 	// Left out by what include_tests asks for, not by the platform.
 	write("crates/app/src/tests/mod.rs", "use crate::Display;\n")
+	// Left out by the repository's own exclusions, not by the build.
+	write("crates/app/src/vendored/mod.rs", "use crate::Display;\n")
 	// Outside `src`: an example is not a module of the crate.
 	write("crates/app/examples/demo.rs", "use app::Display;\n")
 	// A crate with no file selected at all is declared as a crate, elsewhere.
@@ -73,7 +77,7 @@ func TestCollectUnselectedFilesDeclaresWhatTheBuildLeftOut(t *testing.T) {
 		return workspace.CargoCrate{Name: name, Version: "0.1.0", RootPath: filepath.Join(root, "crates", name)}
 	}
 	options := AnalyzeOptions{
-		Repository: workspace.Repository{Name: "repo", RealPath: root},
+		Repository: workspace.Repository{Name: "repo", RealPath: root, Exclusions: []string{"crates/app/src/vendored"}},
 		Crates:     []workspace.CargoCrate{crate("app"), crate("empty")},
 	}
 	analysis := Analysis{

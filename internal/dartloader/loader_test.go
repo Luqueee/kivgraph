@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Luqueee/kivgraph/internal/facts"
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
@@ -255,6 +256,31 @@ func TestDartFilesHonourTestAndGeneratedBoundaries(t *testing.T) {
 	}
 	if len(files) != 4 {
 		t.Fatalf("inclusive dartFiles() = %d, want 4", len(files))
+	}
+}
+
+// A tagged cache directory is skipped by the Dart walk, as every other walk
+// skips it: its sources are generated output and not the repository's code.
+func TestDartFilesSkipCacheDirectories(t *testing.T) {
+	root := testsupport.TempDir(t)
+	cache := filepath.Join(root, "cache")
+	if err := os.MkdirAll(cache, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cache, "CACHEDIR.TAG"), []byte(testsupport.CacheTagSignature+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"cache/cached.dart", "main.dart"} {
+		if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(name)), []byte("class Fixture {}\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	files, err := dartFilesForRepository(root, nil, nil, true, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 1 || relative(root, files[0]) != "main.dart" {
+		t.Fatalf("dartFilesForRepository() = %#v, want only main.dart", files)
 	}
 }
 
@@ -739,6 +765,31 @@ func TestExtensionOverrideFindsTheNameBeforeTheReceiver(t *testing.T) {
 	}
 }
 
+// A name the server navigated is not a use of an extension: the server
+// resolved it to a declaration of its own, as a local shadowing the extension.
+func TestNavigatedByCoversOnlyWhatARangeHolds(t *testing.T) {
+	ranges := []offsetRange{{10, 20}, {30, 35}}
+	for _, test := range []struct {
+		start, end int
+		want       bool
+	}{
+		{10, 20, true},
+		{12, 15, true},
+		{30, 35, true},
+		{9, 12, false},
+		{18, 22, false},
+		{20, 25, false},
+		{0, 5, false},
+	} {
+		if got := navigatedBy(ranges, test.start, test.end); got != test.want {
+			t.Errorf("navigatedBy(%d, %d) = %v, want %v", test.start, test.end, got, test.want)
+		}
+	}
+	if navigatedBy(nil, 0, 1) {
+		t.Error("a name with no navigated range was covered")
+	}
+}
+
 // The one place code names an extension is `Extension(receiver).member`, and
 // the Analysis Server navigates the member and not the name: an answer about
 // the extension was COMPLETE and missed the file.
@@ -750,7 +801,7 @@ func TestRunRecordsAnExplicitExtensionApplicationAsAUseOfTheExtension(t *testing
 	for name, content := range map[string]string{
 		"pubspec.yaml":  "name: sorted\npublish_to: none\nenvironment:\n  sdk: \">=3.0.0 <4.0.0\"\n",
 		"lib/any.dart":  "extension AnyList<T> on List<T> {\n  bool isSorted(int Function(T, T) compare) => true;\n}\n\nextension Other<T> on List<T> {\n  bool isOther() => false;\n}\n",
-		"lib/uses.dart": "import 'any.dart';\n\nbool applied(List<int> values) => AnyList(values).isSorted((a, b) => a - b);\nbool implicit(List<int> values) => values.isSorted((a, b) => a - b);\nbool Other(List<int> values) => values.isOther();\n",
+		"lib/uses.dart": "import 'any.dart';\n\nbool applied(List<int> values) => AnyList(values).isSorted((a, b) => a - b);\nbool implicit(List<int> values) => values.isSorted((a, b) => a - b);\nbool Other(List<int> values) => values.isOther();\nbool shadowed(List<int> values) {\n  final AnyList = (List<int> list) => list;\n  return AnyList(values).isSorted((a, b) => a - b);\n}\n",
 	} {
 		path := filepath.Join(root, filepath.FromSlash(name))
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

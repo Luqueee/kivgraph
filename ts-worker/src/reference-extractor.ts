@@ -49,6 +49,7 @@ import {
   isObjectBindingPattern,
   isObjectLiteralExpression,
   isParameterDeclaration,
+  isParenthesizedExpression,
   isParenthesizedTypeNode,
   isPrivateIdentifier,
   isPostfixUnaryExpression,
@@ -164,8 +165,15 @@ function accessorTargets<T extends { symbolId: number }>(
   if (!isPropertyAccessExpression(access) || !sameNode(access.name, node)) {
     return [getter];
   }
-  const user = access.parent;
-  if (isBinaryExpression(user) && sameNode(user.left, access)) {
+  // `(box.size) = 2` writes through the parentheses, so the write is matched
+  // at the outermost wrapper, not at the property access.
+  let operand: Node = access;
+  let user: Node = access.parent;
+  while (isParenthesizedExpression(user)) {
+    operand = user;
+    user = user.parent;
+  }
+  if (isBinaryExpression(user) && sameNode(user.left, operand)) {
     if (user.operatorToken.kind === SyntaxKind.EqualsToken) {
       return [setter];
     }
@@ -259,9 +267,7 @@ export async function extractLocalReferences(
   // any kind. The binding is a new local, so nothing else points it at the
   // declaration, and what a route or a command loads this way had no use.
   const exportedNames = new Set(
-    symbols.symbols
-      .filter((local) => local.exported)
-      .map((local) => local.name),
+    symbols.symbols.flatMap((local) => local.exportedNames),
   );
   const functionValueNodes: Identifier[] = [];
   const sourceFiles = new Map<string, SourceFile>();

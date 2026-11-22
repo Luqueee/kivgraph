@@ -1,8 +1,10 @@
 package indexer
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -44,7 +46,9 @@ func TestStampContentHashesRecordsOnlyWhatWasAnalysed(t *testing.T) {
 			{Key: "rootless", RepositoryKey: "nowhere", Path: "old.go"},
 		},
 	}
-	stampContentHashes(&set, started)
+	if err := stampContentHashes(context.Background(), &set, started); err != nil {
+		t.Fatal(err)
+	}
 
 	digest := sha256.Sum256([]byte("package old\n"))
 	want := map[string]string{
@@ -55,5 +59,29 @@ func TestStampContentHashesRecordsOnlyWhatWasAnalysed(t *testing.T) {
 		if file.ContentHash != want[file.Key] {
 			t.Errorf("%s: content hash = %q, want %q", file.Key, file.ContentHash, want[file.Key])
 		}
+	}
+}
+
+func TestStampContentHashesStopsWhenCancelled(t *testing.T) {
+	root := t.TempDir()
+	started := time.Now()
+	filename := filepath.Join(root, "pending.go")
+	if err := os.WriteFile(filename, []byte("package pending\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(filename, started.Add(-time.Hour), started.Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	set := facts.Set{
+		Repositories: []facts.Repository{{Key: "r", Name: "r", RootPath: root}},
+		Files:        []facts.File{{Key: "pending", RepositoryKey: "r", Path: "pending.go"}},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := stampContentHashes(ctx, &set, started); !errors.Is(err, context.Canceled) {
+		t.Fatalf("stampContentHashes() error = %v, want context.Canceled", err)
+	}
+	if hash := set.Files[0].ContentHash; hash != "" {
+		t.Fatalf("cancelled pass recorded content hash %q", hash)
 	}
 }

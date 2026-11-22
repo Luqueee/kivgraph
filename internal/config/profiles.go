@@ -147,12 +147,23 @@ func ensureDefaultProfile(configuration Config, repositoriesPath string) (result
 	legacy := false
 	for _, name := range legacyProfileArtifacts {
 		source := filepath.Join(stateRoot, name)
-		if _, err := os.Lstat(source); errors.Is(err, os.ErrNotExist) {
+		info, err := os.Lstat(source)
+		if errors.Is(err, os.ErrNotExist) {
 			continue
 		} else if err != nil {
 			return fmt.Errorf("inspect copied profile artifact %q: %w", source, err)
 		}
-		legacy = true
+		// Initialize makes an empty backups directory before the default profile
+		// exists; an empty directory holds no state from before profiles.
+		if info.IsDir() {
+			entries, err := os.ReadDir(source)
+			if err != nil {
+				return fmt.Errorf("inspect copied profile artifact %q: %w", source, err)
+			}
+			legacy = legacy || len(entries) > 0
+		} else {
+			legacy = true
+		}
 		if err := copyProfileArtifact(source, filepath.Join(temporaryProfile, name)); err != nil {
 			return fmt.Errorf("place copied profile artifact %q: %w", name, err)
 		}

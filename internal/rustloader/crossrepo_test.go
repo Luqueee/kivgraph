@@ -184,3 +184,26 @@ func TestCrateRegistryDeclaresLangAmbiguity(t *testing.T) {
 		t.Fatalf("Resolve(core, 9.9.9) = %q %#v, want the registered repository", status, provider)
 	}
 }
+
+// A workspace the index leaves out must stop making its crates ambiguous; the
+// workspace it shadows is then the only provider left.
+func TestCrateRegistryWithoutManifestsDropsTheLeftOutWorkspace(t *testing.T) {
+	first := testsupport.TempDir(t)
+	second := testsupport.TempDir(t)
+	writeCrate(t, first, ".", "shared", "1.2.3")
+	writeCrate(t, second, ".", "shared", "1.2.3")
+
+	registry := registryOver(t,
+		workspace.Repository{Name: "first", RealPath: first},
+		workspace.Repository{Name: "second", RealPath: second},
+	)
+	if _, status := registry.Resolve("shared", "1.2.3"); status != AmbiguousCrateProvider {
+		t.Fatalf("status before the workspace is left out = %q, want %q", status, AmbiguousCrateProvider)
+	}
+
+	registry.WithoutManifests(map[string]struct{}{filepath.Join(second, "Cargo.toml"): {}})
+	resolved, status := registry.Resolve("shared", "1.2.3")
+	if status != CrateResolved || resolved.Repository != "first" {
+		t.Fatalf("Resolve() = %q from %q, want %q from the first repository", status, resolved.Repository, CrateResolved)
+	}
+}

@@ -2799,6 +2799,32 @@ of the precision column, and `exclude_tests` on the traversal tools.
     sibling had made every TypeScript answer of a repository `LOWER_BOUND`.
     Open: the scope names a package, not the declarations it could not
     relate, so every class of the repository is still bounded.
+  - Review findings on the first two of those pull requests, checked against
+    the code. Fixed: a Go file an exclusion names inside a package that is
+    loaded still published facts; a failing `git ls-files` registered a
+    repository with no ignored path left out, and a path Git quotes was
+    dropped; `${configDir}/..` in an inherited `tsconfig.json` lost the
+    variable; an include glob and the Dart walk entered directories every
+    other walk skips; a Rust workspace left out as shadowed stayed a crate
+    provider, and its scan declared files the repository excludes; a
+    component file was not an observed source, so the fact cache and
+    freshness did not see it change (ADR 0154, amended); a fresh installation
+    kept a `pre-profiles` recovery point for an empty `backups`; the Python
+    worker opened a named pipe called `x.py`; `writePayload` resolved before
+    the file was closed; a write through a parenthesised accessor, and a
+    destructured dynamic import of an export under an alias.
+    Open, valid and not done because each changes a layout or a rule that
+    needs its own decision: a submodule with an embedded `.git` directory is
+    read as another checkout, and `/modules/` anywhere in a worktree pointer
+    reads it as a submodule; `go.<profile>.work` collides between a profile
+    named `default.1` and the first sibling of `default`, and Java and C#
+    targets both named `target` inside a repository share one directory
+    outside it; a `go.work` that uses a nested checkout still contributes its
+    module; a `GOTOOLCHAIN` saved with `go env -w` is overridden by the pin;
+    one witness of a package dependency in an excluded file drops the edge;
+    the Rust and component scans discard read errors and take no context; a
+    manifest, a `.git` pointer or a directory that becomes a checkout after
+    registration is not re-read by freshness, the observation or the watcher.
   - Done (ADR 0052, amended): a Rust use no declaration of its file contains
     belongs to the file's scope, as in Go and TypeScript. A fuzz target whose
     body is one macro call is in the answers about what it uses; ten of

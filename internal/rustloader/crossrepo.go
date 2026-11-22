@@ -124,6 +124,25 @@ func NewCrateRegistry(
 	return registry, nil
 }
 
+// WithoutManifests drops the providers declared by the given manifests. A
+// workspace the index leaves out must not stay a provider, or its crates stay
+// ambiguous with the workspace that kept them.
+func (registry *CrateRegistry) WithoutManifests(manifests map[string]struct{}) {
+	for crateName, candidates := range registry.providers {
+		kept := candidates[:0]
+		for _, candidate := range candidates {
+			if _, dropped := manifests[candidate.ManifestPath]; !dropped {
+				kept = append(kept, candidate)
+			}
+		}
+		if len(kept) == 0 {
+			delete(registry.providers, crateName)
+			continue
+		}
+		registry.providers[crateName] = kept
+	}
+}
+
 // CrateNames answers every indexed crate name, sorted.
 func (registry *CrateRegistry) CrateNames() []string {
 	if registry == nil {

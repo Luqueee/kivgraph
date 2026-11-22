@@ -553,14 +553,22 @@ func rebaseTypeScriptCompilerOptionPaths(options map[string]any, directory strin
 
 // rebaseTypeScriptPathList absolutizes every entry of a "files", "include"
 // or "exclude" list against directory, the directory of the tsconfig that
-// declared it. It returns nil when entries is nil, so a field that was
-// never declared stays distinguishable from one absolutized to nothing.
+// declared it. Entries naming ${configDir} are left for inConfigDirectory,
+// which resolves them against the project. It returns nil when entries is
+// nil, so a field that was never declared stays distinguishable from one
+// absolutized to nothing.
 func rebaseTypeScriptPathList(entries []string, directory string) []string {
 	if entries == nil {
 		return nil
 	}
 	rebasedEntries := make([]string, len(entries))
 	for index, entry := range entries {
+		// filepath.Join would Clean ${configDir}'s "..", erasing the variable
+		// before inConfigDirectory can resolve it against the project.
+		if strings.Contains(entry, configDirectoryVariable) {
+			rebasedEntries[index] = entry
+			continue
+		}
 		rebasedEntries[index] = absolutizeTypeScriptConfigPath(directory, entry)
 	}
 	return rebasedEntries

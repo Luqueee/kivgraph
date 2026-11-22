@@ -91,20 +91,22 @@ func TestRegistryExcludesTheSourcesGitIgnores(t *testing.T) {
 		t.Errorf("with include_git_ignored: ignored = %v, exclusions = %v", repository.Ignored, repository.Exclusions)
 	}
 
-	// Git that cannot answer excludes nothing, as before.
-	failing := func(context.Context, string, ...string) (string, error) { return "", errors.New("no git") }
-	if got := ignoredSources(context.Background(), failing, root, []string{"typescript"}); got != nil {
-		t.Errorf("ignoredSources with a failing git = %v", got)
+	// Git that cannot answer is an error, not a list that excludes nothing.
+	cause := errors.New("no git")
+	failing := func(context.Context, string, ...string) (string, error) { return "", cause }
+	if got, err := ignoredSources(context.Background(), failing, root, []string{"typescript"}); !errors.Is(err, cause) || got != nil {
+		t.Errorf("ignoredSources with a failing git = %v, %v", got, err)
 	}
 }
 
 func TestHoldsSourceStopsAtItsBudget(t *testing.T) {
+	ctx := context.Background()
 	root := t.TempDir()
-	if holdsSource(root, []string{".ts"}) {
-		t.Error("an empty directory holds source")
+	if holds, err := holdsSource(ctx, root, []string{".ts"}); err != nil || holds {
+		t.Errorf("an empty directory: holds = %v, err = %v", holds, err)
 	}
-	if holdsSource(filepath.Join(root, "missing"), []string{".ts"}) {
-		t.Error("a path that is not there holds source")
+	if holds, err := holdsSource(ctx, filepath.Join(root, "missing"), []string{".ts"}); err != nil || holds {
+		t.Errorf("a path that is not there: holds = %v, err = %v", holds, err)
 	}
 	if err := os.Mkdir(filepath.Join(root, "data"), 0o700); err != nil {
 		t.Fatal(err)
@@ -115,7 +117,56 @@ func TestHoldsSourceStopsAtItsBudget(t *testing.T) {
 		}
 	}
 	// Too large to read whole: taken to hold some, which only excludes more.
-	if !holdsSource(root, []string{".ts"}) {
-		t.Error("a directory larger than the budget was read as holding none")
+	if holds, err := holdsSource(ctx, root, []string{".ts"}); err != nil || !holds {
+		t.Errorf("a directory larger than the budget: holds = %v, err = %v", holds, err)
+	}
+	// A cancelled walk is an error, not a verdict that nothing is there.
+	cancelled, cancel := context.WithCancel(ctx)
+	cancel()
+	if _, err := holdsSource(cancelled, root, []string{".ts"}); !errors.Is(err, context.Canceled) {
+		t.Errorf("holdsSource with a cancelled context: err = %v", err)
+	}
+}
+
+// Git quotes a non-ASCII name unless asked not to, and a quoted name is
+// skipped: the ignored directory must still be found.
+func TestRegistryListsIgnoredSourcesWithNonASCIINames(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Fatalf("git is required for repository registration: %v", err)
+	}
+	root := testsupport.TempDir(t)
+	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte("bäuild/\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	gitTestCommand(t, "-C", root, "init", "-q")
+	gitTestCommand(t, "-C", root, "add", ".")
+	gitTestCommand(t, "-C", root, "-c", "user.name=Kivgraph Test", "-c", "user.email=kivgraph-test@example.invalid", "commit", "-qm", "initial")
+	if err := os.Mkdir(filepath.Join(root, "bäuild"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "bäuild", "index.ts"), []byte("export {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	registry, err := NewRegistry(context.Background(), config.RepositoriesFile{Version: 1, Repositories: []config.Repository{{Name: "app", Path: root, Languages: []string{"typescript"}}}})
+	if err != nil {
+		t.Fatalf("NewRegistry() error = %v", err)
+	}
+	repository, _ := registry.Get("app")
+	if want := []string{"bäuild"}; !reflect.DeepEqual(repository.Ignored, want) {
+		t.Fatalf("ignored = %v, want %v", repository.Ignored, want)
+	}
+}
+
+// A TypeScript project also reads the JavaScript beside it, whichever name the
+// repository gives the language.
+func TestIgnoredSourcesReadsJavaScriptOfTypeScriptAliases(t *testing.T) {
+	root := testsupport.TempDir(t)
+	writeDiscoveryFile(t, filepath.Join(root, "build", "index.js"), "export {}\n")
+	git := fakeGit(map[string]string{
+		"-c core.quotepath=off ls-files --others --ignored --exclude-standard --directory": "build/\n",
+	}, nil)
+	got, err := ignoredSources(context.Background(), git, root, []string{"ts"})
+	if err != nil || !equalStrings(got, []string{"build"}) {
+		t.Fatalf("ignoredSources() = %v, %v, want [build]", got, err)
 	}
 }

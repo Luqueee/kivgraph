@@ -956,3 +956,61 @@ func Local() int {
 		}
 	}
 }
+
+// TestNormalizeGoDropsFactsFromAnExcludedFileOfATrackedPackage: go/packages
+// loads the whole package, so an excluded file's declarations reach
+// NormalizeGo beside the tracked ones. The exclusion has to hold here too.
+func TestNormalizeGoDropsFactsFromAnExcludedFileOfATrackedPackage(t *testing.T) {
+	root := testsupport.TempDir(t)
+	for name, content := range map[string]string{
+		"go.mod": "module example.com/excluded\n\ngo 1.22\n",
+		"app.go": "package sample\n\nfunc Kept() int { return 1 }\n",
+		"gen.go": "package sample\n\nfunc Generated() int { return 2 }\n",
+	} {
+		path := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	repository := workspace.Repository{
+		Name:       "excluded",
+		Path:       root,
+		RealPath:   root,
+		Exclusions: []string{"gen.go"},
+	}
+	ctx := context.Background()
+	load, err := goloader.Load(ctx, goloader.Options{Directory: root})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	definitions, err := goloader.ExtractDefinitions(ctx, load, goloader.DefinitionOptions{Repository: repository.Name})
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyed, err := goloader.AssignStableKeys(ctx, definitions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	set, report, err := NormalizeGo(ctx, GoInput{Repository: repository, Definitions: keyed})
+	if err != nil {
+		t.Fatalf("NormalizeGo() error = %v", err)
+	}
+	if err := set.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+	if report.FactsOutsideRepository == 0 {
+		t.Error("FactsOutsideRepository = 0; the excluded declaration was not counted as dropped")
+	}
+	symbols := map[string]bool{}
+	for _, symbol := range set.Symbols {
+		symbols[symbol.Name] = true
+	}
+	if !symbols["Kept"] || symbols["Generated"] {
+		t.Errorf("symbols = %v, want Kept and not Generated", symbols)
+	}
+	for _, file := range set.Files {
+		if file.Path == "gen.go" {
+			t.Errorf("excluded file gen.go is in the set")
+		}
+	}
+}
