@@ -352,6 +352,12 @@ func TestFallbackStaysOutOfDependenciesAndOtherCheckouts(t *testing.T) {
 		".worktrees/feature/app/main.py":         "def run():\n    return 1\n",
 		"clone/.git/HEAD":                        "ref: refs/heads/main\n",
 		"clone/tool.py":                          "def tool():\n    return 3\n",
+		// The root is a repository that declares sub as a submodule.
+		".git/HEAD":   "ref: refs/heads/main\n",
+		".gitmodules": "[submodule \"sub\"]\n\tpath = sub\n",
+		// An ancestor named modules does not make a worktree a submodule.
+		"linked/.git":    "gitdir: /work/modules/project/.git/worktrees/feature\n",
+		"linked/main.py": "def run():\n    return 5\n",
 		// A submodule is part of the repository.
 		"sub/.git":   "gitdir: ../.git/modules/sub\n",
 		"sub/lib.py": "def lib():\n    return 4\n",

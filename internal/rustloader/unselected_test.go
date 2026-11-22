@@ -1,6 +1,8 @@
 package rustloader
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -8,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Luqueee/kivgraph/internal/testsupport"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
 
@@ -26,23 +29,22 @@ func TestNamesWrittenReadsWordsOutsideComments(t *testing.T) {
 	// `gr` and `e` are what an ASCII-only reader makes of `größe`.
 	declared := map[string]struct{}{"Display": {}, "render": {}, "absent": {}, "Displayed": {}, "größe": {}, "gr": {}, "e": {}}
 	want := map[string]int{"Display": 3, "Displayed": 4, "render": 4, "größe": 6}
-	if got := namesWritten(filename, declared); !reflect.DeepEqual(got, want) {
-		t.Errorf("names = %v, want %v", got, want)
+	if got, err := namesWritten(filename, declared); err != nil || !reflect.DeepEqual(got, want) {
+		t.Errorf("names = %v, %v, want %v", got, err, want)
 	}
-	for name, got := range map[string]map[string]int{
-		"a file that is not there": namesWritten(filepath.Join(t.TempDir(), "missing.rs"), declared),
-		"nothing declared":         namesWritten(filename, nil),
-	} {
-		if len(got) != 0 {
-			t.Errorf("%s: names = %v, want none", name, got)
-		}
+	if got, err := namesWritten(filename, nil); err != nil || len(got) != 0 {
+		t.Errorf("nothing declared: names = %v, %v, want none", got, err)
+	}
+	// Not being able to look is not the same as finding nothing.
+	if got, err := namesWritten(filepath.Join(t.TempDir(), "missing.rs"), declared); !errors.Is(err, fs.ErrNotExist) || got != nil {
+		t.Errorf("a file that is not there: names = %v, %v, want the error", got, err)
 	}
 	big := filepath.Join(t.TempDir(), "big.rs")
 	if err := os.WriteFile(big, append(make([]byte, maximumUnselectedFile), []byte("\nrender();\n")...), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if got := namesWritten(big, declared); len(got) != 0 {
-		t.Errorf("a file above the bound was read: %v", got)
+	if got, err := namesWritten(big, declared); err != nil || len(got) != 0 {
+		t.Errorf("a file above the bound was read: %v, %v", got, err)
 	}
 }
 
@@ -115,6 +117,76 @@ func TestCollectUnselectedFilesDeclaresWhatTheBuildLeftOut(t *testing.T) {
 	collectUnselectedFiles(AnalyzeOptions{Crates: options.Crates}, &analysis, unresolved)
 	if len(unresolved) != 1 {
 		t.Errorf("a repository with no path produced rows: %d", len(unresolved))
+	}
+}
+
+// A file the scan cannot open may write any name. It is declared for the
+// crate, with no file, so that no answer about the repository says it looked
+// everywhere; it used to be skipped and the answer said COMPLETE.
+func TestCollectUnselectedFilesDeclaresWhatItCouldNotRead(t *testing.T) {
+	testsupport.SkipWithoutModeBits(t)
+	if os.Geteuid() == 0 {
+		t.Skip("root reads a file whatever its mode")
+	}
+	root := testsupport.TempDir(t)
+	source := filepath.Join(root, "crates", "app", "src")
+	if err := os.MkdirAll(filepath.Join(source, "locked"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	gated := filepath.Join(source, "gated.rs")
+	for name, body := range map[string]string{
+		filepath.Join(source, "lib.rs"): "pub struct Display;\n",
+		gated:                           "use crate::Display;\n",
+		filepath.Join(source, "locked", "mod.rs"): "use crate::Display;\n",
+	} {
+		if err := os.WriteFile(name, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	locked := filepath.Join(source, "locked")
+	for path, mode := range map[string]os.FileMode{gated: 0o000, locked: 0o000} {
+		if err := os.Chmod(path, mode); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o700) })
+
+	options := AnalyzeOptions{
+		Repository: workspace.Repository{Name: "repo", RealPath: root},
+		Crates: []workspace.CargoCrate{
+			{Name: "app", Version: "0.1.0", RootPath: filepath.Join(root, "crates", "app")},
+			// No `src` at all: nothing that could not be read.
+			{Name: "bare", Version: "0.1.0", RootPath: filepath.Join(root, "crates", "bare")},
+		},
+	}
+	analysis := Analysis{
+		Files: []IndexedFile{
+			{Path: "crates/app/src/lib.rs", Crate: CrateRef{Name: "app", Version: "0.1.0"}},
+			{Path: "crates/bare/build.rs", Crate: CrateRef{Name: "bare", Version: "0.1.0"}},
+		},
+		Definitions: []Definition{{Name: "Display", File: "crates/app/src/lib.rs"}},
+	}
+	unresolved := map[string]UnresolvedReference{}
+	collectUnselectedFiles(options, &analysis, unresolved)
+
+	var named []string
+	for _, row := range unresolved {
+		if row.File != "" || row.RequestedSymbol != "" || row.Reason != UnresolvedTargetNotBuildable ||
+			row.RequestedCrate != "app" || !strings.Contains(row.Detail, "could not be read") {
+			t.Errorf("row = %+v, want a scope of the crate that says it was not read", row)
+		}
+		for _, path := range []string{gated, locked} {
+			if strings.Contains(row.Detail, path+":") {
+				named = append(named, path)
+			}
+		}
+	}
+	sort.Strings(named)
+	if want := []string{gated, locked}; !reflect.DeepEqual(named, want) {
+		t.Errorf("unread = %v, want %v in %+v", named, want, unresolved)
+	}
+	if len(analysis.Files) != 2 {
+		t.Errorf("a file nobody read was published: %+v", analysis.Files)
 	}
 }
 

@@ -232,6 +232,8 @@ func TestAnotherCheckoutBelowTheRootIsNeitherWatchedNorReconciled(t *testing.T) 
 		}
 	}
 	writeTestFile(t, filepath.Join(submodule, ".git"), "gitdir: ../../.git/modules/module\n")
+	// A submodule is what the repository above it lists as one.
+	writeTestFile(t, filepath.Join(root, ".gitmodules"), "[submodule \"module\"]\n\tpath = third_party/module\n")
 	own := filepath.Join(root, "src", "own.go")
 	inSubmodule := filepath.Join(submodule, "pkg", "module.go")
 	inClone := filepath.Join(clone, "pkg", "clone.go")

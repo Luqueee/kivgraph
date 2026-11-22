@@ -31,6 +31,7 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/Luqueee/kivgraph/internal/checkout"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 	"github.com/fsnotify/fsnotify"
 )
@@ -333,7 +334,7 @@ func (watcher *Watcher) addTree(root repositoryRoot, start string) error {
 		}
 		// Another checkout is not watched, as it is not indexed: a clone or
 		// a linked worktree below the root. The root itself is one, always.
-		if path != start && root.ignored.ignored(path) || path != root.path && workspace.IsOtherCheckout(path) {
+		if path != start && root.ignored.ignored(path) || path != root.path && checkout.IsOtherCheckout(path) {
 			return filepath.SkipDir
 		}
 		if err := watcher.addDirectory(path); err != nil {

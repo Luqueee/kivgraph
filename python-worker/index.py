@@ -150,18 +150,53 @@ SKIPPED_DIRECTORIES = {".git", ".venv", "venv", "__pycache__", ".tox", "node_mod
 
 def other_checkout(directory):
     """Another Git checkout below the root: a clone or a linked worktree. A
-    submodule is not one. The same rule as workspace.IsOtherCheckout."""
+    submodule is not one. The same rule as internal/checkout.IsOtherCheckout."""
     marker = os.path.join(directory, ".git")
-    if os.path.isdir(marker) and not os.path.islink(marker):
-        return True
-    if not os.path.isfile(marker) or os.path.islink(marker):
+    if os.path.islink(marker):
         return False
+    if os.path.isdir(marker):
+        candidate = True
+    elif os.path.isfile(marker):
+        try:
+            with open(marker, encoding="utf-8", errors="replace") as handle:
+                pointer = handle.read(4096).strip()
+        except OSError:
+            return False
+        candidate = pointer.startswith("gitdir:")
+    else:
+        return False
+    return candidate and not enclosing_repository_lists_submodule(directory)
+
+
+def enclosing_repository_lists_submodule(directory):
+    """Whether the nearest enclosing repository lists directory in its
+    .gitmodules, which makes directory a submodule rather than a checkout: a
+    submodule has the same two forms of `.git` a clone and a worktree have."""
+    ancestor = os.path.dirname(directory)
+    while not os.path.lexists(os.path.join(ancestor, ".git")):
+        parent = os.path.dirname(ancestor)
+        if parent == ancestor:
+            return False
+        ancestor = parent
+    gitmodules = os.path.join(ancestor, ".gitmodules")
+    if os.path.islink(gitmodules) or not os.path.isfile(gitmodules):
+        return False
+    relative = os.path.relpath(directory, ancestor).replace(os.sep, "/")
     try:
-        with open(marker, encoding="utf-8", errors="replace") as handle:
-            pointer = handle.read().strip()
+        with open(gitmodules, encoding="utf-8", errors="replace") as handle:
+            lines = handle.read().splitlines()
     except OSError:
         return False
-    return pointer.startswith("gitdir:") and "/modules/" not in pointer.replace(os.sep, "/")
+    for line in lines:
+        line = line.strip()
+        if not line or line[0] in "#;":
+            continue
+        key, separator, value = line.partition("=")
+        if not separator or key.strip().lower() != "path":
+            continue
+        if os.path.normpath(value.strip()).replace(os.sep, "/") == relative:
+            return True
+    return False
 
 
 def source_files(root):

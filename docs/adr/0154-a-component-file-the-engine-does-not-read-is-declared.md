@@ -80,3 +80,11 @@ the digest a generation records, and what the watcher reacts to.
 
 A generation published before this records a digest without them, so a
 repository that holds such files reads as changed until its next pass.
+
+## Amendment: a component file the scan cannot read
+
+A component file or a directory that cannot be opened was skipped in silence.
+It is declared for its package, `COMPONENT_FILE_NOT_READ` with no file and the
+path in the detail. Any exported name may be written there, so it is a scope
+and bounds the TypeScript answers of the repository until it can be read. The
+`1 MiB` bound is unchanged.

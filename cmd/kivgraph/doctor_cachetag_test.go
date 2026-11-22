@@ -159,7 +159,10 @@ func TestDoctorNamesTheCheckoutsEveryWalkSkips(t *testing.T) {
 	root := testsupport.TempDir(t)
 	for name, body := range map[string]string{
 		".worktrees/feature/.git": "gitdir: /elsewhere/.git/worktrees/feature\n",
-		"sub/.git":                "gitdir: ../.git/modules/sub\n",
+		// A submodule is what the repository above it lists as one.
+		".git/HEAD":   "ref: refs/heads/main\n",
+		".gitmodules": "[submodule \"sub\"]\n\tpath = sub\n",
+		"sub/.git":    "gitdir: ../.git/modules/sub\n",
 	} {
 		filename := filepath.Join(root, filepath.FromSlash(name))
 		if err := os.MkdirAll(filepath.Dir(filename), 0o700); err != nil {

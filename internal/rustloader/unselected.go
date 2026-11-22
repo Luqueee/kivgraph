@@ -1,6 +1,8 @@
 package rustloader
 
 import (
+	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -63,9 +65,29 @@ func collectUnselectedFiles(options AnalyzeOptions, analysis *Analysis, unresolv
 			// No file of it at all: collectEmptyCrates declares the crate.
 			continue
 		}
+		// What could not be read is declared for the crate, with no file: any
+		// name may be written there, so no answer about the crate's
+		// repository can say it looked everywhere. Skipping it in silence said
+		// COMPLETE over a file nobody opened.
+		unread := func(path string, err error) {
+			unresolved[string(UnresolvedTargetNotBuildable)+"\x00unread\x00"+path] = UnresolvedReference{
+				Crate:          CrateRef{Name: crate.Name, Version: crate.Version},
+				RequestedCrate: crate.Name,
+				Reason:         UnresolvedTargetNotBuildable,
+				Detail:         fmt.Sprintf("a source the build configuration may have left out could not be read, so the names it writes are unknown: %s: %v", path, err),
+			}
+		}
+		source := filepath.Join(crate.RootPath, "src")
 		var unselected []string
-		_ = filepath.WalkDir(filepath.Join(crate.RootPath, "src"), func(path string, entry fs.DirEntry, err error) error {
-			if err != nil || entry.IsDir() || filepath.Ext(path) != ".rs" {
+		_ = filepath.WalkDir(source, func(path string, entry fs.DirEntry, err error) error {
+			if err != nil {
+				// A crate with no `src` is not one that could not be read.
+				if path != source || !errors.Is(err, fs.ErrNotExist) {
+					unread(path, err)
+				}
+				return nil
+			}
+			if entry.IsDir() || filepath.Ext(path) != ".rs" {
 				return nil
 			}
 			relative, err := filepath.Rel(root, path)
@@ -80,7 +102,15 @@ func collectUnselectedFiles(options AnalyzeOptions, analysis *Analysis, unresolv
 		})
 		sort.Strings(unselected)
 		for _, relative := range unselected {
-			names := namesWritten(filepath.Join(root, filepath.FromSlash(relative)), declared)
+			filename := filepath.Join(root, filepath.FromSlash(relative))
+			names, err := namesWritten(filename, declared)
+			if err != nil {
+				// Removed since it was listed: it writes nothing now.
+				if !errors.Is(err, fs.ErrNotExist) {
+					unread(filename, err)
+				}
+				continue
+			}
 			if len(names) == 0 {
 				continue
 			}
@@ -103,14 +133,20 @@ func collectUnselectedFiles(options AnalyzeOptions, analysis *Analysis, unresolv
 // namesWritten answers the names of `declared` a file writes outside its
 // comments, each with the first line that does. It reads words, not Rust: a
 // name inside a string counts, which errs towards saying an answer is bounded.
-func namesWritten(filename string, declared map[string]struct{}) map[string]int {
+//
+// A file above the bound is not read, by decision, and answers no names. A
+// file that cannot be read is an error: what it writes is not known.
+func namesWritten(filename string, declared map[string]struct{}) (map[string]int, error) {
 	info, err := os.Stat(filename)
-	if err != nil || info.Size() > maximumUnselectedFile {
-		return nil
+	if err != nil {
+		return nil, err
+	}
+	if info.Size() > maximumUnselectedFile {
+		return nil, nil
 	}
 	data, err := os.ReadFile(filename)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	// A comment is blanked and not removed, so that lines keep their number.
 	blank := func(comment string) string {
@@ -133,5 +169,5 @@ func namesWritten(filename string, declared map[string]struct{}) map[string]int 
 			}
 		}
 	}
-	return names
+	return names, nil
 }

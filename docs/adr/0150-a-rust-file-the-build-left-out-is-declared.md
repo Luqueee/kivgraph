@@ -58,3 +58,13 @@ corpus revisions, in `benchmarks/language-recall/report.md` (fd) and
   bounded.
 - A name the file reaches through a glob import or a macro is not seen.
 - Nothing is resolved: these rows never become an edge.
+
+## Amendment: a file the scan cannot read
+
+A file or a directory under `src` that cannot be opened was skipped, and the
+answer said `COMPLETE` over a source nobody read. It is declared now for its
+crate, `TARGET_NOT_BUILDABLE` with no file and the path in the detail. Any
+name may be written there, so it is a scope: it bounds the Rust answers of the
+repository until the file can be read. A file above `1 MiB` is still not
+read, by the decision above, and a file removed since it was listed writes
+nothing.

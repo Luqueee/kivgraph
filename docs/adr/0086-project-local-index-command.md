@@ -87,7 +87,9 @@ With `v0.10.0`, `kivgraph index`:
 Loading a profile now moves any of the four that falls inside a registered
 repository to that same directory outside it; the workspace is one file per
 profile there, `go.<profile>.work`. The graph, the backups and the event log
-stay in `.kivgraph`. A
+stay in `.kivgraph`. Two build directories that share a name -- Java and C#
+both say `target` -- do not share one outside: the later takes its language
+in front, `csharp-target`. A
 configuration whose state is outside every repository is not touched, and
 nothing is rewritten on disk, so a project configuration written by an earlier
 version is covered.

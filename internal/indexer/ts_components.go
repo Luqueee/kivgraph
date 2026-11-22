@@ -1,6 +1,8 @@
 package indexer
 
 import (
+	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -50,9 +52,25 @@ func declareUnreadComponents(set *facts.Set, repository workspace.Repository, pa
 	if len(exported) == 0 || strings.TrimSpace(root) == "" {
 		return
 	}
+	repositoryKey, packageKey := set.Repositories[0].Key, set.Packages[0].Key
+	// What could not be read is declared for the package, with no file: any
+	// exported name may be written there, so no answer about the repository
+	// can say it looked everywhere. Skipping it in silence said COMPLETE over
+	// a file nobody opened.
+	unread := func(path string, err error) {
+		set.Unresolved = append(set.Unresolved, facts.UnresolvedReference{
+			RepositoryKey:    repositoryKey,
+			Language:         facts.LanguageTypeScript,
+			RequestedPackage: set.Packages[0].Name,
+			Reason:           UnresolvedComponentNotRead,
+			Detail:           fmt.Sprintf("a component file could not be read, so the names it writes are unknown: %s: %v", path, err),
+		})
+	}
+	declared := len(set.Unresolved)
 	var components []string
 	_ = filepath.WalkDir(packageRoot, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
+			unread(path, err)
 			return nil
 		}
 		if entry.IsDir() {
@@ -82,9 +100,16 @@ func declareUnreadComponents(set *facts.Set, repository workspace.Repository, pa
 		return nil
 	})
 	sort.Strings(components)
-	repositoryKey, packageKey := set.Repositories[0].Key, set.Packages[0].Key
 	for _, relative := range components {
-		names := componentNames(filepath.Join(root, filepath.FromSlash(relative)), exported)
+		filename := filepath.Join(root, filepath.FromSlash(relative))
+		names, err := componentNames(filename, exported)
+		if err != nil {
+			// Removed since it was listed: it writes nothing now.
+			if !errors.Is(err, fs.ErrNotExist) {
+				unread(filename, err)
+			}
+			continue
+		}
 		if len(names) == 0 {
 			continue
 		}
@@ -115,21 +140,25 @@ func declareUnreadComponents(set *facts.Set, repository workspace.Repository, pa
 			})
 		}
 	}
-	if len(components) > 0 {
+	if len(components) > 0 || len(set.Unresolved) != declared {
 		set.Sort()
 	}
 }
 
 // componentNames answers the names of `declared` a file writes, each with the
 // first line that does.
-func componentNames(filename string, declared map[string]bool) map[string]int {
+func componentNames(filename string, declared map[string]bool) (map[string]int, error) {
 	info, err := os.Stat(filename)
-	if err != nil || info.Size() > maximumComponentFile {
-		return nil
+	if err != nil {
+		return nil, err
+	}
+	// Above the bound a file is not read, by decision, and answers no names.
+	if info.Size() > maximumComponentFile {
+		return nil, nil
 	}
 	data, err := os.ReadFile(filename)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	names := make(map[string]int)
 	for number, line := range strings.Split(string(data), "\n") {
@@ -139,5 +168,5 @@ func componentNames(filename string, declared map[string]bool) map[string]int {
 			}
 		}
 	}
-	return names
+	return names, nil
 }

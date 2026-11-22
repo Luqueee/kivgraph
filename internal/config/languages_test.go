@@ -91,6 +91,27 @@ func TestDetectLanguagesUsesSourcesAndManifests(t *testing.T) {
 	}
 }
 
+// A submodule is part of the repository that lists it, so its languages count.
+// A clone is another checkout's, and its languages do not.
+func TestDetectLanguagesCountsASubmoduleTheRootListsButNotAClone(t *testing.T) {
+	root := t.TempDir()
+	writeDetectionFile(t, filepath.Join(root, ".git", "HEAD"))
+	writeDetectionFile(t, filepath.Join(root, "clone", ".git", "HEAD"))
+	writeDetectionFile(t, filepath.Join(root, "clone", "main.dart"))
+	writeDetectionFile(t, filepath.Join(root, "sub", "lib.rs"))
+	for name, body := range map[string]string{
+		".gitmodules": "[submodule \"sub\"]\n\tpath = sub\n",
+		"sub/.git":    "gitdir: ../.git/modules/sub\n",
+	} {
+		if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(name)), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got, err := DetectLanguages(root); err != nil || !reflect.DeepEqual(got, []string{"rust"}) {
+		t.Fatalf("DetectLanguages(%q) = %q, %v, want rust alone", root, got, err)
+	}
+}
+
 // TestDetectLanguagesDistinguishesAnEmptyProjectFromAnUnreadablePath keeps
 // autodetection from turning both states into a successful empty index.
 func TestDetectLanguagesDistinguishesAnEmptyProjectFromAnUnreadablePath(t *testing.T) {

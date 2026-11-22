@@ -2813,18 +2813,21 @@ of the precision column, and `exclude_tests` on the traversal tools.
     worker opened a named pipe called `x.py`; `writePayload` resolved before
     the file was closed; a write through a parenthesised accessor, and a
     destructured dynamic import of an export under an alias.
-    Open, valid and not done because each changes a layout or a rule that
-    needs its own decision: a submodule with an embedded `.git` directory is
-    read as another checkout, and `/modules/` anywhere in a worktree pointer
-    reads it as a submodule; `go.<profile>.work` collides between a profile
-    named `default.1` and the first sibling of `default`, and Java and C#
-    targets both named `target` inside a repository share one directory
-    outside it; a `go.work` that uses a nested checkout still contributes its
-    module; a `GOTOOLCHAIN` saved with `go env -w` is overridden by the pin;
-    one witness of a package dependency in an excluded file drops the edge;
-    the Rust and component scans discard read errors and take no context; a
-    manifest, a `.git` pointer or a directory that becomes a checkout after
-    registration is not re-read by freshness, the observation or the watcher.
+    Done after it, before the release, because each could lose code or an
+    answer in silence: a submodule is what the repository above it lists in
+    `.gitmodules`, so one with an embedded `.git` directory is read and a
+    worktree whose pointer holds `/modules/` is not (ADR 0122, amended); Java
+    and C# targets both named `target` inside a repository no longer share
+    one directory outside it; a source the Rust or the component scan cannot
+    read is declared for its crate or package (ADR 0150 and 0154, amended).
+    Open, valid and not done because each needs its own decision:
+    `go.<profile>.work` collides between a profile named `default.1` and the
+    first sibling of `default`; a `go.work` that uses a nested checkout still
+    contributes its module; a `GOTOOLCHAIN` saved with `go env -w` is
+    overridden by the pin; one witness of a package dependency in an excluded
+    file drops the edge; the two scans take no context; a manifest, a `.git`
+    pointer or a directory that becomes a checkout after registration is not
+    re-read by freshness, the observation or the watcher.
   - Done (ADR 0052, amended): a Rust use no declaration of its file contains
     belongs to the file's scope, as in Go and TypeScript. A fuzz target whose
     body is one macro call is in the answers about what it uses; ten of
