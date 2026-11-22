@@ -75,6 +75,12 @@ var providerNotFound = map[string]bool{
 	"MODULE_PROVIDER_NOT_FOUND":  true,
 }
 
+// ImplementationCoverageReason is the scope a loader records when it could not
+// prove every implementation relation of a package: who implements, extends
+// or overrides what. Everything else it read, so the scope bounds an answer
+// such a relation could be part of, and no other.
+const ImplementationCoverageReason = "IMPLEMENTATION_COVERAGE_PARTIAL"
+
 // requestedNames reports whether a requested symbol concerns name. The
 // resolver stores the selector it tried, which for a member access is
 // `Owner.Member`, so an exact match and a trailing member both count. A
@@ -142,9 +148,14 @@ type UnresolvedScopeGroup struct {
 // repository of two languages was a lower bound for good -- a Rust
 // declaration, because of npm packages.
 //
+// implementations says whether an implementation relation could be part of
+// the answer. When it could not, a scope that only says such relations are
+// incomplete is left out: importing one class of a sibling package made a
+// lower bound of the answer about every function of a repository.
+//
 // total is the number of distinct scopes before limit, so a cut list still
 // reports the size of the problem instead of the size of the page.
-func (snapshot *GraphSnapshot) UnresolvedScopeGroups(repository RepositoryID, language string, limit int) ([]UnresolvedScopeGroup, int) {
+func (snapshot *GraphSnapshot) UnresolvedScopeGroups(repository RepositoryID, language string, implementations bool, limit int) ([]UnresolvedScopeGroup, int) {
 	if snapshot == nil || limit < 0 {
 		return nil, 0
 	}
@@ -166,6 +177,11 @@ func (snapshot *GraphSnapshot) UnresolvedScopeGroups(repository RepositoryID, la
 		}
 		if repository != InvalidRepositoryID && reference.Repository != repository {
 			continue
+		}
+		if !implementations {
+			if reason, _ := snapshot.strings.String(reference.Reason); reason == ImplementationCoverageReason {
+				continue
+			}
 		}
 		if language != "" {
 			if recorded, known := snapshot.strings.String(reference.Language); known && recorded != "" && recorded != language {

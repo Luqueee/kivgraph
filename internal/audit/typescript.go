@@ -84,6 +84,16 @@ func auditTypeScript(
 		})
 	}
 
+	// What no project claims, and whose it is. A package that declares no
+	// project is read through one written for the pass, so its files are not
+	// a gap; what is in a package with a project waits for the key; what is
+	// in no package at all nothing can read.
+	unclaimed, err := workspace.UnclaimedTypeScriptSources(ctx, repository, discovery)
+	if err != nil {
+		return nil, fmt.Errorf("resolve unclaimed sources: %w", err)
+	}
+	owners := workspace.AttributeUnclaimedTypeScriptSources(packages, unclaimed)
+
 	switch {
 	case len(packages) == 0 && len(registry.Conflicts()) == 0:
 		findings = append(findings, Finding{
@@ -99,71 +109,53 @@ func auditTypeScript(
 			},
 		})
 	case withProject == 0 && len(packages) != 0:
-		findings = append(findings, noProjectFinding(repository, packages))
+		finding := noProjectFinding(repository, packages)
+		if len(owners.WithoutProject) != 0 {
+			// Its TypeScript is read all the same, through a project written
+			// for the pass. JavaScript is a source only if a package says so,
+			// and that still takes a project of its own.
+			finding.Severity = SeverityPartial
+			finding.Detail = fmt.Sprintf("%d named package(s) and no project: their TypeScript is read under compiler options Kivgraph chose, not ones the repository declared",
+				len(packages))
+		}
+		findings = append(findings, finding)
 	}
 
-	if withProject != 0 {
-		unclaimed, err := workspace.UnclaimedTypeScriptSources(ctx, repository, discovery)
-		if err != nil {
-			return nil, fmt.Errorf("resolve unclaimed sources: %w", err)
-		}
-		if options.IncludeUnclaimedSources {
-			// The inferred project reads an unclaimed file through the
-			// package that holds it, and a package is a unit of the pass only
-			// if it declares a project. A file in one that declares none is
-			// still read by nobody, and with the key on this said nothing.
-			orphans := make([]string, 0)
-			for _, source := range unclaimed {
-				if !inPackageWithProject(packages, source) {
-					orphans = append(orphans, source)
-				}
-			}
-			if len(orphans) != 0 {
-				findings = append(findings, Finding{
-					Repository: repository.Name,
-					Language:   "typescript",
-					Code:       CodeTypeScriptUnclaimedSources,
-					Severity:   SeverityPartial,
-					Detail: fmt.Sprintf("%d source file(s) are in no package that declares a project, starting at %s; typescript.include_unclaimed_sources does not reach them, so nothing reads them and nothing reports them absent",
-						len(orphans), relativePath(repository.RealPath, orphans[0])),
-					Remedy: Remedy{
-						Summary: "give the package that holds them a tsconfig.json, or a jsconfig.json if it ships JavaScript",
-						Path:    relativePath(repository.RealPath, filepath.Dir(orphans[0])),
-					},
-				})
-			}
-		} else if len(unclaimed) != 0 {
-			findings = append(findings, Finding{
-				Repository: repository.Name,
-				Language:   "typescript",
-				Code:       CodeTypeScriptUnclaimedSources,
-				Severity:   SeverityPartial,
-				Detail: fmt.Sprintf("%d source file(s) no project claims, starting at %s; nothing type-checks them and nothing reports them absent",
-					len(unclaimed), relativePath(repository.RealPath, unclaimed[0])),
-				Remedy: Remedy{
-					Summary:     "widen the \"include\" of the project that should own them, or index them through the inferred project",
-					ConfigKey:   "typescript.include_unclaimed_sources",
-					ConfigValue: "true",
-				},
-			})
-		}
+	inProjects := make([]string, 0)
+	for _, packageValue := range packages {
+		inProjects = append(inProjects, owners.WithProject[packageValue.RootPath]...)
+	}
+	sort.Strings(inProjects)
+	if len(inProjects) != 0 && !options.IncludeUnclaimedSources {
+		findings = append(findings, Finding{
+			Repository: repository.Name,
+			Language:   "typescript",
+			Code:       CodeTypeScriptUnclaimedSources,
+			Severity:   SeverityPartial,
+			Detail: fmt.Sprintf("%d source file(s) no project claims, starting at %s; nothing type-checks them and nothing reports them absent",
+				len(inProjects), relativePath(repository.RealPath, inProjects[0])),
+			Remedy: Remedy{
+				Summary:     "widen the \"include\" of the project that should own them, or index them through the inferred project",
+				ConfigKey:   "typescript.include_unclaimed_sources",
+				ConfigValue: "true",
+			},
+		})
+	}
+	if len(owners.Orphans) != 0 {
+		findings = append(findings, Finding{
+			Repository: repository.Name,
+			Language:   "typescript",
+			Code:       CodeTypeScriptUnclaimedSources,
+			Severity:   SeverityPartial,
+			Detail: fmt.Sprintf("%d source file(s) are in no package, starting at %s; a file is read as part of a package, so nothing reads them and nothing reports them absent",
+				len(owners.Orphans), relativePath(repository.RealPath, owners.Orphans[0])),
+			Remedy: Remedy{
+				Summary: "give the directory that holds them a package.json with a \"name\"",
+				Path:    relativePath(repository.RealPath, filepath.Dir(owners.Orphans[0])),
+			},
+		})
 	}
 	return findings, nil
-}
-
-// inPackageWithProject reports whether a package that declares a project
-// encloses source: the rule the pass attributes an unclaimed file by.
-func inPackageWithProject(packages []workspace.TypeScriptPackage, source string) bool {
-	for _, packageValue := range packages {
-		if strings.TrimSpace(packageValue.ProjectPath) == "" {
-			continue
-		}
-		relative, err := filepath.Rel(packageValue.RootPath, source)
-		if err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-			return true
-		}
-	}
-	return false
 }
 
 // noProjectFinding proposes the config file the repository's own sources ask

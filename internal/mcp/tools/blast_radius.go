@@ -705,7 +705,7 @@ func getBlastRadius(
 		rootRepositoryID = rootFile.Repository
 	}
 	rootLanguage, _ := snapshot.Strings().String(root.Language)
-	completeness, unresolvedRelated, err := completenessFor(snapshot, rootName, rootLanguage, rootRepositoryID)
+	completeness, unresolvedRelated, err := completenessFor(snapshot, rootName, rootLanguage, rootRepositoryID, true)
 	if err != nil {
 		return nil, Response[BlastRadius]{}, WrapToolError(
 			CodeSnapshotUnavailable,

@@ -284,12 +284,16 @@ type FullReport struct {
 	// package to belong to and a project to be analysed beside -- so the
 	// pass names them instead of dropping them in silence.
 	TypeScriptUnclaimedWithoutPackage []string
-	RustRepositories                  int
-	RustWorkspaces                    int
-	RustCrates                        int
-	RustSymbols                       int
-	RustReferences                    int
-	RustUnresolved                    int
+	// TypeScriptInferredPackages names the packages that declare no project
+	// and were read through one written for the pass, under options Kivgraph
+	// chose.
+	TypeScriptInferredPackages []string
+	RustRepositories           int
+	RustWorkspaces             int
+	RustCrates                 int
+	RustSymbols                int
+	RustReferences             int
+	RustUnresolved             int
 	// RustWorkspacesNotLoaded counts the workspaces the analyzer could not
 	// read. Their facts are absent and declared; the pass publishes the rest.
 	RustWorkspacesNotLoaded int
@@ -476,6 +480,7 @@ func FullWithRepositories(ctx context.Context, options FullOptions, repositories
 	typeScriptPackages := typeScriptDiscovered.packages
 	report.TypeScriptWithoutPackages = typeScriptDiscovered.withoutPackages
 	report.TypeScriptUnclaimedWithoutPackage = typeScriptDiscovered.unclaimedWithoutPackage
+	report.TypeScriptInferredPackages = typeScriptDiscovered.inferred
 	for _, unit := range typeScriptPackages {
 		report.TypeScriptUnclaimedSources += len(unit.unclaimed)
 	}
@@ -743,9 +748,14 @@ type typeScriptPackageUnit struct {
 	// queue; it is never a fact about the graph.
 	files int
 	// unclaimed are the absolute source files this package encloses that no
-	// project of the repository claims, sorted. It is empty unless
-	// FullOptions.TypeScriptIncludeUnclaimedSources is on.
+	// project of the repository claims, sorted. For a package that declares a
+	// project it is empty unless FullOptions.TypeScriptIncludeUnclaimedSources
+	// is on.
 	unclaimed []string
+	// projectless says the package declares no project. Its unclaimed files
+	// are then all it has, and they are read through a project written for
+	// this pass; see writeProjectFor.
+	projectless bool
 }
 
 // countSourceFiles walks the roots a package declares. The walk stats files
@@ -789,6 +799,10 @@ type typeScriptDiscovery struct {
 	// encloses. Nothing can index them, so they are named rather than
 	// dropped in silence.
 	unclaimedWithoutPackage []string
+	// inferred names the packages that declare no project and were read
+	// through one written for the pass, and the repositories where they
+	// could not be told and were not.
+	inferred []string
 }
 
 // discoverTypeScriptPackages finds the packages of every TypeScript
@@ -834,24 +848,45 @@ func discoverTypeScriptPackages(
 			result.notLoaded = append(result.notLoaded, typeScriptNotLoaded{repository: repository, failure: err})
 			continue
 		}
-		first := len(result.packages)
-		for _, packageValue := range registry.List() {
-			if strings.TrimSpace(packageValue.ProjectPath) == "" {
-				continue
+		owners, err := unclaimedOwners(ctx, repository, registry.List())
+		if err != nil {
+			if includeUnclaimed || ctx.Err() != nil {
+				return typeScriptDiscovery{}, err
 			}
-			result.packages = append(result.packages, typeScriptPackageUnit{
+			// Nobody asked for the files no project claims, and telling which
+			// they are resolves every project of the repository -- one whose
+			// `extends` names a dependency that is not installed fails here
+			// and nowhere else. The packages that declare a project are read
+			// as they always were; the ones that declare none are named.
+			result.inferred = append(result.inferred, fmt.Sprintf("%s: a package that declares no project is not read, because the files no project claims could not be told: %s",
+				repository.Name, boundedFailure(err)))
+		}
+		for _, packageValue := range registry.List() {
+			unit := typeScriptPackageUnit{
 				repository:   repository,
 				packageValue: packageValue,
 				files:        countSourceFiles(packageValue.SourceRoots),
-			})
+			}
+			if strings.TrimSpace(packageValue.ProjectPath) == "" {
+				// A package with a manifest and no project was not a unit, so
+				// nothing read it: a client every page of an application
+				// imports was in no graph. Its TypeScript is read through a
+				// project written for the pass.
+				unit.projectless, unit.unclaimed = true, owners.WithoutProject[packageValue.RootPath]
+				unit.files = len(unit.unclaimed)
+				if len(unit.unclaimed) == 0 {
+					continue
+				}
+				result.inferred = append(result.inferred, fmt.Sprintf("%s: %s: declares no project, so its %d file(s) are read under compiler options Kivgraph chose",
+					repository.Name, packageValue.Name, len(unit.unclaimed)))
+			} else if includeUnclaimed {
+				unit.unclaimed = owners.WithProject[packageValue.RootPath]
+			}
+			result.packages = append(result.packages, unit)
 			discovered++
 		}
 		if includeUnclaimed {
-			orphans, err := attributeUnclaimedSources(ctx, repository, result.packages[first:])
-			if err != nil {
-				return typeScriptDiscovery{}, err
-			}
-			result.unclaimedWithoutPackage = append(result.unclaimedWithoutPackage, orphans...)
+			result.unclaimedWithoutPackage = append(result.unclaimedWithoutPackage, owners.Orphans...)
 		}
 		for _, conflict := range registry.Conflicts() {
 			result.conflicts = append(result.conflicts, typeScriptConflict{
@@ -882,67 +917,63 @@ func discoverTypeScriptPackages(
 		return conflicts[left].conflict.Name < conflicts[right].conflict.Name
 	})
 	sort.Strings(result.unclaimedWithoutPackage)
+	sort.Strings(result.inferred)
 	return result, nil
 }
 
-// attributeUnclaimedSources gives every source file no project of the
-// repository claims to the unit whose package encloses it, and returns the
-// files no unit encloses.
-//
-// The enclosing package is the one with the longest root path containing the
-// file: in a monorepo the root manifest encloses every package, so the
-// deepest match is the only attribution that puts a file in the package a
-// reader would name. A file no unit encloses cannot be indexed at all -- the
-// payload of a unit declares its package, and there is none -- so it is
-// returned to be reported.
-func attributeUnclaimedSources(
+// unclaimedOwners resolves the sources no project of the repository claims and
+// the package each belongs to.
+func unclaimedOwners(
 	ctx context.Context,
 	repository workspace.Repository,
-	units []typeScriptPackageUnit,
-) ([]string, error) {
+	packages []workspace.TypeScriptPackage,
+) (workspace.UnclaimedTypeScriptOwners, error) {
 	discovery, err := workspace.DiscoverTypeScript(ctx, repository)
 	if err != nil {
-		return nil, fmt.Errorf("discover TypeScript projects for %q: %w", repository.Name, err)
+		return workspace.UnclaimedTypeScriptOwners{}, fmt.Errorf("discover TypeScript projects for %q: %w", repository.Name, err)
 	}
 	unclaimed, err := workspace.UnclaimedTypeScriptSources(ctx, repository, discovery)
 	if err != nil {
-		return nil, fmt.Errorf("resolve unclaimed TypeScript sources for %q: %w", repository.Name, err)
+		return workspace.UnclaimedTypeScriptOwners{}, fmt.Errorf("resolve unclaimed TypeScript sources for %q: %w", repository.Name, err)
 	}
-	orphans := make([]string, 0)
-	for _, source := range unclaimed {
-		owner := -1
-		for index := range units {
-			root := units[index].packageValue.RootPath
-			if !pathWithin(root, source) {
-				continue
-			}
-			if owner == -1 || len(root) > len(units[owner].packageValue.RootPath) {
-				owner = index
-			}
-		}
-		if owner == -1 {
-			orphans = append(orphans, source)
-			continue
-		}
-		units[owner].unclaimed = append(units[owner].unclaimed, source)
-	}
-	return orphans, nil
+	return workspace.AttributeUnclaimedTypeScriptSources(packages, unclaimed), nil
 }
 
-// pathWithin reports whether root contains candidate. It is the containment
-// rule `internal/workspace` and `internal/watcher` already apply, kept local
-// like theirs.
-func pathWithin(root, candidate string) bool {
-	if strings.TrimSpace(root) == "" {
-		return false
-	}
-	relative, err := filepath.Rel(filepath.Clean(root), filepath.Clean(candidate))
+// writeProjectFor writes the project a package that declares none is read
+// through, and answers its path and how to remove it.
+//
+// It is written outside the repository: the pass reads a tree and creates
+// nothing in it. The options are the ones the inferred project of
+// `include_unclaimed_sources` rests on -- strict, a bundler's resolution, no
+// JavaScript -- and the files are named one by one, so nothing the package
+// does not hold is read by a glob.
+func writeProjectFor(unit typeScriptPackageUnit) (string, func(), error) {
+	directory, err := os.MkdirTemp("", "kivgraph-ts-project-*")
 	if err != nil {
-		return false
+		return "", nil, err
 	}
-	return relative != ".." &&
-		!strings.HasPrefix(relative, ".."+string(filepath.Separator)) &&
-		!filepath.IsAbs(relative)
+	remove := func() { _ = os.RemoveAll(directory) }
+	project := struct {
+		CompilerOptions map[string]any `json:"compilerOptions"`
+		Files           []string       `json:"files"`
+	}{
+		CompilerOptions: map[string]any{
+			"target": "ES2022", "module": "ESNext", "moduleResolution": "Bundler",
+			"strict": true, "noEmit": true, "skipLibCheck": true, "jsx": "preserve",
+		},
+		Files: unit.unclaimed,
+	}
+	data, err := json.Marshal(project)
+	if err != nil {
+		remove()
+		return "", nil, err
+	}
+	path := filepath.Join(directory, "tsconfig.json")
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		remove()
+		return "", nil, err
+	}
+	return path, remove, nil
 }
 
 // typeScriptConflict is one ambiguous package name and the repository that
@@ -1308,6 +1339,56 @@ func unresolvedFromEdge(
 	return entry
 }
 
+// typeScriptFactsArguments is the worker invocation that reads one package:
+// which project, which package when the project is not its own, and who it may
+// import from.
+func typeScriptFactsArguments(
+	consumer typeScriptPackageUnit,
+	providers []typeScriptPackageUnit,
+	projectPath, outputPath string,
+) []string {
+	repository, packageValue := consumer.repository, consumer.packageValue
+	arguments := []string{
+		"facts", repository.Name, repository.RealPath, outputPath,
+		"--project", projectPath,
+	}
+	if consumer.projectless {
+		arguments = append(arguments, "--package-root", packageValue.RootPath)
+	}
+	for _, provider := range providers {
+		// Another package of this repository is named by its root alone: an
+		// import of it reaches its source or does not resolve, so the consumer
+		// needs no project of it, and one that declares none is a provider
+		// like the rest.
+		if provider.repository.Name == repository.Name {
+			if provider.packageValue.RootPath != packageValue.RootPath {
+				arguments = append(arguments, "--sibling", provider.packageValue.RootPath)
+			}
+			continue
+		}
+		// Across repositories the consumer reads a built artifact, and mapping
+		// it back takes the provider's project.
+		if provider.projectless {
+			continue
+		}
+		arguments = append(arguments,
+			"--provider", provider.repository.Name+"="+provider.repository.RealPath,
+			"--provider-project", provider.repository.Name+"="+provider.packageValue.ProjectPath,
+		)
+	}
+	// One argument per file, absolute and inside the repository root: the
+	// worker rejects anything else. The list is empty unless
+	// FullOptions.TypeScriptIncludeUnclaimedSources is on. The files of a
+	// package with no project are the written project's own, and are not
+	// named twice.
+	if !consumer.projectless {
+		for _, source := range consumer.unclaimed {
+			arguments = append(arguments, "--unclaimed", source)
+		}
+	}
+	return arguments
+}
+
 // errTypeScriptWorkerFailed marks the failure of the worker process on one
 // package, as opposed to a command that could not be prepared or an answer that
 // could not be read.
@@ -1334,26 +1415,17 @@ func collectTypeScriptFacts(
 	}
 	defer os.Remove(outputPath)
 
-	arguments := []string{
-		"facts", repository.Name, repository.RealPath, outputPath,
-		"--project", packageValue.ProjectPath,
-	}
-	for _, provider := range providers {
-		if provider.repository.Name == repository.Name {
-			continue
+	projectPath := packageValue.ProjectPath
+	if consumer.projectless {
+		written, remove, err := writeProjectFor(consumer)
+		if err != nil {
+			return facts.TypeScriptPayload{}, fmt.Errorf("write a project for %q package %q: %w",
+				repository.Name, packageValue.Name, err)
 		}
-		arguments = append(arguments,
-			"--provider", provider.repository.Name+"="+provider.repository.RealPath,
-			"--provider-project", provider.repository.Name+"="+provider.packageValue.ProjectPath,
-		)
+		defer remove()
+		projectPath = written
 	}
-	// One argument per file, absolute and inside the repository root: the
-	// worker rejects anything else. The list is empty unless
-	// FullOptions.TypeScriptIncludeUnclaimedSources is on, so a pass with the
-	// key off invokes the worker with byte-identical arguments.
-	for _, source := range consumer.unclaimed {
-		arguments = append(arguments, "--unclaimed", source)
-	}
+	arguments := typeScriptFactsArguments(consumer, providers, projectPath, outputPath)
 	command, commandArguments, err := factsCommand(options, arguments)
 	if err != nil {
 		return facts.TypeScriptPayload{}, fmt.Errorf("prepare TypeScript facts command for %q package %q: %w",

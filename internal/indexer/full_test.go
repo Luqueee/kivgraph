@@ -944,6 +944,165 @@ func TestDiscoverTypeScriptPackagesAttributesUnclaimedSourcesToTheEnclosingPacka
 	}
 }
 
+// A package that declares no project is read all the same, key or no key: its
+// TypeScript is a unit of its own, through a project written for the pass.
+// What the key decides is only what a declared project leaves out.
+func TestDiscoverTypeScriptPackagesReadsAPackageThatDeclaresNoProject(t *testing.T) {
+	repository := unclaimedMonorepo(t)
+	root := repository.RealPath
+	writeFullFixture(t, filepath.Join(root, "packages", "client", "package.json"),
+		`{"name":"@fixture/client","version":"1.0.0"}`)
+	writeFullFixture(t, filepath.Join(root, "packages", "client", "src", "index.ts"), "export const client = 1\n")
+	// A manifest and nothing to read: not a unit, and not a failure.
+	writeFullFixture(t, filepath.Join(root, "packages", "empty", "package.json"),
+		`{"name":"@fixture/empty","version":"1.0.0"}`)
+
+	for _, includeUnclaimed := range []bool{false, true} {
+		discovered, err := discoverTypeScriptPackages(
+			context.Background(), []workspace.Repository{repository}, includeUnclaimed)
+		if err != nil {
+			t.Fatalf("discoverTypeScriptPackages(%t) error = %v", includeUnclaimed, err)
+		}
+		type read struct {
+			projectless bool
+			files       []string
+		}
+		got := make(map[string]read, len(discovered.packages))
+		for _, unit := range discovered.packages {
+			got[unit.packageValue.Name] = read{unit.projectless, unit.unclaimed}
+		}
+		want := map[string]read{
+			"@fixture/client": {true, []string{filepath.Join(root, "packages", "client", "src", "index.ts")}},
+			"@fixture/core":   {},
+			"@fixture/util":   {},
+		}
+		if includeUnclaimed {
+			want["@fixture/core"] = read{false, []string{filepath.Join(root, "packages", "core", "tests", "index.test.ts")}}
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("with the key %t: read = %#v, want %#v", includeUnclaimed, got, want)
+		}
+		inferred := []string{"repo: @fixture/client: declares no project, so its 1 file(s) are read under compiler options Kivgraph chose"}
+		if !slices.Equal(discovered.inferred, inferred) {
+			t.Fatalf("inferred = %q, want %q", discovered.inferred, inferred)
+		}
+	}
+}
+
+// Telling which files no project claims resolves every project, and a
+// project whose `extends` names a dependency nobody installed does not
+// resolve. With the key off that is nobody's question: the packages that
+// declare a project are read as before and the pass says what it skipped.
+// With the key on it is the question asked, and it fails as it did.
+func TestDiscoverTypeScriptPackagesSurvivesAProjectItCannotResolve(t *testing.T) {
+	repository := unclaimedMonorepo(t)
+	root := repository.RealPath
+	writeFullFixture(t, filepath.Join(root, "site", "package.json"), `{"name":"@fixture/site","version":"1.0.0"}`)
+	writeFullFixture(t, filepath.Join(root, "site", "tsconfig.json"), `{"extends":"not-installed/tsconfig"}`)
+	writeFullFixture(t, filepath.Join(root, "site", "src", "index.ts"), "export const site = 1\n")
+	writeFullFixture(t, filepath.Join(root, "packages", "client", "package.json"),
+		`{"name":"@fixture/client","version":"1.0.0"}`)
+	writeFullFixture(t, filepath.Join(root, "packages", "client", "src", "index.ts"), "export const client = 1\n")
+
+	discovered, err := discoverTypeScriptPackages(context.Background(), []workspace.Repository{repository}, false)
+	if err != nil {
+		t.Fatalf("discoverTypeScriptPackages() error = %v, want the declared packages read", err)
+	}
+	names := make([]string, 0, len(discovered.packages))
+	for _, unit := range discovered.packages {
+		names = append(names, unit.packageValue.Name)
+	}
+	if want := []string{"@fixture/core", "@fixture/site", "@fixture/util"}; !slices.Equal(names, want) {
+		t.Fatalf("packages = %q, want %q", names, want)
+	}
+	if len(discovered.inferred) != 1 || !strings.HasPrefix(discovered.inferred[0], "repo: a package that declares no project is not read") ||
+		!strings.Contains(discovered.inferred[0], "not-installed/tsconfig") {
+		t.Fatalf("inferred = %q, want the skipped packages and the reason named", discovered.inferred)
+	}
+
+	if _, err := discoverTypeScriptPackages(context.Background(), []workspace.Repository{repository}, true); err == nil ||
+		!strings.Contains(err.Error(), "not-installed/tsconfig") {
+		t.Fatalf("with the key on: error = %v, want the project that does not resolve", err)
+	}
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := discoverTypeScriptPackages(cancelled, []workspace.Repository{repository}, false); err == nil {
+		t.Fatal("a cancelled pass was reported as discovered")
+	}
+}
+
+// The worker is told three different things about the packages around the one
+// it reads, and each has its own argument: the package itself when the project
+// is not its own, a package of the same repository by its root, a package of
+// another by its project.
+func TestTypeScriptFactsArgumentsNameEachProviderByWhatReachesIt(t *testing.T) {
+	here := workspace.Repository{Name: "here", RealPath: filepath.Join("r", "here")}
+	there := workspace.Repository{Name: "there", RealPath: filepath.Join("r", "there")}
+	unit := func(repository workspace.Repository, name string, projectless bool, files ...string) typeScriptPackageUnit {
+		value := workspace.TypeScriptPackage{Name: name, RootPath: filepath.Join(repository.RealPath, name)}
+		if !projectless {
+			value.ProjectPath = filepath.Join(value.RootPath, "tsconfig.json")
+		}
+		return typeScriptPackageUnit{repository: repository, packageValue: value, projectless: projectless, unclaimed: files}
+	}
+	declared := unit(here, "declared", false, "a.ts")
+	undeclared := unit(here, "undeclared", true, "b.ts")
+	providers := []typeScriptPackageUnit{
+		declared, undeclared, unit(there, "built", false), unit(there, "source", true),
+	}
+	foreign := []string{
+		"--provider", "there=" + there.RealPath,
+		"--provider-project", "there=" + filepath.Join(there.RealPath, "built", "tsconfig.json"),
+	}
+
+	got := typeScriptFactsArguments(declared, providers, declared.packageValue.ProjectPath, "out.json")
+	want := slices.Concat(
+		[]string{"facts", "here", here.RealPath, "out.json", "--project", declared.packageValue.ProjectPath,
+			"--sibling", undeclared.packageValue.RootPath},
+		foreign, []string{"--unclaimed", "a.ts"})
+	if !slices.Equal(got, want) {
+		t.Fatalf("a package with a project:\n got %q\nwant %q", got, want)
+	}
+
+	got = typeScriptFactsArguments(undeclared, providers, "written.json", "out.json")
+	want = slices.Concat(
+		[]string{"facts", "here", here.RealPath, "out.json", "--project", "written.json",
+			"--package-root", undeclared.packageValue.RootPath,
+			"--sibling", declared.packageValue.RootPath},
+		foreign)
+	if !slices.Equal(got, want) {
+		t.Fatalf("a package with no project:\n got %q\nwant %q", got, want)
+	}
+}
+
+// The project written for a package that declares none names its files and
+// nothing else, and leaves nothing behind.
+func TestWriteProjectForNamesTheFilesOfThePackage(t *testing.T) {
+	files := []string{filepath.Join("r", "a.ts"), filepath.Join("r", "b.tsx")}
+	path, remove, err := writeProjectFor(typeScriptPackageUnit{unclaimed: files})
+	if err != nil {
+		t.Fatalf("writeProjectFor() error = %v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read the written project: %v", err)
+	}
+	var project struct {
+		Files   []string `json:"files"`
+		Include []string `json:"include"`
+	}
+	if err := json.Unmarshal(data, &project); err != nil {
+		t.Fatalf("the written project does not parse: %v", err)
+	}
+	if !slices.Equal(project.Files, files) || project.Include != nil {
+		t.Fatalf("project = %+v, want exactly %q", project, files)
+	}
+	remove()
+	if _, err := os.Stat(filepath.Dir(path)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("the written project is still there: %v", err)
+	}
+}
+
 // TestNonBlockingDiagnosticsRendersWhatTheLoaderSaid keeps "diagnostics=3"
 // from being the whole story. The count used to be the only trace of a
 // diagnostic the loader reported without blocking the pass.

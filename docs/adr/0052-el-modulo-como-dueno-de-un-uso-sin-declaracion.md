@@ -129,3 +129,33 @@ que el normalizador nunca lo ve: el arreglo vive en otro subsistema. Su pérdida
 es sólo de nivel de fichero -un test de Rust vive en `#[test] fn nombre`, que sí
 es una declaración-, y su pregunta de referencias ya era exacta antes y después.
 Se declara aquí para que la ausencia esté escrita y no descubierta.
+
+## Enmienda: Rust
+
+Lo que esta sección dejaba fuera resultó no ser sólo de nivel de fichero. Un
+*fuzz target* es un programa entero escrito dentro de una invocación de macro:
+
+```rust
+fuzz_target!(|data: &[u8]| {
+    let mut window = ReplayWindow::new();
+    // ...
+});
+```
+
+El fichero no declara nada, así que ninguna declaración suya contiene ninguno
+de sus usos, y el cargador los contaba y los tiraba todos. Sobre un monorepo
+real, diez de dieciséis *targets* no tenían ni un símbolo, y `find_references`
+de un tipo que uno de ellos ejercita respondía `COMPLETE` sin ese fichero: una
+ausencia afirmada sin haber mirado.
+
+Rust sigue ahora la misma decisión. El cargador publica el uso con el origen
+vacío en vez de descartarlo, y el normalizador le da el símbolo `module` del
+fichero, perezoso y con la misma identidad que en Go: `Module` es la ruta y el
+paquete es el crate. Un origen **con nombre** que el pase no publica sigue
+contando en `EdgesWithoutSource`, y `Analysis.ReferencesWithoutSource`
+desaparece porque ya no hay nada que contar ahí.
+
+Sobre ese monorepo: `49` símbolos `module` en `165` ficheros Rust y `1.239`
+referencias más (`+3,8 %`). Las rutas dentro del cuerpo de un `macro_rules!`
+sin declaración que las contenga siguen fuera: son candidatas, no usos
+resueltos, y su dueño es la macro.

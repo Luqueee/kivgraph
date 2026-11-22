@@ -305,7 +305,7 @@ type TypeScriptReport struct {
 // provider, which the provider's own pass is the one to report.
 const (
 	UnresolvedFileOutsideRepository  = "FILE_OUTSIDE_REPOSITORY"
-	UnresolvedImplementationCoverage = "IMPLEMENTATION_COVERAGE_PARTIAL"
+	UnresolvedImplementationCoverage = hotsnapshot.ImplementationCoverageReason
 )
 
 // escapesRepository reports whether a repository-relative path leaves its own

@@ -332,7 +332,7 @@ export class LanguageService {
    * project returns the handles of one project, bound to the current
    * generation. The returned view is only valid until the next snapshot roll.
    */
-  project(configFileName: string): ProjectView {
+  project(configFileName: string, localRoot?: string): ProjectView {
     this.#assertOpen();
     const snapshot = this.#snapshot;
     if (snapshot === undefined || snapshot.isDisposed()) {
@@ -352,7 +352,9 @@ export class LanguageService {
     return {
       generation: this.#generation,
       configFileName: resolved,
-      localRoot: path.dirname(resolved),
+      // A project written for a package that declares none lives outside the
+      // repository, and its files are the package's, not its own directory's.
+      localRoot: localRoot ?? path.dirname(resolved),
       project,
       program: project.program,
       checker: project.checker,

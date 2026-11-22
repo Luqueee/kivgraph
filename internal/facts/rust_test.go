@@ -397,3 +397,98 @@ func TestNormalizeRustDropsAFileNoManifestDeclares(t *testing.T) {
 		t.Fatalf("files = %#v, want only the declared one", set.Files)
 	}
 }
+
+// A use no declaration of its file contains belongs to the file's own scope:
+// one module symbol per file, made when a use needs it, as ADR 0052 gave Go
+// and TypeScript. Rust counted these and dropped them, so a file that is one
+// macro call -- a fuzz target -- was in no answer about anything it uses.
+func TestNormalizeRustGivesTheFileScopeAUseWithNoDeclaration(t *testing.T) {
+	input := rustFixtureInput()
+	input.Analysis.Definitions = append(input.Analysis.Definitions, rustValueDefinition())
+	input.Analysis.Files = append(input.Analysis.Files, rustloader.IndexedFile{
+		Path:  "crates/engine/fuzz/target.rs",
+		Crate: rustloader.CrateRef{Name: "engine", Version: "1.4.0"},
+	})
+	for _, offset := range []int{20, 90} {
+		reference := rustReference(rustloader.ReferenceType, rustloader.UseNone, "engine-value", "", offset)
+		reference.SourceKey = ""
+		reference.File = "crates/engine/fuzz/target.rs"
+		input.Analysis.References = append(input.Analysis.References, reference)
+	}
+
+	set, report, err := NormalizeRust(context.Background(), input)
+	if err != nil {
+		t.Fatalf("NormalizeRust() error = %v", err)
+	}
+	if err := set.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+	if report.EdgesWithoutSource != 0 || report.EdgesWithoutTarget != 0 {
+		t.Fatalf("report = %#v, want both uses published", report)
+	}
+	modules := make([]Symbol, 0, 1)
+	for _, symbol := range set.Symbols {
+		if symbol.Kind == ModuleSymbolKind {
+			modules = append(modules, symbol)
+		}
+	}
+	if len(modules) != 1 {
+		t.Fatalf("module symbols = %#v, want one for the one file that needs it", modules)
+	}
+	module := modules[0]
+	fileKey := FileKey("acme/engine", "crates/engine/fuzz/target.rs")
+	if module.Name != "target.rs" || module.QualifiedName != "crates.engine.fuzz.target" ||
+		module.FileKey != fileKey || module.Language != LanguageRust ||
+		module.PackageKey != PackageKey(LanguageRust, "acme/engine", "engine") {
+		t.Fatalf("module symbol = %#v", module)
+	}
+	uses := 0
+	for _, edge := range edgesOfKind(set, TypeUses) {
+		if edge.SourceKey == module.Key && edge.TargetKey == "engine-value" && edge.Confidence == ExactTypechecked {
+			uses++
+		}
+	}
+	if uses != 2 {
+		t.Fatalf("uses owned by the file scope = %d, want 2 in %#v", uses, set.Edges)
+	}
+	defined := false
+	for _, edge := range edgesOfKind(set, Defines) {
+		if edge.SourceKey == fileKey && edge.TargetKey == module.Key {
+			// The scope exists because the file does: no analyzer is credited.
+			defined = edge.Confidence == StructuralCertain && edge.Provenance == PackageManifest
+		}
+	}
+	if !defined {
+		t.Fatalf("the file does not define its scope: %#v", edgesOfKind(set, Defines))
+	}
+}
+
+// The other half: a source that has a name and that this set does not publish
+// is an inconsistency, and making it an owner would hide a real loss. So is a
+// use in a file the set does not hold.
+func TestNormalizeRustInventsNoOwnerForASourceItDoesNotPublish(t *testing.T) {
+	input := rustFixtureInput()
+	input.Analysis.Definitions = append(input.Analysis.Definitions, rustValueDefinition())
+	named := rustReference(rustloader.ReferenceType, rustloader.UseNone, "engine-value", "", 20)
+	named.SourceKey = "nobody-publishes-this"
+	elsewhere := rustReference(rustloader.ReferenceType, rustloader.UseNone, "engine-value", "", 90)
+	elsewhere.SourceKey = ""
+	elsewhere.File = "crates/unknown/src/lib.rs"
+	input.Analysis.References = append(input.Analysis.References, named, elsewhere)
+
+	set, report, err := NormalizeRust(context.Background(), input)
+	if err != nil {
+		t.Fatalf("NormalizeRust() error = %v", err)
+	}
+	if report.EdgesWithoutSource != 1 || report.EdgesWithoutTarget != 1 {
+		t.Fatalf("report = %#v, want one of each counted", report)
+	}
+	for _, symbol := range set.Symbols {
+		if symbol.Kind == ModuleSymbolKind {
+			t.Fatalf("an owner was made up: %#v", symbol)
+		}
+	}
+	if got := edgesOfKind(set, TypeUses); len(got) != 0 {
+		t.Fatalf("edges = %#v, want none", got)
+	}
+}

@@ -775,7 +775,7 @@ func findReferences(
 			return hotsnapshot.InvalidRepositoryID
 		}
 		return subjectRepository
-	}())
+	}(), options.implementationsOnly || answersWithImplementations(snapshot, startID))
 	if err != nil {
 		return nil, Response[ReferenceResult]{}, WrapToolError(
 			CodeSnapshotUnavailable,

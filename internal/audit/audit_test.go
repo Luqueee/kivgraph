@@ -43,10 +43,11 @@ func only(t *testing.T, report Report) Finding {
 // jsconfig.
 func TestAuditProposesTheProjectTheSourcesAskFor(t *testing.T) {
 	for _, test := range []struct {
-		name       string
-		sources    map[string]string
-		wantPath   string
-		wantSubstr string
+		name         string
+		sources      map[string]string
+		wantPath     string
+		wantSubstr   string
+		wantSeverity Severity
 	}{
 		{
 			name: "javascript",
@@ -54,8 +55,9 @@ func TestAuditProposesTheProjectTheSourcesAskFor(t *testing.T) {
 				"tool.mjs":  "export const tool = 1\n",
 				"other.mjs": "export const other = 1\n",
 			},
-			wantPath:   "jsconfig.json",
-			wantSubstr: "jsconfig",
+			wantPath:     "jsconfig.json",
+			wantSubstr:   "jsconfig",
+			wantSeverity: SeverityBlocking,
 		},
 		{
 			name: "typescript",
@@ -63,8 +65,9 @@ func TestAuditProposesTheProjectTheSourcesAskFor(t *testing.T) {
 				"src/index.ts": "export const index = 1\n",
 				"src/other.ts": "export const other = 1\n",
 			},
-			wantPath:   "tsconfig.json",
-			wantSubstr: "declare a project",
+			wantPath:     "tsconfig.json",
+			wantSubstr:   "declare a project",
+			wantSeverity: SeverityPartial,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -80,8 +83,11 @@ func TestAuditProposesTheProjectTheSourcesAskFor(t *testing.T) {
 				t.Fatalf("Run() error = %v", err)
 			}
 			finding := only(t, report)
-			if finding.Code != CodeTypeScriptNoProject || finding.Severity != SeverityBlocking {
-				t.Fatalf("finding = %#v, want a blocking TS_NO_PROJECT", finding)
+			// JavaScript is a source only if a package says so, and without a
+			// project nothing reads it. TypeScript is read all the same, under
+			// options the repository did not choose.
+			if finding.Code != CodeTypeScriptNoProject || finding.Severity != test.wantSeverity {
+				t.Fatalf("finding = %#v, want a %s TS_NO_PROJECT", finding, test.wantSeverity)
 			}
 			if finding.Remedy.Path != test.wantPath {
 				t.Fatalf("remedy path = %q, want %q", finding.Remedy.Path, test.wantPath)
@@ -251,17 +257,16 @@ func TestAuditRunsOnceForTypeScriptAndJavaScript(t *testing.T) {
 	}
 }
 
-// With `include_unclaimed_sources` on, an unclaimed file is read through the
-// package that holds it -- if that package declares a project. One that
-// declares none is still read by nobody, and the audit said everything was.
-func TestAuditNamesUnclaimedSourcesTheInferredProjectDoesNotReach(t *testing.T) {
+// What no project claims is three things, and the audit tells them apart. A
+// file of a package that declares no project is read through one written for
+// the pass; one a project leaves out waits for the key; one in no package at
+// all is read by nobody, key or no key.
+func TestAuditTellsApartTheSourcesNoProjectClaims(t *testing.T) {
 	root := testsupport.TempDir(t)
 	write(t, filepath.Join(root, "apps", "web", "package.json"), `{"name":"web","version":"1.0.0"}`)
 	write(t, filepath.Join(root, "apps", "web", "tsconfig.json"), `{"include":["src"]}`)
 	write(t, filepath.Join(root, "apps", "web", "src", "index.ts"), "export const index = 1\n")
-	// Unclaimed, in a package with a project: the inferred project reads it.
 	write(t, filepath.Join(root, "apps", "web", "e2e", "spec.ts"), "export const spec = 1\n")
-	// Unclaimed, in a package with none.
 	write(t, filepath.Join(root, "packages", "api", "package.json"), `{"name":"api","version":"1.0.0"}`)
 	write(t, filepath.Join(root, "packages", "api", "src", "index.ts"), "export const api = 1\n")
 	repositories := []workspace.Repository{repositoryAt(root, "typescript")}
@@ -270,25 +275,25 @@ func TestAuditNamesUnclaimedSourcesTheInferredProjectDoesNotReach(t *testing.T) 
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
-	if finding := only(t, off); finding.Code != CodeTypeScriptUnclaimedSources || !strings.Contains(finding.Detail, "2 source file(s)") ||
-		finding.Remedy.ConfigKey != "typescript.include_unclaimed_sources" {
+	if finding := only(t, off); finding.Code != CodeTypeScriptUnclaimedSources || !strings.Contains(finding.Detail, "1 source file(s)") ||
+		!strings.Contains(finding.Detail, "apps/web/e2e/spec.ts") || finding.Remedy.ConfigKey != "typescript.include_unclaimed_sources" {
 		t.Fatalf("with the key off: %#v", finding)
 	}
 	on, err := Run(context.Background(), repositories, Options{IncludeUnclaimedSources: true})
+	if err != nil || len(on.Findings) != 0 {
+		t.Fatalf("with the key on: %#v, %v", on.Findings, err)
+	}
+
+	// In no package: the key does not reach it.
+	write(t, filepath.Join(root, "scripts", "tool.ts"), "export const tool = 1\n")
+	orphaned, err := Run(context.Background(), repositories, Options{IncludeUnclaimedSources: true})
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
-	finding := only(t, on)
+	finding := only(t, orphaned)
 	if finding.Code != CodeTypeScriptUnclaimedSources || finding.Severity != SeverityPartial ||
-		!strings.Contains(finding.Detail, "1 source file(s)") || !strings.Contains(finding.Detail, "packages/api/src/index.ts") ||
-		finding.Remedy.ConfigKey != "" || !strings.Contains(finding.Remedy.Summary, "tsconfig.json") {
-		t.Fatalf("with the key on: %#v", finding)
-	}
-
-	// Nothing left once the package declares a project that claims the file.
-	write(t, filepath.Join(root, "packages", "api", "tsconfig.json"), `{"include":["src"]}`)
-	clean, err := Run(context.Background(), repositories, Options{IncludeUnclaimedSources: true})
-	if err != nil || len(clean.Findings) != 0 {
-		t.Fatalf("after the package declares a project: %#v, %v", clean.Findings, err)
+		!strings.Contains(finding.Detail, "scripts/tool.ts") || finding.Remedy.ConfigKey != "" ||
+		!strings.Contains(finding.Remedy.Summary, "package.json") {
+		t.Fatalf("a file in no package: %#v", finding)
 	}
 }

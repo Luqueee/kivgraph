@@ -140,3 +140,35 @@ has one symbol for a `get`/`set` pair, and the worker attached every use to
 whichever was declared first. An assignment now reaches the `set`, a read the
 `get`, and `+=` or `++` both; file recall on `got` went from `220` of `223`
 to `223` of `223`. The key of an object literal still reaches the `get`.
+
+## Amendment: incomplete implementation relations bound what they could answer
+
+`IMPLEMENTATION_COVERAGE_PARTIAL` is a scope a TypeScript package records when
+some relation of implementing, extending or overriding could not be proven: a
+declaration with compiler errors, an imported target that is not an interface
+or a type alias. Everything else in the package was read. As a scope it
+bounded every TypeScript answer of the repository, and ADR 0155 made it
+common: one class imported from a sibling package, and who calls a function
+was `LOWER_BOUND` for good.
+
+It now bounds an answer such a relation could be part of:
+
+| question | bounded |
+|---|---|
+| `find_implementations` | always |
+| `get_blast_radius`, `trace_dependencies` | always: a walk crosses any relation |
+| `find_references`, `find_cross_repo_consumers` | by the kind, below |
+| `find_symbol`, `get_file_outline` | never: neither is a relation |
+
+The kinds nothing implements, extends or overrides are listed -- `function`,
+`variable`, `enum`, `enum_member`, `namespace`, `parameter`, `type_parameter`,
+`import`, `export`, `module` -- and a kind the list does not know keeps the
+bound. A class, an interface, a type, a method and a property keep it.
+
+On the monorepo of ADR 0155 the function every page imports answers
+`COMPLETE` with its `29` files; the class beside it answers `LOWER_BOUND`
+with the scope named, and so does the walk from either.
+
+Not narrowed: the scope names the package that recorded it, not the
+declarations it could not relate, so a class nobody in that package touches
+is still bounded.

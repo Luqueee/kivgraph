@@ -204,9 +204,11 @@ func collectReferences(
 		}
 		if sourceKey == "" {
 			// The use resolves and no declaration this document publishes
-			// contains it, so the graph has no end to hang the edge on.
-			analysis.ReferencesWithoutSource++
-			continue
+			// contains it: a `use` at the top of a file, or a whole program
+			// written inside one macro call, which is what a fuzz target is.
+			// It belongs to the file's own scope, and it was dropped -- so a
+			// file whose every use is one of these was in no answer at all.
+			sourceCrate = document.crate
 		}
 		if resolved.key == sourceKey {
 			// A declaration mentioning itself -- the name of a recursive

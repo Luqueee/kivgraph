@@ -82,7 +82,18 @@ export function createPackageProviderRegistry(
       provider,
     });
   }
-  roots.sort((left, right) => right.root.length - left.root.length);
+  // Packages of one repository share its root, so among equals the one whose
+  // manifest sits deepest is tried first: it is the package that declares
+  // the file, and the others merely contain it.
+  const depth = (provider: PackageProvider) =>
+    provider.manifestPath === undefined
+      ? 0
+      : path.dirname(path.resolve(provider.manifestPath)).length;
+  roots.sort(
+    (left, right) =>
+      right.root.length - left.root.length ||
+      depth(right.provider) - depth(left.provider),
+  );
   return {
     get: (name) => byName.get(name),
     owning: (filePath) => {
@@ -93,7 +104,15 @@ export function createPackageProviderRegistry(
       const probe = resolved.endsWith(path.sep)
         ? resolved
         : resolved + path.sep;
-      return roots.find((entry) => probe.startsWith(entry.root))?.provider;
+      const within = roots.filter((entry) => probe.startsWith(entry.root));
+      const declaring = within.find(
+        (entry) =>
+          entry.provider.manifestPath !== undefined &&
+          probe.startsWith(
+            path.dirname(path.resolve(entry.provider.manifestPath)) + path.sep,
+          ),
+      );
+      return (declaring ?? within[0])?.provider;
     },
   };
 }

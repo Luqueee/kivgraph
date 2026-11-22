@@ -184,3 +184,53 @@ func isUnclaimedSourceName(name string) bool {
 	return strings.HasSuffix(name, ".ts") || strings.HasSuffix(name, ".tsx") ||
 		strings.HasSuffix(name, ".mts") || strings.HasSuffix(name, ".cts")
 }
+
+// UnclaimedTypeScriptOwners says which package each unclaimed source belongs
+// to: the one with the longest root that contains it, as a reader would name
+// it. In a monorepo the root manifest contains every package, so the deepest
+// is the only attribution that is right.
+type UnclaimedTypeScriptOwners struct {
+	// WithProject are the files of a package that declares a project and does
+	// not claim them, by the package's root.
+	WithProject map[string][]string
+	// WithoutProject are the files of a package that declares no project at
+	// all, by the package's root. Nothing claims any file of such a package.
+	WithoutProject map[string][]string
+	// Orphans are in no package.
+	Orphans []string
+}
+
+// AttributeUnclaimedTypeScriptSources groups unclaimed sources by owner. It
+// keeps the order it is given within each group.
+func AttributeUnclaimedTypeScriptSources(packages []TypeScriptPackage, unclaimed []string) UnclaimedTypeScriptOwners {
+	owners := UnclaimedTypeScriptOwners{
+		WithProject:    make(map[string][]string),
+		WithoutProject: make(map[string][]string),
+		Orphans:        make([]string, 0),
+	}
+	for _, source := range unclaimed {
+		owner := -1
+		for index, packageValue := range packages {
+			root := packageValue.RootPath
+			relative, err := filepath.Rel(root, source)
+			if strings.TrimSpace(root) == "" || err != nil || relative == ".." ||
+				strings.HasPrefix(relative, ".."+string(filepath.Separator)) || filepath.IsAbs(relative) {
+				continue
+			}
+			if owner == -1 || len(root) > len(packages[owner].RootPath) {
+				owner = index
+			}
+		}
+		switch {
+		case owner == -1:
+			owners.Orphans = append(owners.Orphans, source)
+		case strings.TrimSpace(packages[owner].ProjectPath) == "":
+			root := packages[owner].RootPath
+			owners.WithoutProject[root] = append(owners.WithoutProject[root], source)
+		default:
+			root := packages[owner].RootPath
+			owners.WithProject[root] = append(owners.WithProject[root], source)
+		}
+	}
+	return owners
+}

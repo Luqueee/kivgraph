@@ -73,7 +73,10 @@ import type {
   DeclarationSourceMapping,
   DeclarationSourceStatus,
 } from "./declaration-source-resolver.js";
-import { resolveDeclarationSources } from "./declaration-source-resolver.js";
+import {
+  isDeclarationFile,
+  resolveDeclarationSources,
+} from "./declaration-source-resolver.js";
 import { enginePath } from "./engine-path.js";
 import { LanguageService, type ProjectView } from "./language-service.js";
 import type {
@@ -550,7 +553,7 @@ export async function resolveImportedSymbols(
     }
   }
 
-  const identities = await resolveTargetIdentities(pending, registry);
+  const identities = await resolveTargetIdentities(pending, registry, view);
   const symbols: ImportedSymbol[] = [];
   const reexports: ReexportedSymbol[] = [];
   for (const [index, entry] of pending.entries()) {
@@ -873,6 +876,11 @@ async function resolveDeclarations(
             : sourceFile.getLineAndCharacterOfPosition(
                 nameNode.getStart(sourceFile),
               );
+        // A workspace package that publishes its source -- `"main":
+        // "src/index.ts"` behind a `workspace:*` link -- is resolved to that
+        // source, so there is no artifact to map back and the position the
+        // checker gave is already the provider's own.
+        const direct = !isDeclarationFile(filePath);
         return {
           fileName: filePath,
           start,
@@ -881,13 +889,17 @@ async function resolveDeclarations(
           endLine:
             sourceFile.getLineAndCharacterOfPosition(Math.max(start, end - 1))
               .line + 1,
-          sourceFiles: (mapping?.sourceFiles ?? []).map(enginePath),
-          sourceStatus: mapping?.status ?? "UNRESOLVED",
-          sourcePosition: await lookupSourcePosition(
-            mappers,
-            filePath,
-            namePosition,
-          ),
+          sourceFiles: direct
+            ? [filePath]
+            : (mapping?.sourceFiles ?? []).map(enginePath),
+          sourceStatus: direct ? "SOURCE" : (mapping?.status ?? "UNRESOLVED"),
+          sourcePosition: direct
+            ? {
+                fileName: handle.path,
+                line: namePosition.line + 1,
+                character: namePosition.character,
+              }
+            : await lookupSourcePosition(mappers, filePath, namePosition),
         };
       },
     ),
@@ -958,7 +970,9 @@ function identityUnresolved(
  */
 export type ImportedSymbolIdentitySource =
   | "DECLARATION_MAP"
-  | "PROVIDER_EXPORT";
+  | "PROVIDER_EXPORT"
+  /** The import resolved to the provider's source: the checker's own answer. */
+  | "SOURCE";
 
 /** One target whose provider identity still needs to be classified. */
 interface IdentityRequest {
@@ -1002,6 +1016,7 @@ interface IdentityRequest {
 async function resolveTargetIdentities(
   pending: readonly PendingSymbol[],
   registry: PackageProviderRegistry,
+  view: ProjectView,
 ): Promise<TargetIdentityOutcome[]> {
   const outcomes: TargetIdentityOutcome[] = pending.map(
     () => IDENTITY_NOT_ATTEMPTED,
@@ -1009,6 +1024,26 @@ async function resolveTargetIdentities(
   const byProject = new Map<string, IdentityRequest[]>();
 
   for (const [index, entry] of pending.entries()) {
+    // The source itself, already parsed by the program that imports it: no
+    // other project has to open to say what is declared there. Only a file a
+    // registered package owns counts -- a dependency that ships its source
+    // under `node_modules` is owned by nobody.
+    const direct = entry.declarations.find(
+      (candidate) => candidate.sourceStatus === "SOURCE",
+    );
+    const declaring =
+      direct === undefined ? undefined : registry.owning(direct.fileName);
+    if (direct !== undefined && declaring !== undefined) {
+      outcomes[index] = await classifyTarget(view, {
+        index,
+        provider: entry.provider,
+        owner: declaring,
+        declaration: direct,
+        exportedName: entry.exportedName,
+        source: "SOURCE",
+      });
+      continue;
+    }
     const mapped = entry.declarations.find(
       (candidate) =>
         candidate.sourceStatus === "DECLARATION_MAP" &&
@@ -1096,7 +1131,7 @@ async function classifyTarget(
   request: IdentityRequest,
 ): Promise<TargetIdentityOutcome> {
   const position =
-    request.source === "DECLARATION_MAP"
+    request.source !== "PROVIDER_EXPORT"
       ? request.declaration.sourcePosition
       : await locateProviderExport(
           providerView,
@@ -1106,7 +1141,7 @@ async function classifyTarget(
   if (position === undefined) {
     return identityUnresolved(
       "PROVIDER_SOURCE_UNAVAILABLE",
-      request.source === "DECLARATION_MAP"
+      request.source !== "PROVIDER_EXPORT"
         ? "declaration map segment has no source position"
         : `provider project exports no ${request.exportedName} in ${request.declaration.sourceFiles.join(", ")}`,
     );

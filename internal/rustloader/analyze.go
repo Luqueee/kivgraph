@@ -79,6 +79,9 @@ type Definition struct {
 
 // Reference is one classified use with both ends identified.
 type Reference struct {
+	// SourceKey is empty for a use no declaration of its file contains: a
+	// top level `use`, the body of a macro invoked at the top of a file. The
+	// file's own scope is its source.
 	SourceKey string
 	TargetKey string
 	// TargetRepository is empty for a target of this repository.
@@ -153,9 +156,6 @@ type Analysis struct {
 	Relations   []Relation
 	Unresolved  []UnresolvedReference
 	Diagnostics []string
-	// ReferencesWithoutSource counts uses with no enclosing declaration, so
-	// a dropped edge is visible instead of silently missing.
-	ReferencesWithoutSource int
 }
 
 // AnalyzeOptions is one workspace's index plus what the pass knows about the
@@ -235,6 +235,7 @@ func Analyze(ctx context.Context, options AnalyzeOptions) (Analysis, error) {
 		}
 		documents = append(documents, prepared)
 		crate, cratePrefix := crateOf(prepared.path)
+		prepared.crate = crate
 		analysis.Files = append(analysis.Files, IndexedFile{Path: prepared.path, Crate: crate})
 		rank := cargoTargetRank(prepared.path, cratePrefix)
 		collected, err := collectDefinitions(repositoryName, prepared, symbols)
@@ -356,6 +357,9 @@ type documentAnalysis struct {
 	source   *Source
 	// bodies are the definition spans of this document, innermost last.
 	bodies []definitionBody
+	// crate is the crate the file belongs to: the crate of a use that no
+	// declaration of the file contains.
+	crate CrateRef
 }
 
 type definitionBody struct {

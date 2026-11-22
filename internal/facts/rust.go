@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 	"github.com/Luqueee/kivgraph/internal/rustloader"
 	"github.com/Luqueee/kivgraph/internal/workspace"
 )
@@ -64,7 +65,7 @@ func NormalizeRust(ctx context.Context, input RustInput) (Set, RustReport, error
 		return Set{}, RustReport{}, fmt.Errorf("%w: repository %q has no path", ErrInvalidFacts, name)
 	}
 
-	report := RustReport{EdgesWithoutSource: input.Analysis.ReferencesWithoutSource}
+	var report RustReport
 	repositoryKey := RepositoryKey(name)
 	set := Set{Repositories: []Repository{{
 		Key:       repositoryKey,
@@ -250,6 +251,59 @@ func NormalizeRust(ctx context.Context, input RustInput) (Set, RustReport, error
 		})
 	}
 
+	// moduleSymbolFor returns the synthetic module symbol of a file, created on
+	// first use: the owner of a use that no declaration encloses. See ADR 0052.
+	moduleSymbolKeys := make(map[string]string)
+	moduleSymbolFor := func(relative, fileKey string) (string, error) {
+		if existing, ok := moduleSymbolKeys[relative]; ok {
+			return existing, nil
+		}
+		packageKey := packageOfFile[relative]
+		qualifiedName := moduleQualifiedName(relative)
+		identity := hotsnapshot.StableKeyIdentity{
+			FormatVersion: hotsnapshot.StableKeyFormatVersion,
+			Language:      string(LanguageRust),
+			Repository:    name,
+			Package:       packages[packageKey].Name,
+			Module:        relative,
+			QualifiedName: qualifiedName,
+			Kind:          ModuleSymbolKind,
+			Discriminator: discriminatorOf(""),
+		}
+		canonical, err := identity.Canonical()
+		if err != nil {
+			return "", fmt.Errorf("module symbol %q identity: %w", relative, err)
+		}
+		key, err := identity.Key()
+		if err != nil {
+			return "", fmt.Errorf("module symbol %q key: %w", relative, err)
+		}
+		set.Symbols = append(set.Symbols, Symbol{
+			Key:               string(key),
+			CanonicalIdentity: canonical,
+			RepositoryKey:     repositoryKey,
+			PackageKey:        packageKey,
+			FileKey:           fileKey,
+			Language:          LanguageRust,
+			Name:              moduleSymbolName(relative),
+			QualifiedName:     qualifiedName,
+			Kind:              ModuleSymbolKind,
+			Start:             Position{Line: 1},
+		})
+		symbols[string(key)] = struct{}{}
+		set.Edges = append(set.Edges, Edge{
+			Kind:      Defines,
+			SourceKey: fileKey,
+			TargetKey: string(key),
+			// The scope exists because the file does; the analyzer declared
+			// nothing here, so it is not credited.
+			Confidence: StructuralCertain,
+			Provenance: PackageManifest,
+		})
+		moduleSymbolKeys[relative] = string(key)
+		return string(key), nil
+	}
+
 	for _, reference := range input.Analysis.References {
 		if err := ctx.Err(); err != nil {
 			return Set{}, RustReport{}, err
@@ -258,6 +312,16 @@ func NormalizeRust(ctx context.Context, input RustInput) (Set, RustReport, error
 		if _, exists := files[fileKey]; !exists {
 			report.EdgesWithoutTarget++
 			continue
+		}
+		if reference.SourceKey == "" {
+			// An empty source is a use with no enclosing declaration, and the
+			// file's scope owns it. A named source this set does not publish
+			// is something else, and stays counted below.
+			owner, err := moduleSymbolFor(reference.File, fileKey)
+			if err != nil {
+				return Set{}, RustReport{}, err
+			}
+			reference.SourceKey = owner
 		}
 		if _, exists := symbols[reference.SourceKey]; !exists {
 			report.EdgesWithoutSource++
