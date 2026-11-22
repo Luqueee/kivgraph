@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -107,12 +108,6 @@ func Run(ctx context.Context, options Options) (facts.SemanticPayload, error) {
 	}
 	defer func() { _ = tree.Close() }()
 
-	arguments := append([]string{}, fields[1:]...)
-	arguments = append(arguments, "index", "--output", output, "--targetroot", targetRoot)
-	if tool := strings.TrimSpace(options.BuildTool); tool != "" {
-		arguments = append(arguments, "--build-tool", tool)
-	}
-
 	limit := options.MaximumIndexTime
 	if limit <= 0 {
 		limit = DefaultMaximumIndexTime
@@ -120,25 +115,46 @@ func Run(ctx context.Context, options Options) (facts.SemanticPayload, error) {
 	runContext, cancel := context.WithTimeout(ctx, limit)
 	defer cancel()
 
-	process := exec.CommandContext(runContext, executable, arguments...)
-	process.Dir = tree.Path
-	combined, runErr := proctree.CombinedOutput(process)
-	if runErr != nil {
-		if runContext.Err() != nil && ctx.Err() == nil {
-			return facts.SemanticPayload{}, fmt.Errorf(
-				"java indexer did not finish within %s for %q", limit, options.Repository.Name)
+	excluded, err := workspace.ExclusionMatcher(root, options.Repository.Exclusions)
+	if err != nil {
+		return facts.SemanticPayload{}, fmt.Errorf("java indexer: %w", err)
+	}
+	// One index for the repository, from every build it holds. A reference
+	// from one build to a declaration of another is the same symbol string in
+	// both, so it resolves once the documents are side by side.
+	var index scipwire.Index
+	for number, build := range buildRoots(tree.Path, excluded) {
+		buildOutput, buildTarget := output, targetRoot
+		if number > 0 {
+			// The indexer reads the format from the extension.
+			buildOutput = fmt.Sprintf("%s.%d.scip", strings.TrimSuffix(output, ".scip"), number)
+			buildTarget = fmt.Sprintf("%s.%d", targetRoot, number)
 		}
-		return facts.SemanticPayload{}, fmt.Errorf("java indexer failed for %q: %w: %s",
-			options.Repository.Name, runErr, lastLines(string(combined), 12))
-	}
-
-	data, err := os.ReadFile(output)
-	if err != nil {
-		return facts.SemanticPayload{}, fmt.Errorf("read java index: %w", err)
-	}
-	index, err := scipwire.Decode(data)
-	if err != nil {
-		return facts.SemanticPayload{}, fmt.Errorf("decode java index: %w", err)
+		arguments := append([]string{}, fields[1:]...)
+		arguments = append(arguments, "index", "--output", buildOutput, "--targetroot", buildTarget)
+		if tool := strings.TrimSpace(options.BuildTool); tool != "" {
+			arguments = append(arguments, "--build-tool", tool)
+		}
+		process := exec.CommandContext(runContext, executable, arguments...)
+		process.Dir = filepath.Join(tree.Path, filepath.FromSlash(build))
+		combined, runErr := proctree.CombinedOutput(process)
+		if runErr != nil {
+			if runContext.Err() != nil && ctx.Err() == nil {
+				return facts.SemanticPayload{}, fmt.Errorf(
+					"java indexer did not finish within %s for %q", limit, options.Repository.Name)
+			}
+			return facts.SemanticPayload{}, fmt.Errorf("java indexer failed for %q%s: %w: %s",
+				options.Repository.Name, buildLabel(build), runErr, lastLines(string(combined), 12))
+		}
+		data, err := os.ReadFile(buildOutput)
+		if err != nil {
+			return facts.SemanticPayload{}, fmt.Errorf("read java index%s: %w", buildLabel(build), err)
+		}
+		decoded, err := scipwire.Decode(data)
+		if err != nil {
+			return facts.SemanticPayload{}, fmt.Errorf("decode java index%s: %w", buildLabel(build), err)
+		}
+		index = mergeBuild(index, decoded, build)
 	}
 	// Two roots, and conflating them is a defect that would not look like one:
 	// the tree is where the files are read from, the repository is what the
@@ -146,6 +162,87 @@ func Run(ctx context.Context, options Options) (facts.SemanticPayload, error) {
 	// is a fresh temporary directory per pass -- deriving it from there would
 	// give the same code a different identity on every run.
 	return convert(index, options, tree.Path, root)
+}
+
+// buildMarkers are the files that make a directory the root of a build.
+var buildMarkers = []string{
+	"pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle",
+	"settings.gradle.kts", "build.sbt",
+}
+
+func holdsBuild(directory string) bool {
+	for _, marker := range buildMarkers {
+		if info, err := os.Stat(filepath.Join(directory, marker)); err == nil && info.Mode().IsRegular() {
+			return true
+		}
+	}
+	return false
+}
+
+// buildRoots lists, relative to root and sorted, the directories the indexer
+// is run in.
+//
+// It was run at the root and nowhere else, so a repository that keeps several
+// builds side by side -- `backend/` and `tools/`, each with its own
+// `settings.gradle` -- had no build where the indexer looked and contributed
+// nothing. A build at the root is still the only one: it is the one that says
+// which of the directories below are its modules. Without one, the outermost
+// build of each branch is taken, and what is below it is that build's.
+func buildRoots(root string, excluded func(string) bool) []string {
+	if holdsBuild(root) {
+		return []string{"."}
+	}
+	builds := make([]string, 0)
+	_ = filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err != nil || !entry.IsDir() || path == root {
+			return nil
+		}
+		relative, relErr := filepath.Rel(root, path)
+		if relErr != nil {
+			return filepath.SkipDir
+		}
+		relative = filepath.ToSlash(relative)
+		name := entry.Name()
+		if strings.HasPrefix(name, ".") || name == "node_modules" || excluded(relative) || workspace.IsSkippedDirectory(path) {
+			return filepath.SkipDir
+		}
+		if holdsBuild(path) {
+			builds = append(builds, relative)
+			return filepath.SkipDir
+		}
+		return nil
+	})
+	if len(builds) == 0 {
+		// Nothing to choose between: the indexer is asked at the root, and
+		// says what it found there.
+		return []string{"."}
+	}
+	sort.Strings(builds)
+	return builds
+}
+
+func buildLabel(build string) string {
+	if build == "." {
+		return ""
+	}
+	return " (build " + build + ")"
+}
+
+// mergeBuild adds the documents of one build to the repository's index, with
+// their paths made relative to the repository.
+func mergeBuild(index, build scipwire.Index, directory string) scipwire.Index {
+	if index.ToolName == "" {
+		index.ToolName, index.ToolVersion = build.ToolName, build.ToolVersion
+		index.ProjectRoot, index.TextEncoding = build.ProjectRoot, build.TextEncoding
+	}
+	for _, document := range build.Documents {
+		if directory != "." {
+			document.RelativePath = directory + "/" + strings.TrimPrefix(filepath.ToSlash(document.RelativePath), "./")
+		}
+		index.Documents = append(index.Documents, document)
+	}
+	index.ExternalSymbols = append(index.ExternalSymbols, build.ExternalSymbols...)
+	return index
 }
 
 // Convert turns a decoded index into a payload, reading the sources from root.
@@ -242,10 +339,7 @@ func sanitise(name string) string {
 // beats deriving it from the index, whose package field a multi-module build
 // varies per module.
 func packageIdentity(root string) (string, string) {
-	for _, candidate := range []string{
-		"pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle",
-		"settings.gradle.kts", "build.sbt",
-	} {
+	for _, candidate := range buildMarkers {
 		path := filepath.Join(root, candidate)
 		if _, err := os.Stat(path); err == nil {
 			return filepath.Base(root), path

@@ -76,7 +76,9 @@
  *     ../testdata/protocol/ts-facts-v5/implementations.json
  */
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { once } from "node:events";
+import { createWriteStream } from "node:fs";
+import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { isEntryPoint } from "./entry-point.js";
@@ -1444,11 +1446,7 @@ if (isEntryPoint(process.argv[1], import.meta.url)) {
         await mkdir(path.dirname(path.resolve(args.output)), {
           recursive: true,
         });
-        await writeFile(
-          path.resolve(args.output),
-          `${JSON.stringify(payload, null, 2)}\n`,
-          "utf8",
-        );
+        await writePayload(path.resolve(args.output), payload);
         process.stdout.write(
           `${payload.symbols.length} symbols, ${payload.references.length} references, ` +
             `${payload.imports.length} imports, ${payload.exports.length} exports, ` +
@@ -1462,4 +1460,53 @@ if (isEntryPoint(process.argv[1], import.meta.url)) {
       }
     }
   }
+}
+
+/**
+ * Write a payload as JSON without ever holding the document as one string.
+ *
+ * It was `JSON.stringify(payload, null, 2)`: on a program of 2760 files that
+ * is one string of 377 MB, and building it took the process from 2.5 GB to
+ * 5.9 GB in its last second -- the peak of the whole pass, after the engine
+ * had already exited. The arrays are written a slice at a time; what is read
+ * back is the same value.
+ */
+export async function writePayload(
+  filename: string,
+  payload: object,
+): Promise<void> {
+  // How many elements of an array are serialised into one string. Declared
+  // here because the command at the top of this module runs before a constant
+  // below it exists.
+  const PAYLOAD_CHUNK = 4096;
+  const stream = createWriteStream(filename, { encoding: "utf8" });
+  const failed = once(stream, "error").then(([error]) => {
+    throw error;
+  });
+  const write = async (text: string): Promise<void> => {
+    if (!stream.write(text)) {
+      await Promise.race([once(stream, "drain"), failed]);
+    }
+  };
+  let separator = "{";
+  for (const [key, value] of Object.entries(payload)) {
+    if (value === undefined) {
+      continue;
+    }
+    await write(`${separator}${JSON.stringify(key)}:`);
+    separator = ",";
+    if (!Array.isArray(value)) {
+      await write(JSON.stringify(value));
+      continue;
+    }
+    await write("[");
+    for (let start = 0; start < value.length; start += PAYLOAD_CHUNK) {
+      const slice = JSON.stringify(value.slice(start, start + PAYLOAD_CHUNK));
+      await write((start === 0 ? "" : ",") + slice.slice(1, -1));
+    }
+    await write("]");
+  }
+  await write(`${separator === "{" ? "{" : ""}}\n`);
+  stream.end();
+  await Promise.race([once(stream, "finish"), failed]);
 }

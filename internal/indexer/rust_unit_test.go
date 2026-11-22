@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -502,5 +503,98 @@ func TestWorkspaceNotLoadedFactsRecordsAScopeAndNotAReference(t *testing.T) {
 				t.Fatalf("repository key = %q, want %q", row.RepositoryKey, result.set.Repositories[0].Key)
 			}
 		})
+	}
+}
+
+// Two workspaces of one repository that declare a crate of the same name: a
+// vendored copy, an example, a fixture. Their symbols share every identity, so
+// the set did not validate and the pass published nothing for anybody.
+func TestFullKeepsOneOfTwoRustWorkspacesThatDeclareTheSameCrate(t *testing.T) {
+	requireRustAnalyzer(t)
+	root := filepath.Join(testsupport.TempDir(t), "twice")
+	source := os.DirFS(filepath.Join("..", "..", "testdata", "rust", "workspace"))
+	for _, name := range [...]string{"first", "second"} {
+		if err := os.CopyFS(filepath.Join(root, name), source); err != nil {
+			t.Fatal(err)
+		}
+	}
+	repository := workspace.Repository{Name: "twice", Path: root, RealPath: root, Languages: []string{"rust"}}
+	alone := rustFixtureRepository(t, "alone")
+
+	set, report, err := Full(context.Background(), rustFullOptions(t, repository))
+	if err != nil {
+		t.Fatalf("Full() error = %v, want the first workspace indexed", err)
+	}
+	if err := set.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+	_, reference, err := Full(context.Background(), rustFullOptions(t, alone))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Exactly what the workspace publishes on its own, and all of it from the
+	// first copy.
+	if report.RustSymbols != reference.RustSymbols || report.RustSymbols == 0 || report.RustWorkspacesNotLoaded != 1 {
+		t.Errorf("symbols = %d, not loaded = %d, want %d symbols and one workspace left out",
+			report.RustSymbols, report.RustWorkspacesNotLoaded, reference.RustSymbols)
+	}
+	for _, file := range set.Files {
+		if file.Language == facts.LanguageRust && strings.HasPrefix(file.Path, "second/") {
+			t.Errorf("%s is published: the second workspace was indexed too", file.Path)
+		}
+	}
+	declared := 0
+	for _, row := range set.Unresolved {
+		if row.Reason != "AMBIGUOUS_CRATE_PROVIDER" || row.FileKey != "" {
+			continue
+		}
+		declared++
+		for _, want := range [...]string{"second", "first", row.RequestedPackage} {
+			if !strings.Contains(row.Detail, want) {
+				t.Errorf("detail = %q, want it to name %q", row.Detail, want)
+			}
+		}
+	}
+	if declared != 1 {
+		t.Errorf("%d scope rows declare the workspace left out, want 1", declared)
+	}
+	named := false
+	for _, line := range report.RustDiagnostics {
+		named = named || strings.Contains(line, "AMBIGUOUS_CRATE_PROVIDER") && strings.Contains(line, "second")
+	}
+	if !named {
+		t.Errorf("diagnostics = %q, want the workspace left out named", report.RustDiagnostics)
+	}
+}
+
+// The mark is per repository and per crate name, and it is the later
+// workspace that carries it.
+func TestMarkShadowedWorkspaces(t *testing.T) {
+	unit := func(repository, root string, crates ...string) rustWorkspaceUnit {
+		out := rustWorkspaceUnit{
+			repository: workspace.Repository{Name: repository, RealPath: "/" + repository},
+			workspace:  workspace.CargoWorkspace{RootPath: "/" + repository + "/" + root},
+		}
+		for _, crate := range crates {
+			out.crates = append(out.crates, workspace.CargoCrate{Name: crate})
+		}
+		return out
+	}
+	units := []rustWorkspaceUnit{
+		unit("a", "one", "core", "util"),
+		unit("a", "three", "other"),
+		unit("a", "two", "extra", "util"),
+		// Its `extra` is not taken: the workspace that declared it is out.
+		unit("a", "zed", "extra"),
+		unit("b", "one", "util"),
+	}
+	markShadowedWorkspaces(units)
+	got := make([]string, len(units))
+	for index, marked := range units {
+		got[index] = marked.shadowedCrate + "<" + marked.shadowedBy
+	}
+	want := []string{"<", "<", "util<one", "<", "<"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("marks = %q, want %q", got, want)
 	}
 }

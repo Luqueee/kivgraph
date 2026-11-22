@@ -33,6 +33,9 @@ type rustWorkspaceUnit struct {
 	// files is how many Rust sources the analyzer will read. It orders the
 	// queue; it is never a fact about the graph.
 	files int
+	// shadowedCrate names a crate of this workspace that an earlier workspace
+	// of the same repository also declares, and shadowedBy that workspace.
+	shadowedCrate, shadowedBy string
 }
 
 // discoverRustWorkspaces finds the Cargo workspaces of every Rust repository
@@ -77,7 +80,40 @@ func discoverRustWorkspaces(
 		}
 		return units[left].workspace.ManifestPath < units[right].workspace.ManifestPath
 	})
+	markShadowedWorkspaces(units)
 	return units, withoutWorkspaces, nil
+}
+
+// markShadowedWorkspaces finds the workspaces of one repository that declare a
+// crate an earlier one already does.
+//
+// A Rust symbol is named by its repository, its crate and its path, so two
+// such crates give two declarations one identity and the published set is
+// invalid: a vendored copy, an example or a fixture ended the pass for every
+// repository. The first workspace by path keeps the name. Nothing else can:
+// the identity has no field for the workspace, and adding one changes every
+// stable key.
+//
+// shortcut: the whole later workspace is left out, not only the crate it
+// shares; filter by crate if a repository loses real code to this.
+func markShadowedWorkspaces(units []rustWorkspaceUnit) {
+	type claim struct{ repository, crate string }
+	owners := map[claim]rustWorkspaceUnit{}
+	for index := range units {
+		unit := &units[index]
+		for _, crate := range unit.crates {
+			if owner, taken := owners[claim{unit.repository.Name, crate.Name}]; taken {
+				unit.shadowedCrate, unit.shadowedBy = crate.Name, rustUnitDetail(owner)
+				break
+			}
+		}
+		if unit.shadowedCrate != "" {
+			continue
+		}
+		for _, crate := range unit.crates {
+			owners[claim{unit.repository.Name, crate.Name}] = *unit
+		}
+	}
 }
 
 // countRustSources walks a workspace and counts the files the analyzer will
@@ -118,6 +154,9 @@ func indexRustWorkspace(
 	parsers *syntax.ParserManager,
 ) (analysisResult, error) {
 	rustUnit := unit.rust
+	if rustUnit.shadowedCrate != "" {
+		return shadowedWorkspaceFacts(rustUnit), nil
+	}
 	output, err := os.MkdirTemp("", "kivgraph-rust-*")
 	if err != nil {
 		return analysisResult{}, fmt.Errorf("create Rust analysis directory for %q: %w", rustUnit.repository.Name, err)
@@ -261,6 +300,21 @@ func workspaceNotLoadedFacts(unit rustWorkspaceUnit, failure *rustloader.RunErro
 		detail:      rustUnitDetail(unit),
 		diagnostics: []string{fmt.Sprintf("%s: %s: %s", unit.repository.Name, failure.Kind, detail)},
 	}
+}
+
+// shadowedWorkspaceFacts declares a workspace left out because an earlier one
+// of its repository declares one of its crates. The row has the shape of a
+// workspace that did not load and the reason two repositories declaring one
+// crate already have.
+func shadowedWorkspaceFacts(unit rustWorkspaceUnit) analysisResult {
+	detail := fmt.Sprintf("workspace %s is not indexed: crate %q is also declared by workspace %s of this repository, and the two would share every symbol identity",
+		rustUnitDetail(unit), unit.shadowedCrate, unit.shadowedBy)
+	result := workspaceNotLoadedFacts(unit, &rustloader.RunError{Detail: detail})
+	reason := string(rustloader.UnresolvedAmbiguousCrateProvider)
+	result.set.Unresolved[0].RequestedPackage = unit.shadowedCrate
+	result.set.Unresolved[0].Reason = reason
+	result.diagnostics = []string{fmt.Sprintf("%s: %s: %s", unit.repository.Name, reason, detail)}
+	return result
 }
 
 func rustUnitDetail(unit rustWorkspaceUnit) string {

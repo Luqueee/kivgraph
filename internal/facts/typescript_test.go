@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"sort"
 	"testing"
@@ -1320,6 +1321,75 @@ func TestNormalizeTypeScriptRetiresAFileOutsideTheRepository(t *testing.T) {
 	}
 	if retained[0].Detail != foreign {
 		t.Fatalf("retained gap detail = %q, want the path that was refused", retained[0].Detail)
+	}
+}
+
+// The engine loads what a `tsconfig.json` includes, so an exclusion kept no
+// file of an included project out of the graph: the generated route types and
+// a build that copies `src` were published. A file an exclusion names is
+// retired with everything it holds, and with no failure: it was asked for.
+func TestNormalizeTypeScriptRetiresAFileTheRepositoryExcludes(t *testing.T) {
+	const generated = ".react-router/types/app/+types/root.ts"
+	payload := TypeScriptPayload{
+		Version:    TypeScriptWireVersion,
+		Repository: TypeScriptRepository{Name: "app"},
+		Package:    &TypeScriptPackage{Name: "app", Version: "0.0.1", RootPath: ".", ManifestPath: "package.json"},
+		Files:      []string{"app/root.ts", generated, "build/root.ts"},
+		Symbols: []TypeScriptSymbol{
+			{File: "app/root.ts", Name: "loader", QualifiedName: "loader", Kind: "function", Exported: true,
+				Signature: "function loader()", StartLine: 3, EndLine: 9, Start: 40, End: 120},
+			{File: generated, Name: "Route", QualifiedName: "Route", Kind: "type", Exported: true,
+				Signature: "type Route", StartLine: 1, EndLine: 2, Start: 0, End: 30},
+			{File: "build/root.ts", Name: "loader", QualifiedName: "loader", Kind: "function", Exported: true,
+				Signature: "function loader()", StartLine: 3, EndLine: 9, Start: 40, End: 120},
+		},
+		References: []TypeScriptReference{
+			// From a kept file to a retired declaration, and the other way.
+			{File: "app/root.ts", Kind: string(TypeUses), SourceQualifiedName: "loader", TargetQualifiedName: "Route",
+				TargetFile: generated, StartLine: 4, Start: 60, End: 65, Text: "Route"},
+			{File: generated, Kind: string(References), SourceQualifiedName: "Route", TargetQualifiedName: "loader",
+				TargetFile: "app/root.ts", StartLine: 2, Start: 10, End: 16, Text: "loader"},
+		},
+		Unresolved: []TypeScriptUnresolved{
+			{File: generated, RequestedPackage: "react-router", RequestedSymbol: "Info", Reason: "PACKAGE_PROVIDER_NOT_FOUND"},
+			{File: "app/root.ts", RequestedPackage: "react", RequestedSymbol: "use", Reason: "PACKAGE_PROVIDER_NOT_FOUND"},
+		},
+	}
+	repository := workspace.Repository{RealPath: "/repositories/app", Exclusions: []string{".react-router", "build"}}
+	set, _, err := NormalizeTypeScript(context.Background(), payload, repository)
+	if err != nil {
+		t.Fatalf("NormalizeTypeScript() error = %v", err)
+	}
+	if err := set.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+	var files, declared []string
+	for _, file := range set.Files {
+		files = append(files, file.Path)
+	}
+	for _, symbol := range set.Symbols {
+		if symbol.Kind != "module" {
+			declared = append(declared, symbol.QualifiedName)
+		}
+	}
+	if !reflect.DeepEqual(files, []string{"app/root.ts"}) || !reflect.DeepEqual(declared, []string{"loader"}) {
+		t.Errorf("files = %v, declarations = %v, want the one file that is not excluded", files, declared)
+	}
+	// The failure of the kept file stays, with its file. The one of the retired
+	// file is gone: with no file it would bound the whole repository.
+	if len(set.Unresolved) != 1 || set.Unresolved[0].RequestedPackage != "react" || set.Unresolved[0].FileKey == "" {
+		t.Errorf("unresolved = %#v", set.Unresolved)
+	}
+
+	// Without exclusions everything is published, as before.
+	whole, _, err := NormalizeTypeScript(context.Background(), payload, workspace.Repository{RealPath: "/repositories/app"})
+	if err != nil || len(whole.Files) != 3 {
+		t.Errorf("without exclusions: %d files, %v", len(whole.Files), err)
+	}
+	// A pattern that cannot be read is an error, not an exclusion of nothing.
+	if _, _, err := NormalizeTypeScript(context.Background(), payload,
+		workspace.Repository{RealPath: "/repositories/app", Exclusions: []string{"["}}); err == nil {
+		t.Error("an unreadable exclusion was accepted")
 	}
 }
 

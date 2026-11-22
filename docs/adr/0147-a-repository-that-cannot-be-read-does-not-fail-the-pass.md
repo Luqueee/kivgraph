@@ -107,3 +107,67 @@ at all.
 Not measured with the real worker: the third row. The worker tolerated every
 broken configuration it was given, so that path is exercised with a stand-in
 that exits non-zero.
+
+## Amendment: two Cargo workspaces that declare the same crate
+
+One more way a single repository ended the pass. A Rust symbol is named by its
+repository, its crate and its path, so two workspaces of one repository that
+declare a crate of the same name -- a vendored copy, an example, a fixture --
+give two declarations one identity, and the published set did not validate.
+
+The first workspace by path is indexed. The other is left out whole and
+declared with a scope-level `AMBIGUOUS_CRATE_PROVIDER`, the reason two
+repositories declaring one crate already have, and an `index.rust.diagnostic`
+line naming the workspace, the crate and the workspace that keeps it.
+
+Not done: telling the two apart. The identity has no field for the workspace,
+and adding one changes every stable key. Leaving out only the shared crate
+instead of the workspace would keep more, and is not done either.
+
+### A use that crosses two workspaces of one repository
+
+Two workspaces that do not share a crate are both indexed, each alone. A use
+in one of a crate the other declares -- an application depending by path on
+the workspace of its libraries -- found the crate in its own repository and no
+declaration in its own index, and was declared `DEFINITION_NOT_INDEXED`: no
+edge, to a declaration the same pass publishes.
+
+It is resolved now the way a use that crosses repositories is. The key is
+composed from the identity the analyzer gave, the edge is `EXACT` with the
+provenance of a moniker, and the merge keeps it only if the other workspace
+publishes that key; otherwise it is `PROVIDER_DEFINITION_NOT_INDEXED`.
+`DEFINITION_NOT_INDEXED` stays for a crate of the workspace being analysed.
+
+Checked on a repository with a fuzzing workspace beside its main one: a
+function of a library crate gained the fuzz target that calls it. Not measured
+on the benchmark corpus, which has no such repository.
+
+Seen there and open: a Rust file that declares nothing -- its whole body is
+one macro invocation -- has no symbol to be the source of a use, so its uses
+are in no edge and no failure.
+
+## Amendment: an entry that cannot be registered
+
+The same failure one step earlier. Before any loader runs, `index --full`
+builds the registry, and one entry that could not be registered failed it: a
+directory that was deleted, one that is not a Git checkout, a path with a
+symlink in it. Every other repository lost its graph to it.
+
+Such an entry is now left out and named on an
+`index.repository.not_read: <name>: <reason>` line -- on `stderr` with
+`--json`, whose `stdout` is a protocol. The pass indexes the rest and exits
+`0`. A registry where nothing registers is still an error, and so is what
+involves two entries: a duplicate name or path.
+
+Unlike the cases above there is no row in the graph: the repository is not in
+it at all, and a question about it answers `REPOSITORY_NOT_FOUND`. The same
+trade-off holds, and is sharper here: a repository on a disk that is not
+mounted leaves the next generation, with exit `0`.
+
+`init` also writes the path of a directory that is there as the directory it
+is -- symlinks resolved, a relative path taken from where the command ran --
+because the registry refuses the first and read the second against the
+configuration's directory. `/tmp` is a symlink on macOS.
+
+Only `index --full` does this. `serve`, `doctor` and the other readers of the
+registry still fail on such an entry.

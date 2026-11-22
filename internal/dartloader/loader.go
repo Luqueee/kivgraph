@@ -637,6 +637,7 @@ func appendNavigationReferences(ctx context.Context, lsp *client, command, sdkPa
 	}
 	appendDartAnalyzerOverrides(events, root, contents, byURI, symbols, selectionOffsets, payload)
 	owners := constructorOwners(symbols)
+	extensions := extensionOwners(symbols)
 	seen := make(map[string]struct{})
 	for id, result := range results {
 		sourcePath := requestPaths[id]
@@ -686,13 +687,31 @@ func appendNavigationReferences(ctx context.Context, lsp *client, command, sdkPa
 					}
 				}
 				if targetID == "" && externalTarget == nil {
+					// A parameter, a local or a type parameter of this
+					// repository is not published because it means nothing
+					// outside its declaration, not because it could not be
+					// read. A use of one is no failure, and they were `45597`
+					// of the `71566` one application recorded.
+					if pathWithin(root, targetPath) && dartScopedKinds[strings.ToUpper(strings.TrimSpace(target.Kind))] {
+						continue
+					}
 					startPosition := positionAt(sourceData, sourceOffset)
+					requested := targetPath
 					unresolvedKey := fmt.Sprintf("%s\x00%s\x00%d", source.ID, targetPath, sourceOffset)
+					// A target outside the repository is a library nobody
+					// registered, and it is declared once for each declaration
+					// that uses it, at the first use: `String` and `Widget`
+					// are on every line of an application, and one row for
+					// each was `210914` of the `217689` failures of one.
+					if library, named := dartLibraryOf(targetPath); named && !pathWithin(root, targetPath) {
+						requested = library
+						unresolvedKey = fmt.Sprintf("%s\x00%s\x00%s", source.ID, library, target.Kind)
+					}
 					if _, exists := seen[unresolvedKey]; !exists {
 						seen[unresolvedKey] = struct{}{}
 						payload.Unresolved = append(payload.Unresolved, facts.SemanticUnresolved{
 							File: relative(root, sourcePath), SourceID: source.ID,
-							RequestedPackage: targetPath, RequestedSymbol: target.Kind,
+							RequestedPackage: requested, RequestedSymbol: target.Kind,
 							Reason: "DART_TARGET_NOT_INDEXED", Detail: "Analysis Server target was outside the published provider set",
 							StartLine: startPosition.Line + 1, StartColumn: startPosition.Character, Start: sourceOffset,
 						})
@@ -718,6 +737,18 @@ func appendNavigationReferences(ctx context.Context, lsp *client, command, sdkPa
 				startPosition := positionAt(sourceData, startOffset)
 				endPosition := positionAt(sourceData, endOffset)
 				payload.References = append(payload.References, facts.SemanticReference{File: relative(root, sourcePath), SourceID: source.ID, TargetID: targetID, Target: externalTarget, Kind: kind, StartLine: startPosition.Line + 1, StartColumn: startPosition.Character, Start: startOffset, EndLine: endPosition.Line + 1, EndColumn: endPosition.Character, End: endOffset, Text: sliceLine(sourceData, startPosition)})
+				// `Extension(receiver).member` names the extension, and the
+				// Analysis Server navigates the member and not the name.
+				if extension, member := extensions[targetID]; member && extension.ID != source.ID {
+					if nameStart, nameEnd, written := extensionOverride(sourceData, sourceOffset); written && string(sourceData[nameStart:nameEnd]) == extension.Name {
+						overrideKey := fmt.Sprintf("%s\x00%s\x00%d\x00%d", source.ID, extension.ID, nameStart, nameEnd-nameStart)
+						if _, ok := seen[overrideKey]; !ok {
+							seen[overrideKey] = struct{}{}
+							nameStartPosition, nameEndPosition := positionAt(sourceData, nameStart), positionAt(sourceData, nameEnd)
+							payload.References = append(payload.References, facts.SemanticReference{File: relative(root, sourcePath), SourceID: source.ID, TargetID: extension.ID, Kind: "REFERENCES", StartLine: nameStartPosition.Line + 1, StartColumn: nameStartPosition.Character, Start: nameStart, EndLine: nameEndPosition.Line + 1, EndColumn: nameEndPosition.Character, End: nameEnd, Text: sliceLine(sourceData, nameStartPosition)})
+						}
+					}
+				}
 				// Building an instance is a use of the class. A class with an
 				// explicit constructor resolves the call to that constructor,
 				// and the class itself would have no reference at all.
@@ -742,6 +773,95 @@ func inLineComment(data []byte, offset int) bool {
 	offset = min(max(offset, 0), len(data))
 	start := bytes.LastIndexByte(data[:offset], '\n') + 1
 	return strings.HasPrefix(strings.TrimLeft(string(data[start:offset]), " \t"), "//")
+}
+
+// extensionOwners maps every member of an extension to the extension that
+// declares it, in the same file: `IterableExtension.isSorted` to
+// `IterableExtension`.
+func extensionOwners(symbols []facts.SemanticSymbol) map[string]facts.SemanticSymbol {
+	extensions := make(map[string]facts.SemanticSymbol)
+	for _, symbol := range symbols {
+		if symbol.Kind == "extension" {
+			extensions[symbol.File+"\x00"+symbol.QualifiedName] = symbol
+		}
+	}
+	owners := make(map[string]facts.SemanticSymbol)
+	for _, symbol := range symbols {
+		separator := strings.LastIndex(symbol.QualifiedName, ".")
+		if separator < 0 {
+			continue
+		}
+		if extension, found := extensions[symbol.File+"\x00"+symbol.QualifiedName[:separator]]; found {
+			owners[symbol.ID] = extension
+		}
+	}
+	return owners
+}
+
+// extensionOverride finds the name written before the receiver of a member
+// that is applied through an explicit extension: for the `isSorted` of
+// `IterableExtension<T>(this).isSorted(compare)` it answers where
+// `IterableExtension` is.
+//
+// The Analysis Server resolves the member and gives no navigation region for
+// that name, so the one place an extension is named in code was a use nobody
+// recorded -- and an answer about the extension said COMPLETE without it. The
+// caller holds the resolved member and keeps the name only when it is the
+// extension that declares it, so this reads where a resolved fact is written
+// and decides nothing by itself.
+//
+// shortcut: parentheses inside a string literal of the receiver are counted as
+// code, so such a receiver is not recognised; upgrade if the server ever
+// reports the override.
+func extensionOverride(data []byte, memberOffset int) (int, int, bool) {
+	index := skipSpaceBackwards(data, min(memberOffset, len(data)))
+	if index == 0 || data[index-1] != '.' {
+		return 0, 0, false
+	}
+	index = skipSpaceBackwards(data, index-1)
+	if index == 0 || data[index-1] != ')' {
+		return 0, 0, false
+	}
+	index = matchingOpener(data, index-1, '(', ')')
+	if index < 0 {
+		return 0, 0, false
+	}
+	index = skipSpaceBackwards(data, index)
+	if index > 0 && data[index-1] == '>' {
+		if index = matchingOpener(data, index-1, '<', '>'); index < 0 {
+			return 0, 0, false
+		}
+		index = skipSpaceBackwards(data, index)
+	}
+	end := index
+	for index > 0 && (isIdentifierPart(data[index-1]) || data[index-1] == '$') {
+		index--
+	}
+	return index, end, index < end
+}
+
+func skipSpaceBackwards(data []byte, index int) int {
+	for index > 0 && (data[index-1] == ' ' || data[index-1] == '\t' || data[index-1] == '\n' || data[index-1] == '\r') {
+		index--
+	}
+	return index
+}
+
+// matchingOpener answers the offset of the opener that the closer at closeAt
+// closes, or -1.
+func matchingOpener(data []byte, closeAt int, opener, closer byte) int {
+	depth := 0
+	for index := closeAt; index >= 0; index-- {
+		switch data[index] {
+		case closer:
+			depth++
+		case opener:
+			if depth--; depth == 0 {
+				return index
+			}
+		}
+	}
+	return -1
 }
 
 // constructorOwners maps every constructor to the class it builds. A
@@ -1431,6 +1551,41 @@ func pathWithin(root, path string) bool {
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
+// dartScopedKinds are the Analysis Server's kinds for a name that is scoped to
+// one declaration.
+var dartScopedKinds = map[string]bool{
+	"PARAMETER": true, "LOCAL_VARIABLE": true, "TYPE_PARAMETER": true, "PREFIX": true, "LABEL": true,
+}
+
+// dartLibraryOf names the library a file of a dependency belongs to, the way an
+// import spells it: `dart:core` for `<sdk>/lib/core/string.dart`, and
+// `package:collection` for `<pub cache>/collection-1.19.0/lib/src/x.dart`.
+//
+// It reads the layout every Dart package has -- its libraries are under `lib`
+// -- and nothing else, because it only names a failure: the path it replaces
+// was that of one machine, in a graph anybody may be handed.
+func dartLibraryOf(path string) (string, bool) {
+	path = filepath.ToSlash(path)
+	at := strings.LastIndex(path, "/lib/")
+	if at <= 0 {
+		return "", false
+	}
+	owner := path[strings.LastIndex(path[:at], "/")+1 : at]
+	below := path[at+len("/lib/"):]
+	if owner == "" || below == "" {
+		return "", false
+	}
+	if owner == "dart-sdk" {
+		library, _, _ := strings.Cut(below, "/")
+		return "dart:" + strings.TrimSuffix(library, ".dart"), true
+	}
+	// A hosted package is unpacked as `name-version`.
+	if dash := strings.LastIndex(owner, "-"); dash > 0 && dash+1 < len(owner) && owner[dash+1] >= '0' && owner[dash+1] <= '9' {
+		owner = owner[:dash]
+	}
+	return "package:" + owner, true
+}
+
 func providerForPath(path string, providers []workspace.Repository) (workspace.Repository, bool) {
 	path, err := filepath.Abs(path)
 	if err != nil {
@@ -1931,6 +2086,9 @@ func dartFilesForRepository(root string, roots, exclusions []string, includeGene
 				return filepath.SkipDir
 			}
 			if pathExcluded(path) || !pathInRoots(root, path, roots) {
+				return filepath.SkipDir
+			}
+			if path != root && workspace.IsOtherCheckout(path) {
 				return filepath.SkipDir
 			}
 			return nil

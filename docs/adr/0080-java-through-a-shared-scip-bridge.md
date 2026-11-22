@@ -98,3 +98,23 @@ the build at that. See ADR 0082 for the three strategies measured and why the
   the package after the repository's manifest directory instead, so every symbol
   of a repository shares one package. A finer identity would change stable keys
   and needs its own migration.
+
+## Amendment: every build of a repository
+
+`scip-java` was run at the repository's root and nowhere else. A repository
+that keeps several builds side by side -- `backend/` and `tools/`, each with
+its own `settings.gradle` or `pom.xml` -- has no build there, and contributed
+nothing.
+
+A build at the root is still the only one run: it is what says which of the
+directories below are its modules. Without one, the outermost build of each
+branch is run, and what is below it is that build's. The indexes are merged
+into one, with the path of every document made relative to the repository, and
+converted once: a reference from one build to a declaration of another is the
+same symbol string in both, so it resolves when the documents are side by
+side. Directories no walk enters, and the repository's exclusions, are not
+searched.
+
+Not done: one build that fails still fails the repository. Two builds that
+declare a class of the same name give it one identity, as two Cargo workspaces
+with one crate did (ADR 0147). Only Maven was run; Gradle was not.

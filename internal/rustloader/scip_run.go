@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -487,6 +488,8 @@ func writeGuardViolation(workspace string, before writeGuard) (string, error) {
 // being indexed.
 func classifyDiagnostics(output string) []string {
 	diagnostics := make([]string, 0, 4)
+	firstOf := make(map[string]int)
+	repeats := make(map[int]int)
 	for _, line := range strings.Split(output, "\n") {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
@@ -510,9 +513,43 @@ func classifyDiagnostics(output string) []string {
 			// The analyzer logs an empty error list on every start.
 			continue
 		}
+		if message, logged := loggedMessage(trimmed); logged {
+			if at, seen := firstOf[message]; seen {
+				repeats[at]++
+				continue
+			}
+			firstOf[message] = len(diagnostics)
+		}
 		diagnostics = append(diagnostics, trimmed)
 	}
+	for at, count := range repeats {
+		diagnostics[at] = fmt.Sprintf("%s (and %d more with other fields)", diagnostics[at], count)
+	}
 	return diagnostics
+}
+
+// logField is where the structured fields of a log line begin: ` def=Module(`.
+var logField = regexp.MustCompile(` [A-Za-z_][A-Za-z0-9_.]*=`)
+
+// loggedMessage returns the message of a line of the analyzer's own log --
+// `<timestamp> ERROR <message> <field>=<value>...` -- without the timestamp
+// and the fields, which are what differ between two reports of one thing.
+//
+// One workspace wrote `Encountered enclosing definition with no name` 613
+// times, each with a different internal id, and the twenty lines a pass prints
+// were all that one. The first is kept whole and the rest are counted.
+func loggedMessage(line string) (string, bool) {
+	stamp, rest, found := strings.Cut(line, " ")
+	if !found || len(stamp) < 10 || stamp[4] != '-' || stamp[7] != '-' {
+		return "", false
+	}
+	if _, err := strconv.Atoi(stamp[:4]); err != nil {
+		return "", false
+	}
+	if at := logField.FindStringIndex(rest); at != nil {
+		rest = rest[:at[0]]
+	}
+	return rest, true
 }
 
 func isStackFrame(line string) bool {

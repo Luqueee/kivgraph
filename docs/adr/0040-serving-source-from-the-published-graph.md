@@ -135,3 +135,17 @@ ahorro en una tool que nadie llama.
 **Guardar los cuerpos en el snapshot.** Duplicaría el corpus en el grafo
 publicado, y el fichero seguiría siendo la autoridad para editar. El disco ya
 tiene los bytes.
+
+## Enmienda: nadie escribía el digest
+
+La decisión compara el digest del fichero con el que se analizó, y ningún
+cargador lo escribía: `content_hash` llegaba vacío al snapshot. Un digest vacío
+sólo puede decir «no fresco», así que no se sirvió nunca un rango equivocado;
+pero todo cuerpo, de todo lenguaje, salía como `[file changed, re-anchored +0]`
+sobre ficheros que nadie había tocado.
+
+La pasada lo escribe ahora una vez, al fusionar, para todo fichero que no lo
+traiga. Se calcula después del análisis y no antes, así que un fichero
+modificado desde que empezó la pasada se queda sin él: puede salir como no
+fresco, nunca como fresco, que es la dirección que esta decisión permite.
+Los grafos existentes necesitan `kivgraph index --full` para tenerlo.

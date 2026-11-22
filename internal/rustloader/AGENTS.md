@@ -173,6 +173,19 @@ Las reglas del motor están en `internal/AGENTS.md`.
   de crates, el diff entre el inventario Tree-sitter y las definiciones SCIP
   del mismo archivo, y el fallo de carga del workspace-, porque el índice
   descarta en silencio los tokens sin moniker.
+- Dos workspaces de **un mismo** repositorio que declaran un crate homónimo
+  -una copia vendorizada, un ejemplo, un fixture- darían a dos declaraciones
+  la misma identidad, y el conjunto publicado no validaba: la pasada moría para
+  todos. El primero por ruta conserva el nombre; el otro queda fuera entero y
+  se declara `AMBIGUOUS_CRATE_PROVIDER` (`markShadowedWorkspaces`). No se
+  discrimina por workspace porque la identidad no tiene ese campo y añadirlo
+  cambia todas las claves estables.
+- Un archivo `.rs` bajo el `src` de un crate indexado que no tiene documento
+  -un módulo tras un `cfg` falso en esta máquina- se lee por palabras, y cada
+  nombre que el workspace declara y el archivo escribe se declara como
+  `TARGET_NOT_BUILDABLE` con ese archivo (`collectUnselectedFiles`, ADR 0150).
+  Sin eso sus usos no estaban en ninguna arista ni en ningún fallo, y la
+  respuesta decía `COMPLETE`. No resuelve nada: nunca produce una arista.
 - Un nombre de crate declarado por varios repositorios es una ambigüedad:
   ninguno lo provee y se declara `AMBIGUOUS_CRATE_PROVIDER`. Una versión que
   el analizador no conoce (`.`) no identifica código y nunca resuelve.
