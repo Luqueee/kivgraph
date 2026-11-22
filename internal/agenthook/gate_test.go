@@ -15,6 +15,14 @@ type fakeGraph struct {
 	err              error
 	asked            int
 	intentRepository string
+	// declaredElsewhere says the repository asked about holds no declaration
+	// of the name; declaresErr fails that question.
+	declaredElsewhere bool
+	declaresErr       error
+}
+
+func (fake *fakeGraph) Declares(_ context.Context, _, _ string) (bool, error) {
+	return !fake.declaredElsewhere, fake.declaresErr
 }
 
 func (fake *fakeGraph) Symbol(_ context.Context, _ string) (Facts, error) {
@@ -299,6 +307,30 @@ func TestBriefTextCarriesWhatTheRoutingCardCannot(t *testing.T) {
 	for _, wanted := range []string{"graph_status 5541", "list_repositories 4787", "10328", `view="files"`} {
 		if !strings.Contains(briefText, wanted) {
 			t.Fatalf("the briefing no longer carries %q, which is why it is worth sending", wanted)
+		}
+	}
+}
+
+// A name is ambiguous in the whole graph and the search is in one repository.
+// The refusal stands only when that repository declares the name: otherwise
+// the graph may hold nothing of it, and refusing leaves no way to look.
+func TestGateRefusesOnlyWhereTheRepositoryDeclaresTheName(t *testing.T) {
+	ambiguous := Facts{Declarations: 4, Repositories: 2}
+	question := Question{Kind: KindSymbol, Pattern: "build"}
+	for name, testCase := range map[string]struct {
+		graph      *fakeGraph
+		repository string
+		deny       bool
+	}{
+		"declared here":              {&fakeGraph{symbol: ambiguous}, "backend", true},
+		"declared only elsewhere":    {&fakeGraph{symbol: ambiguous, declaredElsewhere: true}, "backend", false},
+		"the second question failed": {&fakeGraph{symbol: ambiguous, declaresErr: errors.New("daemon gone")}, "backend", false},
+		// No repository to ask about: the count of the graph is all there is.
+		"no repository": {&fakeGraph{symbol: ambiguous, declaredElsewhere: true}, "", true},
+	} {
+		gate := Gate{Graph: testCase.graph, Repository: testCase.repository}
+		if got := gate.Decide(context.Background(), question).Deny; got != testCase.deny {
+			t.Errorf("%s: deny = %t, want %t", name, got, testCase.deny)
 		}
 	}
 }

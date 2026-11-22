@@ -119,7 +119,7 @@ func TestClassifyReadsTheQuestionOutOfTheCall(t *testing.T) {
 			Question{Kind: KindIntent, Pattern: "http|route|handler|serve", Tool: "grep", Native: true}},
 		{"broad lowercase concepts from a natural-language task", "Bash",
 			bashInput{Command: `rg -l -i 'http|route|handler|listen|serve' --glob '*.go' --glob '*.md'`},
-			Question{Kind: KindIntent, Pattern: "http|route|handler|listen|serve", Paths: []string{}, Tool: "rg"}},
+			Question{Kind: KindIntent, Pattern: "http|route|handler|listen|serve", Paths: []string{"*.go", "*.md"}, Tool: "rg"}},
 		{"an intent search behind rtk", "Bash",
 			bashInput{Command: `rtk rg -n "IMPLEMENTS|CALLS|IMPORTS|interface|hierarchy|diagnostic|rename|edit|memory|onboard|query_project|external" internal/mcp internal/hotsnapshot internal/facts docs/adr docs/protocol | sed -n '1,280p'`},
 			Question{Kind: KindIntent,

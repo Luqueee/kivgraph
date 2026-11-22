@@ -96,6 +96,27 @@ func (graph *daemonGraph) Symbol(ctx context.Context, name string) (Facts, error
 	return referenceFacts(resultText(result))
 }
 
+// Declares answers whether a repository holds a declaration of a name.
+func (graph *daemonGraph) Declares(ctx context.Context, name, repository string) (bool, error) {
+	result, err := graph.session.CallTool(ctx, &sdkmcp.CallToolParams{
+		Name:      "find_symbol",
+		Arguments: map[string]any{"name": name, "repo": repository, "limit": 1},
+	})
+	if err != nil {
+		return false, fmt.Errorf("call find_symbol: %w", err)
+	}
+	if result.IsError {
+		return false, fmt.Errorf("find_symbol: %s", resultText(result))
+	}
+	var envelope struct {
+		Total int `json:"total"`
+	}
+	if err := json.Unmarshal([]byte(resultText(result)), &envelope); err != nil {
+		return false, fmt.Errorf("decode find_symbol: %w", err)
+	}
+	return envelope.Total > 0, nil
+}
+
 // ambiguityFacts reads a failed call.
 //
 // It branches on the stable code and nothing else, which is what
