@@ -304,6 +304,19 @@ interface FactDependency {
   readonly start: number;
   readonly end: number;
   readonly startLine: number;
+  /**
+   * The other occurrences, in the same order. The first may be in a file the
+   * repository excludes; the reader takes the first one it retains.
+   */
+  readonly alternates: readonly FactDependencyWitness[];
+}
+
+interface FactDependencyWitness {
+  readonly file: string;
+  readonly specifier: string;
+  readonly start: number;
+  readonly end: number;
+  readonly startLine: number;
 }
 
 interface FactUnresolved {
@@ -426,9 +439,9 @@ export async function collectFacts(
         `resolved implementations produced unresolved facts: ${contradiction.file} @${contradiction.start} ${contradiction.reason}`,
       );
 
-    const dependencyEvidenceFiles = dependencyResolution.dependencies
-      .map((dependency) => dependency.imports[0]?.fileName)
-      .filter((fileName): fileName is string => fileName !== undefined);
+    const dependencyEvidenceFiles = dependencyResolution.dependencies.flatMap(
+      (dependency) => dependency.imports.map((entry) => entry.fileName),
+    );
     const configuredFiles = [
       ...new Set([
         ...symbols.symbols.map((symbol) => symbol.fileName),
@@ -932,25 +945,31 @@ async function dependencyFactSymbols(
 ): Promise<readonly FactDependency[]> {
   const facts: FactDependency[] = [];
   for (const dependency of dependencies) {
-    const evidence = dependency.imports[0];
-    if (evidence === undefined) {
+    const witnesses: FactDependencyWitness[] = [];
+    for (const evidence of dependency.imports) {
+      const sourceFile = await view.program.getSourceFile(evidence.fileName);
+      witnesses.push({
+        file: relative(root, evidence.fileName),
+        specifier: evidence.specifier,
+        start: evidence.start,
+        end: evidence.end,
+        startLine:
+          sourceFile === undefined
+            ? 0
+            : sourceFile.getLineAndCharacterOfPosition(evidence.start).line + 1,
+      });
+    }
+    const [first, ...alternates] = witnesses;
+    if (first === undefined) {
       // createPackageDependencies only ever creates a dependency alongside
       // at least one contributing import; an empty list never happens.
       continue;
     }
-    const sourceFile = await view.program.getSourceFile(evidence.fileName);
-    const startLine =
-      sourceFile === undefined
-        ? 0
-        : sourceFile.getLineAndCharacterOfPosition(evidence.start).line + 1;
     facts.push({
       repository: dependency.provider.repository,
       package: dependency.provider.name,
-      file: relative(root, evidence.fileName),
-      specifier: evidence.specifier,
-      start: evidence.start,
-      end: evidence.end,
-      startLine,
+      ...first,
+      alternates,
     });
   }
   return facts;

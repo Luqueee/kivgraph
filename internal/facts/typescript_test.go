@@ -1665,3 +1665,63 @@ func TestNormalizeTypeScriptKeepsDeclarationsThatShareEveryIdentityComponent(t *
 		t.Fatalf("uses reach %v, want first -> %s and second -> %s", reached, values[0].Key, values[1].Key)
 	}
 }
+
+// A package dependency is proven by one import, and the worker's first may be
+// in a file the repository excludes. The dependency is no less real: the edge
+// takes the first witness that is kept, and is dropped only when none is.
+func TestNormalizeTypeScriptKeepsADependencyWhoseFirstWitnessIsExcluded(t *testing.T) {
+	witness := func(file string, start int) TypeScriptDependencyWitness {
+		return TypeScriptDependencyWitness{File: file, Specifier: "@scope/lib", Start: start, End: start + 10, StartLine: 1}
+	}
+	payload := TypeScriptPayload{
+		Version:    2,
+		Repository: TypeScriptRepository{Name: "app"},
+		Package:    &TypeScriptPackage{Name: "app", Version: "0.0.1", RootPath: ".", ManifestPath: "package.json"},
+		Files:      []string{"build/root.ts", "generated/api.ts", "src/main.ts"},
+		Dependencies: []TypeScriptDependency{
+			{
+				Repository: "library", Package: "@scope/lib",
+				TypeScriptDependencyWitness: witness("build/root.ts", 5),
+				Alternates:                  []TypeScriptDependencyWitness{witness("generated/api.ts", 7), witness("src/main.ts", 9)},
+			},
+			// Every witness excluded: nothing kept proves it.
+			{
+				Repository: "library", Package: "@scope/gone",
+				TypeScriptDependencyWitness: witness("build/root.ts", 30),
+				Alternates:                  []TypeScriptDependencyWitness{witness("generated/api.ts", 40)},
+			},
+			// A worker that predates the field sends one witness and no more.
+			{Repository: "library", Package: "@scope/old", TypeScriptDependencyWitness: witness("src/main.ts", 60)},
+		},
+	}
+	repository := workspace.Repository{RealPath: "/repositories/app", Exclusions: []string{"build", "generated"}}
+	set, report, err := NormalizeTypeScript(context.Background(), payload, repository)
+	if err != nil {
+		t.Fatalf("NormalizeTypeScript() error = %v", err)
+	}
+	got := map[string]int{}
+	evidence := map[string]Evidence{}
+	for _, entry := range set.Evidence {
+		evidence[entry.Key] = entry
+	}
+	for _, edge := range set.Edges {
+		if edge.Kind != PackageDependsOn {
+			continue
+		}
+		at := evidence[edge.EvidenceKey]
+		if at.FileKey != FileKey("app", "src/main.ts") {
+			t.Errorf("dependency on %s is proven in %q, want the file that is kept", edge.TargetKey, at.FileKey)
+		}
+		got[edge.TargetKey] = at.Start.Offset
+	}
+	want := map[string]int{
+		PackageKey(LanguageTypeScript, "library", "@scope/lib"): 9,
+		PackageKey(LanguageTypeScript, "library", "@scope/old"): 60,
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("dependencies = %v, want %v", got, want)
+	}
+	if report.FactsOutsideRepository != 1 {
+		t.Errorf("FactsOutsideRepository = %d, want the one dependency with no witness kept", report.FactsOutsideRepository)
+	}
+}

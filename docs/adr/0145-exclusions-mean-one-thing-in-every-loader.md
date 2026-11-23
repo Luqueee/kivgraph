@@ -54,3 +54,12 @@ that decides file by file does not carry an error through each one.
 - A pattern the matcher refuses is an error for these loaders, where Dart read
   it as matching nothing.
 - Existing graphs need `kivgraph index --full`.
+
+## Amendment: a package dependency with a witness that is excluded
+
+A TypeScript package dependency is proven by one import, the first in the
+worker's order. When that file is one the repository excludes, the edge was
+dropped with it, though other files import the same package. The worker sends
+the other occurrences as `alternates`, and the edge takes the first witness
+whose file is kept. It is dropped when none is. A payload from a worker that
+predates the field carries one witness and is read as before.

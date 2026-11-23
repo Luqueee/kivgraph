@@ -186,6 +186,13 @@ func addWorkspaceModules(repositoryRoot string, workspaces map[string]GoWorkspac
 	for _, workspacePath := range workspacePaths {
 		workspace := workspaces[workspacePath]
 		for _, manifestPath := range workspace.Modules {
+			// A `use` of a directory the walk skips -- a clone below the
+			// repository, a tagged cache -- named a module of another checkout.
+			// Nothing of one is read with the repository above it, and a clone
+			// registered beside its parent would declare the module twice.
+			if InSkippedDirectory(repositoryRoot, filepath.Dir(manifestPath)) {
+				continue
+			}
 			if _, exists := modules[manifestPath]; exists {
 				continue
 			}

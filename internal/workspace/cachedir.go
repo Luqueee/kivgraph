@@ -62,6 +62,29 @@ func OtherCheckouts(ctx context.Context, repository Repository) ([]string, error
 	return skippedBelow(ctx, repository, checkout.IsOtherCheckout)
 }
 
+// InSkippedDirectory reports whether path is, or lies below, a directory under
+// root that every walk skips. The root itself is never one.
+//
+// A walk does not need it: it stops at the directory. This is for a path that
+// was named and not walked to -- a `use` of a `go.work`, a manifest the
+// registry lists, the path of a file event -- so that what is named cannot
+// bring back what the walk left out.
+func InSkippedDirectory(root, path string) bool {
+	root = filepath.Clean(root)
+	for current := filepath.Clean(path); current != root; {
+		if IsSkippedDirectory(current) {
+			return true
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			// Not below root at all: nothing of root skips it.
+			return false
+		}
+		current = parent
+	}
+	return false
+}
+
 // CacheDirectories lists, as absolute sorted paths, the directories below the
 // repository's root that the walks skip because they hold a cache directory tag.
 // A tagged directory below another one is not listed: it is skipped with

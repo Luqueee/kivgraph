@@ -229,9 +229,18 @@ type TypeScriptDependency struct {
 	// it: the repository Kivgraph indexes it under, and its own package name.
 	Repository string `json:"repository"`
 	Package    string `json:"package"`
-	// File, Specifier, Start, End and StartLine are one deterministic import
-	// occurrence proving the dependency — never every occurrence, since a
-	// single edge needs only one witness.
+	// The witness is one deterministic import occurrence proving the
+	// dependency: a single edge needs only one.
+	TypeScriptDependencyWitness
+	// Alternates are the other occurrences, in the worker's order. The first
+	// may be in a file the repository excludes, and the dependency is no less
+	// real for it: the edge takes the first witness that is retained. A
+	// payload from a worker that predates the field carries none.
+	Alternates []TypeScriptDependencyWitness `json:"alternates,omitempty"`
+}
+
+// TypeScriptDependencyWitness is one import occurrence of a dependency.
+type TypeScriptDependencyWitness struct {
 	File      string `json:"file"`
 	Specifier string `json:"specifier"`
 	Start     int    `json:"start"`
@@ -944,18 +953,25 @@ func NormalizeTypeScript(
 			return Set{}, TypeScriptReport{}, err
 		}
 		targetPackageKey := PackageKey(LanguageTypeScript, dependency.Repository, dependency.Package)
-		if _, retired := outside[dependency.File]; retired {
+		witness, retained := dependency.TypeScriptDependencyWitness, false
+		for _, candidate := range append([]TypeScriptDependencyWitness{witness}, dependency.Alternates...) {
+			if _, retired := outside[candidate.File]; !retired {
+				witness, retained = candidate, true
+				break
+			}
+		}
+		if !retained {
 			report.FactsOutsideRepository++
 			continue
 		}
-		fileKey := FileKey(name, dependency.File)
+		fileKey := FileKey(name, witness.File)
 		evidence := Evidence{
-			Key:           EvidenceKey(fileKey, dependency.Start, dependency.End),
+			Key:           EvidenceKey(fileKey, witness.Start, witness.End),
 			RepositoryKey: repositoryKey,
 			FileKey:       fileKey,
-			Start:         Position{Line: dependency.StartLine, Offset: dependency.Start},
-			End:           Position{Line: dependency.StartLine, Offset: dependency.End},
-			Text:          dependency.Specifier,
+			Start:         Position{Line: witness.StartLine, Offset: witness.Start},
+			End:           Position{Line: witness.StartLine, Offset: witness.End},
+			Text:          witness.Specifier,
 		}
 		set.Evidence = append(set.Evidence, evidence)
 		// TargetKey names a package the PROVIDER repository normalises, not

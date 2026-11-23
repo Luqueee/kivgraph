@@ -273,3 +273,49 @@ func TestAnotherCheckoutBelowTheRootIsNeitherWatchedNorReconciled(t *testing.T) 
 	}
 	assertStatePaths(t, "added", result.Added, own, inSubmodule)
 }
+
+// A directory that becomes another checkout after it was watched still
+// delivers events, because the watch was added while it was part of the
+// repository. Nothing below it is indexed any more, so they are dropped.
+func TestEventsBelowADirectoryThatBecameACheckoutAreDropped(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	vendored := filepath.Join(root, "vendored")
+	for _, directory := range []string{filepath.Join(root, ".git"), filepath.Join(root, "src"), vendored} {
+		if err := os.MkdirAll(directory, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	watcher, err := New([]workspace.Repository{{Name: "repo", RealPath: root, Languages: []string{"go"}}})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	t.Cleanup(func() { _ = watcher.Close() })
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go func() { _ = watcher.Run(ctx) }()
+
+	// While it is part of the repository its changes are the repository's.
+	before := filepath.Join(vendored, "before.go")
+	writeTestFile(t, before, "package vendored\n")
+	waitForEvent(t, watcher, func(event Event) bool { return event.Path == before })
+
+	// `git clone` into it: from here on it is another checkout.
+	if err := os.MkdirAll(filepath.Join(vendored, ".git"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	after := filepath.Join(vendored, "after.go")
+	writeTestFile(t, after, "package vendored\n")
+	marker := filepath.Join(root, "src", "marker.go")
+	writeTestFile(t, marker, "package src\n")
+	// The marker is written last and delivered in order, so every event seen
+	// before it is one the watcher chose to forward.
+	waitForEvent(t, watcher, func(event Event) bool {
+		if strings.HasPrefix(event.Path, vendored+string(filepath.Separator)) {
+			t.Errorf("an event below another checkout was forwarded: %+v", event)
+		}
+		return event.Path == marker
+	})
+}

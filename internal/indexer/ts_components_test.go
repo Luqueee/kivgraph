@@ -1,6 +1,8 @@
 package indexer
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -57,7 +59,9 @@ func TestDeclareUnreadComponentsNamesTheExportedNamesAFileWrites(t *testing.T) {
 	repository := workspace.Repository{Name: "site", RealPath: root, Exclusions: []string{"vendored"}}
 
 	set := newSet()
-	declareUnreadComponents(&set, repository, root)
+	if err := declareUnreadComponents(context.Background(), &set, repository, root); err != nil {
+		t.Fatal(err)
+	}
 	var rows []string
 	for _, unresolved := range set.Unresolved {
 		if unresolved.Reason != UnresolvedComponentNotRead || unresolved.Language != facts.LanguageTypeScript {
@@ -82,10 +86,20 @@ func TestDeclareUnreadComponentsNamesTheExportedNamesAFileWrites(t *testing.T) {
 		t.Errorf("files = %v, want %v", files, want)
 	}
 
+	// A cancelled pass is told, and publishes nothing of a scan cut short.
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	partial := newSet()
+	if err := declareUnreadComponents(cancelled, &partial, repository, root); !errors.Is(err, context.Canceled) || len(partial.Unresolved) != 0 {
+		t.Errorf("cancelled: err = %v, rows = %d, want the cancellation and no row", err, len(partial.Unresolved))
+	}
+
 	// Nothing exported: nothing to look for.
 	bare := newSet()
 	bare.Symbols = bare.Symbols[2:3]
-	declareUnreadComponents(&bare, repository, root)
+	if err := declareUnreadComponents(context.Background(), &bare, repository, root); err != nil {
+		t.Fatal(err)
+	}
 	if len(bare.Unresolved) != 0 || len(bare.Files) != 1 {
 		t.Errorf("with nothing exported: %d rows, %d files", len(bare.Unresolved), len(bare.Files))
 	}
@@ -94,7 +108,9 @@ func TestDeclareUnreadComponentsNamesTheExportedNamesAFileWrites(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "src/pages/huge.astro"), []byte("loadPosts\n"+strings.Repeat("x", maximumComponentFile)), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	declareUnreadComponents(&large, repository, root)
+	if err := declareUnreadComponents(context.Background(), &large, repository, root); err != nil {
+		t.Fatal(err)
+	}
 	for _, file := range large.Files {
 		if file.Path == "src/pages/huge.astro" {
 			t.Error("a file above the limit was read")
@@ -138,7 +154,9 @@ func TestDeclareUnreadComponentsDeclaresWhatItCouldNotRead(t *testing.T) {
 		},
 	}
 	before := len(set.Files)
-	declareUnreadComponents(&set, workspace.Repository{Name: "site", RealPath: root}, root)
+	if err := declareUnreadComponents(context.Background(), &set, workspace.Repository{Name: "site", RealPath: root}, root); err != nil {
+		t.Fatal(err)
+	}
 	var named []string
 	for _, row := range set.Unresolved {
 		if row.FileKey != "" || row.RequestedSymbol != "" || row.Reason != UnresolvedComponentNotRead ||

@@ -183,6 +183,13 @@ func Capture(ctx context.Context, repositories []workspace.Repository) (string, 
 				return "", fmt.Errorf("resolve explicit manifest %q: %w", manifest, err)
 			}
 			if withinRoot {
+				// A manifest the registry names inside another checkout, or a
+				// tagged cache, is not read by any walk: its content is not
+				// part of what was indexed, and hashing it made the graph
+				// stale for a change the pass would not see.
+				if workspace.InSkippedDirectory(root, manifest) {
+					continue
+				}
 				excluded, err := workspace.MatchesExclusion(root, manifest, repo.Exclusions)
 				if err != nil {
 					return "", fmt.Errorf("check explicit manifest %q exclusion: %w", manifest, err)

@@ -326,7 +326,9 @@ func Analyze(ctx context.Context, options AnalyzeOptions) (Analysis, error) {
 		collectMissingDefinitions(document, unresolved)
 	}
 	collectEmptyCrates(options, analysis.Files, unresolved)
-	collectUnselectedFiles(options, &analysis, unresolved)
+	if err := collectUnselectedFiles(ctx, options, &analysis, unresolved); err != nil {
+		return Analysis{}, fmt.Errorf("rust analysis: scan the files the build left out: %w", err)
+	}
 	if !options.ProcMacros {
 		key := string(UnresolvedMacroExpansionDisabled)
 		unresolved[key] = UnresolvedReference{

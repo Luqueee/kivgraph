@@ -1846,7 +1846,10 @@ func indexTypeScriptPackage(
 		return analysisResult{}, fmt.Errorf("normalise TypeScript facts for %q package %q: %w",
 			repository.Name, packageValue.Name, err)
 	}
-	declareUnreadComponents(&set, repository, packageValue.RootPath)
+	if err := declareUnreadComponents(ctx, &set, repository, packageValue.RootPath); err != nil {
+		return analysisResult{}, fmt.Errorf("scan the component files of %q package %q: %w",
+			repository.Name, packageValue.Name, err)
+	}
 	return analysisResult{
 		set:        set,
 		symbols:    len(payload.Symbols),

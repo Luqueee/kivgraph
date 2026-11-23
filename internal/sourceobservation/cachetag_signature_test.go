@@ -58,3 +58,39 @@ func TestSignatureDoesNotVouchAcrossATagAppearingOrGoing(t *testing.T) {
 		})
 	}
 }
+
+// Whether a directory with a `.git` is another checkout depends on the text of
+// a pointer and of the `.gitmodules` above it. Either can be rewritten in
+// place without moving a stamp the signature holds, so a tree that holds one
+// is never vouched for.
+func TestSignatureDoesNotVouchForATreeThatHoldsAGitEntry(t *testing.T) {
+	plain := testsupport.TempDir(t)
+	withSubmodule := testsupport.TempDir(t)
+	for _, root := range []string{plain, withSubmodule} {
+		if err := os.MkdirAll(filepath.Join(root, "sub"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, "sub", "a.go"), []byte("package sub\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(withSubmodule, "sub", ".git"), []byte("gitdir: ../.git/modules/sub\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(racyWindow + 150*time.Millisecond)
+
+	_, signature, err := TreeDigestSigned(context.Background(), plain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !signature.Unchanged() {
+		t.Fatal("control: a quiet tree with no `.git` below it was not reported unchanged")
+	}
+	_, signature, err = TreeDigestSigned(context.Background(), withSubmodule)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if signature.Unchanged() {
+		t.Fatal("the signature vouched for a tree whose skip decision it cannot see change")
+	}
+}

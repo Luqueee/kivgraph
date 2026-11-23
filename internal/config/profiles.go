@@ -613,7 +613,12 @@ func keepOutOfRepositories(configuration *Config, profile, outside string, repos
 		// A file of its own per profile in a directory that already exists:
 		// `doctor` checks that the parent is there, and reading a profile
 		// creates nothing. The `go` tool takes any absolute GOWORK.
-		configuration.Go.SyntheticWorkFile = filepath.Join(outside, "go."+profile+".work")
+		//
+		// The name ends in a word. A workspace split in several is written
+		// beside this one as `<name>.<n>.work`, and a profile name may hold a
+		// dot and a digit: `go.default.1.work` was both the second file of
+		// `default` and the first of a profile called `default.1`.
+		configuration.Go.SyntheticWorkFile = filepath.Join(outside, "go."+profile+".profile.work")
 	}
 	// Two languages may call theirs the same -- Java and C# both say `target`
 	// -- and would then share one directory outside and overwrite each other.

@@ -1,6 +1,7 @@
 package rustloader
 
 import (
+	"context"
 	"errors"
 	"io/fs"
 	"os"
@@ -87,7 +88,9 @@ func TestCollectUnselectedFilesDeclaresWhatTheBuildLeftOut(t *testing.T) {
 		Definitions: []Definition{{Name: "Display", File: "crates/app/src/lib.rs"}},
 	}
 	unresolved := map[string]UnresolvedReference{}
-	collectUnselectedFiles(options, &analysis, unresolved)
+	if err := collectUnselectedFiles(context.Background(), options, &analysis, unresolved); err != nil {
+		t.Fatal(err)
+	}
 
 	var rows []UnresolvedReference
 	for _, row := range unresolved {
@@ -113,8 +116,19 @@ func TestCollectUnselectedFilesDeclaresWhatTheBuildLeftOut(t *testing.T) {
 		t.Errorf("files = %v, want %v", files, wantFiles)
 	}
 
+	// A cancelled pass is told, and declares nothing more: a scan cut short
+	// would publish less than there is as if it were all.
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	partial := map[string]UnresolvedReference{}
+	if err := collectUnselectedFiles(cancelled, options, &analysis, partial); !errors.Is(err, context.Canceled) || len(partial) != 0 {
+		t.Errorf("cancelled: err = %v, rows = %d, want the cancellation and no row", err, len(partial))
+	}
+
 	// With no root to read from, nothing is claimed.
-	collectUnselectedFiles(AnalyzeOptions{Crates: options.Crates}, &analysis, unresolved)
+	if err := collectUnselectedFiles(context.Background(), AnalyzeOptions{Crates: options.Crates}, &analysis, unresolved); err != nil {
+		t.Fatal(err)
+	}
 	if len(unresolved) != 1 {
 		t.Errorf("a repository with no path produced rows: %d", len(unresolved))
 	}
@@ -167,7 +181,9 @@ func TestCollectUnselectedFilesDeclaresWhatItCouldNotRead(t *testing.T) {
 		Definitions: []Definition{{Name: "Display", File: "crates/app/src/lib.rs"}},
 	}
 	unresolved := map[string]UnresolvedReference{}
-	collectUnselectedFiles(options, &analysis, unresolved)
+	if err := collectUnselectedFiles(context.Background(), options, &analysis, unresolved); err != nil {
+		t.Fatal(err)
+	}
 
 	var named []string
 	for _, row := range unresolved {
