@@ -12,6 +12,18 @@ version: 2
 # ceiling of the binary is the toolchain that compiled it), and the pinned
 # manifests (`tools/manifest.json`, `grammars/manifest.json`) are produced by
 # their scripts.
+#
+# Also not here: `go-ladybug`. The Go binding is compiled against the native
+# library that `scripts/fetch-ladybug.sh` pins by digest, and each binding
+# release calls functions of the library release it was written for: 0.17.0
+# needs symbols the pinned one lacks and does not build. Raise the binding and
+# the library together, by hand.
+#
+# And the MCP SDK with `jsonschema-go`, which it generates the tool schemas
+# with: 1.8.0 grows the published surface by 275 bytes, past the ceiling of
+# `TestServerSurfaceStaysCheapToLoad`, and changes what `index_project` gets
+# back from an accepted elicitation. The tool schemas are a compatibility
+# surface (AGENTS.md), so that bump gets its own change.
 updates:
   - package-ecosystem: gomod
     directory: /
@@ -20,6 +32,10 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "build(deps)"
+    ignore:
+      - dependency-name: github.com/LadybugDB/go-ladybug
+      - dependency-name: github.com/modelcontextprotocol/go-sdk
+      - dependency-name: github.com/google/jsonschema-go
     groups:
       go-minor-and-patch:
         update-types: [minor, patch]
