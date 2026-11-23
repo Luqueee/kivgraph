@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func scopeRow(repository, reason, pkg, detail string, occurrences int) BlindSpot {
@@ -233,7 +235,7 @@ func TestCompactBlindSpotsKeepEveryPlaceAndMergeOnlyWhatIsSharedWhole(t *testing
 		at(shared, "c.go", 0),
 		at(shared, "", 0), at(shared, "", 0),
 	}
-	groups := compactBlindSpots(rows)
+	groups, _ := compactBlindSpots(rows)
 	if len(groups) != 6 {
 		t.Fatalf("groups = %#v, want six: reason, repository, symbol, package and detail each keep failures apart", groups)
 	}
@@ -244,7 +246,7 @@ func TestCompactBlindSpotsKeepEveryPlaceAndMergeOnlyWhatIsSharedWhole(t *testing
 	if !reflect.DeepEqual(groups[0], want) {
 		t.Fatalf("first group = %#v, want %#v", groups[0], want)
 	}
-	if compactBlindSpots(nil) != nil {
+	if empty, cut := compactBlindSpots(nil); empty != nil || cut {
 		t.Fatal("no failed references must be no groups")
 	}
 }
@@ -273,7 +275,8 @@ func TestCompactBlindSpotsLoseNoPlace(t *testing.T) {
 		}
 		got := map[string]int{}
 		gotUnlocated := 0
-		for _, group := range compactBlindSpots(rows) {
+		blindGroups, _ := compactBlindSpots(rows)
+		for _, group := range blindGroups {
 			gotUnlocated += group.Unlocated
 			for _, place := range group.At {
 				got[group.Reason+"|"+group.RequestedSymbol+"|"+place]++
@@ -337,5 +340,64 @@ func TestCompactViewSpellsScopesAsGroupsAndProfilesLikeTheEnvelope(t *testing.T)
 	}
 	if string(decoded.Completeness) != wantCompleteness || len(decoded.Profiles) != 1 || string(decoded.Profiles[0].Completeness) != wantCompleteness {
 		t.Fatalf("compact envelope = %s, want both verdicts spelled as %s", encoded, wantCompleteness)
+	}
+}
+
+// A detail is whatever a tool printed, and in a compact answer it is one line of
+// bounded size: the rest is in the full view, and the answer says so. The cut
+// goes where it is cheapest to be wrong -- at a line, at the bound, and never in
+// the middle of a character.
+func TestShortDetailKeepsOneBoundedLine(t *testing.T) {
+	exact := strings.Repeat("a", maximumCompactDetail)
+	over := exact + "b"
+	multibyte := strings.Repeat("a", maximumCompactDetail-1) + "\u00e9" // the last character straddles the bound
+	for name, test := range map[string]struct {
+		in, want string
+		cut      bool
+	}{
+		"empty":                     {"", "", false},
+		"a short line":              {"declared in a build cache entry", "declared in a build cache entry", false},
+		"exactly the bound":         {exact, exact, false},
+		"one byte over":             {over, exact + "\u2026", true},
+		"a character on the bound":  {multibyte, strings.Repeat("a", maximumCompactDetail-1) + "\u2026", true},
+		"two lines":                 {"first\nsecond", "first\u2026", true},
+		"a trailing newline":        {"only line\n", "only line\u2026", true},
+		"a leading empty line":      {"\nsecond", "\u2026", true},
+		"carriage return and space": {"first \r\nsecond", "first\u2026", true},
+	} {
+		got, cut := shortDetail(test.in)
+		if got != test.want || cut != test.cut {
+			t.Errorf("%s: shortDetail(%q) = (%q, %t), want (%q, %t)", name, test.in, got, cut, test.want, test.cut)
+		}
+		if !utf8.ValidString(got) {
+			t.Errorf("%s: %q is not valid UTF-8", name, got)
+		}
+	}
+}
+
+// What was cut is said once, wherever it was cut: in a scope that stands alone,
+// or in a failed reference.
+func TestACutDetailSendsTheReaderToTheFullView(t *testing.T) {
+	long := strings.Repeat("x", 4000)
+	for name, source := range map[string]Completeness{
+		"a scope alone in its group": {Verdict: VerdictLowerBound, InvisibleScopes: []BlindSpot{scopeRow("r", "R", "p", long, 1)}},
+		"a failed reference":         {Verdict: VerdictLowerBound, BlindSpots: []BlindSpot{{Reason: "M", Repository: "r", FilePath: "a.go", StartLine: 1, Detail: long}}},
+	} {
+		got := compactCompletenessOf(&source)
+		if got.Details != detailsInFullView {
+			t.Errorf("%s: details = %q, want %q", name, got.Details, detailsInFullView)
+		}
+		encoded, err := json.Marshal(got)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(encoded) > 1000 {
+			t.Errorf("%s: the compact verdict is %d bytes for a detail of %d", name, len(encoded), len(long))
+		}
+	}
+	// A detail that fits is not a reason to send anyone anywhere.
+	whole := compactCompletenessOf(&Completeness{Verdict: VerdictLowerBound, InvisibleScopes: []BlindSpot{scopeRow("r", "R", "p", "short", 1)}})
+	if whole.Details != "" || whole.InvisibleScopes[0].Detail != "short" {
+		t.Errorf("a detail that fits was touched: %#v", whole)
 	}
 }

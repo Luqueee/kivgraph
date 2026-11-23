@@ -146,3 +146,18 @@ client can run them over, and was not decided here.
 
 The groups do not carry a per-package `occurrences`: a reader who needs
 `18` for one package of a group of five asks for the full view.
+
+## Amendment: a detail is one bounded line
+
+A compact answer kept the `detail` of a scope that stood alone in its group, and
+nothing bounded it. Indexing three real repositories, the one module that could
+not be loaded carried the compiler's whole message -- `4,4` KB of `pkg-config`
+output -- and it was `4,737` of the `5,064` bytes of `find_symbol` about a name
+with one declaration.
+
+A detail in a compact answer is now its first line, cut at `320` bytes and never
+inside a character, with `…` where it was cut, and the block says
+`"details":"view=full"` when anything was. The same holds for the `detail` of a
+failed reference. The ordinary ones are shorter than the bound and pass whole:
+a path, a pair of manifests, a `=>` replacement. `view: "full"` is unchanged and
+has the whole text.
