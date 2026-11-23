@@ -90,7 +90,7 @@ From a checkout, either installer runs directly:
 To install a specific release instead of the latest one:
 
 ```bash
-KIVGRAPH_VERSION=v0.10.1 ./scripts/install.sh
+KIVGRAPH_VERSION=v0.10.2 ./scripts/install.sh
 ```
 
 `KIVGRAPH_VERSION` is read by both installers, and so are
