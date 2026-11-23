@@ -142,7 +142,7 @@ function compact(value: number): string {
   return `${thousands < 10 ? thousands.toFixed(1) : Math.round(thousands)}k`;
 }
 
-function describe(error: unknown): string {
+function errorMessage(error: unknown): string {
   if (error instanceof ApiError) return `${error.code}: ${error.message}`;
   if (error instanceof Error) return error.message;
   return "unknown error";
@@ -289,7 +289,7 @@ export function GraphPreview() {
         meta: null,
         graph: null,
         truncated: false,
-        error: describe(error),
+        error: errorMessage(error),
         loading: false,
       });
     });
