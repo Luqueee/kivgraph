@@ -81,3 +81,16 @@ exits `1`, names `35` files and leaves generation `000001` active;
 `index --full` publishes `000002` with `not_loaded=1`.
 
 Not run: a daemon left serving while a module breaks and recovers.
+
+## Amendment: an analyzer that did not run is a failure to load
+
+The fifth clause named `*_NOT_LOADED` only. The Rust loader says that
+`rust-analyzer` did not run at all with `ANALYZER_UNAVAILABLE` (ADR 0035), which
+is not one of those, and the clause let it through. Found by starting `serve`
+on a `PATH` without the analyzer over a repository of `4,595` Rust symbols: the
+startup pass published generation `000002` with none, and every answer after it
+said the repository was empty.
+
+`ANALYZER_UNAVAILABLE` now counts as a failure to load for the clause. With it,
+the same unattended pass names `142` files, exits `1` and leaves `000001`
+active. A pass somebody asked for still publishes it, as ADR 0147 says.

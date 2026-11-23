@@ -28,7 +28,7 @@ var ErrGenerationLostFiles = errors.New("the pass lost files the active generati
 //
 // Each clause keeps out something that is not a loss. A file that is gone was
 // deleted. A repository or a language the registry no longer names was
-// withdrawn. And without a `*_NOT_LOADED` failure the pass read everything it
+// withdrawn. And without a `*_NOT_LOADED` or `ANALYZER_UNAVAILABLE` failure the pass read everything it
 // was asked to: the file was excluded by a configuration, or holds no
 // declaration any more.
 func lostFiles(active *hotsnapshot.GraphSnapshot, candidate facts.Set, exists func(string) bool) []string {
@@ -44,7 +44,7 @@ func lostFiles(active *hotsnapshot.GraphSnapshot, candidate facts.Set, exists fu
 	}
 	notLoaded := make(map[string]bool)
 	for _, unresolved := range candidate.Unresolved {
-		if strings.HasSuffix(unresolved.Reason, "_NOT_LOADED") {
+		if isLoadFailure(unresolved.Reason) {
 			notLoaded[names[unresolved.RepositoryKey]+"\x00"+string(unresolved.Language)] = true
 		}
 	}
@@ -81,6 +81,15 @@ func lostFiles(active *hotsnapshot.GraphSnapshot, candidate facts.Set, exists fu
 	}
 	sort.Strings(lost)
 	return lost
+}
+
+// isLoadFailure says whether a reason means the pass could not read code it
+// was asked to: a module or workspace that did not load, or an analyzer that
+// did not run at all. The second is the Rust loader's way of saying the whole
+// workspace is missing (ADR 0035), and an unattended pass that ran on a PATH
+// without rust-analyzer replaced a graph of 4,595 symbols with one of none.
+func isLoadFailure(reason string) bool {
+	return strings.HasSuffix(reason, "_NOT_LOADED") || reason == "ANALYZER_UNAVAILABLE"
 }
 
 func fileExists(path string) bool {

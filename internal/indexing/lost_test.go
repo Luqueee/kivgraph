@@ -84,6 +84,12 @@ func TestLostFilesNamesWhatAPassCouldNotLoadAndNothingElse(t *testing.T) {
 			candidate: lostFilesCandidate(both, []string{"web/w.ts"}),
 			exists:    everything,
 		},
+		"the analyzer did not run": {
+			candidate: lostFilesCandidate(both, []string{"web/w.ts"},
+				facts.UnresolvedReference{RepositoryKey: "repository:app", Language: facts.LanguageGo, Reason: "ANALYZER_UNAVAILABLE"}),
+			exists: everything,
+			want:   []string{"app:a.go", "app:sub/b.go"},
+		},
 		"the failure is of another kind": {
 			candidate: lostFilesCandidate(both, []string{"web/w.ts"},
 				facts.UnresolvedReference{RepositoryKey: "repository:app", Language: facts.LanguageGo, Reason: "PACKAGE_PROVIDER_NOT_FOUND"}),
