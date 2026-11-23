@@ -454,7 +454,10 @@ func (extractor *archiveExtractor) add(entry archiveEntry) error {
 		return fmt.Errorf("archive contains duplicate entry %q", relative)
 	}
 	extractor.seen[relative] = struct{}{}
-	pathOnDisk := filepath.Join(extractor.destination, filepath.FromSlash(relative))
+	pathOnDisk, err := pathInside(extractor.destination, relative)
+	if err != nil {
+		return err
+	}
 	if entry.isDir {
 		if err := os.MkdirAll(pathOnDisk, 0o755); err != nil {
 			return fmt.Errorf("create directory %q: %w", relative, err)
@@ -592,6 +595,19 @@ func readZipArchive(archivePath string, extractor *archiveExtractor) error {
 		}
 	}
 	return nil
+}
+
+// pathInside is where an archive entry lands under the destination, and the one
+// place that computes it. archivePathName has already refused what could climb
+// out; this does not rely on it, because a path built from a name an archive
+// chose is the single step that turns a bad name into a bad write, and it is
+// cheap to check where it is made.
+func pathInside(destination, relative string) (string, error) {
+	local := filepath.FromSlash(relative)
+	if !filepath.IsLocal(local) {
+		return "", fmt.Errorf("archive path %q escapes the destination", relative)
+	}
+	return filepath.Join(destination, local), nil
 }
 
 func archivePathName(name string) (string, error) {

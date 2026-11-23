@@ -328,7 +328,7 @@ func rustUnitDetail(unit rustWorkspaceUnit) string {
 // rustDiagnostics renders what the analysis reported without stopping the
 // pass: the analyzer's own warnings and the facts normalisation could not keep.
 func rustDiagnostics(unit rustWorkspaceUnit, analysis rustloader.Analysis, report facts.RustReport) []string {
-	diagnostics := make([]string, 0, len(analysis.Diagnostics)+1)
+	diagnostics := make([]string, 0, len(analysis.Diagnostics))
 	for _, diagnostic := range analysis.Diagnostics {
 		diagnostics = append(diagnostics, fmt.Sprintf("%s %s: %s",
 			unit.repository.Name, rustUnitDetail(unit), diagnostic))
