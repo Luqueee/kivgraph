@@ -98,15 +98,21 @@ spends to answer, against the host's own captured `grep`.
 | `0.8.0`, recorded | `1.76x` | `1.24x` |
 | `0.10.1`, before this change | `0.24x` | `0.74x` |
 | `0.10.1`, after | `0.47x` | `0.89x` |
+| `0.10.1`, after, indexed as documented | `0.82x` | `0.98x` |
 
 The change halves what the graph answers cost, and it does not bring back the
-`0.8.0` figure. Two things stand between: the host's `grep` stopped returning
+`0.8.0` figure. The last row is the same graph indexed as the repository
+documents (`ladybug` in `go.build_tags`, `testdata` in `exclusions`): the
+benchmark programs behind that tag and the fixtures stop being unreadable
+scopes, and what is left of the block is the cgo package and the external SDK.
+
+Two things stand between that and `0.8.0`. The host's `grep` stopped returning
 context lines, so the native answer to `MergeAll` went from `1,082` to `429`
-tokens on its own, and what remains of a verdict on this repository is mostly
+tokens on its own. And what remains of a verdict on this repository is mostly
 the `detail` of scopes alone in their group and the `fallback` paths, both of
-which are information and not repetition. On every one of the six names the
-graph answer is dearer than `grep`; serving the bodies with `get_source` puts
-the session at `1.06x`.
+which are information and not repetition. Indexed as documented, the graph
+answer is dearer than `grep` for five of the six names and cheaper for the
+common one; serving the bodies with `get_source` puts the session at `1.18x`.
 
 ## Compatibility and migration
 

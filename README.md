@@ -83,12 +83,13 @@ twice, and there `grep` costs `0.53x` what Kivgraph does.
 
 A second harness, `benchmarks/mcp-token-cost`, compares against the host's own
 tool output captured verbatim, but it runs on Kivgraph's own single repository
-of 25,613 symbols, and there the graph does not win: at `0.10.1` the answers
-themselves cost `0.47x` what the host's `grep` does, which is to say twice as
-much, and a whole session `0.89x`, against a `1.50x` bound set by the source
-bodies both arms pay for. On every one of its six names `grep` is the cheaper
-arm for the answer alone, from `0.28x` to `0.89x`. That harness measured `1.76x`
-and `1.24x` at `0.8.0`; ADR 0156 says what moved.
+of 26,231 symbols, indexed as its own documentation says (the `ladybug` build
+tag, `testdata/` left out), and there the graph does not win: at `0.10.1` the
+answers themselves cost `0.82x` what the host's `grep` does and a whole session
+`0.98x`, against a `1.50x` bound set by the source bodies both arms pay for.
+`grep` is the cheaper arm for the answer alone on five of its six names, from
+`0.55x` to `0.93x`; only `Publish`, a common name, is won, at `1.22x`. That
+harness measured `1.76x` and `1.24x` at `0.8.0`; ADR 0156 says what moved.
 
 ## Status
 

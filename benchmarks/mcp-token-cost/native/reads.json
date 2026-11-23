@@ -159,6 +159,10 @@
     "file": "internal/storage/ladybug/canonical_load.go",
     "tokens": 2484
   },
+  "internal/storage/ladybug/canonical_load_native.go:252-283": {
+    "file": "internal/storage/ladybug/canonical_load_native.go",
+    "tokens": 471
+  },
   "internal/storage/ladybug/canonical_load_test.go:16-42": {
     "file": "internal/storage/ladybug/canonical_load_test.go",
     "tokens": 367
