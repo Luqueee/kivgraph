@@ -6,8 +6,10 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Luqueee/kivgraph/internal/facts"
 	"github.com/Luqueee/kivgraph/internal/metrics"
@@ -59,6 +61,47 @@ func sampleFacts() facts.Set {
 			{Kind: facts.Defines, SourceKey: fileBKey, TargetKey: symbolHelperKey, Confidence: facts.StructuralCertain, Provenance: facts.PackageManifest},
 			{Kind: facts.CallsDirect, SourceKey: symbolNewKey, TargetKey: symbolHelperKey, Confidence: facts.ExactTypechecked, Provenance: facts.GoTypesUse},
 		},
+	}
+}
+
+// finalizedFacts is sampleFacts with its symbols in an allocation of their own,
+// whose collection closes released.
+func finalizedFacts(released chan<- struct{}) facts.Set {
+	set := sampleFacts()
+	symbols := append(make([]facts.Symbol, 0, len(set.Symbols)), set.Symbols...)
+	runtime.AddCleanup(&symbols[0], func(done chan<- struct{}) { close(done) }, released)
+	set.Symbols = symbols
+	return set
+}
+
+// The fact set is the largest thing a pass holds when it reaches the snapshot
+// build, and nothing after the load reads it. A rebuild that kept it -- through
+// the options its closures capture -- would hold gigabytes for the length of the
+// largest stage and show nothing: every gate passes either way. The scan is the
+// first thing that runs after the load, so it is where the facts must already
+// be unreachable.
+func TestRunLetsGoOfTheFactsOnceTheyAreLoaded(t *testing.T) {
+	released := make(chan struct{})
+	collectedBeforeTheScan := false
+	options := buildOptions(t, testsupport.TempDir(t), "000001", facts.Set{})
+	options.Scan = func(context.Context, string) (ladybug.CanonicalGraph, error) {
+		for attempt := 0; attempt < 100 && !collectedBeforeTheScan; attempt++ {
+			runtime.GC()
+			select {
+			case <-released:
+				collectedBeforeTheScan = true
+			case <-time.After(10 * time.Millisecond):
+			}
+		}
+		return fakeCanonicalGraph(), nil
+	}
+	options.Facts = finalizedFacts(released)
+	if _, err := Run(context.Background(), options); err != nil {
+		testsupport.RequireSpaceOrSkip(t, err)
+		t.Fatalf("Run() error = %v", err)
+	}
+	if !collectedBeforeTheScan {
+		t.Fatal("the fact set was still reachable while the snapshot was built")
 	}
 }
 

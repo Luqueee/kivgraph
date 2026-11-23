@@ -112,10 +112,10 @@ func renderCanonicalTables(set facts.Set, options CanonicalLoadOptions, emit fun
 		return fmt.Errorf("%w: resolver version is empty", ErrInvalidCanonicalLoad)
 	}
 
-	// A defensive copy: Sort mutates in place, and a caller that handed us a
-	// set has every right to expect it back unchanged.
+	// A sorted view: the caller's set is never changed, and a collection that
+	// is already in key order -- every merged set is -- is not copied.
 	renderer := canonicalRenderer{
-		set:      cloneSorted(set),
+		set:      set.Sorted(),
 		options:  options,
 		snapshot: strconv.FormatInt(options.SnapshotID, 10),
 	}
@@ -386,20 +386,4 @@ func joinLanguages(languages []facts.Language) string {
 	}
 	sort.Strings(names)
 	return strings.Join(names, ",")
-}
-
-// cloneSorted copies every collection before sorting, so a caller's set is
-// never mutated just because it asked for deterministic rows.
-func cloneSorted(set facts.Set) facts.Set {
-	clone := facts.Set{
-		Repositories: append([]facts.Repository(nil), set.Repositories...),
-		Packages:     append([]facts.Package(nil), set.Packages...),
-		Files:        append([]facts.File(nil), set.Files...),
-		Symbols:      append([]facts.Symbol(nil), set.Symbols...),
-		Evidence:     append([]facts.Evidence(nil), set.Evidence...),
-		Edges:        append([]facts.Edge(nil), set.Edges...),
-		Unresolved:   append([]facts.UnresolvedReference(nil), set.Unresolved...),
-	}
-	clone.Sort()
-	return clone
 }

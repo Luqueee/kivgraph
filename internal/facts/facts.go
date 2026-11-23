@@ -393,6 +393,53 @@ func (set *Set) Sort() {
 	})
 }
 
+// Sorted returns the set with every collection in the order Sort gives it,
+// without changing the set: a collection that is not in that order is copied
+// and sorted, and one that already is -- every merged set is -- is shared. Sort
+// cannot promise that, so a caller that only wanted sorted rows used to copy
+// every collection first, which held a second graph's worth of structs for as
+// long as it rendered.
+//
+// What it returns shares its backing arrays with the set: neither is to be
+// modified through the other.
+func (set Set) Sorted() Set {
+	set.Repositories = sortedBy(set.Repositories, func(items []Repository, left, right int) bool {
+		return items[left].Key < items[right].Key
+	})
+	set.Packages = sortedBy(set.Packages, func(items []Package, left, right int) bool {
+		return items[left].Key < items[right].Key
+	})
+	set.Files = sortedBy(set.Files, func(items []File, left, right int) bool {
+		return items[left].Key < items[right].Key
+	})
+	set.Symbols = sortedBy(set.Symbols, func(items []Symbol, left, right int) bool {
+		return items[left].Key < items[right].Key
+	})
+	set.Evidence = sortedBy(set.Evidence, func(items []Evidence, left, right int) bool {
+		return items[left].Key < items[right].Key
+	})
+	set.Edges = sortedBy(set.Edges, func(items []Edge, left, right int) bool {
+		return compareEdges(items[left], items[right])
+	})
+	set.Unresolved = sortedBy(set.Unresolved, func(items []UnresolvedReference, left, right int) bool {
+		return compareUnresolved(items[left], items[right])
+	})
+	return set
+}
+
+// sortedBy returns items when they are in order, and a sorted copy when not.
+func sortedBy[Item any](items []Item, less func(items []Item, left, right int) bool) []Item {
+	lessIn := func(candidates []Item) func(int, int) bool {
+		return func(left, right int) bool { return less(candidates, left, right) }
+	}
+	if sort.SliceIsSorted(items, lessIn(items)) {
+		return items
+	}
+	sorted := append([]Item(nil), items...)
+	sort.Slice(sorted, lessIn(sorted))
+	return sorted
+}
+
 func compareEdges(left, right Edge) bool {
 	if left.SourceKey != right.SourceKey {
 		return left.SourceKey < right.SourceKey
