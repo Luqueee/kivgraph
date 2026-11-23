@@ -7,4 +7,3 @@ overrides:
 patchedDependencies:
   reagraph@4.32.0: patches/reagraph@4.32.0.patch
   troika-three-text@0.52.5: patches/troika-three-text@0.52.5.patch
-  troika-three-text@0.53.1: patches/troika-three-text@0.53.1.patch
