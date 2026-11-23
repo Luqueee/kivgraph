@@ -787,6 +787,31 @@ jobs:
             --server "$PWD/dist/kivgraph-linux-amd64/bin/kivgraph" \
             --smoke
 
+      # What an answer costs is held to the baseline committed beside each frozen
+      # corpus: a third-party repository at a pinned commit, so nothing about the
+      # corpus moves between runs and a rise is the server's. A corpus with no
+      # results.json is not measured yet, and says so instead of passing quietly.
+      # The tree is cloned and indexed here, so this is the slow half of the job.
+      - name: Hold every frozen corpus to its baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          measured=0
+          for corpus in benchmarks/mcp-token-cost/corpora/*/; do
+            corpus="${corpus%/}"
+            if [ ! -f "$corpus/results.json" ]; then
+              echo "::notice::$corpus has no baseline yet; record one with the recapture procedure"
+              continue
+            fi
+            go run ./benchmarks/mcp-token-cost/prepare \
+              --corpus "$corpus" \
+              --server "$PWD/dist/kivgraph-linux-amd64/bin/kivgraph" \
+              --state "$RUNNER_TEMP/corpora" \
+              --then check
+            measured=$((measured + 1))
+          done
+          echo "$measured corpus baseline(s) held"
+
   # darwin/arm64 is published and cannot be cross-compiled: cgo links the
   # pinned LadybugDB library, so the only machine that can build this bundle
   # is a macOS one. Until this job existed the darwin payload was first built

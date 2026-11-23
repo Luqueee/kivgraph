@@ -166,6 +166,18 @@ declarado en la raíz.
   `workspace` en su generación `000001`; las de `117.499` están en el historial, no en
   estas tablas. `workspace` es un workspace en uso, así que un reindexado posterior no
   reproduce el recuento anterior: el corpus se declara por pasada.
+- `benchmarks/mcp-token-cost/corpora/` congela el corpus en repositorios de
+  terceros a un **commit completo** (un tag puede moverse, y el hash de un tag
+  anotado no es un commit): así las capturas del brazo nativo se toman una vez y
+  una cifra que cambia es del servidor. `prepare` se niega a medir un checkout que
+  no esté en ese commit o esté sucio. `--check` es el trinquete: falla si una
+  respuesta cuesta más que su `results.json` en más de la tolerancia o si una
+  pregunta encuentra **menos referencias**, y se niega a comparar lo que no es
+  comparable (otro commit, otro conjunto de preguntas, otra captura). Un corpus
+  sin `results.json` se declara y se salta en CI. El brazo nativo sigue siendo la
+  salida literal de la herramienta del host, así que se recaptura con
+  `recapture.py` en una sesión con `KIVGRAPH_DISABLE_HOOK=1`: la puerta niega esa
+  misma `grep`.
 
 ## Corpus y auditorías
 

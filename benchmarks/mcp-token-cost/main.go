@@ -41,6 +41,8 @@ type config struct {
 	Directory   string
 	Repository  string
 	SurfaceOnly bool
+	Check       bool
+	Tolerance   float64
 }
 
 func main() {
@@ -50,6 +52,8 @@ func main() {
 	flag.StringVar(&cfg.Directory, "dir", defaultDirectory, "benchmark directory holding questions.json and native captures")
 	flag.StringVar(&cfg.Repository, "repository", "kivgraph", "indexed repository the questions belong to")
 	flag.BoolVar(&cfg.SurfaceOnly, "smoke", false, "measure the surface and prove every tool answers, without writing anything")
+	flag.BoolVar(&cfg.Check, "check", false, "compare a fresh run with the committed results.json of the corpus and fail on a regression, writing nothing")
+	flag.Float64Var(&cfg.Tolerance, "tolerance", defaultTolerance, "with --check, how much a token figure may grow before it fails, as a fraction")
 	flag.Parse()
 
 	// os.Args[0] is whatever temporary path `go run` linked, which changes on
@@ -173,6 +177,9 @@ func run(ctx context.Context, cfg config, command string) error {
 
 	if stderr.Len() > 0 {
 		out.ServerDiagnostics = strings.Count(strings.TrimSpace(stderr.String()), "\n") + 1
+	}
+	if cfg.Check {
+		return checkRun(cfg, out)
 	}
 	if out.Digest, err = out.computeDigest(); err != nil {
 		return err

@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "tokenizer": "cl100k_base",
+  "repository": "ripgrep",
+  "question": "who calls this symbol, and what do those callers look like",
+  "traversal_root": "HiArgs",
+  "questions": [
+    {
+      "symbol": "Replacer",
+      "class": "rare_name",
+      "native": {
+        "tool": "omp grep",
+        "pattern": "\\bReplacer\\b",
+        "path": ".",
+        "capture": "native/Replacer.grep.txt"
+      }
+    },
+    {
+      "symbol": "LineIter",
+      "class": "rare_name",
+      "native": {
+        "tool": "omp grep",
+        "pattern": "\\bLineIter\\b",
+        "path": ".",
+        "capture": "native/LineIter.grep.txt"
+      }
+    },
+    {
+      "symbol": "HiArgs",
+      "class": "rare_name",
+      "native": {
+        "tool": "omp grep",
+        "pattern": "\\bHiArgs\\b",
+        "path": ".",
+        "capture": "native/HiArgs.grep.txt"
+      }
+    },
+    {
+      "symbol": "Config",
+      "class": "shared_name",
+      "native": {
+        "tool": "omp grep",
+        "pattern": "\\bConfig\\b",
+        "path": ".",
+        "capture": "native/Config.grep.txt"
+      },
+      "repository": "ripgrep",
+      "path": "crates/searcher/src/line_buffer.rs",
+      "qualified_name": "line_buffer::Config"
+    },
+    {
+      "symbol": "Searcher",
+      "class": "common_name",
+      "native": {
+        "tool": "omp grep",
+        "pattern": "\\bSearcher\\b",
+        "path": ".",
+        "capture": "native/Searcher.grep.txt"
+      }
+    },
+    {
+      "symbol": "SinkMatch",
+      "class": "common_name",
+      "native": {
+        "tool": "omp grep",
+        "pattern": "\\bSinkMatch\\b",
+        "path": ".",
+        "capture": "native/SinkMatch.grep.txt"
+      }
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "name": "cobra",
+  "repository": "cobra",
+  "url": "https://github.com/spf13/cobra.git",
+  "tag": "v1.10.2",
+  "sha": "88b30ab89da2d0d0abb153818746c5a2d30eccec",
+  "languages": [
+    "go"
+  ],
+  "prepare": [
+    "GOFLAGS=-mod=readonly go mod download"
+  ]
+}
