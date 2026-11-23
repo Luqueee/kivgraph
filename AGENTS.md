@@ -84,13 +84,19 @@ sin resolver un símbolo primero-, y el índice de un fichero pequeño cuesta m�
 que leerlo. Gana en nombres comunes, en impacto transitivo, en consumidores de
 otro repositorio y en demostrar una ausencia.
 
-Medido con `benchmarks/mcp-token-cost` después del ADR 0046, sobre las seis
-preguntas de referencias de este mismo repositorio (generación `000001`,
-commit `f8a952d6`): responder cuesta entre `3,29x` (`MergeAll`, nombre raro) y
-`11,95x` (`NewServer`, nombre común) menos que `grep` más la lectura; la sesión
-completa -incluidos los cuerpos que el agente abre después, que pagan igual en
-los dos lados- entre `1,26x` y `8,05x`, con un suelo de `2,41x` fijado por el
-coste de esos cuerpos y no por el de la respuesta.
+Medido con `benchmarks/mcp-token-cost` en la `0.10.1`, sobre las seis preguntas
+de referencias de este mismo repositorio (generación `000001`, `25.613`
+símbolos): **ahí `grep` sale más barato**. Responder cuesta `0,47x` -entre
+`0,28x`, `MergeAll`, y `0,89x`, `Publish`-, y la sesión completa -incluidos los
+cuerpos que el agente abre después, que pagan igual en los dos lados- `0,89x`,
+con un suelo de `1,50x` fijado por el coste de esos cuerpos y no por el de la
+respuesta. Medido antes del ADR 0156 era `0,24x` y `0,74x`: el bloque
+`completeness` era la mayor parte de la respuesta. La medición anterior, de la
+`0.8.0`, daba `1,76x` y `1,24x`; el `grep` del agente dejó de traer líneas de
+contexto, y eso solo bajó el brazo nativo de `1.082` a `429` tokens en
+`MergeAll`. Es el corpus menos representativo que tenemos: pequeño, con
+fixtures propios como puntos ciegos. Los `29` casos de abajo siguen siendo el
+titular de dónde se gana.
 
 El caso genuinamente trivial **ya es una fila medida**, y confirma la
 desventaja: `benchmarks/graph-tools-comparison/trivial.md`, sobre

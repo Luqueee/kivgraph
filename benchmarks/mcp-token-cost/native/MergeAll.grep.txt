@@ -1,88 +1,41 @@
 # internal/
-## AGENTS.md#2455
- 87:- Los hechos de todas las unidades se fusionan en una sola pasada
-*88:  (`facts.MergeAll`), no una unidad contra el acumulado: una fusión par a par
- 89:  vuelve a deduplicar, copiar y reordenar el grafo entero en cada paso, que es
- 90:  cuadrático en su tamaño. La identidad con la que se deduplica es una tupla
- 91:  comparable, no una cadena unida por separadores: una cadena hace ambiguo un
+## AGENTS.md#4E9A
+*94:  (`facts.MergeAll`), no una unidad contra el acumulado: una fusión par a par
+
+## agenthook/
+### gate.go#23D2
+*62://	rare_name     MergeAll 0,85x   CanonicalColumns 0,91x   DiscoverGo 0,83x
+### gate_test.go#9CFE
+*72:			Question{Kind: KindSymbol, Pattern: "MergeAll"},
 
 ## facts/
-### facts.go#EB8F
- 566:func (set *Set) Merge(other Set) {
-*567:	*set = MergeAll([]Set{*set, other})
- 568:}
- 569:
-*570:// MergeAll merges every set at once, deduplicated by durable key and sorted
- 571:// a single time.
- 572://
- 573:// Merging pairwise costs the whole accumulated set on every step: a
+### facts.go#E3CF
+*626:	*set = MergeAll([]Set{*set, other})
 ...
- 576:// the largest single source of garbage in a full index.
-*577:func MergeAll(sets []Set) Set {
- 578:	merged := Set{
- 579:		Repositories: mergeAllBy(sets, func(set Set) []Repository { return set.Repositories },
- 580:			func(value Repository) string { return value.Key }),
+*629:// MergeAll merges every set at once, deduplicated by durable key and sorted
 ...
- 605:// edgeIdentity and unresolvedIdentity are what makes two facts the same fact:
-*606:// the tuple Merge and MergeAll deduplicate on. They are comparable structs
- 607:// rather than joined strings because a separator has to be allocated and
- 608:// hashed for every edge in the graph.
- 609:func edgeIdentityOf(edge Edge) edgeIdentity {
-### facts_test.go#4DF3
- 188:
-*189:	merged := MergeAll([]Set{first, second})
- 190:	if len(merged.Symbols) != 1 {
- 191:		t.Fatalf("symbols = %d, want the duplicate key merged into one", len(merged.Symbols))
- 192:	}
+*636:func MergeAll(sets []Set) Set {
 ...
- 214:
-*215:	merged := MergeAll([]Set{{Edges: []Edge{right}}, {Edges: []Edge{left, same}}})
- 216:	if len(merged.Edges) != 2 {
- 217:		t.Fatalf("edges = %d, want the two observations kept and the repeat dropped", len(merged.Edges))
- 218:	}
-### typescript.go#89BE
- 271:	// holds the file. An incomplete row would also be dangerous, because
-*272:	// MergeAll keeps the first row for a key and drops later ones without
- 273:	// comparing, so a package-less row could silently beat a complete one.
- 274:	FactsOutsideRepository int
- 275:}
-### typescript_test.go#46F5
- 1250:// payload never names the provider's package, so a re-attributed row would be
-*1251:// package-less, and MergeAll keeps the first row for a key without comparing.
- 1252://
- 1253:// The local file in the same payload is here to prove the refusal is narrow: a
- 1254:// blanket filter that also dropped the consumer's own facts would pass a test
+*665:// the tuple Merge and MergeAll deduplicate on. They are comparable structs
+### facts_test.go#38D1
+*230:	merged := MergeAll([]Set{first, second})
+...
+*256:	merged := MergeAll([]Set{{Edges: []Edge{right}}, {Edges: []Edge{left, same}}})
+### typescript.go#9B78
+*298:	// MergeAll keeps the first row for a key and drops later ones without
+### typescript_test.go#90BD
+*1254:// package-less, and MergeAll keeps the first row for a key without comparing.
 
 ## indexer/
-### full.go#8097
- 905://
-*906:// A repository appears in as many sets as it has units, and MergeAll keeps the
- 907:// first record of each key, so the languages of the later ones are collected
- 908:// here and replace it: a Go repository that also holds TypeScript must not
- 909:// lose either language because one of its two units happened to be merged
+### full.go#6E44
+*1179:// A repository appears in as many sets as it has units, and MergeAll keeps the
 ...
- 930:	}
-*931:	merged := facts.MergeAll(sets)
- 932:	for index := range merged.Repositories {
- 933:		seen := make(map[facts.Language]struct{})
- 934:		union := make([]facts.Language, 0, len(languages[merged.Repositories[index].Key]))
+*1204:	merged := facts.MergeAll(sets)
 ...
- 1018:		// several edges can share one missing target at one position.
-*1019:		merged = facts.MergeAll([]facts.Set{merged})
- 1020:	}
- 1021:	return merged, dropped
- 1022:}
+*1292:		merged = facts.MergeAll([]facts.Set{merged})
 
 ## mcp/tools/
-### get_source.go#34BC
- 364:// The test is deliberately coarse -- this is byte delivery, not resolution -- but
-*365:// it does require the name to stand alone, so `Merge` never matches `MergeAll`.
- 366:func declaresName(line, name string) bool {
- 367:	index := strings.Index(line, name)
- 368:	for index >= 0 {
-### trace_dependencies_test.go#518D
- 516:// by its own methods. On the published graph the whole query failed:
-*517:// SNAPSHOT_UNAVAILABLE on trace_dependencies of MergeAll at depth two, whose
- 518:// body names Position.Offset.
- 519://
- 520:// So the type must not appear either: reaching a method is not reaching what
+### get_source.go#6F76
+*482:// it does require the name to stand alone, so `Merge` never matches `MergeAll`.
+### trace_dependencies_test.go#4222
+*522:// SNAPSHOT_UNAVAILABLE on trace_dependencies of MergeAll at depth two, whose
