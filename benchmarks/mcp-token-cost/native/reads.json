@@ -1,130 +1,254 @@
 {
-  "cmd/kivgraph/main.go:1394-1419": {
+  "cmd/kivgraph/main.go:2559-2584": {
     "file": "cmd/kivgraph/main.go",
-    "tokens": 429
-  },
-  "cmd/kivgraph/main.go:1745-1770": {
-    "file": "cmd/kivgraph/main.go",
-    "tokens": 429
-  },
-  "cmd/kivgraph/main.go:221-282": {
-    "file": "cmd/kivgraph/main.go",
-    "tokens": 836
+    "tokens": 407
   },
   "internal/audit/golang.go:20-81": {
     "file": "internal/audit/golang.go",
-    "tokens": 752
+    "tokens": 734
   },
-  "internal/facts/facts.go:524-526": {
+  "internal/facts/facts.go:625-627": {
     "file": "internal/facts/facts.go",
-    "tokens": 98
+    "tokens": 82
   },
-  "internal/facts/facts.go:535-561": {
+  "internal/facts/facts.go:636-662": {
     "file": "internal/facts/facts.go",
-    "tokens": 441
+    "tokens": 424
   },
-  "internal/facts/facts.go:566-568": {
-    "file": "internal/facts/facts.go",
-    "tokens": 99
+  "internal/facts/facts_test.go:214-241": {
+    "file": "internal/facts/facts_test.go",
+    "tokens": 588
   },
-  "internal/facts/facts.go:577-603": {
-    "file": "internal/facts/facts.go",
-    "tokens": 442
+  "internal/facts/facts_test.go:247-265": {
+    "file": "internal/facts/facts_test.go",
+    "tokens": 305
+  },
+  "internal/facts/golang_test.go:45-139": {
+    "file": "internal/facts/golang_test.go",
+    "tokens": 1122
   },
   "internal/goloader/crossrepo.go:53-94": {
     "file": "internal/goloader/crossrepo.go",
-    "tokens": 548
+    "tokens": 531
+  },
+  "internal/goloader/crossrepo_test.go:264-364": {
+    "file": "internal/goloader/crossrepo_test.go",
+    "tokens": 1111
+  },
+  "internal/goloader/crossrepo_test.go:51-97": {
+    "file": "internal/goloader/crossrepo_test.go",
+    "tokens": 580
+  },
+  "internal/goloader/fixture_negative_test.go:45-97": {
+    "file": "internal/goloader/fixture_negative_test.go",
+    "tokens": 640
+  },
+  "internal/goloader/fixture_positive_test.go:33-47": {
+    "file": "internal/goloader/fixture_positive_test.go",
+    "tokens": 229
+  },
+  "internal/goloader/loader_test.go:354-373": {
+    "file": "internal/goloader/loader_test.go",
+    "tokens": 265
   },
   "internal/goloader/precision.go:163-252": {
     "file": "internal/goloader/precision.go",
-    "tokens": 1148
+    "tokens": 1131
   },
-  "internal/goworkspace/synthetic.go:120-219": {
+  "internal/goloader/unresolved_test.go:57-140": {
+    "file": "internal/goloader/unresolved_test.go",
+    "tokens": 1036
+  },
+  "internal/goworkspace/synthetic.go:121-220": {
     "file": "internal/goworkspace/synthetic.go",
-    "tokens": 1174
+    "tokens": 1142
   },
-  "internal/hotsnapshot/publication.go:170-195": {
-    "file": "internal/hotsnapshot/publication.go",
-    "tokens": 313
+  "internal/goworkspace/synthetic_test.go:121-137": {
+    "file": "internal/goworkspace/synthetic_test.go",
+    "tokens": 268
   },
-  "internal/hotsnapshot/publication.go:45-66": {
-    "file": "internal/hotsnapshot/publication.go",
-    "tokens": 250
+  "internal/goworkspace/synthetic_test.go:149-172": {
+    "file": "internal/goworkspace/synthetic_test.go",
+    "tokens": 368
   },
-  "internal/hotsnapshot/publication.go:87-112": {
-    "file": "internal/hotsnapshot/publication.go",
-    "tokens": 279
+  "internal/goworkspace/synthetic_test.go:15-85": {
+    "file": "internal/goworkspace/synthetic_test.go",
+    "tokens": 913
   },
-  "internal/indexer/delta.go:252-318": {
-    "file": "internal/indexer/delta.go",
-    "tokens": 829
+  "internal/goworkspace/synthetic_test.go:174-224": {
+    "file": "internal/goworkspace/synthetic_test.go",
+    "tokens": 706
   },
-  "internal/indexer/full.go:199-363": {
-    "file": "internal/indexer/full.go",
-    "tokens": 1876
+  "internal/goworkspace/synthetic_test.go:226-257": {
+    "file": "internal/goworkspace/synthetic_test.go",
+    "tokens": 432
   },
-  "internal/indexer/full.go:260-481": {
-    "file": "internal/indexer/full.go",
-    "tokens": 2541
+  "internal/goworkspace/synthetic_test.go:259-286": {
+    "file": "internal/goworkspace/synthetic_test.go",
+    "tokens": 387
   },
-  "internal/indexer/full.go:681-712": {
-    "file": "internal/indexer/full.go",
-    "tokens": 443
+  "internal/goworkspace/synthetic_test.go:288-296": {
+    "file": "internal/goworkspace/synthetic_test.go",
+    "tokens": 166
   },
-  "internal/indexer/full.go:735-783": {
-    "file": "internal/indexer/full.go",
+  "internal/goworkspace/synthetic_test.go:298-342": {
+    "file": "internal/goworkspace/synthetic_test.go",
+    "tokens": 521
+  },
+  "internal/goworkspace/synthetic_test.go:344-363": {
+    "file": "internal/goworkspace/synthetic_test.go",
+    "tokens": 286
+  },
+  "internal/goworkspace/synthetic_test.go:365-378": {
+    "file": "internal/goworkspace/synthetic_test.go",
+    "tokens": 202
+  },
+  "internal/goworkspace/synthetic_test.go:91-117": {
+    "file": "internal/goworkspace/synthetic_test.go",
+    "tokens": 385
+  },
+  "internal/goworkspace/toolchain_test.go:19-60": {
+    "file": "internal/goworkspace/toolchain_test.go",
     "tokens": 618
   },
-  "internal/indexer/full.go:920-951": {
+  "internal/hotsnapshot/publication.go:423-461": {
+    "file": "internal/hotsnapshot/publication.go",
+    "tokens": 402
+  },
+  "internal/indexer/full.go:1193-1224": {
     "file": "internal/indexer/full.go",
-    "tokens": 441
+    "tokens": 459
   },
-  "internal/indexer/full.go:974-1022": {
+  "internal/indexer/full.go:1247-1295": {
     "file": "internal/indexer/full.go",
-    "tokens": 644
+    "tokens": 652
   },
-  "internal/indexing/follow.go:114-162": {
-    "file": "internal/indexing/follow.go",
-    "tokens": 595
+  "internal/indexer/full.go:435-671": {
+    "file": "internal/indexer/full.go",
+    "tokens": 2766
   },
-  "internal/indexing/follow.go:115-167": {
-    "file": "internal/indexing/follow.go",
-    "tokens": 665
-  },
-  "internal/indexing/service.go:305-348": {
-    "file": "internal/indexing/service.go",
-    "tokens": 607
-  },
-  "internal/indexing/service.go:337-383": {
-    "file": "internal/indexing/service.go",
-    "tokens": 658
-  },
-  "internal/mcp/server.go:18-20": {
+  "internal/mcp/server.go:60-62": {
     "file": "internal/mcp/server.go",
-    "tokens": 97
+    "tokens": 78
+  },
+  "internal/mcp/server_test.go:17-54": {
+    "file": "internal/mcp/server_test.go",
+    "tokens": 409
+  },
+  "internal/mcp/surface_test.go:421-437": {
+    "file": "internal/mcp/surface_test.go",
+    "tokens": 263
+  },
+  "internal/mcp/visibility_test.go:154-164": {
+    "file": "internal/mcp/visibility_test.go",
+    "tokens": 167
+  },
+  "internal/mcp/visibility_test.go:18-69": {
+    "file": "internal/mcp/visibility_test.go",
+    "tokens": 675
   },
   "internal/storage/ladybug/canonical_load.go:30-54": {
     "file": "internal/storage/ladybug/canonical_load.go",
-    "tokens": 326
+    "tokens": 308
   },
   "internal/storage/ladybug/canonical_load.go:59-65": {
     "file": "internal/storage/ladybug/canonical_load.go",
-    "tokens": 159
+    "tokens": 141
   },
   "internal/storage/ladybug/canonical_load.go:81-298": {
     "file": "internal/storage/ladybug/canonical_load.go",
-    "tokens": 2502
+    "tokens": 2484
   },
-  "internal/storage/ladybug/canonical_load_native.go:252-283": {
-    "file": "internal/storage/ladybug/canonical_load_native.go",
-    "tokens": 489
+  "internal/storage/ladybug/canonical_load_test.go:16-42": {
+    "file": "internal/storage/ladybug/canonical_load_test.go",
+    "tokens": 367
   },
-  "internal/workspace/go_discovery.go:25-93": {
+  "internal/storage/ladybug/canonical_load_test.go:394-417": {
+    "file": "internal/storage/ladybug/canonical_load_test.go",
+    "tokens": 276
+  },
+  "internal/storage/ladybug/canonical_load_test.go:419-437": {
+    "file": "internal/storage/ladybug/canonical_load_test.go",
+    "tokens": 264
+  },
+  "internal/workspace/cachedir_test.go:85-101": {
+    "file": "internal/workspace/cachedir_test.go",
+    "tokens": 235
+  },
+  "internal/workspace/exclusion_validation_test.go:11-46": {
+    "file": "internal/workspace/exclusion_validation_test.go",
+    "tokens": 475
+  },
+  "internal/workspace/go_discovery.go:26-105": {
     "file": "internal/workspace/go_discovery.go",
-    "tokens": 767
+    "tokens": 908
+  },
+  "internal/workspace/go_discovery_test.go:118-133": {
+    "file": "internal/workspace/go_discovery_test.go",
+    "tokens": 290
+  },
+  "internal/workspace/go_discovery_test.go:135-177": {
+    "file": "internal/workspace/go_discovery_test.go",
+    "tokens": 501
+  },
+  "internal/workspace/go_discovery_test.go:15-116": {
+    "file": "internal/workspace/go_discovery_test.go",
+    "tokens": 1499
+  },
+  "internal/workspace/go_discovery_test.go:179-195": {
+    "file": "internal/workspace/go_discovery_test.go",
+    "tokens": 285
+  },
+  "internal/workspace/go_discovery_test.go:197-204": {
+    "file": "internal/workspace/go_discovery_test.go",
+    "tokens": 143
+  },
+  "internal/workspace/go_discovery_test.go:220-252": {
+    "file": "internal/workspace/go_discovery_test.go",
+    "tokens": 533
+  },
+  "internal/workspace/go_discovery_test.go:257-272": {
+    "file": "internal/workspace/go_discovery_test.go",
+    "tokens": 406
+  },
+  "internal/workspace/go_discovery_test.go:276-284": {
+    "file": "internal/workspace/go_discovery_test.go",
+    "tokens": 241
+  },
+  "internal/workspace/go_discovery_test.go:289-317": {
+    "file": "internal/workspace/go_discovery_test.go",
+    "tokens": 547
+  },
+  "internal/workspace/go_discovery_test.go:323-347": {
+    "file": "internal/workspace/go_discovery_test.go",
+    "tokens": 497
+  },
+  "internal/workspace/go_discovery_test.go:351-359": {
+    "file": "internal/workspace/go_discovery_test.go",
+    "tokens": 223
+  },
+  "internal/workspace/go_discovery_test.go:364-434": {
+    "file": "internal/workspace/go_discovery_test.go",
+    "tokens": 965
+  },
+  "internal/workspace/go_discovery_test.go:439-484": {
+    "file": "internal/workspace/go_discovery_test.go",
+    "tokens": 889
+  },
+  "internal/workspace/go_discovery_test.go:490-510": {
+    "file": "internal/workspace/go_discovery_test.go",
+    "tokens": 449
   },
   "internal/workspace/go_registry.go:33-42": {
     "file": "internal/workspace/go_registry.go",
-    "tokens": 186
+    "tokens": 169
+  },
+  "internal/workspace/other_checkout_test.go:163-202": {
+    "file": "internal/workspace/other_checkout_test.go",
+    "tokens": 550
+  },
+  "internal/workspace/walk_vanish_test.go:46-58": {
+    "file": "internal/workspace/walk_vanish_test.go",
+    "tokens": 228
   }
 }

@@ -2087,8 +2087,9 @@ waiting for its owner.
   available) and the captured answers in the tool reference that predate
   `completeness` were not recaptured. The figures the site quotes keep the
   version they were measured with: `0.5.0` for the 29 questions, `0.3.2` for
-  the cold index, `0.8.0` for the MCP token cost, `0.3.0` for the first
-  end-to-end run.
+  the cold index, `0.3.0` for the first end-to-end run. The MCP token cost was
+  rerun on `0.10.1` after ADR 0156: `0.47x` on the answers and `0.89x` over a
+  session, against `1.76x` and `1.24x` at `0.8.0`.
 
 #### CI: scans, CodeQL and Windows tests (2026-11-17)
 

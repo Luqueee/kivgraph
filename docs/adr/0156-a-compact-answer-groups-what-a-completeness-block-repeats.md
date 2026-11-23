@@ -89,6 +89,25 @@ What remains of the block is mostly what is not repeated: the `detail` of the
 scopes that are alone in their group, and the `fallback` paths, which are the
 directories to search.
 
+Tokens, `benchmarks/mcp-token-cost`, same corpus (`25,613` symbols, `0.10.1`),
+the six questions of `find_references`. The harness counts what a session
+spends to answer, against the host's own captured `grep`.
+
+| | answer | whole session |
+| --- | ---: | ---: |
+| `0.8.0`, recorded | `1.76x` | `1.24x` |
+| `0.10.1`, before this change | `0.24x` | `0.74x` |
+| `0.10.1`, after | `0.47x` | `0.89x` |
+
+The change halves what the graph answers cost, and it does not bring back the
+`0.8.0` figure. Two things stand between: the host's `grep` stopped returning
+context lines, so the native answer to `MergeAll` went from `1,082` to `429`
+tokens on its own, and what remains of a verdict on this repository is mostly
+the `detail` of scopes alone in their group and the `fallback` paths, both of
+which are information and not repetition. On every one of the six names the
+graph answer is dearer than `grep`; serving the bodies with `get_source` puts
+the session at `1.06x`.
+
 ## Compatibility and migration
 
 A client that reads `completeness.verdict`, `more_invisible_scopes`,

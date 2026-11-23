@@ -621,36 +621,49 @@ call where grep would have done means paying for the graph twice: once for the
 call, once for the read you still make.
 
 The repository carries a token-cost harness under `benchmarks/mcp-token-cost`,
-and its numbers say the same thing. It compares two arms on the question "who
-calls this symbol, and what do those callers look like": the host's own captured
-answer, grep plus the file reads that follow it, against the MCP calls a session
-needs against the published generation plus the same reads. Tokens are counted
-with `cl100k_base`, over the `kivgraph` corpus at generation `000206`, 32441
-symbols across 759 files.
+and on this one corpus its numbers say the graph does not pay for itself. It
+compares two arms on the question "who calls this symbol, and what do those
+callers look like": the host's own captured answer, grep plus the file reads
+that follow it, against the MCP calls a session needs against the published
+generation plus the same reads. Tokens are counted with `cl100k_base`, over the
+`kivgraph` corpus at generation `000001`, 25613 symbols across 946 files, with
+Kivgraph `0.10.1`.
 
 Measured on the answer alone, the part a graph server owns:
 
 | Symbol | Class | Factor against the native arm |
 | --- | --- | ---: |
-| `MergeAll` | rare name | 0.85x |
-| `CanonicalColumns` | rare name | 0.91x |
-| `DiscoverGo` | rare name | 0.83x |
-| `BuildPlan` | shared name | 1.92x |
-| `NewServer` | common name | 1.68x |
-| `Publish` | common name | 6.42x |
-| Total | | 1.76x |
+| `MergeAll` | rare name | 0.28x |
+| `CanonicalColumns` | rare name | 0.29x |
+| `DiscoverGo` | rare name | 0.32x |
+| `BuildPlan` | shared name | 0.45x |
+| `NewServer` | common name | 0.60x |
+| `Publish` | common name | 0.89x |
+| Total | | 0.47x |
 
-On the three rare names the factor is below one: grep is the cheaper arm.
+A factor below one means grep is the cheaper arm: here it is, on all six.
 
 Counting the whole session, the answer plus the bodies the agent then opens,
-which both arms pay identically, the total factor is 1.24x, and 15833 of the
-28648 native tokens are source bodies. The report publishes both figures on
-purpose: the answer factor flatters the graph and the session factor flatters
-grep.
+which both arms pay identically, the total factor is 0.89x, and 39880 of the
+44871 native tokens are source bodies. Serving the bodies with `get_source`
+instead of reading them would bring it to 1.06x; no answer, however cheap, can
+take it past 1.50x. The report publishes both figures on purpose: the answer
+factor flatters the graph and the session factor flatters grep.
 
-The cross-repository question was measured separately, on `Compute` in a
-three-file `shared-library` corpus, and there the MCP arm cost more: 0.53x on
-the answer and 0.70x on the session. The harness records why that column is a
+Two things moved since the same harness read 1.76x and 1.24x at `0.8.0`, and
+they are not the same kind. The host's own `grep` stopped returning context
+lines, so the native answer to `MergeAll` went from 1082 tokens to 429 with no
+change in Kivgraph. And the `completeness` block, which a verdict of
+`LOWER_BOUND` makes every answer carry, grew with the unreadable scopes this
+repository has -- its own test fixtures, cgo packages -- until it was most of
+the answer; the compact view now says each fact once, which took the factor
+from 0.24x to 0.47x. See ADR 0156. This corpus is the one most unlike a real
+one: it is small, and its blind spots are fixtures, so read the 29-question
+benchmark in [Measured](/#measured) for where the graph wins.
+
+The cross-repository question was measured separately, at `0.8.0` and not
+repeated for this release, on `Compute` in a three-file `shared-library` corpus,
+and there the MCP arm cost more: 0.53x on the answer and 0.70x on the session. The harness records why that column is a
 floor rather than a ceiling for the native side: a grep finds the name but
 cannot tell whether the hit is the same symbol, and says nothing about a
 consumer that depends on the provider package without using the symbol. Neither
