@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "tokenizer": "cl100k_base",
+  "repository": "ky",
+  "question": "who calls this symbol, and what do those callers look like",
+  "traversal_root": "mergeHeaders",
+  "questions": [
+    {
+      "symbol": "mergeHeaders",
+      "class": "rare_name",
+      "native": {
+        "tool": "omp grep",
+        "pattern": "\\bmergeHeaders\\b",
+        "path": ".",
+        "capture": "native/mergeHeaders.grep.txt"
+      },
+      "repository": "ky",
+      "path": "source/utils/merge.ts",
+      "qualified_name": "mergeHeaders"
+    },
+    {
+      "symbol": "deepMerge",
+      "class": "rare_name",
+      "native": {
+        "tool": "omp grep",
+        "pattern": "\\bdeepMerge\\b",
+        "path": ".",
+        "capture": "native/deepMerge.grep.txt"
+      },
+      "repository": "ky",
+      "path": "source/utils/merge.ts",
+      "qualified_name": "deepMerge"
+    },
+    {
+      "symbol": "isObject",
+      "class": "rare_name",
+      "native": {
+        "tool": "omp grep",
+        "pattern": "\\bisObject\\b",
+        "path": ".",
+        "capture": "native/isObject.grep.txt"
+      },
+      "repository": "ky",
+      "path": "source/utils/is.ts",
+      "qualified_name": "isObject"
+    },
+    {
+      "symbol": "retry",
+      "class": "shared_name",
+      "native": {
+        "tool": "omp grep",
+        "pattern": "\\bretry\\b",
+        "path": ".",
+        "capture": "native/retry.grep.txt"
+      },
+      "repository": "ky",
+      "path": "source/types/options.ts",
+      "qualified_name": "KyOptions.retry"
+    },
+    {
+      "symbol": "Options",
+      "class": "common_name",
+      "native": {
+        "tool": "omp grep",
+        "pattern": "\\bOptions\\b",
+        "path": ".",
+        "capture": "native/Options.grep.txt"
+      },
+      "repository": "ky",
+      "path": "source/types/options.ts",
+      "qualified_name": "Options"
+    },
+    {
+      "symbol": "TimeoutError",
+      "class": "common_name",
+      "native": {
+        "tool": "omp grep",
+        "pattern": "\\bTimeoutError\\b",
+        "path": ".",
+        "capture": "native/TimeoutError.grep.txt"
+      },
+      "repository": "ky",
+      "path": "source/errors/TimeoutError.ts",
+      "qualified_name": "TimeoutError"
+    }
+  ]
+}

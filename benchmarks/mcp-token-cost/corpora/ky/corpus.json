@@ -1,0 +1,13 @@
+{
+  "name": "ky",
+  "repository": "ky",
+  "url": "https://github.com/sindresorhus/ky.git",
+  "tag": "v2.2.0",
+  "sha": "3541888878c4d303a8bc2ad61815f4e048f55a5d",
+  "languages": [
+    "typescript"
+  ],
+  "prepare": [
+    "npm install --no-package-lock --ignore-scripts --no-audit --no-fund"
+  ]
+}

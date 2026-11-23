@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -260,10 +261,22 @@ func selector(repository, path, qualifiedName string) map[string]any {
 // compactFilesResponse decodes the shape find_references, trace_dependencies
 // and get_blast_radius answer in: a hoisted repository, then one group per file
 // holding the declarations of that file which carry the fact.
+//
+// An answer whose rows are of more than one declaration kind -- a function and
+// a method that both call the subject -- is grouped by kind first, and the
+// files sit one level down. Reading only the top-level list drops every row of
+// such an answer without an error, which for a long time priced the bodies of
+// those questions at zero.
 type compactFilesResponse struct {
-	Results struct {
+	Total    int `json:"total"`
+	Returned int `json:"returned"`
+	Results  struct {
 		Repository string             `json:"repository"`
 		Files      []compactFileGroup `json:"files"`
+		Groups     []struct {
+			Kind  string             `json:"kind"`
+			Files []compactFileGroup `json:"files"`
+		} `json:"groups"`
 	} `json:"results"`
 }
 
@@ -303,8 +316,15 @@ func compactRows(tool, text string) ([]compactRow, error) {
 	if err := json.Unmarshal([]byte(text), &decoded); err != nil {
 		return nil, fmt.Errorf("parse %s: %w", tool, err)
 	}
-	rows := make([]compactRow, 0, len(decoded.Results.Files))
-	for _, group := range decoded.Results.Files {
+	files := slices.Clone(decoded.Results.Files)
+	for _, group := range decoded.Results.Groups {
+		files = append(files, group.Files...)
+	}
+	if decoded.Returned > 0 && len(files) == 0 {
+		return nil, fmt.Errorf("parse %s: the answer returned %d rows and none were found in a shape this harness reads", tool, decoded.Returned)
+	}
+	rows := make([]compactRow, 0, len(files))
+	for _, group := range files {
 		repository := group.Repo
 		if repository == "" {
 			repository = decoded.Results.Repository
@@ -722,6 +742,7 @@ func ratio(native, ours int) float64 {
 	}
 	return float64(native) / float64(ours)
 }
+
 func totalise(questions []questionResult) totals {
 	sum := totals{}
 	for _, question := range questions {
@@ -980,7 +1001,8 @@ func resolveSubject(
 	if found.Total > 1 {
 		return symbolRow{}, "", 0, fmt.Errorf(
 			"%q names %d symbols in this corpus: give the question a repository and a path so both arms answer about the same declaration",
-			asked.Symbol, found.Total)
+			asked.Symbol, found.Total,
+		)
 	}
 	subject, err := found.declaration(0)
 	if err != nil {

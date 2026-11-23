@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "tokenizer": "cl100k_base",
+  "repository": "cobra",
+  "question": "who calls this symbol, and what do those callers look like",
+  "traversal_root": "Execute",
+  "questions": [
+    {
+      "symbol": "ExactArgs",
+      "class": "rare_name",
+      "native": {
+        "tool": "omp grep",
+        "pattern": "\\bExactArgs\\b",
+        "path": ".",
+        "capture": "native/ExactArgs.grep.txt"
+      }
+    },
+    {
+      "symbol": "CheckErr",
+      "class": "rare_name",
+      "native": {
+        "tool": "omp grep",
+        "pattern": "\\bCheckErr\\b",
+        "path": ".",
+        "capture": "native/CheckErr.grep.txt"
+      }
+    },
+    {
+      "symbol": "Traverse",
+      "class": "rare_name",
+      "native": {
+        "tool": "omp grep",
+        "pattern": "\\bTraverse\\b",
+        "path": ".",
+        "capture": "native/Traverse.grep.txt"
+      }
+    },
+    {
+      "symbol": "MarkFlagRequired",
+      "class": "shared_name",
+      "native": {
+        "tool": "omp grep",
+        "pattern": "\\bMarkFlagRequired\\b",
+        "path": ".",
+        "capture": "native/MarkFlagRequired.grep.txt"
+      },
+      "repository": "cobra",
+      "path": "shell_completions.go",
+      "qualified_name": "Command.MarkFlagRequired"
+    },
+    {
+      "symbol": "AddCommand",
+      "class": "common_name",
+      "native": {
+        "tool": "omp grep",
+        "pattern": "\\bAddCommand\\b",
+        "path": ".",
+        "capture": "native/AddCommand.grep.txt"
+      }
+    },
+    {
+      "symbol": "Execute",
+      "class": "common_name",
+      "native": {
+        "tool": "omp grep",
+        "pattern": "\\bExecute\\b",
+        "path": ".",
+        "capture": "native/Execute.grep.txt"
+      }
+    }
+  ]
+}
