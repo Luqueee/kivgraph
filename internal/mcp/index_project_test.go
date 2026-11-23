@@ -904,6 +904,21 @@ func connectWithNamedElicitation(
 	capabilities *sdkmcp.ClientCapabilities,
 	handler func(context.Context, *sdkmcp.ElicitRequest) (*sdkmcp.ElicitResult, error),
 ) *sdkmcp.ClientSession {
+	return connectElicitingClient(t, server, name, capabilities, handler, nil)
+}
+
+// connectElicitingClient connects a client that answers elicitation, speaking
+// the protocol version it is told to when options carry one: the question is
+// asked by the client of `2026-07-28` on its own and by the server for the
+// earlier ones, and consent has to hold for both.
+func connectElicitingClient(
+	t *testing.T,
+	server *sdkmcp.Server,
+	name string,
+	capabilities *sdkmcp.ClientCapabilities,
+	handler func(context.Context, *sdkmcp.ElicitRequest) (*sdkmcp.ElicitResult, error),
+	options *sdkmcp.ClientSessionOptions,
+) *sdkmcp.ClientSession {
 	t.Helper()
 	serverTransport, clientTransport := sdkmcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
@@ -915,10 +930,102 @@ func connectWithNamedElicitation(
 		Capabilities:       capabilities,
 		ElicitationHandler: handler,
 	})
-	clientSession, err := client.Connect(context.Background(), clientTransport, nil)
+	clientSession, err := client.Connect(context.Background(), clientTransport, options)
 	if err != nil {
 		t.Fatalf("client.Connect() error = %v", err)
 	}
 	t.Cleanup(func() { _ = clientSession.Close() })
 	return clientSession
+}
+
+// Consent is settled the same way whichever protocol the client negotiated, for
+// both tools that ask for it. What changes between the versions is who asks the
+// question; whether the indexer runs does not.
+func TestIndexingConsentHoldsOnEveryProtocolVersion(t *testing.T) {
+	for _, protocol := range []string{"2025-11-25", "2026-07-28"} {
+		for _, tool := range []string{"index_project", "start_index_project"} {
+			for _, answer := range []struct {
+				name   string
+				result *sdkmcp.ElicitResult
+				runs   int
+			}{
+				{"accepted", &sdkmcp.ElicitResult{Action: "accept", Content: map[string]any{"confirmed": true}}, 1},
+				{"accepted without confirming", &sdkmcp.ElicitResult{Action: "accept", Content: map[string]any{"confirmed": false}}, 0},
+				{"accepted with nothing", &sdkmcp.ElicitResult{Action: "accept"}, 0},
+				{"declined", &sdkmcp.ElicitResult{Action: "decline"}, 0},
+				{"cancelled", &sdkmcp.ElicitResult{Action: "cancel"}, 0},
+			} {
+				t.Run(protocol+"/"+tool+"/"+answer.name, func(t *testing.T) {
+					fake := &fakeProjectIndexer{}
+					var asked atomic.Int32
+					session := connectElicitingClient(t, NewServerWithIndexer(fake), "consent-test", nil,
+						func(_ context.Context, request *sdkmcp.ElicitRequest) (*sdkmcp.ElicitResult, error) {
+							asked.Add(1)
+							if !strings.Contains(request.Params.Message, `"demo"`) {
+								t.Errorf("the question does not name the project: %q", request.Params.Message)
+							}
+							return answer.result, nil
+						}, &sdkmcp.ClientSessionOptions{ProtocolVersion: protocol})
+					result, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{
+						Name: tool,
+						Arguments: map[string]any{
+							"name": "demo", "path": "/tmp/demo", "languages": []any{"go"},
+						},
+					})
+					if err != nil || result == nil {
+						t.Fatalf("CallTool() = %#v, error %v", result, err)
+					}
+					// An approved start still fails on /tmp/demo, which is not a
+					// repository: what the consent decides is whether the
+					// failure is a refusal.
+					text := ""
+					for _, content := range result.Content {
+						if block, ok := content.(*sdkmcp.TextContent); ok {
+							text += block.Text
+						}
+					}
+					if refused := result.IsError && strings.Contains(text, "PERMISSION_DENIED"); refused != (answer.runs == 0) {
+						t.Fatalf("refused = %t, want %t (IsError = %t, text = %q)", refused, answer.runs == 0, result.IsError, text)
+					}
+					if got := asked.Load(); got != 1 {
+						t.Fatalf("the user was asked %d times, want once", got)
+					}
+					if tool == "index_project" {
+						if calls := fake.callCount(); calls != answer.runs {
+							t.Fatalf("indexer calls = %d, want %d", calls, answer.runs)
+						}
+					}
+				})
+			}
+		}
+	}
+}
+
+// A client that advertises form elicitation and then fails to answer is not a
+// client that approved. Which kind of failure the caller sees depends on who
+// asked: the SDK asks for the earlier protocol versions and reports it as an
+// error of the call, the client of `2026-07-28` fails inside its own retry.
+// Neither runs the indexer.
+func TestAFailedConsentQuestionNeverRunsTheIndexer(t *testing.T) {
+	for _, protocol := range []string{"2025-11-25", "2026-07-28"} {
+		t.Run(protocol, func(t *testing.T) {
+			fake := &fakeProjectIndexer{}
+			session := connectElicitingClient(t, NewServerWithIndexer(fake), "consent-test", nil,
+				func(context.Context, *sdkmcp.ElicitRequest) (*sdkmcp.ElicitResult, error) {
+					return nil, errors.New("the user closed the dialog")
+				}, &sdkmcp.ClientSessionOptions{ProtocolVersion: protocol})
+			result, err := session.CallTool(context.Background(), &sdkmcp.CallToolParams{
+				Name: "index_project",
+				Arguments: map[string]any{
+					"name": "demo", "path": "/tmp/demo", "languages": []any{"go"},
+				},
+			})
+			if err == nil && (result == nil || !result.IsError) {
+				t.Fatalf("CallTool() = %#v, nil error; a failed question must not read as consent", result)
+			}
+			if calls := fake.callCount(); calls != 0 {
+				t.Fatalf("indexer calls = %d, want 0", calls)
+			}
+		})
+	}
 }

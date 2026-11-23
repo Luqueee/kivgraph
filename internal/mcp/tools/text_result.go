@@ -54,7 +54,9 @@ func addTextTool[In, Out any](
 		if result == nil {
 			result = &sdkmcp.CallToolResult{}
 		}
-		if result.Content == nil {
+		// A question for the client carries no answer: content and
+		// inputRequests are mutually exclusive on the wire.
+		if result.Content == nil && result.InputRequests == nil {
 			encoded, marshalErr := json.Marshal(payload)
 			if marshalErr != nil {
 				return nil, nil, fmt.Errorf("marshal %s response: %w", tool.Name, marshalErr)

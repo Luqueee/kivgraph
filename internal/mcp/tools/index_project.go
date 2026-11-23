@@ -2,6 +2,8 @@ package tools
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"sync/atomic"
@@ -115,9 +117,13 @@ func RegisterIndexProject(
 			observeCall(nil, callObserver, indexProjectToolName, request, start, err)
 			return nil, indexing.ProjectResult{}, err
 		}
-		if err := requireIndexConsent(ctx, request, batch, arguments.Confirmed); err != nil {
+		pending, err := requireIndexConsent(request, batch, arguments.Confirmed)
+		if err != nil {
 			observeCall(nil, callObserver, indexProjectToolName, request, start, err)
 			return nil, indexing.ProjectResult{}, err
+		}
+		if pending != nil {
+			return pending, indexing.ProjectResult{}, nil
 		}
 		progress := progressReporter(ctx, request)
 		result, err := runProjectIndex(ctx, indexer, arguments.Profile, batch, progress)
@@ -199,47 +205,99 @@ func progressReporter(ctx context.Context, request *sdkmcp.CallToolRequest) func
 	}
 }
 
+// indexConsentRequestID names the one question the indexing tools ask. The
+// client echoes it back, so it is a label of ours and never shown.
+const indexConsentRequestID = "consent"
+
+// requireIndexConsent settles whether the caller approved registering and
+// indexing this batch. A non-nil result is a question for the client, which is
+// returned in place of an answer: the handler returns it as it is, and is called
+// again with the response.
+//
+// This is the multi round-trip shape of SEP-2322, which protocol
+// `2026-07-28` made the only one -- a server may no longer send
+// `elicitation/create` while it serves a request -- and which the SDK carries
+// back to earlier clients by asking the question itself and calling the handler
+// again. One spelling serves both, so the consent does not depend on which
+// version a client negotiated.
+//
+// The state echoed with the answer is a digest of the batch, so an approval
+// belongs to what was asked: a response kept from one call does not approve
+// another set of projects.
 func requireIndexConsent(
-	ctx context.Context,
 	request *sdkmcp.CallToolRequest,
 	batch []indexing.Project,
 	confirmed *bool,
-) error {
-	if request != nil && request.Session != nil {
-		initialize := request.Session.InitializeParams()
-		if usesMCPFormElicitation(initialize) {
-			result, err := request.Session.Elicit(ctx, &sdkmcp.ElicitParams{
-				Message: fmt.Sprintf(
-					"Allow Kivgraph to register and index %s? This updates the registry and publishes a new graph generation.",
-					describeBatch(batch),
-				),
-				RequestedSchema: &jsonschema.Schema{
-					Type: "object",
-					Properties: map[string]*jsonschema.Schema{
-						"confirmed": {
-							Type:        "boolean",
-							Description: "Approve registering and indexing these projects.",
-						},
-					},
-					Required: []string{"confirmed"},
-				},
-			})
-			if err != nil {
-				return WrapToolError(CodePermissionRequired, "the client could not obtain indexing permission", err)
-			}
-			if result == nil || result.Action != "accept" || !elicitationConfirmed(result.Content) {
-				return NewToolError(CodePermissionDenied, "project indexing was not approved")
-			}
-			return nil
+) (*sdkmcp.CallToolResult, error) {
+	if request != nil && request.Session != nil && usesMCPFormElicitation(request.Session.InitializeParams()) {
+		var responses sdkmcp.InputResponseMap
+		state := ""
+		if request.Params != nil {
+			responses, state = request.Params.InputResponses, request.Params.RequestState
 		}
+		digest := batchDigest(batch)
+		approved, answered := consentAnswer(responses, state, digest)
+		switch {
+		case answered && approved:
+			return nil, nil
+		case answered:
+			return nil, NewToolError(CodePermissionDenied, "project indexing was not approved")
+		}
+		return &sdkmcp.CallToolResult{
+			InputRequests: sdkmcp.InputRequestMap{
+				indexConsentRequestID: &sdkmcp.ElicitParams{
+					Message: fmt.Sprintf(
+						"Allow Kivgraph to register and index %s? This updates the registry and publishes a new graph generation.",
+						describeBatch(batch),
+					),
+					RequestedSchema: &jsonschema.Schema{
+						Type: "object",
+						Properties: map[string]*jsonschema.Schema{
+							"confirmed": {
+								Type:        "boolean",
+								Description: "Approve registering and indexing these projects.",
+							},
+						},
+						Required: []string{"confirmed"},
+					},
+				},
+			},
+			RequestState: digest,
+		}, nil
 	}
 	if confirmed == nil || !*confirmed {
-		return NewToolError(
+		return nil, NewToolError(
 			CodePermissionRequired,
 			"user approval is required; confirm the operation before setting confirmed=true",
 		)
 	}
-	return nil
+	return nil, nil
+}
+
+// consentAnswer reads what the client answered to the consent question.
+// `answered` is false when there is no answer to this batch -- none at all, or
+// one that was given for another -- and the question is asked again; `approved`
+// is only meaningful when it is true.
+func consentAnswer(responses sdkmcp.InputResponseMap, state, digest string) (approved, answered bool) {
+	response, present := responses[indexConsentRequestID]
+	if !present || state != digest {
+		return false, false
+	}
+	result, ok := response.(*sdkmcp.ElicitResult)
+	if !ok || result == nil {
+		return false, true
+	}
+	return result.Action == "accept" && elicitationConfirmed(result.Content), true
+}
+
+// batchDigest identifies a batch of projects by what the approval names: each
+// project's name, path and languages, in the order given.
+func batchDigest(batch []indexing.Project) string {
+	hash := sha256.New()
+	for _, project := range batch {
+		fmt.Fprintf(hash, "%q\x00%q\x00%q\x00", project.Name, project.Path, strings.Join(project.Languages, ","))
+	}
+	return hex.EncodeToString(hash.Sum(nil))
 }
 
 // usesMCPFormElicitation selects the interactive consent path only when the
