@@ -233,3 +233,21 @@ ignores is left out at registration instead, unless the entry sets
 `include_git_ignored` (ADR 0153). A nested clone registered as a repository of
 its own is accepted beside its parent, since no walk of the parent enters it;
 a plain directory and a submodule are still refused (ADR 0151).
+
+## Amendment: a path that is named is skipped as one that is walked
+
+A walk stops at a directory it skips. Three things reach below one without
+walking: a `use` of a `go.work`, a manifest the registry lists, and the path
+of a file event from a directory that was watched before it became another
+checkout. Each brought back what the walk left out: a module of a clone
+declared with the repository above it, a graph called stale for a change no
+pass would read, a rebuild for a file that is not indexed.
+
+`workspace.InSkippedDirectory` answers for a named path -- it, or a directory
+between it and the root, is one every walk skips -- and the three ask it.
+
+The stat signature of ADR 0121 records the stamp of every directory it lists.
+Whether a directory with a `.git` is another checkout depends on the text of a
+pointer and of the `.gitmodules` above it, and either can be rewritten in
+place without moving a stamp. So a tree that holds a `.git` entry below its
+root is not vouched for: it is read again. The default, `full`, is unchanged.

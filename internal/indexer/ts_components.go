@@ -1,6 +1,7 @@
 package indexer
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -38,9 +39,12 @@ var componentIdentifier = regexp.MustCompile(`[A-Za-z_$][A-Za-z0-9_$]*`)
 // It reads words. A name in the markup counts, which errs towards saying an
 // answer is bounded. A file that writes no exported name is not listed, and a
 // directory that holds another package is that package's.
-func declareUnreadComponents(set *facts.Set, repository workspace.Repository, packageRoot string) {
+//
+// It walks and reads the package, so it stops when the pass is cancelled and
+// says so: a scan cut short declared less than there is.
+func declareUnreadComponents(ctx context.Context, set *facts.Set, repository workspace.Repository, packageRoot string) error {
 	if len(set.Packages) != 1 || len(set.Repositories) != 1 {
-		return
+		return nil
 	}
 	root := repository.RealPath
 	exported := make(map[string]bool)
@@ -50,7 +54,7 @@ func declareUnreadComponents(set *facts.Set, repository workspace.Repository, pa
 		}
 	}
 	if len(exported) == 0 || strings.TrimSpace(root) == "" {
-		return
+		return nil
 	}
 	repositoryKey, packageKey := set.Repositories[0].Key, set.Packages[0].Key
 	// What could not be read is declared for the package, with no file: any
@@ -68,7 +72,10 @@ func declareUnreadComponents(set *facts.Set, repository workspace.Repository, pa
 	}
 	declared := len(set.Unresolved)
 	var components []string
-	_ = filepath.WalkDir(packageRoot, func(path string, entry fs.DirEntry, err error) error {
+	walkErr := filepath.WalkDir(packageRoot, func(path string, entry fs.DirEntry, err error) error {
+		if cancelled := ctx.Err(); cancelled != nil {
+			return cancelled
+		}
 		if err != nil {
 			unread(path, err)
 			return nil
@@ -99,8 +106,14 @@ func declareUnreadComponents(set *facts.Set, repository workspace.Repository, pa
 		}
 		return nil
 	})
+	if walkErr != nil {
+		return walkErr
+	}
 	sort.Strings(components)
 	for _, relative := range components {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		filename := filepath.Join(root, filepath.FromSlash(relative))
 		names, err := componentNames(filename, exported)
 		if err != nil {
@@ -143,6 +156,7 @@ func declareUnreadComponents(set *facts.Set, repository workspace.Repository, pa
 	if len(components) > 0 || len(set.Unresolved) != declared {
 		set.Sort()
 	}
+	return nil
 }
 
 // componentNames answers the names of `declared` a file writes, each with the

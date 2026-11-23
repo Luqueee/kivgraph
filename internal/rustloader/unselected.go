@@ -1,6 +1,7 @@
 package rustloader
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -38,10 +39,13 @@ var (
 //
 // A test file is not one of them: it is left out by what `include_tests` asks
 // for, and the files a configuration excludes do not bound an answer.
-func collectUnselectedFiles(options AnalyzeOptions, analysis *Analysis, unresolved map[string]UnresolvedReference) {
+//
+// It walks and reads source trees, so it stops when the pass is cancelled and
+// says so: a scan cut short declared less than there is.
+func collectUnselectedFiles(ctx context.Context, options AnalyzeOptions, analysis *Analysis, unresolved map[string]UnresolvedReference) error {
 	root := options.Repository.RealPath
 	if strings.TrimSpace(root) == "" {
-		return
+		return nil
 	}
 	indexed := make(map[string]struct{}, len(analysis.Files))
 	crates := make(map[string]struct{})
@@ -79,7 +83,10 @@ func collectUnselectedFiles(options AnalyzeOptions, analysis *Analysis, unresolv
 		}
 		source := filepath.Join(crate.RootPath, "src")
 		var unselected []string
-		_ = filepath.WalkDir(source, func(path string, entry fs.DirEntry, err error) error {
+		walkErr := filepath.WalkDir(source, func(path string, entry fs.DirEntry, err error) error {
+			if cancelled := ctx.Err(); cancelled != nil {
+				return cancelled
+			}
 			if err != nil {
 				// A crate with no `src` is not one that could not be read.
 				if path != source || !errors.Is(err, fs.ErrNotExist) {
@@ -100,8 +107,14 @@ func collectUnselectedFiles(options AnalyzeOptions, analysis *Analysis, unresolv
 			}
 			return nil
 		})
+		if walkErr != nil {
+			return walkErr
+		}
 		sort.Strings(unselected)
 		for _, relative := range unselected {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			filename := filepath.Join(root, filepath.FromSlash(relative))
 			names, err := namesWritten(filename, declared)
 			if err != nil {
@@ -128,6 +141,7 @@ func collectUnselectedFiles(options AnalyzeOptions, analysis *Analysis, unresolv
 			}
 		}
 	}
+	return nil
 }
 
 // namesWritten answers the names of `declared` a file writes outside its

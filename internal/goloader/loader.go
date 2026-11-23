@@ -355,12 +355,52 @@ func loadEnvironment(options Options) ([]string, error) {
 // found in the module cache or the load says it is not there: the pass is
 // offline.
 //
-// A GOTOOLCHAIN the user set is theirs and is left alone.
+// A GOTOOLCHAIN the user set is theirs and is left alone, whether it is in the
+// environment or was saved with `go env -w`.
 func ToolchainPin() string {
-	if os.Getenv("GOTOOLCHAIN") != "" {
+	if os.Getenv("GOTOOLCHAIN") != "" || savedToolchain(userGoEnvironmentFile()) {
 		return ""
 	}
 	return toolchainPin(installedGoVersion(), runtime.Version())
+}
+
+// userGoEnvironmentFile is where `go env -w` writes: GOENV, or `go/env` in the
+// user's configuration directory. "off" means the user keeps none.
+//
+// The file is read here instead of asking `go env GOTOOLCHAIN`, which answers
+// with the default a distribution ships in `GOROOT/go.env` as readily as with
+// a choice the user made. Honouring that default would leave every load on a
+// toolchain this build cannot parse, which is what the pin exists to prevent.
+func userGoEnvironmentFile() string {
+	if configured := os.Getenv("GOENV"); configured != "" {
+		if configured == "off" {
+			return ""
+		}
+		return configured
+	}
+	directory, err := os.UserConfigDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(directory, "go", "env")
+}
+
+// savedToolchain reports whether the file at path sets GOTOOLCHAIN. A file
+// that is not there, or cannot be read, sets nothing.
+func savedToolchain(path string) bool {
+	if path == "" {
+		return false
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if value, found := strings.CutPrefix(strings.TrimSpace(line), "GOTOOLCHAIN="); found && strings.TrimSpace(value) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // toolchainPin decides from the two versions alone.

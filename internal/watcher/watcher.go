@@ -392,6 +392,13 @@ func (watcher *Watcher) processEvent(ctx context.Context, raw fsnotify.Event) er
 	if !ok || root.ignored.ignored(path) {
 		return nil
 	}
+	// A directory that became another checkout, or a tagged cache, after it
+	// was watched still delivers events: the watch was added while it was
+	// part of the repository. Nothing below it is indexed any more, so its
+	// changes are not this repository's.
+	if workspace.InSkippedDirectory(root.path, path) {
+		return nil
+	}
 	if operation.Has(OperationCreate) {
 		info, statErr := os.Lstat(path)
 		if statErr == nil && info.IsDir() && info.Mode()&os.ModeSymlink == 0 {

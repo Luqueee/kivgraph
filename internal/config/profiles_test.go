@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -398,5 +399,43 @@ func TestKeepOutOfRepositoriesGivesEachTargetItsOwnDirectory(t *testing.T) {
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("targets = %q, want %q", got, want)
+	}
+}
+
+// A workspace split in several is written as `<name>.<n>.work` beside the
+// first, and a profile may be called `default.1`. The file of one profile
+// must never be a later file of another.
+func TestKeepOutOfRepositoriesNamesAWorkFileNoOtherProfileSplitsInto(t *testing.T) {
+	repository := testsupport.TempDir(t)
+	outside := testsupport.TempDir(t)
+	nameOf := func(profile string) string {
+		configuration := Config{}
+		configuration.Go.SyntheticWorkFile = filepath.Join(repository, ".kivgraph", "go.work")
+		keepOutOfRepositories(&configuration, profile, outside, []Repository{{Name: "project", Path: repository}})
+		return configuration.Go.SyntheticWorkFile
+	}
+	names := map[string]string{}
+	for _, profile := range []string{"default", "default.1", "default.1.2", "default.profile", "default.profile.1"} {
+		name := nameOf(profile)
+		if filepath.Dir(name) != outside {
+			t.Fatalf("profile %s: %q is not directly in %q", profile, name, outside)
+		}
+		for other, taken := range names {
+			if taken == name {
+				t.Errorf("profiles %s and %s share %q", profile, other, name)
+			}
+		}
+		names[profile] = name
+	}
+	// The rule the indexer splits by: `<name minus .work>.<n>.work`.
+	for profile, name := range names {
+		for index := 1; index <= 3; index++ {
+			split := strings.TrimSuffix(name, ".work") + "." + strconv.Itoa(index) + ".work"
+			for other, taken := range names {
+				if taken == split {
+					t.Errorf("file %d of profile %s is the file of profile %s: %q", index, profile, other, split)
+				}
+			}
+		}
 	}
 }

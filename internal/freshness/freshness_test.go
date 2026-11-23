@@ -513,3 +513,46 @@ func TestExplicitManifestSymlinksAreRefused(t *testing.T) {
 
 // Remaining filesystem-error branches require failed reads/writes/renames after
 // successful opens; no production fault-injection seam is added for these.
+
+// A manifest the registry names inside another checkout is read by no walk,
+// so its content is not part of what was indexed. Hashing it made the graph
+// stale for a change no pass would see.
+func TestInventoryLeavesOutAManifestInsideAnotherCheckout(t *testing.T) {
+	root := t.TempDir()
+	inClone := filepath.Join(root, "clone", "project.settings")
+	own := filepath.Join(root, "own", "project.settings")
+	for path, body := range map[string]string{
+		filepath.Join(root, "clone", ".git", "HEAD"): "ref: refs/heads/main\n",
+		inClone: "before\n",
+		own:     "before\n",
+	} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	repository := workspace.Repository{Name: "test", Path: root, Manifests: []string{inClone, own}}
+	capture := func() string {
+		t.Helper()
+		digest, err := Capture(t.Context(), []workspace.Repository{repository})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return digest
+	}
+	initial := capture()
+	if err := os.WriteFile(inClone, []byte("after\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if capture() != initial {
+		t.Fatal("a manifest inside another checkout moved the inventory")
+	}
+	if err := os.WriteFile(own, []byte("after\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if capture() == initial {
+		t.Fatal("control: a manifest of the repository itself did not move the inventory")
+	}
+}

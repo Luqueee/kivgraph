@@ -743,6 +743,17 @@ func treeDigest(ctx context.Context, root string, record bool) (string, *TreeSig
 			// Stamped above even when skipped: a tag added to or removed from
 			// this directory later changes its stamp, so the signature cannot
 			// vouch for a digest that was taken under the other answer.
+			//
+			// A `.git` entry is the exception. Whether its directory is
+			// another checkout depends on the text of a pointer file and of
+			// the `.gitmodules` above, and either can be rewritten in place
+			// without moving any stamp recorded here. A tree that holds one
+			// is read again every time.
+			if path != root && signature != nil {
+				if _, err := os.Lstat(filepath.Join(path, ".git")); err == nil {
+					signature.distrust()
+				}
+			}
 			if path != root && workspace.IsSkippedDirectory(path) {
 				return fs.SkipDir
 			}

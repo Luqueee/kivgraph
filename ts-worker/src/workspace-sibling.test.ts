@@ -254,3 +254,33 @@ it("reads a package through a project written outside the repository", async () 
     collectFacts("w", root, registry, project, [], outside),
   ).rejects.toThrow(/escapes repository root/);
 });
+
+// One import proves a dependency, and the first may be in a file the
+// repository excludes. Every occurrence travels, so the reader can take the
+// first it keeps.
+it("sends every occurrence of a package dependency", async () => {
+  const root = await workspace();
+  await put(
+    root,
+    "apps/app/src/zz-second.ts",
+    'import { fromLib } from "@w/lib";\nexport const again = fromLib();\n',
+  );
+  const siblings = await siblingProviders("w", root, [
+    path.join(root, "packages/lib"),
+  ]);
+  const payload = await collectFacts(
+    "w",
+    root,
+    createPackageProviderRegistry(siblings),
+    "apps/app/tsconfig.json",
+  );
+  expect(
+    payload.dependencies.map((dependency) => [
+      dependency.package,
+      dependency.file,
+      dependency.alternates.map((witness) => witness.file),
+    ]),
+  ).toEqual([
+    ["@w/lib", "apps/app/src/index.ts", ["apps/app/src/zz-second.ts"]],
+  ]);
+});

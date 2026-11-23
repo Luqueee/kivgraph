@@ -482,3 +482,52 @@ func TestDiscoverGoIgnoresFilesExcludedByAnIgnoreConstraint(t *testing.T) {
 		t.Fatalf("DiscoverGo() = %#v, %v, want the ignored-only directory reported", discovery.Packages, err)
 	}
 }
+
+// A `use` in a go.work names a directory, and a walk never gets there when the
+// directory is another checkout. Nothing of one is read with the repository
+// above it, so the module it holds is not this repository's -- and a clone
+// registered beside its parent would otherwise declare it twice.
+func TestDiscoverGoLeavesOutAModuleTheWorkspaceUsesInAnotherCheckout(t *testing.T) {
+	root := testsupport.TempDir(t)
+	writeGoDiscoveryFile(t, filepath.Join(root, "go.mod"), "module example.com/root\n\ngo 1.24\n")
+	writeGoDiscoveryFile(t, filepath.Join(root, "go.work"), "go 1.24\n\nuse (\n  .\n  ./clone\n  ./clone/deep\n  ./own\n)\n")
+	writeGoDiscoveryFile(t, filepath.Join(root, "clone", ".git", "HEAD"), "ref: refs/heads/main\n")
+	writeGoDiscoveryFile(t, filepath.Join(root, "clone", "go.mod"), "module example.com/clone\n\ngo 1.24\n")
+	writeGoDiscoveryFile(t, filepath.Join(root, "clone", "deep", "go.mod"), "module example.com/deep\n\ngo 1.24\n")
+	writeGoDiscoveryFile(t, filepath.Join(root, "own", "go.mod"), "module example.com/own\n\ngo 1.24\n")
+
+	discovery, err := DiscoverGo(context.Background(), Repository{RealPath: root})
+	if err != nil {
+		t.Fatalf("DiscoverGo() error = %v", err)
+	}
+	var modules []string
+	for _, module := range discovery.Modules {
+		modules = append(modules, module.ModulePath)
+	}
+	if want := []string{"example.com/root", "example.com/own"}; !equalStrings(modules, want) {
+		t.Fatalf("modules = %q, want %q", modules, want)
+	}
+}
+
+func TestInSkippedDirectoryAnswersForAPathThatWasNamed(t *testing.T) {
+	root := testsupport.TempDir(t)
+	writeGoDiscoveryFile(t, filepath.Join(root, ".git", "HEAD"), "ref: refs/heads/main\n")
+	writeGoDiscoveryFile(t, filepath.Join(root, "clone", ".git", "HEAD"), "ref: refs/heads/main\n")
+	writeGoDiscoveryFile(t, filepath.Join(root, "clone", "pkg", "a.go"), "package pkg\n")
+	writeGoDiscoveryFile(t, filepath.Join(root, "src", "a.go"), "package src\n")
+	for path, want := range map[string]bool{
+		filepath.Join(root, "clone"):                 true,
+		filepath.Join(root, "clone", "pkg", "a.go"):  true,
+		filepath.Join(root, "clone", "missing", "x"): true,
+		filepath.Join(root, "src", "a.go"):           false,
+		filepath.Join(root, "src"):                   false,
+		// The root has a `.git` of its own and is the one checkout always read.
+		root: false,
+		// Not below the root: nothing of the root skips it.
+		filepath.Dir(root): false,
+	} {
+		if got := InSkippedDirectory(root, path); got != want {
+			t.Errorf("InSkippedDirectory(%s) = %t, want %t", path, got, want)
+		}
+	}
+}

@@ -54,3 +54,15 @@ Measured without `GOTOOLCHAIN` in the environment, over two repositories:
 Whether a pass run by the daemon should publish a generation that lost a
 module the active one had was not decided here. ADR 0152 decides it: it does
 not.
+
+## Amendment: a toolchain saved with `go env -w`
+
+The variable was read from the environment only, so a `GOTOOLCHAIN` saved
+with `go env -w` was overridden by the pin. The file `go env -w` writes --
+`GOENV`, or `go/env` in the user's configuration directory -- is read, and a
+`GOTOOLCHAIN` there is left alone.
+
+`go env GOTOOLCHAIN` is not asked. It answers with the default a distribution
+ships in `GOROOT/go.env` as readily as with the user's choice, and honouring
+a distribution's `local` would leave every load on a toolchain this build
+cannot parse.
