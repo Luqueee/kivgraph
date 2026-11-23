@@ -22,23 +22,23 @@
     "test": "node --test src/**/*.test.mjs"
   },
   "dependencies": {
-    "@astrojs/markdown-remark": "7.3.9",
-    "@astrojs/node": "11.1.13",
-    "@astrojs/sitemap": "3.7.5",
-    "@astrojs/starlight": "0.41.7",
+    "@astrojs/markdown-remark": "7.3.10",
+    "@astrojs/node": "11.1.14",
+    "@astrojs/sitemap": "3.7.6",
+    "@astrojs/starlight": "0.43.1",
     "@astrojs/starlight-tailwind": "5.0.0",
     "@fontsource-variable/geist": "5.3.0",
     "@fontsource-variable/geist-mono": "5.3.0",
-    "astro": "7.4.12",
+    "astro": "7.4.13",
     "gsap": "^3.15.1",
-    "posthog-js": "^1.450.0",
-    "tailwindcss": "4.3.3",
+    "posthog-js": "^1.453.0",
+    "tailwindcss": "4.3.5",
     "zod": "4.6.7"
   },
   "devDependencies": {
-    "@astrojs/check": "0.9.10",
-    "@biomejs/biome": "2.5.7",
-    "@tailwindcss/vite": "4.3.3",
+    "@astrojs/check": "0.9.12",
+    "@biomejs/biome": "2.6.8",
+    "@tailwindcss/vite": "4.3.5",
     "rehype-external-links": "^3.0.0",
     "typescript": "6.0.3"
   }
