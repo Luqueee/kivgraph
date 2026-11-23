@@ -8,12 +8,14 @@ import {
   Handle,
   MarkerType,
   MiniMap,
+  type FitViewOptions,
   type Node,
   type NodeProps,
   Position,
   ReactFlow,
+  useNodesStore,
   useReactFlow,
-  useStore,
+  useViewportStore,
 } from "@xyflow/react";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import "@xyflow/react/dist/style.css";
@@ -34,7 +36,11 @@ import {
 
 export const TOPOLOGY_FLOW_ARIA_LABEL = "Profile topology map";
 
-const TOPOLOGY_FIT = { padding: 0.24, minZoom: 0.35, maxZoom: 1.25 };
+const TOPOLOGY_FIT: FitViewOptions = {
+  padding: "24%",
+  minZoom: 0.35,
+  maxZoom: 1.25,
+};
 
 /**
  * Frames the map again whenever the set of nodes changes.
@@ -50,7 +56,7 @@ function FitToNodes({ signature }: { signature: string }): null {
   // How many nodes the canvas has measured. `useNodesInitialized` reads the
   // nodes this component is given, and those never carry a measurement: the
   // map is controlled and applies no change back to them.
-  const measured = useStore((state) => {
+  const measured = useNodesStore((state) => {
     let count = 0;
     for (const node of state.nodeLookup.values()) {
       if (node.measured.width && node.measured.height) count += 1;
@@ -58,7 +64,7 @@ function FitToNodes({ signature }: { signature: string }): null {
     return count === state.nodeLookup.size ? count : 0;
   });
   // The size of the canvas itself: a window made narrower is a new frame too.
-  const pane = useStore((state) => `${state.width}x${state.height}`);
+  const pane = useViewportStore((state) => `${state.width}x${state.height}`);
   // biome-ignore lint/correctness/useExhaustiveDependencies: the signature and the pane are triggers, not inputs.
   useEffect(() => {
     if (measured === 0) return;
@@ -1427,7 +1433,7 @@ export function TopologyFlow({
           edges={edges}
           nodeTypes={topologyNodeTypes}
           edgeTypes={topologyEdgeTypes}
-          colorMode="dark"
+          forceColorMode="dark"
           fitView
           fitViewOptions={TOPOLOGY_FIT}
           minZoom={0.25}
