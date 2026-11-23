@@ -216,7 +216,8 @@ Kivgraph se niega a resolver por coincidencia de nombre, así que sabe dónde
 falló: cada fallo queda con su fichero, su línea y su motivo. Un índice que
 adivina siempre devuelve algo y por eso no puede decir esto.
 
-`get_blast_radius` publica un bloque `completeness`:
+`get_blast_radius` publica un bloque `completeness`. Con `view: "full"` es una
+fila por fallo y por ámbito:
 
 ```json
 {"verdict": "LOWER_BOUND",
@@ -224,6 +225,21 @@ adivina siempre devuelve algo y por eso no puede decir esto.
                   "file_path": "benchmarks/x/main.go", "start_line": 328,
                   "requested_symbol": "Connection.Close"}],
  "invisible_scopes": [{"reason": "PACKAGE_NOT_BUILDABLE", "detail": "…"}],
+ "fallback": {"pattern": "\\bMergeAll\\b", "paths": ["benchmarks/x"]}}
+```
+
+Con la vista `compact`, la de por defecto, lo que las filas repiten se dice una
+vez (ADR 0156): los ámbitos se agrupan por repositorio y motivo, con sus
+paquetes en `packages`, y los fallos por lo que pidieron, con cada lugar como
+`file:line` en `at`.
+
+```json
+{"verdict": "LOWER_BOUND", "repository": "r",
+ "blind_spots": [{"reason": "MODULE_PROVIDER_NOT_FOUND",
+                  "requested_symbol": "Connection.Close",
+                  "at": ["benchmarks/x/main.go:328"]}],
+ "invisible_scopes": [{"reason": "PACKAGE_NOT_BUILDABLE",
+                       "packages": ["x"], "occurrences": 1}],
  "fallback": {"pattern": "\\bMergeAll\\b", "paths": ["benchmarks/x"]}}
 ```
 

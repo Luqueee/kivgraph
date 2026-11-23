@@ -118,9 +118,11 @@ captured page.
 }
 ```
 
-The `completeness` block is cut here with `{ … }` only to keep the payload short:
-the compact view spells it exactly as the full view below does, and it is not a
-field either view abbreviates.
+The `completeness` block is cut here with `{ … }` only to keep the payload short.
+The compact view groups its `invisible_scopes` by reason, with the packages in a
+list, and its `blind_spots` by what they asked for, with each place as
+`path:line` -- see [what a verdict names](/mcp/usage/#read-the-answer). The full
+view below has one row per scope and per failure.
 
 The root is the `repository:path:line` triple every tool accepts as a selector,
 not the stable key the full view carries. Every row was reached by a call a type
@@ -327,7 +329,8 @@ key as the root and every column spelled on every row:
 ```
 
 Three of the seven `invisible_scopes` entries are elided above, marked with the
-`…` line; the response carries them all. This answer comes from snapshot `30` of
+`…` line; the response carries them all. That is the full view: a compact answer
+holds the same seven scopes as two groups. This answer comes from snapshot `30` of
 two repositories, `kivgraph` and `go-svc-e`.
 
 ## Reading the result

@@ -54,18 +54,18 @@ func normalizeView(value string, filesAllowed bool) (string, error) {
 // carried no information: an age nobody asked for, a `truncated` that is false,
 // a cursor that does not exist, and coverage categories at zero.
 type compactEnvelope[T any] struct {
-	SnapshotID        *uint64           `json:"snapshot_id,omitempty"`
-	Profile           string            `json:"profile,omitempty"`
-	Profiles          []ProfileSnapshot `json:"profiles,omitempty"`
-	CrossProfileEdges string            `json:"cross_profile_edges,omitempty"`
-	Total             int               `json:"total"`
-	Returned          int               `json:"returned"`
-	Truncated         bool              `json:"truncated,omitempty"`
-	NextCursor        *string           `json:"next_cursor,omitempty"`
-	Coverage          *compactCoverage  `json:"coverage,omitempty"`
-	Completeness      *Completeness     `json:"completeness,omitempty"`
-	Guidance          string            `json:"guidance,omitempty"`
-	Results           T                 `json:"results"`
+	SnapshotID        *uint64                  `json:"snapshot_id,omitempty"`
+	Profile           string                   `json:"profile,omitempty"`
+	Profiles          []compactProfileSnapshot `json:"profiles,omitempty"`
+	CrossProfileEdges string                   `json:"cross_profile_edges,omitempty"`
+	Total             int                      `json:"total"`
+	Returned          int                      `json:"returned"`
+	Truncated         bool                     `json:"truncated,omitempty"`
+	NextCursor        *string                  `json:"next_cursor,omitempty"`
+	Coverage          *compactCoverage         `json:"coverage,omitempty"`
+	Completeness      *compactCompleteness     `json:"completeness,omitempty"`
+	Guidance          string                   `json:"guidance,omitempty"`
+	Results           T                        `json:"results"`
 }
 
 // compactCoverage drops the categories that counted nothing. A zero next to
@@ -129,14 +129,14 @@ func (response Response[T]) MarshalJSON() ([]byte, error) {
 	return json.Marshal(compactEnvelope[T]{
 		SnapshotID:        response.SnapshotID,
 		Profile:           response.Profile,
-		Profiles:          response.Profiles,
+		Profiles:          compactProfiles(response.Profiles),
 		CrossProfileEdges: response.CrossProfileEdges,
 		Total:             response.Total,
 		Returned:          response.Returned,
 		Truncated:         response.Truncated,
 		NextCursor:        response.NextCursor,
 		Coverage:          response.Coverage.compact(),
-		Completeness:      response.Completeness,
+		Completeness:      compactCompletenessOf(response.Completeness),
 		Guidance:          response.Guidance,
 		Results:           response.Results,
 	})

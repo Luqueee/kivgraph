@@ -158,9 +158,13 @@ type envelope struct {
 	Total        int `json:"total"`
 	Returned     int `json:"returned"`
 	Completeness *struct {
-		Verdict         string           `json:"verdict"`
-		BlindSpots      []map[string]any `json:"blind_spots"`
-		InvisibleScopes []map[string]any `json:"invisible_scopes"`
+		Verdict    string           `json:"verdict"`
+		BlindSpots []map[string]any `json:"blind_spots"`
+		// A compact answer groups scopes by reason and lists their packages;
+		// a full one has a row per scope and no `packages`. See ADR 0156.
+		InvisibleScopes []struct {
+			Packages []string `json:"packages"`
+		} `json:"invisible_scopes"`
 	} `json:"completeness"`
 	Guidance string `json:"guidance"`
 }
@@ -518,7 +522,9 @@ func measure(ctx context.Context, session *sdkmcp.ClientSession, testCase check)
 	if decoded.Completeness != nil {
 		result.Verdict = decoded.Completeness.Verdict
 		result.BlindSpots = len(decoded.Completeness.BlindSpots)
-		result.Scopes = len(decoded.Completeness.InvisibleScopes)
+		for _, group := range decoded.Completeness.InvisibleScopes {
+			result.Scopes += max(1, len(group.Packages))
+		}
 	}
 
 	if testCase.WantEmpty && decoded.Total != 0 {
