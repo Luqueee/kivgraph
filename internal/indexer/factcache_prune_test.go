@@ -16,11 +16,11 @@ import (
 // file of somebody else's is not a stale entry.
 func TestPruneRemovesOnlyWhatTheCacheWrote(t *testing.T) {
 	directory := testsupport.TempDir(t)
-	entry := strings.Repeat("a", 64) + ".json"
-	fresh := strings.Repeat("b", 64) + ".json"
+	entry := strings.Repeat("a", 64) + cacheEntrySuffix
+	fresh := strings.Repeat("b", 64) + cacheEntrySuffix
 	files := []string{
 		entry, fresh, ".entry-123.tmp",
-		"notes.txt", "report.json", strings.Repeat("a", 63) + ".json", strings.Repeat("G", 64) + ".json",
+		"notes.txt", "report.json", strings.Repeat("a", 63) + cacheEntrySuffix, strings.Repeat("G", 64) + cacheEntrySuffix,
 	}
 	for _, name := range files {
 		if err := os.WriteFile(filepath.Join(directory, name), []byte("{}"), 0o600); err != nil {
@@ -58,11 +58,36 @@ func TestPruneRemovesOnlyWhatTheCacheWrote(t *testing.T) {
 		got = append(got, item.Name())
 	}
 	want := []string{
-		".staging-notes", strings.Repeat("G", 64) + ".json", strings.Repeat("a", 63) + ".json",
+		".staging-notes", strings.Repeat("G", 64) + cacheEntrySuffix, strings.Repeat("a", 63) + cacheEntrySuffix,
 		fresh, "empty-directory", "notes.txt", "report.json",
 	}
 	slices.Sort(want)
 	if !slices.Equal(got, want) {
 		t.Fatalf("after prune the directory holds\n%q\nwant\n%q", got, want)
+	}
+}
+
+// An entry of the JSON format can never be read again, and a directory of them is
+// most of a gigabyte: they go at once, fresh or not. A file that only looks like
+// one -- not a digest, not lower case -- is not the cache's to remove.
+func TestPruneRemovesTheEntriesOfTheRetiredFormatAtOnce(t *testing.T) {
+	directory := testsupport.TempDir(t)
+	legacy := strings.Repeat("c", 64) + legacyCacheEntrySuffix
+	keep := []string{"report.json", strings.Repeat("c", 63) + legacyCacheEntrySuffix, strings.Repeat("G", 64) + legacyCacheEntrySuffix}
+	for _, name := range append([]string{legacy}, keep...) {
+		if err := os.WriteFile(filepath.Join(directory, name), []byte("{}"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	(&factCache{directory: directory, mode: CacheOn}).prune(30 * 24 * time.Hour)
+
+	if _, err := os.Stat(filepath.Join(directory, legacy)); !os.IsNotExist(err) {
+		t.Fatalf("a fresh entry of the retired format survived the prune: %v", err)
+	}
+	for _, name := range keep {
+		if _, err := os.Stat(filepath.Join(directory, name)); err != nil {
+			t.Errorf("%s was removed, and it is not an entry the cache wrote: %v", name, err)
+		}
 	}
 }
