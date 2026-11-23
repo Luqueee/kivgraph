@@ -233,30 +233,72 @@ func Tagged() string { return "tagged" }
 	}
 }
 
-// A repository written for a newer Go than this build can type-check must fail
-// the pass by name. Publishing a generation that silently lacks a registered
-// repository is worse than refusing to publish one.
-func TestFullRejectsARepositoryAboveTheSupportedLanguageVersion(t *testing.T) {
-	root := testsupport.TempDir(t)
-	writeFullFixture(t, filepath.Join(root, "go.mod"), "module example.com/future\n\ngo 1.99.0\n")
-	writeFullFixture(t, filepath.Join(root, "fixture.go"), "package fixture\n\nfunc Greeting() string { return \"hello\" }\n")
+// A repository written for a newer Go than this build can type-check is not
+// loaded, and the pass says so by name. It used to refuse the whole index, so
+// one module of a registry of sixty took the other fifty-nine with it; a graph
+// that lacks a repository is now one that declares the repository unread, which
+// is what a module that does not load has always been.
+func TestFullDeclaresARepositoryAboveTheSupportedLanguageVersionAndIndexesTheRest(t *testing.T) {
+	current := testsupport.TempDir(t)
+	writeFullFixture(t, filepath.Join(current, "go.mod"), "module example.com/current\n\ngo 1.21\n")
+	writeFullFixture(t, filepath.Join(current, "fixture.go"), "package fixture\n\nfunc Greeting() string { return \"hello\" }\n")
+	future := testsupport.TempDir(t)
+	writeFullFixture(t, filepath.Join(future, "go.mod"), "module example.com/future\n\ngo 1.99.0\n")
+	writeFullFixture(t, filepath.Join(future, "fixture.go"), "package fixture\n\nfunc Unreadable() string { return \"hello\" }\n")
 
-	_, _, err := Full(context.Background(), FullOptions{
-		Repositories: []workspace.Repository{{
-			Name: "future", Path: root, RealPath: root, Languages: []string{"go"},
-		}},
+	set, report, err := Full(context.Background(), FullOptions{
+		Repositories: []workspace.Repository{
+			{Name: "current", Path: current, RealPath: current, Languages: []string{"go"}},
+			{Name: "future", Path: future, RealPath: future, Languages: []string{"go"}},
+		},
 		SyntheticWorkFile: filepath.Join(testsupport.TempDir(t), "go.work"),
 	})
-	if err == nil {
-		t.Fatal("Full() error = nil, want the unsupported language version reported")
+	if err != nil {
+		t.Fatalf("Full() error = %v, want the readable repository indexed", err)
 	}
-	if !errors.Is(err, goworkspace.ErrGoVersionUnsupported) {
-		t.Fatalf("Full() error = %v, want ErrGoVersionUnsupported", err)
+	names := make(map[string]bool)
+	for _, symbol := range set.Symbols {
+		names[symbol.Name] = true
 	}
-	for _, want := range []string{"future", "1.99.0"} {
-		if !strings.Contains(err.Error(), want) {
-			t.Fatalf("Full() error = %q, want it to name %q", err, want)
+	if !names["Greeting"] || names["Unreadable"] {
+		t.Fatalf("symbols = %v, want Greeting from the readable repository and nothing from the other", names)
+	}
+	if report.GoModulesNotLoaded != 1 || report.GoModules != 2 {
+		t.Fatalf("GoModules = %d, not loaded = %d, want 2 and 1", report.GoModules, report.GoModulesNotLoaded)
+	}
+	wantRead := "future: example.com/future: MODULE_NOT_LOADED: requires go 1.99.0 and this build type-checks with go " + goworkspace.LanguageVersion()
+	if len(report.GoModulesNotRead) != 1 || !strings.HasPrefix(report.GoModulesNotRead[0], wantRead) {
+		t.Fatalf("GoModulesNotRead = %q, want one line starting %q", report.GoModulesNotRead, wantRead)
+	}
+	declared := 0
+	for _, unresolved := range set.Unresolved {
+		if unresolved.Reason == "MODULE_NOT_LOADED" && unresolved.RequestedPackage == "example.com/future" {
+			declared++
 		}
+	}
+	if declared != 1 {
+		t.Fatalf("unresolved MODULE_NOT_LOADED rows for example.com/future = %d, want 1", declared)
+	}
+}
+
+// With nothing else to read, the pass still finishes: the only Go repository is
+// declared unread and the pass has no module to load.
+func TestFullWithOnlyARepositoryAboveTheSupportedLanguageVersionStillFinishes(t *testing.T) {
+	future := testsupport.TempDir(t)
+	writeFullFixture(t, filepath.Join(future, "go.mod"), "module example.com/future\n\ngo 1.99.0\n")
+	writeFullFixture(t, filepath.Join(future, "fixture.go"), "package fixture\n")
+
+	_, report, err := Full(context.Background(), FullOptions{
+		Repositories: []workspace.Repository{
+			{Name: "future", Path: future, RealPath: future, Languages: []string{"go"}},
+		},
+		SyntheticWorkFile: filepath.Join(testsupport.TempDir(t), "go.work"),
+	})
+	if err != nil {
+		t.Fatalf("Full() error = %v, want the pass to finish with the repository declared unread", err)
+	}
+	if report.GoModulesNotLoaded != 1 {
+		t.Fatalf("not loaded = %d, want the one repository declared", report.GoModulesNotLoaded)
 	}
 }
 
@@ -895,7 +937,8 @@ func TestDiscoverTypeScriptPackagesLeavesUnclaimedSourcesAloneByDefault(t *testi
 	repository := unclaimedMonorepo(t)
 
 	discovered, err := discoverTypeScriptPackages(
-		context.Background(), []workspace.Repository{repository}, false)
+		context.Background(), []workspace.Repository{repository}, false,
+	)
 	if err != nil {
 		t.Fatalf("discoverTypeScriptPackages() error = %v", err)
 	}
@@ -920,7 +963,8 @@ func TestDiscoverTypeScriptPackagesAttributesUnclaimedSourcesToTheEnclosingPacka
 	repository := unclaimedMonorepo(t)
 
 	discovered, err := discoverTypeScriptPackages(
-		context.Background(), []workspace.Repository{repository}, true)
+		context.Background(), []workspace.Repository{repository}, true,
+	)
 	if err != nil {
 		t.Fatalf("discoverTypeScriptPackages() error = %v", err)
 	}
@@ -959,7 +1003,8 @@ func TestDiscoverTypeScriptPackagesReadsAPackageThatDeclaresNoProject(t *testing
 
 	for _, includeUnclaimed := range []bool{false, true} {
 		discovered, err := discoverTypeScriptPackages(
-			context.Background(), []workspace.Repository{repository}, includeUnclaimed)
+			context.Background(), []workspace.Repository{repository}, includeUnclaimed,
+		)
 		if err != nil {
 			t.Fatalf("discoverTypeScriptPackages(%t) error = %v", includeUnclaimed, err)
 		}
@@ -1057,19 +1102,25 @@ func TestTypeScriptFactsArgumentsNameEachProviderByWhatReachesIt(t *testing.T) {
 
 	got := typeScriptFactsArguments(declared, providers, declared.packageValue.ProjectPath, "out.json")
 	want := slices.Concat(
-		[]string{"facts", "here", here.RealPath, "out.json", "--project", declared.packageValue.ProjectPath,
-			"--sibling", undeclared.packageValue.RootPath},
-		foreign, []string{"--unclaimed", "a.ts"})
+		[]string{
+			"facts", "here", here.RealPath, "out.json", "--project", declared.packageValue.ProjectPath,
+			"--sibling", undeclared.packageValue.RootPath,
+		},
+		foreign, []string{"--unclaimed", "a.ts"},
+	)
 	if !slices.Equal(got, want) {
 		t.Fatalf("a package with a project:\n got %q\nwant %q", got, want)
 	}
 
 	got = typeScriptFactsArguments(undeclared, providers, "written.json", "out.json")
 	want = slices.Concat(
-		[]string{"facts", "here", here.RealPath, "out.json", "--project", "written.json",
+		[]string{
+			"facts", "here", here.RealPath, "out.json", "--project", "written.json",
 			"--package-root", undeclared.packageValue.RootPath,
-			"--sibling", declared.packageValue.RootPath},
-		foreign)
+			"--sibling", declared.packageValue.RootPath,
+		},
+		foreign,
+	)
 	if !slices.Equal(got, want) {
 		t.Fatalf("a package with no project:\n got %q\nwant %q", got, want)
 	}

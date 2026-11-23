@@ -76,9 +76,10 @@ a per-document counter, are not addressable, and never enter the graph.
 
 `go/types` travels linked into the binary, so Kivgraph type-checks only up to
 the language version of the toolchain that compiled it. A registered module
-above that ceiling is rejected by name — repository, module and version — rather
-than being allowed to escalate the synthetic `go.work` toolchain and break the
-load of every other repository inside the standard library.
+above that ceiling is left out and declared `MODULE_NOT_LOADED` by name —
+repository, module and version — rather than being allowed to escalate the
+synthetic `go.work` toolchain and break the load of every other repository inside
+the standard library. The rest of the pass goes on.
 
 `kivgraph doctor` reports that ceiling on `toolchain.typecheck`. It is not the
 `go` on your `PATH`, and it is the number that decides whether a repository

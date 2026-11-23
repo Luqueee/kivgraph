@@ -445,7 +445,13 @@ Download the module's dependencies in its own checkout, then rebuild. Indexing i
 **Symptom**
 
 ```text
-toolchain.typecheck: FAIL (registered Go module requires a newer Go language version than this build supports (this build type-checks with go <ceiling>): repository "<name>" module "<path>" requires go <version>; rebuild Kivgraph with that toolchain or drop "go" from the languages of that repository)
+toolchain.typecheck: FAIL (1 registered Go module(s) need a newer Go language version than this build supports (this build type-checks with go <ceiling>) and are not indexed: repository "<name>" module "<path>" requires go <version>; rebuild Kivgraph with that toolchain or drop "go" from the languages of that repository)
+```
+
+and the pass names the module on its own line, declared `MODULE_NOT_LOADED`:
+
+```text
+index.go.not_read: <name>: <path>: MODULE_NOT_LOADED: requires go <version> and this build type-checks with go <ceiling>; rebuild Kivgraph with that toolchain
 ```
 
 A passing run reports both numbers, the ceiling and the highest registered module:
@@ -456,7 +462,7 @@ toolchain.typecheck: PASS (go <ceiling> (highest registered module: go <version>
 
 **Cause**
 
-`go/types` travels linked inside the binary, so Kivgraph type checks only up to the language version of the toolchain that compiled it. The `go` on your `PATH` is a different number and is not the one that decides whether a repository can be indexed. A module above the ceiling is rejected by name — repository, module and version — rather than being allowed to escalate the synthetic `go.work` and break the load of every other repository. The ceiling is `major.minor`.
+`go/types` travels linked inside the binary, so Kivgraph type checks only up to the language version of the toolchain that compiled it. The `go` on your `PATH` is a different number and is not the one that decides whether a repository can be indexed. A module above the ceiling is left out of the synthetic `go.work` and declared not loaded, by name — repository, module and version — rather than being allowed to escalate that file and break the load of every other repository; the rest of the pass goes on. The ceiling is `major.minor`.
 
 **Fix**
 
