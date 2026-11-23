@@ -262,6 +262,101 @@ func TestCanonicalTableRowsRejectsUnknownEdgeKind(t *testing.T) {
 	}
 }
 
+// A load that renders one table at a time must stop and say why when the
+// table in hand cannot be taken, and must not have rendered a table after it:
+// an error swallowed here would stage a graph with a table missing.
+func TestRenderCanonicalTablesStopsAtTheFirstTableEmitRefuses(t *testing.T) {
+	fixture := newRichFixture()
+	refused := errors.New("disk full")
+	calls := 0
+	err := renderCanonicalTables(fixture.set, CanonicalLoadOptions{SnapshotID: 1, ResolverVersion: "r1"},
+		func(string, [][]string) error {
+			calls++
+			return refused
+		})
+	if !errors.Is(err, refused) {
+		t.Fatalf("error = %v, want the one emit returned", err)
+	}
+	if calls != 1 {
+		t.Fatalf("emit was called %d times, want 1: nothing is rendered after a refusal", calls)
+	}
+}
+
+// Nothing is emitted for a fact set that cannot become a load: a staged
+// directory of half the tables is what refusing up front exists to prevent.
+func TestRenderCanonicalTablesEmitsNothingForAFactSetItRefuses(t *testing.T) {
+	fixture := newRichFixture()
+	unknown := fixture.set
+	unknown.Edges = append(append([]facts.Edge(nil), unknown.Edges...), facts.Edge{
+		Kind: facts.EdgeKind("NOT_A_REAL_RELATION"), SourceKey: fixture.symbolA.Key, TargetKey: fixture.symbolB.Key,
+		Confidence: facts.Candidate, Provenance: facts.TreeSitterSyntax,
+	})
+	for name, test := range map[string]struct {
+		set     facts.Set
+		options CanonicalLoadOptions
+	}{
+		"an edge kind with no table": {unknown, CanonicalLoadOptions{SnapshotID: 1, ResolverVersion: "r1"}},
+		"no resolver version":        {fixture.set, CanonicalLoadOptions{SnapshotID: 1}},
+	} {
+		emitted := 0
+		err := renderCanonicalTables(test.set, test.options, func(string, [][]string) error {
+			emitted++
+			return nil
+		})
+		if !errors.Is(err, ErrInvalidCanonicalLoad) {
+			t.Errorf("%s: error = %v, want ErrInvalidCanonicalLoad", name, err)
+		}
+		if emitted != 0 {
+			t.Errorf("%s: %d table(s) emitted before the refusal, want none", name, emitted)
+		}
+	}
+}
+
+// A relationship may only be copied after the nodes it connects, so the order
+// tables are emitted in is part of the contract, and an empty table is never
+// emitted. The expected order is read off the schema, not off the renderer.
+func TestRenderCanonicalTablesEmitsNodesThenRelationshipsAndNeverAnEmptyTable(t *testing.T) {
+	fixture := newRichFixture()
+	options := CanonicalLoadOptions{SnapshotID: 4, ResolverVersion: "r1"}
+	whole, err := CanonicalTableRows(fixture.set, options)
+	if err != nil {
+		t.Fatalf("CanonicalTableRows: %v", err)
+	}
+
+	var want []string
+	for _, table := range CanonicalNodeTables() {
+		if len(whole[table.Name]) != 0 {
+			want = append(want, table.Name)
+		}
+	}
+	for _, table := range CanonicalRelationshipTables() {
+		if len(whole[table.Name]) != 0 {
+			want = append(want, table.Name)
+		}
+	}
+	if len(want) != len(whole) {
+		t.Fatalf("the schema lists %d of the %d tables the rows name", len(want), len(whole))
+	}
+
+	var got []string
+	err = renderCanonicalTables(fixture.set, options, func(table string, rows [][]string) error {
+		if len(rows) == 0 {
+			t.Errorf("%s was emitted with no row", table)
+		}
+		if !reflect.DeepEqual(rows, whole[table]) {
+			t.Errorf("%s: rows differ from the ones CanonicalTableRows returns", table)
+		}
+		got = append(got, table)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("renderCanonicalTables: %v", err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("tables emitted in order %v, want %v", got, want)
+	}
+}
+
 // TestCanonicalTableRowsDerivesStructuralRelationsWithoutEdges covers
 // OBSERVED_IN and REPORTS_UNRESOLVED: neither is a facts.EdgeKind, so they
 // must come from Evidence and UnresolvedReference even when Edges is empty.

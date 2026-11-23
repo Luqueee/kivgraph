@@ -71,19 +71,17 @@ func LoadCanonical(ctx context.Context, path string, set facts.Set, options Cano
 
 	// Rows are rendered and staged to CSV before the database is touched, so a
 	// problem with the fact set itself (an empty resolver version, a dangling
-	// edge, ...) never leaves so much as an empty file at path.
+	// edge, ...) never leaves so much as an empty file at path. They are staged
+	// one table at a time: only the rows of the table being written are alive
+	// beside the facts, where all of them used to be for the whole load.
 	stagingStart := time.Now()
-	tableRows, err := CanonicalTableRows(set, options)
-	if err != nil {
-		return LoadReport{}, err
-	}
 	stagingDir, err := os.MkdirTemp("", "kivgraph-ladybug-canonical-staging-*")
 	if err != nil {
 		return LoadReport{}, &Error{Op: "load canonical", Err: err}
 	}
 	defer os.RemoveAll(stagingDir)
 
-	staged, err := stageCanonicalCSVs(stagingDir, tableRows)
+	staged, err := stageCanonicalCSVs(stagingDir, set, options)
 	if err != nil {
 		return LoadReport{}, err
 	}
@@ -249,35 +247,28 @@ type canonicalStagedTable struct {
 // CanonicalNodeTables order and relationships after in CanonicalRelationshipTables
 // order. LoadCanonical copies in this same order, which is what keeps a
 // relationship from ever loading before the nodes it connects.
-func stageCanonicalCSVs(stagingDir string, tableRows map[string][][]string) ([]canonicalStagedTable, error) {
-	nodeTables := CanonicalNodeTables()
-	relationshipTables := CanonicalRelationshipTables()
-	nodeNames := make(map[string]struct{}, len(nodeTables))
-	order := make([]string, 0, len(nodeTables)+len(relationshipTables))
-	for _, table := range nodeTables {
+func stageCanonicalCSVs(stagingDir string, set facts.Set, options CanonicalLoadOptions) ([]canonicalStagedTable, error) {
+	nodeNames := make(map[string]struct{}, len(CanonicalNodeTables()))
+	for _, table := range CanonicalNodeTables() {
 		nodeNames[table.Name] = struct{}{}
-		order = append(order, table.Name)
-	}
-	for _, table := range relationshipTables {
-		order = append(order, table.Name)
 	}
 
-	staged := make([]canonicalStagedTable, 0, len(tableRows))
-	for _, name := range order {
-		rows, exists := tableRows[name]
-		if !exists || len(rows) == 0 {
-			continue
-		}
+	var staged []canonicalStagedTable
+	err := renderCanonicalTables(set, options, func(name string, rows [][]string) error {
 		columns, exists := CanonicalColumns(name)
 		if !exists {
-			return nil, fmt.Errorf("%w: table %q has no declared column order", ErrInvalidCanonicalLoad, name)
+			return fmt.Errorf("%w: table %q has no declared column order", ErrInvalidCanonicalLoad, name)
 		}
 		csvPath := filepath.Join(stagingDir, name+".csv")
 		if err := writeCanonicalCSV(csvPath, columns, rows); err != nil {
-			return nil, &Error{Op: "load canonical", Err: fmt.Errorf("stage %s: %w", name, err)}
+			return &Error{Op: "load canonical", Err: fmt.Errorf("stage %s: %w", name, err)}
 		}
 		_, isNode := nodeNames[name]
 		staged = append(staged, canonicalStagedTable{name: name, csvPath: csvPath, rows: int64(len(rows)), isNode: isNode})
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	return staged, nil
 }
