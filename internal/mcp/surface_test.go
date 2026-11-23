@@ -177,7 +177,17 @@ func TestServerExposesExactlyTheAllowedSurface(t *testing.T) {
 // `trace_dependencies` and `find_implementations`, so that a caller can ask any
 // of them for production code only: `18.128` to `18.494`, `122` bytes each, all
 // of it input schema. The surface keeps `106` bytes of room.
-const MaximumSurfaceSchemaBytes = 18600
+//
+// And to `18.900` for the SDK, with no change to a tool. From `1.7.0` it writes
+// `readOnlyHint` and `idempotentHint` on every annotation even when they are
+// false -- the protocol default, so a client reads the same thing -- which is
+// `"idempotentHint":false` on each of the twelve tools: `18.599` to `18.875`
+// bytes, `23` each, in the annotations of the listing. The SDK keeps the old
+// spelling behind `MCPGODEBUG=hintomitempty=1`, read from the environment at
+// start, which a server cannot set for the client that launched it. The surface
+// keeps `25` bytes of room, and nothing a session pays for in every request
+// moved.
+const MaximumSurfaceSchemaBytes = 18900
 
 func TestServerSurfaceStaysCheapToLoad(t *testing.T) {
 	session := connectToServer(t, publishedServer(t))

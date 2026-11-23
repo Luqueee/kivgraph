@@ -120,9 +120,13 @@ func RegisterIndexProjectJobs(
 			observeCall(nil, callObserver, startIndexProjectToolName, request, started, err)
 			return nil, StartIndexProjectResult{}, err
 		}
-		if err := requireIndexConsent(ctx, request, batch, arguments.Confirmed); err != nil {
+		pending, err := requireIndexConsent(request, batch, arguments.Confirmed)
+		if err != nil {
 			observeCall(nil, callObserver, startIndexProjectToolName, request, started, err)
 			return nil, StartIndexProjectResult{}, err
+		}
+		if pending != nil {
+			return pending, StartIndexProjectResult{}, nil
 		}
 		profile := strings.TrimSpace(arguments.Profile)
 		if profile != "" {

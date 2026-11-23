@@ -110,6 +110,13 @@ declarado en la raíz.
   fuese de ámbito; el que lo fija ahora está en
   `TestCompletenessSeparatesAFailedReferenceFromAnUnreadableScope`. Ver ADR
   0063.
+- **El consentimiento de indexado se devuelve como pregunta, no se hace.** Con
+  el protocolo `2026-07-28` un servidor no puede enviar `elicitation/create`
+  durante una petición: `requireIndexConsent` devuelve `inputRequests` y lee la
+  respuesta de `inputResponses`, y el SDK hace el viaje de ida y vuelta por los
+  clientes anteriores. El estado que vuelve es un digest del lote, para que una
+  aprobación vieja no valga para otro. Un `Elicit` dentro de un handler vuelve a
+  romper a todo cliente nuevo. Ver ADR 0158.
 - El bloque `completeness` se agrupa en la vista `compact` y es una fila por
   ámbito y por fallo en `full`: `completeness_compact.go` es la única
   traducción, y se hace al serializar, nunca al construir el veredicto. Un
