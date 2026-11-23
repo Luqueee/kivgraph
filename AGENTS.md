@@ -158,6 +158,13 @@ Los envoltorios de salida `rtk rg ...` y `rtk proxy rg ...` se clasifican por
 el comando interior. `rtk gain` y los demás comandos propios de RTK no se
 consideran búsquedas.
 
+Y lo mismo los envoltorios que sólo cambian cómo corre un comando -- `time`,
+`timeout`, `nice`, `nohup`, `env`, `command`, `exec`, `sh -c "..."` y un
+subshell--, y una redirección no es un fichero que la búsqueda lea: `rg Nombre >
+out.txt` nombraba un `.txt` que el grafo no cubre y dejaba pasar un nombre
+ambiguo. El destino de una redirección se descarta al tokenizar; un `>` entre
+comillas sigue siendo parte del patrón o de la ruta.
+
 La puerta hace además una cosa que no es negar. El matcher cubre las tools MCP
 de Kivgraph -- por nombre de servidor, `mcp__kivgraph_.*`, nunca por una lista de
 operaciones que habría que ampliar con cada tool nueva-- y a la **primera de

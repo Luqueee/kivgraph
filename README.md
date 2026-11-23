@@ -280,7 +280,10 @@ The pre-tool-use gate supports `claude-code`, `claude-desktop`, `codex`,
 `~/.omp/agent/extensions/` for user scope or `.omp/extensions/` for project
 scope. The gate is fail-open when its graph query cannot be answered.
 Searches wrapped as `rtk rg ...` or `rtk proxy rg ...` are classified by their
-inner command, while RTK's own commands are left alone.
+inner command, while RTK's own commands are left alone. So are the wrappers that
+only change how a command runs -- `time`, `timeout`, `nice`, `nohup`, `env`,
+`command`, `exec`, `sh -c "..."` and a subshell -- and a redirection is where
+the output goes, not a file the search reads.
 
 ### Add Kivgraph to user agent instructions
 
