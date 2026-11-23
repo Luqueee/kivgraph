@@ -3,12 +3,12 @@
 Question: who calls this symbol, and what do those callers look like.
 
 - Command: `go run ./benchmarks/mcp-token-cost --server /tmp/kv-measure`
-- Commit: `b86dd900649359810d8872a74c312f094776feba`
-- Generated: `2026-11-23T10:07:10Z`
+- Commit: `ea5ab589ba7435c1bf8ed9b362fc0f5a30455f36`
+- Generated: `2026-11-23T10:35:43Z`
 - Server: `0.10.1`, MCP protocol `2025-06-18`
 - Environment: `darwin/arm64`, `go1.26.11`
-- Generation: `000001`, 25613 symbols, 946 files, 137136 edges, schema `5`, resolver `0.10.1`
-- Corpus: `kivgraph` at `/Users/gtrave/Documents/kivgraph`, indexed commit `b86dd900`, tree unchanged
+- Generation: `000001`, 26231 symbols, 939 files, 143356 edges, schema `5`, resolver `0.10.1`
+- Corpus: `kivgraph` at `/Users/gtrave/Documents/kivgraph`, indexed commit `ea5ab589`, tree unchanged
 - Tokenizer: `cl100k_base`, question set version `2`
 
 ## Resident surface
@@ -30,13 +30,13 @@ What each side spends to say who calls the symbol. This is the part a graph serv
 
 | symbol | class | refs | native | today | projected | today | projected |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `MergeAll` | rare_name | 5 | 429 | 1534 | 1534 | 0.28x | 0.28x |
-| `CanonicalColumns` | rare_name | 7 | 442 | 1516 | 1516 | 0.29x | 0.29x |
-| `DiscoverGo` | rare_name | 26 | 617 | 1948 | 1948 | 0.32x | 0.32x |
-| `BuildPlan` | shared_name | 22 | 855 | 1890 | 1890 | 0.45x | 0.45x |
-| `NewServer` | common_name | 4 | 1422 | 2365 | 2365 | 0.60x | 0.60x |
-| `Publish` | common_name | 0 | 1226 | 1385 | 1385 | 0.89x | 0.89x |
-| **total** | | | **4991** | **10638** | **10638** | **0.47x** | **0.47x** |
+| `MergeAll` | rare_name | 5 | 429 | 698 | 698 | 0.61x | 0.61x |
+| `CanonicalColumns` | rare_name | 8 | 442 | 706 | 706 | 0.63x | 0.63x |
+| `DiscoverGo` | rare_name | 26 | 617 | 1112 | 1112 | 0.55x | 0.55x |
+| `BuildPlan` | shared_name | 22 | 855 | 1054 | 1054 | 0.81x | 0.81x |
+| `NewServer` | common_name | 4 | 1422 | 1529 | 1529 | 0.93x | 0.93x |
+| `Publish` | common_name | 0 | 1226 | 1006 | 1006 | 1.22x | 1.22x |
+| **total** | | | **4991** | **6105** | **6105** | **0.82x** | **0.82x** |
 
 ## The whole session
 
@@ -44,15 +44,15 @@ The same answer plus the bodies the agent then opens. Both sides pay those ident
 
 | symbol | native | today | projected | today | projected |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| `MergeAll` | 2939 | 4044 | 3486 | 0.73x | 0.84x |
-| `CanonicalColumns` | 5016 | 6090 | 5046 | 0.82x | 0.99x |
-| `DiscoverGo` | 15738 | 17069 | 14223 | 0.92x | 1.11x |
-| `BuildPlan` | 16536 | 17571 | 14407 | 0.94x | 1.15x |
-| `NewServer` | 3014 | 3957 | 3621 | 0.76x | 0.83x |
-| `Publish` | 1628 | 1787 | 1688 | 0.91x | 0.96x |
-| **total** | **44871** | **50518** | **42471** | **0.89x** | **1.06x** |
+| `MergeAll` | 2939 | 3208 | 2650 | 0.92x | 1.11x |
+| `CanonicalColumns` | 5487 | 5751 | 4594 | 0.95x | 1.19x |
+| `DiscoverGo` | 15738 | 16233 | 13387 | 0.97x | 1.18x |
+| `BuildPlan` | 16536 | 16735 | 13571 | 0.99x | 1.22x |
+| `NewServer` | 3014 | 3121 | 2785 | 0.97x | 1.08x |
+| `Publish` | 1628 | 1408 | 1309 | 1.16x | 1.24x |
+| **total** | **45342** | **46456** | **38296** | **0.98x** | **1.18x** |
 
-Of the session totals, 39880 tokens are source bodies. That is the floor: an answer that cost nothing at all would still land at **1.50x**, so no amount of payload work on this question class can go past it. What separates `today` from the served arm is no longer the answer -- a compact row carries its own line range, so the per-reference `get_symbol` cost 0 calls -- but who hands the bodies over: serving them with `get_source` instead of the host's range read is worth 8047 tokens net.
+Of the session totals, 40351 tokens are source bodies. That is the floor: an answer that cost nothing at all would still land at **1.50x**, so no amount of payload work on this question class can go past it. What separates `today` from the served arm is no longer the answer -- a compact row carries its own line range, so the per-reference `get_symbol` cost 0 calls -- but who hands the bodies over: serving them with `get_source` instead of the host's range read is worth 8160 tokens net.
 
 Publishing only one of the two factors is how this field arrives at its headline numbers. The answer factor flatters us and the session factor flatters the alternative; both are here.
 

@@ -85,12 +85,14 @@ que leerlo. Gana en nombres comunes, en impacto transitivo, en consumidores de
 otro repositorio y en demostrar una ausencia.
 
 Medido con `benchmarks/mcp-token-cost` en la `0.10.1`, sobre las seis preguntas
-de referencias de este mismo repositorio (generación `000001`, `25.613`
-símbolos): **ahí `grep` sale más barato**. Responder cuesta `0,47x` -entre
-`0,28x`, `MergeAll`, y `0,89x`, `Publish`-, y la sesión completa -incluidos los
-cuerpos que el agente abre después, que pagan igual en los dos lados- `0,89x`,
-con un suelo de `1,50x` fijado por el coste de esos cuerpos y no por el de la
-respuesta. Medido antes del ADR 0156 era `0,24x` y `0,74x`: el bloque
+de referencias de este mismo repositorio, indexado como lo documenta -con la
+etiqueta `ladybug` y sin `testdata/`- (generación `000001`, `26.231` símbolos):
+**ahí `grep` sale más barato en cinco de seis**. Responder cuesta `0,82x`
+-entre `0,55x`, `DiscoverGo`, y `1,22x`, `Publish`, que es la única que se
+gana-, y la sesión completa -incluidos los cuerpos que el agente abre después,
+que pagan igual en los dos lados- `0,98x`, con un suelo de `1,50x` fijado por el
+coste de esos cuerpos y no por el de la respuesta. Indexado sin esas dos cosas
+era `0,47x` y `0,89x`, y antes del ADR 0156 `0,24x` y `0,74x`: el bloque
 `completeness` era la mayor parte de la respuesta. La medición anterior, de la
 `0.8.0`, daba `1,76x` y `1,24x`; el `grep` del agente dejó de traer líneas de
 contexto, y eso solo bajó el brazo nativo de `1.082` a `429` tokens en
