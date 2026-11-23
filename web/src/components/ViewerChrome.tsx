@@ -36,7 +36,7 @@ export interface ViewerChromeProps {
   readonly onSnapshotChanged: () => void;
 }
 
-function describe(error: unknown): string {
+function errorMessage(error: unknown): string {
   if (error instanceof ApiError) return `${error.code}: ${error.message}`;
   if (error instanceof Error) return error.message;
   return "unknown error";
@@ -298,7 +298,7 @@ export function ViewerChrome({
           )
             return;
           setSearching(false);
-          setSearchError(describe(requestError));
+          setSearchError(errorMessage(requestError));
         });
     }, SEARCH_DEBOUNCE_MS);
     return () => {
@@ -336,7 +336,7 @@ export function ViewerChrome({
       .catch((requestError: unknown) => {
         if (controller.signal.aborted) return;
         setNeighborhoodLoading(false);
-        setDetailError(describe(requestError));
+        setDetailError(errorMessage(requestError));
       });
     return () => controller.abort();
   }, [depth, meta, onSnapshotChanged, selected]);
@@ -388,7 +388,7 @@ export function ViewerChrome({
       })
       .catch((requestError: unknown) => {
         if (controller.signal.aborted) return;
-        setDetailError(describe(requestError));
+        setDetailError(errorMessage(requestError));
       });
   };
 

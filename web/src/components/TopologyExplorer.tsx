@@ -69,7 +69,7 @@ const INITIAL_TOPOLOGY_REQUEST: TopologyRequestState = {
   generationPins: {},
 };
 
-function describe(error: unknown): string {
+function errorMessage(error: unknown): string {
   if (error instanceof ApiError) return `${error.code}: ${error.message}`;
   if (error instanceof Error) return error.message;
   return "unknown error";
@@ -631,7 +631,7 @@ export function TopologyExplorer(): React.ReactElement {
         if (!controller.signal.aborted)
           setState((previous) => ({
             ...previous,
-            error: describe(error),
+            error: errorMessage(error),
             loading: false,
           }));
       });
