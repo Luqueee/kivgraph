@@ -14,7 +14,7 @@ runs:
     # the step failed looking for `dart-analyzer.json` here. Nothing in this
     # workflow runs `dart analyze`, so there is no annotation to lose.
     - name: Set up Dart
-      uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1
+      uses: dart-lang/setup-dart@2286a0c042b44434fe26d292bbce8d34f7ec662b # v1
       with:
         sdk: 3.14.0
         problem-matcher: false
@@ -23,7 +23,7 @@ runs:
     # both a JDK and a build tool. Maven ships with the runner image; the JDK
     # and the indexer do not.
     - name: Set up the JDK
-      uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6
+      uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6
       with:
         distribution: temurin
         java-version: '21'
@@ -43,7 +43,7 @@ runs:
     # scip-dotnet is a dotnet global tool and needs the SDK, which also runs
     # the `dotnet restore` every C# index begins with.
     - name: Set up the .NET SDK
-      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+      uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
       with:
         dotnet-version: '8.0.x'
 
