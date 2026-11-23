@@ -301,6 +301,11 @@ func TestEventsBelowADirectoryThatBecameACheckoutAreDropped(t *testing.T) {
 	before := filepath.Join(vendored, "before.go")
 	writeTestFile(t, before, "package vendored\n")
 	waitForEvent(t, watcher, func(event Event) bool { return event.Path == before })
+	// One write is several events on Linux. A marker, delivered in order,
+	// says the ones of `before.go` are all behind us.
+	settled := filepath.Join(root, "src", "settled.go")
+	writeTestFile(t, settled, "package src\n")
+	waitForEvent(t, watcher, func(event Event) bool { return event.Path == settled })
 
 	// `git clone` into it: from here on it is another checkout.
 	if err := os.MkdirAll(filepath.Join(vendored, ".git"), 0o700); err != nil {
