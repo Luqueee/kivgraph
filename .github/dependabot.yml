@@ -51,6 +51,11 @@ updates:
       worker-minor-and-patch:
         update-types: [minor, patch]
 
+  # `three`, its types and `troika-three-text` move with `reagraph`, which pins
+  # `three ^0.184` and brings `drei`'s own `troika-three-text`: raising them
+  # here leaves two copies of each in the bundle, and a renderer built with one
+  # `three` drawing a scene built with the other. Raise them when `reagraph`
+  # does.
   - package-ecosystem: npm
     directory: /web
     schedule:
@@ -58,6 +63,10 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "build(deps)"
+    ignore:
+      - dependency-name: three
+      - dependency-name: "@types/three"
+      - dependency-name: troika-three-text
     groups:
       web-minor-and-patch:
         update-types: [minor, patch]
