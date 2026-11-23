@@ -764,3 +764,27 @@ func testZipArchive(t *testing.T, files map[string][]byte) []byte {
 	}
 	return archive.Bytes()
 }
+
+// Where an entry lands is checked where the path is built, whatever the name
+// check before it decided: a relative path that is not local to the destination
+// is refused, and one that is lands under it.
+func TestPathInsideRefusesWhatIsNotLocalToTheDestination(t *testing.T) {
+	destination := t.TempDir()
+	for _, relative := range []string{
+		"", "..", "../outside", "a/../../outside", "/etc/passwd", "a/../..",
+	} {
+		if path, err := pathInside(destination, relative); err == nil {
+			t.Errorf("pathInside(%q) = %q, want a refusal", relative, path)
+		}
+	}
+	for _, relative := range []string{bundleDirName, bundleDirName + "/bin/kivgraph", "a/b/../c"} {
+		path, err := pathInside(destination, relative)
+		if err != nil {
+			t.Errorf("pathInside(%q) refused a local path: %v", relative, err)
+			continue
+		}
+		if !strings.HasPrefix(path, destination+string(filepath.Separator)) {
+			t.Errorf("pathInside(%q) = %q, not under %q", relative, path, destination)
+		}
+	}
+}

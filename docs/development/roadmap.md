@@ -2118,6 +2118,12 @@ waiting for its owner.
 - Not exercised: Dependabot has not opened a pull request yet, so its
   handling of the `pnpm-workspace.yaml` overrides and of the `patchedDependencies`
   in `web` is unknown. CodeQL findings have not been read.
+  They were read afterwards (three, all open): two `go/zipslip` on the archive
+  readers of `internal/update`, where the names were already refused by
+  `archivePathName` and the analyzer does not know that function for a
+  sanitizer, and one `go/allocation-size-overflow` on a `len(x)+1`. The path is
+  now built by `pathInside`, which refuses what is not `filepath.IsLocal`, and
+  the capacity no longer adds one.
 
 #### Recall on real code, per language: pilot (2026-11-18)
 
