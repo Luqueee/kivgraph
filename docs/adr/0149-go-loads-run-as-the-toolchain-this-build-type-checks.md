@@ -66,3 +66,23 @@ with `go env -w` was overridden by the pin. The file `go env -w` writes --
 ships in `GOROOT/go.env` as readily as with the user's choice, and honouring
 a distribution's `local` would leave every load on a toolchain this build
 cannot parse.
+
+## Amendment: `golang.org/x/tools` stays at 0.52
+
+`go/packages` 0.53 type-checks a package that belongs to no module -- the
+standard library -- with the Go version of the `go` command, which it reads
+from `go list -f {{context.ReleaseTags}} unsafe` run with `GO111MODULE=off`. In
+that mode `go` does not select a toolchain, so `GOTOOLCHAIN`, the pin this ADR
+sets, is ignored for that one call: on a machine whose `go` is `1.27` and a
+binary built with `1.26`, every standard package read as written for `1.27`, and
+`go/types` refused it as too new. No Go module of three real repositories was
+loaded (`package requires newer Go version go1.27 (application built with
+go1.26)`), where `0.52` loaded them. The release before it used that version
+only for an external driver.
+
+It was found by indexing those repositories after the bump had been merged on
+the strength of CI, which runs with `GOTOOLCHAIN=local` and a `go` as old as the
+binary and so cannot see it. `x/tools` stays at `0.52.0` and Dependabot is told
+to leave it. Moving on needs the probe to run as the pinned toolchain, for
+example by putting that toolchain's `bin` first on the `PATH` of the process
+before a load, which is a change of its own.

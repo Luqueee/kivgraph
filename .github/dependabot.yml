@@ -18,6 +18,13 @@ version: 2
 # release calls functions of the library release it was written for: 0.17.0
 # needs symbols the pinned one lacks and does not build. Raise the binding and
 # the library together, by hand.
+#
+# And `golang.org/x/tools`, from 0.53. `go/packages` there reads the Go version
+# of the standard library from a `go list` it runs with `GO111MODULE=off`, and in
+# that mode the `go` command ignores `GOTOOLCHAIN`: a machine whose `go` is newer
+# than the toolchain this binary was built with loses the pin, every standard
+# package reads as written for a newer language than `go/types` knows, and no Go
+# module is loaded. 0.52 reads it only for an external driver. See ADR 0149.
 updates:
   - package-ecosystem: gomod
     directory: /
@@ -28,6 +35,7 @@ updates:
       prefix: "build(deps)"
     ignore:
       - dependency-name: github.com/LadybugDB/go-ladybug
+      - dependency-name: golang.org/x/tools
     groups:
       go-minor-and-patch:
         update-types: [minor, patch]
