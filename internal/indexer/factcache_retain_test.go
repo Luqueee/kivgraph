@@ -2,7 +2,6 @@ package indexer
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -35,13 +34,10 @@ func newRetainedDirectory(t *testing.T) *retainedDirectory {
 func (d *retainedDirectory) write(unit string, ago time.Duration) string {
 	d.t.Helper()
 	d.count++
-	body, err := json.Marshal(cacheEntry{Version: cacheEntryVersion, Unit: unit, Analyzer: "analyzer", LocalAddress: fmt.Sprint(d.count)})
-	if err != nil {
-		d.t.Fatal(err)
-	}
+	body := encodeCacheEntry(cacheEntry{Version: cacheEntryVersion, Unit: unit, Analyzer: "analyzer", LocalAddress: fmt.Sprint(d.count)})
 	// The facts follow the header and are what makes an entry large.
 	body = append(body, []byte(strings.Repeat(" ", 20000))...)
-	name := fmt.Sprintf("%064x.json", d.count)
+	name := fmt.Sprintf("%064x%s", d.count, cacheEntrySuffix)
 	path := filepath.Join(d.directory, name)
 	if err := os.WriteFile(path, body, 0o600); err != nil {
 		d.t.Fatal(err)
@@ -120,14 +116,17 @@ func TestRetainDoesNotTouchWhatItCannotAttribute(t *testing.T) {
 	for range 4 {
 		entries = append(entries, d.write("typescript\x00one", time.Hour))
 	}
+	// The header of an entry that names no unit: the magic, the structure and a
+	// unit of no byte.
+	emptyUnit := cacheEntryMagic + string(entryFingerprint[:]) + "\x00"
 	other := map[string]string{
-		"notes.txt":                       "mine",
-		"report.json":                     `{"unit":"typescript\u0000one"}`,
-		strings.Repeat("a", 63) + ".json": `{"unit":"typescript\u0000one"}`,
-		".entry-1.tmp":                    `{"unit":"typescript\u0000one"}`,
-		strings.Repeat("c", 64) + ".json": "{}",
-		strings.Repeat("d", 64) + ".json": "not json at all",
-		strings.Repeat("e", 64) + ".json": `{"unit":""}`,
+		"notes.txt":   "mine",
+		"report.json": `{"unit":"typescript\u0000one"}`,
+		strings.Repeat("a", 63) + cacheEntrySuffix: `{"unit":"typescript\u0000one"}`,
+		".entry-1.tmp": `{"unit":"typescript\u0000one"}`,
+		strings.Repeat("c", 64) + cacheEntrySuffix: "KVFE",
+		strings.Repeat("d", 64) + cacheEntrySuffix: "not an entry at all",
+		strings.Repeat("e", 64) + cacheEntrySuffix: emptyUnit,
 	}
 	old := time.Now().Add(-100 * time.Hour)
 	for name, content := range other {
@@ -156,11 +155,11 @@ func TestRetainDoesNotTouchWhatItCannotAttribute(t *testing.T) {
 	}
 }
 
-// A header that does not fit in what is read names no unit: the facts of an entry
-// are large, the identity of a unit is not.
-func TestRetainDoesNotCountAnEntryWhoseUnitIsPastTheHeader(t *testing.T) {
+// A header that claims a unit beyond what a header may is not believed: a damaged
+// length must not make retention allocate what the file does not hold.
+func TestRetainDoesNotCountAnEntryWhoseUnitIsBeyondWhatAHeaderMayClaim(t *testing.T) {
 	d := newRetainedDirectory(t)
-	long := "typescript\x00" + strings.Repeat("p", cacheHeaderBytes)
+	long := "typescript\x00" + strings.Repeat("p", cacheMaximumUnitBytes)
 	var paths []string
 	for range 5 {
 		paths = append(paths, d.write(long, time.Hour))
@@ -264,7 +263,7 @@ func TestFactCacheDoesNotGrowWithEveryEdit(t *testing.T) {
 	}
 	entries := func() int {
 		t.Helper()
-		found, err := filepath.Glob(filepath.Join(fixture.cache, "*.json"))
+		found, err := filepath.Glob(filepath.Join(fixture.cache, "*"+cacheEntrySuffix))
 		if err != nil {
 			t.Fatal(err)
 		}

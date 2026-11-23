@@ -2,7 +2,6 @@ package indexer
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"maps"
 	"os"
@@ -161,7 +160,7 @@ func TestCacheReportNamesThePartsOfTheAnalyzerThatRefusedEntries(t *testing.T) {
 	}
 
 	// An entry written before the parts were kept can only be said to differ.
-	entries, err := filepath.Glob(filepath.Join(fixture.cache, "*.json"))
+	entries, err := filepath.Glob(filepath.Join(fixture.cache, "*"+cacheEntrySuffix))
 	if err != nil || len(entries) == 0 {
 		t.Fatalf("no entry to strip: %v %v", entries, err)
 	}
@@ -170,19 +169,15 @@ func TestCacheReportNamesThePartsOfTheAnalyzerThatRefusedEntries(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		var entry map[string]any
-		if err := json.Unmarshal(content, &entry); err != nil {
-			t.Fatal(err)
-		}
-		if _, recorded := entry["analyzer_parts"]; !recorded {
-			t.Fatalf("%s kept no parts, so there is nothing to strip", filepath.Base(path))
-		}
-		delete(entry, "analyzer_parts")
-		stripped, err := json.Marshal(entry)
+		entry, err := decodeCacheEntry(content)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(path, stripped, 0o600); err != nil {
+		if len(entry.AnalyzerParts) == 0 {
+			t.Fatalf("%s kept no parts, so there is nothing to strip", filepath.Base(path))
+		}
+		entry.AnalyzerParts = nil
+		if err := os.WriteFile(path, encodeCacheEntry(entry), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}

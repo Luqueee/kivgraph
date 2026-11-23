@@ -74,6 +74,13 @@ func ValidCacheMode(mode CacheMode) bool {
 // discarded rather than interpreted as one of the new layers.
 const cacheEntryVersion = 5
 
+// cacheEntrySuffix is how the file of an entry ends. The JSON entries this
+// cache used to write ended in `.json`; they cannot be read any more, and a pass
+// removes them (see prune) instead of leaving them to age.
+const cacheEntrySuffix = ".entry"
+
+const legacyCacheEntrySuffix = ".json"
+
 // ErrCacheDiverged reports that a cached entry did not match the facts the
 // analysis produced for the same unit. It aborts the pass on purpose: a cache
 // that answers with facts nobody can reproduce is worse than no cache, because
@@ -404,8 +411,11 @@ func (cache *factCache) load(identity, localAddress string) (cacheEntry, bool, C
 		}
 		return cacheEntry{}, false, CacheRefusalUnreadable
 	}
-	var entry cacheEntry
-	if err := json.Unmarshal(data, &entry); err != nil {
+	entry, err := decodeCacheEntry(data)
+	if err != nil {
+		if errors.Is(err, errCacheEntryIncompatible) {
+			return cacheEntry{}, false, CacheRefusalIncompatible
+		}
 		return cacheEntry{}, false, CacheRefusalMalformed
 	}
 	if entry.Version != cacheEntryVersion || entry.Unit != identity {
@@ -467,10 +477,7 @@ func (cache *factCache) store(
 		Requested:       requestedPackages(result),
 		Composed:        result.composed,
 	}
-	data, err := json.Marshal(entry)
-	if err != nil {
-		return
-	}
+	data := encodeCacheEntry(entry)
 	path := cache.path(identity, localAddress)
 	staged := filepath.Join(cache.staging, filepath.Base(path))
 	if !cache.write(staged, data) {
@@ -548,7 +555,7 @@ func (cache *factCache) write(path string, data []byte) bool {
 
 func (cache *factCache) path(identity, localAddress string) string {
 	sum := sha256.Sum256([]byte(identity + "\x00local\x00" + localAddress))
-	return filepath.Join(cache.directory, hex.EncodeToString(sum[:])+".json")
+	return filepath.Join(cache.directory, hex.EncodeToString(sum[:])+cacheEntrySuffix)
 }
 
 // prune drops entries nothing has used for a while. A cache is not a record
@@ -564,6 +571,13 @@ func (cache *factCache) prune(maximumAge time.Duration) {
 	}
 	deadline := time.Now().Add(-maximumAge)
 	for _, entry := range entries {
+		// An entry in the format this cache no longer writes can never be served,
+		// and a directory of them is most of a gigabyte: it goes at once, not at
+		// the end of the age it would otherwise be left to.
+		if !entry.IsDir() && isLegacyCacheFileName(entry.Name()) {
+			_ = os.Remove(filepath.Join(cache.directory, entry.Name()))
+			continue
+		}
 		info, err := entry.Info()
 		if err != nil || info.ModTime().After(deadline) {
 			continue
@@ -588,8 +602,18 @@ func isCacheFileName(name string) bool {
 	if strings.HasPrefix(name, ".entry-") && strings.HasSuffix(name, ".tmp") {
 		return true
 	}
-	digest, isJSON := strings.CutSuffix(name, ".json")
-	if !isJSON || len(digest) != hex.EncodedLen(sha256.Size) {
+	return hasDigestName(name, cacheEntrySuffix)
+}
+
+// isLegacyCacheFileName reports whether name is an entry of the JSON format.
+func isLegacyCacheFileName(name string) bool {
+	return hasDigestName(name, legacyCacheEntrySuffix)
+}
+
+// hasDigestName reports whether name is a lower case SHA-256 and suffix.
+func hasDigestName(name, suffix string) bool {
+	digest, found := strings.CutSuffix(name, suffix)
+	if !found || len(digest) != hex.EncodedLen(sha256.Size) {
 		return false
 	}
 	for _, character := range []byte(digest) {

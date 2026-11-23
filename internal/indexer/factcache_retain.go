@@ -1,11 +1,8 @@
 package indexer
 
 import (
-	"encoding/json"
-	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -21,13 +18,6 @@ import (
 // are the one in use, the one before it and one more, which is what going back to
 // another branch or reverting an edit needs.
 const cacheEntriesKept = 3
-
-// cacheHeaderBytes is how much of an entry is read to learn which unit it is
-// about. The unit comes second in an entry, after the version, so the facts that
-// make an entry large are never read.
-const cacheHeaderBytes = 4096
-
-var cacheUnitHeader = regexp.MustCompile(`"unit":("(?:[^"\\]|\\.)*")`)
 
 // cacheEntriesPerUnitKept is how many entries of one unit the cache keeps in
 // all, whatever resolution they were analysed in.
@@ -77,7 +67,7 @@ func (cache *factCache) retain(keep, perUnit int, admitted map[string]struct{}) 
 	}
 	identities := make(map[string][]entry)
 	for _, item := range entries {
-		if item.IsDir() || !strings.HasSuffix(item.Name(), ".json") || !isCacheFileName(item.Name()) {
+		if item.IsDir() || !strings.HasSuffix(item.Name(), cacheEntrySuffix) || !isCacheFileName(item.Name()) {
 			continue
 		}
 		info, err := item.Info()
@@ -121,27 +111,4 @@ func (cache *factCache) retain(keep, perUnit int, admitted map[string]struct{}) 
 	for _, versions := range units {
 		drop(versions, perUnit)
 	}
-}
-
-// readEntryUnit answers the unit an entry is about from its first bytes.
-func readEntryUnit(path string) (string, bool) {
-	file, err := os.Open(path)
-	if err != nil {
-		return "", false
-	}
-	defer file.Close()
-	header := make([]byte, cacheHeaderBytes)
-	read, err := io.ReadFull(file, header)
-	if err != nil && read == 0 {
-		return "", false
-	}
-	match := cacheUnitHeader.FindSubmatch(header[:read])
-	if match == nil {
-		return "", false
-	}
-	var unit string
-	if json.Unmarshal(match[1], &unit) != nil || unit == "" {
-		return "", false
-	}
-	return unit, true
 }

@@ -35,7 +35,7 @@ func TestFactCacheKeepsAnEntryThatIsStillServed(t *testing.T) {
 		t.Fatalf("cold pass cache = %+v, want one miss", cold)
 	}
 
-	entries, err := filepath.Glob(filepath.Join(fixture.cache, "*.json"))
+	entries, err := filepath.Glob(filepath.Join(fixture.cache, "*"+cacheEntrySuffix))
 	if err != nil || len(entries) != 1 {
 		t.Fatalf("admitted entries = %v, %v, want one", entries, err)
 	}

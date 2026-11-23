@@ -128,8 +128,8 @@ func TestFactCacheStagesEntriesOnDiskUntilCommit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read staged cache %q entry %q: %v", fixture.cache, entries[0].Name(), err)
 	}
-	if len(staged) != 1 || staged[0].IsDir() || filepath.Ext(staged[0].Name()) != ".json" {
-		t.Fatalf("staged cache %q entries = %#v, want one JSON file", fixture.cache, staged)
+	if len(staged) != 1 || staged[0].IsDir() || filepath.Ext(staged[0].Name()) != cacheEntrySuffix {
+		t.Fatalf("staged cache %q entries = %#v, want one entry file", fixture.cache, staged)
 	}
 
 	report.CommitCache()
@@ -137,8 +137,8 @@ func TestFactCacheStagesEntriesOnDiskUntilCommit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read committed cache %q: %v", fixture.cache, err)
 	}
-	if len(entries) != 1 || entries[0].IsDir() || filepath.Ext(entries[0].Name()) != ".json" {
-		t.Fatalf("committed cache entries = %#v, want one admitted JSON file and no staging directory", entries)
+	if len(entries) != 1 || entries[0].IsDir() || filepath.Ext(entries[0].Name()) != cacheEntrySuffix {
+		t.Fatalf("committed cache entries = %#v, want one admitted entry file and no staging directory", entries)
 	}
 }
 
@@ -529,19 +529,16 @@ func poisonCacheEntry(t *testing.T, directory string) {
 		if err != nil {
 			t.Fatalf("ReadFile(%q) error = %v", path, err)
 		}
-		var entry cacheEntry
-		if err := json.Unmarshal(data, &entry); err != nil {
-			t.Fatalf("Unmarshal(%q) error = %v", path, err)
+		entry, err := decodeCacheEntry(data)
+		if err != nil {
+			t.Fatalf("decode %q error = %v", path, err)
 		}
 		if len(entry.Set.Symbols) == 0 {
 			continue
 		}
 		entry.Set.Symbols = entry.Set.Symbols[:len(entry.Set.Symbols)-1]
 		entry.Set.Edges = nil
-		rewritten, err := json.Marshal(entry)
-		if err != nil {
-			t.Fatalf("Marshal() error = %v", err)
-		}
+		rewritten := encodeCacheEntry(entry)
 		if err := os.WriteFile(path, rewritten, 0o600); err != nil {
 			t.Fatalf("WriteFile(%q) error = %v", path, err)
 		}
@@ -577,6 +574,25 @@ func TestFactCacheReportsRefusalReasons(t *testing.T) {
 				t.Fatalf("WriteFile() error = %v", err)
 			}
 		}, want: CacheRefusalMalformed},
+		{name: "truncated", mutate: func(t *testing.T, path string) {
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("ReadFile() error = %v", err)
+			}
+			if err := os.WriteFile(path, data[:len(data)/2], 0o600); err != nil {
+				t.Fatalf("WriteFile() error = %v", err)
+			}
+		}, want: CacheRefusalMalformed},
+		{name: "another structure", mutate: func(t *testing.T, path string) {
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("ReadFile() error = %v", err)
+			}
+			data[len(cacheEntryMagic)] ^= 0xff
+			if err := os.WriteFile(path, data, 0o600); err != nil {
+				t.Fatalf("WriteFile() error = %v", err)
+			}
+		}, want: CacheRefusalIncompatible},
 		{name: "incompatible", mutate: mutateCacheEntry(func(entry *cacheEntry) {
 			entry.Version = cacheEntryVersion - 1
 		}), want: CacheRefusalIncompatible},
@@ -634,7 +650,7 @@ func cacheEntryForFixture(t *testing.T, fixture *cachedFixture) string {
 	}
 	unitPrefix := "go\x00" + fixture.repository.Name + "\x00" + sourceIdentity(fixture.repository) + "\x00"
 	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != cacheEntrySuffix {
 			continue
 		}
 		path := filepath.Join(fixture.cache, entry.Name())
@@ -642,8 +658,8 @@ func cacheEntryForFixture(t *testing.T, fixture *cachedFixture) string {
 		if err != nil {
 			continue
 		}
-		var cached cacheEntry
-		if err := json.Unmarshal(data, &cached); err != nil {
+		cached, err := decodeCacheEntry(data)
+		if err != nil {
 			continue
 		}
 		if cached.Version == cacheEntryVersion && strings.HasPrefix(cached.Unit, unitPrefix) {
@@ -661,15 +677,12 @@ func mutateCacheEntry(mutate func(*cacheEntry)) func(*testing.T, string) {
 		if err != nil {
 			t.Fatalf("ReadFile(%q) for %q error = %v", path, t.Name(), err)
 		}
-		var entry cacheEntry
-		if err := json.Unmarshal(data, &entry); err != nil {
-			t.Fatalf("Unmarshal(%q) for %q error = %v", path, t.Name(), err)
+		entry, err := decodeCacheEntry(data)
+		if err != nil {
+			t.Fatalf("decode %q for %q error = %v", path, t.Name(), err)
 		}
 		mutate(&entry)
-		data, err = json.Marshal(entry)
-		if err != nil {
-			t.Fatalf("Marshal(%q) for %q error = %v", path, t.Name(), err)
-		}
+		data = encodeCacheEntry(entry)
 		if err := os.WriteFile(path, data, 0o600); err != nil {
 			t.Fatalf("WriteFile(%q) for %q error = %v", path, t.Name(), err)
 		}
