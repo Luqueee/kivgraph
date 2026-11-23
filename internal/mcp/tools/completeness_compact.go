@@ -1,6 +1,10 @@
 package tools
 
-import "strconv"
+import (
+	"strconv"
+	"strings"
+	"unicode/utf8"
+)
 
 // The compact spelling of Completeness.
 //
@@ -70,6 +74,36 @@ type compactCompleteness struct {
 // detailsInFullView is what compactCompleteness.Details says.
 const detailsInFullView = "view=full"
 
+// maximumCompactDetail bounds a detail in a compact answer, in bytes. A detail
+// of a failure can be whatever a tool printed: the compiler's own message for a
+// module it could not load was `4,4` KB of `pkg-config` output on a real
+// repository, and alone in its group it was `4,737` of the `5,064` bytes of an
+// answer about a name with one declaration. A line of this length keeps the
+// ordinary ones whole -- a path, a pair of manifests -- and the rest is in the
+// full view.
+const maximumCompactDetail = 320
+
+// shortDetail cuts a detail to its first line and to maximumCompactDetail bytes,
+// never in the middle of a character, and reports whether it cut anything.
+func shortDetail(text string) (string, bool) {
+	short := text
+	if line, _, found := strings.Cut(short, "\n"); found {
+		short = line
+	}
+	short = strings.TrimRight(short, " \t\r")
+	if len(short) > maximumCompactDetail {
+		cut := maximumCompactDetail
+		for cut > 0 && !utf8.RuneStart(short[cut]) {
+			cut--
+		}
+		short = short[:cut]
+	}
+	if short == text {
+		return text, false
+	}
+	return short + "\u2026", true
+}
+
 // compactCompletenessOf spells a verdict for a compact view. It adds nothing
 // and invents nothing: every package, every reason and every occurrence of the
 // rows is in the result, and the only text it can drop is a detail that the
@@ -78,14 +112,18 @@ func compactCompletenessOf(source *Completeness) *compactCompleteness {
 	if source == nil {
 		return nil
 	}
+	blindSpots, blindDetailCut := compactBlindSpots(source.BlindSpots)
 	result := &compactCompleteness{
 		Verdict:             source.Verdict,
-		BlindSpots:          compactBlindSpots(source.BlindSpots),
+		BlindSpots:          blindSpots,
 		MoreBlindSpots:      source.MoreBlindSpots,
 		MoreInvisibleScopes: source.MoreInvisibleScopes,
 		Fallback:            source.Fallback,
 	}
 	result.InvisibleScopes, result.Details = compactScopes(source.InvisibleScopes)
+	if blindDetailCut {
+		result.Details = detailsInFullView
+	}
 	// One repository for the whole verdict, or none: a value that some group
 	// lacks would give that group a repository it never had.
 	repositories := make([]string, 0, len(result.BlindSpots)+len(result.InvisibleScopes))
@@ -108,21 +146,22 @@ func compactCompletenessOf(source *Completeness) *compactCompleteness {
 
 type blindSpotKey struct{ reason, repository, symbol, pkg, detail string }
 
-func compactBlindSpots(rows []BlindSpot) []blindSpotGroup {
+func compactBlindSpots(rows []BlindSpot) (groups []blindSpotGroup, cut bool) {
 	if len(rows) == 0 {
-		return nil
+		return nil, false
 	}
 	index := map[blindSpotKey]int{}
-	var groups []blindSpotGroup
 	for _, row := range rows {
 		key := blindSpotKey{row.Reason, row.Repository, row.RequestedSymbol, row.RequestedPackage, row.Detail}
 		at, seen := index[key]
 		if !seen {
 			at = len(groups)
 			index[key] = at
+			detail, wasCut := shortDetail(row.Detail)
+			cut = cut || wasCut
 			groups = append(groups, blindSpotGroup{
 				Reason: row.Reason, Repository: row.Repository, RequestedSymbol: row.RequestedSymbol,
-				RequestedPackage: row.RequestedPackage, Detail: row.Detail,
+				RequestedPackage: row.RequestedPackage, Detail: detail,
 			})
 		}
 		if row.FilePath == "" && row.StartLine == 0 {
@@ -131,7 +170,7 @@ func compactBlindSpots(rows []BlindSpot) []blindSpotGroup {
 		}
 		groups[at].At = append(groups[at].At, placeLabel(row.FilePath, row.StartLine))
 	}
-	return groups
+	return groups, cut
 }
 
 // placeLabel is `path:line`, and the path alone when the failure has no line.
@@ -177,7 +216,11 @@ func compactScopes(rows []BlindSpot) (groups []scopeGroup, details string) {
 	for at := range groups {
 		if len(distinct[at]) == 1 && !withoutDetail[at] {
 			for text := range distinct[at] {
-				groups[at].Detail = text
+				var cut bool
+				groups[at].Detail, cut = shortDetail(text)
+				if cut {
+					details = detailsInFullView
+				}
 			}
 			continue
 		}

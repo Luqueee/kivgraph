@@ -471,8 +471,9 @@ to three of the five groups it had.
 The compact view says every fact once. Scopes are grouped by repository and
 reason, and the repository moves to the block when it is the same everywhere.
 A `detail` stays when every row of its group says the same thing, or when the
-group is one scope; when they differ it is left out, and `"details":
-"view=full"` says where it is. `blind_spots` are grouped by what the failed
+group is one scope, as its first line and at most 320 bytes; when they differ,
+or it is longer, it is left out or cut, and `"details": "view=full"` says where
+the rest is. `blind_spots` are grouped by what the failed
 references asked for -- reason, symbol, package, detail -- and each place is
 one `path:line` in `at`, with `unlocated` counting the failures that have no
 file. `view: "full"` keeps one row per scope and per failure, with every field.
