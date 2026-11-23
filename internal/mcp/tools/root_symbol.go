@@ -98,6 +98,7 @@ func resolveSymbolSelector(
 	if err != nil {
 		return 0, WrapToolError(CodeSnapshotUnavailable, "qualified name lookup failed", err)
 	}
+	page = withoutMentions(snapshot, page)
 	switch len(page.IDs) {
 	case 0:
 		return 0, errSelectorNotFound(selector)
@@ -105,6 +106,33 @@ func resolveSymbolSelector(
 		return page.IDs[0], nil
 	}
 	return 0, errSelectorAmbiguous(snapshot, selector, page)
+}
+
+// withoutMentions drops the import, export and re-export rows of a name when a
+// declaration of it remains. `export const x` publishes both the declaration and
+// the row that mentions it under one qualified name, and a question about a
+// qualified name is a question about the declaration -- the rule
+// resolveDeclarationByName already applies to a bare name. A name that is only
+// ever mentioned keeps its rows, and a stable_key still selects any one of them.
+func withoutMentions(snapshot *hotsnapshot.GraphSnapshot, page hotsnapshot.SymbolPage) hotsnapshot.SymbolPage {
+	declarations := make([]hotsnapshot.SymbolID, 0, len(page.IDs))
+	for _, id := range page.IDs {
+		symbol, ok := snapshot.Symbol(id)
+		if !ok {
+			continue
+		}
+		kind, kindOK := snapshot.Strings().String(symbol.Kind)
+		if _, mention := mentionKinds[kind]; kindOK && mention {
+			continue
+		}
+		declarations = append(declarations, id)
+	}
+	if len(declarations) == 0 || len(declarations) == len(page.IDs) {
+		return page
+	}
+	page.Total -= len(page.IDs) - len(declarations)
+	page.IDs = declarations
+	return page
 }
 
 // errSelectorNotFound distinguishes a name nobody declares from a name the
