@@ -394,6 +394,12 @@ superficie observable.
   terminal que instaló y no al demonio: compararlo diría `stale` desde cualquier
   otra shell. Lo que sí compara es si hay alguno anotado, y por eso toda
   instalación anterior a esto dice `stale` una vez. Ver ADR 0085.
+- **`daemon install` se niega con un `HOME` que no es el de la cuenta**: la unit
+  se escribe bajo `HOME` y se registra en el gestor de sesión de la cuenta, así
+  que un `HOME` de usar y tirar deja un agente cuyo directorio se lleva el
+  directorio. Se compara por identidad, no por texto, y no se niega si no se
+  puede comparar. Un test que llegue al `Install` real instala en la máquina de
+  quien lo corre: los de este paquete se detienen antes. Ver ADR 0157.
 - El resincronizador **se rinde** tras `ResyncAttempts` fallos seguidos del mismo
   lote sin cambios -- cinco, como el `StartLimitBurst` de la unit-- y lo dice una
   vez por `OnGaveUp`. El lote se identifica por su contenido, así que un

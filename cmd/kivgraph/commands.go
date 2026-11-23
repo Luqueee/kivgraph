@@ -292,7 +292,7 @@ func commandTable() []commandSpec {
 		{
 			words:   []string{"daemon", "install"},
 			group:   "Getting started",
-			usage:   "daemon install [--addr HOST:PORT] [--allow-remote]",
+			usage:   "daemon install [--addr HOST:PORT] [--allow-remote] [--allow-foreign-home]",
 			summary: "Give the daemon an owner, so the platform starts it and restarts it",
 			flags: func() *flag.FlagSet {
 				var path string

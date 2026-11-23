@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"os/user"
 	"slices"
 	"strings"
 	"time"
@@ -28,6 +29,9 @@ import (
 type supervisorOptions struct {
 	Address     string
 	AllowRemote bool
+	// AllowForeignHome lets `daemon install` run with a HOME that is not the
+	// account's home.
+	AllowForeignHome bool
 }
 
 // supervisorFlagSet declares them once, so the help and the completion describe
@@ -40,6 +44,8 @@ func supervisorFlagSet(operation string, configPath *string, options *supervisor
 		flags.StringVar(&options.Address, "addr", "", "HTTP address the supervised daemon binds")
 		flags.BoolVar(&options.AllowRemote, "allow-remote", false,
 			"record a bind outside loopback, which sends names, file paths and source metadata off this host")
+		flags.BoolVar(&options.AllowForeignHome, "allow-foreign-home", false,
+			"install even though HOME is not this account's home directory")
 	}
 	return flags
 }
@@ -83,6 +89,45 @@ func supervisorSpecWithExecutable(configPath string, options supervisorOptions, 
 		Address:        address,
 		AllowRemote:    options.AllowRemote,
 	}, loaded, nil
+}
+
+// refuseForeignHome stops `daemon install` when HOME is not the account's home.
+//
+// The unit is written under HOME and registered with the account's own
+// session manager, so a shell whose HOME points at a scratch directory leaves a
+// launchd agent or a systemd unit whose files the directory takes with it:
+// two hundred of them accumulated on one workstation from tests that did this
+// (see runConfiguredServe). A HOME that cannot be compared is not a reason to
+// refuse; the flag is for the machines where the difference is intended.
+func refuseForeignHome() error {
+	account, err := user.Current()
+	if err != nil || account.HomeDir == "" {
+		return nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil
+	}
+	if !homeIsForeign(home, account.HomeDir) {
+		return nil
+	}
+	return fmt.Errorf("HOME is %s and this account's home is %s: the unit would be written under "+
+		"the first and registered with the second's session manager, and would outlive it; "+
+		"run it from your own session, or pass --allow-foreign-home if this is intended", home, account.HomeDir)
+}
+
+// homeIsForeign compares two directories by identity, not by spelling: on
+// macOS the same directory has several, and a symlinked home is still the home.
+func homeIsForeign(home, account string) bool {
+	accountInfo, err := os.Stat(account)
+	if err != nil {
+		return false
+	}
+	homeInfo, err := os.Stat(home)
+	if err != nil {
+		return true
+	}
+	return !os.SameFile(homeInfo, accountInfo)
 }
 
 // warnAboutAnUnreachableNode says so when the PATH an install just recorded
@@ -253,6 +298,13 @@ func runSupervisorCommand(operation string, args []string, stdout, stderr io.Wri
 	if err != nil {
 		writeCommandError(stderr, "daemon %s: %v", operation, err)
 		return 1
+	}
+
+	if operation == "install" && !options.AllowForeignHome {
+		if err := refuseForeignHome(); err != nil {
+			writeCommandError(stderr, "daemon install: %v", err)
+			return 1
+		}
 	}
 
 	var report supervisor.Report
