@@ -146,7 +146,7 @@ func encodeCacheEntry(entry cacheEntry) []byte {
 	encoder := &entryEncoder{table: make(map[string]uint64)}
 	encoder.write(entryPlan, reflect.ValueOf(entry))
 
-	out := make([]byte, 0, len(encoder.body)+len(encoder.lengths)+encoder.size+len(entry.Unit)+64)
+	out := make([]byte, 0, len(encoder.body))
 	out = append(out, cacheEntryMagic...)
 	out = append(out, entryFingerprint[:]...)
 	out = binary.AppendUvarint(out, uint64(len(entry.Unit)))
@@ -163,7 +163,6 @@ type entryEncoder struct {
 	table   map[string]uint64
 	strings []string
 	lengths []byte
-	size    int
 	body    []byte
 }
 
@@ -177,7 +176,6 @@ func (encoder *entryEncoder) write(node *entryNode, value reflect.Value) {
 			encoder.table[text] = index
 			encoder.strings = append(encoder.strings, text)
 			encoder.lengths = binary.AppendUvarint(encoder.lengths, uint64(len(text)))
-			encoder.size += len(text)
 		}
 		encoder.body = binary.AppendUvarint(encoder.body, index)
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
