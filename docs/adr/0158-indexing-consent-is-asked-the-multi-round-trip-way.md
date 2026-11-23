@@ -50,10 +50,11 @@ projects. A client that does not advertise form elicitation still needs
 `confirmed: true`, as before, and the flag is never assumed.
 
 The ceiling goes to `18,900`: the cost of the SDK's annotations, with `25`
-bytes of room, and no description or route a session pays for in every request
+bytes of room. No description or route a session pays for in every request
 changed: the resident surface of `benchmarks/mcp-token-cost --smoke` stays at
-`812` tokens, and the deferred schemas go from `5,174` to `5,289`. `addTextTool` leaves the text block off a result that asks a question,
-because content and `inputRequests` are exclusive on the wire.
+`812` tokens, and the deferred schemas go from `5,174` to `5,289`.
+`addTextTool` leaves the text block off a result that asks a question, because
+content and `inputRequests` are exclusive on the wire.
 
 ## Compatibility
 
