@@ -78,33 +78,133 @@ func rowFromColumns(columns []string, values map[string]string) []string {
 
 // CanonicalTableRows renders a fact set as the rows of every canonical table.
 // A table with no rows is absent from the map.
+//
+// It holds every table at once, which is what a comparison wants and what a
+// load must not do: LoadCanonical stages one table at a time through
+// renderCanonicalTables.
 func CanonicalTableRows(set facts.Set, options CanonicalLoadOptions) (map[string][][]string, error) {
+	tables := make(map[string][][]string)
+	err := renderCanonicalTables(set, options, func(table string, rows [][]string) error {
+		tables[table] = rows
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return tables, nil
+}
+
+// renderCanonicalTables renders the non-empty canonical tables of a fact set,
+// one at a time, in the order a load needs: node tables in
+// CanonicalNodeTables order, then relationship tables in
+// CanonicalRelationshipTables order. emit receives a table and is done with its
+// rows when it returns, so the rows of one table are all that is alive on top of
+// the facts.
+//
+// Rendering every table before writing any of them held a second copy of the
+// whole graph as strings -- every row a slice of strings -- beside the facts it
+// came from, for the length of the load.
+func renderCanonicalTables(set facts.Set, options CanonicalLoadOptions, emit func(table string, rows [][]string) error) error {
 	if err := set.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidCanonicalLoad, err)
+		return fmt.Errorf("%w: %v", ErrInvalidCanonicalLoad, err)
 	}
 	if strings.TrimSpace(options.ResolverVersion) == "" {
-		return nil, fmt.Errorf("%w: resolver version is empty", ErrInvalidCanonicalLoad)
+		return fmt.Errorf("%w: resolver version is empty", ErrInvalidCanonicalLoad)
 	}
 
 	// A defensive copy: Sort mutates in place, and a caller that handed us a
 	// set has every right to expect it back unchanged.
-	clone := cloneSorted(set)
-	tables := make(map[string][][]string)
-
-	metadataColumns, err := columnsOrError("GraphMetadata")
-	if err != nil {
-		return nil, err
+	renderer := canonicalRenderer{
+		set:      cloneSorted(set),
+		options:  options,
+		snapshot: strconv.FormatInt(options.SnapshotID, 10),
 	}
-	tables["GraphMetadata"] = graphMetadataRows(metadataColumns, options)
+	// Every semantic and containment relation is keyed by its own EdgeKind,
+	// so the table name always comes straight from the edge. The columns of a
+	// kind are resolved once: CanonicalColumns rebuilds the entire schema on
+	// every call, and the graph holds one edge per reference in the corpus. A
+	// kind with no table is refused before anything is emitted.
+	counts := make(map[facts.EdgeKind]int)
+	for _, edge := range renderer.set.Edges {
+		counts[edge.Kind]++
+	}
+	renderer.edgesByKind = make(map[facts.EdgeKind][]int, len(counts))
+	renderer.columnsByKind = make(map[facts.EdgeKind][]string, len(counts))
+	for kind, count := range counts {
+		columns, exists := CanonicalColumns(string(kind))
+		if !exists {
+			return fmt.Errorf("%w: edge kind %q has no canonical relationship table", ErrInvalidCanonicalLoad, kind)
+		}
+		renderer.columnsByKind[kind] = columns
+		renderer.edgesByKind[kind] = make([]int, 0, count)
+	}
+	for index, edge := range renderer.set.Edges {
+		renderer.edgesByKind[edge.Kind] = append(renderer.edgesByKind[edge.Kind], index)
+	}
 
-	if len(clone.Repositories) > 0 {
-		columns, err := columnsOrError("Repository")
+	for _, table := range CanonicalNodeTables() {
+		if err := renderer.emit(table.Name, emit); err != nil {
+			return err
+		}
+	}
+	for _, table := range CanonicalRelationshipTables() {
+		if err := renderer.emit(table.Name, emit); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// canonicalRenderer holds what rendering any one table needs.
+type canonicalRenderer struct {
+	set           facts.Set
+	options       CanonicalLoadOptions
+	snapshot      string
+	edgesByKind   map[facts.EdgeKind][]int
+	columnsByKind map[facts.EdgeKind][]string
+}
+
+// emit renders one table, hands it over when it has rows, and lets go of the
+// facts no later table reads.
+func (renderer *canonicalRenderer) emit(table string, emit func(string, [][]string) error) error {
+	rows, err := renderer.table(table)
+	if err != nil {
+		return err
+	}
+	if len(rows) != 0 {
+		if err := emit(table, rows); err != nil {
+			return err
+		}
+	}
+	// Edges, evidence and unresolved references are read by the relationship
+	// tables that come after the nodes; these four are read by their own table
+	// and no other.
+	switch table {
+	case "Repository":
+		renderer.set.Repositories = nil
+	case "Package":
+		renderer.set.Packages = nil
+	case "File":
+		renderer.set.Files = nil
+	case "Symbol":
+		renderer.set.Symbols = nil
+	}
+	return nil
+}
+
+// table renders one canonical table, or nothing when the facts imply no row.
+func (renderer *canonicalRenderer) table(name string) ([][]string, error) {
+	set, options := renderer.set, renderer.options
+	switch name {
+	case "GraphMetadata":
+		columns, err := columnsOrError(name)
 		if err != nil {
 			return nil, err
 		}
-		rows := make([][]string, len(clone.Repositories))
-		for index, repository := range clone.Repositories {
-			rows[index] = rowFromColumns(columns, map[string]string{
+		return graphMetadataRows(columns, options), nil
+	case "Repository":
+		return renderRows(name, set.Repositories, func(columns []string, repository facts.Repository) []string {
+			return rowFromColumns(columns, map[string]string{
 				"stable_key": repository.Key,
 				"name":       repository.Name,
 				"root_path":  repository.RootPath,
@@ -113,18 +213,10 @@ func CanonicalTableRows(set facts.Set, options CanonicalLoadOptions) (map[string
 				"dirty":      strconv.FormatBool(repository.Dirty),
 				"languages":  joinLanguages(repository.Languages),
 			})
-		}
-		tables["Repository"] = rows
-	}
-
-	if len(clone.Packages) > 0 {
-		columns, err := columnsOrError("Package")
-		if err != nil {
-			return nil, err
-		}
-		rows := make([][]string, len(clone.Packages))
-		for index, pkg := range clone.Packages {
-			rows[index] = rowFromColumns(columns, map[string]string{
+		})
+	case "Package":
+		return renderRows(name, set.Packages, func(columns []string, pkg facts.Package) []string {
+			return rowFromColumns(columns, map[string]string{
 				"stable_key":     pkg.Key,
 				"repository_key": pkg.RepositoryKey,
 				"language":       string(pkg.Language),
@@ -134,18 +226,10 @@ func CanonicalTableRows(set facts.Set, options CanonicalLoadOptions) (map[string
 				"manifest_path":  pkg.ManifestPath,
 				"container":      pkg.Container,
 			})
-		}
-		tables["Package"] = rows
-	}
-
-	if len(clone.Files) > 0 {
-		columns, err := columnsOrError("File")
-		if err != nil {
-			return nil, err
-		}
-		rows := make([][]string, len(clone.Files))
-		for index, file := range clone.Files {
-			rows[index] = rowFromColumns(columns, map[string]string{
+		})
+	case "File":
+		return renderRows(name, set.Files, func(columns []string, file facts.File) []string {
+			return rowFromColumns(columns, map[string]string{
 				"stable_key":     file.Key,
 				"repository_key": file.RepositoryKey,
 				"package_key":    file.PackageKey,
@@ -154,18 +238,10 @@ func CanonicalTableRows(set facts.Set, options CanonicalLoadOptions) (map[string
 				"content_hash":   file.ContentHash,
 				"generated":      strconv.FormatBool(file.Generated),
 			})
-		}
-		tables["File"] = rows
-	}
-
-	if len(clone.Symbols) > 0 {
-		columns, err := columnsOrError("Symbol")
-		if err != nil {
-			return nil, err
-		}
-		rows := make([][]string, len(clone.Symbols))
-		for index, symbol := range clone.Symbols {
-			rows[index] = rowFromColumns(columns, map[string]string{
+		})
+	case "Symbol":
+		return renderRows(name, set.Symbols, func(columns []string, symbol facts.Symbol) []string {
+			return rowFromColumns(columns, map[string]string{
 				"stable_key":         symbol.Key,
 				"canonical_identity": symbol.CanonicalIdentity,
 				"repository_key":     symbol.RepositoryKey,
@@ -183,18 +259,10 @@ func CanonicalTableRows(set facts.Set, options CanonicalLoadOptions) (map[string
 				"end_line":           strconv.Itoa(symbol.End.Line),
 				"end_offset":         strconv.Itoa(symbol.End.Offset),
 			})
-		}
-		tables["Symbol"] = rows
-	}
-
-	if len(clone.Evidence) > 0 {
-		columns, err := columnsOrError("Evidence")
-		if err != nil {
-			return nil, err
-		}
-		rows := make([][]string, len(clone.Evidence))
-		for index, evidence := range clone.Evidence {
-			rows[index] = rowFromColumns(columns, map[string]string{
+		})
+	case "Evidence":
+		return renderRows(name, set.Evidence, func(columns []string, evidence facts.Evidence) []string {
+			return rowFromColumns(columns, map[string]string{
 				"stable_key":     evidence.Key,
 				"repository_key": evidence.RepositoryKey,
 				"file_key":       evidence.FileKey,
@@ -204,18 +272,10 @@ func CanonicalTableRows(set facts.Set, options CanonicalLoadOptions) (map[string
 				"end_offset":     strconv.Itoa(evidence.End.Offset),
 				"text":           evidence.Text,
 			})
-		}
-		tables["Evidence"] = rows
-	}
-
-	if len(clone.Unresolved) > 0 {
-		columns, err := columnsOrError("UnresolvedReference")
-		if err != nil {
-			return nil, err
-		}
-		rows := make([][]string, len(clone.Unresolved))
-		for index, unresolved := range clone.Unresolved {
-			rows[index] = rowFromColumns(columns, map[string]string{
+		})
+	case "UnresolvedReference":
+		return renderRows(name, set.Unresolved, func(columns []string, unresolved facts.UnresolvedReference) []string {
+			return rowFromColumns(columns, map[string]string{
 				"stable_key":        facts.UnresolvedKey(unresolved),
 				"repository_key":    unresolved.RepositoryKey,
 				"file_key":          unresolved.FileKey,
@@ -229,72 +289,65 @@ func CanonicalTableRows(set facts.Set, options CanonicalLoadOptions) (map[string
 				"start_column":      strconv.Itoa(unresolved.Start.Column),
 				"start_offset":      strconv.Itoa(unresolved.Start.Offset),
 			})
+		})
+	case "OBSERVED_IN":
+		// OBSERVED_IN and REPORTS_UNRESOLVED have no facts.EdgeKind of their
+		// own; Evidence and UnresolvedReference already carry the owning key,
+		// so the relation is derived rather than read off an edge.
+		columns, err := columnsOrError(name)
+		if err != nil {
+			return nil, err
 		}
-		tables["UnresolvedReference"] = rows
+		var rows [][]string
+		for _, evidence := range set.Evidence {
+			if evidence.FileKey != "" {
+				rows = append(rows, rowFromColumns(columns, map[string]string{"from": evidence.Key, "to": evidence.FileKey}))
+			}
+		}
+		return rows, nil
+	case "REPORTS_UNRESOLVED":
+		return renderRows(name, set.Unresolved, func(columns []string, unresolved facts.UnresolvedReference) []string {
+			return rowFromColumns(columns, map[string]string{"from": unresolved.RepositoryKey, "to": facts.UnresolvedKey(unresolved)})
+		})
 	}
 
-	// Every semantic and containment relation is keyed by its own EdgeKind,
-	// so the table name always comes straight from the edge.
-	//
-	// The columns of a kind are resolved once, and the snapshot rendered
-	// once: CanonicalColumns rebuilds the entire schema on every call, and
-	// the graph holds one edge per reference in the corpus.
-	snapshot := strconv.FormatInt(options.SnapshotID, 10)
-	edgesByKind := make(map[facts.EdgeKind]int)
-	for _, edge := range clone.Edges {
-		edgesByKind[edge.Kind]++
+	kind := facts.EdgeKind(name)
+	indexes := renderer.edgesByKind[kind]
+	if len(indexes) == 0 {
+		return nil, nil
 	}
-	columnsByKind := make(map[facts.EdgeKind][]string, len(edgesByKind))
-	for kind := range edgesByKind {
-		columns, exists := CanonicalColumns(string(kind))
-		if !exists {
-			return nil, fmt.Errorf("%w: edge kind %q has no canonical relationship table", ErrInvalidCanonicalLoad, kind)
-		}
-		columnsByKind[kind] = columns
-		tables[string(kind)] = make([][]string, 0, edgesByKind[kind])
-	}
-	for _, edge := range clone.Edges {
-		table := string(edge.Kind)
-		tables[table] = append(tables[table], rowFromColumns(columnsByKind[edge.Kind], map[string]string{
+	columns := renderer.columnsByKind[kind]
+	rows := make([][]string, len(indexes))
+	for position, index := range indexes {
+		edge := set.Edges[index]
+		rows[position] = rowFromColumns(columns, map[string]string{
 			"from":             edge.SourceKey,
 			"to":               edge.TargetKey,
 			"confidence":       string(edge.Confidence),
 			"provenance":       string(edge.Provenance),
 			"evidence_key":     edge.EvidenceKey,
-			"source_snapshot":  snapshot,
+			"source_snapshot":  renderer.snapshot,
 			"resolver_version": options.ResolverVersion,
-		}))
+		})
 	}
+	return rows, nil
+}
 
-	// OBSERVED_IN and REPORTS_UNRESOLVED have no facts.EdgeKind of their own;
-	// Evidence and UnresolvedReference already carry the owning key, so the
-	// relation is derived rather than read off an edge.
-	observedColumns, err := columnsOrError("OBSERVED_IN")
+// renderRows renders one row per item in the column order of the table, and
+// nothing for a table the facts give no row.
+func renderRows[Item any](table string, items []Item, render func(columns []string, item Item) []string) ([][]string, error) {
+	if len(items) == 0 {
+		return nil, nil
+	}
+	columns, err := columnsOrError(table)
 	if err != nil {
 		return nil, err
 	}
-	for _, evidence := range clone.Evidence {
-		if evidence.FileKey == "" {
-			continue
-		}
-		tables["OBSERVED_IN"] = append(tables["OBSERVED_IN"], rowFromColumns(observedColumns, map[string]string{
-			"from": evidence.Key,
-			"to":   evidence.FileKey,
-		}))
+	rows := make([][]string, len(items))
+	for index, item := range items {
+		rows[index] = render(columns, item)
 	}
-
-	reportsColumns, err := columnsOrError("REPORTS_UNRESOLVED")
-	if err != nil {
-		return nil, err
-	}
-	for _, unresolved := range clone.Unresolved {
-		tables["REPORTS_UNRESOLVED"] = append(tables["REPORTS_UNRESOLVED"], rowFromColumns(reportsColumns, map[string]string{
-			"from": unresolved.RepositoryKey,
-			"to":   facts.UnresolvedKey(unresolved),
-		}))
-	}
-
-	return tables, nil
+	return rows, nil
 }
 
 // graphMetadataRows renders the fixed identity of the stored graph, sorted by
