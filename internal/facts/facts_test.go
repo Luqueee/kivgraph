@@ -1,9 +1,77 @@
 package facts
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
+
+// scrambledSet has every collection out of order, with enough in each for an
+// order to mean something and an edge pair that only the target tells apart.
+func scrambledSet() Set {
+	return Set{
+		Repositories: []Repository{{Key: "r:b"}, {Key: "r:a"}, {Key: "r:c"}},
+		Packages:     []Package{{Key: "p:c"}, {Key: "p:a"}, {Key: "p:b"}},
+		Files:        []File{{Key: "f:2"}, {Key: "f:3"}, {Key: "f:1"}},
+		Symbols:      []Symbol{{Key: "s:z"}, {Key: "s:m"}, {Key: "s:a"}},
+		Evidence:     []Evidence{{Key: "e:2"}, {Key: "e:1"}},
+		Edges: []Edge{
+			{SourceKey: "s:m", TargetKey: "s:z", Kind: "CALLS_DIRECT"},
+			{SourceKey: "s:a", TargetKey: "s:z", Kind: "CALLS_DIRECT"},
+			{SourceKey: "s:m", TargetKey: "s:a", Kind: "CALLS_DIRECT"},
+		},
+		Unresolved: []UnresolvedReference{
+			{FileKey: "f:2", Start: Position{Offset: 9}, Reason: "x"},
+			{FileKey: "f:2", Start: Position{Offset: 3}, Reason: "x"},
+			{FileKey: "f:1", Start: Position{Offset: 7}, Reason: "x"},
+		},
+	}
+}
+
+// Sorted is Sort that leaves the set alone. The two have to agree on every
+// collection, and the input has to come back in the order it went in: a caller
+// that handed over a set has every right to expect it unchanged.
+func TestSortedIsSortWithoutChangingTheSet(t *testing.T) {
+	input := scrambledSet()
+
+	want := scrambledSet()
+	want.Sort()
+
+	got := input.Sorted()
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("Sorted() = %+v, want what Sort gives: %+v", got, want)
+	}
+	if !reflect.DeepEqual(input, scrambledSet()) {
+		t.Fatalf("Sorted() changed the set it was given: %+v", input)
+	}
+}
+
+// A collection already in order is shared, and one that is not is copied: the
+// copy is the whole reason the method exists, and sharing a collection that was
+// out of order would sort the caller's own data.
+func TestSortedCopiesOnlyWhatIsOutOfOrder(t *testing.T) {
+	input := scrambledSet()
+	input.Symbols = []Symbol{{Key: "s:a"}, {Key: "s:m"}, {Key: "s:z"}}
+
+	got := input.Sorted()
+	if &got.Symbols[0] != &input.Symbols[0] {
+		t.Fatal("a collection already in order was copied")
+	}
+	if &got.Files[0] == &input.Files[0] {
+		t.Fatal("a collection out of order was sorted in place")
+	}
+	if got.Files[0].Key != "f:1" || input.Files[0].Key != "f:2" {
+		t.Fatalf("files: sorted copy starts at %q and the input at %q, want f:1 and f:2", got.Files[0].Key, input.Files[0].Key)
+	}
+}
+
+// Nothing to sort is not an error: every collection of an empty set comes back
+// as it was.
+func TestSortedOfAnEmptySetIsEmpty(t *testing.T) {
+	if got := (Set{}).Sorted(); !reflect.DeepEqual(got, Set{}) {
+		t.Fatalf("Sorted() of an empty set = %+v", got)
+	}
+}
 
 // TestUnresolvedKeyMatchesTheMergeIdentity keeps UnresolvedKey and Set.Merge
 // deduplicating on the same tuple: a key that drifts from Merge would let two
