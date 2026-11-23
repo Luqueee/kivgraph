@@ -2,6 +2,7 @@ package agenthook
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 )
 
@@ -40,15 +41,40 @@ func classifyBash(raw json.RawMessage) Question {
 	if err := json.Unmarshal(raw, &input); err != nil || input.Command == "" {
 		return Question{}
 	}
-	for _, segment := range splitSegments(input.Command) {
+	return classifyCommandLine(input.Command)
+}
+
+// classifyCommandLine reads one command line. A script a shell is handed is read
+// the same way, and always from a strictly shorter string, so it ends.
+func classifyCommandLine(command string) Question {
+	command = strings.TrimSpace(command)
+	// `(rg Name)` and `( cd x && rg Name )` run the same search in a subshell.
+	if strings.HasPrefix(command, "(") && strings.HasSuffix(command, ")") {
+		command = strings.TrimSpace(command[1 : len(command)-1])
+	}
+	for _, segment := range splitSegments(command) {
 		tokens := tokenize(segment)
-		tokens, escaped := stripAssignments(tokens)
-		if escaped {
-			// The caller already said it knows: the escape is on the
-			// very command being gated.
-			return Question{}
+		script := ""
+		for {
+			var escaped bool
+			tokens, escaped = stripAssignments(tokens)
+			if escaped {
+				// The caller already said it knows: the escape is on the
+				// very command being gated.
+				return Question{}
+			}
+			var unwrapped bool
+			tokens, script, unwrapped = unwrapCommandWrapper(tokens)
+			if script != "" || !unwrapped {
+				break
+			}
 		}
-		tokens = unwrapCommandWrapper(tokens)
+		if script != "" {
+			if question := classifyCommandLine(script); question.Kind != KindNone {
+				return question
+			}
+			continue
+		}
 		if len(tokens) == 0 {
 			continue
 		}
@@ -72,17 +98,74 @@ func classifyBash(raw json.RawMessage) Question {
 	return Question{}
 }
 
-// unwrapCommandWrapper exposes the command whose output-only wrapper does not
-// change what is being asked. RTK compresses command output for agents, so
-// `rtk rg ...` is still an rg search; `proxy` only asks RTK to leave that output
-// raw. RTK's own commands remain ordinary unknown programs and are allowed.
-func unwrapCommandWrapper(tokens []string) []string {
-	if len(tokens) < 2 || baseName(tokens[0]) != "rtk" {
-		return tokens
+// unwrapCommandWrapper exposes the command a wrapper runs, and reports whether
+// it took one off.
+//
+// A wrapper that only changes how the command runs does not change what is
+// being asked: `timeout 20 rg Name` and `time rg Name` are an rg search, and a
+// gate that read them as unknown programs let every ambiguous name through
+// behind the first word. RTK compresses command output for agents, so `rtk rg
+// ...` is still an rg search; `proxy` only asks RTK to leave that output raw.
+// RTK's own commands remain ordinary unknown programs and are allowed.
+//
+// `sh -c "..."` carries a whole command line, which comes back as a script for
+// the caller to read as one. A wrapper with nothing to run, or one of a form
+// that does not run it (`command -v rg` asks where a program is), yields no
+// tokens, which is not a search.
+func unwrapCommandWrapper(tokens []string) (rest []string, script string, unwrapped bool) {
+	if len(tokens) == 0 {
+		return tokens, "", false
 	}
-	tokens = tokens[1:]
-	if len(tokens) > 0 && tokens[0] == "proxy" {
+	switch program := baseName(tokens[0]); program {
+	case "rtk":
+		if len(tokens) < 2 {
+			return tokens, "", false
+		}
+		rest = tokens[1:]
+		if rest[0] == "proxy" {
+			rest = rest[1:]
+		}
+		return rest, "", true
+	case "time", "nohup", "exec", "command":
+		return skipFlags(tokens[1:], "-f", "-o", "-a"), "", true
+	case "nice":
+		return skipFlags(tokens[1:], "-n"), "", true
+	case "env":
+		return skipFlags(tokens[1:], "-u", "-C", "-S"), "", true
+	case "timeout":
+		rest = skipFlags(tokens[1:], "-k", "--kill-after", "-s", "--signal")
+		if len(rest) == 0 {
+			return nil, "", true
+		}
+		// The duration is the first word that is not a flag.
+		return rest[1:], "", true
+	case "sh", "bash", "zsh", "dash", "ksh":
+		for index := 1; index < len(tokens); index++ {
+			flag := tokens[index]
+			if !strings.HasPrefix(flag, "-") || strings.HasPrefix(flag, "--") {
+				return nil, "", true
+			}
+			if strings.Contains(flag, "c") {
+				if index+1 < len(tokens) {
+					return nil, tokens[index+1], true
+				}
+				return nil, "", true
+			}
+		}
+		return nil, "", true
+	}
+	return tokens, "", false
+}
+
+// skipFlags drops the leading flags of a wrapper, and the value of the ones that
+// take one as the next word. `--name=value` carries its own.
+func skipFlags(tokens []string, valueFlags ...string) []string {
+	for len(tokens) > 0 && strings.HasPrefix(tokens[0], "-") && tokens[0] != "-" {
+		flag := tokens[0]
 		tokens = tokens[1:]
+		if slices.Contains(valueFlags, flag) && len(tokens) > 0 {
+			tokens = tokens[1:]
+		}
 	}
 	return tokens
 }
@@ -258,14 +341,25 @@ func splitSegments(command string) []string {
 	return append(segments, current.String())
 }
 
-// tokenize splits one segment into words, removing one layer of quoting.
+// tokenize splits one segment into words, removing one layer of quoting and the
+// redirections.
+//
+// `> out.txt`, `2>err.log` and `< in.txt` say where the output goes and where
+// the input comes from, and neither is somewhere a search looks: kept as words
+// they became paths, and a `.txt` among them made a search over code read as a
+// search over files the graph does not cover. A `>` inside quotes is a character
+// of a pattern or of a path, and stays.
 func tokenize(segment string) []string {
 	tokens, current := []string{}, strings.Builder{}
-	quoted := false
+	quoted, discard := false, false
 	var quote rune
 	flush := func() {
 		if current.Len() > 0 || quoted {
-			tokens = append(tokens, current.String())
+			if discard {
+				discard = false
+			} else {
+				tokens = append(tokens, current.String())
+			}
 			current.Reset()
 			quoted = false
 		}
@@ -280,6 +374,13 @@ func tokenize(segment string) []string {
 			}
 		case character == '\'' || character == '"':
 			quote, quoted = character, true
+		case character == '>' || character == '<':
+			// A file descriptor in front of it belongs to the redirection.
+			if !isDescriptor(current.String()) {
+				flush()
+			}
+			current.Reset()
+			quoted, discard = false, true
 		case character == ' ' || character == '\t':
 			flush()
 		default:
@@ -288,6 +389,19 @@ func tokenize(segment string) []string {
 	}
 	flush()
 	return tokens
+}
+
+// isDescriptor reports whether a word is the number a redirection starts with.
+func isDescriptor(word string) bool {
+	if word == "" {
+		return false
+	}
+	for _, character := range word {
+		if character < '0' || character > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // DisableVariable turns the gate off for one call.
