@@ -419,63 +419,65 @@ answering an empty list; `graph_status`, `list_repositories`, `index_project`,
 `start_index_project` and `get_index_status` answer about the index itself.
 
 This is the `completeness` block captured from `get_blast_radius` on `MergeAll`
-at depth 2:
+at depth 2, in the default compact view:
 
 ```json
 {
   "verdict": "LOWER_BOUND",
+  "repository": "kivgraph",
   "invisible_scopes": [
     {
-      "reason": "PACKAGE_NOT_BUILDABLE",
-      "repository": "kivgraph",
-      "requested_package": "github.com/Luqueee/kivgraph/benchmarks/ladybug-delta-profile",
-      "detail": "LIST: build constraints exclude all Go files in /path/to/kivgraph/benchmarks/ladybug-delta-profile"
+      "reason": "DECLARATION_OUTSIDE_REPOSITORY",
+      "packages": ["github.com/Luqueee/kivgraph/internal/procstat"],
+      "occurrences": 18,
+      "detail": "declared in a Go build cache entry: the package is built from generated or cgo sources"
+    },
+    {
+      "reason": "MODULE_NOT_LOADED",
+      "packages": [
+        "example.com/kivgraph-fixture/consumer-a",
+        "example.com/kivgraph-fixture/consumer-b",
+        "example.com/kivgraph-fixture/consumer-negative"
+      ],
+      "occurrences": 3
     },
     {
       "reason": "PACKAGE_NOT_BUILDABLE",
-      "repository": "kivgraph",
-      "requested_package": "github.com/Luqueee/kivgraph/benchmarks/ladybug-recovery",
-      "detail": "LIST: build constraints exclude all Go files in /path/to/kivgraph/benchmarks/ladybug-recovery"
-    },
-    {
-      "reason": "PACKAGE_PROVIDER_NOT_FOUND",
-      "repository": "kivgraph",
-      "requested_package": "@astrojs/node"
-    },
-    {
-      "reason": "PACKAGE_PROVIDER_NOT_FOUND",
-      "repository": "kivgraph",
-      "requested_package": "@astrojs/starlight"
-    },
-    {
-      "reason": "PACKAGE_PROVIDER_NOT_FOUND",
-      "repository": "kivgraph",
-      "requested_package": "@tailwindcss/vite"
-    },
-    {
-      "reason": "PACKAGE_PROVIDER_NOT_FOUND",
-      "repository": "kivgraph",
-      "requested_package": "astro"
-    },
-    {
-      "reason": "PACKAGE_PROVIDER_NOT_FOUND",
-      "repository": "kivgraph",
-      "requested_package": "vitest"
+      "packages": [
+        "github.com/Luqueee/kivgraph/benchmarks/ladybug-batch",
+        "github.com/Luqueee/kivgraph/benchmarks/ladybug-bulk",
+        "github.com/Luqueee/kivgraph/benchmarks/ladybug-recovery"
+      ],
+      "occurrences": 3
     }
   ],
+  "details": "view=full",
   "fallback": {
     "pattern": "\\bMergeAll\\b",
     "paths": [
-      "/path/to/kivgraph/benchmarks/ladybug-delta-profile",
+      "/path/to/kivgraph/benchmarks/ladybug-batch",
+      "/path/to/kivgraph/benchmarks/ladybug-bulk",
       "/path/to/kivgraph/benchmarks/ladybug-recovery"
     ]
   }
 }
 ```
 
-Read that as: the five rows are real, two Go directories were excluded by build
-constraints and five TypeScript package names had no provider in the graph, and
-if the answer has to be airtight, grep `\bMergeAll\b` over the two paths named.
+Read that as: the packages listed under each reason could not be read, with the
+number of recorded failures behind each group, and if the answer has to be
+airtight, grep `\bMergeAll\b` over the paths named. The block is abridged here
+to three of the five groups it had.
+
+The compact view says every fact once. Scopes are grouped by repository and
+reason, and the repository moves to the block when it is the same everywhere.
+A `detail` stays when every row of its group says the same thing, or when the
+group is one scope; when they differ it is left out, and `"details":
+"view=full"` says where it is. `blind_spots` are grouped by what the failed
+references asked for -- reason, symbol, package, detail -- and each place is
+one `path:line` in `at`, with `unlocated` counting the failures that have no
+file. `view: "full"` keeps one row per scope and per failure, with every field.
+To count scopes in a compact answer, count the `packages`.
+
 One response enumerates at most twenty entries per list; when the list is cut,
 `more_invisible_scopes` and `more_blind_spots` carry the exact remainder.
 

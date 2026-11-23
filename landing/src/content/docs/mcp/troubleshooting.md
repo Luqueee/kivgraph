@@ -413,7 +413,7 @@ Install the tool, or point the configuration key at it. [Install](/install/) lis
 The package contributes nothing, `graph_status` counts it under `unresolved_by_reason`, and a walk that would have crossed it downgrades its verdict. From a real `get_blast_radius` response, with the absolute path abridged:
 
 ```json
-{"completeness":{"verdict":"LOWER_BOUND","invisible_scopes":[{"reason":"PACKAGE_NOT_BUILDABLE","repository":"kivgraph","requested_package":"github.com/Luqueee/kivgraph/benchmarks/ladybug-recovery","detail":"LIST: build constraints exclude all Go files in /path/to/benchmarks/ladybug-recovery"}]}}
+{"completeness":{"verdict":"LOWER_BOUND","repository":"kivgraph","invisible_scopes":[{"reason":"PACKAGE_NOT_BUILDABLE","packages":["github.com/Luqueee/kivgraph/benchmarks/ladybug-recovery"],"occurrences":1,"detail":"LIST: build constraints exclude all Go files in /path/to/benchmarks/ladybug-recovery"}]}}
 ```
 
 **Cause**
@@ -430,7 +430,7 @@ The other reasons seen alongside it in a real graph are `DECLARATION_NOT_RESOLVE
 
 **Symptom**
 
-The module's symbols are absent and its references are declared `MODULE_NOT_LOADED`, with the diagnostics observed.
+The module's symbols are absent and its references are declared `MODULE_NOT_LOADED`, with the diagnostics observed. A compact answer lists the modules under that reason and leaves the diagnostics out when they differ; `view: "full"` has them.
 
 **Cause**
 

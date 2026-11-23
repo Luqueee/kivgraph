@@ -110,6 +110,12 @@ declarado en la raíz.
   fuese de ámbito; el que lo fija ahora está en
   `TestCompletenessSeparatesAFailedReferenceFromAnUnreadableScope`. Ver ADR
   0063.
+- El bloque `completeness` se agrupa en la vista `compact` y es una fila por
+  ámbito y por fallo en `full`: `completeness_compact.go` es la única
+  traducción, y se hace al serializar, nunca al construir el veredicto. Un
+  cliente o un arnés que cuente filas de `invisible_scopes` en una respuesta
+  compacta cuenta grupos; se cuentan los `packages`. Pasó con
+  `benchmarks/tool-honesty`. Ver ADR 0156.
 - Un diagnóstico del cargador que no tumba la pasada se imprime, no sólo se
   cuenta; un repositorio TypeScript que no declara ningún paquete se nombra.
   Un contador sin detalle y una entrada de registro que no aporta nada son

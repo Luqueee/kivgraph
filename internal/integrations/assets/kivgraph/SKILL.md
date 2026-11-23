@@ -106,8 +106,10 @@ repository/path/qualified-name triple remains portable across profiles.
    `requested_package` rather than attributing the failure to every symbol
    that package exports.
 5. **Read `completeness` before concluding.** A verdict of `LOWER_BOUND` means
-   the answer is a floor: `invisible_scopes` names what could not be seen, and
-   `fallback` names the paths and the pattern to grep instead. This is the one
+   the answer is a floor: `invisible_scopes` names what could not be seen
+   (grouped by reason, with the packages listed; `view: "full"` has one row
+   with its detail per scope), and `fallback` names the paths and the pattern
+   to grep instead. This is the one
    step that never costs an extra call, because it is already in the response
    you have.
 6. **`list_repositories` when you do not know the repository name**, and not
