@@ -473,7 +473,8 @@ func FullWithRepositories(ctx context.Context, options FullOptions, repositories
 		CSharpRepositories:     len(cSharpRepositories),
 	}
 	typeScriptDiscovered, err := discoverTypeScriptPackages(
-		ctx, typeScriptRepositories, options.TypeScriptIncludeUnclaimedSources)
+		ctx, typeScriptRepositories, options.TypeScriptIncludeUnclaimedSources,
+	)
 	if err != nil {
 		return facts.Set{}, report, err
 	}
@@ -501,11 +502,13 @@ func FullWithRepositories(ctx context.Context, options FullOptions, repositories
 		}
 		report.TypeScriptAmbiguousPackages = append(report.TypeScriptAmbiguousPackages, fmt.Sprintf(
 			"%s: %s: declared by %s, so none of them is indexed",
-			entry.repository.Name, entry.conflict.Name, strings.Join(manifests, ", ")))
+			entry.repository.Name, entry.conflict.Name, strings.Join(manifests, ", "),
+		))
 	}
 	for _, entry := range typeScriptDiscovered.notLoaded {
 		declared := repositoryNotLoadedFacts(
-			analysisUnit{language: facts.LanguageTypeScript, repository: entry.repository}, entry.failure)
+			analysisUnit{language: facts.LanguageTypeScript, repository: entry.repository}, entry.failure,
+		)
 		sets = append(sets, declared.set)
 		report.TypeScriptNotLoaded++
 		report.TypeScriptUnresolved += declared.unresolved
@@ -537,14 +540,16 @@ func FullWithRepositories(ctx context.Context, options FullOptions, repositories
 		if err != nil {
 			return facts.Set{}, report, fmt.Errorf("build synthetic Go workspace: %w", err)
 		}
-		files, workspaces, err := writeWorkspaces(ctx, options.SyntheticWorkFile, plan, goRepositories)
-		if err != nil {
-			return facts.Set{}, report, err
+		if len(plan.Modules) != 0 {
+			files, workspaces, err := writeWorkspaces(ctx, options.SyntheticWorkFile, plan, goRepositories)
+			if err != nil {
+				return facts.Set{}, report, err
+			}
+			workFiles = files
+			report.SyntheticWorkFile = options.SyntheticWorkFile
+			report.GoWorkspaces = workspaces
 		}
-		workFiles = files
 		goModules = plan.Modules
-		report.SyntheticWorkFile = options.SyntheticWorkFile
-		report.GoWorkspaces = workspaces
 
 		moduleRegistry, err = goloader.NewModuleRegistry(ctx, goRepositories)
 		if err != nil {
@@ -561,6 +566,24 @@ func FullWithRepositories(ctx context.Context, options FullOptions, repositories
 		modulesByRepository := modulesByRepository(plan.Modules)
 		conflictingModules = conflictSubjects(plan.Conflicts)
 		planConflicts = plan.Conflicts
+		// A module written for a newer Go than this build can type-check is not
+		// loaded, and says so: the pass goes on with the rest, and a pass nobody
+		// asked for keeps the generation it would have emptied (ADR 0152).
+		repositoryByName := make(map[string]workspace.Repository, len(goRepositories))
+		for _, repository := range goRepositories {
+			repositoryByName[repository.Name] = repository
+		}
+		for _, module := range plan.Unsupported {
+			declared := moduleNotLoaded(analysisUnit{
+				repository: repositoryByName[module.Repository],
+				module:     goworkspace.Module{ModulePath: module.ModulePath},
+			}, module.Detail())
+			sets = append(sets, declared.set)
+			report.GoModules++
+			report.GoModulesNotLoaded++
+			report.GoModulesNotRead = append(report.GoModulesNotRead, declared.notRead)
+			report.GoUnresolved += declared.unresolved
+		}
 		goUnits = make([]analysisUnit, 0, len(plan.Modules))
 		for _, repository := range goRepositories {
 			for _, module := range modulesByRepository[repository.Name] {
@@ -1168,7 +1191,8 @@ func toolchainHint(errors []goloader.PackageError) string {
 		}
 		return fmt.Sprintf(
 			" (this build type-checks with go %s; rebuild Kivgraph with a toolchain at least as new as the sources it must read)",
-			goworkspace.LanguageVersion())
+			goworkspace.LanguageVersion(),
+		)
 	}
 	return ""
 }
@@ -1373,7 +1397,8 @@ func typeScriptFactsArguments(
 		if provider.projectless {
 			continue
 		}
-		arguments = append(arguments,
+		arguments = append(
+			arguments,
 			"--provider", provider.repository.Name+"="+provider.repository.RealPath,
 			"--provider-project", provider.repository.Name+"="+provider.packageValue.ProjectPath,
 		)
@@ -1648,8 +1673,11 @@ func moduleWithoutGoPackages(unit analysisUnit) analysisResult {
 }
 
 func moduleNotLoadedFacts(unit analysisUnit, blocking []goloader.PackageError) analysisResult {
+	return moduleNotLoaded(unit, formatPackageErrors(blocking)+toolchainHint(blocking))
+}
+
+func moduleNotLoaded(unit analysisUnit, detail string) analysisResult {
 	repositoryKey := facts.RepositoryKey(unit.repository.Name)
-	detail := formatPackageErrors(blocking) + toolchainHint(blocking)
 	return analysisResult{
 		set: facts.Set{
 			Repositories: []facts.Repository{{
@@ -1919,6 +1947,7 @@ func requestedTypeScriptPackages(payload facts.TypeScriptPayload) []string {
 	}
 	return names
 }
+
 func factsCommand(options FullOptions, arguments []string) (string, []string, error) {
 	commandLine := strings.TrimSpace(options.TypeScriptWorker)
 	if commandLine == "" {
@@ -2199,7 +2228,8 @@ func analyseUnit(
 		// kind was analysed as a TypeScript package and published facts
 		// nobody asked for. A pass that cannot say what a unit is stops.
 		return analysisResult{}, fmt.Errorf(
-			"analysis unit for repository %q has no kind", unit.repository.Name)
+			"analysis unit for repository %q has no kind", unit.repository.Name,
+		)
 	}
 }
 

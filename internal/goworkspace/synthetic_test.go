@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -84,11 +85,12 @@ go 1.22
 	}
 }
 
-// A module written for a newer Go than this build can type-check must be named
-// here. The workspace claims the highest version of its members, so the go
-// command would select a toolchain whose standard library go/types cannot
-// read, and every repository would fail on a file nobody registered.
-func TestBuildPlanRejectsAModuleAboveTheSupportedLanguageVersion(t *testing.T) {
+// A module written for a newer Go than this build can type-check is left out and
+// named. The workspace claims the highest version of its members, so one above
+// the cap would make the go command select a toolchain whose standard library
+// go/types cannot read, and every repository would fail on a file nobody
+// registered. It must not cost the modules that can be read, either.
+func TestBuildPlanLeavesOutAModuleAboveTheSupportedLanguageVersion(t *testing.T) {
 	root := testsupport.TempDir(t)
 	current := writeModule(t, filepath.Join(root, "current"), `module example.com/current
 
@@ -99,20 +101,86 @@ go 1.24
 go 1.99.0
 `)
 
-	_, err := BuildPlan(context.Background(), []workspace.Repository{
+	plan, err := BuildPlan(context.Background(), []workspace.Repository{
 		{Name: "current", Path: current, RealPath: current},
 		{Name: "future", Path: future, RealPath: future},
-	}, Options{})
-	if !errors.Is(err, ErrGoVersionUnsupported) {
-		t.Fatalf("BuildPlan() error = %v, want ErrGoVersionUnsupported", err)
+	}, Options{MaximumGoVersion: "1.26"})
+	if err != nil {
+		t.Fatalf("BuildPlan() error = %v, want the readable module planned", err)
 	}
-	for _, want := range []string{"future", "example.com/future", "1.99.0"} {
-		if !strings.Contains(err.Error(), want) {
-			t.Fatalf("error = %q, want it to name %q", err, want)
+	if len(plan.Modules) != 1 || plan.Modules[0].ModulePath != "example.com/current" {
+		t.Fatalf("Modules = %+v, want only example.com/current", plan.Modules)
+	}
+	if plan.GoVersion != "1.24" {
+		t.Fatalf("GoVersion = %q, want the highest of the modules that can be read, not 1.99.0", plan.GoVersion)
+	}
+	want := []UnsupportedModule{{
+		Repository:   "future",
+		ModulePath:   "example.com/future",
+		ManifestPath: filepath.Join(future, "go.mod"),
+		GoVersion:    "1.99.0",
+		Supported:    "1.26",
+	}}
+	if !reflect.DeepEqual(plan.Unsupported, want) {
+		t.Fatalf("Unsupported = %+v, want %+v", plan.Unsupported, want)
+	}
+	for _, fragment := range []string{"requires go 1.99.0", "type-checks with go 1.26"} {
+		if !strings.Contains(plan.Unsupported[0].Detail(), fragment) {
+			t.Fatalf("Detail() = %q, want it to say %q", plan.Unsupported[0].Detail(), fragment)
 		}
 	}
-	if strings.Contains(err.Error(), "example.com/current") {
-		t.Fatalf("error = %q, must not blame the supported module", err)
+}
+
+// A registry whose only Go module is too new has nothing to load, and that is
+// not the same as no module: the plan says which ones it could not take.
+func TestBuildPlanWithOnlyUnsupportedModulesIsNotAnEmptyWorkspace(t *testing.T) {
+	root := testsupport.TempDir(t)
+	future := writeModule(t, filepath.Join(root, "future"), "module example.com/future\n\ngo 1.99.0\n")
+
+	plan, err := BuildPlan(context.Background(), []workspace.Repository{
+		{Name: "future", Path: future, RealPath: future},
+	}, Options{MaximumGoVersion: "1.26"})
+	if err != nil {
+		t.Fatalf("BuildPlan() error = %v, want a plan with nothing to load", err)
+	}
+	if len(plan.Modules) != 0 || len(plan.Unsupported) != 1 {
+		t.Fatalf("plan = %+v, want no module to load and one unsupported", plan)
+	}
+}
+
+// A path two repositories declare is an ambiguity before it is anything else:
+// leaving the too-new provider out would make the other one look like the only
+// one, which is a choice the plan does not make without evidence.
+func TestBuildPlanKeepsAnAmbiguousModuleAmbiguousWhenOneProviderIsTooNew(t *testing.T) {
+	root := testsupport.TempDir(t)
+	older := writeModule(t, filepath.Join(root, "older"), "module example.com/twin\n\ngo 1.24\n")
+	newer := writeModule(t, filepath.Join(root, "newer"), "module example.com/twin\n\ngo 1.99.0\n")
+	other := writeModule(t, filepath.Join(root, "other"), "module example.com/other\n\ngo 1.24\n")
+
+	plan, err := BuildPlan(context.Background(), []workspace.Repository{
+		{Name: "older", Path: older, RealPath: older},
+		{Name: "newer", Path: newer, RealPath: newer},
+		{Name: "other", Path: other, RealPath: other},
+	}, Options{MaximumGoVersion: "1.26"})
+	if err != nil {
+		t.Fatalf("BuildPlan() error = %v", err)
+	}
+	if len(plan.Conflicts) != 1 || plan.Conflicts[0].Kind != AmbiguousModule {
+		t.Fatalf("Conflicts = %+v, want the one ambiguity", plan.Conflicts)
+	}
+	if len(plan.Unsupported) != 0 {
+		t.Fatalf("Unsupported = %+v, want none: the ambiguity comes first", plan.Unsupported)
+	}
+}
+
+func TestBuildPlanRefusesAMaximumVersionItCannotRead(t *testing.T) {
+	root := testsupport.TempDir(t)
+	module := writeModule(t, filepath.Join(root, "m"), "module example.com/m\n\ngo 1.24\n")
+	_, err := BuildPlan(context.Background(), []workspace.Repository{
+		{Name: "m", Path: module, RealPath: module},
+	}, Options{MaximumGoVersion: "latest"})
+	if err == nil || !strings.Contains(err.Error(), `invalid maximum go version "latest"`) {
+		t.Fatalf("BuildPlan() error = %v, want the invalid maximum named", err)
 	}
 }
 

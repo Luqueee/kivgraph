@@ -171,3 +171,25 @@ configuration's directory. `/tmp` is a symlink on macOS.
 
 Only `index --full` does this. `serve`, `doctor` and the other readers of the
 registry still fail on such an entry.
+
+## Amendment: a module above the language ceiling is declared, not refused
+
+One more case failed the whole pass: a registered Go module whose `go`
+directive is above the language version this build type-checks (ADR 0149).
+`BuildPlan` returned an error, so `index --full` published nothing. Indexing a
+registry of sixty repositories, one service written for `go 1.27.0` with a
+binary built for `1.26` kept the other fifty-nine from having a graph.
+
+The module is now left out of the synthetic workspace and declared:
+`MODULE_NOT_LOADED` for the module, with `requires go 1.27.0 and this build
+type-checks with go 1.26; rebuild Kivgraph with that toolchain`, counted in
+`not_loaded` and named on `index.go.not_read`. Leaving it out is still what keeps
+the workspace from claiming its version, which would make the `go` command select
+a toolchain whose standard library `go/types` cannot read, and fail every load.
+A registry whose only Go module is above the ceiling finishes with nothing to
+load. A module path that several repositories declare stays an ambiguity whatever
+version each one needs.
+
+The reason ends in `_NOT_LOADED`, so ADR 0152 holds: a pass the daemon starts
+keeps the generation it would have emptied. `kivgraph doctor` still reports
+`toolchain.typecheck: FAIL`, now naming how many modules are not indexed.

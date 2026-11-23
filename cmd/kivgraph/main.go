@@ -2564,14 +2564,24 @@ func reportGoLanguageCeiling(report func(string, bool, string), repositories []w
 	}
 	plan, err := goworkspace.BuildPlan(context.Background(), repositories, goworkspace.Options{})
 	if err != nil {
-		if errors.Is(err, goworkspace.ErrGoVersionUnsupported) {
-			report("toolchain.typecheck", false, err.Error())
-			return
-		}
-		// Everything else -- an ambiguous module, an unreadable
-		// manifest -- belongs to the index, which reports it with its
-		// own context. This check answers one question only.
+		// Everything that stops a plan -- an unreadable manifest, no module
+		// at all -- belongs to the index, which reports it with its own
+		// context. This check answers one question only.
 		report("toolchain.typecheck", true, "go "+ceiling)
+		return
+	}
+	if len(plan.Unsupported) != 0 {
+		// The pass goes on without them and declares each one not loaded, so
+		// this says which, in the words the index uses.
+		named := make([]string, 0, len(plan.Unsupported))
+		for _, module := range plan.Unsupported {
+			named = append(named, fmt.Sprintf("repository %q module %q requires go %s",
+				module.Repository, module.ModulePath, module.GoVersion))
+		}
+		report("toolchain.typecheck", false, fmt.Sprintf(
+			"%d registered Go module(s) need a newer Go language version than this build supports (this build type-checks with go %s) and are not indexed: %s; rebuild Kivgraph with that toolchain or drop \"go\" from the languages of that repository",
+			len(plan.Unsupported), ceiling, strings.Join(named, "; "),
+		))
 		return
 	}
 	highest := ceiling
