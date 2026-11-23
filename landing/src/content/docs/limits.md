@@ -89,8 +89,8 @@ toolchain the binary was built with, by setting `GOTOOLCHAIN`: a newer
 standard library is one this build cannot parse. `doctor` says so on
 `toolchain.go`. The pass is offline, so the toolchain has to be in the module
 cache already; if it is not, the module is not loaded and the message says
-which toolchain is missing. A `GOTOOLCHAIN` already in the environment is
-left alone.
+which toolchain is missing. A `GOTOOLCHAIN` already in the environment, or one
+saved with `go env -w`, is left alone.
 
 ## A component template is read as words
 
