@@ -379,3 +379,71 @@ func TestALookPathHitThatCannotRunIsStillWarnedAbout(t *testing.T) {
 			directory, stderr.String())
 	}
 }
+
+// A home is compared by identity: the same directory under a symlink is the same
+// home, a scratch directory is not, and a home that cannot be read is foreign --
+// unless it is the account's own that cannot be, which says nothing.
+func TestHomeIsForeignComparesDirectoriesByIdentity(t *testing.T) {
+	account := t.TempDir()
+	link := filepath.Join(t.TempDir(), "home")
+	if err := os.Symlink(account, link); err != nil {
+		t.Skipf("symlinks are not available: %v", err)
+	}
+	cases := []struct {
+		name          string
+		home, account string
+		want          bool
+	}{
+		{"the same directory", account, account, false},
+		{"a symlink to it", link, account, false},
+		{"another directory", t.TempDir(), account, true},
+		{"a home that does not exist", filepath.Join(account, "missing"), account, true},
+		{"an account home that cannot be read", t.TempDir(), filepath.Join(account, "missing"), false},
+	}
+	for _, test := range cases {
+		if got := homeIsForeign(test.home, test.account); got != test.want {
+			t.Errorf("%s: homeIsForeign = %t, want %t", test.name, got, test.want)
+		}
+	}
+}
+
+// The refusal comes before anything is written, so a shell with a scratch HOME
+// leaves no agent or unit behind. The unit would sit under the temporary
+// directory and the registration would outlive it.
+func TestDaemonInstallRefusesAHomeThatIsNotTheAccounts(t *testing.T) {
+	home := t.TempDir()
+	testsupport.SetHome(t, home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	configPath := writeSupervisorConfig(t, home)
+
+	var stdout, stderr bytes.Buffer
+	code := runSupervisorCommand("install", []string{"--config", configPath, "--addr", "127.0.0.1:0"}, &stdout, &stderr)
+	if code == 0 {
+		t.Fatalf("daemon install accepted a HOME that is not the account's, stdout = %q", stdout.String())
+	}
+	for _, want := range []string{"HOME is " + home, "--allow-foreign-home"} {
+		if !strings.Contains(stderr.String(), want) {
+			t.Fatalf("the refusal does not say %q: %q", want, stderr.String())
+		}
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("a refused install reported on stdout: %q", stdout.String())
+	}
+	for _, unitRoot := range []string{filepath.Join(home, "Library", "LaunchAgents"), filepath.Join(home, ".config", "systemd")} {
+		if _, err := os.Stat(unitRoot); err == nil {
+			t.Fatalf("a refused install wrote under %s", unitRoot)
+		}
+	}
+}
+
+func TestDaemonInstallDeclaresTheFlagThatForcesAForeignHome(t *testing.T) {
+	var options supervisorOptions
+	flags := supervisorFlagSet("install", new(string), &options)
+	if err := flags.Parse([]string{"--allow-foreign-home"}); err != nil || !options.AllowForeignHome {
+		t.Fatalf("--allow-foreign-home: err = %v, option = %t", err, options.AllowForeignHome)
+	}
+	// Only install has a unit to leak; status and remove do not take it.
+	if err := supervisorFlagSet("status", new(string), &supervisorOptions{}).Parse([]string{"--allow-foreign-home"}); err == nil {
+		t.Fatal("daemon status accepted --allow-foreign-home")
+	}
+}

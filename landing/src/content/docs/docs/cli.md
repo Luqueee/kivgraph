@@ -22,7 +22,7 @@ The first word of a family answers too: `kivgraph profile`, `kivgraph mcp`,
 | `index --full [--profile NAME] [--unattended] [--json]` | Index every repository in one profile and publish a generation |
 | `serve [--introspection]` | Run the MCP server over stdio |
 | `daemon [--addr HOST:PORT] [--allow-remote]` | Serve MCP to many clients from one process, over HTTP and a unix socket |
-| `daemon install [--addr HOST:PORT] [--allow-remote]` | Give the daemon an owner, so the platform starts it and restarts it |
+| `daemon install [--addr HOST:PORT] [--allow-remote] [--allow-foreign-home]` | Give the daemon an owner, so the platform starts it and restarts it |
 | `daemon remove` | Stop the daemon and take its supervisor entry out |
 | `ui [--addr HOST:PORT] [--profile NAME]` | Serve every profile in the read-only graph viewer, or pin one by name |
 | `stop [--dry-run]` | Stop every running serve, daemon and ui of this user |
