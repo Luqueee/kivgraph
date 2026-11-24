@@ -1,135 +1,136 @@
 ---
 name: running-tests
-description: Cómo se ejecutan y se escriben los tests de Kivgraph - las tres suites, el tag `ladybug` que no se invoca a mano, qué se salta y por qué, y el smoke test del binario. Usar al correr tests, al añadirlos, ante un fallo de enlazado `library 'lbug' not found`, ante un `SKIP` inesperado, o antes de cerrar una tarea.
+description: How Kivgraph's tests are run and written - the three suites, the `ladybug` tag that is never invoked by hand, what gets skipped and why, and the binary smoke test. Use when running tests, when adding them, on a `library 'lbug' not found` link failure, on an unexpected `SKIP`, or before closing a task.
 ---
 
-# Ejecutar los tests de Kivgraph
+# Running Kivgraph's tests
 
-## La regla que más cuesta descubrir
+## The rule that is hardest to discover
 
-**Nunca** `go test -tags ladybug`. Falla al enlazar:
+**Never** `go test -tags ladybug`. It fails at link time:
 
 ```
 ld: library 'lbug' not found
 ```
 
-No falta la biblioteca: falta decirle al enlazador dónde está. `make test-ladybug`
-exporta las variables `CGO_*` que apuntan a `.tooling/ladybug/<versión>`, pasa el
-rpath por `-ldflags` y es el único modo soportado de ejecutar ese tag.
+The library is not missing: the linker is not being told where it is.
+`make test-ladybug` exports the `CGO_*` variables that point at
+`.tooling/ladybug/<version>`, passes the rpath through `-ldflags` and is the only
+supported way to run that tag.
 
 ```bash
-make test-ladybug                                   # suite completa con la capa nativa
-make test-ladybug PKGS=./internal/storage/ladybug   # un paquete mientras se trabaja
+make test-ladybug                                   # full suite with the native layer
+make test-ladybug PKGS=./internal/storage/ladybug   # one package while working
 ```
 
-`scripts/fetch-ladybug.sh` descarga y verifica la biblioteca la primera vez; el
-target lo invoca solo. Queda **un** aviso por binario, y es del binding: el `-L`
-que apunta a su propio directorio de módulo no existe en un build fijado.
-Silenciarlo exigiría parchear un módulo fijado por digest.
+`scripts/fetch-ladybug.sh` downloads and verifies the library the first time; the
+target invokes it by itself. **One** warning per binary remains, and it is the
+binding's: the `-L` pointing at its own module directory does not exist in a
+pinned build. Silencing it would require patching a module pinned by digest.
 
-Los avisos `duplicate -rpath` y `ignoring duplicate libraries` ya no salen. Eran
-`221` en una pasada completa y ninguno era un defecto: `CGO_LDFLAGS` se aplica a
-cada paquete cgo en vez de una vez al enlazar, así que nombrar ahí `-llbug` o el
-rpath -- que el binding ya declara -- hacía que el enlazador viera diez copias de
-cada uno. Si vuelven, es que alguien los devolvió a `CGO_LDFLAGS`.
+The `duplicate -rpath` and `ignoring duplicate libraries` warnings no longer
+appear. There were `221` in a full pass and none was a defect: `CGO_LDFLAGS` is
+applied to every cgo package instead of once at link time, so naming `-llbug` or
+the rpath there -- which the binding already declares -- made the linker see ten
+copies of each. If they come back, somebody put them back in `CGO_LDFLAGS`.
 
-## Las tres suites
+## The three suites
 
-| Comando | Cubre | Ejecutando | Con caché |
+| Command | Covers | Running | Cached |
 | --- | --- | --- | --- |
-| `go test ./...` | 34 paquetes; toda la lógica que no toca LadybugDB nativo | `20 s` | `0.6 s` |
-| `make test-ladybug` | 39 paquetes con `-tags ladybug` | `45 s` | `47 s` |
-| `pnpm check` en `ts-worker/` y en `web/` | formato, lint, tipos y `vitest` (87 y 69 tests) | `3 s` cada uno | igual |
+| `go test ./...` | 34 packages; all the logic that does not touch native LadybugDB | `20 s` | `0.6 s` |
+| `make test-ladybug` | 39 packages with `-tags ladybug` | `45 s` | `47 s` |
+| `pnpm check` in `ts-worker/` and in `web/` | format, lint, types and `vitest` (87 and 69 tests) | `3 s` each | same |
 
-La primera invocación de `make test-ladybug` tarda unos `150 s`: compila cgo
-desde cero. Después el coste es el de ejecutar, y la caché de test no lo baja
-porque el enlazado con la biblioteca nativa se rehace igual.
+The first `make test-ladybug` takes about `150 s`: it compiles cgo from scratch.
+After that the cost is that of running, and the test cache does not lower it
+because linking against the native library is redone anyway.
 
-`make test` corre `go test -p 2 ./...`. Go prueba por defecto un paquete por
-núcleo, y en un Mac de 10 núcleos eso dejó `0 %` de CPU libre en cuatro de once
-muestras. Con `-p 2` el mínimo libre fue `15 %` y la suite tardó `70 s` en vez
-de `61 s`. CI no usa `make test`, así que no le afecta; a mano, `go test ./...`
-sigue valiendo si la máquina no hace otra cosa.
+`make test` runs `go test -p 2 ./...`. By default Go tests one package per core,
+and on a 10-core Mac that left `0 %` CPU free in four of eleven samples. With
+`-p 2` the minimum free was `15 %` and the suite took `70 s` instead of `61 s`.
+CI does not use `make test`, so it is not affected; by hand, `go test ./...`
+is still fine if the machine is doing nothing else.
 
-`go test ./...` **no compila** los archivos con `//go:build ladybug`: son 22
-archivos con **75 tests** que la suite corriente no ve, repartidos en
-`internal/storage/ladybug`, `internal/indexer`, `internal/app` e
-`internal/resilience`, más cinco paquetes de benchmark que solo existen bajo el
-tag. Esos paquetes salen `ok` sin el tag -tienen además tests que no lo
-necesitan-, así que un verde no dice nada sobre ellos. Un cambio en
-almacenamiento, indexación, rebuild, snapshots o apagado **no está probado**
-hasta que pasa `make test-ladybug`.
+`go test ./...` **does not compile** the files with `//go:build ladybug`: there
+are 22 files with **75 tests** that the ordinary suite does not see, spread
+across `internal/storage/ladybug`, `internal/indexer`, `internal/app` and
+`internal/resilience`, plus five benchmark packages that only exist under the
+tag. Those packages come out `ok` without the tag -they also have tests that do
+not need it-, so a green says nothing about them. A change to storage, indexing,
+rebuild, snapshots or shutdown **is not tested** until it passes
+`make test-ladybug`.
 
-## Qué correr según lo que tocas
+## What to run depending on what you touch
 
-| Cambio | Comandos |
+| Change | Commands |
 | --- | --- |
-| Go, sin tocar almacenamiento | `gofmt -l <archivos>`, `go vet ./...`, `go test ./...` |
-| Almacenamiento, indexer, rebuild, snapshots, upgrade | lo anterior **más** `make test-ladybug` |
-| Camino Rust | además `go test ./internal/rustloader/ ./internal/indexer/ -run Rust` con `rust-analyzer` y `cargo` en el `PATH` |
+| Go, not touching storage | `gofmt -l <files>`, `go vet ./...`, `go test ./...` |
+| Storage, indexer, rebuild, snapshots, upgrade | the above **plus** `make test-ladybug` |
+| Rust path | also `go test ./internal/rustloader/ ./internal/indexer/ -run Rust` with `rust-analyzer` and `cargo` on the `PATH` |
 | `ts-worker/` | `cd ts-worker && pnpm check && pnpm build` |
 | `web/` | `cd web && pnpm check` |
-| CLI, superficie MCP, comandos | añadir `go test -race ./cmd/kivgraph/...` (`6 s`), que es lo que corre CI |
-| Distribución, bundle, manifest | `make build-darwin-arm64` y `(cd dist/kivgraph-darwin-arm64 && shasum -a 256 -c SHA256SUMS)` |
+| CLI, MCP surface, commands | add `go test -race ./cmd/kivgraph/...` (`6 s`), which is what CI runs |
+| Distribution, bundle, manifest | `make build-darwin-arm64` and `(cd dist/kivgraph-darwin-arm64 && shasum -a 256 -c SHA256SUMS)` |
 
-## Lo que se salta, y cómo dejar de saltarlo
+## What gets skipped, and how to stop skipping it
 
-Un `SKIP` aquí no es un test roto: es una dependencia del host que no está.
+A `SKIP` here is not a broken test: it is a host dependency that is not there.
 
-- `rust-analyzer is not installed` -- lo declaran `internal/rustloader/analyze_test.go`,
-  `internal/rustloader/scip_run_test.go` e `internal/indexer/rust_unit_test.go`.
-  Se resuelve con `rustup component add rust-analyzer`. Sin él, el camino Rust
-  queda **sin probar** aunque la suite salga verde.
-- `host filesystem cannot satisfy the default space policy` -- publicar una
-  generación rechaza un disco con más del 85 % ocupado
-  (`internal/testsupport.RequireSpaceOrSkip`). Es política de producto, no un
-  fallo; libera disco si necesitas cubrir esa ruta.
+- `rust-analyzer is not installed` -- declared by `internal/rustloader/analyze_test.go`,
+  `internal/rustloader/scip_run_test.go` and `internal/indexer/rust_unit_test.go`.
+  Resolved with `rustup component add rust-analyzer`. Without it, the Rust path
+  stays **untested** even if the suite comes out green.
+- `host filesystem cannot satisfy the default space policy` -- publishing a
+  generation rejects a disk more than 85 % full
+  (`internal/testsupport.RequireSpaceOrSkip`). It is product policy, not a
+  failure; free up disk if you need to cover that path.
 
-Antes de afirmar que una suite pasó, comprueba que no se saltó lo que ibas a
-probar: `go test ./internal/rustloader/ -v 2>&1 | grep SKIP`.
+Before claiming a suite passed, check that it did not skip what you were going to
+test: `go test ./internal/rustloader/ -v 2>&1 | grep SKIP`.
 
-## Acotar un fallo
+## Narrowing a failure
 
 ```bash
-go test ./internal/indexer/ -run TestClassifyRustChange -v   # un test
-go test ./internal/indexer/ -count=1                          # sin caché
-go test ./internal/indexer/ -count=10 -run TestX              # ¿es flaky?
-make test-ladybug PKGS=./internal/rebuild                     # con la capa nativa
+go test ./internal/indexer/ -run TestClassifyRustChange -v   # one test
+go test ./internal/indexer/ -count=1                          # no cache
+go test ./internal/indexer/ -count=10 -run TestX              # is it flaky?
+make test-ladybug PKGS=./internal/rebuild                     # with the native layer
 ```
 
-La caché de test es agresiva y `ok (cached)` no ejecuta nada: si cambiaste un
-fixture, un testdata o una variable de entorno, usa `-count=1`.
+The test cache is aggressive and `ok (cached)` runs nothing: if you changed a
+fixture, a testdata file or an environment variable, use `-count=1`.
 
-## Escribir tests aquí
+## Writing tests here
 
-- Un test defiende un **comportamiento observable** y falla ante una regresión
-  plausible. Los negativos, las invariantes y la comparación contra una
-  reconstrucción limpia son parte del contrato, no un extra.
-- **`internal/testsupport.TempDir(t)`, nunca `t.TempDir()`** cuando el path
-  alimenta la capa de workspace: en macOS `/var` y `/tmp` son symlinks, la
-  validación rechaza rutas con ancestro symlink, y el test acabaría ejercitando
-  el rechazo en vez de lo que pretende.
-- **No modificar repositorios indexados** ni las entradas de los benchmarks. Los
-  fixtures viven en `testdata/`; copia, no edites en sitio. El fixture Rust es
-  `testdata/rust/workspace` y las pasadas de indexación deben dejarlo intacto -sin
-  `target/`, sin `Cargo.lock`-, cosa que conviene comprobar en el propio test.
-- Un fixture con toolchain externo -Cargo, `rust-analyzer`- exige `HOME` real: un
-  `HOME` temporal rompe los shims de rustup. Si aíslas `HOME`, pasa también
-  `RUSTUP_HOME` y `CARGO_HOME` reales.
+- A test defends an **observable behaviour** and fails on a plausible regression.
+  Negatives, invariants and comparison against a clean rebuild are part of the
+  contract, not an extra.
+- **`internal/testsupport.TempDir(t)`, never `t.TempDir()`** when the path feeds
+  the workspace layer: on macOS `/var` and `/tmp` are symlinks, validation
+  rejects paths with a symlink ancestor, and the test would end up exercising the
+  rejection instead of what it intends.
+- **Do not modify indexed repositories** or the benchmarks' inputs. Fixtures live
+  in `testdata/`; copy, do not edit in place. The Rust fixture is
+  `testdata/rust/workspace` and indexing passes must leave it intact -no
+  `target/`, no `Cargo.lock`-, which is worth checking in the test itself.
+- A fixture with an external toolchain -Cargo, `rust-analyzer`- requires a real
+  `HOME`: a temporary `HOME` breaks rustup's shims. If you isolate `HOME`, also
+  pass the real `RUSTUP_HOME` and `CARGO_HOME`.
 
-## Smoke test del binario
+## Binary smoke test
 
-Los tests no cubren la instalación, y **el binario de `make build` no sirve para
-esto**: sin el tag `ladybug` no hay capa nativa, y la pasada llega hasta el final
-para morir al publicar.
+The tests do not cover the installation, and **the binary from `make build` is
+no good for this**: without the `ladybug` tag there is no native layer, and the
+pass runs all the way to die at publishing.
 
 ```
 stage.staging: FAIL (ladybug load canonical: LadybugDB native support is unavailable)
 index.full: FAIL
 ```
 
-Construye uno con la capa nativa -las mismas flags que `make test-ladybug`- o usa
-el del bundle, `dist/kivgraph-darwin-arm64/bin/kivgraph`:
+Build one with the native layer -the same flags as `make test-ladybug`- or use
+the bundle's, `dist/kivgraph-darwin-arm64/bin/kivgraph`:
 
 ```bash
 LIB="$(scripts/fetch-ladybug.sh)"
@@ -138,10 +139,11 @@ CGO_ENABLED=1 CGO_CFLAGS="-I$LIB" CGO_LDFLAGS="-L$LIB" \
   -o /tmp/kivgraph-native ./cmd/kivgraph
 ```
 
-El flujo completo, con un `HOME` desechable y sin tocar ningún repositorio real:
+The full flow, with a disposable `HOME` and without touching any real
+repository:
 
 ```bash
-export RUSTUP_HOME="$HOME/.rustup" CARGO_HOME="$HOME/.cargo"   # el HOME de verdad
+export RUSTUP_HOME="$HOME/.rustup" CARGO_HOME="$HOME/.cargo"   # the real HOME
 home=$(cd "$(mktemp -d)" && pwd -P); repo="$home/fixture"
 cp -r testdata/rust/workspace "$repo"
 (cd "$repo" && git init -q && git add -A && git -c user.email=a@b -c user.name=t commit -qm fixture)
@@ -150,28 +152,29 @@ env HOME="$home" /tmp/kivgraph-native doctor
 env HOME="$home" /tmp/kivgraph-native index --full
 ```
 
-`RUSTUP_HOME` y `CARGO_HOME` se exportan **antes** y apuntan al `HOME` real: el
-`env HOME=` solo aísla la configuración de Kivgraph. Sin eso, el shim de rustup
-no encuentra su toolchain y `doctor` declara `toolchain.cargo: FAIL` por un
-artefacto de la prueba, no por el estado de la máquina.
+`RUSTUP_HOME` and `CARGO_HOME` are exported **first** and point at the real
+`HOME`: `env HOME=` only isolates Kivgraph's configuration. Without that,
+rustup's shim does not find its toolchain and `doctor` declares
+`toolchain.cargo: FAIL` because of an artefact of the test, not of the state of
+the machine.
 
-Un `index --full` sano publica `stage.integrity: PASS (0 invariant violations)`,
-`stage.golden probes: PASS` y una generación. `doctor` nombra cada toolchain por
-separado: `toolchain.rust` puede ir en PASS con el analizador empaquetado
-mientras `toolchain.cargo` falla, y entonces la indexación aísla el workspace
-(`not_loaded=1`) en vez de abortar.
+A healthy `index --full` publishes `stage.integrity: PASS (0 invariant violations)`,
+`stage.golden probes: PASS` and a generation. `doctor` names each toolchain
+separately: `toolchain.rust` can be PASS with the bundled analyzer while
+`toolchain.cargo` fails, and then indexing isolates the workspace
+(`not_loaded=1`) instead of aborting.
 
-## Benchmarks: no son tests
+## Benchmarks: they are not tests
 
-Viven en `benchmarks/<nombre>/` y se ejecutan a mano:
+They live in `benchmarks/<name>/` and are run by hand:
 
 ```bash
 go run ./benchmarks/rust-semantic
 ```
 
-Los que miden la capa nativa llevan `//go:build ladybug` y sin el tag ni siquiera
-se compilan -`build constraints exclude all Go files`-. Necesitan las mismas
-flags que `make test-ladybug`:
+Those that measure the native layer carry `//go:build ladybug` and without the
+tag they do not even compile -`build constraints exclude all Go files`-. They
+need the same flags as `make test-ladybug`:
 
 ```bash
 LIB="$(scripts/fetch-ladybug.sh)"
@@ -180,45 +183,44 @@ CGO_ENABLED=1 CGO_CFLAGS="-I$LIB" CGO_LDFLAGS="-L$LIB" \
   ./benchmarks/ladybug-bulk
 ```
 
-Escriben `results.json` y `report.md` versionados y emiten un gate en `stdout`
+They write versioned `results.json` and `report.md` and emit a gate on `stdout`
 (`GO_SEMANTIC_PASS`, `RUST_SEMANTIC_PASS_WITH_LIMITS`, `HOT_SNAPSHOT_PASS`...).
-Un gate `_WITH_LIMITS` debe enumerar sus limitaciones; nunca se presenta como
-PASS limpio.
+A `_WITH_LIMITS` gate must list its limitations; it is never presented as a
+clean PASS.
 
-**Sobrescriben sus artefactos versionados.** Ejecutar un benchmark por curiosidad
-deja un diff en `benchmarks/`; o se revisa y se justifica, o se revierte. No se
-corren para "comprobar que siguen funcionando".
+**They overwrite their versioned artifacts.** Running a benchmark out of
+curiosity leaves a diff in `benchmarks/`; either it is reviewed and justified, or
+it is reverted. They are not run to "check they still work".
 
-## Antes de cerrar una tarea
+## Before closing a task
 
 ```bash
-gofmt -l <archivos-go-modificados>
+gofmt -l <modified-go-files>
 go vet ./...
 go test ./...
 make build
-make test-ladybug     # si tocaste la capa nativa
+make test-ladybug     # if you touched the native layer
 git diff --check
 ```
 
-Y en `ts-worker/`, `pnpm check && pnpm build`.
+And in `ts-worker/`, `pnpm check && pnpm build`.
 
-Si el cambio toca `docs/` o un `CLAUDE.md`, además `scripts/check-docs.sh` --
-que verifica el symlink y el ancho de columna, **no** el idioma. El idioma lo
-decide quien escribe: documento nuevo, en inglés; documento que ya existe en
-castellano, se queda en castellano hasta que alguien lo traduzca entero. La
-regla está en *El idioma de lo que se escribe*, en el `AGENTS.md` de la raíz, y
-también alcanza al commit y al pull request con los que se cierra la tarea.
+If the change touches `docs/` or a `CLAUDE.md`, also `scripts/check-docs.sh` --
+which verifies the symlink and the column width, **not** the language. The
+language is decided by whoever writes: a new document, in English; a document
+that already exists in Spanish stays in Spanish until somebody translates it
+whole. The rule is in *El idioma de lo que se escribe*, in the root `AGENTS.md`,
+and it also reaches the commit and the pull request that close the task.
 
-Y una trampa de ese gate que cuesta un CI en rojo: `check-docs.sh` mide el
-ancho con `git diff`, así que **no ve un fichero sin trackear**. Sobre un
-documento recién creado contesta `ok` sin haber mirado nada. Correrlo después
-del `git add`.
+And a trap of that gate that costs a red CI: `check-docs.sh` measures width with
+`git diff`, so it **does not see an untracked file**. On a newly created document
+it answers `ok` without having looked at anything. Run it after `git add`.
 
-## Lo que esta máquina no puede probar
+## What this machine cannot test
 
-El bundle `linux/amd64` no se construye aquí: cgo enlaza la biblioteca nativa y
-el proyecto no cross-compila. Lo verifica el job Linux de CI, o un host Linux
-nativo por SSH -copia el árbol con `git archive HEAD` más los ficheros sin
-versionar; `tar` de macOS con `--exclude` se deja directorios por el camino-.
-Un contenedor emulado sirve para probar scripts y descargas, no para firmar el
-artefacto que se publica.
+The `linux/amd64` bundle is not built here: cgo links the native library and the
+project does not cross-compile. The Linux CI job verifies it, or a native Linux
+host over SSH -copy the tree with `git archive HEAD` plus the unversioned files;
+macOS `tar` with `--exclude` drops directories along the way-. An emulated
+container serves to test scripts and downloads, not to sign the artifact that
+gets published.
