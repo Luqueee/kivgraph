@@ -315,6 +315,10 @@
     "file": "crates/searcher/src/sink.rs",
     "tokens": 127
   },
+  "crates/searcher/src/sink.rs:322-328": {
+    "file": "crates/searcher/src/sink.rs",
+    "tokens": 127
+  },
   "crates/searcher/src/sink.rs:366-373": {
     "file": "crates/searcher/src/sink.rs",
     "tokens": 166

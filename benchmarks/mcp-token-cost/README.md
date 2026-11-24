@@ -132,6 +132,14 @@ set, or another native capture.
 CI runs it on every corpus that has a `results.json`, in the `smoke` job, with
 the bundled binary. A corpus with no baseline yet says so and is skipped.
 
+The graph of a corpus is not identical on every platform. `ripgrep` indexes to
+`4,978` symbols on `darwin/arm64` and `4,975` on `linux/amd64`, and the Linux
+graph names one caller range (`crates/searcher/src/sink.rs:322-328`) the macOS
+graph does not. A baseline recorded on one platform therefore carries the host
+reads of the other too, captured at the same tree; a range the platform in use does
+not ask for is simply unused. If CI stops with `no captured host read`, take
+the listed range with the host's `read`, count it, and add it to `native/reads.json`.
+
 ## Reading the result
 
 Both factors are published on purpose. The answer factor is the part a graph
