@@ -1,0 +1,146 @@
+{
+  "source/core/Ky.ts:1035-1039": {
+    "file": "source/core/Ky.ts",
+    "tokens": 136
+  },
+  "source/core/Ky.ts:1041-1063": {
+    "file": "source/core/Ky.ts",
+    "tokens": 292
+  },
+  "source/core/Ky.ts:1065-1115": {
+    "file": "source/core/Ky.ts",
+    "tokens": 724
+  },
+  "source/core/Ky.ts:1125-1216": {
+    "file": "source/core/Ky.ts",
+    "tokens": 1193
+  },
+  "source/core/Ky.ts:1218-1274": {
+    "file": "source/core/Ky.ts",
+    "tokens": 789
+  },
+  "source/core/Ky.ts:313-324": {
+    "file": "source/core/Ky.ts",
+    "tokens": 262
+  },
+  "source/core/Ky.ts:329-346": {
+    "file": "source/core/Ky.ts",
+    "tokens": 212
+  },
+  "source/core/Ky.ts:330-330": {
+    "file": "source/core/Ky.ts",
+    "tokens": 118
+  },
+  "source/core/Ky.ts:348-1376": {
+    "file": "source/core/Ky.ts",
+    "tokens": 12021
+  },
+  "source/core/Ky.ts:349-436": {
+    "file": "source/core/Ky.ts",
+    "tokens": 1150
+  },
+  "source/core/Ky.ts:525-525": {
+    "file": "source/core/Ky.ts",
+    "tokens": 128
+  },
+  "source/core/Ky.ts:688-763": {
+    "file": "source/core/Ky.ts",
+    "tokens": 846
+  },
+  "source/core/Ky.ts:819-825": {
+    "file": "source/core/Ky.ts",
+    "tokens": 155
+  },
+  "source/core/Ky.ts:855-866": {
+    "file": "source/core/Ky.ts",
+    "tokens": 201
+  },
+  "source/core/Ky.ts:869-877": {
+    "file": "source/core/Ky.ts",
+    "tokens": 216
+  },
+  "source/core/Ky.ts:881-929": {
+    "file": "source/core/Ky.ts",
+    "tokens": 716
+  },
+  "source/core/constants.ts:268-285": {
+    "file": "source/core/constants.ts",
+    "tokens": 180
+  },
+  "source/errors/TimeoutError.ts:7-15": {
+    "file": "source/errors/TimeoutError.ts",
+    "tokens": 97
+  },
+  "source/types/hooks.ts:112-419": {
+    "file": "source/types/hooks.ts",
+    "tokens": 3722
+  },
+  "source/types/hooks.ts:424-424": {
+    "file": "source/types/hooks.ts",
+    "tokens": 55
+  },
+  "source/types/options.ts:209-209": {
+    "file": "source/types/options.ts",
+    "tokens": 134
+  },
+  "source/types/options.ts:275-275": {
+    "file": "source/types/options.ts",
+    "tokens": 117
+  },
+  "source/types/options.ts:517-517": {
+    "file": "source/types/options.ts",
+    "tokens": 107
+  },
+  "source/utils/is.ts:2-2": {
+    "file": "source/utils/is.ts",
+    "tokens": 104
+  },
+  "source/utils/is.ts:5-5": {
+    "file": "source/utils/is.ts",
+    "tokens": 109
+  },
+  "source/utils/merge.ts:198-198": {
+    "file": "source/utils/merge.ts",
+    "tokens": 110
+  },
+  "source/utils/merge.ts:198-216": {
+    "file": "source/utils/merge.ts",
+    "tokens": 389
+  },
+  "source/utils/merge.ts:20-29": {
+    "file": "source/utils/merge.ts",
+    "tokens": 172
+  },
+  "source/utils/merge.ts:218-218": {
+    "file": "source/utils/merge.ts",
+    "tokens": 121
+  },
+  "source/utils/merge.ts:273-337": {
+    "file": "source/utils/merge.ts",
+    "tokens": 775
+  },
+  "source/utils/merge.ts:340-498": {
+    "file": "source/utils/merge.ts",
+    "tokens": 2021
+  },
+  "source/utils/merge.ts:500-501": {
+    "file": "source/utils/merge.ts",
+    "tokens": 60
+  },
+  "source/utils/merge.ts:63-71": {
+    "file": "source/utils/merge.ts",
+    "tokens": 203
+  },
+  "source/utils/merge.ts:73-86": {
+    "file": "source/utils/merge.ts",
+    "tokens": 238
+  },
+  "source/utils/timeout.ts:11-46": {
+    "file": "source/utils/timeout.ts",
+    "tokens": 366
+  },
+  "source/utils/type-guards.ts:103-105": {
+    "file": "source/utils/type-guards.ts",
+    "tokens": 84
+  }
+}

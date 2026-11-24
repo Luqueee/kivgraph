@@ -99,6 +99,18 @@ go run ./benchmarks/mcp-token-cost/count < texts.json   # {"path:a-b": "text"}
 
 and each added to `native/reads.json` as `"path:a-b": {"file": "path", "tokens": N}`.
 
+## A question has to be priceable by name
+
+The harness opens each caller with `get_source`, by repository, path and qualified
+name, and `get_source` refuses a name that two symbols share. A TypeScript
+constructor parameter property is both a parameter and a property under one
+qualified name (`HTTPError.response`), and two parameters of one name in a file
+share theirs too (`newDefaults` in `ky`). A symbol whose callers include one of
+those cannot be priced, and the run stops with `AMBIGUOUS_SYMBOL`. `ky` asked
+about `Options` and now asks about `Hooks` for that reason. Replacing a question
+changes the question set, so it is done before the baseline is committed, never
+after: the ratchet refuses to compare two sets.
+
 ## The ratchet
 
 ```bash
@@ -119,6 +131,14 @@ set, or another native capture.
 
 CI runs it on every corpus that has a `results.json`, in the `smoke` job, with
 the bundled binary. A corpus with no baseline yet says so and is skipped.
+
+The graph of a corpus is not identical on every platform. `ripgrep` indexes to
+`4,978` symbols on `darwin/arm64` and `4,975` on `linux/amd64`, and the Linux
+graph names one caller range (`crates/searcher/src/sink.rs:322-328`) the macOS
+graph does not. A baseline recorded on one platform therefore carries the host
+reads of the other too, captured at the same tree; a range the platform in use does
+not ask for is simply unused. If CI stops with `no captured host read`, take
+the listed range with the host's `read`, count it, and add it to `native/reads.json`.
 
 ## Reading the result
 

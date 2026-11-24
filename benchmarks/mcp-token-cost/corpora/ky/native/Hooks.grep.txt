@@ -1,0 +1,49 @@
+# /tmp/kivgraph-corpora/ky/src/
+## readme.md#7F83
+*32:- Hooks
+...
+*476:Hooks allow modifications during the request lifecycle. Hook functions may be async and are run serially, unless otherwise noted.
+
+## source/
+### index.ts#16B5
+*75:	Hooks,
+
+### types/
+#### hooks.ts#FEE8
+*112:export type Hooks = {
+...
+*422:Hooks after normalization: every hook type is present as an array.
+...
+*424:export type NormalizedHooks = {[Key in keyof Hooks]-?: Array<NonNullable<Hooks[Key]>[number]>};
+#### options.ts#81A6
+*2:import type {Hooks, NormalizedHooks} from './hooks.js';
+...
+*271:	Hooks allow modifications during the request lifecycle. Hook functions may be async and are run serially, unless otherwise noted.
+...
+*275:	hooks?: Hooks | undefined;
+...
+*517:	hooks?: {[Key in keyof Hooks]?: NormalizedHooks[Key] | undefined} | undefined;
+
+### utils/
+#### merge.ts#3B9F
+*2:import type {Hooks, NormalizedHooks} from '../types/hooks.js';
+...
+*198:function newHookValue<K extends keyof Hooks>(original: Hooks, incoming: Hooks, property: K): NormalizedHooks[K] {
+...
+*218:export const mergeHooks = (original: Hooks = {}, incoming: Hooks = {}): NormalizedHooks => {
+
+## test-d/
+### hooks.ts#CC36
+*3:	BeforeErrorHook, BeforeRetryHook, BeforeRetryUpdate, Hooks, InitHook,
+...
+*9:const hooks: Hooks = {
+...
+*17:expectTypeOf(hooks).toEqualTypeOf<Hooks>();
+
+## test/
+### merge.ts#37E7
+*2:import ky, {replaceOption, type Hooks} from '../source/index.js';
+...
+*239:// Hooks
+...
+*257:	}).extend({hooks: {beforeRequest: replaceOption(undefined as Hooks['beforeRequest'])}});

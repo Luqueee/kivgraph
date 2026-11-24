@@ -1,0 +1,24 @@
+# /tmp/kivgraph-corpora/cobra/src/
+## command.go#6888
+*819:// Traverse the command tree to find the command, and parse args for
+...
+*821:func (c *Command) Traverse(args []string) (*Command, []string, error) {
+...
+*857:		return cmd.Traverse(args[i+1:])
+...
+*1121:		cmd, flags, err = c.Traverse(args)
+## command_test.go#F189
+*2332:	c, args, err := rootCmd.Traverse([]string{"-b", "--str", "ok", "child", "--int"})
+...
+*2352:	c, args, err := rootCmd.Traverse([]string{"child"})
+...
+*2373:	c, _, err := rootCmd.Traverse([]string{"--str", "ok", "child"})
+...
+*2390:	// Traverse.
+*2391:	c, args, err := rootCmd.Traverse([]string{"child", "--str"})
+...
+*2414:	c, _, err := rootCmd.Traverse([]string{"sub", "subsub"})
+## completions.go#F3E1
+*328:		finalCmd, finalArgs, err = c.Root().Traverse(trimmedArgs)
+## completions_test.go#8DA1
+*256:	// Test that we don't use Traverse when we shouldn't.

@@ -1,0 +1,362 @@
+{
+  "crates/core/flags/hiargs.rs:1-1472": {
+    "file": "crates/core/flags/hiargs.rs",
+    "tokens": 11679
+  },
+  "crates/core/flags/hiargs.rs:112-320": {
+    "file": "crates/core/flags/hiargs.rs",
+    "tokens": 2212
+  },
+  "crates/core/flags/hiargs.rs:36-105": {
+    "file": "crates/core/flags/hiargs.rs",
+    "tokens": 693
+  },
+  "crates/core/flags/hiargs.rs:685-699": {
+    "file": "crates/core/flags/hiargs.rs",
+    "tokens": 242
+  },
+  "crates/core/flags/hiargs.rs:702-738": {
+    "file": "crates/core/flags/hiargs.rs",
+    "tokens": 428
+  },
+  "crates/core/flags/parse.rs:1-477": {
+    "file": "crates/core/flags/parse.rs",
+    "tokens": 5068
+  },
+  "crates/core/flags/parse.rs:49-54": {
+    "file": "crates/core/flags/parse.rs",
+    "tokens": 127
+  },
+  "crates/core/main.rs:1-1": {
+    "file": "crates/core/main.rs",
+    "tokens": 39
+  },
+  "crates/core/main.rs:107-151": {
+    "file": "crates/core/main.rs",
+    "tokens": 486
+  },
+  "crates/core/main.rs:160-229": {
+    "file": "crates/core/main.rs",
+    "tokens": 798
+  },
+  "crates/core/main.rs:235-261": {
+    "file": "crates/core/main.rs",
+    "tokens": 313
+  },
+  "crates/core/main.rs:271-326": {
+    "file": "crates/core/main.rs",
+    "tokens": 616
+  },
+  "crates/core/main.rs:329-348": {
+    "file": "crates/core/main.rs",
+    "tokens": 239
+  },
+  "crates/core/main.rs:77-101": {
+    "file": "crates/core/main.rs",
+    "tokens": 345
+  },
+  "crates/core/search.rs:238-238": {
+    "file": "crates/core/search.rs",
+    "tokens": 69
+  },
+  "crates/core/search.rs:378-410": {
+    "file": "crates/core/search.rs",
+    "tokens": 380
+  },
+  "crates/core/search.rs:414-447": {
+    "file": "crates/core/search.rs",
+    "tokens": 376
+  },
+  "crates/printer/src/json.rs:1-1028": {
+    "file": "crates/printer/src/json.rs",
+    "tokens": 10507
+  },
+  "crates/printer/src/json.rs:687-727": {
+    "file": "crates/printer/src/json.rs",
+    "tokens": 482
+  },
+  "crates/printer/src/json.rs:729-756": {
+    "file": "crates/printer/src/json.rs",
+    "tokens": 328
+  },
+  "crates/printer/src/json.rs:775-790": {
+    "file": "crates/printer/src/json.rs",
+    "tokens": 209
+  },
+  "crates/printer/src/standard.rs:1-3843": {
+    "file": "crates/printer/src/standard.rs",
+    "tokens": 10039
+  },
+  "crates/printer/src/standard.rs:528-549": {
+    "file": "crates/printer/src/standard.rs",
+    "tokens": 274
+  },
+  "crates/printer/src/standard.rs:555-586": {
+    "file": "crates/printer/src/standard.rs",
+    "tokens": 381
+  },
+  "crates/printer/src/standard.rs:657-657": {
+    "file": "crates/printer/src/standard.rs",
+    "tokens": 76
+  },
+  "crates/printer/src/standard.rs:757-778": {
+    "file": "crates/printer/src/standard.rs",
+    "tokens": 229
+  },
+  "crates/printer/src/standard.rs:810-849": {
+    "file": "crates/printer/src/standard.rs",
+    "tokens": 468
+  },
+  "crates/printer/src/standard.rs:877-883": {
+    "file": "crates/printer/src/standard.rs",
+    "tokens": 124
+  },
+  "crates/printer/src/standard.rs:885-901": {
+    "file": "crates/printer/src/standard.rs",
+    "tokens": 223
+  },
+  "crates/printer/src/standard.rs:903-913": {
+    "file": "crates/printer/src/standard.rs",
+    "tokens": 177
+  },
+  "crates/printer/src/standard.rs:915-933": {
+    "file": "crates/printer/src/standard.rs",
+    "tokens": 262
+  },
+  "crates/printer/src/standard.rs:943-943": {
+    "file": "crates/printer/src/standard.rs",
+    "tokens": 102
+  },
+  "crates/printer/src/standard.rs:952-962": {
+    "file": "crates/printer/src/standard.rs",
+    "tokens": 166
+  },
+  "crates/printer/src/standard.rs:966-977": {
+    "file": "crates/printer/src/standard.rs",
+    "tokens": 189
+  },
+  "crates/printer/src/standard.rs:981-992": {
+    "file": "crates/printer/src/standard.rs",
+    "tokens": 190
+  },
+  "crates/printer/src/summary.rs:1-1167": {
+    "file": "crates/printer/src/summary.rs",
+    "tokens": 11533
+  },
+  "crates/printer/src/summary.rs:543-545": {
+    "file": "crates/printer/src/summary.rs",
+    "tokens": 90
+  },
+  "crates/printer/src/summary.rs:564-574": {
+    "file": "crates/printer/src/summary.rs",
+    "tokens": 168
+  },
+  "crates/printer/src/summary.rs:628-630": {
+    "file": "crates/printer/src/summary.rs",
+    "tokens": 128
+  },
+  "crates/printer/src/summary.rs:649-689": {
+    "file": "crates/printer/src/summary.rs",
+    "tokens": 429
+  },
+  "crates/printer/src/summary.rs:691-706": {
+    "file": "crates/printer/src/summary.rs",
+    "tokens": 221
+  },
+  "crates/printer/src/summary.rs:726-804": {
+    "file": "crates/printer/src/summary.rs",
+    "tokens": 882
+  },
+  "crates/printer/src/util.rs:1-590": {
+    "file": "crates/printer/src/util.rs",
+    "tokens": 6025
+  },
+  "crates/printer/src/util.rs:14-16": {
+    "file": "crates/printer/src/util.rs",
+    "tokens": 89
+  },
+  "crates/printer/src/util.rs:186-201": {
+    "file": "crates/printer/src/util.rs",
+    "tokens": 218
+  },
+  "crates/printer/src/util.rs:242-244": {
+    "file": "crates/printer/src/util.rs",
+    "tokens": 102
+  },
+  "crates/printer/src/util.rs:42-44": {
+    "file": "crates/printer/src/util.rs",
+    "tokens": 101
+  },
+  "crates/searcher/examples/search-stdin.rs:1-1": {
+    "file": "crates/searcher/examples/search-stdin.rs",
+    "tokens": 58
+  },
+  "crates/searcher/examples/search-stdin.rs:17-34": {
+    "file": "crates/searcher/examples/search-stdin.rs",
+    "tokens": 187
+  },
+  "crates/searcher/src/line_buffer.rs:1-958": {
+    "file": "crates/searcher/src/line_buffer.rs",
+    "tokens": 10142
+  },
+  "crates/searcher/src/line_buffer.rs:111-111": {
+    "file": "crates/searcher/src/line_buffer.rs",
+    "tokens": 60
+  },
+  "crates/searcher/src/line_buffer.rs:116-118": {
+    "file": "crates/searcher/src/line_buffer.rs",
+    "tokens": 108
+  },
+  "crates/searcher/src/line_buffer.rs:296-296": {
+    "file": "crates/searcher/src/line_buffer.rs",
+    "tokens": 84
+  },
+  "crates/searcher/src/line_buffer.rs:86-95": {
+    "file": "crates/searcher/src/line_buffer.rs",
+    "tokens": 157
+  },
+  "crates/searcher/src/line_buffer.rs:98-105": {
+    "file": "crates/searcher/src/line_buffer.rs",
+    "tokens": 111
+  },
+  "crates/searcher/src/lines.rs:1-467": {
+    "file": "crates/searcher/src/lines.rs",
+    "tokens": 5860
+  },
+  "crates/searcher/src/lines.rs:17-20": {
+    "file": "crates/searcher/src/lines.rs",
+    "tokens": 99
+  },
+  "crates/searcher/src/lines.rs:25-28": {
+    "file": "crates/searcher/src/lines.rs",
+    "tokens": 132
+  },
+  "crates/searcher/src/searcher/core.rs:1-642": {
+    "file": "crates/searcher/src/searcher/core.rs",
+    "tokens": 5780
+  },
+  "crates/searcher/src/searcher/core.rs:39-71": {
+    "file": "crates/searcher/src/searcher/core.rs",
+    "tokens": 369
+  },
+  "crates/searcher/src/searcher/core.rs:454-486": {
+    "file": "crates/searcher/src/searcher/core.rs",
+    "tokens": 367
+  },
+  "crates/searcher/src/searcher/glue.rs:1-1543": {
+    "file": "crates/searcher/src/searcher/glue.rs",
+    "tokens": 13451
+  },
+  "crates/searcher/src/searcher/glue.rs:141-155": {
+    "file": "crates/searcher/src/searcher/glue.rs",
+    "tokens": 228
+  },
+  "crates/searcher/src/searcher/glue.rs:94-106": {
+    "file": "crates/searcher/src/searcher/glue.rs",
+    "tokens": 214
+  },
+  "crates/searcher/src/searcher/mod.rs:1-1054": {
+    "file": "crates/searcher/src/searcher/mod.rs",
+    "tokens": 11070
+  },
+  "crates/searcher/src/searcher/mod.rs:312-334": {
+    "file": "crates/searcher/src/searcher/mod.rs",
+    "tokens": 292
+  },
+  "crates/searcher/src/searcher/mod.rs:577-605": {
+    "file": "crates/searcher/src/searcher/mod.rs",
+    "tokens": 425
+  },
+  "crates/searcher/src/searcher/mod.rs:612-614": {
+    "file": "crates/searcher/src/searcher/mod.rs",
+    "tokens": 99
+  },
+  "crates/searcher/src/sink.rs:1-664": {
+    "file": "crates/searcher/src/sink.rs",
+    "tokens": 6790
+  },
+  "crates/searcher/src/sink.rs:124-128": {
+    "file": "crates/searcher/src/sink.rs",
+    "tokens": 120
+  },
+  "crates/searcher/src/sink.rs:143-149": {
+    "file": "crates/searcher/src/sink.rs",
+    "tokens": 127
+  },
+  "crates/searcher/src/sink.rs:167-172": {
+    "file": "crates/searcher/src/sink.rs",
+    "tokens": 117
+  },
+  "crates/searcher/src/sink.rs:188-194": {
+    "file": "crates/searcher/src/sink.rs",
+    "tokens": 124
+  },
+  "crates/searcher/src/sink.rs:229-235": {
+    "file": "crates/searcher/src/sink.rs",
+    "tokens": 126
+  },
+  "crates/searcher/src/sink.rs:247-252": {
+    "file": "crates/searcher/src/sink.rs",
+    "tokens": 116
+  },
+  "crates/searcher/src/sink.rs:264-266": {
+    "file": "crates/searcher/src/sink.rs",
+    "tokens": 101
+  },
+  "crates/searcher/src/sink.rs:269-275": {
+    "file": "crates/searcher/src/sink.rs",
+    "tokens": 136
+  },
+  "crates/searcher/src/sink.rs:282-288": {
+    "file": "crates/searcher/src/sink.rs",
+    "tokens": 126
+  },
+  "crates/searcher/src/sink.rs:291-297": {
+    "file": "crates/searcher/src/sink.rs",
+    "tokens": 127
+  },
+  "crates/searcher/src/sink.rs:322-328": {
+    "file": "crates/searcher/src/sink.rs",
+    "tokens": 127
+  },
+  "crates/searcher/src/sink.rs:366-373": {
+    "file": "crates/searcher/src/sink.rs",
+    "tokens": 166
+  },
+  "crates/searcher/src/sink.rs:392-394": {
+    "file": "crates/searcher/src/sink.rs",
+    "tokens": 105
+  },
+  "crates/searcher/src/sink.rs:471-473": {
+    "file": "crates/searcher/src/sink.rs",
+    "tokens": 108
+  },
+  "crates/searcher/src/sink.rs:517-663": {
+    "file": "crates/searcher/src/sink.rs",
+    "tokens": 1581
+  },
+  "crates/searcher/src/sink.rs:550-567": {
+    "file": "crates/searcher/src/sink.rs",
+    "tokens": 247
+  },
+  "crates/searcher/src/sink.rs:598-621": {
+    "file": "crates/searcher/src/sink.rs",
+    "tokens": 324
+  },
+  "crates/searcher/src/sink.rs:648-661": {
+    "file": "crates/searcher/src/sink.rs",
+    "tokens": 187
+  },
+  "crates/searcher/src/testutil.rs:1-798": {
+    "file": "crates/searcher/src/testutil.rs",
+    "tokens": 7606
+  },
+  "crates/searcher/src/testutil.rs:131-152": {
+    "file": "crates/searcher/src/testutil.rs",
+    "tokens": 266
+  },
+  "crates/searcher/src/testutil.rs:170-176": {
+    "file": "crates/searcher/src/testutil.rs",
+    "tokens": 123
+  }
+}

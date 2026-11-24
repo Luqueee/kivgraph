@@ -1,0 +1,13 @@
+# /tmp/kivgraph-corpora/ky/src/source/
+
+## core/
+### Ky.ts#FF5C
+*27:	mergeHeaders,
+...
+*486:			headers: mergeHeaders((input as Request).headers, options.headers),
+...
+*525:		const userProvidedContentType = options.headers !== undefined && mergeHeaders({}, options.headers).has('content-type');
+
+## utils/
+### merge.ts#3B9F
+*73:export const mergeHeaders = (source1: KyHeadersInit = {}, source2: KyHeadersInit = {}) => {

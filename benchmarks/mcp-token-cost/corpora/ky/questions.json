@@ -58,17 +58,17 @@
       "qualified_name": "KyOptions.retry"
     },
     {
-      "symbol": "Options",
+      "symbol": "Hooks",
       "class": "common_name",
       "native": {
         "tool": "omp grep",
-        "pattern": "\\bOptions\\b",
+        "pattern": "\\bHooks\\b",
         "path": ".",
-        "capture": "native/Options.grep.txt"
+        "capture": "native/Hooks.grep.txt"
       },
       "repository": "ky",
-      "path": "source/types/options.ts",
-      "qualified_name": "Options"
+      "path": "source/types/hooks.ts",
+      "qualified_name": "Hooks"
     },
     {
       "symbol": "TimeoutError",
