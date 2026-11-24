@@ -105,7 +105,7 @@ to the file, and on a collision appends `#<start offset>`
 declare the same name.
 
 Get this wrong and every stable key of the language is wrong. Stable keys are
-listed in *Superficies que rompen compatibilidad*: the algorithm, the canonical
+listed in *Surfaces that break compatibility*: the algorithm, the canonical
 identity and the historical `luque-stable-key` namespace do not change without
 a data migration, an ADR and an explicit contract update. This is not fixable
 in a patch.
@@ -303,12 +303,12 @@ statement about Rust, and do not treat its absence as permission to skip yours.
 `internal/mcp/surface_test.go:333` asserts the server instructions mention
 `"Python"` and `"Dart"` by name, and that the whole string stays under `2048`
 bytes. Adding a language to that sentence is a change to the MCP surface, which
-`AGENTS.md` lists under *Superficies que rompen compatibilidad*: the tool
+`AGENTS.md` lists under *Surfaces that break compatibility*: the tool
 descriptions and the skill that names them do not change in silence.
 
 ## An analyzer that builds must not build in the repository
 
-`AGENTS.md` says it under *Nunca modificar* with no exception, and it is the
+`AGENTS.md` says it under *Never modify* with no exception, and it is the
 easiest rule in the project to break by accident: a build-based indexer --
 `scip-java` driving Maven, `scip-dotnet` running `dotnet restore` -- writes
 `target/`, `obj/` and `bin/` into the directory it builds, and no flag moves

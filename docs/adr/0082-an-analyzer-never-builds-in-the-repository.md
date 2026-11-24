@@ -6,9 +6,9 @@
 
 ## Context
 
-`AGENTS.md` states it under *Nunca modificar*, with no exception:
+`AGENTS.md` states it under *Never modify*, with no exception:
 
-> Los repositorios indexados y los artefactos de entrada de los benchmarks.
+> The indexed repositories and the benchmarks' input artifacts.
 
 Every analyzer honoured it until Java and C#. Those two are indexed by
 **building** the code: `scip-java` drives Maven, Gradle, sbt or mill, and

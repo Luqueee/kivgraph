@@ -1,263 +1,261 @@
-# Instrucciones de desarrollo de Kivgraph
+# Kivgraph development instructions
 
-Estas reglas aplican a todo el repositorio. Una instrucción más cercana a un
-archivo puede añadir restricciones, pero no puede relajar los contratos de
-integridad, compatibilidad o verificación descritos aquí.
+These rules apply to the whole repository. An instruction closer to a file may
+add restrictions, but it cannot relax the integrity, compatibility or
+verification contracts described here.
 
-## Mapa de instrucciones
+## Instruction map
 
-Este archivo se lee siempre. Los demás cubren un directorio y se leen al
-trabajar en él; ninguno repite lo que ya está aquí ni lo contradice.
+This file is always read. The others cover one directory and are read when
+working in it; none repeats what is already here or contradicts it.
 
-|directorio|archivo|qué cubre|
+|directory|file|what it covers|
 |---|---|---|
-|`internal/`|`internal/AGENTS.md`|carga de Go, la pasada, caché de hechos, grafo canónico, generaciones, configuración, procesos|
-|`internal/mcp/`|`internal/mcp/AGENTS.md`|superficie de tools, `index_project`, la skill, coste en tokens|
-|`internal/rustloader/`|`internal/rustloader/AGENTS.md`|`rust-analyzer scip`, identidad SCIP, sysroot, descubrimiento Cargo|
-|`cmd/kivgraph/`|`cmd/kivgraph/AGENTS.md`|ayuda, registro, `index [--full]`, `clean`, `stop`, `ui`|
-|`ts-worker/`|`ts-worker/AGENTS.md`|worker TypeScript e identidad cross-repository|
-|`web/`|`web/AGENTS.md`|el visor: layout, dibujo, coste por fotograma|
-|`landing/`|`landing/AGENTS.md`|landing y documentación de usuario: capas, paleta, SEO, iconos|
-|`benchmarks/`|`benchmarks/AGENTS.md`|informes, corpus y auditorías|
+|`internal/`|`internal/AGENTS.md`|Go loading, the pass, fact cache, canonical graph, generations, configuration, processes|
+|`internal/mcp/`|`internal/mcp/AGENTS.md`|tool surface, `index_project`, the skill, token cost|
+|`internal/rustloader/`|`internal/rustloader/AGENTS.md`|`rust-analyzer scip`, SCIP identity, sysroot, Cargo discovery|
+|`cmd/kivgraph/`|`cmd/kivgraph/AGENTS.md`|help, registry, `index [--full]`, `clean`, `stop`, `ui`|
+|`ts-worker/`|`ts-worker/AGENTS.md`|TypeScript worker and cross-repository identity|
+|`web/`|`web/AGENTS.md`|the viewer: layout, drawing, cost per frame|
+|`landing/`|`landing/AGENTS.md`|landing and user documentation: layers, palette, SEO, icons|
+|`benchmarks/`|`benchmarks/AGENTS.md`|reports, corpora and audits|
 
-Un invariante que se infringe desde otro directorio vive aquí, no en el archivo
-del directorio que nombra: que `landing/` no entre en ningún bundle se rompe
-editando `scripts/build-bundle.sh`.
+An invariant that is violated from another directory lives here, not in the file
+of the directory it names: that `landing/` enters no bundle is broken by editing
+`scripts/build-bundle.sh`.
 
-## Identidad del proyecto
+## Project identity
 
-- Proyecto: `Kivgraph`.
-- Módulo Go: `github.com/Luqueee/kivgraph`.
-- Ejecutable principal: `cmd/kivgraph`.
-- Worker TypeScript: `ts-worker/`, paquete privado `@kivgraph/ts-worker`.
-- LadybugDB es el almacenamiento canónico; el HotSnapshot es una proyección
-  derivada y no una fuente alternativa de hechos.
-- Los identificadores históricos `LUQUE-####` del backlog no se renombran.
+- Project: `Kivgraph`.
+- Go module: `github.com/Luqueee/kivgraph`.
+- Main executable: `cmd/kivgraph`.
+- TypeScript worker: `ts-worker/`, private package `@kivgraph/ts-worker`.
+- LadybugDB is the canonical storage; the HotSnapshot is a derived projection
+  and not an alternative source of facts.
+- The historical `LUQUE-####` identifiers of the backlog are not renamed.
 
-## Qué pregunta contesta cada tool de Kivgraph
+## Which question each Kivgraph tool answers
 
-Este bloque es el canal de enrutado portable: `CLAUDE.md` es un enlace a este
-fichero, así que Oh My Pi y Claude Code lo cargan los dos sin que nadie lo pida.
-El campo `instructions` del servidor dice lo mismo, y Zed no lo lee.
+This block is the portable routing channel: `CLAUDE.md` is a link to this file,
+so Oh My Pi and Claude Code both load it without anybody asking. The server's
+`instructions` field says the same, and Zed does not read it.
 
-| la pregunta | la tool |
+| the question | the tool |
 | --- | --- |
-| quién llama a esto, qué referencia a esto | `find_references` |
-| quién implementa un tipo o método | `find_implementations` |
-| qué se rompe si lo cambio | `get_blast_radius` |
-| qué alcanza esto hacia fuera | `trace_dependencies` |
-| quién lo usa desde otro repositorio | `find_cross_repo_consumers` |
-| dónde está declarado | `find_symbol` |
-| no sé cómo se llama, qué archivos abro | `find_by_intent`, con `keywords` |
-| qué hay declarado en este paquete | `get_file_outline` |
-| dame el código de estos símbolos -- hasta `20` por llamada | `get_source` |
-| ¿está el grafo al día? | `graph_status` |
-| empieza un índice sin sostener una llamada larga | `start_index_project` |
-| cómo va ese índice | `get_index_status` |
+| who calls this, what references this | `find_references` |
+| who implements a type or method | `find_implementations` |
+| what breaks if I change it | `get_blast_radius` |
+| what does this reach outward | `trace_dependencies` |
+| who uses it from another repository | `find_cross_repo_consumers` |
+| where is it declared | `find_symbol` |
+| I do not know what it is called, which files do I open | `find_by_intent`, with `keywords` |
+| what is declared in this package | `get_file_outline` |
+| give me the code of these symbols -- up to `20` per call | `get_source` |
+| is the graph up to date? | `graph_status` |
+| start an index without holding a long call | `start_index_project` |
+| how is that index going | `get_index_status` |
 
-Las aristas las resuelven `go/types`, el checker de TypeScript y
-`rust-analyzer`, no la coincidencia de nombres: una lista de referencias vacía
-significa que **nadie lo llama**, no que no se encontró. `grep` no puede decir
-eso, y tampoco distingue dos métodos homónimos.
+The edges are resolved by `go/types`, the TypeScript checker and
+`rust-analyzer`, not by name matching: an empty reference list means **nobody
+calls it**, not that it was not found. `grep` cannot say that, and it does not
+tell two homonymous methods apart either.
 
-Toda fila trae repositorio, ruta, nombre cualificado y rango de líneas, y toda
-tool acepta esa tripleta en vez de una clave estable: la llamada siguiente se
-construye con la respuesta que ya se tiene.
+Every row brings repository, path, qualified name and line range, and every tool
+accepts that triple instead of a stable key: the next call is built with the
+response already in hand.
 
-Una pregunta de referencias no necesita resolver el símbolo antes: `name` a
-secas basta, y cuando varias declaraciones comparten el nombre la respuesta se
-niega a elegir y **nombra los candidatos** con esa misma tripleta, así que
-acotar es copiar uno. Sobre `workspace` la negativa cuesta `129` tokens donde el
-`find_symbol` previo costaba `750`; medido en
-`benchmarks/graft-comparison/report.md`.
+A references question does not need to resolve the symbol first: a bare `name`
+is enough, and when several declarations share the name the response refuses to
+choose and **names the candidates** with that same triple, so narrowing is
+copying one. Over `workspace` the refusal costs `129` tokens where the previous
+`find_symbol` cost `750`; measured in `benchmarks/graft-comparison/report.md`.
 
-Y se pide a la granularidad que se pregunta: `view: "files"` responde qué
-archivos sin la línea de cada referencia. Las cuatro preguntas de referencias de
-`workspace` cuestan `2.480` tokens con línea y `912` sin ella, con la misma precisión
-y la misma exhaustividad -- y una página en vez de dos donde 66 referencias caben
-en 9 archivos. Quien necesite la línea pide las filas compactas, que son el
-valor por defecto.
+And it is asked at the granularity of the question: `view: "files"` answers which
+files, without the line of each reference. The four references questions of
+`workspace` cost `2,480` tokens with the line and `912` without it, with the same
+precision and the same exhaustiveness -- and one page instead of two where 66
+references fit in 9 files. Whoever needs the line asks for the compact rows,
+which are the default.
 
-**Dónde pierde, y conviene no gastar la llamada:** un nombre raro en un solo
-repositorio pequeño lo resuelve `grep` más barato -una llamada, sin esquema,
-sin resolver un símbolo primero-, y el índice de un fichero pequeño cuesta más
-que leerlo. Gana en nombres comunes, en impacto transitivo, en consumidores de
-otro repositorio y en demostrar una ausencia.
+**Where it loses, and the call is best not spent:** a rare name in a single small
+repository is resolved more cheaply by `grep` -one call, no schema, no symbol to
+resolve first-, and the index of a small file costs more than reading it. It
+wins on common names, on transitive impact, on consumers from another repository
+and on proving an absence.
 
-Medido con `benchmarks/mcp-token-cost` en la `0.10.1`, sobre las seis preguntas
-de referencias de este mismo repositorio, indexado como lo documenta -con la
-etiqueta `ladybug` y sin `testdata/`- (generación `000001`, `26.231` símbolos):
-**ahí `grep` sale más barato en cinco de seis**. Responder cuesta `0,82x`
--entre `0,55x`, `DiscoverGo`, y `1,22x`, `Publish`, que es la única que se
-gana-, y la sesión completa -incluidos los cuerpos que el agente abre después,
-que pagan igual en los dos lados- `0,98x`, con un suelo de `1,50x` fijado por el
-coste de esos cuerpos y no por el de la respuesta. Indexado sin esas dos cosas
-era `0,47x` y `0,89x`, y antes del ADR 0156 `0,24x` y `0,74x`: el bloque
-`completeness` era la mayor parte de la respuesta. La medición anterior, de la
-`0.8.0`, daba `1,76x` y `1,24x`; el `grep` del agente dejó de traer líneas de
-contexto, y eso solo bajó el brazo nativo de `1.082` a `429` tokens en
-`MergeAll`. Es el corpus menos representativo que tenemos: pequeño, con
-fixtures propios como puntos ciegos. Los `29` casos de abajo siguen siendo el
-titular de dónde se gana.
+Measured with `benchmarks/mcp-token-cost` on `0.10.1`, over the six references
+questions of this same repository, indexed as documented -with the `ladybug` tag
+and without `testdata/`- (generation `000001`, `26,231` symbols): **there `grep`
+comes out cheaper on five of six**. Answering costs `0.82x` -between `0.55x`,
+`DiscoverGo`, and `1.22x`, `Publish`, which is the only one that is won-, and
+the whole session -including the bodies the agent opens afterwards, which cost
+the same on both sides- `0.98x`, with a floor of `1.50x` set by the cost of
+those bodies and not by that of the answer. Indexed without those two things it
+was `0.47x` and `0.89x`, and before ADR 0156 `0.24x` and `0.74x`: the
+`completeness` block was most of the response. The earlier measurement, on
+`0.8.0`, gave `1.76x` and `1.24x`; the agent's `grep` stopped bringing context
+lines, and that alone lowered the native arm from `1,082` to `429` tokens on
+`MergeAll`. It is the least representative corpus we have: small, with its own
+fixtures as blind spots. The `29` cases below remain the headline of where it is
+won.
 
-El caso genuinamente trivial **ya es una fila medida**, y confirma la
-desventaja: `benchmarks/graph-tools-comparison/trivial.md`, sobre
-`newGMCClient` -- dos apariciones en todo `workspace`, una declaración y una llamada,
-sin homónimo en cinco lenguajes. Los seis brazos aciertan y `grep` es el más
-barato de todos: `65` tokens contra nuestros `123`, o sea que costamos `1,9x`.
-Los otros cuatro grafos también pierden contra esa línea de `grep`, y la razón
-es estructural: el sobre de una respuesta -- `snapshot_id`, `coverage`, `total`,
-la fila con repositorio y rango-- cuesta más que dos líneas de texto cuando la
-respuesta **son** dos líneas de texto.
+The genuinely trivial case **is already a measured row**, and it confirms the
+disadvantage: `benchmarks/graph-tools-comparison/trivial.md`, on `newGMCClient`
+-- two occurrences across all of `workspace`, one declaration and one call, no
+homonym in five languages. All six arms are right and `grep` is the cheapest of
+all: `65` tokens against our `123`, that is, we cost `1.9x`. The other four
+graphs also lose against that `grep` line, and the reason is structural: the
+envelope of a response -- `snapshot_id`, `coverage`, `total`, the row with
+repository and range-- costs more than two lines of text when the answer **is**
+two lines of text.
 
-Sobre las `29` preguntas de los seis conjuntos, `grep` sale más barato en cinco
-y la mediana queda en `5,95x` a nuestro favor. Tres de esas cinco son preguntas
-de ausencia, y ahí el coste y la evidencia no dicen lo mismo: un `grep` sin
-resultados es barato y no es una prueba, porque no distingue «nadie lo llama» de
-«los llamantes lo escriben de otra forma». Medido en el mismo corpus por `X1`,
-donde un consumidor real nunca deletrea el símbolo -- un reexport con `*` que lo
-cruza de repositorio-- y ninguna búsqueda de texto lo alcanza.
+Over the `29` questions of the six sets, `grep` comes out cheaper on five and the
+median stays at `5.95x` in our favour. Three of those five are absence
+questions, and there cost and evidence do not say the same thing: a `grep` with
+no results is cheap and is not proof, because it does not distinguish "nobody
+calls it" from "the callers write it another way". Measured in the same corpus by
+`X1`, where a real consumer never spells the symbol -- a `*` re-export that
+crosses it between repositories-- and no text search reaches it.
 
-## La puerta delante de `grep`
+## The gate in front of `grep`
 
-`kivgraph hook install` registra un gancho que se ejecuta antes de cada tool del
-agente y niega la búsqueda cuando el grafo la contesta mejor. Lo alojan
-`claude-code`, `claude-desktop`, `codex`, `opencode` y `oh-my-pi`. Claude Desktop
-empaqueta un Claude Code y lo lanza sin darle configuración propia, así que lee
-`~/.claude/settings.json`: comparte fichero con `claude-code` e instalar uno
-deja el otro `managed`. Oh My Pi recibe una extensión nativa en
-`~/.omp/agent/extensions/` o `.omp/extensions/`; el contrato está en ADR 0089.
+`kivgraph hook install` registers a hook that runs before each of the agent's
+tools and denies the search when the graph answers it better. It is hosted by
+`claude-code`, `claude-desktop`, `codex`, `opencode` and `oh-my-pi`. Claude
+Desktop bundles a Claude Code and launches it without giving it a configuration
+of its own, so it reads `~/.claude/settings.json`: it shares a file with
+`claude-code` and installing one leaves the other `managed`. Oh My Pi receives a
+native extension in `~/.omp/agent/extensions/` or `.omp/extensions/`; the
+contract is in ADR 0089.
 
-Para una búsqueda que ya deletrea un nombre, se cierra por **un solo hecho**: el
-nombre lo declaran dos cosas o más, así que una búsqueda de texto no puede
-separar lo que encuentra. Un nombre sin homónimo se deja pasar por muchos sitios
-que lo usen, porque ahí `grep` es más barato y está medido -- ver ADR 0077 para
-la tabla y para lo que haría falta medir para cerrarla también sobre recuentos
-altos. Y el repositorio de la búsqueda tiene que declarar el nombre: la cuenta
-es de todo el grafo, y negar una búsqueda en un repositorio del que el grafo no
-tiene nada deja sin ninguna herramienta.
+For a search that already spells a name, it closes on **a single fact**: the name
+is declared by two or more things, so a text search cannot separate what it
+finds. A name with no homonym is let through for many places that use it, because
+there `grep` is cheaper and that is measured -- see ADR 0077 for the table and for
+what would need measuring to close it over high counts too. And the search's
+repository has to declare the name: the count is for the whole graph, and denying
+a search in a repository the graph has nothing about leaves no tool at all.
 
-Una búsqueda que todavía no sabe el nombre toma la ruta de intención. Una regex
-con forma de código, o cuatro o más identificadores alternativos como
-`http|route|handler|serve`, consulta `find_by_intent` y sólo se niega cuando el
-grafo devuelve candidatos. Tres términos exactos como `error|warning|failed`
-siguen siendo una búsqueda textual.
+A search that does not yet know the name takes the intent route. A regex shaped
+like code, or four or more alternative identifiers such as
+`http|route|handler|serve`, queries `find_by_intent` and is only denied when the
+graph returns candidates. Three exact terms such as `error|warning|failed` remain
+a textual search.
 
-Ninguna de las dos rutas se cierra cuando la búsqueda dice dónde mira y sólo
-mira archivos que el grafo no cubre: `grep -n version package.json`, un `.log`,
-un glob `*.yaml`. Hace falta una ruta con extensión que no sea de código y
-ninguna que lo sea; un directorio a secas no prueba nada, y un filtro de tipo
-que nombra un lenguaje (`--type rust`) sigue siendo una búsqueda sobre código.
+Neither route closes when the search says where it looks and only looks at files
+the graph does not cover: `grep -n version package.json`, a `.log`, a glob
+`*.yaml`. It takes a path with an extension that is not code and none that is; a
+bare directory proves nothing, and a type filter that names a language
+(`--type rust`) is still a search over code.
 
-Todo fallo de la puerta es un permiso, y un permiso no escribe nada: en ese
-contrato un `allow` explícito se salta la petición de permiso del agente.
+Every failure of the gate is a permission, and a permission writes nothing: in
+that contract an explicit `allow` skips the agent's permission prompt.
 
-Para saltársela una vez: `KIVGRAPH_DISABLE_HOOK=1` delante del comando. Una
-llamada de las tools nativas (`Grep`, `Glob`, un subagente) no tiene comando, y
-para ellas la negativa dice que el usuario arranque la sesión con la variable.
+To skip it once: `KIVGRAPH_DISABLE_HOOK=1` in front of the command. A call of the
+native tools (`Grep`, `Glob`, a subagent) has no command, and for them the denial
+says that the user should start the session with the variable.
 
-Los envoltorios de salida `rtk rg ...` y `rtk proxy rg ...` se clasifican por
-el comando interior. `rtk gain` y los demás comandos propios de RTK no se
-consideran búsquedas.
+The output wrappers `rtk rg ...` and `rtk proxy rg ...` are classified by the
+inner command. `rtk gain` and the other RTK-specific commands are not considered
+searches.
 
-Y lo mismo los envoltorios que sólo cambian cómo corre un comando -- `time`,
-`timeout`, `nice`, `nohup`, `env`, `command`, `exec`, `sh -c "..."` y un
-subshell--, y una redirección no es un fichero que la búsqueda lea: `rg Nombre >
-out.txt` nombraba un `.txt` que el grafo no cubre y dejaba pasar un nombre
-ambiguo. El destino de una redirección se descarta al tokenizar; un `>` entre
-comillas sigue siendo parte del patrón o de la ruta.
+And likewise the wrappers that only change how a command runs -- `time`,
+`timeout`, `nice`, `nohup`, `env`, `command`, `exec`, `sh -c "..."` and a
+subshell--, and a redirection is not a file the search reads: `rg Name >
+out.txt` named a `.txt` that the graph does not cover and let an ambiguous name
+through. The target of a redirection is discarded when tokenizing; a quoted `>`
+is still part of the pattern or the path.
 
-La puerta hace además una cosa que no es negar. El matcher cubre las tools MCP
-de Kivgraph -- por nombre de servidor, `mcp__kivgraph_.*`, nunca por una lista de
-operaciones que habría que ampliar con cada tool nueva-- y a la **primera de
-cada sesión** le adjunta el presupuesto de llamadas. Nunca la niega: una llamada
-al grafo ya es el resultado que las demás ramas defienden, así que exigir la
-skill antes de dejarla pasar pondría fricción justo en la conducta que la puerta
-existe para fomentar, y dejaría las tools inservibles la sesión en que el aviso
-fallara.
+The gate also does one thing that is not denying. The matcher covers Kivgraph's
+MCP tools -- by server name, `mcp__kivgraph_.*`, never by a list of operations
+that would have to be extended with every new tool-- and to the **first one of
+each session** it attaches the call budget. It never denies it: a call to the
+graph is already the result the other branches defend, so demanding the skill
+before letting it through would put friction exactly on the behaviour the gate
+exists to encourage, and would leave the tools unusable in the session where the
+notice failed.
 
-Va como `additionalContext` **sin** `permissionDecision`, y eso no es un detalle
-de formato: la forma corta -- `allow` con el texto en
-`permissionDecisionReason`-- entrega las mismas palabras y de paso le quita al
-usuario la petición de permiso de cada llamada con la que viaje. El aviso añade
-contexto y no vota.
+It goes as `additionalContext` **without** `permissionDecision`, and that is not
+a formatting detail: the short form -- `allow` with the text in
+`permissionDecisionReason`-- delivers the same words and in passing removes from
+the user the permission prompt of every call it travels with. The notice adds
+context and does not vote.
 
-No repite el campo `instructions` del servidor, que ya llega en el handshake.
-Lleva lo que ese campo deja fuera a propósito: el coste por tool, que no puede
-vivir en un system prompt que se reescribe en cada reindexado --
-`internal/mcp/instructions.go` explica por qué, y cita el issue #260 de
-tokensave, donde un presupuesto ahí costó más que las llamadas que desaconsejaba.
+It does not repeat the server's `instructions` field, which already arrives in
+the handshake. It carries what that field leaves out on purpose: the cost per
+tool, which cannot live in a system prompt that is rewritten on every reindex --
+`internal/mcp/instructions.go` explains why, and cites issue #260 of tokensave,
+where a budget there cost more than the calls it advised against.
 
-Se recuerda por `session_id` con un marcador en `<estado>/briefs`, creado con
-`O_EXCL` para que dos llamadas simultáneas no avisen las dos, y se poda a las 24
-horas. Un host que no manda `session_id` -- los módulos de OpenCode y Oh My Pi--
-no recibe aviso ninguno: sin identidad, avisar en cada llamada sería peor que
-no avisar.
+It is remembered by `session_id` with a marker in `<state>/briefs`, created with
+`O_EXCL` so that two simultaneous calls do not both notify, and it is pruned at
+24 hours. A host that sends no `session_id` -- the OpenCode and Oh My Pi
+modules-- receives no notice at all: without an identity, notifying on every call
+would be worse than not notifying.
 
-El matcher se escribe al instalar, así que una instalación anterior a esto no ve
-las llamadas MCP hasta que se reejecuta `kivgraph hook install`.
+The matcher is written at install time, so an installation earlier than this does
+not see the MCP calls until `kivgraph hook install` is run again.
 
-En Codex el matcher es el literal `Bash`, aunque la transcripción presente la
-ejecución como `Shell`. Su payload añade `turn_id` y su negativa no es el JSON
-de Claude Code: exige código de salida `2` y el motivo en `stderr`.
+In Codex the matcher is the literal `Bash`, even though the transcript presents
+the execution as `Shell`. Its payload adds `turn_id` and its denial is not Claude
+Code's JSON: it requires exit code `2` and the reason on `stderr`.
 
-Un worktree enlazado está cubierto cuando su Git common dir identifica un único
-repositorio registrado. La ruta física no tiene que colgar del checkout que se
-indexó: Codex crea sus worktrees fuera de él. Si dos registros comparten esa
-identidad y la ruta no pertenece directamente a ninguno, la puerta no elige.
-Las búsquedas por intención se acotan al repositorio así identificado y leen
-los candidatos dentro de `results.symbols`, el envelope profile-aware de la
-respuesta.
+A linked worktree is covered when its Git common dir identifies a single
+registered repository. The physical path does not have to hang from the checkout
+that was indexed: Codex creates its worktrees outside it. If two registrations
+share that identity and the path belongs directly to neither, the gate does not
+choose. Intent searches are bounded to the repository so identified and read the
+candidates inside `results.symbols`, the profile-aware envelope of the response.
 
-Un repositorio indexado con `kivgraph index` guarda su grafo en su propio
-`.kivgraph/`, y el registro del usuario no lo conoce. Cuando el directorio de
-trabajo no cae en ningún repositorio de ese registro, la puerta busca el
-`.kivgraph/config.yaml` del checkout y lo lee sólo si nada en él pudo
-commitearse para decir otra cosa: ni `.kivgraph` ni su configuración son
-enlaces, el estado que nombra queda dentro de `.kivgraph`, y el endpoint
-publicado ahí es de esta máquina. Sin demonio para ese grafo, la puerta se
-aparta como siempre.
+A repository indexed with `kivgraph index` keeps its graph in its own
+`.kivgraph/`, and the user's registry does not know it. When the working
+directory falls in no repository of that registry, the gate looks for the
+checkout's `.kivgraph/config.yaml` and reads it only if nothing in it could have
+been committed to say otherwise: neither `.kivgraph` nor its configuration are
+links, the state it names stays inside `.kivgraph`, and the endpoint published
+there is this machine's. Without a daemon for that graph, the gate steps aside as
+always.
 
-## Herramientas MCP en Oh My Pi
+## MCP tools in Oh My Pi
 
-- Las rutas `xd://` se descubren consultando `xd://`; nunca se construyen
-  concatenando prefijos a partir del nombre visible de una herramienta.
-- Las herramientas directas de Kivgraph usan
-  `xd://mcp__kivgraph_<operación>`; a través de 1MCP el nombre agregado es
-  `kivgraph_1mcp_<operación>`.
-- No se debe inventar una forma `xd://mcp__mcp_kivgraph_<operación>`.
-- Una respuesta MCP `tools/list` puede estar paginada: seguir `nextCursor`
-  hasta `null` antes de concluir que una herramienta no está montada.
+- `xd://` paths are discovered by querying `xd://`; they are never built by
+  concatenating prefixes from a tool's visible name.
+- Kivgraph's direct tools use `xd://mcp__kivgraph_<operation>`; through 1MCP the
+  aggregated name is `kivgraph_1mcp_<operation>`.
+- A form `xd://mcp__mcp_kivgraph_<operation>` must not be invented.
+- An MCP `tools/list` response may be paginated: follow `nextCursor` until `null`
+  before concluding that a tool is not mounted.
 
-- `kivgraph_1mcp_index_project` y `kivgraph_1mcp_start_index_project` son las
-  dos herramientas MCP mutantes de Kivgraph; solo se registran en la ruta
-  `serve` configurada y exigen consentimiento explícito del cliente antes de
-  cambiar el registro de repositorios o publicar una generación.
+- `kivgraph_1mcp_index_project` and `kivgraph_1mcp_start_index_project` are
+  Kivgraph's two mutating MCP tools; they are only registered on the configured
+  `serve` path and require the client's explicit consent before changing the
+  repository registry or publishing a generation.
 
-## La skill se edita en un solo sitio
+## The skill is edited in one place
 
-`kivgraph skill install` deja, en alcance de usuario, un fichero canónico en
-`~/.config/kivgraph/skills/kivgraph/SKILL.md` y enlaza ahí la ruta de cada
-cliente. Editarlo una vez alcanza a todos, y un upgrade **no** se lleva el
-cambio: `install` sólo escribe el canónico si falta o si lo que hay es la skill
-que el build trae, y `--force` recupera esa. El alcance de proyecto copia, porque
-un enlace absoluto se commitearía roto. Ver ADR 0078.
+`kivgraph skill install` leaves, at user scope, a canonical file at
+`~/.config/kivgraph/skills/kivgraph/SKILL.md` and links each client's path to
+it. Editing it once reaches all of them, and an upgrade does **not** take the
+change away: `install` only writes the canonical one if it is missing or if what
+is there is the skill the build brings, and `--force` recovers that one. Project
+scope copies, because an absolute link would be committed broken. See ADR 0078.
 
-## Puesta en marcha
+## Getting started
 
-- El toolchain Go es el del `go.mod`. `go/types` viaja enlazado en el binario,
-  así que el techo de versión del lenguaje es el del toolchain que lo compiló;
-  `kivgraph doctor` informa de ese número y no del `go` del `PATH`.
-- La biblioteca nativa fijada se descarga y se verifica con `make ladybug-lib`.
-  `make test-ladybug` la resuelve por su cuenta y exporta las variables `CGO_*`.
-- **`make build` no produce un binario capaz de tocar el grafo canónico.** Un
-  `go build` sin el tag `ladybug` deja dentro el fallback que declara
-  `LadybugDB native support is unavailable`, así que ese binario **sirve** un
-  snapshot ya publicado -- que se mapea y no necesita cgo-- y en cambio falla
-  todo lo que cruza LadybugDB: `index --full` muere en `stage.staging`, y su
-  propio `doctor` dice `graph.store: FAIL`. Es una limitación declarada y no un
-  silencio, pero conviene saber cuál de los dos binarios se tiene en la mano.
-  El que sí lo puede hacer se compila como lo hace la suite nativa:
+- The Go toolchain is the one in `go.mod`. `go/types` travels linked into the
+  binary, so the language-version ceiling is that of the toolchain that compiled
+  it; `kivgraph doctor` reports that number and not the `go` on the `PATH`.
+- The pinned native library is downloaded and verified with `make ladybug-lib`.
+  `make test-ladybug` resolves it by itself and exports the `CGO_*` variables.
+- **`make build` does not produce a binary able to touch the canonical graph.** A
+  `go build` without the `ladybug` tag leaves inside the fallback that declares
+  `LadybugDB native support is unavailable`, so that binary **serves** an
+  already published snapshot -- which is mapped and needs no cgo-- and in
+  exchange fails everything that crosses LadybugDB: `index --full` dies at
+  `stage.staging`, and its own `doctor` says `graph.store: FAIL`. It is a
+  declared limitation and not a silence, but it is worth knowing which of the two
+  binaries is in hand. The one that can do it is compiled the way the native
+  suite does:
 
   ```bash
   LIB="$(scripts/fetch-ladybug.sh)"
@@ -265,428 +263,426 @@ un enlace absoluto se commitearía roto. Ver ADR 0078.
     go build -tags ladybug -ldflags="-extldflags=-Wl,-rpath,$LIB" ./cmd/kivgraph
   ```
 
-  Con él, `doctor` termina en `PASS`. Un bundle publicado lo lleva ya enlazado,
-  así que para reindexar sirve el binario instalado.
-- El analizador Rust fijado se descarga con `scripts/fetch-rust-analyzer.sh`. La
-  suite de Rust exige además `rustup component add rust-analyzer rust-src` y un
-  `cargo` en el `PATH`: sin toolchain el analizador no carga el workspace, y sin
-  `rust-src` lo instala él mismo en mitad de la pasada, que es una carrera
-  cuando dos paquetes de test arrancan a la vez.
-- Los tres proyectos pnpm son independientes y tienen su propio lockfile:
-  `pnpm --dir ts-worker install --frozen-lockfile`, y lo mismo para `web` y
+  With it, `doctor` ends in `PASS`. A published bundle already carries it linked,
+  so to reindex the installed binary will do.
+- The pinned Rust analyzer is downloaded with `scripts/fetch-rust-analyzer.sh`.
+  The Rust suite also requires `rustup component add rust-analyzer rust-src` and a
+  `cargo` on the `PATH`: without a toolchain the analyzer does not load the
+  workspace, and without `rust-src` it installs it itself in the middle of the
+  pass, which is a race when two test packages start at the same time.
+- The three pnpm projects are independent and have their own lockfile:
+  `pnpm --dir ts-worker install --frozen-lockfile`, and likewise for `web` and
   `landing`.
-- Si un comando que estas instrucciones usan no está instalado, instalarlo antes
-  de seguir. No sustituirlo por otro ni saltarse el paso.
+- If a command these instructions use is not installed, install it before going
+  on. Do not substitute another one or skip the step.
 
-## Antes de editar
+## Before editing
 
-1. Leer `TASKS.md`, sus dependencias, el gate aplicable y la documentación del
-   subsistema afectado.
-2. Inspeccionar implementaciones, tests y consumidores existentes; reutilizar
-   la convención vigente en vez de crear una segunda.
-3. Definir el comportamiento observable y sus casos negativos antes de tocar
-   código.
-4. No ocultar warnings, errores, referencias no resueltas, limitaciones ni
-   resultados `FAIL`.
+1. Read `TASKS.md`, its dependencies, the applicable gate and the documentation
+   of the affected subsystem.
+2. Inspect existing implementations, tests and consumers; reuse the current
+   convention instead of creating a second one.
+3. Define the observable behaviour and its negative cases before touching code.
+4. Do not hide warnings, errors, unresolved references, limitations or `FAIL`
+   results.
 
-## Nunca modificar
+## Never modify
 
-- Los repositorios indexados y los artefactos de entrada de los benchmarks. Las
-  pruebas usan copias o fixtures privados.
-- Los directorios generados: `ts-worker/dist`, `web/dist`, `landing/dist`,
-  `dist/`, `.tooling/` y `landing/.astro`. Se regeneran con su build.
-- Lo que está fijado por digest: `tools/manifest.json`,
-  `grammars/manifest.json` y los lockfiles. Se cambian con el script que los
-  produce, nunca a mano.
-- Los identificadores históricos `LUQUE-####` del backlog.
-- Los `CLAUDE.md`: son symlinks deliberados hacia el `AGENTS.md` de su
-  directorio.
+- The indexed repositories and the benchmarks' input artifacts. Tests use copies
+  or private fixtures.
+- The generated directories: `ts-worker/dist`, `web/dist`, `landing/dist`,
+  `dist/`, `.tooling/` and `landing/.astro`. They are regenerated with their
+  build.
+- What is pinned by digest: `tools/manifest.json`, `grammars/manifest.json` and
+  the lockfiles. They are changed with the script that produces them, never by
+  hand.
+- The historical `LUQUE-####` identifiers of the backlog.
+- The `CLAUDE.md` files: they are deliberate symlinks to the `AGENTS.md` of their
+  directory.
 
-## Contratos semánticos que no se pueden relajar
+## Semantic contracts that cannot be relaxed
 
-- Una arista `EXACT` requiere evidencia suficiente y la procedencia correcta.
-  Nunca se crea por coincidencia de nombre, texto, path, alias o candidato
-  único.
-- `CANDIDATE` y `UNRESOLVED` son resultados distintos de `EXACT`.
-- Cada arista canónica tiene `confidence`, `provenance` y, cuando corresponde,
-  `evidence_key`; la evidencia debe estar observada en un `File`.
-- Las stable keys son persistentes. No cambiar su algoritmo, identidad
-  canónica ni el namespace histórico `luque-stable-key` sin migración de datos,
-  ADR y actualización explícita del contrato.
-- El schema LadybugDB es versionado. Un cambio incompatible requiere full
-  rebuild o migración documentada; nunca se modifica una base existente en
-  silencio.
-- **El único camino de indexado es la reconstrucción completa.** No existe un
-  camino incremental: se retiró en el ADR 0057, medido a `1,67x` de un pase
-  completo y sin ningún llamante en producción. `kivgraph index` autodetecta
-  el proyecto actual y ejecuta esa reconstrucción; `kivgraph index --full`
-  conserva la forma explícita sobre el registro configurado. Ver ADR 0086.
-- Si alguna vez vuelve un camino incremental, el contrato de retirada del ADR
-  0056 es el punto de partida y **no se puede relajar**: todo hecho afirmado por
-  un archivo se retira y se vuelve a afirmar junto con ese archivo, y lo que un
-  archivo afirma son las aristas que **salen** de sus símbolos -- una arista que
-  otro archivo le apunta la afirmó ese otro, y retirar este no la toca. Un
-  símbolo que el `Upsert` vuelve a afirmar conserva su nodo por eso mismo; uno
-  que no, se va con sus aristas, entrantes incluidas. Las aristas de paquete
-  también se retiran por su evidencia aunque sobrevivan sus dos extremos.
-  Relajarlo es el defecto `LUQUE-2002`: un fichero editado perdiendo en silencio
-  toda arista entrante desde otro fichero.
-- Un camino incremental tampoco puede publicar sin verificar. La ruta retirada
-  hacía cero llamadas a `integrity` y a `golden probes`, y parte de su ventaja
-  medida era esa verificación ausente. Y no produciría un grafo idéntico byte a
-  byte a una reconstrucción limpia: una fila que nadie restableció conservaría el
-  `source_snapshot` y el `resolver_version` de la generación que la observó. Eso
-  es procedencia y ninguna consulta filtra por ella; lo que sí debe coincidir es
-  el contenido. Ver ADR 0056 y ADR 0057.
-- Cada `UNRESOLVED` conserva motivo, repositorio y lenguaje; cuando existe una
-  ocurrencia concreta conserva su archivo, posición y detalle observados.
-  Los fallos de módulo a nivel de repositorio pueden no tener archivo y nunca
-  se les fabrica evidencia ni una arista `EXACT`.
+- An `EXACT` edge requires sufficient evidence and the right provenance. It is
+  never created by name, text, path, alias or single-candidate coincidence.
+- `CANDIDATE` and `UNRESOLVED` are results distinct from `EXACT`.
+- Every canonical edge has `confidence`, `provenance` and, when it applies,
+  `evidence_key`; the evidence must be observed in a `File`.
+- Stable keys are persistent. Do not change their algorithm, canonical identity
+  or the historical namespace `luque-stable-key` without a data migration, an ADR
+  and an explicit update of the contract.
+- The LadybugDB schema is versioned. An incompatible change requires a full
+  rebuild or a documented migration; an existing database is never modified
+  silently.
+- **The only indexing path is the full rebuild.** There is no incremental path:
+  it was withdrawn in ADR 0057, measured at `1.67x` of a full pass and with no
+  caller in production. `kivgraph index` autodetects the current project and runs
+  that rebuild; `kivgraph index --full` keeps the explicit form over the
+  configured registry. See ADR 0086.
+- If an incremental path ever comes back, the withdrawal contract of ADR 0056 is
+  the starting point and **cannot be relaxed**: every fact a file asserts is
+  withdrawn and asserted again together with that file, and what a file asserts
+  are the edges that **leave** its symbols -- an edge another file points at it
+  was asserted by that other one, and withdrawing this one does not touch it. A
+  symbol the `Upsert` asserts again keeps its node for that very reason; one that
+  does not, goes with its edges, incoming ones included. Package edges are also
+  withdrawn by their evidence even if both their ends survive. Relaxing it is
+  defect `LUQUE-2002`: an edited file silently losing every incoming edge from
+  another file.
+- An incremental path cannot publish without verifying either. The withdrawn
+  route made zero calls to `integrity` and to `golden probes`, and part of its
+  measured advantage was that missing verification. And it would not produce a
+  graph byte-identical to a clean rebuild: a row nobody reset would keep the
+  `source_snapshot` and the `resolver_version` of the generation that observed
+  it. That is provenance and no query filters by it; what must match is the
+  content. See ADR 0056 and ADR 0057.
+- Every `UNRESOLVED` keeps reason, repository and language; when a concrete
+  occurrence exists it keeps its observed file, position and detail. Module
+  failures at repository level may have no file and evidence or an `EXACT` edge
+  is never fabricated for them.
 
-## Superficies que rompen compatibilidad
+## Surfaces that break compatibility
 
-Antes de cerrar, comprobar si el cambio toca alguna de estas. Ninguna se cambia
-en silencio: cada una exige ADR, migración documentada o full rebuild.
+Before closing, check whether the change touches any of these. None is changed
+silently: each requires an ADR, a documented migration or a full rebuild.
 
-- Las stable keys: algoritmo, identidad canónica y el namespace histórico
+- The stable keys: algorithm, canonical identity and the historical namespace
   `luque-stable-key`.
-- El schema LadybugDB y el layout del store de generaciones, su backup y su
+- The LadybugDB schema and the layout of the generation store, its backup and its
   rollback.
-- El payload `LGVB` del visor, su versión y sus códigos de error.
-- Los nombres, descripciones y esquemas de las tools MCP, y la skill que los
-  nombra.
-- Los parámetros y las salidas del CLI, incluidos el protocolo de
-  `index --full --json` y `version --json`.
-- La configuración: claves, vocabularios aceptados y ubicación por defecto.
-- El bundle publicado: los nombres `kivgraph-<os>-<arch>`, `manifest.json`,
-  `SHA256SUMS` y el `RUNPATH`.
+- The viewer's `LGVB` payload, its version and its error codes.
+- The names, descriptions and schemas of the MCP tools, and the skill that names
+  them.
+- The CLI's parameters and outputs, including the `index --full --json` protocol
+  and `version --json`.
+- The configuration: keys, accepted vocabularies and default location.
+- The published bundle: the `kivgraph-<os>-<arch>` names, `manifest.json`,
+  `SHA256SUMS` and the `RUNPATH`.
 
-Y una regla sobre **cómo** se retira cualquiera de ellas: lo que era válido ayer
-no puede convertirse hoy en un fallo. Una clave de configuración que se retira se
-acepta, se ignora y se **nombra** -- `retiredConfigKeys` y la línea
-`config.retired` de `doctor`--, porque el decodificador rechaza claves
-desconocidas y borrar el campo sin más convertiría en error de arranque cada
-fichero escrito por un `init` anterior. Lo mismo vale para un formato que sube de
-versión: un fichero de la versión anterior es una actualización, no un store
-dañado, y contarlo como fallo pone el `doctor` en rojo en cada instalación --
-que es exactamente cómo un fallo de verdad deja de notarse. Las dos formas ya se
-infringieron una vez cada una. Ver ADR 0062 y ADR 0061.
+And a rule about **how** any of them is withdrawn: what was valid yesterday
+cannot become a failure today. A configuration key that is withdrawn is
+accepted, ignored and **named** -- `retiredConfigKeys` and `doctor`'s
+`config.retired` line--, because the decoder rejects unknown keys and simply
+deleting the field would turn every file written by an earlier `init` into a
+startup error. The same holds for a format that goes up a version: a file of the
+previous version is an update, not a damaged store, and counting it as a failure
+turns `doctor` red on every installation -- which is exactly how a real failure
+stops being noticed. Both forms have already been violated once each. See ADR
+0062 and ADR 0061.
 
 ## Go
 
-- Ejecutar `gofmt` en cada archivo Go modificado.
-- Propagar errores con contexto usando `%w`; no descartar errores.
-- Las funciones bloqueantes reciben `context.Context` como primer argumento
-  después del receptor.
-- Toda goroutine tiene propietario y cancelación claros.
-- Los datos se validan antes de construir nodos o aristas.
-- Los identificadores que mezclan dominios usan tipos definidos.
-- Los paquetes bajo `internal/` no son API externa estable.
-- Cambiar un símbolo exportado exige revisar todos sus consumidores y tests.
+- Run `gofmt` on every modified Go file.
+- Propagate errors with context using `%w`; do not discard errors.
+- Blocking functions receive `context.Context` as the first argument after the
+  receiver.
+- Every goroutine has a clear owner and cancellation.
+- Data is validated before building nodes or edges.
+- Identifiers that mix domains use defined types.
+- The packages under `internal/` are not a stable external API.
+- Changing an exported symbol requires reviewing all its consumers and tests.
 
-## Plataformas y distribución
+## Platforms and distribution
 
-- Los objetivos de distribución son `linux/amd64`, `darwin/arm64` y
-  `windows/amd64`, y sólo esos. En macOS se publica únicamente Apple Silicon;
-  `darwin/amd64` está fuera de alcance por decisión, no por coste, y el
-  instalador lo dice al rechazarlo. La nomenclatura es `kivgraph-<os>-<arch>`
-  para el directorio, la raíz del archivo y el archivo publicado. El contenedor
-  sí cambia: Windows publica un `.zip` porque es lo que sus propias
-  herramientas leen, y el resto un `.tar.gz`. Un bundle se construye siempre en un
-  host de su propia plataforma: cgo enlaza la biblioteca nativa y no hay
-  cross-compilation.
-- `scripts/build-bundle.sh` es el único generador de bundles; los objetivos
-  `make build-linux-amd64` y `make build-darwin-arm64` delegan en él. El
-  manifest, `kivgraph version --json` y `kivgraph update` validan contra la
-  plataforma en ejecución, nunca contra literales.
-- Los scripts eligen la herramienta de digest por disponibilidad -`sha256sum`,
-  si no `shasum -a 256`- y fallan cerrado sin ninguna. `--no-overwrite-dir` no
-  existe en el `tar` de macOS.
-- El ejecutable del bundle declara exactamente un `RUNPATH`, el relativo. El
-  que añade el binding hacia su directorio de módulo se retira después de
-  enlazar y el build falla si sobrevive alguno más.
-- Los artefactos macOS no se notarizan y el proyecto no usa un Developer ID.
-  El binario lleva firma ad-hoc, que es lo que exige Apple Silicon para
-  ejecutar, y el script la rehace después de editar sus load commands.
-  Gatekeeper sólo bloquea un archivo con `com.apple.quarantine`, que no
-  escriben `curl` ni `tar`.
-- El código específico de plataforma vive en archivos con build tag, no en
-  ramas `runtime.GOOS` dentro de la lógica. Un fallback `!linux` que devuelve
-  error o cero es una limitación declarada, nunca un silencio.
-- La documentación de instalación debe reflejar el layout generado, el
-  `RUNPATH`, el runtime Node requerido y la verificación `SHA256SUMS`; no
-  presentar un bundle como autocontenido si faltan dependencias del sistema.
-- La release publicada lleva el visor. `kivgraph ui` se anuncia en la ayuda de
-  toda build, así que un binario publicado que responda «this build carries no
-  web bundle» ofrece un comando que nadie puede ejecutar; los assets web son
-  `2.3 MB` y el bundle publicado de la `v0.5.0` pesa `43 MB` comprimido. El
-  workflow de release construye sin
-  `--mcp-only` y verifica las dos mitades: que `web/index.html` está en el
-  payload y que la ayuda del binario no marca `ui` como no disponible -- un
-  bundle con assets enlazado sin el tag `webassets` serviría la página de
-  «bundle no disponible» en todas las rutas.
-- `--mcp-only` sigue existiendo para quien quiera un bundle sin visor.
-  `scripts/install.sh` no inicializa la configuración ni indexa repositorios.
-- `--slim` existe para el `.mcpb`, que tiene que caber por debajo de `25 MB`,
-  y hace cuatro cortes: quita el motor de Rust -- `bin/rust-analyzer`,
-  `tools/manifest.json` y sus licencias, con `"tools": null` en el manifest,
-  que es lo que `version --json` convierte en un `rust_analyzer` nulo--,
-  compila con `-s -w`, hace `strip` de la biblioteca nativa que acaba de
-  instalar y deja del `dist/` del worker sólo lo que `node` carga. Suman
-  `46,3 MB` a `24,9 MB` de `.mcpb`: `14,9` el analizador, `5,4` los símbolos
-  del ejecutable, `0,9` los de la biblioteca y `0,15` los tests, `.d.ts` y
-  source maps que viajaban compilados.
-- Y lo que `--slim` **no** hace es descargar después lo que no lleva. MCPB
-  define un servidor `binary` como paquete autocontenido, así que
-  `ResolveAnalyzer` no encuentra hermano junto al ejecutable, cae al `PATH` y
-  `doctor` dice cuál contestó: un bundle slim indexa Rust sólo si quien lo
-  instala pone el suyo. El `strip` de la biblioteca es sólo en Linux -- el
-  dylib de macOS lleva firma ad-hoc que invalidaría-- y deja
-  `ladybugdb.library_sha256` describiendo el fichero instalado, que ya no es
-  byte a byte el del archivo fijado; `archive_sha256` sigue nombrando ese. La
-  release publicada no usa `--slim`: conserva analizador, símbolos y DWARF.
-- Las releases publicadas usan tags `vX.Y.Z`; `scripts/install.sh` detecta la
-  plataforma, descarga la última release publicada para ella, verifica el
-  checksum externo e interno, y `kivgraph update` solo sustituye el bundle
-  después de validar manifest, versión y checksums. El `SHA256SUMS` de la
-  release lista todos los archivos publicados, así que se verifica la línea
-  del propio archivo, no el fichero entero.
-- Un build de distribución limpio debe ser reproducible entre checkouts del
-  mismo commit, toolchain y plataforma; compara el payload completo y no solo
+- The distribution targets are `linux/amd64`, `darwin/arm64` and
+  `windows/amd64`, and only those. On macOS only Apple Silicon is published;
+  `darwin/amd64` is out of scope by decision, not by cost, and the installer says
+  so when rejecting it. The naming is `kivgraph-<os>-<arch>` for the directory,
+  the archive root and the published archive. The container does change: Windows
+  publishes a `.zip` because it is what its own tools read, and the rest a
+  `.tar.gz`. A bundle is always built on a host of its own platform: cgo links the
+  native library and there is no cross-compilation.
+- `scripts/build-bundle.sh` is the only bundle generator; the targets
+  `make build-linux-amd64` and `make build-darwin-arm64` delegate to it. The
+  manifest, `kivgraph version --json` and `kivgraph update` validate against the
+  running platform, never against literals.
+- The scripts choose the digest tool by availability -`sha256sum`, otherwise
+  `shasum -a 256`- and fail closed with neither. `--no-overwrite-dir` does not
+  exist in macOS's `tar`.
+- The bundle's executable declares exactly one `RUNPATH`, the relative one. The
+  one the binding adds towards its module directory is removed after linking and
+  the build fails if any other survives.
+- macOS artifacts are not notarized and the project uses no Developer ID. The
+  binary carries an ad-hoc signature, which is what Apple Silicon requires to
+  run, and the script redoes it after editing its load commands. Gatekeeper only
+  blocks a file with `com.apple.quarantine`, which neither `curl` nor `tar`
+  write.
+- Platform-specific code lives in files with a build tag, not in `runtime.GOOS`
+  branches inside the logic. A `!linux` fallback that returns an error or zero is
+  a declared limitation, never a silence.
+- Installation documentation must reflect the generated layout, the `RUNPATH`,
+  the required Node runtime and the `SHA256SUMS` verification; do not present a
+  bundle as self-contained if system dependencies are missing.
+- The published release carries the viewer. `kivgraph ui` is advertised in the
+  help of every build, so a published binary that answers "this build carries no
+  web bundle" offers a command nobody can run; the web assets are `2.3 MB` and
+  the published bundle of `v0.5.0` weighs `43 MB` compressed. The release
+  workflow builds without `--mcp-only` and verifies both halves: that
+  `web/index.html` is in the payload and that the binary's help does not mark
+  `ui` as unavailable -- a bundle with assets linked without the `webassets` tag
+  would serve the "bundle not available" page on every route.
+- `--mcp-only` still exists for whoever wants a bundle without the viewer.
+  `scripts/install.sh` does not initialize the configuration or index
+  repositories.
+- `--slim` exists for the `.mcpb`, which has to fit under `25 MB`, and makes four
+  cuts: it removes the Rust engine -- `bin/rust-analyzer`, `tools/manifest.json`
+  and their licences, with `"tools": null` in the manifest, which is what
+  `version --json` turns into a null `rust_analyzer`--, it compiles with
+  `-s -w`, it `strip`s the native library it has just installed and it leaves of
+  the worker's `dist/` only what `node` loads. They add up to `46.3 MB` down to
+  `24.9 MB` of `.mcpb`: `14.9` the analyzer, `5.4` the executable's symbols,
+  `0.9` those of the library and `0.15` the tests, `.d.ts` and source maps that
+  travelled compiled.
+- And what `--slim` does **not** do is download afterwards what it does not carry.
+  MCPB defines a `binary` server as a self-contained package, so
+  `ResolveAnalyzer` finds no sibling next to the executable, falls back to the
+  `PATH` and `doctor` says which one answered: a slim bundle indexes Rust only if
+  whoever installs it supplies their own. The library's `strip` is Linux-only --
+  macOS's dylib carries an ad-hoc signature it would invalidate-- and leaves
+  `ladybugdb.library_sha256` describing the installed file, which is no longer
+  byte for byte that of the pinned archive; `archive_sha256` still names that one.
+  The published release does not use `--slim`: it keeps analyzer, symbols and
+  DWARF.
+- Published releases use `vX.Y.Z` tags; `scripts/install.sh` detects the
+  platform, downloads the latest published release for it, verifies the external
+  and internal checksum, and `kivgraph update` only replaces the bundle after
+  validating manifest, version and checksums. The release's `SHA256SUMS` lists
+  all the published files, so the archive's own line is verified, not the whole
+  file.
+- A clean distribution build must be reproducible between checkouts of the same
+  commit, toolchain and platform; it compares the full payload and not only
   `manifest.json`.
-- Los bundles se generan con `make build-linux-amd64` y
-  `make build-darwin-arm64`; el directorio `dist/` es generado y no se usa como
-  entrada indexada ni de benchmark.
-- `kivgraph version --json` debe conservar salida JSON exclusiva en `stdout`;
-  el bundle obtiene provenance del `manifest.json` y valida el digest de
-  `grammars/manifest.json`; los valores no observables se representan como
+- Bundles are generated with `make build-linux-amd64` and
+  `make build-darwin-arm64`; the `dist/` directory is generated and is not used
+  as indexed or benchmark input.
+- `kivgraph version --json` must keep exclusively JSON output on `stdout`; the
+  bundle obtains provenance from `manifest.json` and validates the digest of
+  `grammars/manifest.json`; values that cannot be observed are represented as
   `null`.
-- `SHA256SUMS` lista hashes SHA-256 de `manifest.json` y del payload en orden
-  lexicográfico; se verifica con `sha256sum -c` o `shasum -a 256 -c` y no se
-  incluye a sí mismo.
+- `SHA256SUMS` lists SHA-256 hashes of `manifest.json` and of the payload in
+  lexicographic order; it is verified with `sha256sum -c` or `shasum -a 256 -c`
+  and does not include itself.
 
-## Documentación y ADRs
+## Documentation and ADRs
 
-- La documentación técnica vive en `docs/`.
-- Cambios de arquitectura, protocolo MCP, framing, schema persistente,
-  compatibilidad o migración requieren un ADR.
-- La documentación describe el comportamiento observado, no promesas futuras.
-- La integración OpenTelemetry de métricas es opcional; los exporters y
-  collectors permanecen desactivados por defecto y el proveedor configurado
-  pertenece al llamador.
-- Los comandos, códigos, campos JSON y gates se escriben entre backticks.
+- Technical documentation lives in `docs/`.
+- Changes to architecture, MCP protocol, framing, persistent schema,
+  compatibility or migration require an ADR.
+- Documentation describes observed behaviour, not future promises.
+- The OpenTelemetry metrics integration is optional; the exporters and collectors
+  stay disabled by default and the configured provider belongs to the caller.
+- Commands, codes, JSON fields and gates are written between backticks.
 
-## El idioma de lo que se escribe
+## The language of what is written
 
-Todo texto que este repositorio **entrega o publica** se escribe en inglés:
+Every text this repository **delivers or publishes** is written in English:
 
-- la documentación de `docs/` y la de `landing/`;
-- los `AGENTS.md` y las skills de `.claude/skills/`;
-- las notas de una release -- que son el cuerpo de
-  `landing/src/content/releases/vX.Y.Z.md`, y ya lo estaban;
-- el cuerpo y el título de un pull request;
-- el mensaje de un commit, que la sección de entrega ya exigía;
-- los comentarios del código, que ya lo están y no cambian.
+- the documentation of `docs/` and that of `landing/`;
+- the `AGENTS.md` files and the skills of `.claude/skills/`;
+- the notes of a release -- which are the body of
+  `landing/src/content/releases/vX.Y.Z.md`, and already were;
+- the body and the title of a pull request;
+- the message of a commit, which the delivery section already required;
+- the code comments, which already are and do not change.
 
-La razón no es preferencia. El público de este repositorio lee inglés -- el
-`README`, la landing, la referencia de tools y las releases ya se publican
-así -- y un proyecto que documenta sus contratos en un idioma y su código en
-otro obliga a cada lector nuevo a elegir cuál de los dos es el que manda.
+The reason is not preference. This repository's audience reads English -- the
+`README`, the landing, the tool reference and the releases are already published
+that way -- and a project that documents its contracts in one language and its
+code in another forces every new reader to choose which of the two is the one
+that rules.
 
-**Es un ratchet, no una migración.** La regla vale para lo que se escribe a
-partir de ahora; los documentos que la preceden se quedan como están hasta que
-alguien los traduzca. Es el mismo trato que la regla de columnas de
-`scripts/check-docs.sh`: un gate que nace en rojo es un gate que se aprende a
-ignorar.
+**It is a ratchet, not a migration.** The rule holds for what is written from now
+on; documents that predate it stay as they are until somebody translates them. It
+is the same treatment as the column rule of `scripts/check-docs.sh`: a gate that
+is born red is a gate one learns to ignore.
 
-Y de ahí sale la única parte que no es obvia: **un fichero no se vuelve
-bilingüe**. Si un cambio añade una frase a un documento que está en castellano,
-esa frase va en castellano. Traducir el fichero es un cambio propio, entero, con
-su propio commit -- porque media página en cada idioma se lee peor que cualquiera
-de los dos, y porque un diff que traduce y edita a la vez no se puede revisar.
+And from that comes the only part that is not obvious: **a file does not become
+bilingual**. If a change adds a sentence to a document that is in Spanish, that
+sentence goes in Spanish. Translating the file is a change of its own, whole, with
+its own commit -- because half a page in each language reads worse than either,
+and because a diff that translates and edits at the same time cannot be reviewed.
 
-Lo que no se entrega no entra aquí: una conversación, una nota de trabajo o el
-texto de una tarea van en el idioma que quiera quien escribe.
+What is not delivered does not enter here: a conversation, a working note or the
+text of a task go in whatever language the writer wants.
 
-## Tamaño y forma de un cambio
+## Size and shape of a change
 
-- Un cambio que no sea mecánico no debería pasar de 800 líneas, y de 500 si es
-  lógica compleja. Si pasa, proponer el troceado en etapas revisables a partir
-  del diff real, sus dependencias y sus consumidores, e identificar la primera
-  etapa coherente que se puede entregar sola.
-- Preferir un paquete nuevo a engordar uno grande. `internal/indexing`,
-  `internal/mcp` e `internal/hotsnapshot` son los que atraen cambios ajenos; al
-  extraer código de uno, mover con él sus tests y la documentación de sus
-  invariantes.
-- Los comandos de este repositorio son lentos por construcción: `index --full`
-  dura minutos, `make test-ladybug` enlaza cgo y el analizador Rust carga un
-  workspace entero en cada invocación. Esperarlos. No matarlos por PID ni darlos
-  por colgados.
+- A change that is not mechanical should not go over 800 lines, and 500 if it is
+  complex logic. If it does, propose splitting it into reviewable stages from the
+  real diff, its dependencies and its consumers, and identify the first coherent
+  stage that can be delivered alone.
+- Prefer a new package to fattening a large one. `internal/indexing`,
+  `internal/mcp` and `internal/hotsnapshot` are the ones that attract unrelated
+  changes; when extracting code from one, move its tests and the documentation of
+  its invariants with it.
+- This repository's commands are slow by construction: `index --full` lasts
+  minutes, `make test-ladybug` links cgo and the Rust analyzer loads a whole
+  workspace on every invocation. Wait for them. Do not kill them by PID or give
+  them up as hung.
 
 ## Tests
 
-- Los tests nuevos deben defender contratos observables y fallar ante una
-  regresión plausible. Para cambios de almacenamiento o resolución, incluir
-  pruebas negativas, invariantes y comparación contra una reconstrucción limpia
-  cuando sea aplicable.
-- No añadir tests de valores definidos estáticamente, ni tests negativos de
-  lógica que se acaba de retirar.
-- Preferir comparar el objeto completo a comprobar campo por campo.
-- El código de producción no lleva funciones que sólo existen para un test; el
-  helper vive con el test.
-- Un fixture demuestra el caso real o no demuestra nada: comprobar qué forma
-  instala de verdad la herramienta que se está imitando.
+- New tests must defend observable contracts and fail on a plausible regression.
+  For storage or resolution changes, include negative tests, invariants and
+  comparison against a clean rebuild when applicable.
+- Do not add tests of statically defined values, or negative tests of logic that
+  has just been withdrawn.
+- Prefer comparing the whole object to checking field by field.
+- Production code carries no functions that exist only for a test; the helper
+  lives with the test.
+- A fixture demonstrates the real case or demonstrates nothing: check what shape
+  the tool being imitated really installs.
 
-### Se empieza por los negativos
+### Start with the negatives
 
-El orden no es una preferencia de estilo: el camino feliz se escribe solo y se
-comprueba mirando la respuesta, mientras que los rechazos, los límites y los
-vacíos son los que nadie ejecuta hasta que un usuario los ejecuta. Así que se
-escriben **primero**, antes del test que demuestra que la cosa funciona.
+The order is not a matter of style: the happy path writes itself and is checked
+by looking at the response, whereas rejections, limits and empties are the ones
+nobody runs until a user runs them. So they are written **first**, before the test
+that shows the thing works.
 
-Por cada unidad nueva, antes de dar por hecho el caso bueno:
+For every new unit, before taking the good case for granted:
 
-- **La entrada que sobra y la que falta.** El argumento vacío, el que llega dos
-  veces, el que se combina con otro que lo contradice. Un rechazo se prueba por
-  su mensaje además de por su error: un `INVALID_ARGUMENT` que no dice qué
-  narrowing arreglarlo es un fallo de superficie, no una validación.
-- **Los tres vacíos, que no significan lo mismo.** No hay nada, no hay nada
-  *dentro de estos límites*, y no se pudo mirar. Un test que los confunde
-  bendice la peor respuesta que este proyecto puede dar: una ausencia afirmada
-  que nadie estableció.
-- **El límite por los dos lados.** Cero, uno, exactamente el máximo, el máximo
-  más uno. Y la unidad correcta: contar bytes donde el contrato cuenta
-  caracteres ya dejó pasar un término de un solo carácter por cada alfabeto no
-  ASCII.
-- **La forma corrupta que hoy nadie puede construir.** Un guardia que sólo
-  protege de lo que el constructor de al lado nunca produce es un guardia sin
-  probar, y deja de proteger el día que los datos llegan de un fichero.
+- **The input that is extra and the one that is missing.** The empty argument,
+  the one that arrives twice, the one that is combined with another that
+  contradicts it. A rejection is tested by its message as well as by its error: an
+  `INVALID_ARGUMENT` that does not say which narrowing fixes it is a surface
+  failure, not a validation.
+- **The three empties, which do not mean the same.** There is nothing, there is
+  nothing *within these limits*, and it could not be looked at. A test that
+  confuses them blesses the worst answer this project can give: an asserted
+  absence nobody established.
+- **The limit from both sides.** Zero, one, exactly the maximum, the maximum plus
+  one. And the right unit: counting bytes where the contract counts characters
+  already let a one-character term through for every non-ASCII alphabet.
+- **The corrupt shape nobody can build today.** A guard that only protects from
+  what the neighbouring constructor never produces is an untested guard, and it
+  stops protecting the day the data comes from a file.
 
-### La cobertura se mide y lo que falta se nombra
+### Coverage is measured and what is missing is named
 
-Se persigue la cobertura más alta que el código admita, y se mide en vez de
-estimarse:
+The highest coverage the code admits is pursued, and it is measured instead of
+estimated:
 
 ```bash
-go test ./<paquete>/ -coverprofile=/tmp/cov.out
+go test ./<package>/ -coverprofile=/tmp/cov.out
 go tool cover -func=/tmp/cov.out
 ```
 
-Sobre el código nuevo la referencia es el **100 % de sentencias**, y llegar
-suele ser señal de que la unidad tiene el tamaño correcto. Cuando no se llega,
-la rama que queda fuera **se nombra y se justifica** en el comentario del test o
-en el mensaje del commit. Sólo dos justificaciones valen:
+On new code the reference is **100 % of statements**, and reaching it is usually
+a sign that the unit is the right size. When it is not reached, the branch left
+out **is named and justified** in the test's comment or in the commit message.
+Only two justifications count:
 
-1. Alcanzarla exigiría que el reloj, el sistema de ficheros o el planificador se
-   comporten de una forma que el test no puede fijar.
-2. Alcanzarla exigiría un parámetro, un reloj inyectado o una función en el
-   código de producción que sólo existiría para el test -- que ya está
-   prohibido más arriba.
+1. Reaching it would require the clock, the filesystem or the scheduler to behave
+   in a way the test cannot pin down.
+2. Reaching it would require a parameter, an injected clock or a function in
+   production code that would exist only for the test -- which is already
+   forbidden above.
 
-Una rama sin cubrir y sin justificar es trabajo a medias, no una decisión. Y
-subir un porcentaje añadiendo tests de valores definidos estáticamente está
-prohibido más arriba: la cobertura es la consecuencia de haber probado los
-contratos, nunca el objetivo que los sustituye.
+An uncovered and unjustified branch is half-done work, not a decision. And
+raising a percentage by adding tests of statically defined values is forbidden
+above: coverage is the consequence of having tested the contracts, never the goal
+that replaces them.
 
-### Un índice o una caché se compara contra la fuerza bruta
+### An index or a cache is compared against brute force
 
-Toda estructura que sólo existe para contestar más rápido lo que otro camino ya
-contesta lleva un test que compara los dos sobre un corpus generado: el índice
-devuelve exactamente lo que devuelve el barrido lineal, término a término. Es el
-único test capaz de detectar que dejó de decir lo mismo, porque una estructura
-derivada que se equivoca no falla -- contesta.
+Every structure that exists only to answer faster what another path already
+answers carries a test that compares the two over a generated corpus: the index
+returns exactly what the linear sweep returns, term by term. It is the only test
+able to detect that it stopped saying the same, because a derived structure that
+is wrong does not fail -- it answers.
 
-## Verificación obligatoria
+## Mandatory verification
 
-Antes de cerrar una tarea, ejecutar según el alcance. El procedimiento -qué
-cubre cada suite, qué se salta, cómo acotar un fallo y cómo hacer el smoke test
-del binario- está en la skill `.claude/skills/running-tests/SKILL.md`.
+Before closing a task, run according to scope. The procedure -what each suite
+covers, what gets skipped, how to narrow a failure and how to do the binary's
+smoke test- is in the skill `.claude/skills/running-tests/SKILL.md`.
 
 ```bash
-gofmt -l <archivos-go-modificados>
+gofmt -l <modified-go-files>
 go vet ./...
 go test ./...
 make build
 ```
 
-Si el cambio toca documentación bajo `docs/` o un `CLAUDE.md`:
+If the change touches documentation under `docs/` or a `CLAUDE.md`:
 
 ```bash
 scripts/check-docs.sh
 ```
 
-Comprueba que todo `CLAUDE.md` sigue siendo un symlink a su `AGENTS.md` y que
-ninguna línea **nueva** bajo `docs/` pasa de 84 columnas. Lo segundo es un
-ratchet sobre las líneas que cambian, no sobre los ficheros: cuarenta documentos
-preceden a la regla y reflowarlos no es el precio de añadir una frase.
+It checks that every `CLAUDE.md` is still a symlink to its `AGENTS.md` and that no
+**new** line under `docs/` goes past 84 columns. The second is a ratchet over the
+lines that change, not over the files: forty documents predate the rule and
+reflowing them is not the price of adding a sentence.
 
-Si el cambio afecta LadybugDB nativo:
+If the change affects native LadybugDB:
 
 ```bash
 make test-ladybug
 make lint-ladybug
 ```
 
-`make test-ladybug` es el único modo soportado de ejecutar ese tag: exporta las
-variables `CGO_*` que apuntan a la biblioteca fijada y pasa el rpath por
-`-ldflags`. `go test -tags ladybug` por su cuenta no enlaza. `PKGS` acota la
-pasada a un paquete.
+`make test-ladybug` is the only supported way to run that tag: it exports the
+`CGO_*` variables that point at the pinned library and passes the rpath through
+`-ldflags`. `go test -tags ladybug` on its own does not link. `PKGS` bounds the
+pass to one package.
 
-`make lint-ladybug` contesta la pregunta de código muerto, y sólo se puede
-contestar ahí. Bajo la configuración por defecto los ficheros tras el tag no se
-analizan, así que todo símbolo cuyo llamante vive en uno de ellos parece sin
-referencias: medido en `20` hallazgos, los `20` falsos. Con el tag la respuesta es
-cero, y eso es lo que lo convierte en un gate en vez de un deseo.
+`make lint-ladybug` answers the dead-code question, and it can only be answered
+there. Under the default configuration the files behind the tag are not analysed,
+so every symbol whose caller lives in one of them looks unreferenced: measured in
+`20` findings, all `20` false. With the tag the answer is zero, and that is what
+turns it into a gate instead of a wish.
 
-Lo que esas flags **no** repiten es parte del contrato. `CGO_LDFLAGS` se aplica a
-cada paquete cgo y no una vez al enlazar, así que nombrar ahí `-llbug` o el rpath
--- que el binding fijado ya declara -- imprimía `221` avisos `duplicate -rpath` e
-`ignoring duplicate libraries` en una pasada completa. Ninguno era un defecto y
-entre todos tapaban el único que sí informa. Devolverlos a `CGO_LDFLAGS` los trae
-de vuelta; el rpath se declara una vez, donde se enlaza una vez.
+What those flags do **not** repeat is part of the contract. `CGO_LDFLAGS` is
+applied to every cgo package and not once at link time, so naming `-llbug` or the
+rpath there -- which the pinned binding already declares -- printed `221`
+`duplicate -rpath` and `ignoring duplicate libraries` warnings in a full pass.
+None was a defect and together they hid the only one that does inform. Putting
+them back in `CGO_LDFLAGS` brings them back; the rpath is declared once, where it
+is linked once.
 
-El resto de gates vive junto al código que verifica: Rust en
-`internal/rustloader/AGENTS.md`, el worker en `ts-worker/AGENTS.md`, el visor en
-`web/AGENTS.md` y la landing en `landing/AGENTS.md`.
+The rest of the gates live next to the code they verify: Rust in
+`internal/rustloader/AGENTS.md`, the worker in `ts-worker/AGENTS.md`, the viewer
+in `web/AGENTS.md` and the landing in `landing/AGENTS.md`.
 
-Y hay cinco que sólo corre CI, porque piden red o varios minutos, pero que se
-pueden reproducir a mano cuando uno de ellos falla:
+And there are five that only CI runs, because they ask for network or several
+minutes, but that can be reproduced by hand when one of them fails:
 
-|gate|comando|qué exige|
+|gate|command|what it requires|
 |---|---|---|
-|corrección|`staticcheck -checks='all,-U1000' ./...`|toda clase de `staticcheck`. `U1000` es la única exclusión y no por ruidosa: bajo esta build no se puede contestar, y vive en `make lint-ladybug`|
-|vulnerabilidades|`govulncheck ./...`|cero **alcanzables**; una en un módulo que no se llama no falla|
-|reproducibilidad|`scripts/check-reproducible-bundle.sh`|dos builds del mismo checkout, payload idéntico|
-|cobertura|`make coverage`|la suite Go entera, instrumentada, por encima del suelo de sentencias|
-|humo del bundle|`init` · `doctor` · `index --full` · `--smoke`|que el binario publicado indexe y que las catorce tools contesten|
+|correctness|`staticcheck -checks='all,-U1000' ./...`|every class of `staticcheck`. `U1000` is the only exclusion and not for being noisy: under this build it cannot be answered, and it lives in `make lint-ladybug`|
+|vulnerabilities|`govulncheck ./...`|zero **reachable** ones; one in a module that is not called does not fail|
+|reproducibility|`scripts/check-reproducible-bundle.sh`|two builds of the same checkout, identical payload|
+|coverage|`make coverage`|the whole Go suite, instrumented, above the statement floor|
+|bundle smoke|`init` · `doctor` · `index --full` · `--smoke`|that the published binary indexes and that the fourteen tools answer|
 
-`make coverage` **es** el `go test ./...` del job `verify`, no un gate aparte:
-mide con `-coverpkg=./...` mientras los tests corren, así que no puede seguir a
-una pasada limpia sin ser el mismo trabajo dos veces. Mide cruzando paquetes
-porque este repositorio prueba cruzando fronteras a propósito -- `index_project.go`
-se ejercita desde `internal/mcp`, no desde `internal/mcp/tools`--, y el número por
-paquete que `go test ./...` produce sale casi tres puntos bajo y señala como sin
-tests ficheros que sí lo están. `benchmarks/` e `internal/testsupport` quedan
-fuera: son arneses sin tests propios y cuestan quince puntos que no dicen nada
-del producto.
+`make coverage` **is** the `go test ./...` of the `verify` job, not a separate
+gate: it measures with `-coverpkg=./...` while the tests run, so it cannot follow
+a clean pass without being the same work twice. It measures across packages
+because this repository tests across boundaries on purpose -- `index_project.go`
+is exercised from `internal/mcp`, not from `internal/mcp/tools`--, and the
+per-package number that `go test ./...` produces comes out almost three points
+low and flags as untested files that are tested. `benchmarks/` and
+`internal/testsupport` are left out: they are harnesses without tests of their
+own and cost fifteen points that say nothing about the product.
 
-Se niega a correr si falta `dart`, `pyright-langserver` o `rust-analyzer`, porque
-un analizador ausente salta su suite en vez de fallarla: sin Dart el total cae de
-`80,0 %` a `77,9 %`, por debajo del suelo, y el fallo se leería como tests
-perdidos. `KIVGRAPH_COVERAGE_ALLOW_PARTIAL=1` mide igual y no aplica el suelo,
-que es lo que quiere una estación de trabajo sin los cinco instalados.
+It refuses to run if `dart`, `pyright-langserver` or `rust-analyzer` is missing,
+because an absent analyzer skips its suite instead of failing it: without Dart the
+total falls from `80.0 %` to `77.9 %`, below the floor, and the failure would read
+as lost tests. `KIVGRAPH_COVERAGE_ALLOW_PARTIAL=1` measures anyway and does not
+apply the floor, which is what a workstation without the five installed wants.
 
-El suelo es un trinquete: se sube cuando la suite se lo gana, y bajarlo es una
-regresión o una decisión que va en el mensaje del commit.
+The floor is a ratchet: it goes up when the suite earns it, and lowering it is a
+regression or a decision that goes in the commit message.
 
-El humo es el único que prueba el producto contra una generación **publicada**, y
-por eso existe: los dos defectos que la `v0.8.0` se llevó pasaban todos los tests
-con fixtures y sólo fallaban ahí. Corre con un `HOME` temporal, y exporta
-`GOMODCACHE` a la caché real -- sin eso el módulo principal no type-checkea y el
-grafo sale hueco sin que nada lo diga.
+The smoke is the only one that tests the product against a **published**
+generation, and that is why it exists: the two defects `v0.8.0` took with it
+passed every test with fixtures and only failed there. It runs with a temporary
+`HOME`, and exports `GOMODCACHE` to the real cache -- without that the main module
+does not type-check and the graph comes out hollow with nothing saying so.
 
-Para cambios de instalación local, ejecutar el flujo con un `HOME` temporal y
-sin modificar repositorios indexados:
+For local installation changes, run the flow with a temporary `HOME` and without
+modifying indexed repositories:
 
 ```bash
 kivgraph init
@@ -695,41 +691,40 @@ kivgraph index --full
 kivgraph serve
 ```
 
-`kivgraph serve` debe **resolver** la generación publicada antes de abrir el
-transporte MCP y decir si la tiene; el grafo lo lee la primera consulta que lo
-necesita, no el arranque. Sin una generación publicada debe fallar cada consulta
-que requiera snapshot de forma explícita, y una generación que no se pueda mapear
-no puede confundirse con la ausencia de generación: `graph_status` la nombra.
-Ver ADR 0067, que lo midió -- `48` de `51` servidores reales no reciben ninguna
-llamada, y cargar por si acaso les costaba `33` de sus `40 MB`.
+`kivgraph serve` must **resolve** the published generation before opening the MCP
+transport and say whether it has one; the graph is read by the first query that
+needs it, not by startup. Without a published generation every query that
+requires a snapshot must fail explicitly, and a generation that cannot be mapped
+cannot be confused with the absence of a generation: `graph_status` names it. See
+ADR 0067, which measured it -- `48` of `51` real servers receive no call, and
+loading just in case cost them `33` of their `40 MB`.
 
-Lo que decide la superficie de tools y las instrucciones del handshake es la
-**disponibilidad**, nunca el grafo: el demonio construye un servidor MCP por
-sesión aceptada, así que preguntar por el snapshot ahí lo mapea una vez por
-cliente. Por el mismo motivo, comparar generaciones -- el reconciliador, el log de
-arranque, el arm de carrera al publicar-- se hace por identificador.
+What decides the tool surface and the handshake's instructions is
+**availability**, never the graph: the daemon builds one MCP server per accepted
+session, so asking for the snapshot there maps it once per client. For the same
+reason, comparing generations -- the reconciler, the startup log, the race arm at
+publish time-- is done by identifier.
 
-## Commits y entrega
+## Commits and delivery
 
-- Conventional Commits en inglés, en imperativo y en minúscula tras los dos
-  puntos: `tipo(scope): asunto`. Es lo que cumple el 95 % del historial; la
-  mediana del asunto son 41 caracteres y ninguno pasa de 80.
-- Tipos en uso: `feat`, `fix`, `docs`, `chore`, `test`, `perf`, `build`,
-  `refactor`, `ci`, más `bench` y `audit` para mediciones y cualificaciones.
-- El scope es el subsistema -`indexing`, `mcp`, `rustloader`, `typescript`,
-  `cli`, `web`, `landing`, `release`- y se omite cuando el cambio es
-  transversal.
-- El cuerpo explica el por qué cuando no es obvio; nunca narra el diff.
-- El título y el cuerpo de un pull request van en inglés, como el commit. Un PR
-  es lo que lee quien revisa y lo que queda en el historial de la rama cuando el
-  commit ya no se abre, así que no puede estar en un idioma distinto del commit
-  que resume.
-- Revisar el diff completo y `git diff --check`.
-- Confirmar que no quedan imports, rutas, nombres de paquete o comandos
-  antiguos del proyecto.
-- Confirmar que tests, documentación y consumidores fueron migrados o que la
-  excepción está documentada.
-- Entregar con estado Git limpio y evidencia concreta de los comandos
-  ejecutados.
-- Editar siempre el `AGENTS.md` que corresponda al directorio; los `CLAUDE.md`
-  son symlinks deliberados hacia ellos.
+- Conventional Commits in English, in the imperative and lowercase after the
+  colon: `type(scope): subject`. It is what 95 % of the history meets; the median
+  subject is 41 characters and none goes past 80.
+- Types in use: `feat`, `fix`, `docs`, `chore`, `test`, `perf`, `build`,
+  `refactor`, `ci`, plus `bench` and `audit` for measurements and qualifications.
+- The scope is the subsystem -`indexing`, `mcp`, `rustloader`, `typescript`,
+  `cli`, `web`, `landing`, `release`- and is omitted when the change is
+  cross-cutting.
+- The body explains the why when it is not obvious; it never narrates the diff.
+- The title and body of a pull request go in English, like the commit. A PR is
+  what the reviewer reads and what stays in the branch's history when the commit
+  is no longer opened, so it cannot be in a language different from the commit it
+  summarizes.
+- Review the complete diff and `git diff --check`.
+- Confirm that no old imports, paths, package names or commands of the project
+  remain.
+- Confirm that tests, documentation and consumers were migrated or that the
+  exception is documented.
+- Deliver with a clean Git state and concrete evidence of the commands run.
+- Always edit the `AGENTS.md` that corresponds to the directory; the `CLAUDE.md`
+  files are deliberate symlinks to them.
