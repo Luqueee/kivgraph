@@ -288,32 +288,75 @@ answer zero on that question.
 
 The two passes above are the only cross-tool comparison, and neither has been
 repeated on a newer build. The measurements below are Kivgraph against itself,
-from `0.10.1` to `0.10.3`. They are a different kind of evidence: one corpus
-each and no other tool in them, and the second one, a private registry, cannot be
-reproduced from outside this machine.
+from `0.10.1` to `0.10.3`, with no other tool in them. The first can be
+reproduced from public repositories pinned to a commit; the second, a private
+registry, cannot be reproduced from outside this machine.
 
-### Who calls this symbol, on this repository
+### Who calls this symbol, on three public repositories
 
-`benchmarks/mcp-token-cost/`, tokenizer `cl100k_base`. The ratio is what the
-host's own `grep` and reads spend divided by what Kivgraph spends, so a value
-below `1.00x` means the plain tools are cheaper. The `0.10.2` column reused the
-native captures of the `0.10.1` run, so it moves only with the server's answers;
-it was not committed.
+`benchmarks/mcp-token-cost/corpora/`, tokenizer `cl100k_base`, measured on
+2026-11-24 on `darwin/arm64` with a build of `main` at `de7a74e0`, which reports
+itself as `0.10.3`. Each corpus is a third-party repository at a pinned commit
+(`cobra` `v1.10.2`, `ky` `v2.2.0`, `ripgrep` `14.1.1`) and asks about six
+symbols: three with a rare name, one declared more than once and two common
+ones. The native arm is the host's own `grep` and range reads, captured verbatim
+and committed, so a figure that changes later is the server's. A ratchet
+(`--check`) fails a change that makes an answer cost more, or finds fewer
+references, than these baselines.
 
-| symbol | `0.10.1` (committed) | `0.10.2` (not committed) |
-| --- | ---: | ---: |
-| `MergeAll` | `0.61x` | `0.60x` |
-| `CanonicalColumns` | `0.63x` | `0.61x` |
-| `DiscoverGo` | `0.55x` | `0.55x` |
-| `BuildPlan` | `0.81x` | `0.80x` |
-| `NewServer` | `0.93x` | `0.92x` |
-| `Publish` | `1.22x` | `1.22x` |
-| **all six** | **`0.82x`** | **`0.81x`** |
+The answer ratio is what the plain tools spend divided by what Kivgraph spends to
+say who calls the symbol, so a value below `1.00x` means the plain tools are
+cheaper. The session adds the bodies the agent then opens, which both sides pay
+alike.
 
-`grep` is cheaper on five of the six. `0.10.3` has not been measured: the
-repository moved, and the harness refuses to run on a tree whose native captures
-are stale. A frozen third-party corpus (`cobra`, `ky`, `ripgrep`) exists for this,
-and its baselines are not recorded yet.
+| corpus | plain tools | Kivgraph | answer ratio | whole session | session, bodies by `get_source` | floor |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `cobra` (Go) | `2,928` | `2,696` | `1.09x` | `1.00x` | `1.35x` | `1.49x` |
+| `ky` (TypeScript) | `7,240` | `2,229` | `3.25x` | `1.10x` | `1.41x` | `1.53x` |
+| `ripgrep` (Rust) | `4,192` | `4,428` | `0.95x` | `1.00x` | `1.05x` | `1.02x` |
+
+The floor is what the bodies alone allow: an answer that cost nothing would still
+land there, because `70,752` of `cobra`'s `73,680` session tokens are source
+bodies, and `224,544` of `ripgrep`'s `228,736`. That is why the whole session
+sits at about `1.00x` to `1.10x` whatever the answer costs.
+
+| symbol | references | plain tools | Kivgraph | ratio |
+| --- | ---: | ---: | ---: | ---: |
+| `cobra` `ExactArgs` | `17` | `511` | `382` | `1.34x` |
+| `cobra` `CheckErr` | `7` | `231` | `268` | `0.86x` |
+| `cobra` `Traverse` | `8` | `290` | `309` | `0.94x` |
+| `cobra` `MarkFlagRequired` | `10` | `375` | `443` | `0.85x` |
+| `cobra` `AddCommand` | `50` | `924` | `923` | `1.00x` |
+| `cobra` `Execute` | `14` | `597` | `371` | `1.61x` |
+| `ky` `mergeHeaders` | `2` | `117` | `295` | `0.40x` |
+| `ky` `deepMerge` | `2` | `166` | `296` | `0.56x` |
+| `ky` `isObject` | `9` | `297` | `361` | `0.82x` |
+| `ky` `retry` | `4` | `3,925` | `336` | `11.68x` |
+| `ky` `Hooks` | `9` | `431` | `372` | `1.16x` |
+| `ky` `TimeoutError` | `17` | `2,304` | `569` | `4.05x` |
+| `ripgrep` `Replacer` | `8` | `175` | `390` | `0.45x` |
+| `ripgrep` `LineIter` | `12` | `292` | `531` | `0.55x` |
+| `ripgrep` `HiArgs` | `13` | `379` | `485` | `0.78x` |
+| `ripgrep` `Config` | `6` | `915` | `429` | `2.13x` |
+| `ripgrep` `Searcher` | `50` | `1,876` | `1,717` | `1.09x` |
+| `ripgrep` `SinkMatch` | `21` | `555` | `876` | `0.63x` |
+
+The plain tools are cheaper on `10` of the `18` questions, and the pattern is the
+one the earlier passes found: a name that is written in few places, `mergeHeaders`
+or `Replacer`, costs `grep` a couple of hundred tokens, while a name that appears
+in many places, `retry` or `TimeoutError`, costs it thousands and the graph a few
+hundred. Serving the bodies with one `get_source` instead of
+the host's range reads is what moves the whole session: `1.35x` on `cobra` and
+`1.41x` on `ky`. It is not free everywhere: on `ripgrep`'s `Replacer` the served
+session costs `40,394` tokens against `23,286` for the plain tools.
+
+Six symbols per corpus, one machine and a build of `main` rather than a release
+are the limits. One question had to change before these baselines existed:
+`ky` was asked about `Options`, but `get_source` refuses a qualified name that two
+symbols share, and a TypeScript constructor parameter property is both a
+parameter and a property under one name, so it was replaced by `Hooks`. On this
+repository's own corpus, `0.10.1` gave `0.82x` and the plain tools were cheaper
+on five of six; that report is committed in `benchmarks/mcp-token-cost/`.
 
 ### A repeated pass on a large workspace
 
