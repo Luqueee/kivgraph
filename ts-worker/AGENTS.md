@@ -1,87 +1,86 @@
-# Instrucciones del worker TypeScript (`ts-worker/`)
+# TypeScript worker instructions (`ts-worker/`)
 
-Estas reglas se suman a las de `AGENTS.md` en la raíz del repositorio, que se
-leen siempre. Una instrucción de este archivo puede añadir restricciones; nunca
-puede relajar un contrato de integridad, compatibilidad o verificación
-declarado en la raíz.
+These rules add to the `AGENTS.md` at the repository root, which is always
+read. An instruction in this file may add restrictions; it can never relax an
+integrity, compatibility or verification contract declared at the root.
 
-El orquestador Go que invoca este worker está en `internal/`.
+The Go orchestrator that invokes this worker lives in `internal/`.
 
-- El worker usa TypeScript estricto y módulos ESM.
-- Los límites de proceso, protocolo y adaptadores tienen tipos explícitos; `any`
-  requiere una justificación local.
-- `stdout` contiene únicamente framing/protocolo. Los logs van a `stderr`.
-- Todo recurso persistente se cierra al cancelar o terminar el proceso.
-- Las promesas rechazadas se clasifican en el límite adecuado; no se ocultan
-  con aserciones.
-- No editar `ts-worker/dist` manualmente: regenerarlo con `pnpm build`.
+- The worker uses strict TypeScript and ESM modules.
+- Process, protocol and adapter boundaries have explicit types; `any` needs a
+  local justification.
+- `stdout` carries framing and protocol only. Logs go to `stderr`.
+- Every persistent resource is closed when the process is cancelled or ends.
+- Rejected promises are classified at the right boundary; they are not hidden
+  behind assertions.
+- Do not edit `ts-worker/dist` by hand: regenerate it with `pnpm build`.
 
-## Identidad y resolución cross-repository
+## Cross-repository identity and resolution
 
-- La identidad de un símbolo de otro repositorio sale siempre del proyecto del
-  proveedor. Si su `.d.ts.map` coloca el símbolo, esa es la posición; si no lo
-  hay pero el puente nombró la fuente, se le pregunta a su checker qué
-  declaración exporta ese módulo bajo el nombre pedido. Las dos aristas son
-  exactas y **no valen lo mismo**: la primera es
-  `EXACT_TYPECHECKED`/`TYPESCRIPT_CHECKER` y la segunda
-  `EXACT_PACKAGE_MAPPED`/`TYPESCRIPT_PROJECT_REFERENCE`, porque el paso de
-  artefacto a fuente lo afirma la configuración de compilación del proveedor y
-  no un mapa que emitiera. Sin fuente nombrada no se pregunta nada: la
-  referencia queda `UNRESOLVED`. Ver ADR 0038.
-- La identidad de un símbolo importado por **ruta relativa** puede seguir siendo
-  de otro repositorio: un barrel local -`export { x } from "pkg"`- pone una
-  declaración ajena detrás de una ruta que no nombra ningún paquete. Ese import
-  crea vinculación con el proveedor que el barrel ya resolvió, y la
-  correspondencia es por identidad de la declaración -el checker colapsa la
-  cadena de alias de una vez y aterriza en ella, no en la vinculación
-  intermedia-, nunca por nombre. Ver ADR 0055.
-- El recorrido de vinculaciones cubre todos los ficheros del proyecto **menos los
-  que están bajo un `node_modules`**: el programa contiene el `.d.ts` de cada
-  dependencia, y eso es fuente del proveedor, no uso que este repositorio haga
-  de ella. Vincularlos nombró la copia instalada de un paquete como consumidora
-  de un tipo que ese mismo paquete declara, en dos repositorios a la vez.
-- Un fixture cross-repository que resuelve al proveedor con `paths` no prueba
-  nada sobre la forma que instala un gestor de paquetes. El consumidor llega
-  al proveedor por un symlink de `node_modules` y el motor devuelve la ruta
-  del destino del enlace, así que `consumer-linked` es el fixture que defiende
-  el caso real; exigir `declarationMap` en el proveedor no lo arregla.
-- Una copia instalada por un gestor de paquetes es un `File` distinto de la
-  fuente que la produjo, y el tarball publicado no trae ni `src` ni
-  `.d.ts.map`: ninguna transformada anclada en la raíz del proveedor relaciona
-  las dos rutas, porque el artefacto no está bajo esa raíz. La fuente se
-  nombra por el `name` del `package.json` más cercano al artefacto, buscado en
-  el registro de proveedores; nunca por el nombre que escribió el consumidor,
-  que en una dependencia transitiva pertenece a otro repositorio. La arista es
-  `EXACT_PACKAGE_MAPPED`/`TYPESCRIPT_PROJECT_REFERENCE`, y si la fuente del
-  workspace no exporta el nombre pedido -deriva de versión- **no se cae hacia
-  el artefacto**: la referencia queda `UNRESOLVED`. Ver ADR 0051 y el fixture
-  `installed-package`.
-- El proyecto que resuelve la identidad de un símbolo importado es el que
-  **posee el fichero** que nombra el mapa de declaraciones, no el paquete del
-  que se importó. Un paquete fachada existe para reexportar los de su
-  workspace, así que su mapa apunta al repositorio que los declara; preguntar
-  al programa de la fachada por ese fichero no devuelve nada y la referencia se
-  abandonaba como `PROVIDER_SOURCE_UNAVAILABLE` aunque la declaración estuviera
-  indexada. La identidad acredita al dueño: componerla contra la fachada
-  produce una clave que ese repositorio no publica y deja la arista colgando.
-  La pertenencia es la raíz registrada más larga que contiene el fichero, y
-  nadie posee lo que está bajo un `node_modules` -la copia instalada de un
-  paquete cuelga de la raíz de quien lo instaló-.
-- El worker no publica como símbolos de un repositorio las declaraciones de la
-  biblioteca por defecto (`lib.es5.d.ts` y las demás). El motor contesta
-  «externa» para esos ficheros según la ruta por la que los alcanzó primero al
-  cargar el programa en paralelo, y cambia entre cargas del mismo programa; lo
-  que no cambia es que sean la biblioteca por defecto, y eso decide
-  (`isDependencySourceFile`). Sólo importa cuando el motor está bajo la raíz del
-  proyecto, que es el caso de este repositorio: indexarse a sí mismo daba `72.723`
-  o `68.298` símbolos TypeScript según la pasada. Ver ADR 0124.
-- El worker que ejecuta una pasada es el del checkout cuando existe
-  `ts-worker/dist` y nadie configuró otro: un shim instalado de una release
-  anterior ocupa el mismo nombre en el `PATH` y ganaba, de modo que `pnpm
-  build` no cambiaba nada observable y la medición salía mal con el aspecto de
-  estar bien.
+- The identity of a symbol from another repository always comes from the
+  provider's project. If its `.d.ts.map` places the symbol, that is the
+  position; if there is none but the bridge named the source, its checker is
+  asked which declaration that module exports under the requested name. Both
+  edges are exact and **are not worth the same**: the first is
+  `EXACT_TYPECHECKED`/`TYPESCRIPT_CHECKER` and the second is
+  `EXACT_PACKAGE_MAPPED`/`TYPESCRIPT_PROJECT_REFERENCE`, because the step from
+  artifact to source is asserted by the provider's build configuration and not
+  by a map it emitted. With no named source nothing is asked: the reference
+  stays `UNRESOLVED`. See ADR 0038.
+- The identity of a symbol imported by a **relative path** can still belong to
+  another repository: a local barrel -`export { x } from "pkg"`- puts a foreign
+  declaration behind a path that names no package. That import creates a
+  binding with the provider the barrel already resolved, and the match is by
+  the identity of the declaration -the checker collapses the alias chain in one
+  step and lands on it, not on the intermediate binding-, never by name. See
+  ADR 0055.
+- The walk over bindings covers every file of the project **except those under
+  a `node_modules`**: the program contains the `.d.ts` of every dependency, and
+  that is the provider's source, not a use this repository makes of it. Binding
+  them named the installed copy of a package as a consumer of a type that the
+  same package declares, in two repositories at once.
+- A cross-repository fixture that resolves to the provider with `paths` proves
+  nothing about the shape a package manager installs. The consumer reaches the
+  provider through a `node_modules` symlink and the engine returns the path of
+  the link's target, so `consumer-linked` is the fixture that defends the real
+  case; requiring `declarationMap` in the provider does not fix it.
+- A copy installed by a package manager is a different `File` from the source
+  that produced it, and the published tarball carries neither `src` nor
+  `.d.ts.map`: no transform anchored at the provider's root relates the two
+  paths, because the artifact is not under that root. The source is named by
+  the `name` of the `package.json` nearest the artifact, looked up in the
+  provider registry; never by the name the consumer wrote, which in a
+  transitive dependency belongs to another repository. The edge is
+  `EXACT_PACKAGE_MAPPED`/`TYPESCRIPT_PROJECT_REFERENCE`, and if the workspace
+  source does not export the requested name -version drift- **it does not fall
+  back to the artifact**: the reference stays `UNRESOLVED`. See ADR 0051 and the
+  `installed-package` fixture.
+- The project that resolves the identity of an imported symbol is the one that
+  **owns the file** the declaration map names, not the package it was imported
+  from. A facade package exists to re-export those of its workspace, so its map
+  points at the repository that declares them; asking the facade's program for
+  that file returns nothing, and the reference used to be abandoned as
+  `PROVIDER_SOURCE_UNAVAILABLE` even though the declaration was indexed. The
+  identity credits the owner: composing it against the facade produces a key
+  that repository does not publish and leaves the edge dangling. Ownership is
+  the longest registered root that contains the file, and nobody owns what is
+  under a `node_modules` -the installed copy of a package hangs from the root
+  of whoever installed it-.
+- The worker does not publish the declarations of the default library
+  (`lib.es5.d.ts` and the others) as symbols of a repository. The engine
+  answers "external" for those files depending on the path by which it first
+  reached them when loading the program in parallel, and that changes between
+  loads of the same program; what does not change is that they are the default
+  library, and that decides (`isDependencySourceFile`). It only matters when
+  the engine sits under the project root, which is the case for this
+  repository: indexing itself gave `72,723` or `68,298` TypeScript symbols
+  depending on the pass. See ADR 0124.
+- The worker that runs a pass is the checkout's when `ts-worker/dist` exists
+  and nobody configured another: a shim installed from an earlier release takes
+  the same name on the `PATH` and used to win, so `pnpm build` changed nothing
+  observable and the measurement came out wrong while looking right.
 
-## Verificación
+## Verification
 
 ```bash
 cd ts-worker
@@ -89,5 +88,5 @@ pnpm check
 pnpm build
 ```
 
-`pnpm check` es `format:check`, `lint`, `typecheck` y `test`. `dist/` es
-generado: se regenera con `pnpm build` y nunca se edita a mano.
+`pnpm check` is `format:check`, `lint`, `typecheck` and `test`. `dist/` is
+generated: it is regenerated with `pnpm build` and never edited by hand.
