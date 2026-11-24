@@ -1,725 +1,699 @@
-# Instrucciones de la landing y la documentación (`landing/`)
+# Landing and documentation instructions (`landing/`)
 
-Estas reglas se suman a las de `AGENTS.md` en la raíz del repositorio, que se
-leen siempre. Una instrucción de este archivo puede añadir restricciones; nunca
-puede relajar un contrato de integridad, compatibilidad o verificación
-declarado en la raíz.
+These rules add to the `AGENTS.md` at the repository root, which is always
+read. An instruction in this file may add restrictions; it can never relax an
+integrity, compatibility or verification contract declared at the root.
 
-No entra en ningún bundle publicado; la lista blanca del payload vive en
+It enters no published bundle; the payload's allowlist lives in
 `scripts/build-bundle.sh`.
 
-## Alcance y proyecto
+## Scope and project
 
-- `landing/` es la landing pública y la documentación de usuario, en Astro con
-  Starlight, y es su propio proyecto pnpm como `ts-worker/` y `web/`. No entra
-  en ningún bundle: el payload de `scripts/build-bundle.sh` es una lista blanca
-  y el workflow de release comprueba que ni el directorio ni una línea de
-  `SHA256SUMS` lo nombran. Se verifica con `make landing-check` y `make
-  landing-build`, y se sirve con `pm2 start landing/ecosystem.config.cjs` en el
-  puerto `6767`.
-- La landing no es una página de Starlight: su shell es
-  `landing/src/components/landing/Layout.astro` y sus componentes viven en ese
-  mismo directorio; sólo la documentación lleva el chrome de Starlight
-  -sidebar, Pagefind, tabla de contenidos-. Es oscura por construcción, como el
-  visor: los overrides de `landing/src/components/starlight/` fijan
-  `data-theme="dark"` y no montan selector, porque la paleta clara de Starlight
-  vive entera bajo `[data-theme='light']` y basta con no seleccionarla nunca.
+- `landing/` is the public landing and the user documentation, in Astro with
+  Starlight, and it is its own pnpm project like `ts-worker/` and `web/`. It
+  enters no bundle: the payload of `scripts/build-bundle.sh` is an allowlist and
+  the release workflow checks that neither the directory nor a line of
+  `SHA256SUMS` names it. It is verified with `make landing-check` and `make
+  landing-build`, and served with `pm2 start landing/ecosystem.config.cjs` on
+  port `6767`.
+- The landing is not a Starlight page: its shell is
+  `landing/src/components/landing/Layout.astro` and its components live in that
+  same directory; only the documentation carries Starlight's chrome
+  -sidebar, Pagefind, table of contents-. It is dark by construction, like the
+  viewer: the overrides in `landing/src/components/starlight/` set
+  `data-theme="dark"` and mount no selector, because Starlight's light palette
+  lives entirely under `[data-theme='light']` and it is enough never to select
+  it.
 
-## Capas, paleta y ritmo
+## Layers, palette and rhythm
 
-- `global.css` importa las utilities de Tailwind dentro de la capa `utilities` y
-  no importa preflight, así que una página fuera de Starlight no tiene reset y
-  **una regla de componente sin capa gana a cualquier utility**, tenga la
-  especificidad que tenga. El reset de la landing es por eso un `@layer base`
-  con `:global()` dentro del shell: sin la capa, una regla como `p { margin: 0 }`
-  anulaba en silencio cada `mt-*` de la página. Un grid que deba encogerse
-  declara además su columna base -`grid-cols-1`-, porque la columna implícita
-  la dimensiona el hijo más ancho y un `<pre>` desbordaba el viewport.
-- El corolario tiene su propia víctima medida: un `margin: 0` puesto en el
-  `<style>` de un componente para resetear el `<fieldset>` de las pestañas de la
-  portada se comió el `mt-10` que lo separaba de su propio texto. Un reset de
-  margen **sólo** puede vivir en el `@layer base` de `Layout.astro`; lo que se
-  queda con el componente es lo que ninguna utility cubre, y en ese caso es
-  `min-width: 0`, porque el UA da al `<fieldset>` un `min-width: min-content`
-  que rompe cualquier grid en el que entre.
-- Las dos mitades del sitio llevan la misma piel y **una sola declaración de
-  paleta**: los tokens viven en el `@theme` de `global.css` y nadie escribe un
-  literal de color en otro sitio. Las superficies son `--color-shell`,
-  `--color-panel`, `--color-raise`, `--color-rule` y `--color-rule-strong`, y
-  sus nombres evitan un prefijo `t-` a propósito: `border-t-<color>` es la
-  utility de `border-top-color` de Tailwind, así que un `--color-t-line` haría
-  que `border-t-line` significase dos cosas. La prosa es `--color-gray-300`, las
-  etiquetas `--color-gray-400`, y nada más tenue que eso lleva texto. No es una
-  preferencia: `--color-gray-500` sobre `--color-panel` mide `3,96:1` y AA pide
-  `4,5:1` para texto normal, así que un rótulo en `gray-500` es un fallo de
-  contraste. La portada tenía 34 cuando se midió por primera vez, todos de ese
-  mismo par; con las etiquetas en `gray-400` la cuenta es `0` en la portada, en
-  `/comparison/`, en `/install/` y en `/kivgraph-faq/`.
-- Y **una sola regla de tipografía**, por la misma razón. `docs.css` ya la
-  enunciaba para su mitad: mono para lo que es un titular, una etiqueta, un
-  identificador, un comando, una cabecera de tabla o una cifra; sans para la
-  prosa. La landing llevaba `font-mono` en el `<body>`, así que arrastraba cada
-  párrafo a la cara de terminal, dejaba sin usar la Geist Sans que la página
-  descarga igual, y hacía que el `h1` rompiese en tres líneas. Ahora el `<body>`
-  es `font-sans` y `font-mono` se pone donde significa algo. Un componente
-  nuevo que escriba prosa no declara fuente; uno que escriba una etiqueta o un
-  readout declara `font-mono`.
-- El titular de la portada es el caso que esa regla obliga a medir: una cara
-  monoespaciada compone mucho más ancho que una proporcional al mismo cuerpo, y
-  las 52 letras de la frase sólo caben en dos líneas cuando la columna pasa de
-  `52rem`. De ahí `max-w-4xl` en vez del `max-w-3xl` de la prosa, y un cuerpo
-  que escalona dos veces -- `text-3xl sm:text-4xl lg:text-5xl`-- porque a los
-  `720px` que deja una tablet los 48px volvían a partirlo en tres con `it.`
-  solo en la última. Medido a `1728`, `1440`, `1024`, `768` y `390`: dos líneas
-  en las cuatro primeras, tres sin huérfana en la última, y `0` de
-  desbordamiento horizontal en todas.
-- `landing/src/styles/docs.css` es la piel de Starlight y **sólo** entra por
-  `customCss` después de `global.css`: la landing no lo carga. Reasigna las
-  propiedades `--sl-*` -- que existen todas en
-  `node_modules/@astrojs/starlight/style/props.css`, nunca se inventa un
-  nombre -- y las `--ec-*` de Expressive Code a esos tokens. Todo radio es `0`
-  y no hay sombras.
-- La jerarquía de encabezados es la misma en las dos mitades y la lleva un
-  marcador monoespaciado, no el tamaño: la landing pone un índice tenue (`01`,
-  `#`) delante de un título `--color-gray-100`, y los docs ponen `##` en `h2` y
-  `#` en `h3`. Un `h2` de sección manda sobre todo subtítulo. Lo que es una
-  etiqueta -- cabecera de columna, pie de figura, clave de una fila -- se queda
-  en `--color-gray-400` y **fuera** de la jerarquía: los rótulos de columna del
-  footer eran `h2` con estilo de subtítulo y ahora el footer no aporta ningún
-  encabezado.
-- El filete sobre un `h2` de la documentación va en `.sl-heading-wrapper`, no en
-  el `h2`: Starlight lo deja `display: inline` para que el ancla quepa al final
-  de la última línea, así que un borde en el propio `h2` abrazaría las palabras
-  en vez de cruzar la columna. Medir `main h2` devuelve `0px` y no significa que
-  la regla esté muerta.
-- El ritmo vertical de la landing se declara en `Section.astro` y se aplica sin
-  excepciones: `py-14` por banda, `mt-10` de cabecera a contenido y entre
-  bloques, `mt-5` de subtítulo a su bloque, `mt-3` de bloque a su nota. Dos
-  bandas contiguas quedan a `7rem` y dos bloques de una banda a `5rem`, que es
-  lo que evita que se lean como una sola.
-- Una fila de puntos suspensivos (`LeaderRow.astro`) no puede solapar a su
-  vecina: clave y valor son `min-w-0` y la fila envuelve, porque con los dos
-  extremos `shrink-0` el ancho mínimo de la fila excedía su pista de grid y
-  `snapshot_built_at 2026-08-15T11:14:10Z` se metía encima de `schema_version`.
-  Las rejillas de lectura usan `auto-fit` con `minmax(min(20rem,100%),1fr)`, así
-  que sólo se añade columna cuando cabe entera.
+- `global.css` imports the Tailwind utilities inside the `utilities` layer and
+  does not import preflight, so a page outside Starlight has no reset and **a
+  component rule with no layer beats any utility**, whatever its specificity. The
+  landing's reset is therefore an `@layer base` with `:global()` inside the
+  shell: without the layer, a rule like `p { margin: 0 }` silently overrode every
+  `mt-*` on the page. A grid that must be able to shrink also declares its base
+  column -`grid-cols-1`-, because the implicit column is sized by the widest
+  child and a `<pre>` overflowed the viewport.
+- The corollary has its own measured victim: a `margin: 0` put in a component's
+  `<style>` to reset the `<fieldset>` of the home page's tabs ate the `mt-10`
+  that separated it from its own text. A margin reset **may only** live in
+  `Layout.astro`'s `@layer base`; what stays with the component is what no
+  utility covers, and in that case it is `min-width: 0`, because the UA gives
+  the `<fieldset>` a `min-width: min-content` that breaks any grid it enters.
+- The two halves of the site wear the same skin and **a single palette
+  declaration**: the tokens live in `global.css`'s `@theme` and nobody writes a
+  colour literal anywhere else. The surfaces are `--color-shell`,
+  `--color-panel`, `--color-raise`, `--color-rule` and `--color-rule-strong`, and
+  their names avoid a `t-` prefix on purpose: `border-t-<color>` is Tailwind's
+  `border-top-color` utility, so a `--color-t-line` would make `border-t-line`
+  mean two things. Prose is `--color-gray-300`, labels `--color-gray-400`, and
+  nothing dimmer than that carries text. It is not a preference:
+  `--color-gray-500` over `--color-panel` measures `3.96:1` and AA asks for
+  `4.5:1` for normal text, so a caption in `gray-500` is a contrast failure. The
+  home page had 34 when first measured, all of that same pair; with the labels
+  in `gray-400` the count is `0` on the home page, on `/comparison/`, on
+  `/install/` and on `/kivgraph-faq/`.
+- And **a single typography rule**, for the same reason. `docs.css` already
+  stated it for its half: mono for what is a headline, a label, an identifier, a
+  command, a table header or a figure; sans for prose. The landing carried
+  `font-mono` on `<body>`, so it dragged every paragraph into the terminal face,
+  left unused the Geist Sans the page downloads anyway, and made the `h1` break
+  into three lines. Now `<body>` is `font-sans` and `font-mono` is set where it
+  means something. A new component that writes prose declares no font; one that
+  writes a label or a readout declares `font-mono`.
+- The home page's headline is the case that rule forces you to measure: a
+  monospaced face sets much wider than a proportional one at the same size, and
+  the 52 letters of the sentence only fit on two lines when the column exceeds
+  `52rem`. Hence `max-w-4xl` instead of prose's `max-w-3xl`, and a body that
+  steps twice -- `text-3xl sm:text-4xl lg:text-5xl`-- because at the `720px` a
+  tablet leaves, 48px split it into three again with `it.` alone on the last.
+  Measured at `1728`, `1440`, `1024`, `768` and `390`: two lines in the first
+  four, three with no orphan in the last, and `0` horizontal overflow in all.
+- `landing/src/styles/docs.css` is Starlight's skin and **only** enters through
+  `customCss` after `global.css`: the landing does not load it. It reassigns the
+  `--sl-*` properties -- all of which exist in
+  `node_modules/@astrojs/starlight/style/props.css`, a name is never invented --
+  and Expressive Code's `--ec-*` to those tokens. Every radius is `0` and there
+  are no shadows.
+- The heading hierarchy is the same in both halves and is carried by a monospaced
+  marker, not by size: the landing puts a dim index (`01`, `#`) in front of a
+  `--color-gray-100` title, and the docs put `##` on `h2` and `#` on `h3`. A
+  section `h2` outranks every subtitle. What is a label -- a column header, a
+  figure caption, the key of a row -- stays in `--color-gray-400` and **outside**
+  the hierarchy: the footer's column labels were `h2` with subtitle styling and
+  now the footer contributes no heading.
+- The rule over a documentation `h2` goes on `.sl-heading-wrapper`, not on the
+  `h2`: Starlight leaves it `display: inline` so the anchor fits at the end of
+  the last line, so a border on the `h2` itself would hug the words instead of
+  crossing the column. Measuring `main h2` returns `0px` and does not mean the
+  rule is dead.
+- The landing's vertical rhythm is declared in `Section.astro` and applied
+  without exceptions: `py-14` per band, `mt-10` from header to content and
+  between blocks, `mt-5` from subtitle to its block, `mt-3` from block to its
+  note. Two contiguous bands end up at `7rem` and two blocks of one band at
+  `5rem`, which is what keeps them from reading as one.
+- A row of leader dots (`LeaderRow.astro`) cannot overlap its neighbour: key and
+  value are `min-w-0` and the row wraps, because with both ends `shrink-0` the
+  row's minimum width exceeded its grid track and
+  `snapshot_built_at 2026-08-15T11:14:10Z` landed on top of `schema_version`.
+  The reading grids use `auto-fit` with `minmax(min(20rem,100%),1fr)`, so a
+  column is only added when it fits whole.
 
-## SEO y lectores agente
+## SEO and agent readers
 
-- El SEO del sitio está escrito para dos lectores y el segundo es un agente. Lo
-  que existe para él: `/llms.txt` con el índice y `/llms-full.txt` con toda la
-  documentación en una sola petición, más el markdown de cada página en
-  `/raw/<ruta>.md`, que es lo que anuncia su `<link rel="alternate">`. Los tres
-  se generan con `getCollection`, nunca desde una lista escrita a mano: una
-  página nueva no puede dejarlos rancios.
-- El blog es la colección independiente `blog`, bajo `src/content/blog/`, y sus
-  rutas son `/blog/` y `/blog/<slug>/`. Sólo las entradas sin `draft: true` se
-  publican: el índice, `/rss.xml`, `/llms-blog.txt`, el sitemap y las twins de
-  Markdown deben salir de esa misma colección y no de listas duplicadas.
-- Una entrada del blog lleva un `BlogPosting` cuyo autor, fechas, título y
-  descripción coinciden con lo visible en la página. La plantilla publica el
-  enlace a `/raw/blog/<slug>.md` para agentes y el feed enlaza la URL HTML
-  canónica. El contenido editorial nuevo es inglés, como el resto del material
-  público del sitio.
-- Toda página publicada se alcanza desde un enlace interno, no sólo desde el
-  sitemap. Un sitemap es un descubrimiento, no una recomendación: una URL que
-  sólo vive ahí es lo que Search Console informa como «descubierta, actualmente
-  sin indexar» y nunca llega a rastrear. Medido sobre `dist/client`: las 37
-  URLs del sitemap y los enlaces internos que apuntan a cada una. Cada página
-  de la documentación recibe 37 o más desde la barra lateral de Starlight;
-  `/releases/` recibía `0`, porque no está en la barra lateral y el footer de
-  la landing no la nombraba. Por eso está en el grupo `start` del footer. Al
-  añadir una página, contar sus enlaces entrantes antes de cerrar.
-- El auditor distingue lo que Astro emite de las rutas que otro componente
-  sirve en el mismo origen. Esas rutas se pasan como `runtimePaths`; `/github`
-  pertenece al Worker de redirecciones y por eso está ahí. La excepción es una
-  ruta exacta, no un prefijo: otro enlace local roto debe seguir cerrando el
-  gate.
-- El namespace de la documentación se renombró `reference` -> `docs` y el
-  redirect de `astro.config.mjs` apunta a la forma **con** barra final, que es
-  la única canónica del sitio. Sin ella el `301` aterrizaba en
-  `/docs/<ruta>` -- que responde `200` y declara un canonical distinto del
-  suyo--, o sea un salto más del que un rastreador necesita. Verificado:
-  `num_redirects=1` y la URL final es la canónica.
-- `trailingSlash: "always"`. El valor por defecto de Astro es `ignore`, que
-  servía las dos formas: `/docs/cli` y `/docs/cli/` respondían `200` con el
-  mismo HTML y el mismo canonical, o sea una segunda URL por página que un
-  rastreador busca y descarta -- 37 de ellas. Astro advierte que en las páginas
-  prerenderizadas la barra final es cosa del host y puede ignorar la
-  configuración, así que se midió en vez de suponerlo: con el adaptador
-  `node` en `standalone` **sí** la respeta y la forma sin barra devuelve `301`
-  a la canónica. Comprobado además que no alcanza lo que lleva extensión:
-  `/llms.txt`, `/robots.txt`, `/sitemap-0.xml`, `/raw/<ruta>.md` y `/og.png`
-  siguen en `200`.
-- Un `ListItem` de `BreadcrumbList` lleva `item` **siempre menos en el último**,
-  y eso es de Google, no de schema.org, que lo marca opcional. Las dos cosas
-  son verdad a la vez y por eso el error era fácil: este sitio emitía un
-  eslabón por segmento de URL y dejaba sin `item` los intermedios -- `Docs`,
-  `Tools`, `MCP server`, `Guides`--, que no son páginas: las cuatro rutas
-  responden `404`. Markup válido para schema.org e inválido para Google, que es
-  la diferencia entre que parsee y que aparezca. Se emiten sólo los eslabones
-  direccionables, que además es lo que pide la guía -- «breadcrumbs that
-  represent a typical user path to a page, instead of mirroring the URL
-  structure»-- y cumple el mínimo de dos.
+- The site's SEO is written for two readers and the second is an agent. What
+  exists for it: `/llms.txt` with the index and `/llms-full.txt` with all the
+  documentation in a single request, plus each page's markdown at
+  `/raw/<path>.md`, which is what its `<link rel="alternate">` announces. All
+  three are generated with `getCollection`, never from a hand-written list: a
+  new page cannot leave them stale.
+- The blog is the independent `blog` collection, under `src/content/blog/`, and
+  its routes are `/blog/` and `/blog/<slug>/`. Only entries without
+  `draft: true` are published: the index, `/rss.xml`, `/llms-blog.txt`, the
+  sitemap and the Markdown twins must come out of that same collection and not
+  from duplicated lists.
+- A blog entry carries a `BlogPosting` whose author, dates, title and description
+  match what is visible on the page. The template publishes the link to
+  `/raw/blog/<slug>.md` for agents and the feed links the canonical HTML URL. New
+  editorial content is in English, like the rest of the site's public material.
+- Every published page is reached from an internal link, not only from the
+  sitemap. A sitemap is discovery, not a recommendation: a URL that only lives
+  there is what Search Console reports as "discovered, currently not indexed" and
+  never gets crawled. Measured over `dist/client`: the 37 sitemap URLs and the
+  internal links pointing at each. Each documentation page gets 37 or more from
+  Starlight's sidebar; `/releases/` got `0`, because it is not in the sidebar and
+  the landing's footer did not name it. That is why it is in the footer's `start`
+  group. When adding a page, count its incoming links before closing.
+- The auditor distinguishes what Astro emits from the routes another component
+  serves on the same origin. Those routes are passed as `runtimePaths`; `/github`
+  belongs to the redirect Worker and that is why it is there. The exception is an
+  exact route, not a prefix: another broken local link must still close the gate.
+- The documentation namespace was renamed `reference` -> `docs` and the redirect
+  in `astro.config.mjs` points at the form **with** a trailing slash, which is the
+  only canonical one on the site. Without it the `301` landed on `/docs/<path>`
+  -- which answers `200` and declares a canonical different from its own--, one
+  more hop than a crawler needs. Verified: `num_redirects=1` and the final URL is
+  the canonical.
+- `trailingSlash: "always"`. Astro's default is `ignore`, which served both
+  forms: `/docs/cli` and `/docs/cli/` answered `200` with the same HTML and the
+  same canonical, that is, a second URL per page that a crawler finds and
+  discards -- 37 of them. Astro warns that on prerendered pages the trailing
+  slash is the host's business and may ignore the configuration, so it was
+  measured instead of assumed: with the `node` adapter in `standalone` it **does**
+  respect it and the form without the slash returns `301` to the canonical. It was
+  also checked that it does not reach what carries an extension: `/llms.txt`,
+  `/robots.txt`, `/sitemap-0.xml`, `/raw/<path>.md` and `/og.png` stay at `200`.
+- A `BreadcrumbList` `ListItem` carries `item` **always except on the last**, and
+  that is Google's rule, not schema.org's, which marks it optional. Both things
+  are true at once and that is why the error was easy: this site emitted one link
+  per URL segment and left the intermediate ones without `item` -- `Docs`,
+  `Tools`, `MCP server`, `Guides`--, which are not pages: the four routes answer
+  `404`. Markup valid for schema.org and invalid for Google, which is the
+  difference between parsing and appearing. Only the addressable links are
+  emitted, which is also what the guide asks for -- "breadcrumbs that represent
+  a typical user path to a page, instead of mirroring the URL structure"-- and
+  meets the minimum of two.
   https://developers.google.com/search/docs/appearance/structured-data/breadcrumb
-- El sitemap lleva `lastmod` y sale de **git**, no del `mtime` del build: la
-  fecha del build es la del build, y marcaría las 37 URLs como cambiadas en
-  cada despliegue. `src/lastmod.mjs` hace **una** pasada de
-  `git log --format=%cI --name-only --no-merges -- landing/src` -- 37 páginas
-  tocan bastante más de 37 ficheros-- y `--no-merges` está porque un merge
-  reporta su diff entero y estamparía media rama con su propia fecha.
-- Google usa `lastmod` para programar el recrawl y **descarta el campo en todo
-  el sitemap cuando no se lo cree**, así que las dos únicas respuestas
-  aceptables son una fecha exacta y ninguna. Por eso todo camino de fallo
-  devuelve `undefined`: sin `git`, fuera de un checkout, en un clon
-  **shallow** -- donde cada fichero colapsa sobre el commit de punta-- o para
-  una URL cuyo fichero fuente el módulo no sabe nombrar. Medido en un clon de
-  prueba: `--depth 1` da `undefined`, y el mismo código tras
-  `git fetch --unshallow` da `2026-08-23T13:49:53+02:00`.
-- El caso shallow no es hipotético: `ci.yml` clonaba a la profundidad por
-  defecto, así que su build de la landing habría pasado con un sitemap sin una
-  sola fecha -- verificando algo que no es lo que se sirve. Por eso el job
-  `verify` lleva `fetch-depth: 0`; `release.yml` ya lo llevaba.
-- Dos páginas no son una entrada de la colección y se fechan a mano: `/`, que
-  no tiene contenido propio y toma la más reciente de los componentes que
-  **importa** -- leer los imports y no el directorio evita que un componente
-  que la página ya no usa siga fechándola--, y `/releases/`, que es una página
-  que renderiza una colección y toma las dos cosas. Las hojas de estilo y la
-  capa de movimiento quedan fuera a propósito: cambian cómo se ve la página, no
-  lo que dice, y `lastmod` contesta la segunda pregunta.
-- `robots.txt` permite explícitamente a los rastreadores de IA y **cada token
-  sale de la documentación de su operador**, con la URL y la fecha impresas en
-  el propio fichero. Un token que no se pueda verificar no entra. Tres de ellos
-  -`ChatGPT-User`, `Perplexity-User`, `Meta-ExternalFetcher`- los publican sus
-  operadores advirtiendo que pueden ignorar `robots.txt`: se nombran porque un
-  permiso ignorado no cuesta nada, y el comentario lo dice en vez de sugerir un
-  control que quizá no obliga.
-- Toda URL absoluta se deriva de `Astro.site`, nunca de un literal: el
-  despliegue fija `KIVGRAPH_LANDING_URL` y un host escrito a mano publicaría el
-  canonical de otra máquina. Los hechos del proyecto -nombre, lema, repositorio,
-  licencia, la lista de tools- viven una sola vez en `landing/src/pages/_seo.ts`,
-  que consumen el shell de la landing, el override de `Head` y los tres
-  endpoints.
-- El entorno del despliegue se declara en `landing/.env`, y `astro.config.mjs`
-  lo lee con `process.loadEnvFile()` antes de que Vite mire: el config **no** es
-  un módulo que Vite transforme, así que `import.meta.env` está vacío ahí y un
-  `process.env` pelado sólo ve lo que exportó la shell. El valor de reserva de
-  `site` es el origen de producción, `https://kivgraph.dev`, y la
-  dirección importa: `site` se hornea en tiempo de build y CI construye sin
-  `.env`, así que la reserva tiene que ser la respuesta correcta. Lo que se fija
-  en el fichero es el caso de desarrollo,
-  `KIVGRAPH_LANDING_URL=http://localhost:6767`. Al contrario -- reserva
-  `localhost`, variable en el despliegue-- es lo que publicó
-  `http://localhost:6767` como canonical y en el sitemap de todas las páginas.
-  Una variable ya exportada gana sobre el fichero -medido-, y `.env` está en
+- The sitemap carries `lastmod` and it comes from **git**, not from the build's
+  `mtime`: the build date is the build's, and it would mark all 37 URLs as changed
+  on every deploy. `src/lastmod.mjs` does **one** pass of
+  `git log --format=%cI --name-only --no-merges -- landing/src` -- 37 pages touch
+  well over 37 files-- and `--no-merges` is there because a merge reports its
+  whole diff and would stamp half a branch with its own date.
+- Google uses `lastmod` to schedule the recrawl and **discards the field across
+  the whole sitemap when it does not believe it**, so the only two acceptable
+  answers are an exact date and none. That is why every failure path returns
+  `undefined`: without `git`, outside a checkout, in a **shallow** clone -- where
+  every file collapses onto the tip commit-- or for a URL whose source file the
+  module does not know how to name. Measured in a test clone: `--depth 1` gives
+  `undefined`, and the same code after `git fetch --unshallow` gives
+  `2026-08-23T13:49:53+02:00`.
+- The shallow case is not hypothetical: `ci.yml` cloned at the default depth, so
+  its landing build would have passed with a sitemap without a single date --
+  verifying something that is not what is served. That is why the `verify` job
+  carries `fetch-depth: 0`; `release.yml` already did.
+- Two pages are not a collection entry and are dated by hand: `/`, which has no
+  content of its own and takes the most recent of the components it **imports** --
+  reading the imports and not the directory keeps a component the page no longer
+  uses from still dating it--, and `/releases/`, which is a page that renders a
+  collection and takes both things. The style sheets and the motion layer are left
+  out on purpose: they change how the page looks, not what it says, and `lastmod`
+  answers the second question.
+- `robots.txt` explicitly allows the AI crawlers and **every token comes from its
+  operator's documentation**, with the URL and the date printed in the file
+  itself. A token that cannot be verified does not enter. Three of them
+  -`ChatGPT-User`, `Perplexity-User`, `Meta-ExternalFetcher`- are published by
+  their operators with a warning that they may ignore `robots.txt`: they are named
+  because an ignored permission costs nothing, and the comment says so instead of
+  suggesting a control that may not bind.
+- Every absolute URL is derived from `Astro.site`, never from a literal: the
+  deployment sets `KIVGRAPH_LANDING_URL` and a hand-written host would publish
+  another machine's canonical. The project's facts -name, tagline, repository,
+  licence, the tool list- live once in `landing/src/pages/_seo.ts`, which the
+  landing's shell, the `Head` override and the three endpoints consume.
+- The deployment environment is declared in `landing/.env`, and
+  `astro.config.mjs` reads it with `process.loadEnvFile()` before Vite looks: the
+  config is **not** a module Vite transforms, so `import.meta.env` is empty there
+  and a bare `process.env` only sees what the shell exported. The fallback value
+  of `site` is the production origin, `https://kivgraph.dev`, and the direction
+  matters: `site` is baked at build time and CI builds without `.env`, so the
+  fallback has to be the correct answer. What is pinned in the file is the
+  development case, `KIVGRAPH_LANDING_URL=http://localhost:6767`. The other way
+  round -- fallback `localhost`, variable in the deployment-- is what published
+  `http://localhost:6767` as the canonical and in the sitemap of every page. An
+  already exported variable wins over the file -measured-, and `.env` is in
   `.gitignore`.
-- **El origen es el apex de `kivgraph.dev`.** Es la forma que
-  `internal/supervisor/supervisor_linux.go` ya escribía en la línea
-  `Documentation=` de cada unit de systemd que genera, así que el sitio publicaba
-  el canonical de un host y el demonio documentaba otro. `www` no es un segundo
-  origen: lo redirige el host en vez de servirlo, porque dos nombres
-  contestando el mismo HTML son el duplicado que cada canonical de este sitio
-  existe para evitar.
-- El origen anterior, `https://kivgraph.luqueee.dev`, tiene que seguir
-  contestando con un `301` permanente hacia la ruta equivalente del nuevo -- ruta
-  a ruta, no todo a la raíz, que Google trata como soft 404 y no transfiere
-  señales. Eso vive en el host, no en este repositorio: `ecosystem.config.cjs`
-  arranca un proceso Node y el TLS y el proxy inverso son cosa de quien lo sirve.
-  Retirar el DNS del host viejo en vez de redirigirlo tira el historial de
-  indexado que las 37 URLs ya tenían.
-- **Search Console se verifica por DNS, no por el HTML.** El sitio emitía un
-  `google-site-verification` en el shell de la landing, que es el método de
-  etiqueta HTML de una propiedad *URL-prefix* -- y una propiedad URL-prefix es un
-  origen: el token acuñado para `https://kivgraph.luqueee.dev/` no verificaba
-  nada en `https://kivgraph.dev/`, y cada mudanza pedía un literal nuevo en
-  `_seo.ts`. Una propiedad de dominio con un registro `TXT` cubre el apex, `www`
-  y todo subdominio de una vez, y no depende del HTML que este repositorio
-  sirve, así que una página que deje de emitir una etiqueta no puede
-  desverificar la propiedad.
-- Los hechos de identidad -- nombre, lema, resumen, repositorio, licencia, el
-  alt de la tarjeta social-- viven en `landing/src/site.mjs`, ESM pelado y sin
-  un solo `import` de `astro:*`, porque `astro.config.mjs` tiene que poder
-  importarlo. `_seo.ts` los reexporta, así que sigue siendo el módulo del que
-  todo componente y endpoint importa. La única copia a mano es
-  `landing/public/site.webmanifest`, que es JSON estático.
-- Las analíticas son un Umami autoalojado y **el tracker sale de ese par de
-  variables o no sale**: `KIVGRAPH_UMAMI_SCRIPT_URL` y
-  `KIVGRAPH_UMAMI_WEBSITE_ID`, que lee `umamiTracker()` en `_seo.ts`. Con una
-  sola de las dos no se emite nada, así que `astro dev`, un build local y CI no
-  pueden escribir en el dataset de producción. El `id` es un UUID que acuña la
-  instancia en tiempo de ejecución, no un hecho del repositorio, y por eso no
-  vive en `_seo.ts` como el resto. El `<script>` va `is:inline` -- el fichero lo
-  sirve la instancia, no este bundle -- y lo emiten **las dos** mitades del
-  sitio, incluido el 404, para que un visitante que pasa de la landing a la
-  documentación siga siendo una sesión.
-- El tracker lleva `data-performance="true"` y `data-domains`, y las dos cosas
-  son para SEO y no para contar visitas. La primera enciende los Core Web
-  Vitals de campo -- LCP, INP, CLS, FCP, TTFB -- que es lo que permite preguntar
-  qué página rankea **y** va lenta. La segunda es el guarda que el par de
-  variables no puede ser: sale de `PRODUCTION_HOST` en `site.mjs` y **no** del
-  host de `Astro.site`, porque un build de staging fija `site` al origen de
-  staging y seguirlo le dejaría casar consigo mismo. El par falla cerrado
-  cuando falta una variable; una preview que hereda **las dos** es justo el
-  caso que no atrapa.
-- `data-exclude-search` no está puesto y no debe ponerse: ahí viajan `utm_*`,
-  `gclid`, `fbclid` y `msclkid`, y excluirlas deja la atribución en blanco.
-- Los eventos salen de `CopyButton.astro` -- que los declara `event` y
-  `eventData`, opcionales, y reporta **en el `then` del `writeText`**, así que
-  una copia rechazada no cuenta -- y de `data-umami-event` en enlaces que salen
-  del sitio, que Umami lee del clic sin JavaScript nuestro. Un enlace interno
-  **no** lleva evento: ya es un pageview, y contarlo dos veces pone en el
-  informe un número que ninguna visita produjo. Y **salir del sitio tampoco
-  basta**: el evento lo escribe cada fila de `TopBar.astro`, no lo deriva del
-  `href`, porque desde que la barra enlaza también la ficha de Glama hay dos
-  destinos externos y no son el mismo clic. `github_click` significa un clic al
-  repositorio; compartir el nombre dejaría un número queriendo decir dos cosas
-  sin vuelta atrás, así que la ficha va sin evento hasta que merezca uno propio.
-  El vocabulario, los goals y la convención UTM viven en
-  `docs/development/analytics.md`; un evento nuevo se añade ahí antes que en el
-  código.
-- **Nadie llama a un proveedor: se llama a `track()`.** La capa está en
-  `src/lib/analytics/`, el catálogo de eventos es tipado y un nombre que no esté
-  en él no compila. Umami y PostHog contestan preguntas distintas -- adquisición
-  y comportamiento -- y sus cifras no van a cuadrar; esperar que lo hagan es un
-  error de método y no un fallo.
-- **No hay `astro:page-load` y no debe haberlo mientras no exista
-  `<ClientRouter />`.** Este sitio navega con cargas completas, así que la
-  captura automática de PostHog da un `$pageview` por página; añadir un listener
-  encima da dos. Medido: uno en la carga, uno al navegar, uno en `back`, uno en
-  `reload`. Si algún día entra `ClientRouter`, esa medición hay que rehacerla.
-- PostHog se importa **dinámicamente tras el `load`** y sin
-  `PUBLIC_POSTHOG_KEY` **desaparece del bundle** por tree-shaking. Con clave son
-  `+82,8 KB` gzip sobre los `72,1` del sitio, que es más que todo el resto de su
-  JavaScript junto: no es gratis, está fuera de la ruta crítica, y no hay build
-  más ligero del paquete.
-- Verificar PostHog en headless exige ocultar `navigator.webdriver`: su filtro
-  de bots descarta esos eventos **sin un solo error**, y el payload de `/e/` va
-  gzip. Está contado en `analytics.md` porque cuesta una tarde descubrirlo.
-- **Lo que arranca pm2 es `server.mjs`, no el entry del adaptador**, y la razón
-  es medible: un middleware de Astro ve **una** de siete rutas -- sólo la no
-  prerenderizada-- porque el handler estático contesta las demás antes de que
-  exista el pipeline SSR. `server.mjs` importa el `handler` que el propio
-  adaptador exporta y lo envuelve, así que estáticos, el `301` de barra final y
-  el 404 salen del mismo sitio de siempre; lo único que añade es ver cada
-  petición. Ahí vive el detector de agentes de IA.
-- **`server.mjs` no recibe la telemetría de primer arranque.** La ruta pública
-  exacta `POST /api/telemetry/first-run` pertenece al Worker de borde que
-  también sirve `/install.sh`, `/install.ps1` y `/github`; valida y agrega los
-  hechos en D1 para el dashboard interno. El módulo
-  `src/install-report.mjs` conserva la implementación histórica y sus pruebas,
-  pero no se importa desde el servidor ni es una ruta de producción. Volver a
-  conectarlo crearía dos propietarios y dos datasets sin join, el fallo que
-  documenta el ADR 0092.
-- Los crawlers de IA van a una **segunda propiedad de Umami** y jamás a la
-  principal: un bot no puede mover visitantes, rebote, duración ni una tasa de
-  conversión que describe personas. El filtro de bots de Umami se queda
-  encendido en las dos, y por eso el sender se identifica como
-  `kivgraph-landing/1.0` en vez de falsear la cabecera. El registro de agentes
-  es `src/ai-agents.mjs`, cada fila con la fuente oficial y su fecha, y el resto
-  está en `docs/development/analytics.md`.
-- Una petición detectada emite **dos** eventos y los dos van del mismo lado de
-  la deduplicación: `ai_crawler_request` con todos los campos, y
-  `ai_crawler_<agente>` para que el gráfico *Events* del dashboard pueda
-  separar por agente -- una serie por nombre de evento es lo único que sabe
-  dibujar, y no filtra por una propiedad. Los construye `crawlerEventPayloads()`
-  en `src/ai-report.mjs` y no `server.mjs`, que no se puede importar sin un
-  `dist/` construido: lo que se escribe ahí dentro es código que ningún test
-  alcanza. El nombre del evento sale de la fila del registro y **nunca** de la
-  petición, así que un `User-Agent` inventado no acuña un evento nuevo.
-- El JSON-LD del sitio es **un** grafo: la landing publica
-  `SoftwareApplication` en `<site>/#software` y `WebSite` en `<site>/#website`, y
-  cada página de documentación emite un `TechArticle` que los referencia por
-  `@id` en vez de duplicarlos. El `BreadcrumbList` es un nodo hermano, no una
-  propiedad del artículo: schema.org pone `breadcrumb` sólo en `WebPage`. El
-  `FAQPage` de `Faq.astro` es un segundo `<script>` -- lo exige ser un tipo de
-  página distinto -- pero no es huérfano: lleva `@id` en `<site>/#faq` y apunta a
-  los otros dos por `isPartOf` y `about`.
-- El override `Head` añade únicamente lo que Starlight no emite. Starlight ya
-  escribe el título, la descripción, el canonical y `twitter:card`, así que
-  repetir cualquiera de los cuatro es un defecto, no una redundancia inocua. Lo
-  que **no** emite y por tanto va ahí: la imagen de preview con sus dimensiones,
-  su tipo y su `alt`. El `alt` describe la imagen, no repite el lema que ya está
-  en el `og:description` de al lado, y sale de `PREVIEW_ALT` para que las dos
-  mitades no describan la misma tarjeta de dos formas.
-- El `<link rel="alternate" type="text/markdown">` va condicionado a que la
-  página sea miembro de la colección `docs`. `/releases/` es un `StarlightPage`,
-  así que hereda el override con el id sintético `releases`, y `raw/[...slug]`
-  sólo sirve rutas de la colección: anunciarlo sin condición publicaba un
-  `/raw/releases.md` que **devolvía 500**, no 404 -- lo que este archivo decía
-  antes era una suposición y la medida la desmiente. Y la causa no era el
-  anuncio: `raw/[...slug]` estaba prerenderizada bajo `output: "server"`, así
-  que el router seguía **casando** cualquier `/raw/**.md` contra una ruta sin
-  instancia de componente para los caminos que `getStaticPaths` nunca emitió, y
-  Astro lanzaba dentro de su propio pipeline antes de que ningún handler
-  nuestro pudiese contestar. Un `if` dentro del `GET` ahí es código muerto:
-  comprobado. Por eso la ruta es `prerender = false` y resuelve la entrada en
-  la petición -- una lectura de colección y un `join`--, que es lo que le
-  permite devolver `404` con `text/plain` para lo que no publica y
-  `text/markdown` para lo que sí. Verificado: `/raw/releases.md`,
-  `/raw/nonsense.md` y un slug anidado inventado dan `404`; los 37 `alternate`
-  del sitio y los 73 enlaces de `llms.txt` y `llms-full.txt` dan `200`.
+- **The origin is the `kivgraph.dev` apex.** It is the form
+  `internal/supervisor/supervisor_linux.go` already wrote in the `Documentation=`
+  line of every systemd unit it generates, so the site was publishing one host's
+  canonical and the daemon documenting another. `www` is not a second origin: the
+  host redirects it instead of serving it, because two names answering the same
+  HTML are the duplicate every canonical on this site exists to avoid.
+- The previous origin, `https://kivgraph.luqueee.dev`, has to keep answering with
+  a permanent `301` to the equivalent path on the new one -- path by path, not
+  everything to the root, which Google treats as a soft 404 and transfers no
+  signals. That lives on the host, not in this repository: `ecosystem.config.cjs`
+  starts a Node process and TLS and the reverse proxy are the business of whoever
+  serves it. Withdrawing the old host's DNS instead of redirecting it throws away
+  the indexing history the 37 URLs already had.
+- **Search Console is verified by DNS, not by the HTML.** The site emitted a
+  `google-site-verification` in the landing's shell, which is the HTML-tag method
+  of a *URL-prefix* property -- and a URL-prefix property is an origin: the token
+  minted for `https://kivgraph.luqueee.dev/` verified nothing at
+  `https://kivgraph.dev/`, and every move asked for a new literal in `_seo.ts`. A
+  domain property with a `TXT` record covers the apex, `www` and every subdomain
+  at once, and does not depend on the HTML this repository serves, so a page that
+  stops emitting a tag cannot unverify the property.
+- The identity facts -- name, tagline, summary, repository, licence, the social
+  card's alt -- live in `landing/src/site.mjs`, bare ESM with not a single
+  `astro:*` `import`, because `astro.config.mjs` has to be able to import it.
+  `_seo.ts` re-exports them, so it is still the module every component and
+  endpoint imports from. The only hand-kept copy is
+  `landing/public/site.webmanifest`, which is static JSON.
+- The analytics are a self-hosted Umami and **the tracker comes from that pair of
+  variables or it does not come out**: `KIVGRAPH_UMAMI_SCRIPT_URL` and
+  `KIVGRAPH_UMAMI_WEBSITE_ID`, which `umamiTracker()` reads in `_seo.ts`. With only
+  one of the two nothing is emitted, so `astro dev`, a local build and CI cannot
+  write to the production dataset. The `id` is a UUID that the instance mints at
+  run time, not a fact of the repository, and therefore lives in `_seo.ts` like the
+  rest. The `<script>` goes `is:inline` -- the file is served by the instance, not
+  by this bundle -- and **both** halves of the site emit it, the 404 included, so
+  that a visitor who goes from the landing to the documentation remains one
+  session.
+- The tracker carries `data-performance="true"` and `data-domains`, and both are
+  for SEO and not for counting visits. The first switches on the field Core Web
+  Vitals -- LCP, INP, CLS, FCP, TTFB -- which is what makes it possible to ask
+  which page ranks **and** is slow. The second is the guard the pair of variables
+  cannot be: it comes from `PRODUCTION_HOST` in `site.mjs` and **not** from the
+  host of `Astro.site`, because a staging build sets `site` to the staging origin
+  and following it would let it match itself. The pair fails closed when a
+  variable is missing; a preview that inherits **both** is exactly the case it
+  does not catch.
+- `data-exclude-search` is not set and must not be: that is where `utm_*`,
+  `gclid`, `fbclid` and `msclkid` travel, and excluding them leaves attribution
+  blank.
+- Events come out of `CopyButton.astro` -- which declares them `event` and
+  `eventData`, optional, and reports **in the `then` of `writeText`**, so a
+  rejected copy does not count -- and of `data-umami-event` on links that leave
+  the site, which Umami reads from the click with no JavaScript of ours. An
+  internal link carries **no** event: it is already a pageview, and counting it
+  twice puts in the report a number no visit produced. And **leaving the site is
+  not enough either**: the event is written by each row of `TopBar.astro`, not
+  derived from the `href`, because since the bar also links Glama's listing there
+  are two external destinations and they are not the same click. `github_click`
+  means a click to the repository; sharing the name would leave one number meaning
+  two things with no way back, so the listing goes with no event until it deserves
+  one of its own. The vocabulary, the goals and the UTM convention live in
+  `docs/development/analytics.md`; a new event is added there before it is added
+  in code.
+- **Nobody calls a provider: `track()` is called.** The layer is in
+  `src/lib/analytics/`, the event catalogue is typed and a name that is not in it
+  does not compile. Umami and PostHog answer different questions -- acquisition
+  and behaviour -- and their figures will not add up; expecting them to is an
+  error of method and not a failure.
+- **There is no `astro:page-load` and there must not be while there is no
+  `<ClientRouter />`.** This site navigates with full loads, so PostHog's
+  automatic capture gives one `$pageview` per page; adding a listener on top gives
+  two. Measured: one on load, one on navigation, one on `back`, one on `reload`.
+  If `ClientRouter` ever comes in, that measurement has to be redone.
+- PostHog is imported **dynamically after `load`** and without
+  `PUBLIC_POSTHOG_KEY` it **disappears from the bundle** by tree-shaking. With a
+  key it is `+82.8 KB` gzip over the site's `72.1`, which is more than all the
+  rest of its JavaScript together: it is not free, it is off the critical path,
+  and there is no lighter build of the package.
+- Verifying PostHog headless requires hiding `navigator.webdriver`: its bot
+  filter drops those events **without a single error**, and the `/e/` payload is
+  gzip. It is recorded in `analytics.md` because it costs an afternoon to
+  discover.
+- **What pm2 starts is `server.mjs`, not the adapter's entry**, and the reason is
+  measurable: an Astro middleware sees **one** of seven routes -- only the
+  non-prerendered one-- because the static handler answers the others before the
+  SSR pipeline exists. `server.mjs` imports the `handler` the adapter itself
+  exports and wraps it, so statics, the trailing-slash `301` and the 404 come out
+  of the same place as always; the only thing it adds is seeing every request.
+  The AI-agent detector lives there.
+- **`server.mjs` does not receive the first-run telemetry.** The exact public
+  route `POST /api/telemetry/first-run` belongs to the edge Worker that also serves
+  `/install.sh`, `/install.ps1` and `/github`; it validates and aggregates the
+  facts in D1 for the internal dashboard. The module `src/install-report.mjs` keeps
+  the historical implementation and its tests, but it is neither imported from the
+  server nor a production route. Wiring it back would create two owners and two
+  datasets with no join, the failure ADR 0092 documents.
+- The AI crawlers go to a **second Umami property** and never to the main one: a
+  bot cannot move visitors, bounce, duration or a conversion rate that describes
+  people. Umami's bot filter stays on in both, and that is why the sender
+  identifies itself as `kivgraph-landing/1.0` instead of faking the header. The
+  agent registry is `src/ai-agents.mjs`, each row with its official source and its
+  date, and the rest is in `docs/development/analytics.md`.
+- A detected request emits **two** events and both go on the same side of the
+  deduplication: `ai_crawler_request` with all the fields, and
+  `ai_crawler_<agent>` so that the dashboard's *Events* chart can separate by
+  agent -- one series per event name is all it knows how to draw, and it does not
+  filter by a property. They are built by `crawlerEventPayloads()` in
+  `src/ai-report.mjs` and not by `server.mjs`, which cannot be imported without a
+  built `dist/`: what is written in there is code no test reaches. The event name
+  comes from the registry row and **never** from the request, so an invented
+  `User-Agent` does not mint a new event.
+- The site's JSON-LD is **one** graph: the landing publishes `SoftwareApplication`
+  at `<site>/#software` and `WebSite` at `<site>/#website`, and each documentation
+  page emits a `TechArticle` that references them by `@id` instead of duplicating
+  them. The `BreadcrumbList` is a sibling node, not a property of the article:
+  schema.org puts `breadcrumb` only on `WebPage`. `Faq.astro`'s `FAQPage` is a
+  second `<script>` -- being a different page type requires it -- but it is not an
+  orphan: it carries `@id` at `<site>/#faq` and points to the other two through
+  `isPartOf` and `about`.
+- The `Head` override adds only what Starlight does not emit. Starlight already
+  writes the title, the description, the canonical and `twitter:card`, so
+  repeating any of the four is a defect, not an innocent redundancy. What it does
+  **not** emit and therefore goes there: the preview image with its dimensions,
+  its type and its `alt`. The `alt` describes the image, does not repeat the
+  tagline already in the `og:description` next to it, and comes from `PREVIEW_ALT`
+  so that the two halves do not describe the same card in two ways.
+- The `<link rel="alternate" type="text/markdown">` is conditioned on the page
+  being a member of the `docs` collection. `/releases/` is a `StarlightPage`, so
+  it inherits the override with the synthetic id `releases`, and `raw/[...slug]`
+  only serves routes of the collection: announcing it unconditionally published a
+  `/raw/releases.md` that **returned 500**, not 404 -- what this file said before
+  was an assumption and the measurement refutes it. And the cause was not the
+  announcement: `raw/[...slug]` was prerendered under `output: "server"`, so the
+  router still **matched** any `/raw/**.md` against a route with no component
+  instance for the paths `getStaticPaths` never emitted, and Astro threw inside
+  its own pipeline before any handler of ours could answer. An `if` inside the
+  `GET` there is dead code: checked. That is why the route is `prerender = false`
+  and resolves the entry at request time -- a collection read and a `join`--,
+  which is what lets it return `404` with `text/plain` for what it does not
+  publish and `text/markdown` for what it does. Verified: `/raw/releases.md`,
+  `/raw/nonsense.md` and an invented nested slug give `404`; the site's 37
+  `alternate` and the 73 links of `llms.txt` and `llms-full.txt` give `200`.
 
-## Warnings del build
+## Build warnings
 
-- El build no admite warnings. `scripts/build.mjs` conserva toda la salida y
-  falla si Astro imprime uno, aunque el propio comando termine en cero. La ruta
-  404 es el caso que cerró ese gate: Starlight inyectaba una ruta explícita y su
-  catch-all reclamaba también la entrada `404` de la colección. Ahora
-  `disable404Route` retira la inyectada, `src/pages/404.astro` es la única ruta
-  de error y conserva el status, la copia, el chrome y el `noindex` anteriores.
-- Los otros dos que hubo se arreglaron, y uno merece quedar escrito porque
-  volverá a morder. Astro decide si avisar de que una ruta dinámica ignora su
-  lista de rutas estáticas **buscando el nombre de esa función como subcadena en
-  el texto del fichero** -- `vite-plugin-routes`, no una lectura de los exports--,
-  así que mencionarla en un comentario basta para dispararlo. Le pasaba a
-  `src/pages/raw/[...slug].md.ts`, que no exporta ninguna, y el consejo impreso
-  -- añadir `prerender = true`-- es exactamente el defecto del `500` que ese
-  fichero documenta. El comentario la nombra ahora con un rodeo, a propósito.
-- El pipeline de markdown se declara con un `processor` explícito,
-  `unified({...})` de `@astrojs/markdown-remark`, que por eso es dependencia
-  directa de `landing/`. La forma antigua -- `markdown.rehypePlugins` a secas--
-  sigue funcionando porque Astro la traspasa al processor configurado, pero está
-  deprecada y avisa en cada build. Nombrarlo es además lo que mantiene a
-  Starlight en pie: **no fija** el processor, lo **muta**, empujando sus asides,
-  sus anclas de encabezado y su soporte de código RTL dentro de `remarkPlugins`
-  y `rehypePlugins`, y sólo reconoce dos motores. Uno que no reconozca no es un
-  error: avisa y deja caer esas transformaciones en silencio. Medido antes y
-  después de la migración sobre `dist/client`: `88` anclas externas todas con
-  `target` y `noopener`, `280` `sl-anchor-link`, `280` `sl-heading-wrapper` y
-  `175` bloques de Expressive Code, idénticos.
+- The build admits no warnings. `scripts/build.mjs` keeps all the output and
+  fails if Astro prints one, even though the command itself ends at zero. The 404
+  route is the case that closed that gate: Starlight injected an explicit route
+  and its catch-all also claimed the collection's `404` entry. Now
+  `disable404Route` removes the injected one, `src/pages/404.astro` is the only
+  error route and keeps the previous status, copy, chrome and `noindex`.
+- The other two there were got fixed, and one deserves to be written down because
+  it will bite again. Astro decides whether to warn that a dynamic route ignores
+  its static-paths list **by searching for that function's name as a substring in
+  the file's text** -- `vite-plugin-routes`, not a reading of the exports--, so
+  mentioning it in a comment is enough to trigger it. It happened to
+  `src/pages/raw/[...slug].md.ts`, which exports none, and the advice printed
+  -- add `prerender = true`-- is exactly the `500` defect that file documents. The
+  comment now names it with a detour, on purpose.
+- The markdown pipeline is declared with an explicit `processor`, `unified({...})`
+  from `@astrojs/markdown-remark`, which is therefore a direct dependency of
+  `landing/`. The old form -- bare `markdown.rehypePlugins`-- still works because
+  Astro hands it over to the configured processor, but it is deprecated and warns
+  on every build. Naming it is also what keeps Starlight standing: it does **not
+  set** the processor, it **mutates** it, pushing its asides, its heading anchors
+  and its RTL code support into `remarkPlugins` and `rehypePlugins`, and it only
+  recognizes two engines. One it does not recognize is not an error: it warns and
+  silently drops those transformations. Measured before and after the migration
+  over `dist/client`: `88` external anchors all with `target` and `noopener`, `280`
+  `sl-anchor-link`, `280` `sl-heading-wrapper` and `175` Expressive Code blocks,
+  identical.
 
-## Iconos
+## Icons
 
-- Los iconos son assets commiteados, no un paso de build:
-  `landing/scripts/icons.sh` los genera desde una imagen cuadrada con
-  ImageMagick o, en su defecto, con `sips`, y falla cerrado sin ninguno de los
-  dos. CI corre en Linux y nunca lo ejecuta. El maskable deja la marca dentro
-  del 80 % central porque el lanzador recorta a un círculo.
-- `og.png` **no** sale de `icons.sh`. La tarjeta social lleva el wordmark, el
-  titular y el lema compuestos en la Geist que sirve el sitio, y componer
-  tipografía es lo que ese script no puede hacer. La fuente es
-  `landing/scripts/social-card.html`: se abre en un navegador, se captura el
-  elemento `#card` -- que mide exactamente 1200x630, así que ningún viewport lo
-  escala-- y el PNG se commitea. Sus `@font-face` apuntan a `node_modules`, que
-  es donde están las fuentes exactas del sitio. La malla del fondo se aparta a
-  la derecha a propósito: la marca es un ráster opaco y encima del patrón se lee
-  como un cuadrado recortado en él.
-- El lienzo de un icono rellenado es `--bg`, y tiene que ser **el color de fondo
-  de la propia imagen fuente**, no el de la página: la marca actual trae
-  `#0f1117` y rellenar con `#0a0b0d` dejaba un recuadro visible dentro de
-  `og.png` y del maskable. Por eso `background_color` del manifest es `#0f1117`
-  -- es el campo que el lanzador pinta detrás del icono -- mientras `theme_color`
-  sigue siendo el `#0a0b0d` del sitio.
-- `--zoom` recorta la fuente a su centro antes de escalar, porque un icono de
-  app quiere la marca al ~80 % del lienzo y ésta ocupaba el 60,9 % medido: a
-  16 px eso son diez píxeles de marca en una pestaña. Se mide, no se estima.
-- No hay marca vectorial: la fuente es un ráster, y `favicon.svg` es ese mismo
-  ráster -- el PNG de 32 px en base64-- envuelto en un `clipPath` de esquinas
-  redondeadas, `rx=7` sobre un lienzo de 32. Es el único icono con radio: los
-  PNG salen cuadrados de `icons.sh` y quedan como reserva para un cliente que no
-  acepte un icono SVG. Lo enlazan **las dos** mitades del sitio -- Starlight por
-  la opción `favicon` de `astro.config.mjs` y la landing por su propio
-  `<link rel="icon" type="image/svg+xml">`--, porque el navegador prefiere el
-  vector y tenerlo en una mitad sola es lo que dejaba la pestaña de la
-  documentación redondeada y la de la portada con esquinas rectas.
-- Ese mismo «gana el vector» es lo que hace peligroso un `favicon.svg` rancio:
-  cuando envolvía la marca antigua, era la marca antigua lo que se veía en la
-  pestaña aunque los PNG estuviesen al día. Al regenerar los iconos se
-  reemplaza también el base64 que este fichero lleva dentro; `icons.sh
-  --drop-svg` lo retira, y entonces `favicon` de Starlight apunta al PNG de
-  32 px, que emite como `rel="shortcut icon"`, y la landing pierde el radio.
+- The icons are committed assets, not a build step: `landing/scripts/icons.sh`
+  generates them from a square image with ImageMagick or, failing that, `sips`,
+  and fails closed with neither. CI runs on Linux and never runs it. The maskable
+  keeps the mark inside the central 80 % because the launcher crops to a circle.
+- `og.png` does **not** come from `icons.sh`. The social card carries the
+  wordmark, the headline and the tagline composed in the Geist the site serves,
+  and composing typography is what that script cannot do. The source is
+  `landing/scripts/social-card.html`: it is opened in a browser, the `#card`
+  element is captured -- which measures exactly 1200x630, so no viewport scales
+  it-- and the PNG is committed. Its `@font-face` point at `node_modules`, which is
+  where the site's exact fonts are. The background mesh is pushed to the right on
+  purpose: the mark is an opaque raster and on top of the pattern it reads as a
+  square cut out of it.
+- The canvas of a filled icon is `--bg`, and it has to be **the background colour
+  of the source image itself**, not the page's: the current mark brings `#0f1117`
+  and filling with `#0a0b0d` left a visible box inside `og.png` and the maskable.
+  That is why the manifest's `background_color` is `#0f1117` -- it is the field the
+  launcher paints behind the icon -- while `theme_color` stays the site's
+  `#0a0b0d`.
+- `--zoom` crops the source to its centre before scaling, because an app icon
+  wants the mark at ~80 % of the canvas and this one took the measured 60.9 %: at
+  16 px that is ten pixels of mark in a tab. It is measured, not estimated.
+- There is no vector mark: the source is a raster, and `favicon.svg` is that same
+  raster -- the 32 px PNG in base64-- wrapped in a `clipPath` with rounded
+  corners, `rx=7` on a canvas of 32. It is the only icon with a radius: the PNGs
+  come out of `icons.sh` square and stay as a fallback for a client that does not
+  accept an SVG icon. **Both** halves of the site link it -- Starlight through the
+  `favicon` option of `astro.config.mjs` and the landing through its own
+  `<link rel="icon" type="image/svg+xml">`--, because the browser prefers the
+  vector and having it in one half only is what left the documentation's tab
+  rounded and the home page's with square corners.
+- That same "the vector wins" is what makes a stale `favicon.svg` dangerous: when
+  it wrapped the old mark, the old mark was what showed in the tab even though the
+  PNGs were up to date. When the icons are regenerated, the base64 this file
+  carries inside is replaced too; `icons.sh --drop-svg` removes it, and then
+  Starlight's `favicon` points at the 32 px PNG, which it emits as
+  `rel="shortcut icon"`, and the landing loses the radius.
 
-## Contenido
+## Content
 
-- La documentación de `landing/` está escrita para quien usa Kivgraph y sale de
-  las fuentes del repositorio -`cmd/kivgraph/help.go`, `internal/config`,
-  `internal/mcp/tools`, `README.md`-, copiadas literalmente cuando son un
-  contrato. `docs/` sigue siendo material interno de ingeniería -ADRs,
-  informes de cualificación- y no se publica.
-- **El recuento de tools sale del contrato, no de la memoria.** La lista viva es
-  `allowedTools` en `internal/mcp/surface_test.go`, que ese fichero declara
-  contrato y no instantánea, más los tres controles de indexado que sólo se
-  registran en la ruta `serve` configurada. `MCP_TOOLS` en `_seo.ts` tiene que
-  casar con ella:
-  de ahí salen el grupo *Tool reference* de `llms.txt` y de `llms-full.txt`.
-  `find_by_intent` llegó en la v0.8.0 y debe permanecer primera porque es la
-  puerta de entrada cuando el visitante no conoce un nombre. La sincronización
-  de la landing toca cinco sitios: la página, el sidebar de `astro.config.mjs`,
-  `MCP_TOOLS`, `docs/mcp-tools.md` y el recuento en prosa de este archivo. El
-  contrato runtime se comprueba además en `internal/mcp/surface_test.go` y
-  `internal/mcp/server.go`.
-- La referencia de tools documenta la superficie que `internal/mcp/server.go`
-  registra, no el paquete `internal/mcp/tools`: son quince tools, `get_source`
-  entre ellas, y `get_unresolved_references` no está publicada -- esa pregunta
-  la contesta el CLI. Sin generación publicada sólo se registran los tres
-  controles de indexado, y la documentación lo dice donde se instala.
+- The documentation in `landing/` is written for whoever uses Kivgraph and comes
+  out of the repository's sources -`cmd/kivgraph/help.go`, `internal/config`,
+  `internal/mcp/tools`, `README.md`-, copied literally when they are a contract.
+  `docs/` remains internal engineering material -ADRs, qualification reports- and
+  is not published.
+- **The tool count comes from the contract, not from memory.** The live list is
+  `allowedTools` in `internal/mcp/surface_test.go`, which that file declares a
+  contract and not a snapshot, plus the three indexing controls that are only
+  registered on the configured `serve` path. `MCP_TOOLS` in `_seo.ts` has to match
+  it: the *Tool reference* group of `llms.txt` and `llms-full.txt` comes from
+  there. `find_by_intent` arrived in v0.8.0 and must stay first because it is the
+  entry door when the visitor does not know a name. Keeping the landing in sync
+  touches five places: the page, the `astro.config.mjs` sidebar, `MCP_TOOLS`,
+  `docs/mcp-tools.md` and the count in prose in this file. The runtime contract is
+  also checked in `internal/mcp/surface_test.go` and `internal/mcp/server.go`.
+- The tool reference documents the surface that `internal/mcp/server.go`
+  registers, not the `internal/mcp/tools` package: there are fifteen tools,
+  `get_source` among them, and `get_unresolved_references` is not published --
+  that question is answered by the CLI. With no published generation only the
+  three indexing controls are registered, and the documentation says so where it
+  is installed.
 
-## La portada
+## The home page
 
-- El orden de las bandas **es el argumento** y va en una dirección: empieza con
-  una pregunta sin nombre -> `find_by_intent` nombra los ficheros que abrir ->
-  esto es lo que un grafo resuelto dice de un símbolo -> ésta es la medición ->
-  por eso una búsqueda de texto no puede decir lo mismo -> qué es en realidad un
-  nombre -> las relaciones cruzan repositorios -> se enchufa al agente que ya
-  usas -> instálalo. `index.astro` no compone nada más.
-- La demo de `find_by_intent` va **antes** de la medición para que el lector vea
-  primero qué se mide y después el resultado comparable. Si se cambia el orden,
-  se cambian las cuatro: esta frase, el comentario de cabecera de `index.astro`,
-  sus secciones y los enlaces de `TopBar.astro`, que llevan el mismo orden como
-  anclajes.
-- Lo que **no** está en la portada es la lista de las quince tools. El visitante
-  pregunta qué va a poder entender su agente, no qué funciones exporta el
-  servidor; la referencia de tools es una página y cada banda enlaza a ella donde
-  la pregunta aparece. Un componente que las enumeraba desapareció por eso,
-  junto con la banda de tres tarjetas que sólo servía para enlazar tres páginas
-  SEO: esos enlaces viven ahora dentro del texto de la sección a la que
-  pertenecen, que es además el ancla contextual que un buscador premia.
-- **Toda cifra publicada sale de una sola pasada, y la pasada se nombra.** La
-  portada cita `benchmarks/graph-tools-comparison/results-all.json`, commit
-  `954b9eb`, `o200k_base`, kivgraph `0.5.0`, 29 preguntas sobre 37 repositorios:
-  `35.961` tokens contra `267.980` de `grep` más lectura, 28 de 29 exactas en
-  los dos brazos. Mezclar pasadas es el defecto concreto que había: un total de
-  tokens de una, una exactitud de otra y unos tiempos de indexado de una tercera
-  produjeron un `6.200 / 7 de 7` que **no aparecía en ningún fichero
-  commiteado**, y un bloque de multiplicadores -`28.3x`, `2.1x`, `0.2x` sobre un
-  monorepo de `41` repositorios y `100.118` símbolos-- que no existía en el
-  harness al que se atribuía. Si una tabla nueva necesita brazos rivales, van en
-  su propia tabla con su propio JSON: la única pasada donde los seis brazos
-  midieron de verdad es `results.json`, y ahí kivgraph es `0.3.2`.
-- El contrapeso es parte de la evidencia, no un descargo debajo. `grep` sale más
-  barato en 5 de las 29 preguntas y la portada las cuenta; la propia sección de
-  producto publica el caso `I1_go_depth2`, donde perdemos.
-- La demostración de producto **no es ilustrativa**. Cada ruta, línea, salto y
-  cifra sale de una captura verbatim de `raw-all/`, y el componente nombra el
-  fichero. Un diagrama con nombres verosímiles argumentaría contra la única
-  propiedad que esta página vende, igual que el campo de nodos sintético que se
-  retiró del hero.
-- Las tres pestañas de esa sección son un grupo de radios y **cero JavaScript**:
-  un grupo de radios ya se navega con el teclado y lo anuncia un lector de
-  pantalla, los tres paneles van en el HTML servido -- así que un rastreador ve
-  los tres-- y una página cuyo CSS no llega muestra los tres en vez de ninguno.
-  Los `<input>` van antes de las pestañas y de los paneles porque todo el control
-  es un selector de hermano; están `sr-only` y nunca `display: none`, que es lo
-  que le quitaría el foco.
-- **El comando de instalación es un selector de plataforma, no una caja.** Se
-  publican tres bundles -- `linux/amd64`, `darwin/arm64` y `windows/amd64`-- y
-  dos instaladores, porque `install.sh` no corre donde no hay shell POSIX. El
-  control vive una vez en `InstallCommand.astro` y lo usan el hero y el CTA
-  final; los comandos y las tres notas de arquitectura viven en `platforms.ts`,
-  que es el único sitio donde están escritos: el hero y `FinalCta.astro` tenían
-  cada uno su copia del `curl`, que es como dos cajas de la misma página acaban
-  publicando comandos distintos.
-- macOS y Linux enseñan **la misma línea** a propósito. `install.sh` lee `uname`
-  y elige su archivo, así que la respuesta para un Mac es la respuesta para
-  Linux; lo que una caja sin etiquetas no contesta es la pregunta que el
-  visitante trae, que es si su máquina está en la lista. Windows sí es otro
-  comando: `irm ... | iex`, y su `#Requires -Version 5.1` pasa a ser un
-  comentario al pipearse a `Invoke-Expression`. Eso está dicho en `/install/`,
-  no en la portada.
-- El control es un grupo de radios y **cero JavaScript**, como las pestañas de
-  `ProductProof.astro`, con una diferencia que importa: las reglas se enganchan
-  a `data-platform` y no a un `id`, que es lo que permite que el mismo
-  componente aparezca **dos veces** en una página sin que las dos cajas
-  compartan selección. Cada panel lleva su propio `CopyButton`, porque el valor
-  que copia se renderiza en el servidor y un botón único no podría seguir a la
-  selección sin el script que este control existe para no tener. Nada se
-  detecta: la página es prerenderizada, así que la primera pestaña es un
-  defecto y no una suposición sobre el lector.
-- Medido con el mismo protocolo que el badge, dos builds a la vez y 15 cargas
-  intercaladas por brazo a `1440x900`: antes de las pestañas
-  `min 77 / mediana 89 / max 194 ms`, después `min 74 / mediana 85 / max
-  227 ms`. El elemento LCP fue el `h1` en **las 30 cargas** y su superficie
-  pintada la misma, `90132`. Verificado además sobre el build servido que el
-  panel cambia con el puntero y con el teclado, que mover una caja no mueve la
-  otra, que el `data-copy-data` del botón visible sigue a la pestaña
-  -- `{"where":"hero","platform":"windows"}`-- y que **con las hojas de estilo
-  desactivadas se ven los tres comandos** en cada caja, que es la degradación
-  honesta para un control cuyo trabajo es nombrar un comando.
-- El CTA final es su propia banda y no una `Section`: su encabezado **es** la
-  llamada a la acción, y meterlo dentro pondría dos `h2` en una banda. Repite la
-  geometría de `Section` -- `border-t`, `max-w-6xl`, `py-14`, `data-reveal`-- para
-  que el ritmo sea idéntico desde fuera.
+- The order of the bands **is the argument** and goes in one direction: it starts
+  with a question with no name -> `find_by_intent` names the files to open -> this
+  is what a resolved graph says about a symbol -> this is the measurement -> that
+  is why a text search cannot say the same -> what a name really is -> the
+  relations cross repositories -> it plugs into the agent you already use ->
+  install it. `index.astro` composes nothing else.
+- The `find_by_intent` demo goes **before** the measurement so that the reader
+  first sees what is measured and then the comparable result. If the order is
+  changed, four things change: this sentence, `index.astro`'s header comment, its
+  sections and `TopBar.astro`'s links, which carry the same order as anchors.
+- What is **not** on the home page is the list of the fifteen tools. The visitor
+  asks what their agent will be able to understand, not which functions the server
+  exports; the tool reference is a page and each band links to it where the
+  question appears. A component that enumerated them disappeared because of that,
+  together with the band of three cards that only served to link three SEO pages:
+  those links now live inside the text of the section they belong to, which is
+  also the contextual anchor a search engine rewards.
+- **Every published figure comes from a single pass, and the pass is named.** The
+  home page cites `benchmarks/graph-tools-comparison/results-all.json`, commit
+  `954b9eb`, `o200k_base`, kivgraph `0.5.0`, 29 questions over 37 repositories:
+  `35,961` tokens against `267,980` for `grep` plus reading, 28 of 29 exact in both
+  arms. Mixing passes is the concrete defect there was: a token total from one, an
+  accuracy from another and indexing times from a third produced a `6,200 / 7 of
+  7` that **appeared in no committed file**, and a block of multipliers -`28.3x`,
+  `2.1x`, `0.2x` over a monorepo of `41` repositories and `100,118` symbols- that
+  did not exist in the harness it was attributed to. If a new table needs rival
+  arms, they go in their own table with their own JSON: the only pass where the six
+  arms really measured is `results.json`, and there kivgraph is `0.3.2`.
+- The counterweight is part of the evidence, not a disclaimer underneath. `grep`
+  comes out cheaper on 5 of the 29 questions and the home page counts them; the
+  product section itself publishes the `I1_go_depth2` case, where we lose.
+- The product demonstration **is not illustrative**. Every path, line, hop and
+  figure comes from a verbatim capture in `raw-all/`, and the component names the
+  file. A diagram with plausible names would argue against the only property this
+  page sells, like the synthetic node field that was withdrawn from the hero.
+- The three tabs of that section are a radio group and **zero JavaScript**: a
+  radio group is already navigable with the keyboard and a screen reader announces
+  it, the three panels go in the served HTML -- so a crawler sees all three-- and a
+  page whose CSS does not arrive shows all three instead of none. The `<input>`s
+  go before the tabs and the panels because the whole control is a sibling
+  selector; they are `sr-only` and never `display: none`, which is what would take
+  focus away from them.
+- **The install command is a platform selector, not a box.** Three bundles are
+  published -- `linux/amd64`, `darwin/arm64` and `windows/amd64`-- and two
+  installers, because `install.sh` does not run where there is no POSIX shell. The
+  control lives once in `InstallCommand.astro` and the hero and the final CTA use
+  it; the commands and the three architecture notes live in `platforms.ts`, which
+  is the only place they are written: the hero and `FinalCta.astro` each had their
+  own copy of the `curl`, which is how two boxes on the same page end up
+  publishing different commands.
+- macOS and Linux show **the same line** on purpose. `install.sh` reads `uname`
+  and picks its archive, so the answer for a Mac is the answer for Linux; what a
+  box with no labels does not answer is the question the visitor brings, which is
+  whether their machine is on the list. Windows is indeed another command:
+  `irm ... | iex`, and its `#Requires -Version 5.1` becomes a comment when piped
+  into `Invoke-Expression`. That is said in `/install/`, not on the home page.
+- The control is a radio group and **zero JavaScript**, like the tabs of
+  `ProductProof.astro`, with one difference that matters: the rules hook onto
+  `data-platform` and not onto an `id`, which is what lets the same component
+  appear **twice** on a page without the two boxes sharing a selection. Each panel
+  carries its own `CopyButton`, because the value it copies is rendered on the
+  server and a single button could not follow the selection without the script
+  this control exists to avoid. Nothing is detected: the page is prerendered, so
+  the first tab is a default and not an assumption about the reader.
+- Measured with the same protocol as the badge, two builds at once and 15
+  interleaved loads per arm at `1440x900`: before the tabs
+  `min 77 / median 89 / max 194 ms`, after `min 74 / median 85 / max 227 ms`. The
+  LCP element was the `h1` in **all 30 loads** and its painted surface the same,
+  `90132`. It was also verified on the served build that the panel changes with the
+  pointer and with the keyboard, that moving one box does not move the other, that
+  the `data-copy-data` of the visible button follows the tab
+  -- `{"where":"hero","platform":"windows"}`-- and that **with the style sheets
+  disabled the three commands are seen** in each box, which is the honest
+  degradation for a control whose job is to name a command.
+- The final CTA is its own band and not a `Section`: its heading **is** the call
+  to action, and putting it inside would put two `h2` in one band. It repeats
+  `Section`'s geometry -- `border-t`, `max-w-6xl`, `py-14`, `data-reveal`-- so the
+  rhythm is identical from outside.
 
-## El hero
+## The hero
 
-- El hero es centrado y su fondo es CSS: una malla estática de `72px` en
-  `--color-rule-strong` y un único brillo diagonal que la recorre, declarados
-  en el `<style>` de `Hero.astro`. No hay canvas, ni `requestAnimationFrame`,
-  ni observers, ni lectura de paleta desde la cascada: el lienzo sintético que
-  había antes costaba 415 líneas y dibujaba un campo cuyas posiciones no
-  codificaban ninguna relación del grafo.
-- El brillo es el `::after` de la malla, no un hermano, para que la máscara de
-  la malla lo recorte: un hermano iluminaría los bordes de la banda que la
-  máscara existe para esconder. Va y viene con `alternate` en vez de dar la
-  vuelta, porque un barrido de un solo sentido salta a su posición inicial en
-  cada ciclo. `prefers-reduced-motion: reduce` lo detiene.
-- El velo es una costura, no un scrim. Sólo cierra el patrón en los bordes de
-  la banda; un lavado lo bastante opaco para «proteger» el texto borra la malla
-  en su lugar, que es exactamente cómo un fondo acaba invisible.
-- La banda no lleva `border-bottom`: la primera `Section` dibuja su propio
-  `border-top`, y dos filetes contiguos leen como una regla de 2px que ninguna
-  otra costura de la página tiene.
-- Las barras de `TokenSaving.astro` se derivan de sus propias cifras y nunca se
-  dimensionan a mano: una gráfica cuya geometría contradice sus números
-  argumenta contra lo que va a demostrar. La tarjeta ya no vive en el hero: está
-  en la banda de la medición, junto a las tres cifras grandes que resume, y las
-  dos leen los mismos dos totales de la misma pasada.
-- `global.css` omite el preflight de Tailwind a propósito, porque Starlight
-  trae su propio reset. El de la landing vive en el `@layer base` de
-  `Layout.astro` y es el que quita el chrome nativo de `<button>`
-  (`appearance`, `background`, `font`). Una página que no use `Layout` -- una
-  ruta de preview suelta, por ejemplo -- dibuja controles del sistema: caja
-  `ButtonFace` clara con la tipografía del sistema. Ningún componente lo
-  duplica.
+- The hero is centred and its background is CSS: a static `72px` mesh in
+  `--color-rule-strong` and a single diagonal sheen that sweeps it, declared in
+  `Hero.astro`'s `<style>`. There is no canvas, no `requestAnimationFrame`, no
+  observers, no reading of the palette from the cascade: the synthetic canvas
+  there was before cost 415 lines and drew a field whose positions encoded no
+  relation of the graph.
+- The sheen is the mesh's `::after`, not a sibling, so that the mesh's mask crops
+  it: a sibling would light the edges of the band that the mask exists to hide. It
+  goes back and forth with `alternate` instead of wrapping around, because a
+  one-way sweep jumps to its starting position on every cycle.
+  `prefers-reduced-motion: reduce` stops it.
+- The veil is a seam, not a scrim. It only closes the pattern at the band's edges;
+  a wash opaque enough to "protect" the text erases the mesh in its place, which is
+  exactly how a background ends up invisible.
+- The band carries no `border-bottom`: the first `Section` draws its own
+  `border-top`, and two contiguous rules read as a 2px rule that no other seam on
+  the page has.
+- The bars of `TokenSaving.astro` are derived from their own figures and are never
+  sized by hand: a chart whose geometry contradicts its numbers argues against
+  what it is about to demonstrate. The card no longer lives in the hero: it is in
+  the measurement band, next to the three big figures it summarizes, and both read
+  the same two totals of the same pass.
+- `global.css` omits Tailwind's preflight on purpose, because Starlight brings its
+  own reset. The landing's lives in `Layout.astro`'s `@layer base` and is the one
+  that strips the native chrome from `<button>` (`appearance`, `background`,
+  `font`). A page that does not use `Layout` -- a loose preview route, for
+  example -- draws system controls: a light `ButtonFace` box with the system
+  typography. No component duplicates it.
 
-## Movimiento
+## Motion
 
-- `landing/src/lib/motion.ts` es la única capa de animación con JavaScript, y
-  se carga sólo desde `Layout.astro`: la documentación de Starlight no la
-  recibe. Son cuatro piezas: la entrada del hero, el encendido del fondo, el
-  halo que sigue al puntero, los dos CTA magnéticos, más los reveals al hacer
-  scroll y el parallax del fondo.
-- El marcado del hero declara los anclajes y la capa no busca por estructura:
-  `data-hero` en la banda, `data-hero-item` en los ocho bloques en orden de
-  lectura, `data-hero-field` en el plano y `data-hero-halo` en el halo. El
-  primer nombre de `HERO_ORDER` es `title` y no el bloque que va primero en la
-  página: ese nombre recibe un tween propio con retardo cero, y el `h1` es el
-  candidato a LCP. Poner el `eyebrow` delante encola el `h1`, que es el caso de
-  `1112 ms` de la tabla de abajo.
-- El halo vive en el marcado, no lo crea el JS: un elemento añadido en runtime
-  no lleva el atributo de scope de Astro y el CSS scoped del componente no lo
-  alcanzaría. Reposa en `opacity: 0` porque no contiene nada -- si el módulo no
-  corre, no hay nada que revelar.
-- El brillo es un `::after` con un bucle CSS y **ningún tween alcanza un
-  pseudo-elemento**. El hero declara su duración como `--sheen-duration` y la
-  entrada la acorta para una pasada y luego **elimina** la propiedad, que es lo
-  que devuelve el elemento al valor de la hoja de estilo en vez de fijar una
-  copia suya.
-- Medido sobre la portada servida, cinco cargas: LCP entre `64` y `72 ms` con
-  mediana `72 ms`, y el elemento es el `H1` en las cinco -- igual que sin
-  animación, y sin moverse al añadir el `eyebrow` ni al pasar el cuerpo a la
-  Geist Sans, que son las dos comprobaciones que esas ediciones exigían. Los
-  ocho bloques del hero terminan en `opacity: 1` y los 21 bloques con
-  `data-reveal` también; con `prefers-reduced-motion: reduce` los ocho salen a
-  `1`, el halo a `0`, el brillo con `animation-name: none` y las barras a su
-  ancho final.
-- **El octavo bloque es el badge de Glama, y es la única imagen del hero y la
-  única marca de un tercero de la página.** Se sirve desde `glama.ai` en vez de
-  commitearse porque la nota es suya y puede cambiar: una copia aquí seguiría
-  afirmando lo que afirmaba el día que se guardó. Lo que eso cuesta está
-  acotado -- `4 KB` de SVG con `max-age=300`-- y el `width` y el `height` son los
-  `110x20` del propio SVG, así que la caja queda reservada antes de que llegue
-  la respuesta. El `alt` nombra qué es el badge y **nunca** lo que dice, por la
-  misma razón por la que la imagen es remota. Va sin evento de Umami, igual que
-  el mismo enlace en la barra.
-- Se midió como exige la regla de más abajo, dos builds servidos a la vez en
-  dos puertos y las cargas intercaladas, 15 por brazo a `1440x900`: sin badge
-  `min 75 / mediana 98 / max 236 ms`, con él `min 74 / mediana 79 / max 133 ms`.
-  El badge no cuesta nada -- sale por debajo, dentro de un ruido que en este
-  caso llega a los `160 ms` del brazo sin él -- y lo que de verdad se comprobaba
-  es lo otro: el elemento LCP fue el `h1` en **las 30 cargas** y su superficie
-  pintada la misma, `90132`. Verificado además que la caja aguanta sin la
-  imagen: con la petición a `glama.ai` **abortada**, el badge sigue midiendo
-  `110x20` en `top 718`, la fila de hechos sigue en `top 670` y el documento
-  mide los mismos `11998px` que con la imagen servida. Un badge que no carga no
-  mueve nada, que es lo único que un tercero en el hero tiene que garantizar.
-- El `h1` es el elemento LCP de la portada, y lo que penaliza esa métrica es el
-  **retardo**, no la duración ni el fundido. Medido inyectando cada regla antes
-  del primer pintado, con `PerformanceObserver` sobre
-  `largest-contentful-paint`:
+- `landing/src/lib/motion.ts` is the only animation layer with JavaScript, and it
+  is loaded only from `Layout.astro`: Starlight's documentation does not receive
+  it. There are four pieces: the hero's entrance, the background's switch-on, the
+  halo that follows the pointer and the two magnetic CTAs, plus the reveals on
+  scroll and the background's parallax.
+- The hero's markup declares the anchors and the layer does not search by
+  structure: `data-hero` on the band, `data-hero-item` on the eight blocks in
+  reading order, `data-hero-field` on the plane and `data-hero-halo` on the halo.
+  The first name of `HERO_ORDER` is `title` and not the block that goes first on
+  the page: that name receives a tween of its own with zero delay, and the `h1` is
+  the LCP candidate. Putting the `eyebrow` first queues the `h1`, which is the
+  `1112 ms` case in the table below.
+- The halo lives in the markup, the JS does not create it: an element added at
+  runtime carries no Astro scope attribute and the component's scoped CSS would
+  not reach it. It rests at `opacity: 0` because it holds nothing -- if the module
+  does not run, there is nothing to reveal.
+- The sheen is an `::after` with a CSS loop and **no tween reaches a
+  pseudo-element**. The hero declares its duration as `--sheen-duration` and the
+  entrance shortens it for one pass and then **removes** the property, which is
+  what returns the element to the style sheet's value instead of pinning a copy of
+  its own.
+- Measured on the served home page, five loads: LCP between `64` and `72 ms` with
+  median `72 ms`, and the element is the `H1` in all five -- the same as without
+  animation, and without moving when the `eyebrow` was added or when the body
+  switched to Geist Sans, which are the two checks those edits demanded. The
+  hero's eight blocks end at `opacity: 1` and the 21 blocks with `data-reveal`
+  too; with `prefers-reduced-motion: reduce` the eight come out at `1`, the halo at
+  `0`, the sheen with `animation-name: none` and the bars at their final width.
+- **The eighth block is the Glama badge, and it is the only image in the hero and
+  the only third-party mark on the page.** It is served from `glama.ai` instead of
+  being committed because the rating is theirs and can change: a copy here would
+  keep claiming what it claimed the day it was saved. What that costs is bounded
+  -- `4 KB` of SVG with `max-age=300`-- and the `width` and `height` are the SVG's
+  own `110x20`, so the box is reserved before the response arrives. The `alt`
+  names what the badge is and **never** what it says, for the same reason the image
+  is remote. It goes with no Umami event, like the same link in the bar.
+- It was measured as the rule below demands, two builds served at once on two ports
+  and the loads interleaved, 15 per arm at `1440x900`: without the badge
+  `min 75 / median 98 / max 236 ms`, with it `min 74 / median 79 / max 133 ms`. The
+  badge costs nothing -- it comes out below, within a noise that in this case
+  reaches the `160 ms` of the arm without it -- and what was really being checked
+  is the other thing: the LCP element was the `h1` in **all 30 loads** and its
+  painted surface the same, `90132`. It was also verified that the box holds
+  without the image: with the request to `glama.ai` **aborted**, the badge still
+  measures `110x20` at `top 718`, the facts row is still at `top 670` and the
+  document measures the same `11998px` as with the image served. A badge that does
+  not load moves nothing, which is the only thing a third party in the hero has to
+  guarantee.
+- The `h1` is the home page's LCP element, and what that metric penalizes is the
+  **delay**, not the duration or the fade. Measured by injecting each rule before
+  the first paint, with a `PerformanceObserver` on `largest-contentful-paint`:
 
-  |regla sobre el `h1`|LCP|elemento|
+  |rule on the `h1`|LCP|element|
   |---|---|---|
-  |ninguna|`76 ms`|`H1`|
-  |sólo `transform`, `.6s`|`48 ms`|`H1`|
-  |`opacity` + `transform`, `.6s`, sin retardo|`88 ms`|`H1`|
-  |`opacity`, `.6s`, con `.6s` de retardo|`1.112 ms`|`H1`|
-  |`opacity: 0` permanente|`40 ms`|`P`|
+  |none|`76 ms`|`H1`|
+  |`transform` only, `.6s`|`48 ms`|`H1`|
+  |`opacity` + `transform`, `.6s`, no delay|`88 ms`|`H1`|
+  |`opacity`, `.6s`, with `.6s` of delay|`1,112 ms`|`H1`|
+  |permanent `opacity: 0`|`40 ms`|`P`|
 
-  Así que el `h1` **puede** entrar animado si su retardo es cero; lo que no
-  puede es esperar su turno en una cascada. La última fila es la trampa: un
-  `h1` oculto deja de ser candidato, Chrome mide un párrafo más pequeño y la
-  métrica *mejora* mientras la página no se lee.
-- Cualquier animación nueva sobre el hero se mide igual antes de darla por
-  gratis. La sonda que inyecta el CSS tiene que insertar el `<style>` en cuanto
-  `document.head` exista: en `evaluateOnNewDocument` ni `head` ni
-  `documentElement` existen todavía, y un `MutationObserver` registrado ahí no
-  llega a observar nada -- devuelve el baseline disfrazado de resultado.
-- **Un control nuevo en el hero se mide igual que una animación**, y el botón
-  que copia el prompt del agente es el primero que pasó por ahí. Medir un LCP
-  contra el otro build es lo único que contesta la pregunta: la cifra sola no
-  dice nada, porque la máquina que mide y las versiones instaladas mueven la
-  mediana más que el cambio. Se sirven **los dos builds a la vez**, en dos
-  puertos, y se **intercalan** las cargas alternando cuál va primero en cada
-  ronda; si no, el brazo que corre siempre en segundo lugar hereda una máquina
-  ya caliente y la diferencia que se publica es esa.
-- Resultado de esa pasada, 15 cargas por brazo a `1440x900`: sin el botón
-  `min 75 / mediana 85 / max 104 ms`, con él `min 71 / mediana 82 / max 99 ms`.
-  El botón no cuesta nada -- sale 3 ms por debajo, dentro de un ruido de
-  ~30 ms -- y lo que de verdad se estaba comprobando es lo otro: el elemento LCP
-  fue el `h1` (`data-hero-item="title"`) en **las 30 cargas** y su superficie
-  pintada la misma, `90132`. Un control añadido a la fila de acciones no
-  desplazó al candidato, que es el fallo que esta sección existe para evitar.
-- La sonda no vive en el repositorio y no hace falta que viva: `playwright-core`
-  en un directorio de usar y tirar fuera del árbol, apuntando con
-  `executablePath` al Chromium que la caché de Playwright ya tiene. `-core` a
-  propósito, porque no descarga navegadores. `addInitScript` es el
-  `evaluateOnNewDocument` que este archivo nombra más arriba, y para el LCP no
-  hace falta esperar a que exista un `head`: un `PerformanceObserver` sobre
-  `largest-contentful-paint` con `buffered: true` no toca el DOM. Desde la CLI
-  de Chromium a secas -- `--dump-dom` y `--virtual-time-budget`-- la medida sale
-  vacía o irrepetible; se intentó, y por eso está escrito aquí.
-- El estado inicial lo pone GSAP con `gsap.from`, **nunca el CSS**. Ningún
-  elemento reposa en `opacity: 0` -- la única declaración así en las hojas de
-  estilo es el keyframe que parpadea el cursor del transcript--, así que un
-  bundle bloqueado deja la página entera visible en vez de esconderla detrás de
-  un script.
-- GSAP core más `ScrollTrigger` pesan `112,1 KB` sin comprimir y `43,5 KB` con
-  gzip en el bundle de la portada, medidos sobre `dist/client/_astro`. No afecta
-  a la indexación -- el contenido va en el HTML servido-- pero sí es JavaScript
-  sin usar a ojos de Lighthouse. Cambiar el número al tocar la capa.
-- Sólo se animan `opacity` y `transform`. Ninguno realimenta el layout, así que
-  un reveal no puede contribuir a CLS.
-- `prefers-reduced-motion: reduce` retorna antes de registrar el plugin: no se
-  instrumenta nada, en vez de instrumentarlo y luego saltarlo.
-- El contrato del marcado es `data-reveal` en un contenedor, cuyos hijos
-  directos entran escalonados, y `data-hero-field` en el plano del hero. Los
-  declara `Section.astro`, así que una sección nueva lo hereda.
-- Una animación de carga no va en JavaScript diferido: el módulo puede
-  ejecutarse después del primer pintado, y entonces la barra de `TokenSaving`
-  se vería completa antes de encogerse para crecer. Esa crece en CSS.
+  So the `h1` **can** enter animated if its delay is zero; what it cannot do is
+  wait for its turn in a cascade. The last row is the trap: a hidden `h1` stops
+  being a candidate, Chrome measures a smaller paragraph and the metric *improves*
+  while the page cannot be read.
+- Any new animation over the hero is measured the same way before it is taken as
+  free. The probe that injects the CSS has to insert the `<style>` as soon as
+  `document.head` exists: in `evaluateOnNewDocument` neither `head` nor
+  `documentElement` exist yet, and a `MutationObserver` registered there never
+  gets to observe anything -- it returns the baseline disguised as a result.
+- **A new control in the hero is measured like an animation**, and the button that
+  copies the agent's prompt is the first that went through there. Measuring one LCP
+  against the other build is the only thing that answers the question: the figure
+  alone says nothing, because the measuring machine and the installed versions move
+  the median more than the change. **Both builds** are served at once, on two
+  ports, and the loads are **interleaved** alternating which goes first in each
+  round; otherwise the arm that always runs second inherits an already warm machine
+  and the difference that gets published is that.
+- Result of that pass, 15 loads per arm at `1440x900`: without the button
+  `min 75 / median 85 / max 104 ms`, with it `min 71 / median 82 / max 99 ms`. The
+  button costs nothing -- it comes out 3 ms below, within a noise of ~30 ms -- and
+  what was really being checked is the other thing: the LCP element was the `h1`
+  (`data-hero-item="title"`) in **all 30 loads** and its painted surface the same,
+  `90132`. A control added to the actions row did not displace the candidate, which
+  is the failure this section exists to avoid.
+- The probe does not live in the repository and does not need to: `playwright-core`
+  in a throwaway directory outside the tree, pointing with `executablePath` at the
+  Chromium that Playwright's cache already has. `-core` on purpose, because it
+  downloads no browsers. `addInitScript` is the `evaluateOnNewDocument` this file
+  names above, and for LCP there is no need to wait for a `head` to exist: a
+  `PerformanceObserver` on `largest-contentful-paint` with `buffered: true` does
+  not touch the DOM. From bare Chromium's CLI -- `--dump-dom` and
+  `--virtual-time-budget`-- the measurement comes out empty or unrepeatable; it
+  was tried, and that is why it is written here.
+- The initial state is set by GSAP with `gsap.from`, **never by CSS**. No element
+  rests at `opacity: 0` -- the only such declaration in the style sheets is the
+  keyframe that blinks the transcript's cursor--, so a blocked bundle leaves the
+  whole page visible instead of hiding it behind a script.
+- GSAP core plus `ScrollTrigger` weigh `112.1 KB` uncompressed and `43.5 KB`
+  gzipped in the home page's bundle, measured over `dist/client/_astro`. It does
+  not affect indexing -- the content is in the served HTML-- but it is unused
+  JavaScript in Lighthouse's eyes. Change the number when touching the layer.
+- Only `opacity` and `transform` are animated. Neither feeds back into layout, so
+  a reveal cannot contribute to CLS.
+- `prefers-reduced-motion: reduce` returns before registering the plugin: nothing
+  is instrumented, instead of instrumenting it and then skipping it.
+- The markup contract is `data-reveal` on a container, whose direct children enter
+  staggered, and `data-hero-field` on the hero's plane. They are declared by
+  `Section.astro`, so a new section inherits it.
+- A load animation does not go in deferred JavaScript: the module may run after the
+  first paint, and then `TokenSaving`'s bar would be seen complete before shrinking
+  to grow. That one grows in CSS.
 
-## Enlaces externos
+## External links
 
-- Todo enlace que sale del sitio abre en una pestaña nueva, con
-  `target="_blank"` y `rel="noopener noreferrer"`. `noopener` es el motivo del
-  `rel`: sin él la pestaña abierta obtiene un handle sobre `window.opener` y
-  puede navegar esta.
-- Son tres superficies y ninguna cubre a las otras dos:
-  - El markdown de la documentación lo resuelve
-    `rehype-external-links` en `astro.config.mjs`. Un autor no puede recordar
-    los atributos en cada enlace.
-  - Las anclas literales de la landing los llevan escritos.
-  - Las navegaciones generadas -- `TopBar.astro`, `Footer.astro`-- lo derivan
-    del propio `href` con `/^https?:\/\//`, así que una entrada nueva no puede
-    olvidar la regla.
-  - El icono social de Starlight es un componente y ningún paso de rehype lo
-    alcanza: vive sobreescrito en `src/components/starlight/SocialIcons.astro`,
-    que conserva el `rel="me"` original -- es una afirmación de identidad y
-    quitarlo rompería la verificación rel-me.
-- Se comprueba sobre el HTML generado, no leyendo plantillas: `dist/client`
-  tiene `97` anclas externas y `2.805` internas, y la cuenta correcta es `0`
-  externas sin la regla y `0` internas con `target`. Los totales crecen con cada
-  página y sólo valen como contexto de la pasada que los midió; lo que se
-  verifica son los dos ceros.
+- Every link that leaves the site opens in a new tab, with `target="_blank"` and
+  `rel="noopener noreferrer"`. `noopener` is the reason for the `rel`: without it
+  the opened tab gets a handle on `window.opener` and can navigate this one.
+- There are three surfaces and none covers the other two:
+  - The documentation's markdown is resolved by `rehype-external-links` in
+    `astro.config.mjs`. An author cannot remember the attributes on every link.
+  - The landing's literal anchors carry them written out.
+  - The generated navigations -- `TopBar.astro`, `Footer.astro`-- derive it from
+    the `href` itself with `/^https?:\/\//`, so a new entry cannot forget the rule.
+  - Starlight's social icon is a component and no rehype step reaches it: it is
+    overridden in `src/components/starlight/SocialIcons.astro`, which keeps the
+    original `rel="me"` -- it is a statement of identity and removing it would
+    break rel-me verification.
+- It is checked over the generated HTML, not by reading templates: `dist/client`
+  has `97` external anchors and `2,805` internal ones, and the correct count is
+  `0` external without the rule and `0` internal with `target`. The totals grow
+  with every page and are only context for the pass that measured them; what is
+  verified are the two zeros.
 
-## Verificación
+## Verification
 
 ```bash
 make landing-check
 make landing-build
 ```
 
-`pnpm --dir landing check` es `format:check`, `lint` y `typecheck`
+`pnpm --dir landing check` is `format:check`, `lint` and `typecheck`
 (`astro check`).
-Se sirve con `pm2 start landing/ecosystem.config.cjs` en el puerto `6767`.
+It is served with `pm2 start landing/ecosystem.config.cjs` on port `6767`.
