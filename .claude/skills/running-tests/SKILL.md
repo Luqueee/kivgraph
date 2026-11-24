@@ -209,7 +209,7 @@ If the change touches `docs/` or a `CLAUDE.md`, also `scripts/check-docs.sh` --
 which verifies the symlink and the column width, **not** the language. The
 language is decided by whoever writes: a new document, in English; a document
 that already exists in Spanish stays in Spanish until somebody translates it
-whole. The rule is in *El idioma de lo que se escribe*, in the root `AGENTS.md`,
+whole. The rule is in *The language of what is written*, in the root `AGENTS.md`,
 and it also reaches the commit and the pull request that close the task.
 
 And a trap of that gate that costs a red CI: `check-docs.sh` measures width with
