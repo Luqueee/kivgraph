@@ -1,217 +1,219 @@
-# Instrucciones de los benchmarks (`benchmarks/`)
+# Benchmark instructions (`benchmarks/`)
 
-Estas reglas se suman a las de `AGENTS.md` en la raíz del repositorio, que se
-leen siempre. Una instrucción de este archivo puede añadir restricciones; nunca
-puede relajar un contrato de integridad, compatibilidad o verificación
-declarado en la raíz.
+These rules add to the `AGENTS.md` at the repository root, which is always
+read. An instruction in this file may add restrictions; it can never relax an
+integrity, compatibility or verification contract declared at the root.
 
-- Los benchmarks viven en `benchmarks/<nombre>/`, con `results.json` y
-  `report.md`. Deben conservar comando, commit, entorno, dataset, semilla,
-  métricas y limitaciones.
-- Los benchmarks de observabilidad deben separar la ruta local, el proveedor
-  `noop` y cualquier proveedor SDK configurado explícitamente; no se deben
-  presentar como un único coste de producción.
-- El benchmark end-to-end del visor se versiona en
-  `benchmarks/web-viewer/`; el harness falla cerrado ante una métrica fuera de
-  límite y no emite `WEB_VIEWER_PERFORMANCE_PASS` si el corpus o GPU no
-  coinciden con la referencia declarada.
-- `benchmarks/tool-honesty/` no mide aristas: mide **qué afirma una tool cuando
-  su respuesta está vacía**, conduciendo el binario real por MCP contra un
-  corpus con puntos ciegos a propósito. Los repositorios limpios son la mitad
-  del diseño: sin ellos, un veredicto constante `LOWER_BOUND` pasaría todas las
-  comprobaciones. Los dos lenguajes van en un solo corpus para poder comprobar
-  que el veredicto no se contagia entre ellos, y cada brazo declara su propio
-  ámbito ciego: la pasada se niega si alguno perdió el suyo. El ámbito se lee
-  de `graph_status`, no del fixture. El brazo Rust se salta declarándose
-  cuando falta su toolchain, y preserva `RUSTUP_HOME` porque un `HOME` aislado
-  deja a `rustup` sin toolchains.
-- `benchmarks/language-recall/` mide, por lenguaje, qué parte de los archivos
-  que dependen de una declaración devuelve `find_references`. La verdad de
-  referencia sale de renombrar la declaración y volver a comprobar tipos: los
-  archivos que ganan un error son los que la usan. **En Go, TypeScript y Dart
-  el oráculo y Kivgraph comparten el comprobador de tipos** (`dart analyze` y
-  el Analysis Server), así que no se mide la resolución de tipos sino todo lo
-  que la rodea. En Rust no: el oráculo es `rustc` por `cargo check` y Kivgraph
-  lee `rust-analyzer`. Lo que se mide en los otros es qué archivos y variantes
-  se cargan, cómo un uso resuelto se vuelve arista y qué se filtra. La unidad es el
-  archivo, no la referencia, porque tras un import roto el compilador no
-  reporta los usos del nombre importado. Un error solo cuenta si su línea
-  nombra el identificador original (los errores en cascada no) y se excluyen
-  las relaciones de implementación y los errores sobre la propia línea de la
-  declaración. Corpus público fijado por commit; un repositorio por lenguaje
-  en el piloto, así que las cifras describen esos repositorios y no el
-  lenguaje. Go y Dart leen sus tests por defecto (ADR 0132) y se miden con la
-  configuración por defecto y con `include_tests: false`
-  (`go.tests_excluded`), porque la diferencia entre las dos es lo que compra
-  leerlos. `-repos` mide repositorios extra por nombre -- `gin`, `caddy`,
-  `prometheus`, y `got`, `ripgrep` y `args` como segundo repositorio de
-  TypeScript, Rust y Dart (`second-repository/`) -- que no entran en la
-  ejecución por defecto. Java y C# (`jsoup`, `GuardClauses`) solo se miden con
-  `-languages java,csharp`, porque sus indexadores no forman parte de una
-  instalación por defecto; leen sus tests por defecto (ADR 0142) y su segundo
-  brazo es `tests_excluded`, como en Go y Dart. Sus resultados viven en `java-csharp/`.
-  Python (`click`) solo se mide con `-languages python` y con `mypy` y
-  `pyright-langserver` en el `PATH`: el oráculo es `mypy`, que Kivgraph no usa,
-  y sus cuatro brazos cruzan `analyzer_mode: exact` con `include_tests: false`,
-  porque el modo por defecto lee los tests (ADR 0144) y no es exacto. `mypy` se ejecuta
-  sin caché a propósito: da un fichero por no cambiado cuando coinciden su
-  tamaño y su segundo de modificación, y aquí todo renombrado añade los mismos
-  tres bytes. Sus resultados viven en `python/`. Un resultado
-  sin la lista de lo que no se pudo muestrear no se publica.
-- `benchmarks/edit-frequency` no mide una reconstrucción contra otra: mide qué
-  le cuesta el grafo a **un agente que edita**, que es la carga por la que la
-  issue `#106` reabrió el ADR 0057. Sus dos brazos se encuentran en una sola
-  cifra -- cuántas preguntas compra una reconstrucción-- porque es la única
-  unidad que comparten: editar no le cuesta nada al brazo de búsqueda, y
-  preguntar no le cuesta casi nada al grafo. Medido: `17,150 s` por pase tras
-  editar un fichero contra `0,101 s` por pregunta buscada y leída, o sea `169,5`
-  preguntas por reconstrucción, y `82,7 %` del pase es publicar.
-- **El pase de calentamiento se mide, se publica y no entra en ninguna
-  mediana.** Es el que llena la caché de hechos, y un agente que edita no lo
-  corre nunca: mezclarlo en la mediana informa de un coste que nadie paga. La
-  diferencia no es marginal -- `123,220 s` en frío contra `17,150` en caliente.
-- **Y la caché de hechos está clavada a la huella del binario que indexa**, así
-  que una corrida lanzada con `go run` recompila a otra ruta y no puede acertar
-  ni su propio calentamiento. Las corridas publicadas se hacen con un binario
-  construido, y el informe lo dice en su orden de reproducción. Un harness que
-  no lo hiciera mediría un pase frío y lo llamaría caliente.
-- El brazo de búsqueda declara **qué buscador corrió**. `rg` no siempre está en
-  el `PATH` -- los hosts de agente lo empaquetan dentro de su propio ejecutable--
-  y la alternativa `grep` necesita las exclusiones escritas a mano, porque
-  ripgrep no baja a un árbol de dependencias instaladas y un `grep` que sí bajara
-  cronometraría una búsqueda que ninguna sesión hace. El buscador más lento
-  **favorece al grafo**, así que la cifra publicada es una cota inferior y el
-  informe la nombra así.
-- `benchmarks/snapshot-heap` tampoco mide páginas residentes: separa, en lo que
-  cuesta cargar un snapshot publicado, los bytes que un lector **conserva** de
-  los que la carga asigna y tira. Toma el perfil con el snapshot **vivo**, que
-  es la única forma de atribuirlo: el benchmark del paquete escribe el suyo
-  cuando ya es inalcanzable y no atribuye ni un byte.
-- Y las dos mitades **no son la misma cifra en `Private_Dirty`**, que es lo que
-  este archivo decía. Sólo la que se conserva lo es en régimen estacionario:
-  `benchmarks/load-cost-resident` retiró `60,5 MB` de la mitad transitoria y el
-  residente por servidor no se movió (`71,76 MB` contra `71,22`, tres pares de
-  tres). Bajar lo asignado compra tiempo hasta la primera respuesta; los bytes
-  por proceso se bajan moviendo una estructura al fichero mapeado, y sólo eso.
-  Quien escriba una cifra de `snapshot-heap` en una ficha de memoria residente
-  está citando la magnitud equivocada.
-- `benchmarks/load-cost-resident` corre en un contenedor Linux y **no es el host
-  de referencia**: lo que hace comparables sus unidades es el page size de
-  `4096` bytes, y lo que hace comparables sus dos brazos es que corrieron en la
-  misma VM contra el mismo fichero. No sobrescribe los artefactos de
-  `shared-snapshot`, y no afirma ningún límite de latencia.
-- `benchmarks/daemon-cost` responde qué cuesta un proceso sirviendo a N clientes
-  contra N procesos sirviendo a uno. Lo que publica como respuesta es la
-  **pendiente por cliente**, no ningún total: un brazo que ahorrara a dos
-  clientes y no a ocho parecería una victoria en cualquier fila suelta. Mide el
-  recuento de **un** cliente aunque un demonio no comparta nada allí, porque es
-  donde su coste fijo sería visible sin nada que amortizarlo -- y ahí resultó que
-  empata, desmintiendo la predicción del ADR 0065.
-- **`daemon-cost` mide las dos puertas del demonio a tres cargas y publica un
-  artefacto por combinación**: `results-idle.json` y `results-http-idle.json` sin
-  ninguna llamada, `results.json` y `results-http.json` con `8`, y
-  `results-http-sustained.json` con `2.000`. El transporte y los recuentos entran
-  en el digest; sin eso las corridas colisionan en una identidad y una cifra de
-  socket puede citarse como si fuera alcanzable. El esquema es `daemon-cost-v3`.
-- **La carga cero no es un extremo teórico: es la mediana.** `48` de `51`
-  servidores reales no reciben ninguna llamada, así que `-calls 0` mide el caso
-  que predomina. Ahí el arranque resultó ser el coste -- `33 MB` por cliente sin
-  contestar nada, contra `40` contestando-- y eso se arregló: el ADR 0067 movió la
-  lectura del grafo a la primera consulta, y la cifra ociosa vigente es `10 MB`
-  por cliente contra `39` contestando y `66` bajo tráfico sostenido. Es también la
-  única carga en la que los cuatro puntos del barrido miden lo mismo por cliente,
-  porque `-calls N` reparte N llamadas entre los clientes que haya.
-- **Un árbol sucio no publica un commit a secas.** `commit` lleva `-dirty` cuando
-  hay cambios sin commitear y `-unknown` cuando no se pudo saber, y las dos
-  variantes se declaran en `limitations`. Es el caso normal -- las cifras que
-  justifican un cambio se miden antes de commitearlo-- y sin el sufijo el
-  artefacto atribuye sus números a un código que no ejecutó. Las corridas
-  publicadas se hacen desde un árbol limpio.
-- **Un guardia no puede ser carga.** El `graph_status` que prueba que los dos
-  brazos sirven la misma generación corre **después** del muestreo, no antes: nada
-  obliga a que preceda a los bytes, y preguntando primero la carga cero era
-  imposible de medir. Falla y descarta igual. Ese movimiento es lo que subió el
-  esquema de `v2` a `v3`: un fichero `v2` incluye esa llamada en sus bytes.
-- **Lo que no se midió no se publica como cero.** Los percentiles, el
-  `new_client_ms` y los ratios de latencia son punteros y desaparecen del fichero
-  cuando la corrida no preguntó nada; el resumen imprime `--`. Un `p50_ms: 0` se
-  lee como una respuesta instantánea y un `p99_ratio: 0` como un demonio
-  infinitamente más rápido. Lo que sí se mide a toda carga es
-  `new_client_connect_ms`, que es el campo con el que dos cargas se comparan.
-- Un probe que sólo existe en el camino de un servidor real -- los de
-  `startServer` y `connect`-- no lo caza ningún test local: borrarlo no rompe nada
-  en un portátil. Por eso la corrida se niega a publicar un fichero ocioso que
-  haya cronometrado algún primer answer, y ese rechazo sí tiene test.
-- **La carga se cuenta, no se elige, y es la variable que decidió el resultado
-  dos veces.** El event log de un `serve` registra cada llamada de tool, así que
-  la carga de una sesión real se recuenta de un log de uso -- la orden está en el
-  informe. Medido: mediana de **una** llamada por sesión y `48` de `51`
-  servidores sin ninguna. Las `2.000` llamadas del caso sostenido son tres
-  órdenes de magnitud por encima de eso, y ahí HTTP parecía costar `12,5 MB` por
-  cliente cuando a carga real cuesta menos de `1 MB`, igual que el socket. Un
-  benchmark que mide la carga equivocada no es impreciso: **contesta otra
-  pregunta**, y en este caso subestimaba el ahorro.
-- El caso sostenido se conserva en `results-http-sustained.json` porque es un
-  techo útil, y **su cifra no se transporta entre corpus**: `4,9`–`5,9 MB` por
-  cliente sobre `117.499` símbolos contra `12,8` sobre `108.737`, reproducido dos
-  veces en corpus de ese tamaño. Esa dependencia del corpus es la firma de un
-  coste en bytes retenidos -- el buffer de reanudación de `10 MiB` que el SDK da a
-  cada sesión-- y no de un coste por sesión. Citar el techo como si fuera el coste
-  es el error que este benchmark ya cometió.
-- No es un brazo de `shared-snapshot` y no debe convertirse en uno: los brazos de
-  aquél se definen por si el fichero de snapshot está, y su gate mide mapear
-  contra derivar. Un tercer brazo dejaría su comparación sin significado.
-- Una cifra por símbolo se lee de la pasada que la produjo, nunca cruzada entre
-  corpus. Las corridas vigentes de `daemon-cost` usan los `108.737` símbolos de
-  `workspace` en su generación `000001`; las de `117.499` están en el historial, no en
-  estas tablas. `workspace` es un workspace en uso, así que un reindexado posterior no
-  reproduce el recuento anterior: el corpus se declara por pasada.
-- `benchmarks/mcp-token-cost/corpora/` congela el corpus en repositorios de
-  terceros a un **commit completo** (un tag puede moverse, y el hash de un tag
-  anotado no es un commit): así las capturas del brazo nativo se toman una vez y
-  una cifra que cambia es del servidor. `prepare` se niega a medir un checkout que
-  no esté en ese commit o esté sucio. `--check` es el trinquete: falla si una
-  respuesta cuesta más que su `results.json` en más de la tolerancia o si una
-  pregunta encuentra **menos referencias**, y se niega a comparar lo que no es
-  comparable (otro commit, otro conjunto de preguntas, otra captura). Un corpus
-  sin `results.json` se declara y se salta en CI. El brazo nativo sigue siendo la
-  salida literal de la herramienta del host, así que se recaptura con
-  `recapture.py` en una sesión con `KIVGRAPH_DISABLE_HOOK=1`: la puerta niega esa
-  misma `grep`.
+- Benchmarks live in `benchmarks/<name>/`, with `results.json` and
+  `report.md`. They must keep the command, commit, environment, dataset, seed,
+  metrics and limitations.
+- Observability benchmarks must separate the local path, the `noop` provider
+  and any explicitly configured SDK provider; they must not be presented as a
+  single production cost.
+- The viewer's end-to-end benchmark is versioned in
+  `benchmarks/web-viewer/`; the harness fails closed on a metric out of bounds
+  and does not emit `WEB_VIEWER_PERFORMANCE_PASS` if the corpus or GPU do not
+  match the declared reference.
+- `benchmarks/tool-honesty/` does not measure edges: it measures **what a tool
+  claims when its answer is empty**, driving the real binary over MCP against a
+  corpus with deliberate blind spots. The clean repositories are half of the
+  design: without them, a constant `LOWER_BOUND` verdict would pass every
+  check. The two languages go in a single corpus so that it can be checked that
+  the verdict does not leak between them, and each arm declares its own blind
+  scope: the pass refuses to run if any lost its own. The scope is read from
+  `graph_status`, not from the fixture. The Rust arm skips itself, declaring
+  so, when its toolchain is missing, and preserves `RUSTUP_HOME` because an
+  isolated `HOME` leaves `rustup` with no toolchains.
+- `benchmarks/language-recall/` measures, per language, what share of the files
+  that depend on a declaration `find_references` returns. The ground truth
+  comes from renaming the declaration and type-checking again: the files that
+  gain an error are the ones that use it. **In Go, TypeScript and Dart the
+  oracle and Kivgraph share the type checker** (`dart analyze` and the Analysis
+  Server), so what is measured is not type resolution but everything around it.
+  Not in Rust: the oracle is `rustc` through `cargo check` and Kivgraph reads
+  `rust-analyzer`. What is measured in the others is which files and variants
+  are loaded, how a resolved use becomes an edge and what is filtered. The
+  unit is the file, not the reference, because after a broken import the
+  compiler does not report the uses of the imported name. An error counts only
+  if its line names the original identifier (cascading errors do not) and
+  implementation relations and errors on the declaration's own line are
+  excluded. Public corpus pinned by commit; one repository per language in the
+  pilot, so the figures describe those repositories and not the language. Go and
+  Dart read their tests by default (ADR 0132) and are measured with the default
+  configuration and with `include_tests: false` (`go.tests_excluded`), because
+  the difference between the two is what reading them buys. `-repos` measures
+  extra repositories by name -- `gin`, `caddy`, `prometheus`, and `got`,
+  `ripgrep` and `args` as the second repository for TypeScript, Rust and Dart
+  (`second-repository/`) -- which are not part of the default run. Java and C#
+  (`jsoup`, `GuardClauses`) are measured only with `-languages java,csharp`,
+  because their indexers are not part of a default installation; they read
+  their tests by default (ADR 0142) and their second arm is `tests_excluded`,
+  as in Go and Dart. Their results live in `java-csharp/`. Python (`click`) is
+  measured only with `-languages python` and with `mypy` and
+  `pyright-langserver` on the `PATH`: the oracle is `mypy`, which Kivgraph does
+  not use, and its four arms cross `analyzer_mode: exact` with
+  `include_tests: false`, because the default mode reads tests (ADR 0144) and is
+  not exact. `mypy` runs without a cache on purpose: it reports a file as
+  unchanged when its size and modification second match, and here every
+  rename adds the same three bytes. Its results live in `python/`. A result
+  without the list of what could not be sampled is not published.
+- `benchmarks/edit-frequency` does not measure one rebuild against another: it
+  measures what the graph costs **an agent that edits**, which is the load for
+  which issue `#106` reopened ADR 0057. Its two arms meet in a single figure --
+  how many questions a rebuild buys -- because it is the only unit they share:
+  editing costs the search arm nothing, and asking costs the graph almost
+  nothing. Measured: `17.150 s` per pass after editing one file against `0.101 s`
+  per question searched and read, that is `169.5` questions per rebuild, and
+  `82.7 %` of the pass is publishing.
+- **The warm-up pass is measured, published and enters no median.** It is the
+  one that fills the fact cache, and an agent that edits never runs it: mixing
+  it into the median reports a cost nobody pays. The difference is not
+  marginal -- `123.220 s` cold against `17.150` warm.
+- **And the fact cache is pinned to the fingerprint of the binary that
+  indexes**, so a run launched with `go run` recompiles to another path and
+  cannot hit even its own warm-up. Published runs are made with a built binary,
+  and the report says so in its reproduction order. A harness that did not
+  would measure a cold pass and call it warm.
+- The search arm declares **which searcher ran**. `rg` is not always on the
+  `PATH` -- agent hosts bundle it inside their own executable -- and the
+  `grep` alternative needs its exclusions written by hand, because ripgrep does
+  not descend into a tree of installed dependencies and a `grep` that did would
+  time a search that no session makes. The slower searcher **favours the
+  graph**, so the published figure is a lower bound and the report names it as
+  such.
+- `benchmarks/snapshot-heap` does not measure resident pages either: it
+  separates, in what loading a published snapshot costs, the bytes a reader
+  **keeps** from those the load allocates and throws away. It takes the profile
+  with the snapshot **live**, which is the only way to attribute it: the
+  package benchmark writes its own when it is already unreachable and
+  attributes not a single byte.
+- And the two halves **are not the same figure in `Private_Dirty`**, which is
+  what this file used to say. Only the one that is kept is, in steady state:
+  `benchmarks/load-cost-resident` removed `60.5 MB` of the transient half and
+  the resident per server did not move (`71.76 MB` against `71.22`, three pairs
+  of three). Lowering what is allocated buys time to first answer; bytes per
+  process are lowered by moving a structure to the mapped file, and only that.
+  Whoever writes a `snapshot-heap` figure into a resident-memory sheet is
+  quoting the wrong magnitude.
+- `benchmarks/load-cost-resident` runs in a Linux container and **is not the
+  reference host**: what makes its units comparable is the `4096`-byte page
+  size, and what makes its two arms comparable is that they ran in the same VM
+  against the same file. It does not overwrite the artifacts of
+  `shared-snapshot`, and it asserts no latency bound.
+- `benchmarks/daemon-cost` answers what one process serving N clients costs
+  against N processes serving one each. What it publishes as the answer is the
+  **slope per client**, not any total: an arm that saved for two clients and
+  not for eight would look like a victory in any single row. It measures the
+  count of **one** client even though a daemon shares nothing there, because
+  that is where its fixed cost would be visible with nothing to amortize it --
+  and there it turned out to tie, disproving the prediction of ADR 0065.
+- **`daemon-cost` measures the daemon's two doors at three loads and publishes
+  one artifact per combination**: `results-idle.json` and
+  `results-http-idle.json` with no call at all, `results.json` and
+  `results-http.json` with `8`, and `results-http-sustained.json` with `2,000`.
+  The transport and the counts enter the digest; without that, runs collide on
+  one identity and a socket figure can be quoted as if it were reachable. The
+  schema is `daemon-cost-v3`.
+- **Zero load is not a theoretical extreme: it is the median.** `48` of `51`
+  real servers receive no call at all, so `-calls 0` measures the case that
+  predominates. There the startup turned out to be the cost -- `33 MB` per
+  client without answering anything, against `40` answering -- and that was
+  fixed: ADR 0067 moved the reading of the graph to the first query, and the
+  current idle figure is `10 MB` per client against `39` answering and `66`
+  under sustained traffic. It is also the only load at which the four points of
+  the sweep measure the same per client, because `-calls N` spreads N calls
+  among however many clients there are.
+- **A dirty tree does not publish a bare commit.** `commit` carries `-dirty`
+  when there are uncommitted changes and `-unknown` when it could not be known,
+  and both variants are declared in `limitations`. It is the normal case -- the
+  figures that justify a change are measured before committing it -- and
+  without the suffix the artifact attributes its numbers to code it did not
+  run. Published runs are made from a clean tree.
+- **A guard cannot be load.** The `graph_status` that proves both arms serve the
+  same generation runs **after** the sampling, not before: nothing requires it
+  to precede the bytes, and asking first made zero load impossible to measure.
+  It fails and discards just the same. That move is what raised the schema from
+  `v2` to `v3`: a `v2` file includes that call in its bytes.
+- **What was not measured is not published as zero.** Percentiles,
+  `new_client_ms` and the latency ratios are pointers and disappear from the
+  file when the run asked nothing; the summary prints `--`. A `p50_ms: 0` reads
+  as an instantaneous answer and a `p99_ratio: 0` as an infinitely faster
+  daemon. What is measured at every load is `new_client_connect_ms`, which is
+  the field two loads are compared with.
+- A probe that exists only on the path of a real server -- those of
+  `startServer` and `connect` -- is caught by no local test: deleting it breaks
+  nothing on a laptop. That is why the run refuses to publish an idle file that
+  timed any first answer, and that refusal does have a test.
+- **Load is counted, not chosen, and it is the variable that decided the result
+  twice.** The event log of a `serve` records every tool call, so the load of a
+  real session is recounted from a usage log -- the command is in the report.
+  Measured: median of **one** call per session and `48` of `51` servers with
+  none. The `2,000` calls of the sustained case are three orders of magnitude
+  above that, and there HTTP seemed to cost `12.5 MB` per client when under real
+  load it costs less than `1 MB`, like the socket. A benchmark that measures the
+  wrong load is not imprecise: **it answers another question**, and in this case
+  it underestimated the saving.
+- The sustained case is kept in `results-http-sustained.json` because it is a
+  useful ceiling, and **its figure does not carry across corpora**: `4.9`–`5.9 MB`
+  per client over `117,499` symbols against `12.8` over `108,737`, reproduced
+  twice on corpora of that size. That dependence on the corpus is the signature
+  of a cost in retained bytes -- the `10 MiB` resumption buffer the SDK gives
+  every session -- and not of a cost per session. Quoting the ceiling as if it
+  were the cost is the mistake this benchmark already made.
+- It is not an arm of `shared-snapshot` and must not become one: that
+  benchmark's arms are defined by whether the snapshot file is present, and its
+  gate measures mapping against deriving. A third arm would leave its
+  comparison meaningless.
+- A per-symbol figure is read from the pass that produced it, never crossed
+  between corpora. The current `daemon-cost` runs use the `108,737` symbols of
+  `workspace` at its generation `000001`; those of `117,499` are in the
+  history, not in these tables. `workspace` is a workspace in use, so a later
+  reindex does not reproduce the earlier count: the corpus is declared per pass.
+- `benchmarks/mcp-token-cost/corpora/` freezes the corpus on third-party
+  repositories at a **full commit** (a tag can move, and the hash of an
+  annotated tag is not a commit): so the native arm's captures are taken once
+  and a figure that changes is the server's. `prepare` refuses to measure a
+  checkout that is not at that commit or is dirty. `--check` is the ratchet: it
+  fails if an answer costs more than its `results.json` by more than the
+  tolerance or if a question finds **fewer references**, and it refuses to
+  compare what is not comparable (another commit, another question set, another
+  capture). A corpus without `results.json` is declared and skipped in CI. The
+  native arm remains the literal output of the host's tool, so it is recaptured
+  with `recapture.py` in a session with `KIVGRAPH_DISABLE_HOOK=1`: the gate
+  denies that very `grep`.
 
-## Corpus y auditorías
+## Corpora and audits
 
-- Los corpus sintéticos de aceptación de gran escala se generan en una ruta
-  privada y nunca sustituyen ni modifican repositorios indexados. Para
-  LadybugDB, la reproducibilidad debe distinguir entre hechos lógicos
-  (conteos, schema e integridad) y bytes físicos del archivo nativo.
-- Una auditoría de exactitud debe separar `false exact edges` de aristas
-  colgantes: compara fixtures con ground truth para las primeras y ejecuta las
-  invariantes canónicas de extremos, evidencia y procedencia para las segundas.
-- Un informe `ACCEPT_KIVGRAPH_WITH_LIMITS` debe enumerar plataforma,
-  toolchains, corpus, transporte, garantías, métricas y riesgos residuales;
-  no puede convertir una limitación conocida en un PASS implícito.
+- Large-scale synthetic acceptance corpora are generated at a private path and
+  never replace or modify indexed repositories. For LadybugDB, reproducibility
+  must distinguish logical facts (counts, schema and integrity) from the
+  physical bytes of the native file.
+- An accuracy audit must separate `false exact edges` from dangling edges:
+  compare fixtures with ground truth for the former and run the canonical
+  invariants of endpoints, evidence and provenance for the latter.
+- An `ACCEPT_KIVGRAPH_WITH_LIMITS` report must list platform, toolchains,
+  corpus, transport, guarantees, metrics and residual risks; it cannot turn a
+  known limitation into an implicit PASS.
 
-`dist/` y los repositorios indexados nunca se usan como entrada: se generan
-copias o fixtures privados.
+`dist/` and the indexed repositories are never used as input: private copies or
+fixtures are generated.
 
-## Un límite de latencia no se afirma en `go test ./...`
+## A latency bound is not asserted in `go test ./...`
 
-Un SLO es una propiedad de la máquina que lo mide, y `go test ./...` corre donde
-sea: en un runner compartido con dos trabajos más al lado. Afirmarlo ahí produce
-un fallo que no describe el código.
+An SLO is a property of the machine that measures it, and `go test ./...` runs
+anywhere: on a shared runner with two more jobs next to it. Asserting it there
+produces a failure that does not describe the code.
 
-Ocurrió: la release `v0.2.0` cayó con `find_cross_repo_consumers` en `p95` de
-`11,6 ms` contra un límite de `5 ms`, **sobre el mismo commit cuyo CI acababa de
-pasar** en otro runner, y con cinco de cinco pasadas locales por debajo del
-límite. El código no había cambiado entre las dos observaciones.
+It happened: the `v0.2.0` release fell over with `find_cross_repo_consumers` at
+a `p95` of `11.6 ms` against a bound of `5 ms`, **on the same commit whose CI
+had just passed** on another runner, and with five of five local passes below
+the bound. The code had not changed between the two observations.
 
-Así que el límite se comprueba cuando alguien lo pide -`KIVGRAPH_BENCH_SLO=1`,
-que es lo que significa una puerta de benchmark- y se informa el resto del
-tiempo. Lo que sí se afirma siempre es que la medición ocurrió: un harness que
-dejara de evaluar sus comprobaciones pasaría igual, y eso es peor que un límite
-incumplido.
+So the bound is checked when someone asks for it -`KIVGRAPH_BENCH_SLO=1`, which
+is what a benchmark gate means- and reported the rest of the time. What is
+always asserted is that the measurement took place: a harness that stopped
+evaluating its checks would pass anyway, and that is worse than a missed bound.
 
-La misma regla vale para cualquier gate que dependa del entorno -`rust-src`
-instalado, una GPU, un corpus- y por el mismo motivo: la ausencia se declara y se
-salta, nunca se convierte en un `FAIL` que apunta al sitio equivocado.
+The same rule holds for any gate that depends on the environment -`rust-src`
+installed, a GPU, a corpus- and for the same reason: the absence is declared
+and skipped, never turned into a `FAIL` that points at the wrong place.

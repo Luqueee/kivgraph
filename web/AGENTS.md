@@ -1,144 +1,147 @@
-# Instrucciones del visor (`web/`)
+# Viewer instructions (`web/`)
 
-Estas reglas se suman a las de `AGENTS.md` en la raíz del repositorio, que se
-leen siempre. Una instrucción de este archivo puede añadir restricciones; nunca
-puede relajar un contrato de integridad, compatibilidad o verificación
-declarado en la raíz.
+These rules add to the `AGENTS.md` at the repository root, which is always
+read. An instruction in this file may add restrictions; it can never relax an
+integrity, compatibility or verification contract declared at the root.
 
-El servidor que publica las tiles y el payload `LGVB` está en `internal/`.
+The server that publishes the tiles and the `LGVB` payload lives in `internal/`.
 
-## Alcance y estilo
+## Scope and style
 
-- La aplicación web en `web/` mantiene TypeScript estricto, ESM, Biome y
-  Vitest; los payloads binarios grandes permanecen fuera del estado React y
-  `web/dist` se regenera con el build de Vite.
-- `web/` es solo el previsualizador del grafo: `App` monta el visor a pantalla
-  completa y no contiene landing, cabecera ni secciones de presentación. El
-  visor es oscuro por construcción (`class="dark"` y `darkTheme` de Reagraph).
-- Los componentes UI que se necesiten deben añadirse con
-  `pnpm dlx shadcn@latest init`/`add` y Tailwind CSS, no a mano ni con una
-  segunda librería de estilos; el paquete no vendoriza primitives sin uso.
-- `web/src/renderer` recibe el payload `LGVB` versionado como `ArrayBuffer`,
-  conserva sus vistas fuera de React y solo materializa el límite visible que
-  consume `reagraph`; el adaptador rechaza payloads que excedan el límite en
-  vez de truncar silenciosamente la topología.
+- The web application in `web/` keeps strict TypeScript, ESM, Biome and
+  Vitest; large binary payloads stay out of React state and `web/dist` is
+  regenerated with the Vite build.
+- `web/` is only the graph previewer: `App` mounts the viewer full screen and
+  holds no landing page, header or presentation sections. The viewer is dark
+  by construction (`class="dark"` and Reagraph's `darkTheme`).
+- The UI components that are needed are added with
+  `pnpm dlx shadcn@latest init`/`add` and Tailwind CSS, not by hand and not with
+  a second styling library; the package does not vendor unused primitives.
+- `web/src/renderer` receives the versioned `LGVB` payload as an `ArrayBuffer`,
+  keeps its views outside React and only materializes the visible limit that
+  `reagraph` consumes; the adapter rejects payloads that exceed the limit
+  instead of silently truncating the topology.
 
-## Layout del mundo
+## World layout
 
-- El visor no dibuja las coordenadas publicadas: deriva su propio layout 3D de
-  la estructura del tile - contención, dependencias, comunidades y profundidad
-  jerárquica - y lo calcula en el worker, una vez por tile. Una tile es una
-  muestra del mundo, y la rejilla que empaquetó el servidor no dice nada sobre
-  qué paquetes van juntos cuando falta la mayoría.
-- Primero estructura y después física: los clusters se colocan y se relajan
-  entre sí, cada nodo cuelga de su contenedor y sólo al final una relajación
-  local corrige lo que la estructura no decidió. No hay simulación por frame.
-- El layout es determinista: las direcciones salen del hash de la identidad
-  del nodo, no de su posición en el tile ni de un generador aleatorio. El mismo
-  tile dibuja siempre el mismo mundo.
-- El radio de una concha es la suma cuadrática de los radios de sus hijos,
-  nunca el mayor por la raíz del número: eso manda los hijos pequeños a la
-  órbita del grande y deja el volumen intermedio vacío.
-- Todas las distancias del layout son proporciones del radio con el que se
-  dibuja un nodo. Reservar espacio en unidades ajenas a lo que se pinta produce
-  o una maraña o un campo de puntos invisibles.
-- Ningún eje puede colapsar: si uno queda más estrecho que la mitad del más
-  ancho se reescala en torno al centroide. La profundidad que sólo existe en
-  los números no vale nada.
+- The viewer does not draw the published coordinates: it derives its own 3D
+  layout from the structure of the tile - containment, dependencies,
+  communities and hierarchical depth - and computes it in the worker, once per
+  tile. A tile is a sample of the world, and the grid the server packed says
+  nothing about which packages belong together when most of them are missing.
+- Structure first and physics after: clusters are placed and relaxed against
+  each other, every node hangs from its container, and only at the end does a
+  local relaxation correct what the structure did not decide. There is no
+  per-frame simulation.
+- The layout is deterministic: directions come from the hash of the node's
+  identity, not from its position in the tile or from a random generator. The
+  same tile always draws the same world.
+- The radius of a shell is the quadratic sum of the radii of its children,
+  never the largest one times the square root of the count: that sends the
+  small children to the orbit of the large one and leaves the intermediate
+  volume empty.
+- Every layout distance is a proportion of the radius a node is drawn with.
+  Reserving space in units unrelated to what is painted produces either a
+  tangle or a field of invisible points.
+- No axis may collapse: if one ends up narrower than half of the widest it is
+  rescaled around the centroid. Depth that exists only in the numbers is worth
+  nothing.
 
-## Qué se dibuja y cómo
+## What is drawn and how
 
-- El visor no muestra IDs densos: cada nodo se rotula con el nombre que el
-  snapshot conoce, acortado en el lienzo y completo al pasar el cursor. Un ID
-  denso solo es único dentro de su tipo de nodo, así que los extremos de una
-  arista se resuelven por `(tipo, id)`.
-- El visor dibuja la contención declarada por `parent_kind`/`parent_id` cuando
-  el contenedor viaja en la misma tile, y una leyenda nombra cada color y cada
-  trazo. La paleta se declara una sola vez en el adaptador.
-- Ninguna arista del visor es discontinua: Reagraph construye una curva y un
-  tubo por guion, y con una arista por nodo eso domina el frame. La distinción
-  se hace con color y grosor; las aristas entre clusters se curvan para no
-  atravesar el centro en línea recta.
-- Sólo los repositorios y los hubs llevan rótulo permanente; el resto sale al
-  pasar el cursor. Cada rótulo tiene tamaño fijo en unidades de mundo, así que
-  rotularlo todo sólo produce una mancha gris.
-- El rótulo lo dibuja el renderer de nodos como un sprite, con el texto pintado
-  por el navegador en una textura, y `labelType` es `none`. Las etiquetas de
-  Reagraph son Troika, y Troika resuelve la fuente de cada carácter con datos
-  que pide a un CDN: un visor local hacía una petición a un tercero en cada
-  carga, y sin ruta hasta él el lienzo esperaba una respuesta que no llegaba y
-  no dibujaba ningún nodo. Además su material de glifos es GLSL que el renderer
-  WebGPU no ejecuta, así que ahí cada rótulo era un punto.
-- El visor no pide nada fuera de su origen. El servidor lo dice en cada
-  respuesta con `Content-Security-Policy` (`internal/webassets`), sin `blob:`
-  en `script-src` y sin ningún otro host: una dependencia que vuelva a pedir
-  algo fuera queda bloqueada y nombrada en la consola.
-- Al posar el cursor sobre un nodo se ilumina su vecindario y se atenúa el
-  resto; al salir se apaga. Reagraph sólo atenúa cuando hay selección, así que
-  el nodo apuntado va en `selections` y lo que toca en `actives`. Encender y
-  apagar esperan a que el cursor se pose: cada cambio del conjunto activo
-  reconstruye las mallas de arista.
-- La cámara encuadra la extensión proyectada sobre sus propios ejes, no la
-  esfera envolvente, y abre fuera de eje. Un layout estructural nunca es una
-  bola, y encuadrar una deja el grafo en un tercio de la pantalla.
-- La jerarquía se lee por tamaño: el rango dibujado va de `4` a `22` unidades y
-  el lienzo recibe esos mismos límites como `minNodeSize`/`maxNodeSize`, porque
-  Reagraph reescala los tamaños que recibe. El extremo pequeño no baja de `4`:
-  por debajo un símbolo deja de ser un punto y no es nada.
-- La contención se atenúa según lo que sostiene y la separación entre hermanos
-  la fija el nodo típico del tile, no el mayor. Un contenedor con todos sus
-  trazos al mismo brillo es un erizo, y espaciar símbolos con la medida de un
-  repositorio infla el mundo hasta hacerlos invisibles.
-- Los nodos se dibujan con una geometría de esfera compartida y materiales
-  compartidos por color y opacidad. Una esfera de `25 × 25` por nodo son mil
-  quinientos triángulos para un punto de cinco píxeles.
-- La contención no es una arista: viaja como pares de índices y se dibuja como
-  una única malla de segmentos con color por vértice. Hay una por nodo, nada
-  la selecciona, y como arista obligaría a reconstruir toda la geometría del
-  grafo cada vez que se mueve el resaltado.
-- El visor elige el nivel de detalle según los píxeles proyectados de la
-  cámara, conserva histéresis entre `1.1` y `1` píxeles y eleva dependencias
-  hacia contenedores visibles; cambiar de nivel sólo reproyecta durante un
-  frame de interacción y nunca modifica el tile.
+- The viewer shows no dense IDs: every node is labelled with the name the
+  snapshot knows, shortened on the canvas and complete on hover. A dense ID is
+  unique only within its node type, so the ends of an edge are resolved by
+  `(type, id)`.
+- The viewer draws the containment declared by `parent_kind`/`parent_id` when
+  the container travels in the same tile, and a legend names every colour and
+  every stroke. The palette is declared once, in the adapter.
+- No viewer edge is dashed: Reagraph builds one curve and one tube per dash,
+  and with one edge per node that dominates the frame. The distinction is made
+  with colour and thickness; edges between clusters are curved so they do not
+  cross the centre in a straight line.
+- Only repositories and hubs carry a permanent label; the rest appear on
+  hover. Every label has a fixed size in world units, so labelling everything
+  only produces a grey smear.
+- The label is drawn by the node renderer as a sprite, with the text painted by
+  the browser into a texture, and `labelType` is `none`. Reagraph's labels are
+  Troika, and Troika resolves the font of each character with data it requests
+  from a CDN: a local viewer made a request to a third party on every load, and
+  with no route to it the canvas waited for a response that never arrived and
+  drew no node. Besides, its glyph material is GLSL that the WebGPU renderer
+  does not run, so there every label was a dot.
+- The viewer requests nothing outside its origin. The server says so in every
+  response with `Content-Security-Policy` (`internal/webassets`), with no
+  `blob:` in `script-src` and no other host: a dependency that goes back to
+  requesting something outside is blocked and named in the console.
+- Hovering a node lights up its neighbourhood and dims the rest; leaving turns
+  it off. Reagraph only dims when there is a selection, so the pointed node
+  goes in `selections` and what it touches in `actives`. Turning on and off
+  wait for the cursor to settle: every change of the active set rebuilds the
+  edge meshes.
+- The camera frames the projected extent on its own axes, not the bounding
+  sphere, and opens off axis. A structural layout is never a ball, and framing
+  one leaves the graph in a third of the screen.
+- The hierarchy is read by size: the drawn range goes from `4` to `22` units and
+  the canvas receives those same limits as `minNodeSize`/`maxNodeSize`, because
+  Reagraph rescales the sizes it receives. The small end does not go below `4`:
+  below that a symbol stops being a point and is nothing.
+- Containment is dimmed according to what it holds, and the spacing between
+  siblings is set by the typical node of the tile, not the largest. A container
+  with all its strokes at the same brightness is a hedgehog, and spacing
+  symbols with the measure of a repository inflates the world until they are
+  invisible.
+- Nodes are drawn with one shared sphere geometry and materials shared by
+  colour and opacity. A `25 × 25` sphere per node is fifteen hundred triangles
+  for a five-pixel dot.
+- Containment is not an edge: it travels as pairs of indices and is drawn as a
+  single mesh of segments with colour per vertex. There is one per node,
+  nothing selects it, and as an edge it would force rebuilding the whole
+  graph's geometry every time the highlight moves.
+- The viewer chooses the level of detail from the camera's projected pixels,
+  keeps hysteresis between `1.1` and `1` pixels and raises dependencies toward
+  visible containers; changing level only reprojects during one interaction
+  frame and never modifies the tile.
 
-## Coste por fotograma
+## Cost per frame
 
-- El visor dibuja bajo demanda: el bucle de render se detiene con el grafo
-  quieto y despierta con los eventos de puntero del lienzo. Un grafo publicado
-  no se mueve, y redibujarlo sesenta veces por segundo cuesta un núcleo a
-  cambio de nada. Cualquier componente que refresque por su cuenta -el
-  contador de FPS- vive fuera del lienzo: cada commit reaplica su `frameloop`.
-- El visor pide las tiles desde un Web Worker con `AbortController` por
-  petición; el render permanece en el hilo principal. El número de nodos por
-  vista es ajustable desde la interfaz, una tile recortada se declara como tal
-  y un contador de FPS expone el coste de la elección.
-- El visor consulta `navigator.gpu` antes de montar WebGPU; sin un adaptador
-  utilizable muestra el motivo y conserva WebGL. La ruta WebGPU usa materiales
-  nodo y nunca se declara activa por una mera propiedad de configuración.
-- La fábrica WebGL del visor desactiva antialiasing; `FrameGovernor` limita el
-  DPR a `1` mientras el puntero se mueve - también al pasar por encima, no sólo
-  al arrastrar - y durante un gesto sostenido pausa además el picking y oculta
-  las etiquetas con `visible = false`. Todo se restaura al quedar inactivo, y
-  cada cambio del drawing buffer se repinta sincrónicamente antes de exponerse
-  al navegador, para no mostrar un frame negro.
-- Los rótulos no se desmontan durante un gesto: el gobernador sólo cambia su
-  `visible`, y los reconoce por la marca `userData.caption` de su material.
-- El rótulo del nodo apuntado no vive en el estado del visor: viaja por un
-  canal propio (`createStatusChannel`) porque un `setState` por nodo rozado
-  reconstruye el árbol de elementos de todo el grafo. La selección y su
-  vecindario son un único estado y se aplican dentro de `startTransition`.
-- Las geometrías instanciadas de Troika parten con `instanceCount: 0` hasta
-  que llega el atlas de glifos asíncrono y no llaman a `dispose()` al sustituir
-  un atributo: `troika-three-text@0.52.5` permanece fijado y parcheado porque
-  WebGPU rechaza el valor por defecto `Infinity` y porque liberar los buffers
-  de una geometría viva deja al backend enlazando un índice inexistente.
-- Antes de construir el `WebGPURenderer`, el visor resuelve `instanceCount` en
-  `InstancedBufferGeometry` con la misma regla que WebGL - el mínimo de
-  `meshPerAttribute * count` entre los atributos instanciados, `0` sin
-  ninguno - para que ninguna librería pueda llevar un `Infinity` a
-  `drawIndexed`.
+- The viewer draws on demand: the render loop stops while the graph is still
+  and wakes with the canvas's pointer events. A published graph does not move,
+  and redrawing it sixty times a second costs a core for nothing. Any component
+  that refreshes on its own -the FPS counter- lives outside the canvas: every
+  commit reapplies its `frameloop`.
+- The viewer requests tiles from a Web Worker with an `AbortController` per
+  request; rendering stays on the main thread. The number of nodes per view is
+  adjustable from the interface, a trimmed tile is declared as such, and an FPS
+  counter exposes the cost of the choice.
+- The viewer queries `navigator.gpu` before mounting WebGPU; without a usable
+  adapter it shows the reason and keeps WebGL. The WebGPU path uses node
+  materials and is never declared active by a mere configuration property.
+- The viewer's WebGL factory disables antialiasing; `FrameGovernor` limits the
+  DPR to `1` while the pointer moves - also when hovering, not only when
+  dragging - and during a sustained gesture it also pauses picking and hides
+  the labels with `visible = false`. Everything is restored when it goes idle,
+  and every change of the drawing buffer is repainted synchronously before it
+  is exposed to the browser, so as not to show a black frame.
+- Labels are not unmounted during a gesture: the governor only changes their
+  `visible`, and recognizes them by the `userData.caption` mark of their
+  material.
+- The label of the pointed node does not live in the viewer's state: it travels
+  through a channel of its own (`createStatusChannel`) because one `setState`
+  per brushed node rebuilds the element tree of the whole graph. The selection
+  and its neighbourhood are a single state and are applied inside
+  `startTransition`.
+- Troika's instanced geometries start with `instanceCount: 0` until the
+  asynchronous glyph atlas arrives and do not call `dispose()` when replacing an
+  attribute: `troika-three-text@0.52.5` stays pinned and patched because WebGPU
+  rejects the default value `Infinity` and because freeing the buffers of a live
+  geometry leaves the backend binding a nonexistent index.
+- Before building the `WebGPURenderer`, the viewer resolves `instanceCount` in
+  `InstancedBufferGeometry` with the same rule as WebGL - the minimum of
+  `meshPerAttribute * count` across the instanced attributes, `0` with none -
+  so that no library can carry an `Infinity` into `drawIndexed`.
 
-## Verificación
+## Verification
 
 ```bash
 cd web
@@ -146,7 +149,7 @@ pnpm check
 pnpm build
 ```
 
-`pnpm check` es `format:check`, `lint`, `typecheck` y `test`. `dist/` es
-generado con Vite y lo sirve `internal/webassets` sólo en builds con el tag
-`webassets`.
-El benchmark end-to-end está en `benchmarks/web-viewer/`.
+`pnpm check` is `format:check`, `lint`, `typecheck` and `test`. `dist/` is
+generated with Vite and `internal/webassets` serves it only in builds with the
+`webassets` tag.
+The end-to-end benchmark is in `benchmarks/web-viewer/`.
