@@ -48,10 +48,11 @@ surface has its own in `internal/mcp/AGENTS.md`.
   it would go back to saying `COMPLETE` over a hole.
 - `go/types` travels linked into the binary: Kivgraph only type-checks up to the
   language version of the toolchain that compiled it. A module registered above
-  that ceiling is rejected in `goworkspace.BuildPlan` naming repository, module
-  and version; it is never allowed to make the synthetic `go.work` escalate the
-  toolchain and break the load of every repository inside the standard library.
-  The ceiling is `major.minor`.
+  that ceiling is left out of `goworkspace.BuildPlan` and declared
+  `MODULE_NOT_LOADED` naming repository, module and version, and the pass goes
+  on (ADR 0147, amended); it is never allowed to make the synthetic `go.work`
+  escalate the toolchain and break the load of every repository inside the
+  standard library. The ceiling is `major.minor`.
 - The synthetic `go.work` resolves a single build list for the modules it uses,
   so the plan is split into independent groups: two modules only share a
   workspace when one reaches the other through `require`, through `replace` or
