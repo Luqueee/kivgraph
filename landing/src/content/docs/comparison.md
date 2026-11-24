@@ -341,6 +341,32 @@ reproducible by anyone else.
 `0.10.1` and returns `760` since `0.10.2`: the detail of a failure is cut to its
 first line, at most `320` bytes, and the block says when it did.
 
+### Recall per language, on public repositories
+
+`benchmarks/language-recall/`, Kivgraph `0.10.0`, run on 2026-11-22. For up to `100`
+declarations per language it renames the declaration, type-checks again with the
+language's own checker, and counts the files that stop compiling: those are the
+files that depend on it. The question is how many of them `find_references`
+reports. The corpora are public and pinned: `cobra` (Go), `ky` (TypeScript), `fd`
+(Rust) and `collection` (Dart). It has been run once, on `0.10.0`, and not on
+`0.10.3`.
+
+| language | declarations with dependents | file recall | file precision |
+| --- | ---: | ---: | ---: |
+| Go | `96` | `100.0 %` | `100.0 %` |
+| TypeScript | `85` | `100.0 %` | `96.8 %` |
+| Rust | `86` | `100.0 %` | `97.8 %` |
+| Dart | `73` | `100.0 %` | `88.5 %` |
+
+Every declaration was fully recalled in all four languages. An answer that said
+`COMPLETE` and missed a non-test file happened `0` times in `96` Go answers and
+`0` in `100` TypeScript ones. The cost is precision on Dart, where about one file
+in nine reported does not depend on the declaration.
+
+A configuration that leaves test files out (`go.tests_excluded`,
+`dart.tests_excluded`) loses exactly the dependents that are tests: file recall
+falls to `65.9 %` in Go and `75.0 %` in Dart. The default includes them.
+
 ## Raw outputs
 
 Everything the tables are computed from is committed in

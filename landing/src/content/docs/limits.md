@@ -93,6 +93,23 @@ cache already; if it is not, the module is not loaded and the message says
 which toolchain is missing. A `GOTOOLCHAIN` already in the environment, or one
 saved with `go env -w`, is left alone.
 
+## A pass nobody asked for will not replace what the graph reads
+
+A pass you run (`index`, `index --full`, `index_project`) publishes what it could
+read and names what it could not. The pass the watcher starts is unattended:
+before it publishes it compares its result with the active generation, and
+publishes nothing when a file that held a declaration there is still on disk,
+holds none in the new graph, and its repository and language report a
+`*_NOT_LOADED` failure or `ANALYZER_UNAVAILABLE`. The active generation stays
+and the daemon logs the first file and the count once.
+
+It exists because a missing `rust-analyzer` on the `PATH` of a background start
+once replaced a graph of `4,595` Rust symbols with none. The cost is that the
+graph can be behind the code until the cause is fixed: install the analyzer or
+the dependencies, or run `kivgraph index --full` yourself, which publishes what
+it reads. A deleted file, a withdrawn repository or a file that now declares
+nothing is not a loss and does not trigger it.
+
 ## A component template is read as words
 
 An `.astro`, `.vue` or `.svelte` file is not compiled. Kivgraph records which
