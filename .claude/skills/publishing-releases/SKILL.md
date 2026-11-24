@@ -1,60 +1,59 @@
 ---
 name: publishing-releases
-description: Procedimiento seguro y reproducible para decidir, preparar, etiquetar, verificar y cerrar una release de Kivgraph. Usar cuando alguien pida sacar una versión, al tocar internal/version/version.go, una nota de release o un tag vX.Y.Z.
+description: Safe and reproducible procedure to decide on, prepare, tag, verify and close a Kivgraph release. Use when someone asks to cut a version, when touching internal/version/version.go, a release note or a vX.Y.Z tag.
 ---
 
-# Publicar una release de Kivgraph
+# Publishing a Kivgraph release
 
-Esta skill cubre el cambio completo: decidir si merece la pena publicar,
-actualizar las fuentes correctas, pasar los gates, crear el tag y comprobar lo
-que realmente llegó a GitHub y al MCP Registry. No publica nada si la persona
-no lo ha pedido explícitamente.
+This skill covers the whole change: deciding whether publishing is worth it,
+updating the right sources, passing the gates, creating the tag and checking
+what actually reached GitHub and the MCP Registry. It publishes nothing unless
+the person has explicitly asked for it.
 
-## Reglas que no se negocian
+## Rules that are not negotiable
 
-- La versión sólo sube. Nunca se baja, se reinicia, se reutiliza ni se reescribe
-  un tag que ya se haya empujado.
-- Las releases estables usan vX.Y.Z. Las releases de desarrollo usan un sufijo
-  SemVer, por ejemplo vX.Y.Z-dev.N; son prereleases y no se marcan como latest.
-- El tag debe apuntar al commit exacto que ya está integrado en main. No se
-  etiqueta una rama de trabajo ni un árbol sucio.
-- La nota de release debe existir antes del tag. Si falta, CI quema el tiempo de
-  construir los artefactos y falla justo antes de publicarlos.
-- Una release es un evento de distribución, no una marca de progreso del
-  backlog. El número de tarea, un PASS en TASKS.md o una suite verde no son
-  por sí solos un motivo.
+- The version only goes up. It is never lowered, restarted, reused or rewritten
+  as a tag that has already been pushed.
+- Stable releases use vX.Y.Z. Development releases use a SemVer suffix, for
+  example vX.Y.Z-dev.N; they are prereleases and are not marked as latest.
+- The tag must point at the exact commit that is already integrated in main. A
+  working branch or a dirty tree is not tagged.
+- The release note must exist before the tag. If it is missing, CI burns the time
+  of building the artifacts and fails just before publishing them.
+- A release is a distribution event, not a progress mark of the backlog. A task
+  number, a PASS in TASKS.md or a green suite are not by themselves a reason.
 
-`kivgraph update` selecciona un canal y compara versiones con SemVer. El canal
-`stable` consulta `/releases/latest`; el canal `dev` enumera las primeras 100
-prereleases publicadas y elige la mayor versión válida. Sin `--channel`, una
-instalación estable usa `stable` y una instalación prerelease usa `dev`. También
-se puede seleccionar explícitamente con `--channel stable|dev` o
+`kivgraph update` selects a channel and compares versions with SemVer. The
+`stable` channel queries `/releases/latest`; the `dev` channel enumerates the
+first 100 published prereleases and picks the highest valid version. Without
+`--channel`, a stable installation uses `stable` and a prerelease installation
+uses `dev`. It can also be selected explicitly with `--channel stable|dev` or
 `KIVGRAPH_UPDATE_CHANNEL`.
 
-## 1. Decidir si hay release y qué número usar
+## 1. Decide whether there is a release and which number to use
 
-Publicar sólo tiene sentido si quien actualiza obtiene algo ejecutable y
+Publishing only makes sense if whoever updates gets something executable and
 observable:
 
-- una corrección que afecta al binario publicado;
-- una capacidad nueva del CLI, MCP o de un lenguaje soportado;
-- un cambio de compatibilidad, schema o migración;
-- una corrección del bundle, instaladores, checksums, analizador o visor web.
+- a fix that affects the published binary;
+- a new capability of the CLI, MCP or a supported language;
+- a compatibility, schema or migration change;
+- a fix of the bundle, installers, checksums, analyzer or web viewer.
 
-No publicar por documentación aislada, TASKS.md, ADRs, benchmarks, tests,
-refactors sin cambio observable, ni por completar una tarea LUQUE-####.
-Resume en una frase qué gana quien actualiza. Si la frase sólo habla del
-trabajo interno, no hay release.
+Do not publish for isolated documentation, TASKS.md, ADRs, benchmarks, tests,
+refactors with no observable change, or for completing a LUQUE-#### task.
+Summarize in one sentence what whoever updates gains. If the sentence only talks
+about internal work, there is no release.
 
-En la serie 0.MINOR.PATCH:
+In the 0.MINOR.PATCH series:
 
-| versión | usarla para |
+| version | use it for |
 | --- | --- |
-| PATCH | opción por defecto: bugs y cambios que no amplían ni rompen la superficie observable; |
-| MINOR | una tool MCP o comando nuevo, un cambio de schema persistente, una compatibilidad nueva o un flag retirado. |
+| PATCH | the default option: bugs and changes that neither widen nor break the observable surface; |
+| MINOR | a new MCP tool or command, a persistent schema change, a new compatibility or a removed flag. |
 
-Antes de elegir el número, contrástalo con GitHub y con todos los tags. No uses
-un número recordado de una conversación ni una comparación lexicográfica:
+Before choosing the number, check it against GitHub and against all the tags. Do
+not use a number remembered from a conversation or a lexicographic comparison:
 
 ~~~bash
 git fetch origin --tags
@@ -62,9 +61,9 @@ gh api repos/Luqueee/kivgraph/releases/latest --jq .tag_name
 git tag --list 'v[0-9]*' --sort=-version:refname | head -1
 ~~~
 
-El nuevo tag tiene que ser semánticamente mayor que la release estable que
-GitHub sirve como latest, mayor que cualquier tag existente y no puede existir
-ya como tag ni como release:
+The new tag has to be semantically greater than the stable release GitHub serves
+as latest, greater than any existing tag, and cannot already exist as a tag or as
+a release:
 
 ~~~bash
 TAG=vX.Y.Z
@@ -78,17 +77,17 @@ if gh release view "$TAG" >/dev/null 2>&1; then
 fi
 ~~~
 
-Si hay dudas sobre el orden semántico, detenerse y resolverlas; no forzar el
-número. kivgraph update compara versiones de forma estricta y una versión
-menor deja instalaciones sin camino de actualización.
+If there are doubts about the semantic order, stop and resolve them; do not force
+the number. kivgraph update compares versions strictly and a lower version leaves
+installations with no update path.
 
-## 2. Preparar las fuentes de la release
+## 2. Prepare the release sources
 
-Trabajar desde main actualizado. Si los cambios aún están en una PR, primero
-se integran mediante el flujo normal del repositorio; el commit de preparación
-no se etiqueta desde la rama de la PR.
+Work from an up-to-date main. If the changes are still in a PR, they are
+integrated first through the repository's normal flow; the preparation commit is
+not tagged from the PR branch.
 
-Para preparar el commit desde una base conocida:
+To prepare the commit from a known base:
 
 ~~~bash
 git switch main
@@ -96,32 +95,32 @@ git pull --ff-only origin main
 git switch -c chore/release-vX.Y.Z
 ~~~
 
-La fuente de versión y la nota obligatoria son:
+The version source and the mandatory note are:
 
 ~~~text
 internal/version/version.go                 var Value = "X.Y.Z"
-landing/src/content/releases/vX.Y.Z.md      nombre de la nota y frontmatter
+landing/src/content/releases/vX.Y.Z.md      name of the note and frontmatter
 ~~~
 
-La página pública de telemetría también forma parte del contrato de una
-release. No lleva una copia manual de «la última versión»: nombra la primera
-release que introdujo cada emisor y describe el collector que está desplegado.
-Si cambian un campo, un emisor, la deduplicación, el almacenamiento, la
-retención o el opt-out, actualizar en el mismo commit:
+The public telemetry page is also part of a release's contract. It carries no
+manual copy of "the latest version": it names the first release that introduced
+each emitter and describes the collector that is deployed. If a field, an
+emitter, deduplication, storage, retention or the opt-out change, update in the
+same commit:
 
 ~~~text
 landing/src/content/docs/telemetry.md
 docs/development/analytics.md
-docs/adr/0083-a-download-is-not-a-person.md o un ADR que lo sustituya
+docs/adr/0083-a-download-is-not-a-person.md or an ADR that replaces it
 ~~~
 
-Una nota nueva no basta si la página sigue describiendo el pipeline anterior.
+A new note is not enough if the page still describes the previous pipeline.
 
-El resto de comandos fijados con KIVGRAPH_VERSION=v... son documentación
-derivada. No hay que mantener una lista manual: el test los descubre en
-README.md, docs/, landing/ y los scripts, excluyendo historiales y ledgers.
-Actualiza sólo los ejemplos que pretendan enseñar la versión actual; no hagas
-un reemplazo global que altere referencias históricas.
+The rest of the commands pinned with KIVGRAPH_VERSION=v... are derived
+documentation. There is no list to maintain by hand: the test discovers them in
+README.md, docs/, landing/ and the scripts, excluding histories and ledgers.
+Update only the examples that mean to teach the current version; do not do a
+global replacement that alters historical references.
 
 ~~~bash
 go test ./internal/version/ \
@@ -129,7 +128,7 @@ go test ./internal/version/ \
   -count=1
 ~~~
 
-La nota landing/src/content/releases/vX.Y.Z.md debe tener este frontmatter:
+The note landing/src/content/releases/vX.Y.Z.md must have this frontmatter:
 
 ~~~yaml
 ---
@@ -139,35 +138,34 @@ requires_reindex: false
 ---
 ~~~
 
-Elige requires_reindex por el comportamiento, no por costumbre:
+Choose requires_reindex by behaviour, not by habit:
 
-- true si cambian loaders, resolución, identidades, aristas o el schema de
-  forma que un grafo existente ya no representa correctamente las fuentes;
-- false si el grafo existente sigue siendo válido.
+- true if loaders, resolution, identities, edges or the schema change in a way
+  that an existing graph no longer correctly represents the sources;
+- false if the existing graph is still valid.
 
-Una versión sin tag en el repositorio al que enlaza la página lleva
-`tagged: false`, y la página no muestra su enlace de comparación, que sería un
-404. Se quita esa línea al crear el tag.
+A version with no tag in the repository the page links to carries
+`tagged: false`, and the page does not show its comparison link, which would be a
+404. That line is removed when the tag is created.
 
-Si cambia el schema persistente o una superficie de compatibilidad, revisa el
-ADR y el camino de migración o full rebuild antes de escribir la nota. La nota
-debe explicar el impacto para el usuario, los cambios incompatibles y la acción
-necesaria para actualizar. Su cuerpo se publica en la landing y como GitHub
-Release Note, por lo que se escribe en inglés.
+If the persistent schema or a compatibility surface changes, review the ADR and
+the migration or full-rebuild path before writing the note. The note must explain
+the impact for the user, the incompatible changes and the action needed to
+update. Its body is published on the landing and as the GitHub Release note, so
+it is written in English.
 
-server.json es una plantilla de metadatos del MCP Registry, no otra fuente de
-la versión del binario. El workflow genera su version y sus packages a partir
-de los artefactos de esa ejecución. No se añade una lista packages ni se
-inventan checksums; sólo se edita el template si cambia su metadata estable.
+server.json is a metadata template for the MCP Registry, not another source of
+the binary's version. The workflow generates its version and its packages from
+the artifacts of that run. A packages list is not added and no checksums are
+invented; only the template is edited if its stable metadata changes.
 
-No editar a mano dist/, .tooling/, web/dist, landing/dist, ts-worker/dist,
-manifests fijados ni lockfiles.
+Do not hand-edit dist/, .tooling/, web/dist, landing/dist, ts-worker/dist, pinned
+manifests or lockfiles.
 
-## 3. Gates antes de crear el tag
+## 3. Gates before creating the tag
 
-El tag dispara el pipeline, pero CI no puede decidir si el número ni la nota
-eran correctos. Ejecutar los gates relevantes antes de publicar y conservar el
-resultado:
+The tag triggers the pipeline, but CI cannot decide whether the number or the
+note were right. Run the relevant gates before publishing and keep the result:
 
 ~~~bash
 git diff --check
@@ -192,11 +190,12 @@ go test -race \
   ./internal/storage/generation/...
 ~~~
 
-make test-ladybug es el modo soportado para la suite nativa; no sustituirlo por
-go test -tags ladybug sin la biblioteca y el CGO_* que prepara el Makefile.
-make build produce el binario Go normal, no el bundle nativo que se distribuye.
+make test-ladybug is the supported way to run the native suite; do not replace it
+with go test -tags ladybug without the library and the CGO_* that the Makefile
+prepares. make build produces the normal Go binary, not the native bundle that is
+distributed.
 
-Repetir los checks de los tres paquetes Node, igual que CI:
+Repeat the checks of the three Node packages, the same as CI:
 
 ~~~bash
 (cd ts-worker && pnpm install --frozen-lockfile && pnpm format:check && \
@@ -205,31 +204,31 @@ Repetir los checks de los tres paquetes Node, igual que CI:
 (cd landing && pnpm install --frozen-lockfile && pnpm check && pnpm build)
 ~~~
 
-make semantic-coverage y los analizadores no deben convertirse en skips por
-falta de herramientas. Instalar el toolchain que exige CI y dejar visible el
-fallo si no se puede completar.
+make semantic-coverage and the analyzers must not turn into skips for lack of
+tools. Install the toolchain CI requires and leave the failure visible if it
+cannot be completed.
 
-CI también cruza el código para windows/amd64 y parsea los dos scripts de
-PowerShell. Si se modifica código específico de Windows o un instalador,
-reproducir esos dos checks con las herramientas del workflow; que Linux compile
-no demuestra que el instalador de Windows sea válido.
+CI also cross-compiles for windows/amd64 and parses the two PowerShell scripts.
+If Windows-specific code or an installer is modified, reproduce those two checks
+with the workflow's tools; that Linux compiles does not prove that the Windows
+installer is valid.
 
-Si se está en un host de publicación, verificar además el bundle nativo de esa
-plataforma y su reproducibilidad:
+If you are on a publishing host, also verify the native bundle of that platform
+and its reproducibility:
 
 ~~~bash
-make build-linux-amd64       # sólo en Linux amd64
-make build-darwin-arm64      # sólo en macOS arm64
+make build-linux-amd64       # only on Linux amd64
+make build-darwin-arm64      # only on macOS arm64
 scripts/check-reproducible-bundle.sh
 ~~~
 
-El workflow de release es quien construye las tres plataformas —Linux amd64,
-macOS arm64 y Windows amd64— en hosts nativos. Nunca tratar un bundle local de
-otra plataforma como evidencia de esa plataforma.
+The release workflow is what builds the three platforms -Linux amd64, macOS
+arm64 and Windows amd64- on native hosts. Never treat a local bundle of another
+platform as evidence for that platform.
 
-## 4. Commit, integración y tag
+## 4. Commit, integration and tag
 
-Después de actualizar Value, la nota y la documentación fijada, comprobar:
+After updating Value, the note and the pinned documentation, check:
 
 ~~~bash
 go test ./internal/version/ \
@@ -239,17 +238,17 @@ git diff --check
 git status --short
 ~~~
 
-Crear un commit de preparación con un mensaje en inglés:
+Create a preparation commit with a message in English:
 
 ~~~bash
 git add internal/version/version.go landing/src/content/releases/vX.Y.Z.md
-# Añadir explícitamente, si cambiaron, los ficheros con ejemplos de instalación.
+# Explicitly add, if they changed, the files with installation examples.
 git commit -m "chore(release): prepare vX.Y.Z"
 ~~~
 
-Integrar ese commit en main mediante la protección habitual del repositorio.
-Cuando el commit ya esté en el remoto, crear el tag anotado sobre el SHA exacto
-de origin/main:
+Integrate that commit into main through the repository's usual protection. When
+the commit is already on the remote, create the annotated tag on the exact SHA
+of origin/main:
 
 ~~~bash
 git fetch origin main --tags
@@ -259,34 +258,35 @@ git tag -a vX.Y.Z -m "Kivgraph vX.Y.Z"
 git push origin vX.Y.Z
 ~~~
 
-Para una release de desarrollo, sustituir el tag y el nombre de la nota por
-`vX.Y.Z-dev.N`. El workflow publica la GitHub Release como prerelease y no la
-marca como latest; tampoco la publica en el MCP Registry. La nota se llama
-exactamente `landing/src/content/releases/vX.Y.Z-dev.N.md`.
+For a development release, replace the tag and the note's name with
+`vX.Y.Z-dev.N`. The workflow publishes the GitHub Release as a prerelease and
+does not mark it as latest; it does not publish it to the MCP Registry either.
+The note is called exactly `landing/src/content/releases/vX.Y.Z-dev.N.md`.
 
-No crear manualmente una GitHub Release antes del workflow: el push del tag
-dispara .github/workflows/release.yml y gh release create es responsabilidad
-del job publish.
+Do not manually create a GitHub Release before the workflow: the tag push
+triggers .github/workflows/release.yml and gh release create is the publish job's
+responsibility.
 
-## 5. Qué hace realmente el workflow
+## 5. What the workflow really does
 
-.github/workflows/release.yml vuelve a ejecutar ci.yml sobre el commit
-etiquetado y después:
+.github/workflows/release.yml runs ci.yml again on the tagged commit and then:
 
-1. construye y verifica el bundle completo en cada host nativo;
-2. comprueba versión, procedencia, checksums, rust-analyzer, web/index.html,
-   la ayuda de ui y la ausencia de landing/ en el payload;
-3. crea un archivo reproducible y un MCPB (.mcpb) por plataforma;
-4. ensambla SHA256SUMS sobre todos los assets y adjunta attestations de
-   provenance;
-5. lee el cuerpo de la nota correspondiente al tag y crea la GitHub Release;
-   una estable se marca como latest y una prerelease conserva `latest` intacto;
-6. descarga desde la release recién publicada cada archivo de las tres
-   plataformas, comprueba su digest, lo extrae y vuelve a ejecutar
-   scripts/verify-bundle.sh;
-7. sólo después valida y publica los tres MCPB en el MCP Registry usando OIDC.
+1. builds and verifies the complete bundle on each native host;
+2. checks version, provenance, checksums, rust-analyzer, web/index.html, the help
+   of ui and the absence of landing/ in the payload;
+3. creates a reproducible archive and an MCPB (.mcpb) per platform;
+4. assembles SHA256SUMS over all the assets and attaches provenance
+   attestations;
+5. reads the body of the note corresponding to the tag and creates the GitHub
+   Release; a stable one is marked as latest and a prerelease leaves `latest`
+   untouched;
+6. downloads from the freshly published release each file of the three
+   platforms, checks its digest, extracts it and runs scripts/verify-bundle.sh
+   again;
+7. only then validates and publishes the three MCPB to the MCP Registry using
+   OIDC.
 
-La publicación esperada contiene exactamente estos tipos de assets:
+The expected publication contains exactly these kinds of assets:
 
 ~~~text
 kivgraph-linux-amd64.tar.gz
@@ -302,14 +302,14 @@ uninstall.ps1
 SHA256SUMS
 ~~~
 
-Los tar.gz/zip son para instalación manual e instaladores; los mcpb son los
-paquetes que entiende el Registry. El server.json que se publica en el
-Registry se genera durante el job con los hashes de esos MCPB, no se toma del
-fichero commiteado sin packages.
+The tar.gz/zip are for manual installation and installers; the mcpb are the
+packages the Registry understands. The server.json that is published to the
+Registry is generated during the job with the hashes of those MCPB, not taken
+from the committed file without packages.
 
-## 6. Comprobar y cerrar la publicación
+## 6. Check and close the publication
 
-Esperar el run del tag y revisar todos los jobs, no sólo verify:
+Wait for the tag's run and review all the jobs, not only verify:
 
 ~~~bash
 gh run list --workflow release.yml --limit 10
@@ -319,14 +319,14 @@ gh run view "$RUN_ID" --log-failed
 gh release view vX.Y.Z --json tagName,isDraft,isPrerelease,isLatest,assets,url
 ~~~
 
-El run sólo está cerrado cuando pasan verify, las tres filas de build, publish y
-las tres filas de post-publish-smoke. En una estable también debe pasar registry
-y la GitHub Release debe ser pública, no draft, no prerelease, estar marcada
-como latest y tener los 11 assets anteriores. En una prerelease no se espera el
-job registry ni la marca latest.
+The run is only closed when verify, the three build rows, publish and the three
+post-publish-smoke rows pass. On a stable one registry must also pass and the
+GitHub Release must be public, not draft, not prerelease, marked as latest and
+have the 11 assets above. On a prerelease the registry job and the latest mark
+are not expected.
 
-Descargar los assets publicados y verificar el manifest completo desde fuera de
-la workspace que los construyó:
+Download the published assets and verify the full manifest from outside the
+workspace that built them:
 
 ~~~bash
 tmp_dir="$(mktemp -d)"
@@ -341,13 +341,13 @@ gh release download vX.Y.Z --repo Luqueee/kivgraph --dir "$tmp_dir"
 )
 ~~~
 
-Si falla post-publish-smoke, registry o la verificación externa, la release no
-se da por buena aunque GitHub muestre el tag. Registrar qué asset, job, digest o
-metadata falló antes de decidir la reparación.
+If post-publish-smoke, registry or the external verification fail, the release is
+not considered good even if GitHub shows the tag. Record which asset, job, digest
+or metadata failed before deciding on the repair.
 
-La publicación tampoco termina en GitHub. Actualizar la landing desplegada
-desde el `main` que contiene la release, construirla con `make landing-check` y
-`make landing-build`, recargar `kivgraph-landing` y comprobar desde fuera:
+Publication does not end at GitHub either. Update the deployed landing from the
+`main` that contains the release, build it with `make landing-check` and
+`make landing-build`, reload `kivgraph-landing` and check from outside:
 
 ~~~bash
 curl -fsS https://kivgraph.dev/releases/ | grep -F "vX.Y.Z"
@@ -357,49 +357,48 @@ test "$(curl -sS -o /dev/null -w '%{http_code} %{redirect_url}' \
   "302 https://github.com/Luqueee/kivgraph/releases/latest/download/install.sh"
 ~~~
 
-El collector de primer arranque y el dashboard D1 son parte del smoke de
-distribución. Comprobar que la ruta exacta responde `204`, que el Worker
-desplegado tiene su binding D1 y su secreto de hash diario, y que la migración
-que agrega la versión está aplicada **antes** de publicar el emisor. No enviar
-un evento sintético para poner una versión en la gráfica: si el smoke ejecuta
-de verdad un instalador o un binario publicado, su fila debe aparecer en el
-dashboard; si no ejecuta ninguno, la ausencia todavía es el resultado honesto.
-Una instalación real observada que no aparece es una release incompleta, no
-algo que se difiere al siguiente cron. Los comandos autoritativos, con los
-criterios de PASS para la versión desplegada, el binding, el secreto, la
-migración, la ruta y el dashboard, están en la sección **1i. The first-run
-Worker and D1** de `docs/development/analytics.md`; ejecutarlos, no sustituirlos
-por una inspección visual del panel.
+The first-run collector and the D1 dashboard are part of the distribution smoke.
+Check that the exact route answers `204`, that the deployed Worker has its D1
+binding and its daily hash secret, and that the migration that adds the version
+is applied **before** publishing the emitter. Do not send a synthetic event to
+put a version on the chart: if the smoke really runs an installer or a published
+binary, its row must appear in the dashboard; if it runs neither, the absence is
+still the honest result. A real installation that was observed and does not
+appear is an incomplete release, not something deferred to the next cron. The
+authoritative commands, with the PASS criteria for the deployed version, the
+binding, the secret, the migration, the route and the dashboard, are in section
+**1i. The first-run Worker and D1** of `docs/development/analytics.md`; run
+them, do not replace them with a visual inspection of the panel.
 
-## 7. Fallos y recuperación
+## 7. Failures and recovery
 
-- Antes de empujar el tag: corregir en la misma preparación y repetir todos los
+- Before pushing the tag: fix it in the same preparation and repeat all the
   gates.
-- Después de empujar el tag pero antes de crear la GitHub Release: el tag ya
-  está consumido. Corregir hacia delante con el siguiente número; no borrar ni
-  reutilizar el tag fallido.
-- Después de crear la GitHub Release: no retaggear, borrar la release ni
-  reemplazar artefactos sin una decisión explícita. El workflow usa --clobber;
-  repetirlo sobre una release existente puede sustituir assets y reiniciar sus
-  contadores de descarga.
-- Si sólo falla el MCP Registry, conservar la GitHub Release y separar el
-  diagnóstico del artefacto ya publicado. No atribuir al registry un éxito que
-  no aparece en el job registry.
+- After pushing the tag but before creating the GitHub Release: the tag is
+  already consumed. Fix forward with the next number; do not delete or reuse the
+  failed tag.
+- After creating the GitHub Release: do not retag, delete the release or replace
+  artifacts without an explicit decision. The workflow uses --clobber; repeating
+  it on an existing release can replace assets and reset their download
+  counters.
+- If only the MCP Registry fails, keep the GitHub Release and separate the
+  diagnosis from the already published artifact. Do not attribute to the
+  registry a success that does not appear in the registry job.
 
-La corrección normal es una nueva release con un número mayor. Nunca se arregla
-una instalación publicada cambiando silenciosamente el contenido de un tag que
-ya vio un usuario.
+The normal fix is a new release with a higher number. An installation that has
+been published is never repaired by silently changing the contents of a tag that
+a user has already seen.
 
-## Referencias de verdad
+## Sources of truth
 
-Cuando una afirmación de esta skill parezca no coincidir con el comportamiento,
-consultar en este orden:
+When a claim in this skill seems not to match the behaviour, consult in this
+order:
 
-1. .github/workflows/release.yml, que define la entrega real;
-2. internal/version/documented_test.go, que descubre las versiones documentadas
-   y la nota obligatoria;
-3. scripts/verify-bundle.sh, scripts/build-mcpb.sh y
-   scripts/build-server-json.sh, que definen los contratos de los artefactos;
-4. docs/development/mcp-registry.md y
-   docs/release/production-qualification.md, para las restricciones y la
-   evidencia de cualificación.
+1. .github/workflows/release.yml, which defines the real delivery;
+2. internal/version/documented_test.go, which discovers the documented versions
+   and the mandatory note;
+3. scripts/verify-bundle.sh, scripts/build-mcpb.sh and
+   scripts/build-server-json.sh, which define the artifact contracts;
+4. docs/development/mcp-registry.md and
+   docs/release/production-qualification.md, for the restrictions and the
+   qualification evidence.
