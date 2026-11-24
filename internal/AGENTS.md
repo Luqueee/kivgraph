@@ -1,467 +1,462 @@
-# Instrucciones del motor (`internal/`)
+# Engine instructions (`internal/`)
 
-Estas reglas se suman a las de `AGENTS.md` en la raíz del repositorio, que se
-leen siempre. Una instrucción de este archivo puede añadir restricciones; nunca
-puede relajar un contrato de integridad, compatibilidad o verificación
-declarado en la raíz.
+These rules add to the `AGENTS.md` at the repository root, which is always
+read. An instruction in this file may add restrictions; it can never relax an
+integrity, compatibility or verification contract declared at the root.
 
-El camino Rust tiene su propio archivo en `internal/rustloader/AGENTS.md` y la
-superficie MCP el suyo en `internal/mcp/AGENTS.md`.
+The Rust path has its own file in `internal/rustloader/AGENTS.md` and the MCP
+surface has its own in `internal/mcp/AGENTS.md`.
 
-## Carga de Go y workspaces
+## Go loading and workspaces
 
-- Un método cuyo receptor no tiene nombre -el de una interfaz anónima, sea la
-  de `var _ interface{ ... } = x` o la de una aserción `y.(interface{ M() })`-
-  no es direccionable y nunca entra al grafo, igual que un `local N` de Rust.
-  No hay camino hasta él desde el scope del paquete, así que no obtiene
-  objectpath y su identidad cae al nombre cualificado, que sin dueño es el
-  nombre del método a secas: dos declaraciones así en un paquete derivan una
-  sola clave desde dos ficheros, y un `Symbol` con dos `File` que lo declaran
-  es lo que prohíbe la multiplicidad de `DEFINES`. `go.include_tests` lo hacía
-  aparecer porque un fichero de test es el segundo sitio donde se escribe esa
-  interfaz.
-- `internal/indexer.Full` carga Go mediante los patrones de paquetes producidos
-  por `DiscoverGo`; no sustituirlos por `./...`, porque las `exclusions`
-  configuradas deben seguir siendo efectivas durante `go/packages`.
-- Los tags de build con los que se carga Go vienen de `go.build_tags`. Un
-  directorio cuyos archivos excluye esa configuración no es un fallo del
-  índice: se declara como `UNRESOLVED` con razón `PACKAGE_NOT_BUILDABLE` y la
-  pasada continúa. Cualquier otro diagnóstico del cargador sigue abortándola.
-  Indexar este repositorio exige el tag `ladybug`.
-- Ante el fallo de un **repositorio entero** hay dos contratos, y cuál aplica
-  depende del lenguaje. Go, Rust, Python, Dart, Java y C# registran una fila
-  `UNRESOLVED` **sin archivo** -`MODULE_NOT_LOADED`, `WORKSPACE_NOT_LOADED`,
-  `ANALYZER_UNAVAILABLE`, `REPOSITORY_NOT_LOADED`- y la pasada continúa: el
-  grafo se publica declarando el hueco, y toda respuesta sobre ese repositorio
-  sale como `LOWER_BOUND`. Los cuatro últimos lo hacen desde el ADR 0147: antes
-  devolvían error y un repositorio C# sin solución dejaba sin grafo a todos los
-  demás. Una pasada cancelada no es un repositorio ilegible y sigue siendo un
-  error. TypeScript hace lo mismo desde la enmienda a ese ADR, en dos sitios: un
-  repositorio cuyos proyectos no se pueden descubrir -un `tsconfig.json` que
-  no parsea- sale como `REPOSITORY_NOT_LOADED`, y un paquete en el que el
-  worker falla como `PACKAGE_NOT_LOADED`. Un worker que no está es otra cosa:
-  viaja con Kivgraph, así que es una instalación rota y sigue siendo un error. Las dos formas son
-  honestas y ninguna afirma una ausencia; sólo la primera es medible desde un
-  grafo servido, y por eso es la única que `benchmarks/tool-honesty` ejercita.
-  Que la fila no lleve archivo es el contrato, no un detalle:
-  `hotsnapshot.UnresolvedScopes` selecciona exactamente las filas cuyo archivo
-  no está puesto, así que una que ganara uno dejaría de acotar su repositorio y
-  las preguntas sobre él volverían a decir `COMPLETE` sobre un hueco.
-- `go/types` viaja enlazado en el binario: Kivgraph solo comprueba tipos hasta
-  la versión del lenguaje del toolchain que lo compiló. Un módulo registrado
-  por encima de ese techo se rechaza en `goworkspace.BuildPlan` nombrando
-  repositorio, módulo y versión; nunca se deja que el `go.work` sintético
-  escale el toolchain y reviente la carga de todos los repositorios dentro de
-  la biblioteca estándar. El techo es `major.minor`.
-- El `go.work` sintético resuelve una sola lista de build para los módulos que
-  usa, así que el plan se parte en grupos independientes: dos módulos solo
-  comparten workspace cuando uno alcanza al otro por `require`, por `replace`
-  o por un `go.work` del repositorio indexado. Un módulo que no alcanza a
-  ningún otro se carga en modo módulo, sin workspace, y los ficheros
-  sintéticos que sobran se retiran con su `.sum`. La indexación sigue siendo
-  hermética y `go.allow_network` es la única salida declarada cuando la MVS de
-  un grupo selecciona un módulo ausente del caché local.
+- A method whose receiver has no name -that of an anonymous interface, whether
+  the one in `var _ interface{ ... } = x` or in an assertion
+  `y.(interface{ M() })`- is not addressable and never enters the graph, like a
+  Rust `local N`. There is no path to it from the package scope, so it gets no
+  objectpath and its identity falls back to the qualified name, which without an
+  owner is the bare method name: two such declarations in a package derive one
+  key from two files, and a `Symbol` with two `File`s that declare it is what the
+  multiplicity of `DEFINES` forbids. `go.include_tests` made it appear because a
+  test file is the second place where that interface is written.
+- `internal/indexer.Full` loads Go through the package patterns produced by
+  `DiscoverGo`; do not replace them with `./...`, because the configured
+  `exclusions` must stay effective during `go/packages`.
+- The build tags Go is loaded with come from `go.build_tags`. A directory whose
+  files that configuration excludes is not an index failure: it is declared as
+  `UNRESOLVED` with reason `PACKAGE_NOT_BUILDABLE` and the pass continues. Any
+  other loader diagnostic still aborts it. Indexing this repository requires
+  the `ladybug` tag.
+- When an **entire repository** fails there are two contracts, and which one
+  applies depends on the language. Go, Rust, Python, Dart, Java and C# record an
+  `UNRESOLVED` row **with no file** -`MODULE_NOT_LOADED`,
+  `WORKSPACE_NOT_LOADED`, `ANALYZER_UNAVAILABLE`, `REPOSITORY_NOT_LOADED`- and
+  the pass continues: the graph is published declaring the hole, and every answer
+  about that repository comes out as `LOWER_BOUND`. The last four have done so
+  since ADR 0147: before, they returned an error and a C# repository with no
+  solution left every other one without a graph. A cancelled pass is not an
+  unreadable repository and is still an error. TypeScript does the same since
+  the amendment to that ADR, in two places: a repository whose projects cannot
+  be discovered -a `tsconfig.json` that does not parse- comes out as
+  `REPOSITORY_NOT_LOADED`, and a package in which the worker fails as
+  `PACKAGE_NOT_LOADED`. A worker that is not there is another matter: it travels
+  with Kivgraph, so it is a broken installation and is still an error. Both
+  forms are honest and neither asserts an absence; only the first is measurable
+  from a served graph, and that is why it is the only one `benchmarks/tool-honesty`
+  exercises. That the row carries no file is the contract, not a detail:
+  `hotsnapshot.UnresolvedScopes` selects exactly the rows whose file is not set,
+  so one that gained one would stop bounding its repository and questions about
+  it would go back to saying `COMPLETE` over a hole.
+- `go/types` travels linked into the binary: Kivgraph only type-checks up to the
+  language version of the toolchain that compiled it. A module registered above
+  that ceiling is left out of `goworkspace.BuildPlan` and declared
+  `MODULE_NOT_LOADED` naming repository, module and version, and the pass goes
+  on (ADR 0147, amended); it is never allowed to make the synthetic `go.work`
+  escalate the toolchain and break the load of every repository inside the
+  standard library. The ceiling is `major.minor`.
+- The synthetic `go.work` resolves a single build list for the modules it uses,
+  so the plan is split into independent groups: two modules only share a
+  workspace when one reaches the other through `require`, through `replace` or
+  through a `go.work` of the indexed repository. A module that reaches no other
+  is loaded in module mode, with no workspace, and the leftover synthetic files
+  are removed together with their `.sum`. Indexing stays hermetic and
+  `go.allow_network` is the only declared way out when a group's MVS selects a
+  module absent from the local cache.
 
-## La pasada de indexación
+## The indexing pass
 
-- **Toda pasada es una reconstrucción completa.** No hay camino incremental:
-  `indexer.Full` es la única entrada, `kivgraph index` prepara el proyecto
-  actual y `kivgraph index --full` recorre el registro configurado; cada pasada
-  publica una generación nueva en vez de mutar la vigente. El delta
-  -- `Update`, `Diff`, el enrutado por planes de invalidación, las clases de
-  cambio semántico y la mutación canónica incremental -- se retiró en el ADR
-  0057: no lo llamaba nadie, su techo medido era `1,67x` sobre un pase de
-  `9,17 s`, y publicaba sin correr `integrity` ni `golden probes`. Lo que hace
-  barata una reindexación es la caché de hechos, no un delta.
-- El análisis de la pasada es concurrente: cada módulo Go y cada paquete
-  TypeScript es una unidad independiente. El merge sigue el orden de las
-  unidades, nunca el de finalización, así que el grafo publicado no depende de
-  cómo se planificó el trabajo -- dos pasadas del mismo corpus producen hechos
-  idénticos byte a byte, y eso es lo que hay que verificar al tocar esta zona.
-  Los presupuestos son distintos por tipo: `go.maximum_loads` acota las cargas
-  Go porque cada una sostiene un universo de tipos completo, y
-  `typescript.maximum_workers` acota los procesos del worker. El primer fallo
-  cancela el resto.
-- Un módulo Go que el cargador no puede leer no tumba la pasada: no publica
-  hechos -- no serían de fiar -- y se declara como `MODULE_NOT_LOADED` con los
-  diagnósticos observados. Un repositorio cuyas dependencias nadie descargó no
-  decide si los demás tienen grafo.
-- Cada tipo de unidad drena su propia cola, la más pesada primero, con tantos
-  trabajadores como permita su presupuesto y nunca más que unidades tenga. El
-  peso es una estimación sobre los archivos que la unidad leerá, nunca un
-  hecho del grafo: una pasada termina cuando termina su unidad más lenta.
-- Los hechos de todas las unidades se fusionan en una sola pasada
-  (`facts.MergeAll`), no una unidad contra el acumulado: una fusión par a par
-  vuelve a deduplicar, copiar y reordenar el grafo entero en cada paso, que es
-  cuadrático en su tamaño. La identidad con la que se deduplica es una tupla
-  comparable, no una cadena unida por separadores: una cadena hace ambiguo un
-  nombre que contenga el separador, y aquí la deduplicación es lo único que
-  decide si dos hechos son el mismo.
-- Una petición de indexación se construye en un solo sitio,
-  `indexing.OptionsFromConfig`: el llamador sólo añade lo que la configuración
-  no decide -repositorios, directorio de trabajo, versión del resolver y los
-  sinks de progreso-. Construirla dos veces es cómo `index_project` acabó sin
-  nombrar ningún campo de Rust y fallando con «the Rust analyzer command is
-  required» sobre la misma configuración que el CLI indexaba sin problema.
-  Su resultado informa de los contadores de los seis lenguajes: un lenguaje
-  ausente del informe se lee como un lenguaje sin código.
-- Un nombre de paquete TypeScript declarado por varios manifests es una
-  ambigüedad, no un repositorio roto: ningún manifest lo provee, ambos salen
-  del registro y se declara `AMBIGUOUS_PACKAGE_PROVIDER`. Es el mismo trato que
-  recibe un módulo Go con varios proveedores.
-- La indexación TypeScript procesa providers `package.json` nombrados con
-  `ProjectPath` resuelto; pasa ese path al worker en cada invocación y omite
-  manifests sin proyecto en vez de adivinar el `tsconfig` de la raíz.
-- Una ruta que el motor TypeScript resuelve llega con su grafía canónica, en
-  minúsculas cuando el filesystem pliega mayúsculas. Se corrige en la frontera
-  con `enginePath` antes de indexarla, compararla o emitirla; nunca con
-  `realpath`, que resolvería los enlaces de `node_modules` y cambiaría los
-  hechos.
+- **Every pass is a full rebuild.** There is no incremental path: `indexer.Full`
+  is the only entry, `kivgraph index` prepares the current project and
+  `kivgraph index --full` walks the configured registry; each pass publishes a
+  new generation instead of mutating the current one. The delta
+  -- `Update`, `Diff`, routing by invalidation plans, the semantic change
+  classes and incremental canonical mutation -- was withdrawn in ADR 0057: nobody
+  called it, its measured ceiling was `1.67x` over a `9.17 s` pass, and it
+  published without running `integrity` or `golden probes`. What makes a
+  reindex cheap is the fact cache, not a delta.
+- The analysis of the pass is concurrent: every Go module and every TypeScript
+  package is an independent unit. The merge follows the order of the units,
+  never that of completion, so the published graph does not depend on how the
+  work was scheduled -- two passes over the same corpus produce byte-identical
+  facts, and that is what to verify when touching this area. The budgets differ
+  by kind: `go.maximum_loads` bounds the Go loads because each one holds a
+  complete type universe, and `typescript.maximum_workers` bounds the worker
+  processes. The first failure cancels the rest.
+- A Go module the loader cannot read does not bring down the pass: it publishes
+  no facts -- they would not be trustworthy -- and is declared as
+  `MODULE_NOT_LOADED` with the diagnostics observed. A repository whose
+  dependencies nobody downloaded does not decide whether the others have a
+  graph.
+- Each kind of unit drains its own queue, the heaviest first, with as many
+  workers as its budget allows and never more than it has units. The weight is
+  an estimate over the files the unit will read, never a fact of the graph: a
+  pass ends when its slowest unit ends.
+- The facts of all the units are merged in a single pass (`facts.MergeAll`), not
+  one unit against the accumulated result: a pairwise merge deduplicates, copies
+  and reorders the whole graph again at every step, which is quadratic in its
+  size. The identity used to deduplicate is a comparable tuple, not a string
+  joined by separators: a string makes a name containing the separator
+  ambiguous, and here deduplication is the only thing that decides whether two
+  facts are the same.
+- An indexing request is built in a single place, `indexing.OptionsFromConfig`:
+  the caller only adds what the configuration does not decide -repositories,
+  working directory, resolver version and the progress sinks-. Building it twice
+  is how `index_project` ended up naming no Rust field and failing with "the Rust
+  analyzer command is required" on the same configuration the CLI indexed without
+  trouble. Its result reports the counters of the six languages: a language
+  absent from the report reads as a language with no code.
+- A TypeScript package name declared by several manifests is an ambiguity, not a
+  broken repository: no manifest provides it, both leave the registry and
+  `AMBIGUOUS_PACKAGE_PROVIDER` is declared. It is the same treatment a Go module
+  with several providers gets.
+- TypeScript indexing processes named `package.json` providers with a resolved
+  `ProjectPath`; it passes that path to the worker on every invocation and omits
+  manifests with no project instead of guessing the root's `tsconfig`.
+- A path the TypeScript engine resolves arrives in its canonical spelling,
+  lowercase when the filesystem folds case. It is corrected at the boundary with
+  `enginePath` before indexing, comparing or emitting it; never with
+  `realpath`, which would resolve the `node_modules` links and change the facts.
 
-## Caché de hechos
+## Fact cache
 
-- La caché de hechos (`indexing.fact_cache`) guarda una entrada por unidad de
-  análisis con **la lista de todo lo que la unidad leyó y su huella**; servirla
-  exige revalidar esa lista entera. Una entrada nunca se sirve a otro
-  analizador: su identidad es el contenido del ejecutable, la respuesta de
-  `go env`, el contenido del worker TypeScript, los build tags,
-  `include_tests` y `go.allow_network`. Un módulo que el cargador no pudo leer
-  no se guarda jamás, porque su fallo depende del caché de módulos y ninguna
-  huella del código lo describe. Ver ADR 0030.
-- La procedencia de un repositorio -commit, rama, sucio- no es un hecho que
-  produzca ningún análisis: la estampa la pasada al fusionar, desde el registro
-  que se le dio, y ninguna unidad la escribe. Dentro de la entrada de caché se
-  volvía rancia en cada acierto, hacía que el commit publicado dependiera de
-  qué unidad fallara, y abortaba `verify` por un commit que no tocó un fichero.
-- El lockfile se busca desde la raíz del repositorio registrado hacia arriba y
-  se registra la cadena entera. `node_modules` no se recorre -es función del
-  lockfile-, así que un lockfile que no se encuentra deja esa dependencia sin
-  ningún control: en un monorepo pnpm vive por encima de los repositorios
-  registrados.
-- Una entrada registra el nombre de lo que hay que volver a medir, nunca el
-  valor medido: una entrada cuyo nombre lleva su propio valor se compara
-  consigo misma y no puede invalidar nada.
-- Un nombre de paquete que hoy no provee nadie es una dependencia con huella
-  `absent`, no la ausencia de una dependencia. Sin eso un `UNRESOLVED` se
-  serviría para siempre y nunca se convertiría en la arista que le toca.
-- Al tocar la caché se verifica con `fact_cache: verify`, que analiza todo y
-  aborta la pasada si una entrada discrepa del análisis. Comparar dos pasadas
-  con caché no demuestra nada.
+- The fact cache (`indexing.fact_cache`) stores one entry per analysis unit with
+  **the list of everything the unit read and its fingerprint**; serving it
+  requires revalidating that entire list. An entry is never served to another
+  analyzer: its identity is the content of the executable, the answer of
+  `go env`, the content of the TypeScript worker, the build tags,
+  `include_tests` and `go.allow_network`. A module the loader could not read is
+  never stored, because its failure depends on the module cache and no
+  fingerprint of the code describes it. See ADR 0030.
+- The provenance of a repository -commit, branch, dirty- is not a fact any
+  analysis produces: the pass stamps it when merging, from the registry it was
+  given, and no unit writes it. Inside the cache entry it went stale on every
+  hit, made the published commit depend on which unit failed, and aborted
+  `verify` over a commit that touched no file.
+- The lockfile is searched from the root of the registered repository upwards and
+  the entire chain is recorded. `node_modules` is not walked -it is the
+  lockfile's job-, so a lockfile that is not found leaves that dependency with no
+  control at all: in a pnpm monorepo it lives above the registered repositories.
+- An entry records the name of what has to be measured again, never the measured
+  value: an entry whose name carries its own value is compared with itself and
+  cannot invalidate anything.
+- A package name that nobody provides today is a dependency with fingerprint
+  `absent`, not the absence of a dependency. Without that an `UNRESOLVED` would
+  be served forever and would never become the edge it is due.
+- When touching the cache, verify with `fact_cache: verify`, which analyses
+  everything and aborts the pass if an entry disagrees with the analysis.
+  Comparing two passes with a cache proves nothing.
 
-## Grafo canónico y LadybugDB
+## Canonical graph and LadybugDB
 
-- El código que usa la biblioteca nativa se compila con el tag `ladybug`.
-- La pareja de versiones de LadybugDB y del binding Go debe provenir de la
-  fijación versionada y verificarse mediante `scripts/fetch-ladybug.sh`.
-- Validar el grafo canónico antes de publicarlo. Una generación inválida nunca
-  puede convertirse en `CURRENT`.
-- No leer ni servir consultas MCP directamente desde LadybugDB cuando el
-  contrato exige el HotSnapshot publicado.
-- No mezclar el esquema experimental `001-synthetic` con el canónico `002`.
-- Los iteradores `VisitRepositories`, `VisitPackages`, `VisitFiles`,
-  `VisitSymbols`, `VisitEvidence` y `VisitEdges` entregan copias por valor y
-  no exponen slices internas; sus rangos son half-open y cancelables.
-- `NewGraphSnapshot` copia toda entrada mutable y eso es su contrato: el
-  llamante puede seguir mutando lo que pasó, que es lo que hace el constructor.
-  El **lector** de un fichero no lo necesita y no lo hace: `readSnapshot` llama
-  al constructor interno cediendo la propiedad, porque sus `decode*` asignaron
-  cada slice desde los bytes mapeados una sentencia antes y nadie más puede
-  nombrarlos. Copiarlos producía un gemelo verbatim y dejaba el original de
-  basura -- `20,8 MB` sobre `workspace`, medidos en `benchmarks/snapshot-heap`, con
-  los bytes vivos idénticos. Lo que hace segura la cesión es que **ningún
-  decodificador alía el mapa**: los cinco usan `make` y copian campo a campo.
-  Quien escriba uno que devuelva una vista sobre `data` rompe esto en silencio.
-- La evidencia de una arista viaja al HotSnapshot **sin su posición**:
-  `hotsnapshot.EvidenceRecord` lleva clave, los dos ficheros, clase y
-  procedencia, y el vano observado se queda en el grafo canónico. Así que
-  ninguna tool puede abrir el texto que justifica una arista, en ninguno de los
-  seis lenguajes: una fila de `find_references` usa el rango del símbolo y su
-  `evidence_kind` sale de la procedencia. Es un hueco declarado, no un defecto
-  a arreglar de paso: proyectarlo sube la versión del formato de filas del
-  snapshot -- una superficie de compatibilidad-- y hoy ningún consumidor lo
-  pide. Quien añada un `evidence_key` a un lenguaje debe saber que completa el
-  contrato canónico y no cambia ninguna respuesta.
-- `CanonicalColumns` reconstruye el esquema canónico completo en cada llamada,
-  así que las columnas de una tabla se resuelven una vez por tabla y nunca por
-  fila. El grafo tiene una arista por referencia del corpus.
-- El scan canónico lee en chunks de Arrow, no valor a valor: un `Symbol` son
-  dieciséis cruces de cgo por fila y el grafo tiene una fila por declaración
-  del corpus. `scanCanonicalTuples` permanece como implementación de
-  referencia y el test compara los dos lectores campo a campo -- un decoder
-  de punteros equivocado produce un grafo que parece correcto, así que no se
-  toca la ruta columnar sin ese oráculo.
-- El motor escribe un `NULL` de cadena con los offsets `0..0`, que no son
-  monótonos: el rango de datos de una columna es el más ancho sobre sus
-  filas, nunca el que va del inicio de la primera al final de la última.
-- Una apertura de sólo lectura del grafo canónico recibe un buffer pool
-  proporcional a ese grafo -el doble de su tamaño, entre 256 MiB y 2 GiB-, nunca
-  el 80 % de la memoria del sistema que da el motor por defecto: un scan lee cada
-  página una vez y cierra. Una apertura de escritura conserva el defecto, que es
-  la caché que un `COPY` de millones de filas necesita.
-- El catálogo de `canonical_integrity.go` es la lista que la capa nativa usa
-  para validar una arista. Una procedencia nueva que no entre ahí pasa todos
-  los tests sin el tag `ladybug` y revienta la integridad al publicar; el
-  guardia que lo impide vive en `canonical_catalog_test.go`, sin tag.
-- Un upgrade de schema incompatible debe detectar la versión, respaldar y
-  verificar la generación activa antes de reconstruir desde repositorios fuente.
-  Solo una generación candidata que pase integridad y validación puede cambiar
-  `CURRENT`; un rollback debe comprobar los digests del backup.
-- Un rollback de versión debe cubrir restauración válida y rechazo fail-closed
-  ante digest ausente o divergente; si falla la validación, `CURRENT` no cambia.
+- Code that uses the native library is compiled with the `ladybug` tag.
+- The pair of LadybugDB and Go binding versions must come from the versioned pin
+  and be verified through `scripts/fetch-ladybug.sh`.
+- Validate the canonical graph before publishing it. An invalid generation can
+  never become `CURRENT`.
+- Do not read or serve MCP queries directly from LadybugDB when the contract
+  requires the published HotSnapshot.
+- Do not mix the experimental schema `001-synthetic` with the canonical `002`.
+- The iterators `VisitRepositories`, `VisitPackages`, `VisitFiles`,
+  `VisitSymbols`, `VisitEvidence` and `VisitEdges` deliver copies by value and
+  expose no internal slices; their ranges are half-open and cancellable.
+- `NewGraphSnapshot` copies every mutable input and that is its contract: the
+  caller may keep mutating what it passed, which is what the constructor
+  guards. The **reader** of a file does not need that and does not do it:
+  `readSnapshot` calls the internal constructor ceding ownership, because its
+  `decode*` functions allocated each slice from the mapped bytes one statement
+  earlier and nobody else can name them. Copying them produced a verbatim twin
+  and left the original as garbage -- `20.8 MB` on `workspace`, measured in
+  `benchmarks/snapshot-heap`, with identical live bytes. What makes the cession
+  safe is that **no decoder aliases the map**: all five use `make` and copy field
+  by field. Whoever writes one that returns a view over `data` breaks this
+  silently.
+- The evidence of an edge travels to the HotSnapshot **without its position**:
+  `hotsnapshot.EvidenceRecord` carries key, the two files, class and provenance,
+  and the observed span stays in the canonical graph. So no tool can open the
+  text that justifies an edge, in any of the six languages: a `find_references`
+  row uses the symbol's range and its `evidence_kind` comes from the provenance.
+  It is a declared hole, not a defect to fix in passing: projecting it raises the
+  version of the snapshot's row format -- a compatibility surface-- and no
+  consumer asks for it today. Whoever adds an `evidence_key` to a language must
+  know that it completes the canonical contract and changes no answer.
+- `CanonicalColumns` rebuilds the complete canonical schema on every call, so a
+  table's columns are resolved once per table and never per row. The graph has
+  one edge per reference in the corpus.
+- The canonical scan reads in Arrow chunks, not value by value: a `Symbol` is
+  sixteen cgo crossings per row and the graph has one row per declaration of the
+  corpus. `scanCanonicalTuples` stays as the reference implementation and the
+  test compares the two readers field by field -- a wrong pointer decoder
+  produces a graph that looks correct, so the columnar path is not touched
+  without that oracle.
+- The engine writes a string `NULL` with offsets `0..0`, which are not
+  monotonic: the data range of a column is the widest over its rows, never the
+  one running from the start of the first to the end of the last.
+- A read-only opening of the canonical graph receives a buffer pool proportional
+  to that graph -twice its size, between 256 MiB and 2 GiB-, never the 80 % of
+  system memory the engine gives by default: a scan reads each page once and
+  closes. A write opening keeps the default, which is the cache a `COPY` of
+  millions of rows needs.
+- The catalogue in `canonical_integrity.go` is the list the native layer uses to
+  validate an edge. A new provenance that does not enter there passes every test
+  without the `ladybug` tag and breaks integrity at publish time; the guard that
+  prevents it lives in `canonical_catalog_test.go`, with no tag.
+- An incompatible schema upgrade must detect the version, back up and verify the
+  active generation before rebuilding from source repositories. Only a candidate
+  generation that passes integrity and validation may change `CURRENT`; a
+  rollback must check the backup's digests.
+- A version rollback must cover a valid restore and fail-closed rejection on a
+  missing or divergent digest; if validation fails, `CURRENT` does not change.
 
-## Generaciones, publicación y snapshots
+## Generations, publication and snapshots
 
-- `kivgraph ui`, y `kivgraph serve` **cuando contesta él mismo**, siguen la
-  generación publicada y republican cuando el puntero `CURRENT` avanza, sin
-  coordinarse con nadie -- `SnapshotStore.Publish` solo acepta una generación
-  estrictamente más nueva. Un `index --full` en otra terminal no puede dejar a
-  un servidor sirviendo un grafo que ya no existe en disco. Un `serve` que hace
-  de relé no abre store, ni seguidor, ni resync: no tiene grafo que seguir, y el
-  que contesta es el demonio.
-- La publicación de una generación toma un `flock` sobre el propio store. El
-  mutex del `Store` sólo ordena las goroutines de un proceso, y un directorio
-  de estado lo comparten un `index --full`, un `index_project` de un cliente y
-  el resincronizador de un servidor: sin él dos pasadas se pisan. Un candidato
-  `<id>.tmp` que exista mientras se sostiene el lock es basura por
-  construcción -el kernel seguiría sosteniéndolo por su escritor si viviera- y
-  se retira. Rechazarlo convertía una pasada muerta -un OOM, una terminal
-  cerrada- en un store inservible para siempre, porque todo intento posterior
-  deriva el mismo identificador y choca con él. El lock no espera: una
-  reconstrucción dura minutos y bloquear parecería un cuelgue, así que el
-  perdedor recibe `ErrPublishInProgress`. Para el seguidor eso no es un fallo,
-  es exactamente lo que el lock existe para producir.
-- Tras un `clean` completo la numeración vuelve a `000001`, y
-  `SnapshotStore.Publish` solo acepta una generación estrictamente más nueva:
-  un servidor vivo conserva el grafo que ya no existe y no instalará ninguno
-  más. El seguidor lo declara una vez y el comando avisa de reiniciar.
-- Tras publicar un snapshot se llama a `rebuild.ReturnBuildMemory`: es el único
-  momento en que el transitorio de la construcción está muerto -publicado, o
-  descartado porque otro publicador ganó- y un servidor no tiene nada que hacer
-  hasta la siguiente petición. Devuelve **las dos** mitades: el arena de Go con
-  `debug.FreeOSMemory` y el asignador nativo con `nativeheap.Return`. La segunda
-  no es un detalle: el heap de Go aparca entre 2,4 y 4 MB por encima del
-  snapshot vivo en cada construcción, así que lo que hacía crecer a un servidor
-  no era suyo. No se fija `GOMEMLIMIT`, que el hijo de la pasada heredaría del
-  entorno -`indexing/subprocess.go` no fija `command.Env`- y que en el lado de
-  Go no tendría hueco que cerrar. Ver ADR 0044.
-- La memoria del motor es de libc, no de Go, y ninguna métrica de `runtime` la
-  ve. glibc da una arena por hilo que compite y la hace crecer antes de
-  reutilizar nada, así que cada reconstrucción conserva otra arena hasta que
-  saturan. Medido en `devlabs` sobre un grafo de 189 MB, cuatro construcciones:
-  con sólo el scavenge de Go el RSS va de 309,5 a 511,1 MB -67 MB por
-  construcción-, y devolviendo también el nativo se queda en 241,5-249,6 MB, sin
-  coste en tiempo. Acotar las arenas desde el proceso no sirve y está medido:
-  `mallopt` después de arrancar no mueve lo que ya vive en arenas secundarias.
-- Una generación lleva su HotSnapshot en `snapshot.kvsnap`, y un servidor lo lee
-  en vez de derivarlo del grafo canónico: `rebuild.LoadOrBuildSnapshot` es la
-  puerta, y las tres rutas que instalan una generación -el arranque de `serve`,
-  el seguidor y el padre de una pasada- pasan por ella. Lo que prueba que el
-  fichero pertenece a esa generación es `snapshot.content.sha256`, el digest del
-  grafo que el fichero contiene, repetido en su cabecera. **No es
-  `snapshot.sha256`**, que digiere los contadores por tabla y por eso no
-  distingue dos grafos de la misma forma: medido sobre `workspace`, dos indexados
-  cuyos grafos diferían en 288 filas dieron un `snapshot.sha256` idéntico byte a
-  byte, así que un fichero derivado de uno se aceptaba como del otro. El de
-  contadores conserva su trabajo, que es la comprobación barata del `Rollback`.
-  Ninguna pasada muta una generación en sitio, así que un digest que no cuadra
-  significa que el fichero es ajeno, rancio o corrupto. Escribirlo es una
-  economía y nunca una precondición -- un fichero ausente, ajeno, rancio o
-  corrupto cuesta una derivación, se declara en el informe y jamás una respuesta.
-  Una generación publicada antes de que el registro existiera no lleva ninguno:
-  eso es `ErrNoRecordedGraphDigest`, de la misma clase que la ausencia, y contarlo
-  como fallo pondría el `doctor` en rojo en cada instalación al actualizar.
-  Medido en `devlabs`: 253-255 MB de RSS y 787-836 MB de pico derivando, contra
-  150-152 MB y 264-269 MB leyendo. Ver ADR 0045 y ADR 0061.
-- `doctor` hace **las dos** preguntas, y son distintas. `snapshot` deriva el
-  snapshot del grafo canónico y nunca lee el fichero: informa de si **este
-  grafo** todavía puede convertirse en snapshot, y leer un fichero escrito
-  cuando el grafo estaba sano contestaría otra pregunta, y la contestaría
-  tranquilizando. `snapshot.published` es la otra mitad: dice si el fichero se
-  puede usar, o por qué un servidor tendría que derivar. Sin ella, un servidor
-  que deriva el grafo entero en cada arranque es indistinguible de uno que lo
-  lee, y eso costó dos veces mientras esto se construía.
-- **Dos servidores sobre la misma generación comparten el fichero.** Medido con
-  dos `serve` sobre `workspace` -- `123.531` símbolos, `98.773.720` bytes: `94 MB` de
-  `mapped file` limpio, una sola copia, y `44,5 MB` sucios por proceso. Con
-  cuatro clientes son `272 MB` contra los `692 MB` de la línea base sin
-  compartir, un `39,3 %`. Lo que sigue siendo privado son las tablas
-  decodificadas; lo compartido es el arena de cadenas, que es la parte grande.
-  `internal/procstat` reparte `Pss` y `Shared_Clean` en Linux y **declara** que
-  darwin no puede: ahí el reparto sale de `footprint`, que no es la misma
-  cantidad, así que las dos cifras no se comparan entre sí. En Linux, medido por
-  `benchmarks/shared-snapshot` sobre `161.819` símbolos: la cuota de `Pss` del
-  brazo mapeado sobre el derivado es `0,498` con dos servidores, `0,416` con
-  cuatro y `0,372` con ocho -- **cae en cada paso, que es la propiedad**, porque
-  la parte compartida se reparte entre más procesos. Lo privado sale plano en
-  `614 B` por símbolo, `~95 MB` por proceso en ese corpus.
+- `kivgraph ui`, and `kivgraph serve` **when it answers itself**, follow the
+  published generation and republish when the `CURRENT` pointer advances,
+  without coordinating with anybody -- `SnapshotStore.Publish` only accepts a
+  strictly newer generation. An `index --full` in another terminal cannot leave
+  a server serving a graph that no longer exists on disk. A `serve` acting as a
+  relay opens no store, no follower and no resync: it has no graph to follow,
+  and the one that answers is the daemon.
+- Publishing a generation takes a `flock` on the store itself. The `Store`'s
+  mutex only orders the goroutines of one process, and a state directory is
+  shared by an `index --full`, a client's `index_project` and a server's
+  resyncer: without it two passes trample each other. A `<id>.tmp` candidate that
+  exists while the lock is held is garbage by construction -the kernel would
+  keep holding it for its writer if it were alive- and is removed. Rejecting it
+  turned a dead pass -an OOM, a closed terminal- into a store unusable forever,
+  because every later attempt derives the same identifier and collides with it.
+  The lock does not wait: a rebuild lasts minutes and blocking would look like a
+  hang, so the loser gets `ErrPublishInProgress`. For the follower that is not a
+  failure, it is exactly what the lock exists to produce.
+- After a full `clean` the numbering goes back to `000001`, and
+  `SnapshotStore.Publish` only accepts a strictly newer generation: a live
+  server keeps the graph that no longer exists and will install no other. The
+  follower declares it once and the command warns to restart.
+- After publishing a snapshot `rebuild.ReturnBuildMemory` is called: it is the
+  only moment the build's transient is dead -published, or discarded because
+  another publisher won- and a server has nothing to do until the next request.
+  It returns **both** halves: the Go arena with `debug.FreeOSMemory` and the
+  native allocator with `nativeheap.Return`. The second is not a detail: the Go
+  heap parks between 2.4 and 4 MB above the live snapshot on every build, so what
+  made a server grow was not its own. `GOMEMLIMIT` is not set, because the
+  pass's child would inherit it from the environment -`indexing/subprocess.go`
+  does not set `command.Env`- and because on the Go side it would have no gap to
+  close. See ADR 0044.
+- The engine's memory is libc's, not Go's, and no `runtime` metric sees it. glibc
+  gives one arena per competing thread and makes it grow before reusing
+  anything, so every rebuild keeps another arena until they saturate. Measured on
+  `devlabs` over a 189 MB graph, four builds: with only the Go scavenge the RSS
+  goes from 309.5 to 511.1 MB -67 MB per build-, and returning the native one as
+  well it stays at 241.5-249.6 MB, at no cost in time. Bounding the arenas from
+  the process does not work and is measured: `mallopt` after startup does not
+  move what already lives in secondary arenas.
+- A generation carries its HotSnapshot in `snapshot.kvsnap`, and a server reads
+  it instead of deriving it from the canonical graph: `rebuild.LoadOrBuildSnapshot`
+  is the door, and the three paths that install a generation -`serve`'s startup,
+  the follower and the parent of a pass- go through it. What proves the file
+  belongs to that generation is `snapshot.content.sha256`, the digest of the
+  graph the file contains, repeated in its header. **It is not
+  `snapshot.sha256`**, which digests the counters per table and therefore does
+  not tell two graphs of the same shape apart: measured on `workspace`, two
+  indexings whose graphs differed in 288 rows gave a byte-identical
+  `snapshot.sha256`, so a file derived from one was accepted as the other's. The
+  counters digest keeps its job, which is `Rollback`'s cheap check. No pass
+  mutates a generation in place, so a digest that does not match means the file
+  is foreign, stale or corrupt. Writing it is an economy and never a
+  precondition -- an absent, foreign, stale or corrupt file costs a derivation,
+  is declared in the report and is never an answer. A generation published before
+  the record existed carries none: that is `ErrNoRecordedGraphDigest`, of the same
+  class as the absence, and counting it as a failure would turn `doctor` red on
+  every installation when updating. Measured on `devlabs`: 253-255 MB of RSS and
+  787-836 MB of peak deriving, against 150-152 MB and 264-269 MB reading. See ADR
+  0045 and ADR 0061.
+- `doctor` asks **both** questions, and they are different. `snapshot` derives
+  the snapshot from the canonical graph and never reads the file: it reports
+  whether **this graph** can still become a snapshot, and reading a file written
+  when the graph was healthy would answer another question, and would answer it
+  reassuringly. `snapshot.published` is the other half: it says whether the file
+  can be used, or why a server would have to derive. Without it, a server that
+  derives the whole graph on every startup is indistinguishable from one that
+  reads it, and that cost twice while this was being built.
+- **Two servers over the same generation share the file.** Measured with two
+  `serve` over `workspace` -- `123,531` symbols, `98,773,720` bytes: `94 MB` of
+  clean `mapped file`, a single copy, and `44.5 MB` dirty per process. With four
+  clients it is `272 MB` against the `692 MB` of the unshared baseline, a
+  `39.3 %`. What stays private are the decoded tables; what is shared is the
+  string arena, which is the large part. `internal/procstat` splits `Pss` and
+  `Shared_Clean` on Linux and **declares** that darwin cannot: there the split
+  comes from `footprint`, which is not the same quantity, so the two figures are
+  not compared with each other. On Linux, measured by `benchmarks/shared-snapshot`
+  over `161,819` symbols: the `Pss` share of the mapped arm over the derived one
+  is `0.498` with two servers, `0.416` with four and `0.372` with eight --
+  **it falls at every step, which is the property**, because the shared part is
+  divided among more processes. What is private comes out flat at `614 B` per
+  symbol, `~95 MB` per process in that corpus.
 
-  Los dos umbrales originales de `LUQUE-2006` **no** se cumplían -- `0,416`
-  contra `≤0,40` y `95 MB` contra `≤60 MB`--, y lo que la medición mostró es que
-  el problema eran los umbrales: uno era una propiedad del número de clientes y
-  el otro un número de un corpus más pequeño. Están reescritos como propiedades.
-  Mapear también las tablas sigue sin pedirlo ningún número: lo que ahorraría son
-  esos `614 B` por símbolo, y el arranque -- `13x`-- ya lo da el mapeo del arena.
-- El fichero publicado se **mapea y el mapeo se conserva**, porque la tabla de
-  cadenas lee sus valores en sitio en vez de copiarlos -- unos cincuenta megas
-  sobre el corpus real. Las demás tablas se decodifican a structs y sí se copian.
-  Eso hace que el mapeo tenga que vivir tanto como el snapshot **y como cualquier
-  tabla tomada de él**: `Strings()` y `StableKeys()` entregan la tabla por valor y
-  un lector la sostiene sin sostener el snapshot. Su liberación va atada a la
-  **inalcanzabilidad** de un ancla (`mapping`) a la que apuntan el snapshot y sus
-  dos tablas, con `runtime.AddCleanup` dentro de `hotsnapshot.MapSnapshot`, nunca
-  a un `Close` público: `Publish` deja el snapshot anterior como basura mientras
-  alguien lo lee, y desmapear ahí no da un error, da un `SIGSEGV` o cadenas leídas
-  de páginas ajenas.
-  Lo que hace todo esto seguro y **tiene que seguir siendo verdad**: una tabla
-  con arena prestada **copia toda cadena que entrega**, así que ninguna respuesta
-  puede sobrevivir a las páginas de donde se leyó. Hay dos guardias, y los dos
-  fallan si se retira la copia: uno compara **direcciones** -- comparar los bytes
-  pasaría igual--, y el otro libera el mapeo a mano con un lector sosteniendo lo
-  que leyó, y reporta `SIGSEGV` en vez de `ok`. Un tercer test, el que borra el
-  fichero y recorre el grafo entero, cubre que un mapeo sobreviva a su ruta.
-- La tabla de cadenas resuelve `Lookup` por búsqueda binaria sobre los ids
-  ordenados por su valor, no con un mapa: eran 20,45 MB por proceso contra 1,9 MB,
-  y `Lookup` se llama una o dos veces por consulta. El orden lo lleva el fichero
-  en su propia sección -es derivado y determinista, así que el escritor ordena
-  una vez-, es opcional en las dos direcciones, y se valida exigiendo valores
-  estrictamente crecientes: es la única sección cuya corrupción sería silenciosa,
-  porque un orden válido de otra tabla sigue contestando con el id de otro valor.
-- El layout del visor es una proyección derivada del `HotSnapshot`: usa
-  coordenadas enteras deterministas, contención repository/package/file/symbol
-  y un grid espacial con overflow acotado; nunca muta el snapshot ni ejecuta
-  force simulation global.
-- El layout equilibra cada rejilla por defecto (`Columns: 0`) para que el mundo
-  publicado quede aproximadamente cuadrado; una anchura fija lo convierte en
-  una tira ilegible cuando crece el número de repositorios.
-- El payload binario `LGVB` del visor es versionado (`v2`), little-endian y
-  limitado a `32 MiB`; lleva una sección de etiquetas con el nombre de cada
-  nodo, el servidor valida magic, versión, offsets, longitudes y `snapshot_id`
-  antes de servirlo, y los errores de incompatibilidad son códigos estables.
+  The two original thresholds of `LUQUE-2006` were **not** met -- `0.416` against
+  `≤0.40` and `95 MB` against `≤60 MB`--, and what the measurement showed is that
+  the problem was the thresholds: one was a property of the number of clients and
+  the other a number from a smaller corpus. They are rewritten as properties.
+  Mapping the tables too is still asked for by no figure: what it would save is
+  those `614 B` per symbol, and startup -- `13x`-- is already given by mapping
+  the arena.
+- The published file is **mapped and the mapping is kept**, because the string
+  table reads its values in place instead of copying them -- some fifty megabytes
+  on the real corpus. The other tables are decoded to structs and are copied.
+  That means the mapping has to live as long as the snapshot **and as any table
+  taken from it**: `Strings()` and `StableKeys()` deliver the table by value and a
+  reader holds it without holding the snapshot. Its release is tied to the
+  **unreachability** of an anchor (`mapping`) that the snapshot and its two
+  tables point to, with `runtime.AddCleanup` inside `hotsnapshot.MapSnapshot`,
+  never to a public `Close`: `Publish` leaves the previous snapshot as garbage
+  while somebody reads it, and unmapping there gives not an error but a `SIGSEGV`
+  or strings read from foreign pages.
+  What makes all this safe and **has to stay true**: a table with a borrowed
+  arena **copies every string it delivers**, so no response can outlive the
+  pages it was read from. There are two guards, and both fail if the copy is
+  removed: one compares **addresses** -- comparing the bytes would pass
+  anyway--, and the other releases the mapping by hand with a reader holding what
+  it read, and reports `SIGSEGV` instead of `ok`. A third test, the one that
+  deletes the file and walks the whole graph, covers that a mapping survives its
+  path.
+- The string table resolves `Lookup` by binary search over the ids sorted by
+  their value, not with a map: it was 20.45 MB per process against 1.9 MB, and
+  `Lookup` is called once or twice per query. The order is carried by the file in
+  a section of its own -it is derived and deterministic, so the writer sorts
+  once-, is optional in both directions, and is validated by requiring strictly
+  increasing values: it is the only section whose corruption would be silent,
+  because a valid order of another table still answers with the id of another
+  value.
+- The viewer's layout is a projection derived from the `HotSnapshot`: it uses
+  deterministic integer coordinates, repository/package/file/symbol containment
+  and a spatial grid with bounded overflow; it never mutates the snapshot or
+  runs a global force simulation.
+- The layout balances each grid by default (`Columns: 0`) so that the published
+  world ends up roughly square; a fixed width turns it into an unreadable strip
+  when the number of repositories grows.
+- The viewer's binary `LGVB` payload is versioned (`v2`), little-endian and
+  limited to `32 MiB`; it carries a labels section with the name of each node,
+  the server validates magic, version, offsets, lengths and `snapshot_id` before
+  serving it, and the incompatibility errors are stable codes.
 
-## Configuración y registro
+## Configuration and registry
 
-- El vocabulario de lenguajes es `config.SupportedLanguages` y se valida al
-  escribir el registro, no sólo al indexar: `init` no acepta lo que la pasada
-  rechaza.
-- Un ajuste de la configuración vale exactamente lo que el código implementa.
-  `indexing.generated_files` sólo acepta `include` y
-  `indexing.unresolved_references` sólo `retain`, porque eso es lo que la
-  pasada hace: aceptar otra palabra promete un comportamiento que no existe y
-  convierte una errata en una configuración silenciosamente distinta de la que
-  se leyó.
-- Una configuración escrita fuera de la ubicación por defecto es autocontenida:
-  su estado, su caché y su registro cuelgan de su propio directorio. Un
-  `--config` en `/tmp` que apuntase al estado real publicaría generaciones
-  sobre el grafo que venía a dejar en paz.
-- Los nombres de repositorio se comparan exactos. El nombre es un
-  identificador, nunca un componente de ruta, y las stable keys que lo llevan
-  distinguen mayúsculas: dos repositorios que sólo difieren en el caso son dos
-  repositorios y tienen que poder registrarse con su nombre real.
-- Toda ruta de estado nueva se reubica en `stateBesideConfig`, no sólo se añade
-  a `DefaultConfig`. Es lo que hace autocontenida la regla de arriba: una ruta
-  que se olvide ahí manda su contenido a la instalación real desde una prueba
-  bajo `/tmp`. `logging.event_log_path` es la última que entró.
+- The vocabulary of languages is `config.SupportedLanguages` and it is validated
+  when the registry is written, not only when indexing: `init` does not accept
+  what the pass rejects.
+- A configuration setting is worth exactly what the code implements.
+  `indexing.generated_files` only accepts `include` and
+  `indexing.unresolved_references` only `retain`, because that is what the pass
+  does: accepting another word promises a behaviour that does not exist and
+  turns a typo into a configuration silently different from the one that was
+  read.
+- A configuration written outside the default location is self-contained: its
+  state, its cache and its registry hang from its own directory. A `--config` in
+  `/tmp` that pointed at the real state would publish generations over the graph
+  it came to leave alone.
+- Repository names are compared exactly. The name is an identifier, never a path
+  component, and the stable keys that carry it distinguish case: two
+  repositories that differ only in case are two repositories and must be
+  registrable under their real name.
+- Every new state path is relocated in `stateBesideConfig`, not just added to
+  `DefaultConfig`. It is what makes the rule above self-contained: a path
+  forgotten there sends its content to the real installation from a test under
+  `/tmp`. `logging.event_log_path` is the last one that entered.
 
-## Servidores HTTP, assets y procesos
+## HTTP servers, assets and processes
 
-- `kivgraph ui` es opt-in y sirve solo el `HotSnapshot` publicado por HTTP
-  read-only. Su bind por defecto es `127.0.0.1:7777` (ADR 0119, que revisa el 0032) y un
-  bind loopback rechaza con `403` un `Host` que no sea esta máquina, contra el
-  DNS rebinding. Mirarlo desde otra máquina es una decisión (`--addr` o
-  `web.address`); una configuración que un `init` anterior escribió con
-  `0.0.0.0:7777` lo conserva. La guarda de un bind expuesto es la
-  advertencia, y por eso no es decorativa: todo bind que
-  no sea loopback registra qué se expone -rutas de repositorio y de fichero,
-  nombres y firmas de símbolos- y con qué se cierra. El endpoint no lleva
-  autenticación; restringirlo es `--addr` o `web.address`.
-- `kivgraph serve` **no escucha en ningún puerto**, y esa es la parte que no
-  cambia: `webapi.Run` es dueño del único listener y ejecuta un cierre graceful
-  acotado al cancelar el contexto. Lo que sí hace desde el ADR 0084 es
-  **conectarse** como cliente al demonio cuando hay uno: su entrada sigue siendo
-  STDIO -- el manifiesto `.mcpb` no tiene campo para una url y una entrada `url`
-  en un fichero commiteado llevaría el token--, pero el servidor que contesta
-  pasa a ser el demonio. Sin demonio alcanzable contesta él mismo, igual que
-  antes, y `KIVGRAPH_SERVE_IN_PROCESS` fuerza ese camino. El relé vive en
-  `internal/relay` y no en `internal/mcp`, que es donde el ADR lo esperaba:
-  `internal/daemon` importa `internal/mcp`, así que un relé que necesita un
-  `Endpoint` no cabe ahí sin un ciclo.
-- `internal/webassets` sirve solo la copia generada de `web/dist` cuando la
-  distribución se construye con el tag `webassets`; los binarios sin tag
-  devuelven un fallback visible `503` en vez de servir archivos no declarados.
-- La enumeración de procesos vive en `internal/procstat`, el único lugar que lee
-  estadísticas de proceso del sistema operativo, con un fichero por plataforma:
-  `/proc` en Linux y `kern.proc.all` más `kern.procargs2` en macOS. Sólo se ven
-  los procesos de este usuario, que son exactamente los que se podrían señalar;
-  una plataforma que no sabe enumerar devuelve error, no una lista vacía, y `0`
-  significa desconocido.
+- `kivgraph ui` is opt-in and serves only the published `HotSnapshot` over
+  read-only HTTP. Its default bind is `127.0.0.1:7777` (ADR 0119, which revises
+  0032) and a loopback bind rejects with `403` a `Host` that is not this machine,
+  against DNS rebinding. Viewing it from another machine is a decision (`--addr`
+  or `web.address`); a configuration that an earlier `init` wrote with
+  `0.0.0.0:7777` keeps it. The guard of an exposed bind is the warning, and that
+  is why it is not decorative: every bind that is not loopback logs what is
+  exposed -repository and file paths, symbol names and signatures- and with what
+  it is closed. The endpoint carries no authentication; restricting it is
+  `--addr` or `web.address`.
+- `kivgraph serve` **listens on no port**, and that is the part that does not
+  change: `webapi.Run` owns the only listener and runs a bounded graceful
+  shutdown when the context is cancelled. What it does since ADR 0084 is
+  **connect** as a client to the daemon when there is one: its entry is still
+  STDIO -- the `.mcpb` manifest has no field for a url and a `url` entry in a
+  committed file would carry the token--, but the server that answers becomes the
+  daemon. With no reachable daemon it answers itself, as before, and
+  `KIVGRAPH_SERVE_IN_PROCESS` forces that path. The relay lives in
+  `internal/relay` and not in `internal/mcp`, which is where the ADR expected it:
+  `internal/daemon` imports `internal/mcp`, so a relay that needs an `Endpoint`
+  does not fit there without a cycle.
+- `internal/webassets` serves only the generated copy of `web/dist` when the
+  distribution is built with the `webassets` tag; binaries without the tag
+  return a visible `503` fallback instead of serving undeclared files.
+- Process enumeration lives in `internal/procstat`, the only place that reads
+  operating-system process statistics, with one file per platform: `/proc` on
+  Linux and `kern.proc.all` plus `kern.procargs2` on macOS. Only this user's
+  processes are seen, which are exactly the ones that could be signalled; a
+  platform that cannot enumerate returns an error, not an empty list, and `0`
+  means unknown.
 
-- `internal/eventlog` es el registro durable de lo que pasó: una pasada, una
-  llamada de tool, el ciclo de vida de un servidor. Es un fichero JSON-lines de
-  solo-añadir, y esa forma es la que lo hace seguro para los varios procesos que
-  lo escriben a la vez: un registro es una sola escritura de mucho menos que un
-  buffer de tubería sobre un descriptor `O_APPEND`, que POSIX mantiene entera.
-  No hay cerrojo entre procesos y no se lee antes de escribir; añadir cualquiera
-  de las dos cosas no compraría nada. Ver ADR 0049.
-- **No es una API.** Es estado derivado y no lleva versión de esquema: borrarlo
-  pierde historia y nada más. Un lector salta una línea que no parsea en vez de
-  fallar la lectura, porque el fichero lo escriben varios procesos y uno puede
-  ser de una versión que conoce campos que otra no.
-- Un sumidero que no se puede abrir **degrada con un aviso**, nunca falla el
-  trabajo que describe. Un `*eventlog.Writer` nulo descarta, así que ningún
-  productor lleva una rama para ese caso; y `Append` no devuelve error por la
-  misma razón.
-- La medición por tool ya existía y sigue donde estaba: `tools.observe` es el
-  único punto por el que pasan las nueve tools de consulta, y `metrics.Registry`
-  acumula sus atómicos para que `graph_status` los lea de vuelta. Lo que se
-  añadió es un segundo canal lateral, `metrics.QueryRecorder`, simétrico con el
-  puente OpenTelemetry: el registro no puede ser la fuente de un comando porque
-  muere con el proceso. `QueryRecorder` corre dentro del camino caliente de una
-  llamada, así que no puede bloquear.
-- `index_project` recibe observadores variádicos como todo `Register*` de
-  `internal/mcp/tools`. Los tuvo tarde, y mientras no los tuvo era la única
-  llamada que un cliente podía hacer que ningún contador veía -- justo la que
-  cuesta minutos.
+- `internal/eventlog` is the durable record of what happened: a pass, a tool
+  call, a server's lifecycle. It is an append-only JSON-lines file, and that
+  shape is what makes it safe for the several processes that write it at once: a
+  record is a single write of much less than a pipe buffer on an `O_APPEND`
+  descriptor, which POSIX keeps whole. There is no lock between processes and
+  nothing is read before writing; adding either would buy nothing. See ADR 0049.
+- **It is not an API.** It is derived state and carries no schema version:
+  deleting it loses history and nothing else. A reader skips a line that does
+  not parse instead of failing the read, because the file is written by several
+  processes and one may be of a version that knows fields another does not.
+- A sink that cannot be opened **degrades with a warning**, never fails the work
+  it describes. A nil `*eventlog.Writer` discards, so no producer carries a
+  branch for that case; and `Append` returns no error for the same reason.
+- Per-tool measurement already existed and stays where it was: `tools.observe`
+  is the only point the nine query tools pass through, and `metrics.Registry`
+  accumulates its atomics so that `graph_status` reads them back. What was added
+  is a second side channel, `metrics.QueryRecorder`, symmetric with the
+  OpenTelemetry bridge: the registry cannot be the source of a command because it
+  dies with the process. `QueryRecorder` runs inside the hot path of a call, so
+  it cannot block.
+- `index_project` receives variadic observers like every `Register*` of
+  `internal/mcp/tools`. It got them late, and while it did not have them it was
+  the only call a client could make that no counter saw -- precisely the one
+  that costs minutes.
 
-## Plataforma
+## Platform
 
-- En macOS, la inspección de locks de LadybugDB nunca abre la base: POSIX
-  libera todos los locks de registro de un proceso al cerrar cualquier
-  descriptor sobre el archivo, así que un `fcntl(F_GETLK)` desbloquearía el
-  motor. Se enumeran descriptores con `libproc`.
-- El watcher declara su contrato por backend. Bajo `kqueue` un archivo creado
-  y escrito de una vez llega como un único `Create`, y el backend consume un
-  descriptor por archivo vigilado: un árbol que excede el límite falla en
-  `New` nombrando el límite, nunca vigila un subconjunto en silencio.
-- La política que rechaza rutas con componentes symlink no se relaja para
-  acomodar `/var` ni `/tmp` de macOS. Los tests que alimentan la capa de
-  workspace usan `internal/testsupport.TempDir`.
+- On macOS, LadybugDB's lock inspection never opens the database: POSIX releases
+  all of a process's record locks when any descriptor on the file is closed, so
+  an `fcntl(F_GETLK)` would unlock the engine. Descriptors are enumerated with
+  `libproc`.
+- The watcher declares its contract per backend. Under `kqueue` a file created
+  and written at once arrives as a single `Create`, and the backend consumes one
+  descriptor per watched file: a tree that exceeds the limit fails in `New`
+  naming the limit, and never silently watches a subset.
+- The policy that rejects paths with symlink components is not relaxed to
+  accommodate macOS's `/var` and `/tmp`. The tests that feed the workspace layer
+  use `internal/testsupport.TempDir`.
 
-## Integraciones de clientes
+## Client integrations
 
-- `kivgraph mcp install` y `kivgraph skill install` detectan raíces locales
-  conocidas cuando falta `--target`, muestran una selección interactiva de uno o
-  varios clientes y conservan `--target` para automatización; nunca inicializan
-  Kivgraph ni indexan repositorios.
-- La selección interactiva usa Bubble Tea y Lip Gloss: `↑`/`↓` o `j`/`k`
-  mueven, `space` alterna, `a`/`n` seleccionan todos/ninguno, `Enter`
-  confirma y `q`/`Esc` cancela; respeta `NO_COLOR` y no emite ANSI al
-  redirigir la salida.
-- Los adaptadores externos validan JSON/TOML antes de modificarlo, rechazan
-  destinos symlink, escriben atómicamente con `0600` y exigen `--force` para
-  sustituir o retirar una entrada incompatible. Las entradas idempotentes no
-  reescriben el archivo.
-- La skill canónica vive en
-  `internal/integrations/assets/kivgraph/SKILL.md`; los bundles deben
-  incluirla bajo `skills/kivgraph/SKILL.md` y en `SHA256SUMS`.
+- `kivgraph mcp install` and `kivgraph skill install` detect known local roots
+  when `--target` is missing, show an interactive selection of one or several
+  clients and keep `--target` for automation; they never initialize Kivgraph or
+  index repositories.
+- The interactive selection uses Bubble Tea and Lip Gloss: `↑`/`↓` or `j`/`k`
+  move, `space` toggles, `a`/`n` select all/none, `Enter` confirms and `q`/`Esc`
+  cancels; it honours `NO_COLOR` and emits no ANSI when output is redirected.
+- The external adapters validate JSON/TOML before modifying it, reject symlink
+  destinations, write atomically with `0600` and require `--force` to replace or
+  remove an incompatible entry. Idempotent entries do not rewrite the file.
+- The canonical skill lives in
+  `internal/integrations/assets/kivgraph/SKILL.md`; bundles must include it
+  under `skills/kivgraph/SKILL.md` and in `SHA256SUMS`.
 
-## Verificación
+## Verification
 
 ```bash
-gofmt -l <archivos-go-modificados>
+gofmt -l <modified-go-files>
 go vet ./...
 go test ./...
 ```
 
-Si el cambio toca LadybugDB nativo, `make test-ladybug`; `PKGS` acota la pasada
-a un paquete. El procedimiento completo está en la skill
+If the change touches native LadybugDB, `make test-ladybug`; `PKGS` bounds the
+pass to one package. The full procedure is in the skill
 `.claude/skills/running-tests/SKILL.md`.
