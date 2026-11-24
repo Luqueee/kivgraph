@@ -1,441 +1,439 @@
-# Instrucciones del CLI (`cmd/kivgraph/`)
+# CLI instructions (`cmd/kivgraph/`)
 
-Estas reglas se suman a las de `AGENTS.md` en la raíz del repositorio, que se
-leen siempre. Una instrucción de este archivo puede añadir restricciones; nunca
-puede relajar un contrato de integridad, compatibilidad o verificación
-declarado en la raíz.
+These rules add to the `AGENTS.md` at the repository root, which is always
+read. An instruction in this file may add restrictions; it can never relax an
+integrity, compatibility or verification contract declared at the root.
 
-Lo que estos comandos ejecutan vive en `internal/`; aquí sólo está su
-superficie observable.
+What these commands run lives in `internal/`; only their observable surface is
+here.
 
-## La tabla de comandos
+## The command table
 
-- La línea de comandos se declara **una vez**, en `cmd/kivgraph/commands.go`, y
-  se lee tres veces: el despacho que ejecuta, la ayuda que lista y el
-  completado que sugiere. Antes se declaraba dos veces -- una cadena `if` para
-  despachar y una tabla aparte para la ayuda -- y las dos ya habían divergido:
-  diez comandos llevaban flags que la ayuda no nombraba nunca. Una tercera
-  copia para el completado habría divergido igual, y un completado que omite un
-  tercio de la superficie es peor que ninguno, porque el lector se lo cree.
-- **Los flags no se repiten en la tabla.** Cada comando tiene un constructor
-  `<nombre>FlagSet` y ese es el único sitio donde un flag se escribe;
-  `writeFlagList` ya recorre un `flag.FlagSet` real. Un comando nuevo añade su
-  `<nombre>Options` y su `<nombre>FlagSet` junto a su `runX`, como ya hacían
-  `uiFlagSet` y `serveFlagSet`, y una entrada en la tabla.
-- El campo `usage` es un **resumen curado para una persona**: puede nombrar
-  menos flags de los que el comando acepta -- listar los ocho de `logs` en una
-  línea de ayuda la empeora -- pero nunca uno que no exista, y
-  `TestUsageNamesOnlyRealFlags` lo comprueba. El completado no depende de él:
-  lee el `FlagSet`, así que es exhaustivo.
-- Las palabras se emparejan **de más larga a más corta**, que es lo que impide
-  leer `doctor storage` como `doctor` con un argumento suelto, o `index --full`
-  como `index`.
-- `serve` y `ui` están en la tabla con `run: nil`. `main` los intercepta antes
-  de `run` porque son los dos que poseen un manejador de señales y registran
-  estructuradamente toda su vida; están declarados para que la ayuda y el
-  completado los describan igual.
+- The command line is declared **once**, in `cmd/kivgraph/commands.go`, and
+  read three times: the dispatch that runs, the help that lists and the
+  completion that suggests. It used to be declared twice -- an `if` chain to
+  dispatch and a separate table for the help -- and the two had already
+  diverged: ten commands carried flags the help never named. A third copy for
+  completion would have diverged just the same, and a completion that omits a
+  third of the surface is worse than none, because the reader believes it.
+- **Flags are not repeated in the table.** Each command has a
+  `<name>FlagSet` constructor and that is the only place a flag is written;
+  `writeFlagList` already walks a real `flag.FlagSet`. A new command adds its
+  `<name>Options` and its `<name>FlagSet` next to its `runX`, as `uiFlagSet`
+  and `serveFlagSet` already did, and an entry in the table.
+- The `usage` field is a **summary curated for a person**: it may name fewer
+  flags than the command accepts -- listing the eight of `logs` on one help
+  line makes it worse -- but never one that does not exist, and
+  `TestUsageNamesOnlyRealFlags` checks it. Completion does not depend on it: it
+  reads the `FlagSet`, so it is exhaustive.
+- Words are matched **from longest to shortest**, which is what prevents
+  reading `doctor storage` as `doctor` with a loose argument, or `index --full`
+  as `index`.
+- `serve` and `ui` are in the table with `run: nil`. `main` intercepts them
+  before `run` because they are the two that own a signal handler and log
+  structurally for their whole life; they are declared so that the help and the
+  completion describe them the same.
 
-## Completado
+## Completion
 
-- El script de cada shell es un **stub fijo**: sin nombres de comando, sin
-  flags y sin vocabularios. Reenvía las palabras a `kivgraph __complete` y todo
-  candidato sale de la tabla. Un script que hay que regenerar al añadir un flag
-  es un script que estará desactualizado, y `TestCompletionScriptEmitsOnePerShell`
-  falla si un stub codifica un nombre.
-- El stub de bash está escrito para **bash 3.2**, que es el que trae macOS: sin
-  `mapfile` y sin `compopt`. Verificado ejecutándolo ahí, no supuesto -- la
-  primera versión usaba `mapfile` y fallaba en toda invocación.
-- `COMP_WORDBREAKS` de bash contiene `=`, así que entrega `--kind=s` como tres
-  palabras donde zsh y fish entregan una. El motor reconoce las dos formas, lo
-  que mantiene los stubs idénticos y sin reensamblado propio de cada shell.
-- Un flag que toma una ruta responde `:file` y el shell usa su propio
-  completado: el entrecomillado, los enlaces y `~` son su trabajo, y una lista
-  generada aquí los haría mal.
-- Los candidatos que un script estático no podría dar son los que justifican el
-  diseño: `--generation` lee las generaciones en disco, `--target` los clientes
-  de esta máquina y `--tool` las tools que esta instalación ha recibido de
-  verdad, desde el registro durable. Un comando que esta build no puede
-  ejecutar no se ofrece.
+- The script of each shell is a **fixed stub**: no command names, no flags and
+  no vocabularies. It forwards the words to `kivgraph __complete` and every
+  candidate comes from the table. A script that has to be regenerated when a
+  flag is added is a script that will be out of date, and
+  `TestCompletionScriptEmitsOnePerShell` fails if a stub hard-codes a name.
+- The bash stub is written for **bash 3.2**, which is what macOS ships: no
+  `mapfile` and no `compopt`. Verified by running it there, not assumed -- the
+  first version used `mapfile` and failed on every invocation.
+- bash's `COMP_WORDBREAKS` contains `=`, so it delivers `--kind=s` as three
+  words where zsh and fish deliver one. The engine recognises both forms, which
+  keeps the stubs identical and without a reassembly of their own for each
+  shell.
+- A flag that takes a path answers `:file` and the shell uses its own
+  completion: quoting, links and `~` are its job, and a list generated here
+  would get them wrong.
+- The candidates a static script could not give are what justify the design:
+  `--generation` reads the generations on disk, `--target` the clients on this
+  machine and `--tool` the tools this installation has really received, from the
+  durable registry. A command this build cannot run is not offered.
 
-## Ayuda, salidas y registro
+## Help, outputs and logging
 
-- La ayuda no es un error: `--help`, `-h` y `help` escriben en `stdout` y
-  terminan con código `0`. **Una invocación sin comando es la misma pregunta**
-  -- «qué hace esto» -- así que escribe esa misma tabla en `stdout` y termina en
-  `0`; antes escribía una línea en `stderr` apuntando a una ayuda que el lector
-  todavía no había visto. Un comando **desconocido** sí es un error: una línea
-  en `stderr`, código `2`, y nunca la superficie entera -- quien se equivoca
-  escribiendo `inedx` no necesita leerse el catálogo. Un comando puntual informa
-  en texto plano cuando `stderr` es una terminal y como registro JSON cuando no
-  lo es; `serve` y `ui` registran siempre en JSON, porque un cliente lee su
-  `stderr`.
-- La ayuda marca el comando que esta build no puede ejecutar. El bundle MCP
-  publicado no lleva `webassets`, así que anunciar `ui` sin decirlo describe
-  una capacidad que no existe.
-- Un comando puntual clasifica lo que escribe en `stderr`: el progreso es
-  `INFO` y sólo un fallo es `ERROR`, y el texto de la línea es el `msg` del
-  registro, nunca un campo dentro de un mensaje fijo. Un registro que un
-  lector no puede filtrar por nivel ni encontrar por texto no informa de nada.
-- `doctor` informa de `snapshot.published`, y las respuestas que no son un
-  fichero utilizable **no valen lo mismo**. Son tres, no dos:
-  **ausente es `PASS` y se declara** -- una generación publicada antes de que el
-  fichero existiera no lo lleva, y derivar es lo que siempre se hizo--;
-  **escrito por un formato anterior es `PASS` y se declara**, porque no hay nada
-  mal en el store, se movió el layout, y el siguiente indexado lo sustituye;
-  y **presente, de este formato y no utilizable es `FAIL`**, porque entonces sí
-  algo del store está mal. Una sola respuesta de «no disponible» las contaría
-  como lo mismo, y sólo la tercera merece despertar a alguien. Contar la segunda
-  como fallo es peor que no informar: pone el `doctor` en rojo en cada
-  actualización, que es exactamente como un fallo de verdad deja de notarse.
-  Lo distingue `hotsnapshot.ErrSnapshotFileVersion`, que envuelve
-  `ErrInvalidSnapshotFile` para que el resto de llamantes no cambie.
-- `serve` dice al arrancar si leyó el snapshot publicado o lo derivó, y con qué
-  razón. Nada más las distingue: un servidor que deriva contesta exactamente
-  igual que uno que leyó, y cuesta un gigabyte más de pico al nacer. Mientras
-  nadie lo dijo, esa confusión costó dos veces en una tarde -- el arranque
-  derivando y un fichero de formato anterior sin cargar-- y ninguna suite lo vio,
-  porque las dos rutas producen el mismo grafo.
-- `stats` encabeza con la **memoria proporcional**, no con la residente, y esa
-  elección es el motivo de que el comando exista: tres servidores que leen el
-  mismo snapshot mapeado cuentan cada uno todas sus páginas, así que sumar
-  residentes informa de una máquina gastando el triple de un fichero que está
-  una vez. Medido: el RSS subió de 114 a 141 MB por servidor mientras el coste
-  bajaba de 117 a 79. Donde la plataforma no sabe dividir páginas compartidas
-  -macOS no sabe- no se ofrece ninguna aproximación: se encabeza con la
-  residente y la nota dice que lo compartido se cuenta una vez por proceso.
-  Adivinar qué páginas son compartidas es cómo un fichero mapeado empieza a
-  parecer una fuga.
-- El pico es columna propia porque es lo que dimensiona una máquina: un servidor
-  que llegó a un gigabyte necesita ese gigabyte aunque aparque en la décima
-  parte. Una pasada de indexado se colorea distinto justo porque explica un pico
-  que un servidor no explicaría.
-- Una vista viva que nadie mira es un comando que no termina: con `stdout`
-  redirigido, `stats` imprime **una** observación y sale, y `--json` es esa misma
-  observación para un script. La vista interactiva respeta `NO_COLOR` y
-  `TERM=dumb` como el resto de la superficie.
-- `doctor` informa del techo de versión con el que este binario comprueba
-  tipos, no solo del `go` del PATH: son números distintos y el que decide si un
-  repositorio se puede indexar es el primero.
-- `logs` y `tool-stats` leen el registro durable de `internal/eventlog`, no
-  preguntan a un servidor, y ese es el motivo de que puedan responder: los
-  contadores por tool que un `serve` mantiene se acuñan al arrancar y se
-  descartan al salir, así que una pregunta hecha desde otro proceso -- que es lo
-  que es un comando -- encontraría siempre un registro vacío. Leer el fichero
-  hace además que la respuesta abarque todos los servidores que corrieron, que
-  es el intervalo que la pregunta implica. Ver ADR 0049.
-- La insignia de `logs` nombra **qué** pasó, no sólo lo mal que fue: un fallo es
-  `ERROR` y una respuesta degradada es `WARN`, pero una llamada que contestó es
-  `TOOL` y una pasada es `INDEX`. Un registro donde toda línea rutinaria dijera
-  `INFO` dejaría al lector haciendo la clasificación que el escritor ya sabía.
-  Es la única superficie con fondo sólido: el resto de la salida no-TUI sólo
-  tiene color de primer plano, y un `styleFor` que devuelve el estilo vacío
-  sigue siendo lo que mantiene la vista redirigida en texto plano.
-- La duración queda **fuera** de la identidad que colapsa líneas repetidas.
-  Cada llamada tiene su tiempo propio, así que incluirla significaría que nada
-  con duración se colapsa nunca -- y doce `find_references` seguidos son
-  exactamente lo que un lector quiere ver como una fila con su media, no como
-  doce filas que pasar. La fila lleva el instante de la ocurrencia más reciente,
-  porque la pregunta que una línea repetida plantea es si sigue pasando.
-- Un campo renderizado se pliega a una línea y se acota. Un fallo del cargador
-  de Go llega con saltos de línea y una transcripción de `stderr` dentro:
-  imprimirlo tal cual rompe el contrato de un registro por línea del que
-  dependen todos los filtros y todo lector de esta salida. Observado en la
-  primera pasada que falló de verdad, no supuesto.
-- Los percentiles viven en el lector. `internal/metrics` retiene la latencia
-  como cuenta, suma y máximo a propósito; el fichero guarda cada llamada, así
-  que `tool-stats` puede contestar lo que una media esconde -- una tool cuya
-  mediana es rápida y cuya cola no -- y sólo colorea la fila que falló, porque
-  una tabla donde toda línea está pintada no dice qué línea leer.
+- Help is not an error: `--help`, `-h` and `help` write to `stdout` and end with
+  code `0`. **An invocation with no command is the same question** -- "what does
+  this do" -- so it writes that same table to `stdout` and ends at `0`; it used
+  to write one line to `stderr` pointing at a help the reader had not yet seen.
+  An **unknown** command is an error: one line on `stderr`, code `2`, and never
+  the whole surface -- whoever mistypes `inedx` does not need to read the
+  catalogue. A one-shot command reports in plain text when `stderr` is a
+  terminal and as a JSON log when it is not; `serve` and `ui` always log in
+  JSON, because a client reads their `stderr`.
+- Help marks the command this build cannot run. The published MCP bundle does
+  not carry `webassets`, so advertising `ui` without saying so describes a
+  capability that does not exist.
+- A one-shot command classifies what it writes to `stderr`: progress is `INFO`
+  and only a failure is `ERROR`, and the text of the line is the log's `msg`,
+  never a field inside a fixed message. A log that a reader can neither filter
+  by level nor find by text reports nothing.
+- `doctor` reports `snapshot.published`, and the answers that are not a usable
+  file **are not worth the same**. There are three, not two: **absent is `PASS`
+  and is declared** -- a generation published before the file existed does not
+  carry it, and deriving is what was always done --; **written by an earlier
+  format is `PASS` and is declared**, because there is nothing wrong with the
+  store, the layout moved, and the next indexing replaces it; and **present, of
+  this format and not usable is `FAIL`**, because then something in the store is
+  wrong. A single "unavailable" answer would count them as the same, and only
+  the third deserves to wake anyone. Counting the second as a failure is worse
+  than not reporting: it turns `doctor` red on every update, which is exactly
+  how a real failure stops being noticed. `hotsnapshot.ErrSnapshotFileVersion`
+  tells them apart, wrapping `ErrInvalidSnapshotFile` so that the other callers
+  do not change.
+- `serve` says on startup whether it read the published snapshot or derived it,
+  and for what reason. Nothing else tells them apart: a server that derives
+  answers exactly like one that read, and costs a gigabyte more of peak at
+  birth. While nobody said it, that confusion cost twice in one afternoon -- the
+  start deriving and a file of an earlier format not loading -- and no suite
+  saw it, because both paths produce the same graph.
+- `stats` leads with **proportional memory**, not resident, and that choice is
+  the reason the command exists: three servers that read the same mapped
+  snapshot each count all their pages, so adding up the residents reports a
+  machine spending three times a file that is there once. Measured: RSS rose
+  from 114 to 141 MB per server while the cost fell from 117 to 79. Where the
+  platform does not know how to split shared pages -macOS does not- no
+  approximation is offered: it leads with the resident and the note says that
+  what is shared is counted once per process. Guessing which pages are shared is
+  how a mapped file starts to look like a leak.
+- The peak is a column of its own because it is what sizes a machine: a server
+  that reached a gigabyte needs that gigabyte even if it parks at a tenth of
+  it. An indexing pass is coloured differently precisely because it explains a
+  peak a server would not.
+- A live view nobody watches is a command that does not end: with `stdout`
+  redirected, `stats` prints **one** observation and exits, and `--json` is that
+  same observation for a script. The interactive view honours `NO_COLOR` and
+  `TERM=dumb` like the rest of the surface.
+- `doctor` reports the version ceiling with which this binary type-checks, not
+  only the `go` on the PATH: they are different numbers and the one that decides
+  whether a repository can be indexed is the first.
+- `logs` and `tool-stats` read the durable log of `internal/eventlog`, they do
+  not ask a server, and that is why they can answer: the per-tool counters a
+  `serve` keeps are minted on startup and discarded on exit, so a question asked
+  from another process -- which is what a command is -- would always find an
+  empty record. Reading the file also makes the answer span every server that
+  ran, which is the interval the question implies. See ADR 0049.
+- The `logs` badge names **what** happened, not just how bad it was: a failure
+  is `ERROR` and a degraded response is `WARN`, but a call that answered is
+  `TOOL` and a pass is `INDEX`. A log in which every routine line said `INFO`
+  would leave the reader doing the classification the writer already knew. It is
+  the only surface with a solid background: the rest of the non-TUI output has
+  only foreground colour, and a `styleFor` that returns the empty style is still
+  what keeps the redirected view in plain text.
+- Duration stays **out of** the identity that collapses repeated lines. Each
+  call has its own time, so including it would mean nothing with a duration ever
+  collapses -- and twelve `find_references` in a row are exactly what a reader
+  wants to see as one row with its mean, not as twelve rows to get through. The
+  row carries the instant of the most recent occurrence, because the question a
+  repeated line raises is whether it is still happening.
+- A rendered field is folded to one line and bounded. A Go loader failure
+  arrives with line breaks and a transcript of `stderr` inside: printing it as
+  is breaks the one-record-per-line contract that every filter and every reader
+  of this output depends on. Observed in the first pass that really failed, not
+  assumed.
+- Percentiles live in the reader. `internal/metrics` retains latency as count,
+  sum and maximum on purpose; the file stores every call, so `tool-stats` can
+  answer what a mean hides -- a tool whose median is fast and whose tail is
+  not -- and only colours the row that failed, because a table where every line
+  is painted does not say which line to read.
 
 ## `kivgraph doctor repositories`
 
-- Contesta si un repositorio registrado está estructurado para que una pasada
-  pueda leerlo, **sin indexarlo**, y dice qué cambiar cuando no lo está. Es la
-  única forma de saberlo que no cuesta minutos: hasta aquí un agujero de
-  cobertura sólo aparecía como un aviso entre cientos al final de
-  `index --full`.
-- **Toda comprobación pregunta al código que pregunta la pasada**: el mismo
-  registro de paquetes, la misma resolución de fuentes -- por eso existe
-  `workspace.ClaimedTypeScriptSources`--, el mismo `go list` con los mismos
-  patrones -- por eso `goworkspace.PackagePatternsForModule` está exportada-- y
-  el mismo `cargo metadata`. Una comprobación que reimplementara cualquiera de
-  ellos contestaría por una pasada que nadie ejecuta, y eso es peor que no
-  contestar: daría por bueno un repositorio que la pasada descarta.
-- Los patrones de Go se nombran uno a uno **porque `./...` no basta**: un
-  paquete cuyos ficheros excluye la configuración de build no lo matchea, así
-  que `go list -e ./...` no informa de la exclusión. Medido: cero hallazgos con
-  `./...`, los dos reales al nombrar los paquetes.
-- **Un remedio se propone, nunca se aplica.** Kivgraph no escribe dentro del
-  código que indexa, y el `Remedy` está pensado para que lo aplique quien lee:
-  ruta, contenido exacto, clave de configuración o comando. Un remedio que no
-  puede nombrar el tag que pide -- Go-- lo lee de los propios ficheros con el
-  parser del compilador, porque «concede el tag» sin decir cuál no lo puede
-  aplicar nadie.
-- Sale con código `1` **sólo** si algo es `blocking`, es decir si un
-  repositorio o un paquete no aporta nada. Un hallazgo `partial` es un agujero
-  que su dueño puede haber elegido, y un gate que fallara por esos sería un
-  gate que nadie puede pasar.
-- `--json` es la salida para un agente: el informe entero, con el `code`
-  estable de cada hallazgo y su remedio. La salida de texto es la misma
-  información para una persona.
+- It answers whether a registered repository is structured so that a pass can
+  read it, **without indexing it**, and says what to change when it is not. It
+  is the only way to know that does not cost minutes: until now a coverage hole
+  only showed up as one warning among hundreds at the end of `index --full`.
+- **Every check asks the code the pass asks**: the same package registry, the
+  same source resolution -which is why `workspace.ClaimedTypeScriptSources`
+  exists-, the same `go list` with the same patterns -which is why
+  `goworkspace.PackagePatternsForModule` is exported- and the same
+  `cargo metadata`. A check that reimplemented any of them would be answering
+  for a pass nobody runs, and that is worse than not answering: it would
+  approve a repository the pass discards.
+- The Go patterns are named one by one **because `./...` is not enough**: a
+  package whose files the build configuration excludes does not match it, so
+  `go list -e ./...` does not report the exclusion. Measured: zero findings with
+  `./...`, the two real ones when naming the packages.
+- **A remedy is proposed, never applied.** Kivgraph does not write inside the
+  code it indexes, and the `Remedy` is meant to be applied by whoever reads it:
+  path, exact content, configuration key or command. A remedy that cannot name
+  the tag it asks for -Go- reads it from the files themselves with the
+  compiler's parser, because "grant the tag" without saying which cannot be
+  applied by anyone.
+- It exits with code `1` **only** if something is `blocking`, that is, if a
+  repository or a package contributes nothing. A `partial` finding is a hole
+  its owner may have chosen, and a gate that failed for those would be a gate
+  nobody can pass.
+- `--json` is the output for an agent: the whole report, with the stable `code`
+  of each finding and its remedy. The text output is the same information for a
+  person.
 
-## Protocolo de `index --full --json`
+## The `index --full --json` protocol
 
-- Una entrada del registro que no se puede registrar -directorio borrado, uno
-  que no es un checkout, ruta con un enlace simbólico- ya no tumba
-  `index --full`: se deja fuera y se nombra en
-  `index.repository.not_read`, por `stderr` con `--json`. Si no se registra
-  ninguna sigue siendo un error. `clean` lee el perfil, que es donde publica una
-  pasada.
-- `kivgraph index` es la forma local de la misma pasada: resuelve el directorio
-  actual, detecta los lenguajes soportados, prepara `.kivgraph/` y registra el
-  repositorio `project` antes de delegar en `runIndexFull`. Si no se pasa
-  `--config` ni `--repositories`, nunca escribe el registro compartido del
-  usuario. `kivgraph index --full` conserva la forma explícita sobre el
-  registro configurado; ninguna de las dos rutas es incremental.
-- El flujo de `index --full --json` es un protocolo, no una bitácora: `stdout`
-  lleva sólo eventos JSON por línea -`progress`, y un único `result` al final- y
-  el informe que leería una persona no se escribe en ese modo. Los contadores de
-  los seis lenguajes viajan en el `result`; derivarlos del `msg` de un registro
-  convertiría texto para humanos en una API. Un lector ignora una clase de
-  evento que no conoce.
-- `--unattended` es la pasada que nadie pidió: la que arranca el vigilante. No
-  publica si un archivo que la generación activa lee, y que sigue en disco, se
-  queda sin declaraciones en un repositorio y lenguaje donde la pasada anota un
-  fallo `_NOT_LOADED`. El `result` lleva entonces `lost`, hasta veinte
-  `repositorio:ruta`, y el demonio no reintenta con temporizador: las mismas
-  fuentes dan la misma negativa. Una pasada pedida publica como siempre. Ver
-  ADR 0152.
-- **Lo que no se cargó viaja con lo que sí.** `go_modules_not_loaded`,
+- A registry entry that cannot be registered -a deleted directory, one that is
+  not a checkout, a path with a symbolic link- no longer brings down
+  `index --full`: it is left out and named in `index.repository.not_read`, on
+  `stderr` with `--json`. If none is registered it is still an error. `clean`
+  reads the profile, which is where a pass publishes.
+- `kivgraph index` is the local form of the same pass: it resolves the current
+  directory, detects the supported languages, prepares `.kivgraph/` and
+  registers the `project` repository before delegating to `runIndexFull`. If
+  neither `--config` nor `--repositories` is passed, it never writes the user's
+  shared registry. `kivgraph index --full` keeps the explicit form over the
+  configured registry; neither path is incremental.
+- The `index --full --json` flow is a protocol, not a logbook: `stdout` carries
+  only JSON events per line -`progress`, and a single `result` at the end- and
+  the report a person would read is not written in that mode. The counters of
+  the six languages travel in the `result`; deriving them from the `msg` of a
+  log would turn text for humans into an API. A reader ignores a class of event
+  it does not know.
+- `--unattended` is the pass nobody asked for: the one the watcher starts. It
+  does not publish if a file that the active generation reads, and that is still
+  on disk, is left without declarations in a repository and language where the
+  pass records a `_NOT_LOADED` failure. The `result` then carries `lost`, up to
+  twenty `repository:path`, and the daemon does not retry on a timer: the same
+  sources give the same refusal. A requested pass publishes as always. See ADR
+  0152.
+- **What was not loaded travels with what was.** `go_modules_not_loaded`,
   `rust_workspaces_not_loaded`, `python_repositories_not_loaded`,
-  `dart_repositories_not_loaded` y `java_repositories_not_loaded` están en el
-  `result` y en las líneas del informe humano, los cinco. Sin ellos un lector no
-  puede distinguir un lenguaje sin código de uno que esta máquina no pudo leer:
-  los dos suman cero símbolos. La
-  razón difiere -- un workspace que el analizador no leyó, un módulo que no
-  cargó, un analizador que no está instalado-- y la consecuencia no.
-- **Y el contador nombra a sus módulos.** Cada módulo Go que no se leyó sale
-  como `index.go.not_read: <repositorio>: <módulo>: <motivo>: <detalle>` en el
-  informe humano, con el mismo tope de veinte líneas que los diagnósticos. El
-  contador solo dejaba una pregunta sin respuesta: `not_loaded=4` con
-  `diagnostics=1` no dice cuáles son los cuatro, y el motivo vivía únicamente en
-  las filas `MODULE_NOT_LOADED` del grafo publicado, que ningún comando lee.
-  `index.go.diagnostic` es otra clase -- lo que el cargador dijo de un módulo que
-  **sí** leyó-- y mezclarlas perdería justo esa distinción.
-  Python, Dart, Java y C# tienen la misma línea desde el ADR 0147:
-  `index.<lenguaje>.not_read: <repositorio>: REPOSITORY_NOT_LOADED: <detalle>`,
-  una por repositorio que su analizador ejecutó y no pudo leer. No sale para un
-  analizador que no está instalado: eso lo dice `doctor`, una vez, de la máquina.
-  TypeScript tiene la suya, `index.typescript.not_read`, para un repositorio
-  cuyos proyectos no se pudieron descubrir y para un paquete en el que el worker
-  falló, y su línea de resumen lleva `not_loaded` como las demás.
-- **`counts` y `index` del `result` no miden lo mismo, y hay que decirlo.**
-  `counts` es lo que el grafo publicado guarda: hechos canónicos distintos.
-  `index` es lo que cada pasada de lenguaje **observó**. Un fichero que
-  pertenece a dos paquetes -- `pkg` y `pkg.test` -- se observa dos veces y se
-  guarda una, así que los dos bloques del mismo evento divergen sin que ninguno
-  esté mal. Medido sobre `workspace` con `include_tests: true`: `index` suma `146.600`
-  símbolos y `counts.symbols` dice `124.073`; `go_definitions` va `1,63x` por
-  encima de los símbolos Go del grafo y `go_unresolved` `1,58x`, mientras que
-  Rust -- una pasada por workspace -- coincide exacto. Con `include_tests: false`
-  los no resueltos de Go coinciden: `4.397` y `4.397`.
-  Quien compare las dos cifras y espere que cuadren está comparando trabajo
-  hecho con hechos guardados. No se deduplican los contadores del cargador: el
-  número de observaciones dice cuánto trabajó la pasada, y es la única cifra que
-  lo dice.
+  `dart_repositories_not_loaded` and `java_repositories_not_loaded` are in the
+  `result` and in the lines of the human report, all five. Without them a reader
+  cannot tell a language with no code from one this machine could not read: both
+  add up to zero symbols. The reason differs -- a workspace the analyzer did not
+  read, a module that did not load, an analyzer that is not installed-- and the
+  consequence does not.
+- **And the counter names its modules.** Each Go module that was not read comes
+  out as `index.go.not_read: <repository>: <module>: <reason>: <detail>` in the
+  human report, with the same cap of twenty lines as the diagnostics. The counter
+  alone left one question unanswered: `not_loaded=4` with `diagnostics=1` does
+  not say which four, and the reason lived only in the `MODULE_NOT_LOADED` rows
+  of the published graph, which no command reads. `index.go.diagnostic` is
+  another class -- what the loader said about a module it **did** read-- and
+  mixing them would lose exactly that distinction.
+  Python, Dart, Java and C# have the same line since ADR 0147:
+  `index.<language>.not_read: <repository>: REPOSITORY_NOT_LOADED: <detail>`,
+  one per repository that its analyzer ran and could not read. It does not come
+  out for an analyzer that is not installed: `doctor` says that, once, about the
+  machine. TypeScript has its own, `index.typescript.not_read`, for a repository
+  whose projects could not be discovered and for a package in which the worker
+  failed, and its summary line carries `not_loaded` like the others.
+- **`counts` and `index` of the `result` do not measure the same thing, and that
+  must be said.** `counts` is what the published graph stores: distinct
+  canonical facts. `index` is what each language pass **observed**. A file that
+  belongs to two packages -- `pkg` and `pkg.test` -- is observed twice and
+  stored once, so the two blocks of the same event diverge without either being
+  wrong. Measured on `workspace` with `include_tests: true`: `index` adds up
+  `146,600` symbols and `counts.symbols` says `124,073`; `go_definitions` runs
+  `1.63x` above the graph's Go symbols and `go_unresolved` `1.58x`, while Rust --
+  one pass per workspace -- matches exactly. With `include_tests: false` the Go
+  unresolved match: `4,397` and `4,397`.
+  Whoever compares the two figures and expects them to add up is comparing work
+  done with facts stored. The loader's counters are not deduplicated: the number
+  of observations says how much the pass worked, and it is the only figure that
+  says so.
 
-## Comandos que destruyen o terminan estado
+## Commands that destroy or end state
 
-- `kivgraph clean` retira generaciones publicadas: enumera y no toca nada sin
-  `--yes`, porque no hay deshacer -- también se lleva el backup del que vive
-  `rollback`. Sin flags deja el store vacío y libera la reserva de espacio;
-  con `--keep-active` conserva exactamente la generación publicada. Nunca toca
-  la configuración ni el registro de repositorios.
-- `kivgraph stop` termina los procesos largos de este usuario y nada más. La
-  lista es `longRunningCommands` -- `serve`, `daemon` y `ui` -- y es una lista y no
-  una regla porque la regla sería falsa: `index --full` también dura minutos, y
-  matar uno a mitad de publicación no es lo que pide quien manda parar un
-  servidor. **Un comando largo nuevo se añade ahí y al mensaje de «nada
-  corriendo», que lo nombra:** un lector que dejó un demonio y sólo oye hablar de
-  `serve` concluye que `stop` no lo gestiona. Selecciona por invocación, no por
-  ejecutable: el propio `stop` no se mata a sí mismo. Manda `SIGTERM`, espera el
-  cierre graceful acotado y sólo entonces `SIGKILL`, y antes de escalar vuelve a
-  comprobar que el pid sigue siendo la misma invocación: un pid liberado durante
-  la espera puede ya pertenecer a otro proceso. `--dry-run` enumera sin señalar.
-- `kivgraph update` ofrece parar lo que sobrevivió al bundle que reemplazó. Un
-  `serve` o un `ui` que ya estaba corriendo sigue respondiendo desde la imagen
-  que se intercambió -- con las tools viejas, las descripciones viejas y los
-  bugs viejos -- y nada en su salida lo dice; el cliente que lo lanzó no lo
-  reinicia por su cuenta. **No parar nada es el valor por defecto** siempre que
-  la respuesta no se pueda preguntar: son procesos que un cliente posee, y
-  terminar uno en silencio se le parece exactamente a una caída. `--stop` es la
-  respuesta scriptable, y la escalada es la de `stop` -- una sola copia, en
-  `stopTargets` -- no una segunda parecida. Una instalación que funcionó nunca
-  se reporta como fallo porque la lista de procesos no se pudiera leer.
+- `kivgraph clean` removes published generations: it enumerates and touches
+  nothing without `--yes`, because there is no undo -- it also takes the backup
+  that `rollback` lives on. With no flags it leaves the store empty and frees
+  the reserved space; with `--keep-active` it keeps exactly the published
+  generation. It never touches the configuration or the repository registry.
+- `kivgraph stop` ends this user's long-running processes and nothing else. The
+  list is `longRunningCommands` -- `serve`, `daemon` and `ui` -- and it is a list
+  and not a rule because the rule would be false: `index --full` also lasts
+  minutes, and killing one halfway through publishing is not what whoever orders
+  a server stopped asks for. **A new long command is added there and to the
+  "nothing running" message, which names it:** a reader who left a daemon and
+  only hears about `serve` concludes that `stop` does not manage it. It selects
+  by invocation, not by executable: `stop` itself does not kill itself. It sends
+  `SIGTERM`, waits for the bounded graceful shutdown and only then `SIGKILL`,
+  and before escalating it checks again that the pid is still the same
+  invocation: a pid freed during the wait may already belong to another process.
+  `--dry-run` enumerates without signalling.
+- `kivgraph update` offers to stop what survived the bundle it replaced. A
+  `serve` or a `ui` that was already running keeps answering from the image that
+  was swapped out -- with the old tools, the old descriptions and the old bugs --
+  and nothing in its output says so; the client that launched it does not
+  restart it on its own. **Stopping nothing is the default** whenever the
+  question cannot be asked: they are processes a client owns, and ending one
+  silently looks exactly like a crash. `--stop` is the scriptable answer, and
+  the escalation is that of `stop` -- a single copy, in `stopTargets` -- not a
+  second similar one. An installation that worked is never reported as a failure
+  because the process list could not be read.
 
 ## `kivgraph serve`
 
-- La **entrada** es STDIO y es permanente; el **servidor** no. Desde el ADR 0084
-  `serve` reenvía la sesión a un demonio cuando hay uno alcanzable y no carga
-  ningún grafo: la decisión se toma **antes** del store, del seguidor de
-  generación y del resync, porque un relé no necesita ninguno de los tres y
-  pagarlos devolvería justo el coste por cliente que el relé existe para quitar.
-- Los dos motivos por los que la entrada no puede dejar de ser STDIO: el
-  manifiesto `.mcpb` describe un proceso local y **no tiene campo para una
-  url**, y una entrada `url` lleva el token literal a un fichero que se
-  commitea. Medido en el ADR 0083, el `.mcpb` es el `39 %` de las descargas.
-- Lo que cuesta, medido en `benchmarks/relay-cost` sobre la generación `000091`:
-  un `serve` que contesta son `68,9`-`70,3 MB` por cliente contra `8,7`-`9,8`
-  del relé, y a ocho clientes el pico es `2,5 GB` contra `0,44`. **Ocioso el
-  margen es mucho menor** -- el relé no gana hasta el quinto cliente-- y ésa es
-  la carga de `48` de cada `51` sesiones: quien defienda esto por el caso que
-  predomina está defendiendo `10`-`15 MB`.
-- **Declinar no es fallar.** Sin endpoint publicado, con un endpoint que nadie
-  contesta, o con `KIVGRAPH_SERVE_IN_PROCESS` puesto, `serve` contesta él mismo
-  y en esos caminos nada queda peor que antes. Tampoco instala un demonio
-  cuando corre bajo un `HOME` que no es el de la cuenta (`foreignHome`): el
-  supervisor lo arrancaría con el de la cuenta, contra otra instalación, y la
-  unidad quedaría registrada cuando el directorio desde el que se instaló ya no
-  existe. La ruta explícita -`ensureDaemon`, detrás de `configure` y de
-  `mcp install`- aplica la misma comprobación: escribe la entrada
-  stdio y dice por qué, y un `--daemon` explícito se rechaza en vez de
-  degradarse. La variable de entorno existe
-  porque el relé es el defecto en un proceso que lanza un cliente sin
-  supervisión: sin escape, una máquina donde el relé se porte mal no tiene
-  vuelta que no pase por parar el demonio que usan los demás.
-- **El skew de versión se niega, y es el único fallo que este diseño añade.**
-  El `.mcpb` trae su binario pero `stateDirectory` sale de la configuración, así
-  que dos instalaciones comparten demonio por construcción; reiniciarlo le
-  quitaría el grafo a quien lo esté usando. El relé compara la versión que trae
-  el `initialize` del demonio y se niega **antes** de entregarle el handshake al
-  agente, que es lo que evita dejar a nadie con una sesión que este proceso ya
-  decidió no servir. El mensaje nombra las dos versiones y la salida.
-- Un demonio que **no** nombra versión se sirve igual: es una release anterior a
-  esta comprobación y tiene el mismo derecho a contestar que siempre tuvo.
+- The **entry** is STDIO and is permanent; the **server** is not. Since ADR 0084
+  `serve` forwards the session to a daemon when one is reachable and loads no
+  graph: the decision is taken **before** the store, the generation follower and
+  the resync, because a relay needs none of the three and paying for them would
+  give back exactly the per-client cost the relay exists to remove.
+- The two reasons the entry cannot stop being STDIO: the `.mcpb` manifest
+  describes a local process and **has no field for a url**, and a `url` entry
+  carries the literal token into a file that gets committed. Measured in ADR
+  0083, the `.mcpb` is `39 %` of downloads.
+- What it costs, measured in `benchmarks/relay-cost` on generation `000091`: a
+  `serve` that answers is `68.9`-`70.3 MB` per client against `8.7`-`9.8` for the
+  relay, and at eight clients the peak is `2.5 GB` against `0.44`. **Idle, the
+  margin is much smaller** -- the relay does not win until the fifth client --
+  and that is the load of `48` out of every `51` sessions: whoever defends this
+  for the case that predominates is defending `10`-`15 MB`.
+- **Declining is not failing.** With no published endpoint, with an endpoint
+  nobody answers, or with `KIVGRAPH_SERVE_IN_PROCESS` set, `serve` answers
+  itself and on those paths nothing ends up worse than before. Nor does it
+  install a daemon when it runs under a `HOME` that is not the account's
+  (`foreignHome`): the supervisor would start it with the account's, against
+  another installation, and the unit would stay registered when the directory
+  it was installed from no longer exists. The explicit path -`ensureDaemon`,
+  behind `configure` and `mcp install`- applies the same check: it writes the
+  stdio entry and says why, and an explicit `--daemon` is rejected instead of
+  degraded. The environment variable exists because the relay is the default in
+  a process an unsupervised client launches: without an escape, a machine where
+  the relay misbehaves has no way back that does not go through stopping the
+  daemon the others use.
+- **Version skew is refused, and it is the only failure this design adds.** The
+  `.mcpb` brings its binary but `stateDirectory` comes from the configuration, so
+  two installations share a daemon by construction; restarting it would take the
+  graph away from whoever is using it. The relay compares the version the
+  daemon's `initialize` carries and refuses **before** handing the handshake to
+  the agent, which is what avoids leaving anybody with a session this process
+  had already decided not to serve. The message names both versions and the way
+  out.
+- A daemon that does **not** name a version is served anyway: it is a release
+  earlier than this check and has the same right to answer it always had.
 
-## El aviso de primer arranque
+## The first-run notice
 
-- La primera vez que una versión sirve MCP en una máquina, `serve` y `daemon`
-  escriben tres líneas en `stderr` diciendo qué se reporta y cómo apagarlo, y
-  mandan un ping. **Nunca a `stdout`**: `serve` habla MCP por ese descriptor y
-  un byte suelto corrompe la sesión, así que `internal/telemetry` lo prueba
-  sustituyendo `os.Stdout` por un pipe. Lo que se envía está en
-  `docs/development/analytics.md` y publicado en `/telemetry/`.
-- **El transporte sale del comando, no de un literal.** `runConfiguredServe`
-  corre `serve` y `daemon`, y su llamada pasaba `"stdio"` fijo: el demonio
-  reportaba su primer arranque como stdio. El marcador se crea una vez por
-  versión, así que esa fila equivocada habría sido la única que esa versión
-  produjera nunca. Un `serve` que reenvía reporta `daemon`, que es el único caso
-  donde el comando y quien contesta discrepan.
-- No reporta un binario que no corre desde el layout de una release: nada
-  distingue un `go build` propio del de un job de CI, y contarlos haría que el
-  número fuésemos mayormente nosotros. `KIVGRAPH_TELEMETRY=0` lo apaga entero.
+- The first time a version serves MCP on a machine, `serve` and `daemon` write
+  three lines to `stderr` saying what is reported and how to switch it off, and
+  send a ping. **Never to `stdout`**: `serve` speaks MCP over that descriptor and
+  a stray byte corrupts the session, so `internal/telemetry` tests it by
+  replacing `os.Stdout` with a pipe. What is sent is in
+  `docs/development/analytics.md` and published at `/telemetry/`.
+- **The transport comes from the command, not from a literal.**
+  `runConfiguredServe` runs `serve` and `daemon`, and its call passed a fixed
+  `"stdio"`: the daemon reported its first start as stdio. The marker is created
+  once per version, so that wrong row would have been the only one that version
+  would ever produce. A `serve` that forwards reports `daemon`, which is the only
+  case where the command and whoever answers disagree.
+- It does not report a binary that does not run from a release layout: nothing
+  tells apart a `go build` of our own from one in a CI job, and counting them
+  would make the number mostly us. `KIVGRAPH_TELEMETRY=0` switches it off
+  entirely.
 
 ## `kivgraph daemon`
 
-- Sirve MCP a varios clientes desde un proceso, por **dos puertas a la vez**: un
-  socket unix en el directorio de estado y el transporte Streamable HTTP en
-  loopback. Comparte
-  con `serve` todo el montaje -- config, store, seguidor de generación, resync,
-  event log-- a través de `runConfiguredServe`, que recibe el nombre del comando
-  para que sus rótulos digan la verdad: dos comandos con un `serve` fijo en los
-  logs son indistinguibles en el mismo event log.
-- **El socket vive dentro del directorio de estado, y esa es la clave.** Dos
-  configuraciones apuntando a directorios distintos obtienen demonios distintos,
-  así que un cliente nunca alcanza un grafo construido a partir de los
-  repositorios de otro. Un socket por máquina o por usuario habría sido más
-  simple y habría cruzado exactamente eso.
-- Una dirección unix es un campo de tamaño fijo -- `104` bytes en darwin, `108`
-  en linux-- y `bind` **trunca** en vez de rechazar, lo que dejaría dos
-  directorios compartiendo socket. Se comprueba contra el menor de los dos
-  límites, para que un directorio que funciona en una plataforma funcione en la
-  otra, y el error nombra la cifra. Es una limitación declarada: quien no cabe
-  usa `serve`.
-- **Un servidor MCP por sesión aceptada, no uno por proceso.** La superficie de
-  tools se decide al construir un servidor -- un proceso sin generación publicada
-  publica sólo `index_project`-- y un demonio sobrevive a las generaciones, así
-  que uno construido al arrancar le diría a todo cliente futuro que no hay grafo.
-  El store, el registro de métricas y el indexador sí se comparten: el snapshot
-  se mapea una vez y lo que `graph_status` informa es del proceso.
-- Un socket obsoleto y un demonio vivo no son el mismo estado, y la única forma
-  de distinguirlos es intentar hablarle: si contesta, no se sustituye.
-- El ahorro está medido en `benchmarks/daemon-cost` **a la carga que un editor
-  produce de verdad**, contada del event log: `48` de `51` procesos servidores no
-  recibieron **ninguna** llamada, así que la mediana de una sesión real es cero.
-  Medir `2.000` llamadas por sesión no describía a nadie.
+- It serves MCP to several clients from one process, through **two doors at
+  once**: a unix socket in the state directory and the Streamable HTTP transport
+  on loopback. It shares with `serve` the whole assembly -- config, store,
+  generation follower, resync, event log -- through `runConfiguredServe`, which
+  receives the name of the command so that its labels tell the truth: two
+  commands with a fixed `serve` in the logs are indistinguishable in the same
+  event log.
+- **The socket lives inside the state directory, and that is the key.** Two
+  configurations pointing at different directories get different daemons, so a
+  client never reaches a graph built from another's repositories. A socket per
+  machine or per user would have been simpler and would have crossed exactly
+  that.
+- A unix address is a fixed-size field -- `104` bytes on darwin, `108` on
+  linux -- and `bind` **truncates** instead of rejecting, which would leave two
+  directories sharing a socket. It is checked against the smaller of the two
+  limits, so that a directory that works on one platform works on the other,
+  and the error names the figure. It is a declared limitation: whoever does not
+  fit uses `serve`.
+- **One MCP server per accepted session, not one per process.** The surface of
+  tools is decided when a server is built -- a process with no published
+  generation publishes only `index_project` -- and a daemon outlives
+  generations, so one built at startup would tell every future client there is
+  no graph. The store, the metrics registry and the indexer are shared: the
+  snapshot is mapped once and what `graph_status` reports belongs to the
+  process.
+- A stale socket and a live daemon are not the same state, and the only way to
+  tell them apart is to try talking to it: if it answers, it is not replaced.
+- The saving is measured in `benchmarks/daemon-cost` **at the load an editor
+  really produces**, counted from the event log: `48` of `51` server processes
+  received **no** call at all, so the median of a real session is zero.
+  Measuring `2,000` calls per session described nobody.
 
-  |carga|pendiente del demonio|N procesos|8 clientes|1 cliente|
+  |load|daemon's slope|N processes|8 clients|1 client|
   |---|---|---|---|---|
-  |ninguna|indistinguible de cero|`10` MB/cli|`10`–`13` contra `77`–`81 MB`|el demonio `+2`–`3 MB`|
-  |`8` llamadas|`0,6`–`0,9` MB/cli|`39` MB/cli|`60`–`62` contra `323`–`330 MB`|empata|
+  |none|indistinguishable from zero|`10` MB/cli|`10`–`13` against `77`–`81 MB`|the daemon `+2`–`3 MB`|
+  |`8` calls|`0.6`–`0.9` MB/cli|`39` MB/cli|`60`–`62` against `323`–`330 MB`|ties|
 
-  **El arranque ya no es el coste, y eso es lo que hace que este comando valga
-  menos de lo que valía**: desde el ADR 0067 el grafo lo lee la primera consulta,
-  así que un servidor ocioso cuesta `10 MB` y no `33`. Lo que un demonio sigue
-  ahorrando es el resto -- y a un cliente ahora **pierde** por un par de megabytes,
-  que es el proceso extra.
+  **Startup is no longer the cost, and that is what makes this command worth
+  less than it was**: since ADR 0067 the graph is read by the first query, so an
+  idle server costs `10 MB` and not `33`. What a daemon still saves is the rest
+  -- and for one client it now **loses** by a couple of megabytes, which is the
+  extra process.
 
-  **Las dos puertas son indistinguibles a las dos cargas**, así que la advertencia
-  anterior -- que HTTP costaba `12,5 MB` por cliente y perdía a un cliente-- queda
-  retirada: era el buffer de reanudación del SDK llenándose con tráfico sintético.
-  Bajo carga sostenida sí cuesta más (`11`–`13`), y eso es un techo que ninguna
-  sesión real alcanza y que depende del corpus.
+  **The two doors are indistinguishable at both loads**, so the earlier warning
+  -- that HTTP cost `12.5 MB` per client and lost with one client-- is withdrawn:
+  it was the SDK's resumption buffer filling up with synthetic traffic. Under
+  sustained load it does cost more (`11`–`13`), and that is a ceiling that no
+  real session reaches and that depends on the corpus.
 
-  La diferencia más grande no es la pendiente: es el **pico**, `179`–`186` contra
-  `26`–`29 MB` a ocho clientes, sin una sola consulta. Lo que no es el ahorro en
-  ninguna puerta es el snapshot: ya se comparte y esas páginas están limpias.
-- **La unit anota el `PATH` de la terminal que la instaló**, y sin eso el demonio
-  corre con el del supervisor: ni systemd ni launchd leen un perfil de shell, así
-  que el node de nvm y el de Homebrew no están, `kivgraph-ts-worker` muere en
-  `exec node` con un `127`, y el Go de `~/.local/go/bin` pierde en silencio
-  contra el de `/usr/bin` -- que es peor, porque no falla: publica otro grafo.
-  Nada de esto se ve desde la terminal, donde el mismo `index --full` funciona.
-  `status` compara la unit **sin** el `PATH` anotado, porque pertenece a la
-  terminal que instaló y no al demonio: compararlo diría `stale` desde cualquier
-  otra shell. Lo que sí compara es si hay alguno anotado, y por eso toda
-  instalación anterior a esto dice `stale` una vez. Ver ADR 0085.
-- **`daemon install` se niega con un `HOME` que no es el de la cuenta**: la unit
-  se escribe bajo `HOME` y se registra en el gestor de sesión de la cuenta, así
-  que un `HOME` de usar y tirar deja un agente cuyo directorio se lleva el
-  directorio. Se compara por identidad, no por texto, y no se niega si no se
-  puede comparar. Un test que llegue al `Install` real instala en la máquina de
-  quien lo corre: los de este paquete se detienen antes. Ver ADR 0157.
-- El resincronizador **se rinde** tras `ResyncAttempts` fallos seguidos del mismo
-  lote sin cambios -- cinco, como el `StartLimitBurst` de la unit-- y lo dice una
-  vez por `OnGaveUp`. El lote se identifica por su contenido, así que un
-  movimiento nuevo recupera la cuenta entera y la cota nunca puede suprimir
-  trabajo que nadie ha intentado. Rendirse no rebobina: el tracker se queda en el
-  commit donde el árbol está, que es lo que impide que el lote se vuelva a
-  proponer.
-- `kivgraph mcp install` es lo que hace usable todo lo anterior: lee `daemon.json`
-  del directorio de estado y escribe una entrada `url` con el token. Si no hay
-  supervisor, pregunta antes de instalarlo; una respuesta negativa o una salida
-  no interactiva conserva `stdio`. `--daemon` expresa consentimiento sin prompt.
-  En ámbito `project` se niega: ese fichero se commitea.
-- La salida humana reutiliza el color ANSI de `styleFor`: sólo se activa en un
-  terminal, respeta `NO_COLOR` y `TERM=dumb`, y no añade escapes a una tubería.
-  `daemon status`, `graph status`, `rollback` y `snapshot` presentan una tabla
-  en terminal; el texto redirigido conserva la forma lineal que consumen los
-  scripts.
-- **El demonio publica HTTP antes de enlazar el socket, y el orden es contrato.**
-  Un socket unix acepta en cuanto está enlazado, antes de que nadie llame a
-  `Accept`, así que alcanzar el socket tiene que implicar que `daemon.json` ya
-  existe. Invertirlo devolvió «no such file or directory» sobre un demonio vivo en
-  una de cada tres pasadas del benchmark. Y si el `bind` del socket falla después,
-  el endpoint se retira: un fichero que afirma que hay un demonio manda al
-  cliente siguiente a un puerto cerrado.
+  The biggest difference is not the slope: it is the **peak**, `179`–`186`
+  against `26`–`29 MB` at eight clients, without a single query. What is not the
+  saving at either door is the snapshot: it is already shared and those pages
+  are clean.
+- **The unit records the `PATH` of the terminal that installed it**, and without
+  that the daemon runs with the supervisor's: neither systemd nor launchd reads
+  a shell profile, so nvm's node and Homebrew's are not there,
+  `kivgraph-ts-worker` dies at `exec node` with a `127`, and the Go in
+  `~/.local/go/bin` silently loses to the one in `/usr/bin` -- which is worse,
+  because it does not fail: it publishes another graph. None of this is visible
+  from the terminal, where the same `index --full` works. `status` compares the
+  unit **without** the recorded `PATH`, because it belongs to the terminal that
+  installed it and not to the daemon: comparing it would say `stale` from any
+  other shell. What it does compare is whether there is one recorded, and that
+  is why every installation earlier than this says `stale` once. See ADR 0085.
+- **`daemon install` refuses a `HOME` that is not the account's**: the unit is
+  written under `HOME` and registered in the account's session manager, so a
+  throwaway `HOME` leaves an agent whose directory takes the directory with it.
+  It is compared by identity, not by text, and it does not refuse if it cannot
+  compare. A test that reaches the real `Install` installs on the machine of
+  whoever runs it: those of this package stop before it. See ADR 0157.
+- The resyncer **gives up** after `ResyncAttempts` consecutive failures of the
+  same unchanged batch -- five, like the unit's `StartLimitBurst` -- and says so
+  once through `OnGaveUp`. The batch is identified by its content, so a new move
+  recovers the whole count and the bound can never suppress work nobody has
+  tried. Giving up does not rewind: the tracker stays at the commit where the
+  tree is, which is what prevents the batch from being proposed again.
+- `kivgraph mcp install` is what makes everything above usable: it reads
+  `daemon.json` from the state directory and writes a `url` entry with the
+  token. If there is no supervisor, it asks before installing one; a negative
+  answer or a non-interactive exit keeps `stdio`. `--daemon` expresses consent
+  without a prompt. In `project` scope it refuses: that file gets committed.
+- Human output reuses the ANSI colour of `styleFor`: it is only active on a
+  terminal, honours `NO_COLOR` and `TERM=dumb`, and adds no escapes to a pipe.
+  `daemon status`, `graph status`, `rollback` and `snapshot` present a table on a
+  terminal; redirected text keeps the linear form scripts consume.
+- **The daemon publishes HTTP before binding the socket, and the order is a
+  contract.** A unix socket accepts as soon as it is bound, before anybody calls
+  `Accept`, so reaching the socket has to imply that `daemon.json` already
+  exists. Reversing it returned "no such file or directory" on a live daemon in
+  one of every three passes of the benchmark. And if the socket's `bind` fails
+  afterwards, the endpoint is withdrawn: a file that claims a daemon is there
+  sends the next client to a closed port.
 
 ## `kivgraph ui`
 
-- `kivgraph ui` registra la dirección que ha enlazado, incluida la que
-  resuelve un puerto `0`, y se niega a arrancar cuando el binario no lleva el
-  tag `webassets`: el bundle MCP publicado no lo lleva, así que solo podría
-  servir la página de «bundle no disponible».
+- `kivgraph ui` records the address it bound, including the one a port `0`
+  resolves to, and refuses to start when the binary does not carry the
+  `webassets` tag: the published MCP bundle does not carry it, so it could only
+  serve the "bundle not available" page.
 
-## Verificación
+## Verification
 
-Un cambio de la superficie del CLI es un cambio de compatibilidad: revisar
-`cmd/kivgraph/help.go`, la documentación de `landing/` y `scripts/install.sh`.
+A change to the CLI surface is a compatibility change: review
+`cmd/kivgraph/help.go`, the `landing/` documentation and `scripts/install.sh`.
 
 ```bash
 go test ./cmd/...
