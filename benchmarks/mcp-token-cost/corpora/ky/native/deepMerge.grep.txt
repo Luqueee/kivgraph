@@ -1,0 +1,13 @@
+# /tmp/kivgraph-corpora/ky/src/
+
+## source/utils/
+### merge.ts#3B9F
+*70:	return deepMerge({}, ...sources);
+...
+*215:	return deepMerge<NormalizedHooks[K]>(original[property] ?? [], value ?? []);
+...
+*500:export const deepMerge = <T>(...sources: Array<Partial<T> | undefined>): T =>
+
+## test/
+### hooks.ts#DAB1
+*7737:// `newHookValue` merged with `deepMerge`, which ignores sources that are neither arrays nor objects, so a single function, a string or a `null` was dropped without a word and the hook simply never ran. `null` is reported like any other bad shape, since `undefined` is how a hook list is cleared.

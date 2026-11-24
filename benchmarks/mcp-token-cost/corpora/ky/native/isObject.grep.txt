@@ -1,0 +1,29 @@
+# /tmp/kivgraph-corpora/ky/src/source/
+
+## core/
+### Ky.ts#FF5C
+*39:	isError, isNonArrayObject, isNonNegativeNumber, isObject, isRequest, isResponse,
+...
+*330:	const standardSchema = isObject(schema) || typeof schema === 'function' ? schema['~standard'] : undefined;
+...
+*333:		!isObject(standardSchema)
+
+## utils/
+### is.ts#0D82
+*2:export const isObject = (value: unknown): value is object => value !== null && typeof value === 'object';
+...
+*5:export const isNonArrayObject = (value: unknown): value is object => isObject(value) && !Array.isArray(value);
+### merge.ts#3B9F
+*4:import {isNonArrayObject, isObject} from './is.js';
+...
+*21:	isObject(value) && (value as any)[replaceSymbol] === true
+...
+*308:		} else if (isObject(input)) {
+...
+*354:		} else if (isObject(source)) {
+...
+*432:					if (isObject(value) && typeof returnValue[key] === 'number') {
+...
+*434:					} else if (typeof value === 'number' && isObject(returnValue[key])) {
+...
+*463:			if (isRoot && isObject((source as any).headers)) {

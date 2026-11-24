@@ -1,0 +1,358 @@
+{
+  "args.go:129-131": {
+    "file": "args.go",
+    "tokens": 66
+  },
+  "args.go:94-101": {
+    "file": "args.go",
+    "tokens": 150
+  },
+  "args_test.go:284-288": {
+    "file": "args_test.go",
+    "tokens": 125
+  },
+  "args_test.go:290-294": {
+    "file": "args_test.go",
+    "tokens": 132
+  },
+  "args_test.go:296-300": {
+    "file": "args_test.go",
+    "tokens": 145
+  },
+  "args_test.go:302-306": {
+    "file": "args_test.go",
+    "tokens": 144
+  },
+  "args_test.go:308-312": {
+    "file": "args_test.go",
+    "tokens": 137
+  },
+  "args_test.go:314-318": {
+    "file": "args_test.go",
+    "tokens": 144
+  },
+  "args_test.go:320-324": {
+    "file": "args_test.go",
+    "tokens": 155
+  },
+  "args_test.go:326-330": {
+    "file": "args_test.go",
+    "tokens": 109
+  },
+  "args_test.go:440-486": {
+    "file": "args_test.go",
+    "tokens": 452
+  },
+  "bash_completions_test.go:56-75": {
+    "file": "bash_completions_test.go",
+    "tokens": 212
+  },
+  "bash_completions_test.go:83-227": {
+    "file": "bash_completions_test.go",
+    "tokens": 1984
+  },
+  "cobra.go:235-240": {
+    "file": "cobra.go",
+    "tokens": 140
+  },
+  "cobra.go:243-246": {
+    "file": "cobra.go",
+    "tokens": 77
+  },
+  "command.go:1062-1065": {
+    "file": "command.go",
+    "tokens": 89
+  },
+  "command.go:1070-1073": {
+    "file": "command.go",
+    "tokens": 103
+  },
+  "command.go:1084-1170": {
+    "file": "command.go",
+    "tokens": 932
+  },
+  "command.go:1263-1314": {
+    "file": "command.go",
+    "tokens": 668
+  },
+  "command.go:1342-1368": {
+    "file": "command.go",
+    "tokens": 368
+  },
+  "command.go:526-542": {
+    "file": "command.go",
+    "tokens": 178
+  },
+  "command.go:821-860": {
+    "file": "command.go",
+    "tokens": 463
+  },
+  "command_test.go:1092-1104": {
+    "file": "command_test.go",
+    "tokens": 248
+  },
+  "command_test.go:113-136": {
+    "file": "command_test.go",
+    "tokens": 340
+  },
+  "command_test.go:1300-1310": {
+    "file": "command_test.go",
+    "tokens": 229
+  },
+  "command_test.go:1312-1322": {
+    "file": "command_test.go",
+    "tokens": 231
+  },
+  "command_test.go:1324-1334": {
+    "file": "command_test.go",
+    "tokens": 232
+  },
+  "command_test.go:1585-1595": {
+    "file": "command_test.go",
+    "tokens": 186
+  },
+  "command_test.go:159-175": {
+    "file": "command_test.go",
+    "tokens": 222
+  },
+  "command_test.go:177-204": {
+    "file": "command_test.go",
+    "tokens": 362
+  },
+  "command_test.go:1789-1806": {
+    "file": "command_test.go",
+    "tokens": 300
+  },
+  "command_test.go:1869-1880": {
+    "file": "command_test.go",
+    "tokens": 171
+  },
+  "command_test.go:1935-1954": {
+    "file": "command_test.go",
+    "tokens": 280
+  },
+  "command_test.go:1995-2013": {
+    "file": "command_test.go",
+    "tokens": 331
+  },
+  "command_test.go:2037-2049": {
+    "file": "command_test.go",
+    "tokens": 233
+  },
+  "command_test.go:2069-2087": {
+    "file": "command_test.go",
+    "tokens": 304
+  },
+  "command_test.go:2177-2216": {
+    "file": "command_test.go",
+    "tokens": 473
+  },
+  "command_test.go:2322-2342": {
+    "file": "command_test.go",
+    "tokens": 329
+  },
+  "command_test.go:2344-2362": {
+    "file": "command_test.go",
+    "tokens": 287
+  },
+  "command_test.go:2364-2380": {
+    "file": "command_test.go",
+    "tokens": 259
+  },
+  "command_test.go:2382-2401": {
+    "file": "command_test.go",
+    "tokens": 310
+  },
+  "command_test.go:2403-2421": {
+    "file": "command_test.go",
+    "tokens": 273
+  },
+  "command_test.go:2442-2475": {
+    "file": "command_test.go",
+    "tokens": 453
+  },
+  "command_test.go:2525-2547": {
+    "file": "command_test.go",
+    "tokens": 287
+  },
+  "command_test.go:2549-2570": {
+    "file": "command_test.go",
+    "tokens": 284
+  },
+  "command_test.go:2603-2626": {
+    "file": "command_test.go",
+    "tokens": 280
+  },
+  "command_test.go:262-272": {
+    "file": "command_test.go",
+    "tokens": 180
+  },
+  "command_test.go:2628-2652": {
+    "file": "command_test.go",
+    "tokens": 308
+  },
+  "command_test.go:2675-2704": {
+    "file": "command_test.go",
+    "tokens": 337
+  },
+  "command_test.go:274-303": {
+    "file": "command_test.go",
+    "tokens": 362
+  },
+  "command_test.go:2793-2880": {
+    "file": "command_test.go",
+    "tokens": 1005
+  },
+  "command_test.go:2925-2954": {
+    "file": "command_test.go",
+    "tokens": 361
+  },
+  "command_test.go:305-332": {
+    "file": "command_test.go",
+    "tokens": 347
+  },
+  "command_test.go:334-367": {
+    "file": "command_test.go",
+    "tokens": 388
+  },
+  "command_test.go:437-460": {
+    "file": "command_test.go",
+    "tokens": 322
+  },
+  "command_test.go:465-489": {
+    "file": "command_test.go",
+    "tokens": 328
+  },
+  "command_test.go:562-581": {
+    "file": "command_test.go",
+    "tokens": 269
+  },
+  "command_test.go:583-602": {
+    "file": "command_test.go",
+    "tokens": 289
+  },
+  "command_test.go:616-641": {
+    "file": "command_test.go",
+    "tokens": 333
+  },
+  "command_test.go:789-816": {
+    "file": "command_test.go",
+    "tokens": 350
+  },
+  "command_test.go:853-869": {
+    "file": "command_test.go",
+    "tokens": 240
+  },
+  "command_test.go:871-894": {
+    "file": "command_test.go",
+    "tokens": 344
+  },
+  "command_test.go:88-111": {
+    "file": "command_test.go",
+    "tokens": 310
+  },
+  "command_test.go:927-939": {
+    "file": "command_test.go",
+    "tokens": 227
+  },
+  "completions.go:316-582": {
+    "file": "completions.go",
+    "tokens": 3468
+  },
+  "completions_test.go:1276-1316": {
+    "file": "completions_test.go",
+    "tokens": 500
+  },
+  "completions_test.go:1544-1558": {
+    "file": "completions_test.go",
+    "tokens": 247
+  },
+  "completions_test.go:1560-1573": {
+    "file": "completions_test.go",
+    "tokens": 231
+  },
+  "completions_test.go:1575-1589": {
+    "file": "completions_test.go",
+    "tokens": 244
+  },
+  "completions_test.go:1607-1622": {
+    "file": "completions_test.go",
+    "tokens": 236
+  },
+  "completions_test.go:2044-2077": {
+    "file": "completions_test.go",
+    "tokens": 519
+  },
+  "completions_test.go:2079-2110": {
+    "file": "completions_test.go",
+    "tokens": 447
+  },
+  "completions_test.go:2381-2449": {
+    "file": "completions_test.go",
+    "tokens": 780
+  },
+  "completions_test.go:2461-2605": {
+    "file": "completions_test.go",
+    "tokens": 1797
+  },
+  "completions_test.go:3157-3253": {
+    "file": "completions_test.go",
+    "tokens": 1166
+  },
+  "completions_test.go:3349-3581": {
+    "file": "completions_test.go",
+    "tokens": 2923
+  },
+  "completions_test.go:3822-3926": {
+    "file": "completions_test.go",
+    "tokens": 1087
+  },
+  "completions_test.go:3930-4017": {
+    "file": "completions_test.go",
+    "tokens": 956
+  },
+  "completions_test.go:426-491": {
+    "file": "completions_test.go",
+    "tokens": 658
+  },
+  "completions_test.go:583-672": {
+    "file": "completions_test.go",
+    "tokens": 973
+  },
+  "completions_test.go:844-1036": {
+    "file": "completions_test.go",
+    "tokens": 2018
+  },
+  "doc/cmd_test.go:26-45": {
+    "file": "doc/cmd_test.go",
+    "tokens": 405
+  },
+  "doc/man_examples_test.go:25-35": {
+    "file": "doc/man_examples_test.go",
+    "tokens": 150
+  },
+  "doc/man_examples_test.go:37-49": {
+    "file": "doc/man_examples_test.go",
+    "tokens": 128
+  },
+  "fish_completions_test.go:120-143": {
+    "file": "fish_completions_test.go",
+    "tokens": 255
+  },
+  "fish_completions_test.go:42-57": {
+    "file": "fish_completions_test.go",
+    "tokens": 236
+  },
+  "flag_groups.go:225-290": {
+    "file": "flag_groups.go",
+    "tokens": 753
+  },
+  "flag_groups_test.go:22-195": {
+    "file": "flag_groups_test.go",
+    "tokens": 2520
+  },
+  "shell_completions.go:24-26": {
+    "file": "shell_completions.go",
+    "tokens": 95
+  }
+}

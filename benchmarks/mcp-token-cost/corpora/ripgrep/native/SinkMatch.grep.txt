@@ -1,0 +1,64 @@
+# /tmp/kivgraph-corpora/ripgrep/src/crates/
+
+## printer/src/
+### json.rs#C7A9
+*10:        Searcher, Sink, SinkContext, SinkContextKind, SinkFinish, SinkMatch,
+...
+*690:        mat: &SinkMatch<'_>,
+### standard.rs#AB58
+*15:        SinkMatch,
+...
+*813:        mat: &SinkMatch<'_>,
+...
+*969:        mat: &'a SinkMatch<'a>,
+...
+*1013:    /// `SinkMatch`.
+...
+*1031:    /// in the given `SinkMatch`.
+### summary.rs#9B19
+*11:    grep_searcher::{Searcher, Sink, SinkError, SinkFinish, SinkMatch},
+...
+*652:        mat: &SinkMatch<'_>,
+### util.rs#E92B
+*7:        LineIter, Searcher, SinkContext, SinkContextKind, SinkError, SinkMatch,
+...
+*153:/// In particular, this provides an API that unions the `SinkMatch` and
+...
+*157:/// While this serves as a convenient mechanism to abstract over `SinkMatch`
+...
+*187:        sunk: &'a SinkMatch<'a>,
+
+## searcher/src/
+### lib.rs#B151
+*94:        SinkMatch,
+### sink.rs#691C
+*127:        _mat: &SinkMatch<'_>,
+...
+*232:        mat: &SinkMatch<'_>,
+...
+*285:        mat: &SinkMatch<'_>,
+...
+*366:pub struct SinkMatch<'b> {
+...
+*375:impl<'b> SinkMatch<'b> {
+...
+*420:    /// Returns a range that corresponds to where [`SinkMatch::bytes`] appears
+*421:    /// in [`SinkMatch::buffer`].
+...
+*522:    use super::{Sink, SinkError, SinkMatch};
+...
+*553:            mat: &SinkMatch<'_>,
+...
+*601:            mat: &SinkMatch<'_>,
+### testutil.rs#F66A
+*13:    sink::{Sink, SinkContext, SinkFinish, SinkMatch},
+...
+*134:        mat: &SinkMatch<'_>,
+
+### searcher/
+#### core.rs#01D5
+*10:        Sink, SinkContext, SinkContextKind, SinkError, SinkFinish, SinkMatch,
+...
+*470:            &SinkMatch {
+
+More than 10 matches in /tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/sink.rs; grep keeps the first 10 per file when searching several. Search one file alone for up to 50.

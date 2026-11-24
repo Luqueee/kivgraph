@@ -1,0 +1,28 @@
+# /tmp/kivgraph-corpora/cobra/src/
+## bash_completions_test.go#7014
+*69:		CheckErr(err)
+## cobra.go#F4F2
+*234:// CheckErr prints the msg with the prefix 'Error:' and exits with error code 1. If the msg is nil, it does nothing.
+*235:func CheckErr(msg interface{}) {
+...
+*245:	CheckErr(err)
+## command.go#6888
+*535:	CheckErr(c.Usage())
+...
+*1297:					CheckErr(c.Root().Usage())
+...
+*1306:					CheckErr(cmd.Help())
+
+## doc/
+### man_examples_test.go#C411
+*34:	cobra.CheckErr(doc.GenManTree(cmd, header, "/tmp"))
+...
+*47:	cobra.CheckErr(doc.GenMan(cmd, header, out))
+
+## site/content/
+### user_guide.md#D022
+*123:		cobra.CheckErr(err)
+
+### completions/
+#### _index.md#720A
+*139:		cobra.CheckErr(RunGet(f, out, cmd, args))

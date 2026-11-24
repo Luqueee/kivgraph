@@ -1,0 +1,30 @@
+# /tmp/kivgraph-corpora/ripgrep/src/crates/
+
+## printer/src/
+### util.rs#E92B
+*7:        LineIter, Searcher, SinkContext, SinkContextKind, SinkError, SinkMatch,
+...
+*242:    pub(crate) fn lines(&self, line_term: u8) -> LineIter<'a> {
+*243:        LineIter::new(line_term, self.bytes())
+
+## searcher/src/
+### lib.rs#B151
+*87:    lines::{LineIter, LineStep},
+### lines.rs#D642
+*17:pub struct LineIter<'b> {
+...
+*22:impl<'b> LineIter<'b> {
+...
+*25:    pub fn new(line_term: u8, bytes: &'b [u8]) -> LineIter<'b> {
+...
+*27:        LineIter { bytes, stepper }
+...
+*31:impl<'b> Iterator for LineIter<'b> {
+### sink.rs#691C
+*6:    lines::LineIter,
+...
+*392:    pub fn lines(&self) -> LineIter<'b> {
+*393:        LineIter::new(self.line_term.as_byte(), self.bytes)
+...
+*471:    pub(crate) fn lines(&self) -> LineIter<'b> {
+*472:        LineIter::new(self.line_term.as_byte(), self.bytes)

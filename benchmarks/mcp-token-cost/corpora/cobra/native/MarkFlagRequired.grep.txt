@@ -1,0 +1,41 @@
+# /tmp/kivgraph-corpora/cobra/src/
+## bash_completions_test.go#7014
+*92:	assertNoErr(t, rootCmd.MarkFlagRequired("introot"))
+## command_test.go#F189
+*856:	assertNoErr(t, c.MarkFlagRequired("foo1"))
+...
+*858:	assertNoErr(t, c.MarkFlagRequired("foo2"))
+...
+*881:	assertNoErr(t, child.MarkFlagRequired("bar1"))
+...
+*883:	assertNoErr(t, child.MarkFlagRequired("bar2"))
+## completions_test.go#8DA1
+*860:	assertNoErr(t, rootCmd.MarkFlagRequired("requiredFlag"))
+...
+*870:	assertNoErr(t, childCmd.MarkFlagRequired("subRequired"))
+...
+*3402:		_ = childCmd.MarkFlagRequired("bool")
+## flag_groups.go#DB07
+*247:					_ = c.MarkFlagRequired(fName)
+...
+*268:				_ = c.MarkFlagRequired(fName)
+## shell_completions.go#47BD
+*21:// MarkFlagRequired instructs the various shell completion implementations to
+...
+*24:func (c *Command) MarkFlagRequired(name string) error {
+*25:	return MarkFlagRequired(c.Flags(), name)
+...
+*32:	return MarkFlagRequired(c.PersistentFlags(), name)
+...
+*35:// MarkFlagRequired instructs the various shell completion implementations to
+...
+*38:func MarkFlagRequired(flags *pflag.FlagSet, name string) error {
+
+## site/content/
+### user_guide.md#D022
+*323:rootCmd.MarkFlagRequired("region")
+
+### completions/
+#### _index.md#720A
+*280:cmd.MarkFlagRequired("pod")
+*281:cmd.MarkFlagRequired("container")
