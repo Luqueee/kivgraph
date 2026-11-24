@@ -274,6 +274,20 @@ kivgraph index --full
 
 One thing the fact cache cannot see: a lockfile is searched from the registered repository root upwards, and `node_modules` is never walked because that is the lockfile's job. A lockfile that is not found leaves that dependency with no control at all — in a pnpm monorepo it lives above the registered repositories. This is a declared limitation. Where it applies, rebuild with the cache off or set `indexing.fact_cache: verify`, which analyses everything and aborts the pass when an entry disagrees with the analysis.
 
+## The first pass after updating to 0.10.3 is slow
+
+**Symptom**
+
+`kivgraph index` takes as long as a first-ever pass on a registry you indexed before, and the state directory holds a `factcache/` full of `.entry` files where it held `.json` ones.
+
+**Cause**
+
+From `0.10.3` the fact cache stores each entry as a compact binary file instead of JSON (ADR 0159). An entry written by an earlier version cannot be read and is never served again, so the first pass analyses everything once and `prune` deletes the old `.json` files at once rather than after thirty days. A cold pass is not faster than before; the gain is on every pass after it.
+
+**Fix**
+
+Nothing to repair. Let the pass finish. The same happens whenever the shape of a stored fact changes: the entry carries a fingerprint of its structure and an entry that does not match the build is refused, not decoded into the wrong fields. The cache on disk is about a quarter of its former size. If a pass keeps analysing everything after the first one, run it once with `indexing.fact_cache: verify` to see whether an entry disagrees with a fresh analysis.
+
 ## After a full clean the server serves nothing new
 
 **Symptom**

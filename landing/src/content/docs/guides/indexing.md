@@ -169,6 +169,15 @@ diagnosis: an entry is served or refused by the fingerprint as a whole.
 A module the loader could not read is never cached, because its failure depends
 on the module cache and no fingerprint of the code describes it.
 
+An entry is a binary file ending in `.entry`: a header with a fingerprint of the
+structure of what it stores, the unit in the clear, a table of its distinct
+strings and then the facts. Reading is strict, so a damaged file or one written
+by a build whose facts have another shape is a miss and the unit is analysed
+again, never decoded into the wrong fields. Versions before `0.10.3` stored JSON
+(`.json`); those files are never served and the next pass removes them. On a
+registry of sixty repositories the entries went from `1,516 MB` to `367 MB` and a
+warm pass spent about `7 s` less CPU.
+
 Comparing two cached passes proves nothing. When touching this area, run with
 `fact_cache: verify`.
 

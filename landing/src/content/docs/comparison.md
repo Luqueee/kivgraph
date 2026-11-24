@@ -284,6 +284,89 @@ A per-repository graph has a consequence beyond cost: a cross-package reference
 is structurally invisible to it, which is why code-review-graph and graphify both
 answer zero on that question.
 
+## Since 0.5.0
+
+The two passes above are the only cross-tool comparison, and neither has been
+repeated on a newer build. The measurements below are Kivgraph against itself,
+from `0.10.1` to `0.10.3`. They are a different kind of evidence: one corpus
+each and no other tool in them, and the second one, a private registry, cannot be
+reproduced from outside this machine.
+
+### Who calls this symbol, on this repository
+
+`benchmarks/mcp-token-cost/`, tokenizer `cl100k_base`. The ratio is what the
+host's own `grep` and reads spend divided by what Kivgraph spends, so a value
+below `1.00x` means the plain tools are cheaper. The `0.10.2` column reused the
+native captures of the `0.10.1` run, so it moves only with the server's answers;
+it was not committed.
+
+| symbol | `0.10.1` (committed) | `0.10.2` (not committed) |
+| --- | ---: | ---: |
+| `MergeAll` | `0.61x` | `0.60x` |
+| `CanonicalColumns` | `0.63x` | `0.61x` |
+| `DiscoverGo` | `0.55x` | `0.55x` |
+| `BuildPlan` | `0.81x` | `0.80x` |
+| `NewServer` | `0.93x` | `0.92x` |
+| `Publish` | `1.22x` | `1.22x` |
+| **all six** | **`0.82x`** | **`0.81x`** |
+
+`grep` is cheaper on five of the six. `0.10.3` has not been measured: the
+repository moved, and the harness refuses to run on a tree whose native captures
+are stale. A frozen third-party corpus (`cobra`, `ky`, `ripgrep`) exists for this,
+and its baselines are not recorded yet.
+
+### A repeated pass on a large workspace
+
+A private registry of `60` repositories and `553,271` symbols, indexed warm on a
+laptop. Physical footprint, three passes per variant; it moves by about
+`250 MB` between identical passes, and the graph digest was identical in every
+comparison.
+
+| measure | before | after | change in |
+| --- | ---: | ---: | --- |
+| peak memory | `7,579 MB` | `5,452 MB` | `0.10.3` |
+| wall time | `45.1 s` | `41.2 s` | `0.10.3` |
+| fact cache on disk | `1,516 MB` | `367 MB` | `0.10.3` |
+| CPU, warm | `93.4 s` | `87.1 s` | `0.10.3` |
+| cold pass | `175 s` | `175 s` | unchanged |
+
+The peak falls because the pass lets go of the facts once they are loaded into
+the database. The binary cache did not move the peak (`5,675 MB` to `5,755 MB`);
+it moved the CPU and the disk. The corpus is private, so these are not
+reproducible by anyone else.
+
+### The size of one answer
+
+`find_symbol` on a name whose scope failed to load returned `5,064` bytes in
+`0.10.1` and returns `760` since `0.10.2`: the detail of a failure is cut to its
+first line, at most `320` bytes, and the block says when it did.
+
+### Recall per language, on public repositories
+
+`benchmarks/language-recall/`, Kivgraph `0.10.0`, run on 2026-11-22. For up to `100`
+declarations per language it renames the declaration, type-checks again with the
+language's own checker, and counts the files that stop compiling: those are the
+files that depend on it. The question is how many of them `find_references`
+reports. The corpora are public and pinned: `cobra` (Go), `ky` (TypeScript), `fd`
+(Rust) and `collection` (Dart). It has been run once, on `0.10.0`, and not on
+`0.10.3`.
+
+| language | declarations with dependents | file recall | file precision |
+| --- | ---: | ---: | ---: |
+| Go | `96` | `100.0 %` | `100.0 %` |
+| TypeScript | `85` | `100.0 %` | `96.8 %` |
+| Rust | `86` | `100.0 %` | `97.8 %` |
+| Dart | `73` | `100.0 %` | `88.5 %` |
+
+Every declaration was fully recalled in all four languages. An answer that said
+`COMPLETE` and missed a non-test file happened `0` times in `96` Go answers and
+`0` in `100` TypeScript ones. The cost is precision on Dart, where about one file
+in nine reported does not depend on the declaration.
+
+A configuration that leaves test files out (`go.tests_excluded`,
+`dart.tests_excluded`) loses exactly the dependents that are tests: file recall
+falls to `65.9 %` in Go and `75.0 %` in Dart. The default includes them.
+
 ## Raw outputs
 
 Everything the tables are computed from is committed in
