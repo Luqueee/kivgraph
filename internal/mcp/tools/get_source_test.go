@@ -105,12 +105,17 @@ func TestGetSourceKeepsSamePathInTwoRepositoriesApart(t *testing.T) {
 
 func TestGetSourceIncludesSurroundingLinesOnRequest(t *testing.T) {
 	store, _ := sourceSnapshot(t, 92)
-	_, response, err := getSource(context.Background(), nil, GetSourceInput{
+	result, response, err := getSource(context.Background(), nil, GetSourceInput{
 		Symbols:      []SourceRequest{{StableKey: "sym-merge"}},
 		ContextLines: 2,
 	}, store)
 	if err != nil {
 		t.Fatal(err)
+	}
+	for _, text := range []string{result.Content[0].(*sdkmcp.TextContent).Text, renderSourceProfiles(nil, response.Results)} {
+		if !strings.Contains(text, "set.go:4-6 func pkg.Merge [shown 2-8]") {
+			t.Fatalf("source header does not distinguish declaration and excerpt:\n%s", text)
+		}
 	}
 	code := response.Results.Bodies[0].Code
 	if !strings.Contains(code, "// Merge merges.") || !strings.Contains(code, "func Helper() int {") {
@@ -118,6 +123,23 @@ func TestGetSourceIncludesSurroundingLinesOnRequest(t *testing.T) {
 	}
 	if response.Results.ContextLines != 2 {
 		t.Fatalf("context_lines = %d, want it echoed", response.Results.ContextLines)
+	}
+	for _, tc := range []struct {
+		context int
+		header  string
+	}{
+		{0, "set.go:4-6 func pkg.Merge\nfunc Merge()"},
+		{100, "set.go:4-6 func pkg.Merge [shown 1-10]\npackage pkg"},
+	} {
+		result, _, err := getSource(t.Context(), nil, GetSourceInput{
+			Symbols: []SourceRequest{{StableKey: "sym-merge"}}, ContextLines: tc.context,
+		}, store)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if text := result.Content[0].(*sdkmcp.TextContent).Text; !strings.Contains(text, tc.header) {
+			t.Fatalf("context %d: expected %q in %q", tc.context, tc.header, text)
+		}
 	}
 	for _, contextLines := range []int{-1, MaximumSourceContextLines + 1} {
 		if _, _, err := getSource(context.Background(), nil, GetSourceInput{

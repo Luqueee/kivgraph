@@ -26,6 +26,8 @@ result instead of treating an absence as a fact.
    `find_cross_repo_consumers`.
 5. Read implementation only after the graph identifies it: call `get_source`
    for the returned symbols, with at most 20 symbols in one request.
+   A stack frame or diff line is one entry with `repository`, `path`, `line`
+   and `snapshot_id`, the generation the line belongs to.
 6. Preserve the response's repository, path, qualified name, line range,
    `completeness`, and result kind when deciding or making the next call.
 

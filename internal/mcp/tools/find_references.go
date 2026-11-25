@@ -40,19 +40,20 @@ type FindReferencesInput struct {
 	implementationDetection string
 	implementationPaths     []string
 	Profile                 []string `json:"profile,omitempty" jsonschema:"Profiles; omit for default or use * alone for all."`
-	StableKey               string   `json:"stable_key,omitempty" jsonschema:"Subject stable key; alternatively use name or the repository/path/qualified_name triple."`
-	QualifiedName           string   `json:"qualified_name,omitempty" jsonschema:"Subject fully qualified name."`
-	Name                    string   `json:"name,omitempty" jsonschema:"Bare name; ambiguity returns candidates."`
-	Repository              string   `json:"repository,omitempty" jsonschema:"Repository declaring the subject."`
-	Path                    string   `json:"path,omitempty" jsonschema:"Repository-relative subject file."`
-	Direction               string   `json:"direction,omitempty" jsonschema:"incoming (default): who uses it; outgoing: what it uses."`
-	Repo                    string   `json:"repo,omitempty" jsonschema:"Filter rows by repository; naming the derived provider opts it in."`
-	Language                string   `json:"language,omitempty" jsonschema:"Keep only rows written in this language."`
-	ExcludeTests            bool     `json:"exclude_tests,omitempty" jsonschema:"Drop rows declared in test files, recognised by path (_test.go, tests/, *.spec.ts...)."`
+	StableKey               string   `json:"stable_key,omitempty" jsonschema:"Subject ID. Omit name and qualified_name."`
+	QualifiedName           string   `json:"qualified_name,omitempty" jsonschema:"Qualified subject. Omit stable_key."`
+	Name                    string   `json:"name,omitempty" jsonschema:"Bare name; with qualified_name, checks its declaration."`
+	Repository              string   `json:"repository,omitempty" jsonschema:"Subject repository; required with path."`
+	Path                    string   `json:"path,omitempty" jsonschema:"Subject file; needs repository, not repo."`
+	Direction               string   `json:"direction,omitempty" jsonschema:"incoming (default) or outgoing. For outgoing, omit include_evidence."`
+	Repo                    string   `json:"repo,omitempty" jsonschema:"Row filter only. Naming the derived provider includes it."`
+	Language                string   `json:"language,omitempty" jsonschema:"Row language."`
+	ExcludeTests            bool     `json:"exclude_tests,omitempty" jsonschema:"Omit test files by path."`
 	EdgeKinds               []string `json:"edge_kinds,omitempty" jsonschema:"Edge kinds. Default excludes EXPORTS/REEXPORTS; * includes all."`
 	Confidence              string   `json:"confidence,omitempty" jsonschema:"Filter confidence, e.g. EXACT_TYPECHECKED or CANDIDATE."`
 	IncludeDerived          bool     `json:"include_derived,omitempty" jsonschema:"Include the normally withheld derived provider."`
-	ResponseFormat          string   `json:"response_format,omitempty" jsonschema:"concise (default), or detailed with derived identifiers."`
+	IncludeEvidence         bool     `json:"include_evidence,omitempty" jsonschema:"Incoming compact/full only. Omit for outgoing or files."`
+	ResponseFormat          string   `json:"response_format,omitempty" jsonschema:"concise (default) or detailed with IDs."`
 	View                    string   `json:"view,omitempty" jsonschema:"compact (default), full rows, or files with counts. Same facts."`
 	Limit                   int      `json:"limit,omitempty" jsonschema:"Rows in one page. Defaults to 50."`
 	Cursor                  string   `json:"cursor,omitempty" jsonschema:"Previous next_cursor; keep all other arguments unchanged."`
@@ -109,6 +110,7 @@ type ReferenceSummary struct {
 // ReferenceResult is one page of relationships around a subject. View decides
 // how it is written, never which facts it holds: see MarshalJSON below.
 type ReferenceResult struct {
+	referenceEvidencePage
 	Subject    ReferenceSubject   `json:"subject"`
 	Direction  string             `json:"direction"`
 	References []ReferenceSummary `json:"references"`
@@ -123,12 +125,19 @@ type ReferenceResult struct {
 	View            string   `json:"-"`
 }
 
+type referenceEvidencePage struct {
+	Definition      *ReferencePreview  `json:"definition,omitempty"`
+	Evidence        []ReferencePreview `json:"evidence,omitempty"`
+	EvidenceTrimmed int                `json:"evidence_trimmed,omitempty"`
+}
+
 // MarshalJSON writes the page under the view the caller asked for. The compact
 // and files shapes carry the same edges as full: a column leaves a row only
 // when the header states it for every row, and `confidence` and `provenance`
 // are always readable in one of the two places.
 func (result ReferenceResult) MarshalJSON() ([]byte, error) {
 	type fullResult struct {
+		referenceEvidencePage
 		Subject           ReferenceSubject   `json:"subject"`
 		Direction         string             `json:"direction"`
 		References        []ReferenceSummary `json:"references"`
@@ -142,11 +151,12 @@ func (result ReferenceResult) MarshalJSON() ([]byte, error) {
 		return json.Marshal(result.files())
 	default:
 		return json.Marshal(fullResult{
-			Subject:           result.Subject,
-			Direction:         result.Direction,
-			References:        result.References,
-			EdgeKindsExcluded: result.EdgeKindsExcluded,
-			DispatchThrough:   result.DispatchThrough,
+			referenceEvidencePage: result.referenceEvidencePage,
+			Subject:               result.Subject,
+			Direction:             result.Direction,
+			References:            result.References,
+			EdgeKindsExcluded:     result.EdgeKindsExcluded,
+			DispatchThrough:       result.DispatchThrough,
 		})
 	}
 }
@@ -166,15 +176,16 @@ func (result ReferenceResult) compact() compactReferenceResult {
 	rows := result.References
 	count := len(rows)
 	compact := compactReferenceResult{
-		Subject:    result.subjectLabel(),
-		QN:         result.Subject.QualifiedName,
-		Direction:  result.Direction,
-		Repository: hoistString(count, func(index int) string { return rows[index].Repository }),
-		Kind:       hoistString(count, func(index int) string { return rows[index].Kind }),
-		EdgeKind:   hoistString(count, func(index int) string { return rows[index].EdgeKind }),
-		Confidence: hoistString(count, func(index int) string { return rows[index].Confidence }),
-		Provenance: hoistString(count, func(index int) string { return rows[index].Provenance }),
-		Via:        hoistString(count, func(index int) string { return rows[index].Via }),
+		referenceEvidencePage: result.referenceEvidencePage,
+		Subject:               result.subjectLabel(),
+		QN:                    result.Subject.QualifiedName,
+		Direction:             result.Direction,
+		Repository:            hoistString(count, func(index int) string { return rows[index].Repository }),
+		Kind:                  hoistString(count, func(index int) string { return rows[index].Kind }),
+		EdgeKind:              hoistString(count, func(index int) string { return rows[index].EdgeKind }),
+		Confidence:            hoistString(count, func(index int) string { return rows[index].Confidence }),
+		Provenance:            hoistString(count, func(index int) string { return rows[index].Provenance }),
+		Via:                   hoistString(count, func(index int) string { return rows[index].Via }),
 
 		EdgeKindsExcluded: result.EdgeKindsExcluded,
 		DispatchThrough:   result.DispatchThrough,
@@ -289,6 +300,7 @@ func (result ReferenceResult) files() referenceFilesResult {
 // second tier of hoisting groups the rows by what they do still share instead
 // of repeating it on each one; see compact() and groupByResidual.
 type compactReferenceResult struct {
+	referenceEvidencePage
 	Subject   string `json:"subject"`
 	QN        string `json:"qn"`
 	Direction string `json:"direction"`
@@ -463,20 +475,8 @@ func RegisterFindReferencesWithObserverAndSnapshotStore(
 	}
 	addQueryTool(server, &sdkmcp.Tool{
 		Name: findReferencesToolName,
-		// The last two sentences are worth their 33 tokens of resident surface,
-		// both because the surface taught a dearer path than the tool supports.
-		//
-		// Without the first, a caller resolves the symbol before asking, and
-		// `find_symbol` answered a 22-row page for `withRetry` where the
-		// ambiguity error names the 7 candidates: 750 tokens against 129, on
-		// every ambiguous question.
-		//
-		// Without the second, "which files call this" is answered with a line
-		// per reference. Over four questions on a 37-repository workspace that
-		// is 2,480 tokens against 912 for the same files, the same precision and
-		// the same recall -- and one page instead of two where 66 references
-		// collapse into 9 files. Both were already supported; nothing said so.
-		Description: "Typed references to a symbol; direction outgoing shows its uses. A bare name suffices. Check completeness before interpreting absence.",
+		// Put selector alternatives where clients see them before choosing arguments.
+		Description: "Typed references by name, stable_key or qualified_name. With path use repository, not repo. Check completeness before inferring absence.",
 		Annotations: readOnlyClosedWorld(),
 		Meta:        alwaysLoadMeta(),
 	}, handler)
@@ -506,6 +506,10 @@ func findReferencesAcrossProfiles(
 	queryArguments.Limit = 0
 	queryArguments.ResponseFormat = ""
 	queryArguments.View = ""
+	queryArguments.IncludeEvidence = false // A preview changes no rows or cursor offsets.
+	if queryArguments.QualifiedName != "" {
+		queryArguments.Name = "" // The assertion changes neither the subject nor the union cursor.
+	}
 	queryHash, err := HashQuery(struct {
 		Tool     string              `json:"tool"`
 		Profiles []string            `json:"profiles"`
@@ -525,6 +529,11 @@ func findReferencesAcrossProfiles(
 	dispatch := make(map[string]struct{})
 	foundSubject := false
 	divergentSubjects := make([]string, 0)
+	var subjectProfile string
+	var sources map[string]*evidenceSource
+	if arguments.IncludeEvidence {
+		sources = make(map[string]*evidenceSource, len(selected))
+	}
 	for _, profile := range selected {
 		snapshot := profile.Store.Load()
 		if snapshot == nil {
@@ -537,6 +546,10 @@ func findReferencesAcrossProfiles(
 		pageArguments.Limit = MaximumReferenceLimit
 		pageArguments.ResponseFormat = ResponseFormatDetailed
 		pageArguments.View = ViewFull
+		pageArguments.IncludeEvidence = false
+		if arguments.IncludeEvidence {
+			sources[profile.Name] = newEvidenceSource(snapshot)
+		}
 		firstPage := true
 		for {
 			_, response, queryErr := findReferences(ctx, request, pageArguments, profile.Store)
@@ -546,10 +559,14 @@ func findReferencesAcrossProfiles(
 				}
 				return nil, Response[ReferenceResult]{}, queryErr
 			}
+			if arguments.IncludeEvidence && (response.SnapshotID == nil || *response.SnapshotID != snapshot.Metadata().ID) {
+				return nil, Response[ReferenceResult]{}, NewToolError(CodeSnapshotUnavailable, "profile generation changed; repeat the reference query")
+			}
 			if firstPage {
 				foundSubject = true
 				if subject.QualifiedName == "" {
 					subject = response.Results.Subject
+					subjectProfile = profile.Name
 				} else if subject != response.Results.Subject {
 					divergentSubjects = append(divergentSubjects, profile.Name)
 				}
@@ -601,13 +618,27 @@ func findReferencesAcrossProfiles(
 	if len(divergentSubjects) > 0 {
 		guidance = strings.TrimSpace(guidance + " The selector resolved to different declarations in profiles: " + strings.Join(divergentSubjects, ", ") + "; narrow by repository and path.")
 	}
+	var previews referenceEvidencePage
+	if arguments.IncludeEvidence {
+		previews.Evidence, previews.EvidenceTrimmed = referenceEvidence(ctx, rows[offset:end], sources)
+		if len(divergentSubjects) == 0 {
+			source := sources[subjectProfile]
+			if id, ok := source.snapshot.SymbolByStableKey(hotsnapshot.StableKey(subject.StableKey)); ok {
+				previews.Definition = source.definition(id, subject)
+				if previews.Definition != nil {
+					previews.Definition.Profiles = profileNames(subjectProfile)
+				}
+			}
+		}
+	}
 	return nil, Response[ReferenceResult]{
 		Profiles: profiles, CrossProfileEdges: "not_resolved",
 		Total: len(rows), Returned: end - offset, Truncated: end < len(rows), NextCursor: next,
 		Coverage: coverage, Completeness: &mergedCompleteness,
 		Guidance: guidance,
 		Results: ReferenceResult{
-			Subject: subject, Direction: direction, References: rows[offset:end], View: options.View,
+			referenceEvidencePage: previews,
+			Subject:               subject, Direction: direction, References: rows[offset:end], View: options.View,
 			EdgeKindsExcluded: excluded, DispatchThrough: sortedKeys(dispatch),
 		},
 		View: options.View,
@@ -615,7 +646,7 @@ func findReferencesAcrossProfiles(
 }
 
 func findReferences(
-	_ context.Context,
+	ctx context.Context,
 	_ *sdkmcp.CallToolRequest,
 	arguments FindReferencesInput,
 	snapshotStore *hotsnapshot.SnapshotStore,
@@ -640,7 +671,7 @@ func findReferences(
 	// covers the qualified name it resolved to, so a cursor keeps addressing
 	// the same page whether the caller arrived by name or by triple.
 	var startID hotsnapshot.SymbolID
-	if options.Name != "" {
+	if options.Name != "" && arguments.QualifiedName == "" {
 		resolvedID, qualifiedName, resolveErr := resolveDeclarationByName(
 			snapshot, options.Name, options.Selector.Repository, options.Selector.Path,
 		)
@@ -662,7 +693,7 @@ func findReferences(
 		return nil, Response[ReferenceResult]{}, err
 	}
 
-	if options.Name == "" {
+	if options.Name == "" || arguments.QualifiedName != "" {
 		startID, err = resolveSymbolSelector(snapshot, options.Selector)
 		if err != nil {
 			return nil, Response[ReferenceResult]{}, err
@@ -677,6 +708,12 @@ func findReferences(
 			"active snapshot symbol index is inconsistent",
 			err,
 		)
+	}
+	if arguments.QualifiedName != "" && options.Name != "" {
+		if _, mention := mentionKinds[subject.Kind]; mention || subject.Name != options.Name {
+			return nil, Response[ReferenceResult]{}, NewToolError(CodeInvalidArgument,
+				fmt.Sprintf("qualified_name must resolve to a declaration named %q; resolved %s %q", options.Name, subject.Kind, subject.Name))
+		}
 	}
 
 	metadata := snapshot.Metadata()
@@ -787,6 +824,12 @@ func findReferences(
 
 	snapshotID := metadata.ID
 	snapshotAgeMS := snapshotAgeMilliseconds(metadata.CreatedAt)
+	var previews referenceEvidencePage
+	if arguments.IncludeEvidence {
+		source := newEvidenceSource(snapshot)
+		previews.Evidence, previews.EvidenceTrimmed = referenceEvidence(ctx, results, map[string]*evidenceSource{"": source})
+		previews.Definition = source.definition(startID, subject)
+	}
 	return nil, Response[ReferenceResult]{
 		SnapshotID:    &snapshotID,
 		SnapshotAgeMS: &snapshotAgeMS,
@@ -799,7 +842,8 @@ func findReferences(
 		Guidance:      referenceGuidance(options.Direction, total, len(results), hasMore, completeness.Verdict),
 		View:          options.View,
 		Results: ReferenceResult{
-			Subject: subject, Direction: options.Direction, References: results, View: options.View,
+			referenceEvidencePage: previews,
+			Subject:               subject, Direction: options.Direction, References: results, View: options.View,
 			EdgeKindsExcluded: options.EdgeKinds.defaultExcluded(),
 			DispatchThrough:   dispatchThrough,
 		},
@@ -810,13 +854,15 @@ func normalizeFindReferencesInput(arguments FindReferencesInput) (findReferences
 	name := arguments.Name
 	var selector symbolSelector
 	if name != "" {
-		if arguments.StableKey != "" || arguments.QualifiedName != "" {
+		if arguments.StableKey != "" || (arguments.implementationsOnly && arguments.QualifiedName != "") {
 			return findReferencesOptions{}, NewToolError(CodeInvalidArgument,
 				"name identifies a declaration on its own; pass stable_key or qualified_name instead, not both")
 		}
 		if strings.TrimSpace(name) != name {
 			return findReferencesOptions{}, NewToolError(CodeInvalidArgument, "name must not carry surrounding whitespace")
 		}
+	}
+	if name != "" && arguments.QualifiedName == "" {
 		if arguments.Path != "" && arguments.Repository == "" {
 			// `repo` filters which repositories the answer may come from;
 			// `repository` says where the subject is declared. Four characters
@@ -852,6 +898,9 @@ func normalizeFindReferencesInput(arguments FindReferencesInput) (findReferences
 	}
 	if direction != FindReferencesDirectionIncoming && direction != FindReferencesDirectionOutgoing {
 		return findReferencesOptions{}, NewToolError(CodeInvalidArgument, fmt.Sprintf("direction %q is unsupported", direction))
+	}
+	if arguments.IncludeEvidence && (direction != FindReferencesDirectionIncoming || arguments.View == ViewFiles) {
+		return findReferencesOptions{}, NewToolError(CodeInvalidArgument, "include_evidence requires incoming references in compact or full view")
 	}
 	repo, err := normalizeReferenceFilter(arguments.Repo, "repo")
 	if err != nil {

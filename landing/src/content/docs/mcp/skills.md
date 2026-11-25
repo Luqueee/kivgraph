@@ -118,6 +118,7 @@ are outside this chat-notice contract.
 | Where is this name or qualified name declared | [`find_symbol`](/docs/tools/find-symbol/) |
 | Everything about one symbol already identified | [`get_symbol`](/docs/tools/get-symbol/) |
 | The code behind rows a tool returned | [`get_source`](/docs/tools/get-source/) |
+| The code at one file line, from a stack frame or a diff | [`get_source`](/docs/tools/get-source/) |
 | What a package or directory declares | [`get_file_outline`](/docs/tools/get-file-outline/) |
 | Who references this, or what it reaches, one hop out | [`find_references`](/docs/tools/find-references/) |
 | Bounded dependency paths out of a symbol | [`trace_dependencies`](/docs/tools/trace-dependencies/) |

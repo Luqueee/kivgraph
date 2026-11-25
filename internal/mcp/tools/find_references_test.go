@@ -138,6 +138,9 @@ func TestFindReferencesClassifiesInvalidInputAndMissingSnapshot(t *testing.T) {
 		wantCode  string
 	}{
 		{name: "empty key", arguments: FindReferencesInput{}, store: store, wantCode: CodeInvalidArgument},
+		{name: "short name cannot replace missing qualified name", arguments: FindReferencesInput{Name: "target", QualifiedName: "missing.Target"}, store: store, wantCode: CodeSymbolNotFound},
+		{name: "qualified suffix is not the declared name", arguments: FindReferencesInput{Name: "Target", QualifiedName: "pkg.Target"}, store: store, wantCode: CodeInvalidArgument},
+		{name: "ambiguous qualified name takes precedence", arguments: FindReferencesInput{Name: "other", QualifiedName: "pkg.Merge"}, store: hotsnapshot.NewSnapshotStore(selectorSnapshot(t)), wantCode: CodeAmbiguousSymbol},
 		{name: "unsupported direction", arguments: FindReferencesInput{StableKey: "symbol-target", Direction: "sideways"}, store: store, wantCode: CodeInvalidArgument},
 		{name: "invalid edge kind", arguments: FindReferencesInput{StableKey: "symbol-target", EdgeKinds: []string{"DEFINES"}}, store: store, wantCode: CodeInvalidArgument},
 		{name: "invalid confidence", arguments: FindReferencesInput{StableKey: "symbol-target", Confidence: "MAYBE"}, store: store, wantCode: CodeInvalidArgument},
@@ -153,6 +156,33 @@ func TestFindReferencesClassifiesInvalidInputAndMissingSnapshot(t *testing.T) {
 				t.Fatalf("error code = %q, want %q (err=%v)", got, test.wantCode, err)
 			}
 		})
+	}
+}
+
+func TestCheckedShortNamePreservesUnionCursor(t *testing.T) {
+	store := referenceSnapshot(t, 31)
+	profiles := []hotsnapshot.ProfileStore{{Name: "a", Store: store}, {Name: "b", Store: store}}
+	args := FindReferencesInput{QualifiedName: "pkg.Target", Limit: 1}
+	_, first, err := findReferencesAcrossProfiles(t.Context(), nil, args, profiles)
+	if err != nil || first.NextCursor == nil {
+		t.Fatalf("expected a paginated union, got %v, %v", first.NextCursor, err)
+	}
+	args.Name, args.Cursor = "target", *first.NextCursor
+	_, second, err := findReferencesAcrossProfiles(t.Context(), nil, args, profiles)
+	if err != nil || second.Returned != 1 || second.NextCursor != nil {
+		t.Fatalf("checked name did not resume the union: %#v, %v", second, err)
+	}
+}
+
+func TestFindReferencesChecksDeclaredShortName(t *testing.T) {
+	client := newFindReferencesToolClient(t, referenceSnapshot(t, 31))
+	args := map[string]any{"qualified_name": "pkg.Target", "limit": 1}
+	want := callFindReferences(t, client, args)
+	args["name"] = "target"
+	got := callFindReferences(t, client, args)
+	got.SnapshotAgeMS = want.SnapshotAgeMS
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("adding the declared name changed the page: got %#v, want %#v", got, want)
 	}
 }
 
@@ -672,10 +702,9 @@ func TestFindReferencesResolvesAnUnqualifiedName(t *testing.T) {
 	}
 
 	for name, arguments := range map[string]map[string]any{
-		"name with a key":            {"name": "target", "stable_key": "symbol-target"},
-		"name with a qualified name": {"name": "target", "qualified_name": "pkg.Target"},
-		"path without repository":    {"name": "target", "path": "src/caller.go"},
-		"name nobody declares":       {"name": "absent"},
+		"name with a key":         {"name": "target", "stable_key": "symbol-target"},
+		"path without repository": {"name": "target", "path": "src/caller.go"},
+		"name nobody declares":    {"name": "absent"},
 	} {
 		result, err := client.CallTool(context.Background(), &sdkmcp.CallToolParams{
 			Name: findReferencesToolName, Arguments: arguments,

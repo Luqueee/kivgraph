@@ -91,7 +91,7 @@ func resolveSymbolSelector(
 	}
 	interned, found := snapshot.Strings().Lookup(selector.QualifiedName)
 	if !found {
-		return 0, errSelectorNotFound(selector)
+		return resolveRustReceiverMethod(snapshot, selector)
 	}
 	filter := hotsnapshot.SymbolFilter{RepositoryName: selector.Repository, Path: selector.Path}
 	page, err := snapshot.SearchSymbolsByQName(interned, filter, 0, hotsnapshot.MaxExactResults)
@@ -101,7 +101,7 @@ func resolveSymbolSelector(
 	page = withoutMentions(snapshot, page)
 	switch len(page.IDs) {
 	case 0:
-		return 0, errSelectorNotFound(selector)
+		return resolveRustReceiverMethod(snapshot, selector)
 	case 1:
 		return page.IDs[0], nil
 	}
