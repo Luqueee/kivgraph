@@ -42,6 +42,7 @@ type config struct {
 	Repository  string
 	SurfaceOnly bool
 	Check       bool
+	Routes      bool
 	Tolerance   float64
 }
 
@@ -53,6 +54,7 @@ func main() {
 	flag.StringVar(&cfg.Repository, "repository", "kivgraph", "indexed repository the questions belong to")
 	flag.BoolVar(&cfg.SurfaceOnly, "smoke", false, "measure the surface and prove every tool answers, without writing anything")
 	flag.BoolVar(&cfg.Check, "check", false, "compare a fresh run with the committed results.json of the corpus and fail on a regression, writing nothing")
+	flag.BoolVar(&cfg.Routes, "routes", false, "compare warm lookup-first and direct MCP sessions against the frozen baseline, without writing it")
 	flag.Float64Var(&cfg.Tolerance, "tolerance", defaultTolerance, "with --check, how much a token figure may grow before it fails, as a fraction")
 	flag.Parse()
 
@@ -174,6 +176,12 @@ func run(ctx context.Context, cfg config, command string) error {
 	}
 	out.Totals = totalise(out.Questions)
 	out.Limitations = limitations(out)
+	if cfg.Routes {
+		if err := checkRun(cfg, out); err != nil {
+			return err
+		}
+		return compareRoutes(ctx, session, tokens, questions.Questions, out)
+	}
 
 	if stderr.Len() > 0 {
 		out.ServerDiagnostics = strings.Count(strings.TrimSpace(stderr.String()), "\n") + 1

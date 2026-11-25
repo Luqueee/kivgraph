@@ -644,24 +644,14 @@ func measureQuestion(
 	// consumers is five calls and the arm pays for five. Asking for all of them
 	// at once is an error the tool refuses, and pricing one call would credit
 	// this arm with an envelope it never gets.
-	requests := make([]map[string]any, 0, len(rows)+1)
-	requests = append(requests, selector(target.Repository, target.FilePath, target.QualifiedName))
-	for _, row := range rows {
-		requests = append(requests, selector(row.Repository, row.FilePath, row.QualifiedName))
+	batches, servedStructured, err := sourceBatches(ctx, session, selector(target.Repository, target.FilePath, target.QualifiedName), rows)
+	if err != nil {
+		return questionResult{}, err
 	}
+	structuredBytes += servedStructured
 	served := 0
-	for offset := 0; offset < len(requests); offset += maximumSourceSymbols {
-		end := offset + maximumSourceSymbols
-		if end > len(requests) {
-			end = len(requests)
-		}
-		servedText, servedStructured, servedErr := call(ctx, session, "get_source",
-			map[string]any{"symbols": requests[offset:end]})
-		if servedErr != nil {
-			return questionResult{}, servedErr
-		}
-		structuredBytes += servedStructured
-		served += tokens.count(servedText)
+	for _, text := range batches {
+		served += tokens.count(text)
 	}
 	result.Projected = arm{
 		Calls:  callTokens,
