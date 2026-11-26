@@ -15,8 +15,9 @@ func TestRouteComparisonPreservesPaginationAndCoverage(t *testing.T) {
 			t.Errorf("accepted different page: %s", other)
 		}
 	}
-	if !samePage(page, `{"coverage":{"exact":2},"next_cursor":"def"}`) {
-		t.Fatal("opaque cursor contents are not reference facts")
+	other := `{"coverage":{"exact":2},"next_cursor":"def"}`
+	if !samePage(page, other) {
+		t.Fatalf("opaque cursor contents changed page equality: %s vs %s", page, other)
 	}
 }
 

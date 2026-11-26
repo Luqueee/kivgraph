@@ -123,17 +123,22 @@ func writeRouteRows(enc *json.Encoder, question string, pair int, order [2]int, 
 	return nil
 }
 
-func compareRoutes(ctx context.Context, s *sdkmcp.ClientSession, t *counter, questions []question, baseline results, rawPath string) error {
+func compareRoutes(ctx context.Context, s *sdkmcp.ClientSession, t *counter, questions []question, baseline results, rawPath string) (err error) {
 	const pairs = 20
 	var answers, full [2][]time.Duration
 	var answerTokens, sessionTokens [2]int
 	var raw *json.Encoder
 	if rawPath != "" {
-		f, err := os.OpenFile(rawPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		var f *os.File
+		f, err = os.OpenFile(rawPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 		if err != nil {
 			return err
 		}
-		defer f.Close()
+		defer func() {
+			if closeErr := f.Close(); closeErr != nil && err == nil {
+				err = fmt.Errorf("close route samples %s: %w", rawPath, closeErr)
+			}
+		}()
 		raw = json.NewEncoder(f)
 	}
 	for _, q := range questions {

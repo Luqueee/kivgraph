@@ -1,5 +1,5 @@
 # Historical OMP Python-eval adapter definitions. Loading does not start a run.
-import json, os, pathlib as pl, re, socket, subprocess as sp, sys, tempfile
+import json, os, pathlib as pl, re, socket, subprocess as sp, sys, tempfile, time
 
 pick = {'cobra': 'ExactArgs', 'ky': 'mergeHeaders', 'ripgrep': 'Replacer'}
 commonN = 'Answer the following maintainer question with evidence from the frozen {c} repository. Choose your searches and what to read; you may search again or batch needed reads. Cite file and line(s). Keep the answer to the question asked. Use only {tools} as evidence; no other tools, files, web, tests or edits. Starting symbol: {n}.\n'
@@ -7,7 +7,35 @@ promB = {'cobra': 'When validating a command with ExactArgs, what happens if the
 qsP = {('cobra', 'control'): ('ExactArgs', 'When validating a command with ExactArgs, what happens if the argument count is wrong? Show one existing test that exercises this failure, including the concrete counts or expected error.'), ('ky', 'control'): ('mergeHeaders', 'How does Ky decide whether the user supplied Content-Type, and what header inputs does it consult for that decision? Cite the implementation, including the exact predicate.'), ('ripgrep', 'control'): ('Replacer', 'When Standard builds its searcher sink with and without a path, how is its replacement helper initialized? Compare both construction sites and describe the initial internal state of the helper.'), ('cobra', 'typed'): ('MarkFlagRequired', 'Which non-test methods directly call the package-level MarkFlagRequired function (not the identically named Command method), and which flag set does each pass? Identify one production caller of the Command method instead and cite the evidence.'), ('ky', 'typed'): ('KyOptions.retry', 'Trace the retry property of KyOptions, not the retry helper or retry hook. Which init-hook options clone reads it, how is the property copied (including nested arrays), and which constant lists this option as a recognized key? Cite the code.'), ('ripgrep', 'typed'): ('line_buffer::Config', 'For the private line_buffer::Config, not the searcher or printer Config, which two structs store this exact type in a field, and which constructor explicitly calls its Default implementation? Give one default field value and cite the source.')}
 runDirP = pl.Path(tempfile.mkdtemp(prefix="kv-pair-"))
 procsP, labelsP, hP, workP = {}, {}, {}, {}
-brokerSrc = "import json,os,socketserver,subprocess,sys\npath,corpus=sys.argv[1:];p=subprocess.Popen(['/tmp/kv-main','serve'],env={**os.environ,'HOME':f'/tmp/kivgraph-corpora/{corpus}/home','KIVGRAPH_TELEMETRY':'0'},stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True);seq=0\ndef rpc(method,params,notify=False):\n global seq\n seq+=1;req={'jsonrpc':'2.0','method':method,'params':params};req.update({} if notify else {'id':seq});p.stdin.write(json.dumps(req)+'\\n');p.stdin.flush()\n if notify:return\n while True:\n  line=p.stdout.readline()\n  if not line:raise EOFError('MCP closed before reply')\n  msg=json.loads(line)\n  if msg.get('id')==seq:return msg\nclass Handler(socketserver.StreamRequestHandler):\n def handle(self):\n  op,args=json.loads(self.rfile.readline());msg=rpc('tools/call',{'name':op,'arguments':args});res=msg.get('result',{});v=res['content'][0]['text'] if 'content' in res else str(msg);print('call',p.pid,seq,op,flush=True);self.wfile.write(json.dumps(v).encode()+b'\\n')\ntry:\n rpc('initialize',{'protocolVersion':'2025-06-18','capabilities':{},'clientInfo':{'name':'persistent-pair','version':'1'}});rpc('notifications/initialized',{},True)\n with socketserver.UnixStreamServer(path,Handler) as s:\n  print('ready',p.pid,flush=True);s.serve_forever()\nfinally:p.terminate();p.wait()\n"
+brokerSrc = r"""import json,os,signal,socketserver,subprocess,sys,time
+path,corpus=sys.argv[1:];p=subprocess.Popen(['/tmp/kv-main','serve'],env={**os.environ,'HOME':f'/tmp/kivgraph-corpora/{corpus}/home','KIVGRAPH_TELEMETRY':'0'},stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True);seq=0
+def rpc(method,params,notify=False):
+ global seq
+ seq+=1;req={'jsonrpc':'2.0','method':method,'params':params};req.update({} if notify else {'id':seq});p.stdin.write(json.dumps(req)+'\n');p.stdin.flush()
+ if notify:return
+ while True:
+  line=p.stdout.readline()
+  if not line:raise EOFError('MCP closed before reply')
+  msg=json.loads(line)
+  if msg.get('id')==seq:return msg
+class Handler(socketserver.StreamRequestHandler):
+ def handle(self):
+  m=json.loads(self.rfile.readline());op,args=m[:2]
+  if len(m)>2 and time.monotonic()>=m[2]:v='request deadline expired'
+  else:msg=rpc('tools/call',{'name':op,'arguments':args});res=msg.get('result',{});v=res['content'][0]['text'] if 'content' in res else str(msg);print('call',p.pid,seq,op,flush=True)
+  self.wfile.write(json.dumps(v).encode()+b'\n')
+signal.signal(signal.SIGTERM,lambda *a:sys.exit(0))
+try:
+ rpc('initialize',{'protocolVersion':'2025-06-18','capabilities':{},'clientInfo':{'name':'persistent-pair','version':'1'}});rpc('notifications/initialized',{},True)
+ try:os.unlink(path)
+ except FileNotFoundError:pass
+ with socketserver.UnixStreamServer(path,Handler) as s:
+  print('ready',p.pid,flush=True);s.serve_forever()
+finally:
+ p.terminate();p.wait()
+ try:os.unlink(path)
+ except FileNotFoundError:pass
+"""
 
 def localFileN(c,path):
  root=(pl.Path('/tmp/kivgraph-corpora')/c/'src').resolve();p=(root/path).resolve();assert c in pick and p.is_relative_to(root);return p
@@ -15,7 +43,7 @@ def localFileN(c,path):
 @tool
 def text_search(corpus:str,pattern:str,path:str='.',context:int=0)->str:
  """Search a corpus with rg -n; pattern is a regex; optional relative path and number of surrounding lines."""
- p=localFileN(corpus,path);v=sp.run(['/opt/homebrew/bin/rg','--no-heading','--with-filename','--color','never','-n','-C',str(context),'--',pattern,path],cwd=localFileN(corpus,'.'),capture_output=True,text=True);return v.stdout or v.stderr or 'No matches.'
+ root=localFileN(corpus,'.');p=localFileN(corpus,path);v=sp.run(['/opt/homebrew/bin/rg','--no-config','--no-heading','--with-filename','--color','never','-n','-C',str(context),'--',pattern,str(p.relative_to(root))],cwd=root,stdin=sp.DEVNULL,capture_output=True,text=True);return v.stdout or v.stderr or 'No matches.'
 
 @tool
 async def text_read(corpus:str,ranges:list[str])->str:
@@ -40,6 +68,8 @@ def graph_query(corpus:str,operation:str,arguments:str)->str:
  return isolatedRPC(corpus,operation,json.loads(arguments))
 
 def brokerP(label,c):
+ old=procsP.pop(label,None)
+ if old:old.terminate();old.wait()
  path=str(runDirP/label);p=sp.Popen([sys.executable,'-u','-c',brokerSrc,path,c],stdout=sp.PIPE,stderr=sp.DEVNULL,text=True);init=p.stdout.readline().strip();assert init.startswith('ready '),init;procsP[label]=p;labelsP[label]=int(init.split()[1]);return path
 
 @tool
@@ -49,7 +79,7 @@ def persistent_graph(session:str,operation:str,arguments:str)->str:
  path=str(runDirP/session)
  if not os.path.exists(path):return 'use assigned session ID'
  with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as s:
-  s.settimeout(30);s.connect(path);s.sendall((json.dumps([operation,json.loads(arguments)])+'\n').encode());return json.loads(s.makefile('rb').readline())
+  s.settimeout(30);s.connect(path);s.sendall((json.dumps([operation,json.loads(arguments),time.monotonic()+30])+'\n').encode());return json.loads(s.makefile('rb').readline())
 
 def runCleanN(i):
  keys=[(c,a) for c in pick for a in ('graph','grep')];hs={}
