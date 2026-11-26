@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"archive/tar"
 	"context"
 	"os"
 	"path/filepath"
@@ -59,6 +60,47 @@ func TestReferencePreviewsShareOneSource(t *testing.T) {
 	}
 }
 
+func TestCanceledDefinitionDoesNotReadSource(t *testing.T) {
+	store, root := sourceSnapshot(t, 91)
+	snap := store.Load()
+	id, ok := snap.SymbolByStableKey("sym-merge")
+	if !ok {
+		t.Fatal("missing fixture symbol")
+	}
+	path := filepath.Join(root, "set.go")
+	// An access time older than mtime makes the next read visible under relatime.
+	if err := os.Chtimes(path, time.Unix(1, 0), time.Unix(2, 0)); err != nil {
+		t.Fatal(err)
+	}
+	accessTime := func() time.Time {
+		t.Helper()
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		header, err := tar.FileInfoHeader(info, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return header.AccessTime
+	}
+	before := accessTime()
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if def := newEvidenceSource(snap).definition(ctx, id, ReferenceSubject{}); def != nil {
+		t.Fatalf("canceled definition returned %+v", def)
+	}
+	if !accessTime().Equal(before) {
+		t.Fatal("canceled definition read the source file")
+	}
+	if def := newEvidenceSource(snap).definition(t.Context(), id, ReferenceSubject{}); def == nil {
+		t.Fatal("uncanceled definition missing")
+	}
+	if accessTime().Equal(before) {
+		t.Skip("control read did not produce an observable access time")
+	}
+}
+
 func TestReferencePreviewWholeCallableByteBoundary(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
@@ -95,16 +137,6 @@ func TestReferencePreviewWholeCallableByteBoundary(t *testing.T) {
 				t.Fatalf("oversized callable not identified as partial: %+v", p)
 			}
 			store := hotsnapshot.NewSnapshotStore(snap)
-			ctx, cancel := context.WithCancel(t.Context())
-			cancel()
-			id, ok := snap.SymbolByStableKey("s")
-			if !ok {
-				t.Fatal("missing fixture symbol")
-			}
-			source := newEvidenceSource(snap)
-			if def := source.definition(ctx, id, ReferenceSubject{}); def != nil || len(source.cache) != 0 {
-				t.Fatal("canceled definition read source")
-			}
 			readDefinition := func() *ReferencePreview {
 				t.Helper()
 				_, response, err := findReferences(t.Context(), nil, FindReferencesInput{Name: "caller", IncludeEvidence: true}, store)
