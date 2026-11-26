@@ -109,8 +109,8 @@ func TestPublicationTokenTracksPublicationNotProcessIdentity(t *testing.T) {
 func TestPositionSelectsInnermostArrowNotCallbackArgument(t *testing.T) {
 	root := testsupport.TempDir(t)
 	text := `export const outer = () => {
- const inner = ((() => {
-  const value = (use(() => 1)) as (() => number);
+ const inner = <() => number>((() => {
+  const value = <() => number>((use(() => 1)) as (() => number));
   return value();
  })) satisfies (() => number) as (() => number);
  return inner();

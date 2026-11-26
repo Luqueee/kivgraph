@@ -35,7 +35,9 @@ inside it (see `ReferenceSummary`), so reading the callers takes a second
   - `unavailable`: a short reason string, given instead of the shown bounds and
     `code`. It covers: the file differs from the snapshot or cannot be read; no
     enclosing callable, or an ambiguous one; or the anchor exceeds 1,536 bytes.
-    A profile generation changing during the union fails the whole query.
+- The union acquires each profile's snapshot when it reaches that profile.
+  It uses that snapshot for all pages, evidence and the reported snapshot ID,
+  even if the profile publishes a newer generation during assembly.
 - Return the entire callable when its lines joined by `\n` fit in 1,536 bytes.
   Otherwise keep the bounded window around `start_line` (up to four whole
   lines on each side) and report `callable_start_line` and `callable_end_line`

@@ -70,7 +70,8 @@ model at the moment it decides whether to call anything.
 | What are this symbol's package, signature, visibility and line range | [`get_symbol`](/docs/tools/get-symbol/) |
 | What is declared under this path | [`get_file_outline`](/docs/tools/get-file-outline/) |
 | Give me the code of these symbols | [`get_source`](/docs/tools/get-source/) |
-| Give me the code at one file line, from a stack frame or a diff | [`get_source`](/docs/tools/get-source/) |
+| Which callable contains a reference line | [`get_source`](/docs/tools/get-source/) with the position and `publication` from the same single-profile reference response |
+| What is at a line from a stack frame or diff | Read the file at the revision the frame or diff refers to |
 | Which repositories does the graph cover, at which commit | [`list_repositories`](/docs/tools/list-repositories/) |
 | Is the published graph current | [`graph_status`](/docs/tools/graph-status/) |
 | Start a rebuild without a long call | [`start_index_project`](/docs/tools/start-index-project/) |

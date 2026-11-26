@@ -26,8 +26,8 @@ generation when the cache is missing or refused.
 
 A single-profile `find_references` answer carries `publication` when
 `response_format` is `detailed` or `include_evidence` is true. Ordinary
-reference lists omit it: the unused token cost 295 tokens over six frozen
-Cobra queries. Position entries copy it back as `publication`:
+reference lists omit it to avoid charging callers for a position lookup they
+did not request. Position entries copy it back as `publication`:
 
 ```json
 {

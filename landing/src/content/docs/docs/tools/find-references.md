@@ -83,7 +83,9 @@ bounds and `code`. The reason is short and specific: the file differs from the
 snapshot or cannot be read, the enclosing callable is missing or ambiguous,
 or the anchor alone exceeds the byte cap. In a multi-profile response, `profile`
 names the verifying profile on success, or the attempted profiles on failure.
-A generation change while assembling the profile union fails the whole query.
+The union reads each profile's snapshot when it reaches that profile. All its
+pages, previews and reported snapshot ID come from that snapshot. Publishing a
+new generation does not interrupt the query or switch it to the new snapshot.
 
 When more than five distinct exact rows exist, `results.evidence_trimmed` gives
 how many got no entry. It is omitted when zero. The flag never changes `total`,
