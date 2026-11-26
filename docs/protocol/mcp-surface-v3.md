@@ -208,9 +208,11 @@ arista: ver ADR 0040.
 fuera de la ruta del repositorio ni a través de un componente symlink, con la
 misma función que usa la capa de indexación.
 
-Una posición -una línea de un stack trace o de un diff- se pide con `repository`,
-`path`, `line` y `publication` de una misma respuesta de `find_references`.
-Para obtener `publication`, pide `response_format: "detailed"` o evidencia.
+Para abrir la función que contiene una línea de referencia, copia `repository`,
+`path`, `line` y `publication` de la misma respuesta de `find_references`.
+Solo una respuesta de un perfil incluye `publication`, y únicamente al pedir
+`response_format: "detailed"` o `include_evidence: true`. Una respuesta de
+varios perfiles omite el token: repite la consulta en el perfil de esa línea.
 El token identifica la publicación del grafo, no el número de generación, que
 puede reutilizarse tras reconstruir. Si la publicación ha cambiado, se rechaza
 la posición: hay que repetir la consulta de referencias. Ver ADR 0164.

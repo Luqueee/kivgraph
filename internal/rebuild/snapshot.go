@@ -467,11 +467,26 @@ func lineToUint32(value int64) (uint32, error) {
 	return uint32(value), nil
 }
 
+// snapshotContentDigestFormat versions what snapshotContentDigest hashes. It
+// is also part of PublishedSnapshotDigestFileName: two formats of this digest
+// are both sixty-four hexadecimal characters and nothing in the value says
+// which one produced it, so the record of each lives under its own name and
+// one is never read as the other. Change it with whatever the digest covers.
+// See ADR 0165.
+const snapshotContentDigestFormat = "2"
+
 // snapshotContentDigest hashes exactly what ends up inside the built
 // snapshot — repositories, packages, files, symbols, package dependencies,
 // unresolved references, and the semantic edges hotsnapshot actually keeps —
 // sorted by durable key so the row order ScanCanonical happens to return never
 // changes the digest.
+//
+// A file contributes the content hash its canonical row carries, exactly as it
+// carries it. The snapshot stores that hash per file and serves source against
+// it (ADR 0040), so two graphs that differ in nothing but one file's hash are
+// different graphs here. A file with no hash contributes an empty one, which is
+// what a graph indexed before that amendment holds: its digest is stable and
+// differs from the digest of the same graph once its files are hashed.
 //
 // It deliberately excludes SnapshotID, CreatedAt and the skipped edge
 // count: two builds of the same underlying graph, published as different
@@ -482,7 +497,7 @@ func lineToUint32(value int64) (uint32, error) {
 // canonicalSnapshotDigest does not fit reuse here: it hashes per table row
 // counts read from LadybugDB, not row content, so two structurally
 // different graphs that happen to share matching counts would collide.
-// This hashes the sorted rows themselves, using the same SHA-256/hex
+// This hashes the sorted rows themselves, using the same SHA-256/hex encoding.
 func snapshotContentDigest(rows hotsnapshot.LadybugSnapshotRows) string {
 	repositories := append([]hotsnapshot.RepositoryRow(nil), rows.Repositories...)
 	sort.Slice(repositories, func(i, j int) bool { return repositories[i].Key < repositories[j].Key })
@@ -511,7 +526,7 @@ func snapshotContentDigest(rows hotsnapshot.LadybugSnapshotRows) string {
 	sort.Slice(edges, func(i, j int) bool { return edgeRowLess(edges[i], edges[j]) })
 
 	hash := sha256.New()
-	fmt.Fprintf(hash, "snapshot_row_format=%d\n", SnapshotRowFormatVersion)
+	fmt.Fprintf(hash, "snapshot_row_format=%d content_digest_format=%s\n", SnapshotRowFormatVersion, snapshotContentDigestFormat)
 	for _, repository := range repositories {
 		fmt.Fprintf(hash, "repository:%s name=%s path=%s languages=%s commit=%s\n",
 			repository.Key, repository.Name, repository.Path, repository.Languages, repository.Commit)
@@ -521,8 +536,8 @@ func snapshotContentDigest(rows hotsnapshot.LadybugSnapshotRows) string {
 			pkg.Key, pkg.RepositoryKey, pkg.Language, pkg.Name, pkg.ModulePath)
 	}
 	for _, file := range files {
-		fmt.Fprintf(hash, "file:%s repository=%s package=%s path=%s language=%s\n",
-			file.Key, file.RepositoryKey, file.PackageKey, file.Path, file.Language)
+		fmt.Fprintf(hash, "file:%s repository=%s package=%s path=%s language=%s content_hash=%s\n",
+			file.Key, file.RepositoryKey, file.PackageKey, file.Path, file.Language, file.ContentHash)
 	}
 	for _, symbol := range symbols {
 		fmt.Fprintf(hash, "symbol:%s identity=%s file=%s language=%s name=%s qname=%s kind=%s signature=%s start=%d end=%d\n",

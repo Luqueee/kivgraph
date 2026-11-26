@@ -252,8 +252,8 @@ surface has its own in `internal/mcp/AGENTS.md`.
   it instead of deriving it from the canonical graph: `rebuild.LoadOrBuildSnapshot`
   is the door, and the three paths that install a generation -`serve`'s startup,
   the follower and the parent of a pass- go through it. What proves the file
-  belongs to that generation is `snapshot.content.sha256`, the digest of the
-  graph the file contains, repeated in its header. **It is not
+  belongs to that generation is `snapshot.content.v2.sha256`, the graph digest
+  including indexed file hashes, repeated in its header. **It is not
   `snapshot.sha256`**, which digests the counters per table and therefore does
   not tell two graphs of the same shape apart: measured on `workspace`, two
   indexings whose graphs differed in 288 rows gave a byte-identical

@@ -38,7 +38,7 @@ const PublishedSnapshotFileName = "snapshot.kvsnap"
 // A generation published before this file existed carries none, which is not a
 // defect: the reader cannot prove the snapshot and derives the graph from the
 // canonical store exactly as it always did.
-const PublishedSnapshotDigestFileName = "snapshot.content.sha256"
+const PublishedSnapshotDigestFileName = "snapshot.content.v" + snapshotContentDigestFormat + ".sha256"
 
 // writePublishedSnapshot writes the snapshot into a generation directory,
 // together with the record that proves which graph it holds.

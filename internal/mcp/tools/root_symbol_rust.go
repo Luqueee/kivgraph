@@ -45,27 +45,18 @@ func resolveRustReceiverMethod(
 	var proven, unproven []hotsnapshot.SymbolID
 	provenTotal, unprovenTotal := 0, 0
 	for interned := range snapshot.RustNameSpellings(method) {
-		for offset := 0; ; offset += hotsnapshot.MaxExactResults {
-			page, err := snapshot.SearchSymbolsByName(interned, filter, offset, hotsnapshot.MaxExactResults)
-			if err != nil {
-				return 0, WrapToolError(CodeSnapshotUnavailable, "name lookup failed", err)
-			}
-			for _, id := range page.IDs {
-				switch classifyRustReceiver(snapshot, id, receiver) {
-				case rustReceiverProven:
-					provenTotal++
-					if len(proven) < maxProvenRustExamples {
-						proven = append(proven, id)
-					}
-				case rustReceiverUnproven:
-					unprovenTotal++
-					if len(unproven) < maxUnprovenRustSuggestions {
-						unproven = append(unproven, id)
-					}
+		for id := range snapshot.MatchingSymbolsByName(interned, filter) {
+			switch classifyRustReceiver(snapshot, id, receiver) {
+			case rustReceiverProven:
+				provenTotal++
+				if len(proven) < maxProvenRustExamples {
+					proven = append(proven, id)
 				}
-			}
-			if !page.HasMore {
-				break
+			case rustReceiverUnproven:
+				unprovenTotal++
+				if len(unproven) < maxUnprovenRustSuggestions {
+					unproven = append(unproven, id)
+				}
 			}
 		}
 	}
@@ -181,7 +172,7 @@ func classifyRustReceiver(
 	table := snapshot.Strings()
 	language, _ := table.String(symbol.Language)
 	kind, _ := table.String(symbol.Kind)
-	if language != string(facts.LanguageRust) || kind != "method" {
+	if language != string(facts.LanguageRust) || (kind != "method" && kind != "static_method") {
 		return rustReceiverUnrelated
 	}
 	owned := false

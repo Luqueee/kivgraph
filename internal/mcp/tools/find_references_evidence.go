@@ -63,7 +63,10 @@ func newEvidenceSource(snapshot *hotsnapshot.GraphSnapshot) *evidenceSource {
 }
 
 // A subject is already resolved. Read its own range, not an enclosing callable.
-func (source *evidenceSource) definition(id hotsnapshot.SymbolID, subject ReferenceSubject) *ReferencePreview {
+func (source *evidenceSource) definition(ctx context.Context, id hotsnapshot.SymbolID, subject ReferenceSubject) *ReferencePreview {
+	if ctx.Err() != nil {
+		return nil
+	}
 	symbol, ok := source.snapshot.Symbol(id)
 	if !ok || symbol.StartLine == 0 || symbol.EndLine < symbol.StartLine || symbol.EndLine-symbol.StartLine > MaximumReferenceEvidenceBytes {
 		return nil
@@ -82,8 +85,7 @@ func (source *evidenceSource) definition(id hotsnapshot.SymbolID, subject Refere
 		file = loadSourceFile(location.RepositoryPath, location.FilePath, record.ContentDigest)
 		source.cache[key] = file
 	}
-	if !file.fresh || file.err != nil || int(symbol.EndLine) > len(file.lines) ||
-		(int(symbol.EndLine) == len(file.lines) && file.lines[symbol.EndLine-1] == "") {
+	if ctx.Err() != nil || !file.fresh || file.err != nil || uint64(symbol.EndLine) > uint64(file.physicalLines()) {
 		return nil
 	}
 	lines := file.lines[symbol.StartLine-1 : symbol.EndLine]
@@ -175,11 +177,7 @@ func (source *evidenceSource) preview(ctx context.Context, row ReferenceSummary)
 		return ReferencePreview{}, errors.New("position source is not verified")
 	}
 
-	// Split leaves a sentinel after a terminal newline, not a source line.
-	last := len(file.lines)
-	if last > 0 && file.lines[last-1] == "" {
-		last--
-	}
+	last := file.physicalLines()
 	start, end := int(symbol.StartLine), int(symbol.EndLine)
 	if int(line) > last || len(file.lines[line-1]) > MaximumReferenceEvidenceBytes {
 		return ReferencePreview{}, fmt.Errorf("line %d is unavailable within the %d byte preview limit", line, MaximumReferenceEvidenceBytes)

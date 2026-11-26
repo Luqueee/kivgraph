@@ -58,6 +58,16 @@ func TestPositionRequiresUnchangedSnapshotAndFile(t *testing.T) {
 	}
 }
 
+func TestPositionRefusesRangeEndingOnTerminalNewlineSentinel(t *testing.T) {
+	store := rangeSnapshot(t, "func Eof() {\n}\n", 1, 3)
+	_, response, err := getSource(t.Context(), nil, GetSourceInput{Symbols: []SourceRequest{{
+		Repository: "alpha", Path: "eof.go", Line: new(uint32(1)), Publication: publicationOf(store),
+	}}}, store)
+	if ErrorCode(err) != CodeSnapshotUnavailable || len(response.Results.Bodies) != 0 {
+		t.Fatalf("served invalid callable range: %+v, %v", response.Results, err)
+	}
+}
+
 func TestPositionInsideRustAssociatedFunction(t *testing.T) {
 	root := testsupport.TempDir(t)
 	text := "struct Cursor;\nimpl Cursor {\n fn new() -> Self {\n  Self\n }\n}\n"

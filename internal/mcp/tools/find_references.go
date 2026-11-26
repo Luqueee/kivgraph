@@ -536,25 +536,30 @@ func findReferencesAcrossProfiles(
 	if arguments.IncludeEvidence {
 		sources = make(map[string]*evidenceSource, len(selected))
 	}
+	pageArguments := arguments
+	pageArguments.Profile = nil
+	pageArguments.Cursor = ""
+	pageArguments.Limit = MaximumReferenceLimit
+	pageArguments.ResponseFormat = ResponseFormatDetailed
+	pageArguments.View = ViewFull
+	pageArguments.IncludeEvidence = false
+	pageOptions, err := normalizeFindReferencesInput(pageArguments)
+	if err != nil {
+		return nil, Response[ReferenceResult]{}, err
+	}
 	for _, profile := range selected {
 		snapshot := profile.Store.Load()
 		if snapshot == nil {
 			return nil, Response[ReferenceResult]{}, ErrIndexNotReady()
 		}
 		profileCompleteness := Completeness{Verdict: VerdictComplete}
-		pageArguments := arguments
-		pageArguments.Profile = nil
 		pageArguments.Cursor = ""
-		pageArguments.Limit = MaximumReferenceLimit
-		pageArguments.ResponseFormat = ResponseFormatDetailed
-		pageArguments.View = ViewFull
-		pageArguments.IncludeEvidence = false
 		if arguments.IncludeEvidence {
 			sources[profile.Name] = newEvidenceSource(snapshot)
 		}
 		firstPage := true
 		for {
-			_, response, queryErr := findReferences(ctx, request, pageArguments, profile.Store)
+			_, response, queryErr := findReferencesSnapshot(ctx, pageArguments, pageOptions, ResponseFormatDetailed, snapshot)
 			if queryErr != nil {
 				if firstPage && (ErrorCode(queryErr) == CodeSymbolNotFound || ErrorCode(queryErr) == CodeRepositoryNotFound) {
 					if note, ok := missSuggestion(options.Selector, queryErr); ok {
@@ -563,9 +568,6 @@ func findReferencesAcrossProfiles(
 					break
 				}
 				return nil, Response[ReferenceResult]{}, queryErr
-			}
-			if arguments.IncludeEvidence && (response.SnapshotID == nil || *response.SnapshotID != snapshot.Metadata().ID) {
-				return nil, Response[ReferenceResult]{}, NewToolError(CodeSnapshotUnavailable, "profile generation changed; repeat the reference query")
 			}
 			if firstPage {
 				foundSubject = true
@@ -633,7 +635,7 @@ func findReferencesAcrossProfiles(
 		if len(divergentSubjects) == 0 {
 			source := sources[subjectProfile]
 			if id, ok := source.snapshot.SymbolByStableKey(hotsnapshot.StableKey(subject.StableKey)); ok {
-				previews.Definition = source.definition(id, subject)
+				previews.Definition = source.definition(ctx, id, subject)
 				if previews.Definition != nil {
 					previews.Definition.Profiles = profileNames(subjectProfile)
 				}
@@ -669,6 +671,9 @@ func missSuggestion(selector symbolSelector, err error) (string, bool) {
 	return found.Message, true
 }
 
+// findReferences answers from whatever snapshotStore has published now. A caller
+// that needs several answers about one graph must load once and use
+// findReferencesSnapshot, because a second Load can observe a newer publication.
 func findReferences(
 	ctx context.Context,
 	_ *sdkmcp.CallToolRequest,
@@ -683,10 +688,22 @@ func findReferences(
 	if err != nil {
 		return nil, Response[ReferenceResult]{}, err
 	}
-	if snapshotStore == nil {
-		return nil, Response[ReferenceResult]{}, ErrIndexNotReady()
+	var snapshot *hotsnapshot.GraphSnapshot
+	if snapshotStore != nil {
+		snapshot = snapshotStore.Load()
 	}
-	snapshot := snapshotStore.Load()
+	return findReferencesSnapshot(ctx, arguments, options, format, snapshot)
+}
+
+// findReferencesSnapshot answers entirely from snapshot: subject, rows, cursor,
+// evidence and reported generation all come from the one graph it is given.
+func findReferencesSnapshot(
+	ctx context.Context,
+	arguments FindReferencesInput,
+	options findReferencesOptions,
+	format string,
+	snapshot *hotsnapshot.GraphSnapshot,
+) (*sdkmcp.CallToolResult, Response[ReferenceResult], error) {
 	if snapshot == nil {
 		return nil, Response[ReferenceResult]{}, ErrIndexNotReady()
 	}
@@ -854,7 +871,7 @@ func findReferences(
 		source := newEvidenceSource(snapshot)
 		publication = source.publication
 		previews.Evidence, previews.EvidenceTrimmed = referenceEvidence(ctx, results, map[string]*evidenceSource{"": source})
-		previews.Definition = source.definition(startID, subject)
+		previews.Definition = source.definition(ctx, startID, subject)
 	} else if format == ResponseFormatDetailed {
 		publication = publicationToken(metadata)
 	}

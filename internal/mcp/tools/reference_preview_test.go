@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -94,6 +95,16 @@ func TestReferencePreviewWholeCallableByteBoundary(t *testing.T) {
 				t.Fatalf("oversized callable not identified as partial: %+v", p)
 			}
 			store := hotsnapshot.NewSnapshotStore(snap)
+			ctx, cancel := context.WithCancel(t.Context())
+			cancel()
+			id, ok := snap.SymbolByStableKey("s")
+			if !ok {
+				t.Fatal("missing fixture symbol")
+			}
+			source := newEvidenceSource(snap)
+			if def := source.definition(ctx, id, ReferenceSubject{}); def != nil || len(source.cache) != 0 {
+				t.Fatal("canceled definition read source")
+			}
 			readDefinition := func() *ReferencePreview {
 				t.Helper()
 				_, response, err := findReferences(t.Context(), nil, FindReferencesInput{Name: "caller", IncludeEvidence: true}, store)

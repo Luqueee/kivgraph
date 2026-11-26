@@ -120,6 +120,13 @@ func TestRustRawIdentifierRules(t *testing.T) {
 // so the receiver is proven and only its spelling is under test.
 func rustSpellingSnapshot(t *testing.T, owner string, methods ...[2]string) *hotsnapshot.SnapshotStore {
 	t.Helper()
+	return rustSpellingSnapshotOfKind(t, "method", owner, methods...)
+}
+
+// rustSpellingSnapshotOfKind is rustSpellingSnapshot with each member declared
+// as kind: `method`, or `static_method` for an associated function without self.
+func rustSpellingSnapshotOfKind(t *testing.T, kind, owner string, methods ...[2]string) *hotsnapshot.SnapshotStore {
+	t.Helper()
 	rows := hotsnapshot.LadybugSnapshotRows{
 		Repositories: []hotsnapshot.RepositoryRow{{Key: "repo", Name: "crate", Path: "/crate", Languages: "rust"}},
 		Packages:     []hotsnapshot.PackageRow{{Key: "pkg", RepositoryKey: "repo", Language: "rust", Name: "crate", ModulePath: "crate"}},
@@ -128,7 +135,7 @@ func rustSpellingSnapshot(t *testing.T, owner string, methods ...[2]string) *hot
 	}
 	for i, m := range methods {
 		key := hotsnapshot.StableKey(m[1])
-		rows.Symbols = append(rows.Symbols, hotsnapshot.SymbolRow{StableKey: key, CanonicalIdentity: "rust:" + m[1], FileKey: "f", Language: "rust", Kind: "method", Name: m[0], QualifiedName: m[1], StartLine: uint32(i + 2), EndLine: uint32(i + 2)})
+		rows.Symbols = append(rows.Symbols, hotsnapshot.SymbolRow{StableKey: key, CanonicalIdentity: "rust:" + m[1], FileKey: "f", Language: "rust", Kind: kind, Name: m[0], QualifiedName: m[1], StartLine: uint32(i + 2), EndLine: uint32(i + 2)})
 		rows.Edges = append(rows.Edges, hotsnapshot.EdgeRow{SourceKey: key, TargetKey: "owner", Kind: facts.CodeMethodOf, Confidence: facts.CodeStructuralCertain, Provenance: facts.CodeRustAnalyzerDefinition, EvidenceKind: "scip", EvidenceSourceFileKey: "f", EvidenceTargetFileKey: "f"})
 	}
 	snapshot, err := hotsnapshot.BuildGraphSnapshot(rows, 1, time.Unix(1, 0), 1)
@@ -182,5 +189,20 @@ func TestRustSelectorNormalizedCollisionIsAmbiguous(t *testing.T) {
 	_, err := resolveSymbolSelector(s, symbolSelector{Repository: "crate", QualifiedName: "Caf\u00e9::na\u00efve"})
 	if ErrorCode(err) != CodeAmbiguousSymbol {
 		t.Fatalf("want %s for two methods equal after NFC; got %v", CodeAmbiguousSymbol, err)
+	}
+}
+
+func TestRustReceiverResolvesStaticMethod(t *testing.T) {
+	// The loader publishes an associated function without self as
+	// static_method, and the analyzer still pairs it with its type by METHOD_OF.
+	const fn = "lines::impl::Cursor::new"
+	s := rustSpellingSnapshotOfKind(t, "static_method", "Cursor", [2]string{"new", fn}).Load()
+	id, err := resolveSymbolSelector(s, symbolSelector{Repository: "crate", QualifiedName: "Cursor::new"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolved, _ := s.Symbol(id)
+	if got := symbolStableKey(s, resolved); got != fn {
+		t.Fatalf("resolved to %q instead of %q", got, fn)
 	}
 }

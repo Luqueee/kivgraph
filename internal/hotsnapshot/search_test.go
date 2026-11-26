@@ -94,3 +94,33 @@ func TestExactSearchRejectsInvalidPagination(t *testing.T) {
 		}
 	}
 }
+
+func TestMatchingSymbolsByNameYieldsEveryMatchInIndexOrder(t *testing.T) {
+	snapshot, err := BuildGraphSnapshot(builderRows(), 1, time.Unix(1, 0).UTC(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	name, found := snapshot.Strings().Lookup("shared")
+	if !found {
+		t.Fatal("shared was not interned")
+	}
+	var got []SymbolID
+	for id := range snapshot.MatchingSymbolsByName(name, SymbolFilter{}) {
+		got = append(got, id)
+	}
+	page, err := snapshot.SearchSymbolsByName(name, SymbolFilter{}, 0, MaxExactResults)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != page.Total || len(got) != 2 || got[0] != page.IDs[0] || got[1] != page.IDs[1] {
+		t.Fatalf("MatchingSymbolsByName = %v, paged search = %#v", got, page)
+	}
+	var first []SymbolID
+	for id := range snapshot.MatchingSymbolsByName(name, SymbolFilter{}) {
+		first = append(first, id)
+		break
+	}
+	if len(first) != 1 || first[0] != 0 {
+		t.Fatalf("early break yielded %v, want [0]", first)
+	}
+}

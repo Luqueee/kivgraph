@@ -178,6 +178,41 @@ func TestMissingSnapshotRetainsPublicationAcrossDerivations(t *testing.T) {
 	}
 }
 
+func TestFileHashAloneChangesPublication(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "graph.lbdb")
+	original := seedPublishedGeneration(t, directory, path)
+	graph := fakeCanonicalGraph()
+	graph.Files[0].ContentHash = strings.Repeat("ab", 32)
+	want, report, err := BuildSnapshot(t.Context(), BuildSnapshotOptions{
+		DatabasePath: path, SnapshotID: original.Metadata().ID, Scan: fixedScan(graph),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if original.Metadata().Publication == want.Metadata().Publication {
+		t.Fatal("file hash change retained the publication token")
+	}
+	// The legacy proof does not cover file hashes. Never serve its cached file.
+	if err := os.Rename(filepath.Join(directory, PublishedSnapshotDigestFileName),
+		filepath.Join(directory, "snapshot.content.sha256")); err != nil {
+		t.Fatal(err)
+	}
+	got, derived, err := LoadOrBuildSnapshot(t.Context(), BuildSnapshotOptions{
+		DatabasePath: path, SnapshotID: original.Metadata().ID, Scan: fixedScan(graph),
+	})
+	if err != nil || derived.Loaded || !derived.Passed || got.Metadata().Publication != want.Metadata().Publication {
+		t.Fatalf("legacy cache: report=%+v err=%v", derived, err)
+	}
+	if err := writePublishedSnapshot(directory, got, report.Digest); err != nil {
+		t.Fatal(err)
+	}
+	mapped, err := loadPublishedSnapshot(directory)
+	if err != nil || mapped.Metadata().Publication != want.Metadata().Publication {
+		t.Fatalf("mapped and derived publication differ: %v", err)
+	}
+}
+
 // TestTableCountsCannotProveWhichGraphAFileHolds is the measurement that
 // motivated ADR 0061, as a test.
 //

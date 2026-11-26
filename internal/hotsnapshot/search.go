@@ -2,6 +2,7 @@ package hotsnapshot
 
 import (
 	"errors"
+	"iter"
 	"strings"
 )
 
@@ -49,6 +50,20 @@ func (filter SymbolFilter) Empty() bool {
 // substring, case-folding, or nominal matching.
 func (snapshot *GraphSnapshot) SearchSymbolsByName(name InternedString, filter SymbolFilter, offset, limit int) (SymbolPage, error) {
 	return exactSymbolPage(snapshot.keepMatching(snapshot.symbolsByName.lookup(name), filter), offset, limit)
+}
+
+// MatchingSymbolsByName yields every symbol with the interned name that passes the
+// filter, in index order. The index slice is walked in place and filtered once:
+// a caller that needs all matches gets them without the per-page filtered copy
+// SearchSymbolsByName makes, and nothing here allocates.
+func (snapshot *GraphSnapshot) MatchingSymbolsByName(name InternedString, filter SymbolFilter) iter.Seq[SymbolID] {
+	return func(yield func(SymbolID) bool) {
+		for _, id := range snapshot.symbolsByName.lookup(name) {
+			if snapshot.symbolPassesFilter(id, filter) && !yield(id) {
+				return
+			}
+		}
+	}
 }
 
 // SearchSymbolsByQName returns one exact interned-qualified-name page.

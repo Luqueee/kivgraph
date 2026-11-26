@@ -1195,3 +1195,36 @@ func TestFindReferencesAllMissKeepsRustSuggestionsByProfile(t *testing.T) {
 		}
 	})
 }
+
+func TestFindReferencesAnswersFromTheSnapshotItWasGiven(t *testing.T) {
+	arguments := FindReferencesInput{Name: "target", View: ViewFull}
+	options, err := normalizeFindReferencesInput(arguments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	answer := func(snapshot *hotsnapshot.GraphSnapshot) Response[ReferenceResult] {
+		t.Helper()
+		_, response, err := findReferencesSnapshot(context.Background(), arguments, options, ResponseFormatDetailed, snapshot)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return response
+	}
+
+	store := referenceSnapshot(t, 41)
+	held := store.Load()
+	want := answer(held)
+	if err := store.Publish(manyCallersSnapshot(t, 43).Load()); err != nil {
+		t.Fatal(err)
+	}
+	if fresh := answer(store.Load()); fresh.Total == want.Total {
+		t.Fatalf("total = %d in both generations; the fixture must separate them", fresh.Total)
+	}
+	got := answer(held)
+	if got.SnapshotID == nil || *got.SnapshotID != held.Metadata().ID {
+		t.Fatalf("snapshot_id = %v, want the held generation %d", got.SnapshotID, held.Metadata().ID)
+	}
+	if got.Total != want.Total {
+		t.Fatalf("total = %d after a later publication, want %d from the held generation", got.Total, want.Total)
+	}
+}

@@ -364,6 +364,14 @@ type sourceFile struct {
 	err   error
 }
 
+func (file *sourceFile) physicalLines() int {
+	n := len(file.lines)
+	if n > 0 && file.lines[n-1] == "" {
+		return n - 1 // Split leaves a sentinel after a terminal newline.
+	}
+	return n
+}
+
 func sourceBody(
 	snapshot *hotsnapshot.GraphSnapshot,
 	symbol hotsnapshot.SymbolRecord,
@@ -434,11 +442,7 @@ func sourceBody(
 		body.StartLine, body.EndLine = uint32(start), uint32(end)
 		body.Shifted = shifted
 	}
-	// Split leaves a sentinel after a terminal newline, not a source line.
-	physical := len(loaded.lines)
-	if physical > 0 && loaded.lines[physical-1] == "" {
-		physical--
-	}
+	physical := loaded.physicalLines()
 	if start > physical {
 		body.Unavailable = fmt.Sprintf("the declaration starts at line %d, past the end of the file (%d lines)", start, physical)
 		return body, nil

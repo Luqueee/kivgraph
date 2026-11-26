@@ -62,6 +62,7 @@ func (files *positionFiles) resolve(ctx context.Context, snapshot *hotsnapshot.G
 			return 0, WrapToolError(CodeSnapshotUnavailable, "inspect indexed callable ranges", err)
 		}
 		var bindings map[bindingRange]bool
+		last := uint64(source.physicalLines())
 		for _, c := range candidates {
 			switch c.kind {
 			case "func", "function", "method", "static_method", "constructor":
@@ -86,7 +87,7 @@ func (files *positionFiles) resolve(ctx context.Context, snapshot *hotsnapshot.G
 			default:
 				continue
 			}
-			if uint64(c.end) > uint64(len(source.lines)) {
+			if uint64(c.end) > last {
 				return 0, WrapToolError(CodeSnapshotUnavailable, "inspect indexed callable ranges",
 					fmt.Errorf("indexed callable at %s:%d-%d exceeds the verified file", path, c.start, c.end))
 			}

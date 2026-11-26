@@ -34,7 +34,9 @@ or more are `AMBIGUOUS_SYMBOL`, as before.
 
 The fallback splits the qualified name at its last `::` into a receiver and a
 method. It finds the symbols named by the method, narrowed by `repository` and
-`path` as the exact lookup is. Each one is classified against the receiver:
+`path` as the exact lookup is. It considers both `method` and `static_method`:
+an associated function such as `Circle::new` needs the same proof of ownership
+as a method with `self`. Each candidate is classified against the receiver:
 
 - **Proven**: the symbol has an outgoing `METHOD_OF` edge with confidence
   `STRUCTURAL_CERTAIN` and provenance `rust-analyzer-definition`. Its target is
