@@ -434,11 +434,16 @@ func sourceBody(
 		body.StartLine, body.EndLine = uint32(start), uint32(end)
 		body.Shifted = shifted
 	}
-	last := len(loaded.lines)
-	if last > end && loaded.lines[last-1] == "" {
-		last-- // Split leaves a sentinel after a terminal newline, not a source line.
+	// Split leaves a sentinel after a terminal newline, not a source line.
+	physical := len(loaded.lines)
+	if physical > 0 && loaded.lines[physical-1] == "" {
+		physical--
 	}
-	from, to := max(1, start-contextLines), min(last, end+contextLines)
+	if start > physical {
+		body.Unavailable = fmt.Sprintf("the declaration starts at line %d, past the end of the file (%d lines)", start, physical)
+		return body, nil
+	}
+	from, to := max(1, start-contextLines), min(physical, end+contextLines)
 	body.Code = strings.Join(loaded.lines[from-1:to], "\n")
 	if from != start || to != end {
 		body.ShownStartLine, body.ShownEndLine = uint32(from), uint32(to)

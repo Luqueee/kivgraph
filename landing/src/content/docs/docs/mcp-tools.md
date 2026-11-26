@@ -27,7 +27,7 @@ open the database for those queries and does not run the TypeScript worker.
 | Where is it declared | [`find_symbol`](/docs/tools/find-symbol/) |
 | What is declared in this package | [`get_file_outline`](/docs/tools/get-file-outline/) |
 | Give me the code of these symbols | [`get_source`](/docs/tools/get-source/) |
-| The code at one file line, from a stack frame or a diff | [`get_source`](/docs/tools/get-source/) |
+| Which callable contains a reference line | [`get_source`](/docs/tools/get-source/) with the line and `publication` from the same detailed or evidence-bearing reference response. Read the file directly for lines outside indexed callables. |
 | Everything known about one symbol | [`get_symbol`](/docs/tools/get-symbol/) |
 | What is indexed, and is it current | [`graph_status`](/docs/tools/graph-status/) |
 | Which repositories are registered | [`list_repositories`](/docs/tools/list-repositories/) |

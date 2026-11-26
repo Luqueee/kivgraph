@@ -41,36 +41,32 @@ func resolveRustReceiverMethod(
 	if !ok {
 		return 0, errSelectorNotFound(selector)
 	}
-	interned, found := snapshot.Strings().Lookup(method)
-	if !found {
-		return 0, errSelectorNotFound(selector)
-	}
-	// The narrowing is the exact lookup's: it names where the method is, not
-	// where its type is.
 	filter := hotsnapshot.SymbolFilter{RepositoryName: selector.Repository, Path: selector.Path}
 	var proven, unproven []hotsnapshot.SymbolID
 	provenTotal, unprovenTotal := 0, 0
-	for offset := 0; ; offset += hotsnapshot.MaxExactResults {
-		page, err := snapshot.SearchSymbolsByName(interned, filter, offset, hotsnapshot.MaxExactResults)
-		if err != nil {
-			return 0, WrapToolError(CodeSnapshotUnavailable, "name lookup failed", err)
-		}
-		for _, id := range page.IDs {
-			switch classifyRustReceiver(snapshot, id, receiver) {
-			case rustReceiverProven:
-				provenTotal++
-				if len(proven) < maxProvenRustExamples {
-					proven = append(proven, id)
-				}
-			case rustReceiverUnproven:
-				unprovenTotal++
-				if len(unproven) < maxUnprovenRustSuggestions {
-					unproven = append(unproven, id)
+	for interned := range snapshot.RustNameSpellings(method) {
+		for offset := 0; ; offset += hotsnapshot.MaxExactResults {
+			page, err := snapshot.SearchSymbolsByName(interned, filter, offset, hotsnapshot.MaxExactResults)
+			if err != nil {
+				return 0, WrapToolError(CodeSnapshotUnavailable, "name lookup failed", err)
+			}
+			for _, id := range page.IDs {
+				switch classifyRustReceiver(snapshot, id, receiver) {
+				case rustReceiverProven:
+					provenTotal++
+					if len(proven) < maxProvenRustExamples {
+						proven = append(proven, id)
+					}
+				case rustReceiverUnproven:
+					unprovenTotal++
+					if len(unproven) < maxUnprovenRustSuggestions {
+						unproven = append(unproven, id)
+					}
 				}
 			}
-		}
-		if !page.HasMore {
-			break
+			if !page.HasMore {
+				break
+			}
 		}
 	}
 	switch provenTotal {
@@ -104,7 +100,36 @@ func splitRustReceiverPath(qualifiedName string) (receiver, method string, ok bo
 	return qualifiedName[:last], qualifiedName[last+2:], true
 }
 
+// rustRawPrefix marks a raw identifier. rust-analyzer's SCIP keeps it in the
+// descriptor (`r#type`), and `r#foo` names the same item as `foo`.
+const rustRawPrefix = "r#"
+
+// rustIdentKey is the identity of one identifier step: without `r#`, in NFC,
+// which is how Rust compares identifiers. A generic suffix is left in place.
+func rustIdentKey(step string) string {
+	return norm.NFC.String(strings.TrimPrefix(step, rustRawPrefix))
+}
+
+func rustPathKey(path string) string {
+	if !strings.Contains(path, rustRawPrefix) {
+		return norm.NFC.String(path)
+	}
+	steps := strings.Split(path, "::")
+	for i, step := range steps {
+		steps[i] = rustIdentKey(step)
+	}
+	return strings.Join(steps, "::")
+}
+
 func isRustIdentifier(step string) bool {
+	if raw, ok := strings.CutPrefix(step, rustRawPrefix); ok {
+		// These are keywords the language refuses even as raw identifiers.
+		switch raw {
+		case "_", "crate", "self", "super", "Self":
+			return false
+		}
+		step = raw
+	}
 	if step == "" || step == "_" {
 		return false
 	}
@@ -188,14 +213,15 @@ func classifyRustReceiver(
 // source does inside the module that declares the type -- by its own name.
 func rustTypeNamed(snapshot *hotsnapshot.GraphSnapshot, owner hotsnapshot.SymbolRecord, receiver string) bool {
 	table := snapshot.Strings()
-	if qualifiedName, ok := table.String(owner.QualifiedName); ok && qualifiedName == receiver {
+	want := rustPathKey(receiver)
+	if qualifiedName, ok := table.String(owner.QualifiedName); ok && rustPathKey(qualifiedName) == want {
 		return true
 	}
 	if strings.Contains(receiver, "::") {
 		return false
 	}
 	name, ok := table.String(owner.Name)
-	return ok && name == receiver
+	return ok && rustIdentKey(name) == want
 }
 
 // rustPathHasStep reports whether a canonical name carries the receiver's own
@@ -206,13 +232,14 @@ func rustPathHasStep(qualifiedName, receiver string) bool {
 	if pos := strings.LastIndex(receiver, "::"); pos >= 0 {
 		receiver = receiver[pos+2:]
 	}
+	receiver = rustIdentKey(receiver)
 	pos := strings.LastIndex(qualifiedName, "::")
 	if pos < 0 {
 		return false
 	}
 	for step := range strings.SplitSeq(qualifiedName[:pos], "::") {
 		base, _, _ := strings.Cut(step, "<")
-		if base == receiver {
+		if rustIdentKey(base) == receiver {
 			return true
 		}
 	}

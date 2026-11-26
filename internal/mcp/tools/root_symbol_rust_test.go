@@ -101,3 +101,86 @@ func TestRustAmbiguityBoundsExamplesNotCount(t *testing.T) {
 		t.Fatalf("expected five examples and the full count of seven: %v", err)
 	}
 }
+
+func TestRustRawIdentifierRules(t *testing.T) {
+	for _, s := range []string{"r#type", "r#match", "r#async", "r#Café"} {
+		if !isRustIdentifier(s) {
+			t.Errorf("rejected raw identifier %q", s)
+		}
+	}
+	for _, s := range []string{"r#", "r#_", "r#self", "r#super", "r#crate", "r#Self", "r#1x", "r#a-b", "r#r#x"} {
+		if isRustIdentifier(s) {
+			t.Errorf("accepted prohibited raw identifier %q", s)
+		}
+	}
+}
+
+// rustSpellingSnapshot is one Rust struct named owner, with one method per
+// [name, canonical name] pair. Each method has the analyzer's METHOD_OF edge,
+// so the receiver is proven and only its spelling is under test.
+func rustSpellingSnapshot(t *testing.T, owner string, methods ...[2]string) *hotsnapshot.SnapshotStore {
+	t.Helper()
+	rows := hotsnapshot.LadybugSnapshotRows{
+		Repositories: []hotsnapshot.RepositoryRow{{Key: "repo", Name: "crate", Path: "/crate", Languages: "rust"}},
+		Packages:     []hotsnapshot.PackageRow{{Key: "pkg", RepositoryKey: "repo", Language: "rust", Name: "crate", ModulePath: "crate"}},
+		Files:        []hotsnapshot.FileRow{{Key: "f", RepositoryKey: "repo", PackageKey: "pkg", Language: "rust", Path: "lines.rs"}},
+		Symbols:      []hotsnapshot.SymbolRow{{StableKey: "owner", CanonicalIdentity: "rust:owner", FileKey: "f", Language: "rust", Kind: "struct", Name: owner, QualifiedName: "lines::" + owner, StartLine: 1, EndLine: 1}},
+	}
+	for i, m := range methods {
+		key := hotsnapshot.StableKey(m[1])
+		rows.Symbols = append(rows.Symbols, hotsnapshot.SymbolRow{StableKey: key, CanonicalIdentity: "rust:" + m[1], FileKey: "f", Language: "rust", Kind: "method", Name: m[0], QualifiedName: m[1], StartLine: uint32(i + 2), EndLine: uint32(i + 2)})
+		rows.Edges = append(rows.Edges, hotsnapshot.EdgeRow{SourceKey: key, TargetKey: "owner", Kind: facts.CodeMethodOf, Confidence: facts.CodeStructuralCertain, Provenance: facts.CodeRustAnalyzerDefinition, EvidenceKind: "scip", EvidenceSourceFileKey: "f", EvidenceTargetFileKey: "f"})
+	}
+	snapshot, err := hotsnapshot.BuildGraphSnapshot(rows, 1, time.Unix(1, 0), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return hotsnapshot.NewSnapshotStore(snapshot)
+}
+
+func TestRustSelectorRawIdentifiers(t *testing.T) {
+	const method = "lines::impl::r#type::r#match"
+	s := rustSpellingSnapshot(t, "r#type", [2]string{"r#match", method}).Load()
+	for _, query := range []string{"type::match", "r#type::r#match", "type::r#match", "r#type::match"} {
+		id, err := resolveSymbolSelector(s, symbolSelector{Repository: "crate", QualifiedName: query})
+		if err != nil {
+			t.Fatalf("%q: %v", query, err)
+		}
+		resolved, _ := s.Symbol(id)
+		if got := symbolStableKey(s, resolved); got != method {
+			t.Fatalf("%q resolved to %q instead of %q", query, got, method)
+		}
+	}
+	for _, query := range []string{"r#self::match", "r#super::match", "r#crate::match", "r#Self::match", "r#_::match", "r#::match", "type::r#"} {
+		if _, err := resolveSymbolSelector(s, symbolSelector{Repository: "crate", QualifiedName: query}); ErrorCode(err) != CodeSymbolNotFound {
+			t.Fatalf("%q: want %s; got %v", query, CodeSymbolNotFound, err)
+		}
+	}
+}
+
+func TestRustSelectorNormalizesNFC(t *testing.T) {
+	const method = "lines::impl::Cafe\u0301::na\u00efve"
+	s := rustSpellingSnapshot(t, "Cafe\u0301", [2]string{"na\u00efve", method}).Load()
+	for _, query := range []string{"Caf\u00e9::na\u00efve", "Cafe\u0301::nai\u0308ve", "Caf\u00e9::nai\u0308ve", "Cafe\u0301::na\u00efve"} {
+		id, err := resolveSymbolSelector(s, symbolSelector{Repository: "crate", QualifiedName: query})
+		if err != nil {
+			t.Fatalf("%q: %v", query, err)
+		}
+		resolved, _ := s.Symbol(id)
+		if got := symbolStableKey(s, resolved); got != method {
+			t.Fatalf("%q resolved to %q instead of %q", query, got, method)
+		}
+	}
+}
+
+func TestRustSelectorNormalizedCollisionIsAmbiguous(t *testing.T) {
+	s := rustSpellingSnapshot(
+		t, "Caf\u00e9",
+		[2]string{"na\u00efve", "lines::impl::Caf\u00e9::na\u00efve"},
+		[2]string{"nai\u0308ve", "lines::impl::Cafe\u0301::nai\u0308ve"},
+	).Load()
+	_, err := resolveSymbolSelector(s, symbolSelector{Repository: "crate", QualifiedName: "Caf\u00e9::na\u00efve"})
+	if ErrorCode(err) != CodeAmbiguousSymbol {
+		t.Fatalf("want %s for two methods equal after NFC; got %v", CodeAmbiguousSymbol, err)
+	}
+}

@@ -67,6 +67,17 @@ call site. This is not a syntax error: exact canonical lookup still runs
 first. Nor does the fallback interpret `<T as Trait>`, generic arguments,
 references or `dyn` as type expressions.
 
+Spelling is not identity. The fallback compares receiver and method without a
+raw `r#` prefix and in Unicode NFC, which is how Rust compares identifiers.
+rust-analyzer's SCIP output preserves source spelling, including `r#` and
+decomposed characters. On the first receiver lookup in a snapshot, index
+the distinct method-name spellings that differ from their canonical form.
+This includes partially composed names; subsequent queries visit only
+matching names. The receiver and method must be plain identifiers:
+`r#_`, `r#crate`, `r#self`, `r#super`, `r#Self` and a bare `r#` are refused, and
+the selector reports `SYMBOL_NOT_FOUND`. Spelling widens the lookup only. It is
+never evidence: only the `METHOD_OF` edge proves ownership.
+
 ## Limits
 
 - Only impls whose type is a declared symbol of the same crate are paired. An

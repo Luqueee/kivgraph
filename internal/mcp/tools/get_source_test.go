@@ -341,6 +341,78 @@ func digestOf(content string) string {
 	return hex.EncodeToString(digest[:])
 }
 
+// rangeSnapshot publishes one fresh file whose single symbol records the given
+// line range, which may lie past the file's end.
+func rangeSnapshot(t testing.TB, content string, start, end uint32) *hotsnapshot.SnapshotStore {
+	t.Helper()
+	root := testsupport.TempDir(t)
+	if err := os.WriteFile(filepath.Join(root, "eof.go"), []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rows := hotsnapshot.LadybugSnapshotRows{
+		Repositories: []hotsnapshot.RepositoryRow{{Key: "repo-alpha", Name: "alpha", Path: root, Languages: "go"}},
+		Packages:     []hotsnapshot.PackageRow{{Key: "package-alpha", RepositoryKey: "repo-alpha", Language: "go", Name: "example.com/alpha/pkg", ModulePath: "example.com/alpha"}},
+		Files:        []hotsnapshot.FileRow{{Key: "file-eof", RepositoryKey: "repo-alpha", PackageKey: "package-alpha", Path: "eof.go", Language: "go", ContentHash: digestOf(content)}},
+		Symbols:      []hotsnapshot.SymbolRow{{StableKey: "sym-eof", CanonicalIdentity: "go:pkg.Eof", FileKey: "file-eof", Language: "go", Name: "Eof", QualifiedName: "pkg.Eof", Kind: "func", StartLine: start, EndLine: end}},
+	}
+	snapshot, err := hotsnapshot.BuildGraphSnapshot(rows, 93, time.Unix(1_700_000_093, 0).UTC(), 1)
+	if err != nil {
+		t.Fatalf("BuildGraphSnapshot() error = %v", err)
+	}
+	return hotsnapshot.NewSnapshotStore(snapshot)
+}
+
+// TestSourceBodyRefusesDeclarationStartingPastEndOfFile: a start beyond the last
+// physical line must be declared unavailable whatever the context, and the
+// empty element Split leaves after a terminal newline is not a line.
+func TestSourceBodyRefusesDeclarationStartingPastEndOfFile(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		content string
+		start   uint32
+	}{
+		{"terminal newline, start on sentinel", "a\nb\n", 3},
+		{"terminal newline, start beyond sentinel", "a\nb\n", 4},
+		{"no terminal newline", "a\nb", 3},
+		{"empty file", "", 1},
+	} {
+		store := rangeSnapshot(t, tc.content, tc.start, tc.start)
+		for _, contextLines := range []int{0, 2, 100} {
+			_, response, err := getSource(t.Context(), nil, GetSourceInput{
+				Symbols: []SourceRequest{{StableKey: "sym-eof"}}, ContextLines: contextLines,
+			}, store)
+			if err != nil {
+				t.Fatalf("%s, context %d: %v", tc.name, contextLines, err)
+			}
+			body := response.Results.Bodies[0]
+			if body.Unavailable == "" || body.Code != "" {
+				t.Fatalf("%s, context %d: unavailable=%q code=%q, want unavailable and no code", tc.name, contextLines, body.Unavailable, body.Code)
+			}
+		}
+	}
+}
+
+func TestSourceBodyKeepsLastLineBehavior(t *testing.T) {
+	for _, content := range []string{"a\nb\n", "a\nb"} {
+		store := rangeSnapshot(t, content, 2, 2)
+		for _, tc := range []struct {
+			context int
+			want    string
+		}{{0, "b"}, {5, "a\nb"}} {
+			_, response, err := getSource(t.Context(), nil, GetSourceInput{
+				Symbols: []SourceRequest{{StableKey: "sym-eof"}}, ContextLines: tc.context,
+			}, store)
+			if err != nil {
+				t.Fatal(err)
+			}
+			body := response.Results.Bodies[0]
+			if body.Unavailable != "" || body.Code != tc.want {
+				t.Fatalf("content %q context %d: unavailable=%q code=%q, want %q", content, tc.context, body.Unavailable, body.Code, tc.want)
+			}
+		}
+	}
+}
+
 // TestGetSourceAnswersInProseNotJSON is the measurement that shaped this tool:
 // a body inside a JSON string pays for every newline twice, which is the whole
 // saving it exists to deliver. The text must therefore carry the code unescaped.
