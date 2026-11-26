@@ -77,6 +77,72 @@
       "lineiter_selector_rejects": 0
     }
   },
+  "citation_accuracy": {
+    "scope": "Separate from the oracle-based correct field, which is unchanged. For each of the three required facts (global zero, global one with program variable unset, root command selection), a fact passes if its cited file and lines match the captured source; a correctly cited enclosing body passes when no more specific statement location is claimed, and a fact fails when an explicit statement location is wrong even if another citation supports it. Incidental normalization and caller citations are not charged.",
+    "fact_order": [
+      "global_zero",
+      "global_one_unset",
+      "root_selection"
+    ],
+    "old": {
+      "global_zero": "10/10",
+      "global_one_unset": "10/10",
+      "root_selection": "10/10",
+      "total": "30/30"
+    },
+    "new": {
+      "global_zero": "8/10",
+      "global_one_unset": "10/10",
+      "root_selection": "4/10",
+      "total": "22/30"
+    },
+    "failures": {
+      "old": [],
+      "new": [
+        {
+          "block": 5,
+          "fact": "global_zero",
+          "note": "locates the global read at active_help.go:49 rather than 48 and the if at 50 rather than 49"
+        },
+        {
+          "block": 6,
+          "fact": "global_zero",
+          "note": "locates the global read at 49 rather than 48"
+        },
+        {
+          "block": 1,
+          "fact": "root_selection",
+          "note": "places Root().Name() at 51 instead of 50"
+        },
+        {
+          "block": 3,
+          "fact": "root_selection",
+          "note": "places Root().Name() at 51 instead of 50"
+        },
+        {
+          "block": 5,
+          "fact": "root_selection",
+          "note": "places Root().Name() at 51 instead of 50"
+        },
+        {
+          "block": 6,
+          "fact": "root_selection",
+          "note": "places Root().Name() at 51 instead of 50"
+        },
+        {
+          "block": 7,
+          "fact": "root_selection",
+          "note": "places Root().Name() at 51 instead of 50"
+        },
+        {
+          "block": 10,
+          "fact": "root_selection",
+          "note": "places Root().Name() at 58-60, the helper definition"
+        }
+      ]
+    },
+    "old_block_8": "cites 58-60 for the helper itself and the enclosing 47-53 for the lookup; passes."
+  },
   "faster_new_pairs": 8,
   "off_protocol_pairs": [],
   "clean_summary": {

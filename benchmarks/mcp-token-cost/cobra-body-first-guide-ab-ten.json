@@ -1,5 +1,5 @@
 {
-  "design": "Two independent before/after comparisons, ten fresh matched pairs per question. Within each question old first on odd blocks, new first on even blocks. No replacements. Results are model-session time, excluding process launch and indexing. Not a new grep comparison.",
+  "design": "Two independent before/after comparisons, ten fresh matched pairs per question. Within each question old first on odd blocks, new first on even blocks. No replacements. Results are model-session time, excluding process launch and indexing. Not a new grep comparison. The correct field grades only the three oracle facts (0 on global 0; empty when global 1 and program variable unset; root command name); it does not verify other claims or citations. Old block 6 answers all three oracle facts and is graded correct on that basis, but also claims that an empty global setting turns help off, which is false: completions.go:257 disables output only for \"0\".",
   "question": "GetActiveHelpConfig",
   "revision": "88b30ab89da2d0d0abb153818746c5a2d30eccec",
   "model": "anthropic/claude-haiku-5-5",

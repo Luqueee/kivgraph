@@ -1,7 +1,7 @@
 {
   "question": "GetActiveHelpConfig",
   "oracle": "0 on global 0; empty when global 1 and program variable unset; root command name",
-  "design": "Independent ten matched pairs, fresh sessions with five starts per arm. Only documented guide treatment differs, pure MCP. No replacements. Timing excludes indexing and launch. Sensitivity excludes entire off-protocol pairs.",
+  "design": "Independent ten matched pairs, fresh sessions with five starts per arm. Only documented guide treatment differs, pure MCP. No replacements. Timing excludes indexing and launch. Sensitivity excludes entire off-protocol pairs. Block 9 new is not a same-tool measurement: that session used different tool access (two external find_symbol calls and one external list_repositories, zero bench calls) and gave no Cobra answer, so its time and correctness reflect that stop rather than the guide. The primary comparison (summary, pairs, faster) is by assigned arm and does not isolate the guide change, including its win count and timing; the same-tool view is clean_summary, which excludes block 9 as before.",
   "order": [
     "cobra-control-1-old",
     "cobra-control-1-new",

@@ -1,5 +1,5 @@
 {
-  "design": "Ten fresh paired sessions with reasoning off. Five starts per arm. No replacements. Same question, current guide, binary, schema, frozen checkout and evidence. Both proxies serialize matching replies identically; only new prepends a verbatim predicate_excerpt to each matching caller preview without removing any fields. Time is summed session duration excluding launch/indexing. Sensitivity drops whole off-protocol pairs.",
+  "design": "Ten fresh paired sessions with reasoning off. Five starts per arm. No replacements. Same question, current guide, binary, schema, frozen checkout and evidence. Both proxies serialize matching replies identically; only new prepends a verbatim predicate_excerpt to each matching caller preview without removing any fields. Time is summed session duration excluding launch/indexing. Sensitivity drops whole off-protocol pairs. Treatment delivery was verified separately from the matched_previews_seen counts; see treatment_delivery.",
   "question": "getContentLength",
   "order": [
     "ky-typed-1-old",
@@ -36,6 +36,25 @@
       "code": "\tconst totalBytes = getBodySize(originalBody ?? request.body) || getContentLength(request.headers);"
     }
   ],
+  "treatment_delivery": {
+    "method": "Verified after the run from the retained proxy and per-session run inputs; matched_previews_seen alone counts candidate matches, not emitted insertions.",
+    "proxy_sha256": "2a0ecfd59f7b7f52482c92809ac68ba602e76befcbeebb6037abb8a684a75c87",
+    "proxy_note": "Per-session MCP configs of all 40 sessions of both runs point at this one proxy.py (the replication launcher reused the original run's proxy path); the two runs' run.sh launchers have the digests 52a788ddc1cebeff25f780a524c078318475d68f55afd6901dca374b98d87ad9 (original) and 93da76fa385520d81f8d3c3e67686030e7d762a1907579d795984a7999e0755b (replication). HIGHLIGHTS in the proxy equals the two excerpts recorded here. Config and tool_execution_end receipts matched for every session.",
+    "insertion_code": [
+      "if method=='tools/call' and name=='find_references' and not r.get('isError'):",
+      "  payload=json.loads(r['content'][0]['text']);count=0",
+      "  for entry in payload.get('results',{}).get('evidence',[]):",
+      "   focus=HIGHLIGHTS.get(entry.get('code'));",
+      "   if focus and entry.get('repository')=='ky' and entry.get('path')=='source/utils/body.ts':",
+      "    if Path(log).parent.name.endswith('-new'):",
+      "     rest=entry.copy();entry.clear();entry.update(predicate_excerpt=focus,**rest)",
+      "    count+=1",
+      "  if count:",
+      "   event({'matched_previews':count})",
+      "   r['content'][0]['text']=json.dumps(payload,separators=(',',':'),ensure_ascii=False)"
+    ],
+    "result": "Replication: old 20 matched previews / 0 insertions; new 20 matched / 20 inserted. Each insertion is exactly the intended excerpt, as the first key of its entry, once per entry, and nowhere else; no other payload change between arms."
+  },
   "thinking": "off",
   "model": "anthropic/claude-haiku-5-5",
   "commit": "3541888878c4d303a8bc2ad61815f4e048f55a5d",
@@ -44,7 +63,7 @@
   "summary": {
     "old": {
       "sessions": 10,
-      "correct": 10,
+      "correct": 9,
       "seconds": 55.68,
       "tokens": 964684,
       "usd": 0.02666,
@@ -89,13 +108,15 @@
     "lost": [
       "ky:typed:5"
     ],
-    "gained": []
+    "gained": [
+      "ky:typed:6"
+    ]
   },
   "off_protocol_pairs": [],
   "clean_summary": {
     "old": {
       "sessions": 10,
-      "correct": 10,
+      "correct": 9,
       "seconds": 55.68,
       "tokens": 964684,
       "usd": 0.02666,
@@ -1235,7 +1256,7 @@
       ],
       "thinking_blocks": 0,
       "lexical_missing": [],
-      "correct": true,
+      "correct": false,
       "first_source": false,
       "one_call": false,
       "inverse_edge_seen": false,
