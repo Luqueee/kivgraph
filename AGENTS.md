@@ -51,7 +51,7 @@ so Oh My Pi and Claude Code both load it without anybody asking. The server's
 | I do not know what it is called, which files do I open | `find_by_intent`, with `keywords` |
 | what is declared in this package | `get_file_outline` |
 | give me the code of these symbols -- up to `20` per call | `get_source` |
-| which callable contains this reference line | `get_source` with `line` and `publication` from the same response |
+| which callable contains this reference line | `get_source` with `line` and `publication` from the same detailed or evidence-bearing response |
 | is the graph up to date? | `graph_status` |
 | start an index without holding a long call | `start_index_project` |
 | how is that index going | `get_index_status` |

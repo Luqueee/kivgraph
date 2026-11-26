@@ -22,7 +22,8 @@ description: Read the code of up to twenty symbols in one call, as plain text, w
 
 ## Reading a file position
 
-Copy the file, line and `publication` from the same single-profile reference response.
+Request `response_format: "detailed"` or `include_evidence: true` from
+`find_references`. Copy the file, line and `publication` from that same single-profile response.
 For example, `totalBytes@210` locates a local variable, but the position
 selector returns its enclosing function, not the variable's initializer.
 

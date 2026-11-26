@@ -96,7 +96,8 @@ repository/path/qualified-name triple remains portable across profiles.
    opening it, and `get_source` answers in prose rather than JSON and takes a
    list of selectors, so one call reads several declarations.
    For the callable enclosing a reference line, pass `repository`, `path`,
-   `line` and `publication` from the same response. Name the supplying profile
+   `line` and `publication` from the same response. Request detailed format
+   or evidence to get the token. Name the supplying profile
    on multi-profile servers. For lines outside indexed callables, read the file.
    If the publication changed, rerun the reference query for a fresh position.
    If the file changed, follow the freshness checks below or read it directly;

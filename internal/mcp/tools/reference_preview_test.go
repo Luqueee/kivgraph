@@ -100,6 +100,9 @@ func TestReferencePreviewWholeCallableByteBoundary(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				if response.Publication != publicationToken(snap.Metadata()) {
+					t.Fatal("evidence is not bound to the retained publication")
+				}
 				return response.Results.Definition
 			}
 			def := readDefinition()

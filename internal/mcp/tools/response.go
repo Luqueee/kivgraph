@@ -11,7 +11,7 @@ package tools
 type Response[T any] struct {
 	SnapshotID *uint64 `json:"snapshot_id"`
 	// Publication identifies the snapshot a position request must copy back.
-	// Single-profile answers carry it; see publicationToken.
+	// Detailed or evidence-bearing single-profile reference answers carry it.
 	Publication string `json:"publication,omitempty"`
 	// Profile scopes a single-profile answer when the installation contains
 	// several profiles. It is omitted for the compatibility shape.

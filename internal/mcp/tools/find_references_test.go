@@ -51,6 +51,9 @@ func TestFindReferencesDirectionsFiltersAndPagination(t *testing.T) {
 	first := callFindReferences(t, client, map[string]any{
 		"stable_key": "symbol-target", "direction": FindReferencesDirectionIncoming, "limit": 1,
 	})
+	if first.Publication != "" {
+		t.Fatal("ordinary references paid for a position lookup token")
+	}
 	if first.Total != 2 || first.Returned != 1 || !first.Truncated || first.NextCursor == nil {
 		t.Fatalf("first incoming page = %#v", first)
 	}
@@ -92,6 +95,9 @@ func TestFindReferencesDirectionsFiltersAndPagination(t *testing.T) {
 		"stable_key": "symbol-target", "direction": FindReferencesDirectionIncoming, "limit": 1,
 		"response_format": ResponseFormatDetailed,
 	})
+	if detailed.Publication == "" {
+		t.Fatal("detailed references cannot be used for position lookup")
+	}
 	if detailed.Results.References[0].EvidenceKind != "checker" ||
 		detailed.Results.References[0].FileKey != "file-a" ||
 		detailed.Results.References[0].RepositoryKey != "repository:repo-a" {

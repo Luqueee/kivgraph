@@ -54,7 +54,7 @@ type FindReferencesInput struct {
 	Confidence              string   `json:"confidence,omitempty" jsonschema:"Filter confidence, e.g. EXACT_TYPECHECKED or CANDIDATE."`
 	IncludeDerived          bool     `json:"include_derived,omitempty" jsonschema:"Include the normally withheld derived provider."`
 	IncludeEvidence         bool     `json:"include_evidence,omitempty" jsonschema:"Incoming compact/full only. Omit for outgoing or files."`
-	ResponseFormat          string   `json:"response_format,omitempty" jsonschema:"concise (default) or detailed with IDs."`
+	ResponseFormat          string   `json:"response_format,omitempty" jsonschema:"concise (default) or detailed with IDs and publication for get_source by line."`
 	View                    string   `json:"view,omitempty" jsonschema:"compact (default), full rows, or files with counts. Same facts."`
 	Limit                   int      `json:"limit,omitempty" jsonschema:"Rows in one page. Defaults to 50."`
 	Cursor                  string   `json:"cursor,omitempty" jsonschema:"Previous next_cursor; keep all other arguments unchanged."`
@@ -849,14 +849,18 @@ func findReferences(
 	snapshotID := metadata.ID
 	snapshotAgeMS := snapshotAgeMilliseconds(metadata.CreatedAt)
 	var previews referenceEvidencePage
+	var publication string
 	if arguments.IncludeEvidence {
 		source := newEvidenceSource(snapshot)
+		publication = source.publication
 		previews.Evidence, previews.EvidenceTrimmed = referenceEvidence(ctx, results, map[string]*evidenceSource{"": source})
 		previews.Definition = source.definition(startID, subject)
+	} else if format == ResponseFormatDetailed {
+		publication = publicationToken(metadata)
 	}
 	return nil, Response[ReferenceResult]{
 		SnapshotID:    &snapshotID,
-		Publication:   publicationToken(metadata),
+		Publication:   publication,
 		SnapshotAgeMS: &snapshotAgeMS,
 		Total:         total,
 		Returned:      len(results),

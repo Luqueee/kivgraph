@@ -27,7 +27,8 @@ result instead of treating an absence as a fact.
 5. Read implementation only after the graph identifies it: call `get_source`
    for the returned symbols, with at most 20 symbols in one request.
    For the callable enclosing a reference line, pass `repository`, `path`,
-   `line` and `publication` from the supplying profile's reference response.
+   `line` and `publication` from the same single-profile reference response
+   (`response_format: "detailed"` or `include_evidence: true`).
 6. Preserve the response's repository, path, qualified name, line range,
    `completeness`, and result kind when deciding or making the next call.
 
