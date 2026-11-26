@@ -1,0 +1,2087 @@
+{
+  "design": "Ten fresh paired sessions with reasoning off. Five starts per arm. No replacements. Same question, current guide, binary, schema, frozen checkout and evidence. Both proxies serialize matching replies identically; only new prepends a verbatim predicate_excerpt to each matching caller preview without removing any fields. Time is summed session duration excluding launch/indexing. Sensitivity drops whole off-protocol pairs.",
+  "question": "getContentLength",
+  "order": [
+    "ky-typed-1-old",
+    "ky-typed-1-new",
+    "ky-typed-2-new",
+    "ky-typed-2-old",
+    "ky-typed-3-old",
+    "ky-typed-3-new",
+    "ky-typed-4-new",
+    "ky-typed-4-old",
+    "ky-typed-5-old",
+    "ky-typed-5-new",
+    "ky-typed-6-new",
+    "ky-typed-6-old",
+    "ky-typed-7-old",
+    "ky-typed-7-new",
+    "ky-typed-8-new",
+    "ky-typed-8-old",
+    "ky-typed-9-old",
+    "ky-typed-9-new",
+    "ky-typed-10-new",
+    "ky-typed-10-old"
+  ],
+  "prompt": "Answer the maintainer question using source evidence. Use only the mounted bench MCP tools find_symbol, find_references and get_source on repository ky. No other tools, web or edits. Cite file and lines. Starting symbol: getContentLength.\nWhich upload and download progress functions use getContentLength? Explain the condition for using the header on each path, including identity versus compressed responses and a zero computed upload size.\n\nFor a known symbol's callers, start with `find_references` alone. If the\nquestion asks what the callers do, set `include_evidence: true`: it can return\nboth caller code and the subject definition. Use `find_symbol` only if the\nselector fails. Open another body only for a requested fact the returned code\ndoes not establish.\n\nTo explain a Rust free function given only its short name, first call\n`find_symbol` with `name` and `repo`. If several declarations match,\ndisambiguate them before reading. Pass the selected row's repository, file\nand qualified name to `get_source`.\n\nIf you already know a function's qualified name, start with `get_source`\nusing `repository` and `qualified_name`; omit `path` unless you know it. Request\n`context_lines: 5` to include a nearby doc comment. If the comment and body\nagree and answer the question, stop. Otherwise, batch only the declarations\nneeded to settle the missing or conflicting fact in one `get_source`.\nUse `find_references` with `direction: \"outgoing\"` only to locate a dependency\nyou still need. Do not trace how a helper works if its implementation cannot\nchange the answer.\n\nStart with two parallel `find_references` calls in the first turn when a Go\ncaller question names both a package function and a method with its receiver.\nUse `qualified_name` for each: the function name alone and `Receiver.Method`.\nDo not run `find_symbol` first. Use it only if a selector cannot be resolved;\nif it is ambiguous, use the returned candidates to narrow it rather than guess.\n\nFor Rust, a `Type::method` written from source resolves through `qualified_name`\nwhen the index proves the method belongs to that type. The exact canonical name,\nsuch as `shapes::impl::Circle::area`, always works. If the exact lookup finds\nnothing, the name may not be indexed in this snapshot at all, so the tool falls\nback to the method's declared type. The `METHOD_OF` edge that proves a method\nhas `STRUCTURAL_CERTAIN` confidence. If one proven method matches and no other\ncandidate of that name is unproven, it resolves. If two or more match, or one\nmatches alongside unproven candidates, the call returns `AMBIGUOUS_SYMBOL`;\nrepeat it with the exact `qualified_name` of the one you mean. If none is proven,\nit returns `SYMBOL_NOT_FOUND` with unproven candidates to inspect, not to repeat.\nFor a short name with no receiver, use `name` rather than inventing a qualified\npath.\n\nTo check whether a Rust method calls a target through one of its direct\ncallers, query incoming `find_references` on that caller. Copy its repository,\nfile and qualified name from the first result instead of guessing the outer\nmethod's trait or lifetime spelling. Look for an exact `CALLS_DIRECT` row for\nthe outer method; a missing row on a partial page does not rule it out.\n\nCall the tool directly without narrating the query. In the final answer,\ngive each requested fact with its source citation.",
+  "excerpts": [
+    {
+      "start_line": 208,
+      "end_line": 210,
+      "code": "\tconst contentEncoding = response.headers.get('content-encoding')?.toLowerCase();\n\tconst isContentCoded = Boolean(contentEncoding) && contentEncoding !== 'identity';\n\tconst totalBytes = isContentCoded ? 0 : getContentLength(response.headers);"
+    },
+    {
+      "start_line": 231,
+      "end_line": 231,
+      "code": "\tconst totalBytes = getBodySize(originalBody ?? request.body) || getContentLength(request.headers);"
+    }
+  ],
+  "thinking": "off",
+  "model": "anthropic/claude-haiku-5-5",
+  "commit": "3541888878c4d303a8bc2ad61815f4e048f55a5d",
+  "binary_sha256": "12d18c225198fbd0a0772dc8855044fd42c635c1b416b2bb9b3c9ca0f85bf197",
+  "oracle": "streamResponse: absent/empty or identity (case-insensitive) uses length, other coding sets total 0; streamRequest: fallback when getBodySize(originalBody ?? request.body) is zero",
+  "summary": {
+    "old": {
+      "sessions": 10,
+      "correct": 9,
+      "seconds": 57.917,
+      "tokens": 1013220,
+      "usd": 0.027789,
+      "turns": 22,
+      "calls": 13,
+      "off_protocol": 0,
+      "server_rejects": 0,
+      "call_output": 1976,
+      "final_output": 8441,
+      "thinking_blocks": 0,
+      "output": 10417,
+      "effective_levels": {
+        "(['off'], ['None'])": 10
+      },
+      "one_reference_call": 8,
+      "sessions_with_both_previews": 10
+    },
+    "new": {
+      "sessions": 10,
+      "correct": 10,
+      "seconds": 57.821,
+      "tokens": 1016149,
+      "usd": 0.028011,
+      "turns": 22,
+      "calls": 12,
+      "off_protocol": 0,
+      "server_rejects": 0,
+      "call_output": 1928,
+      "final_output": 8316,
+      "thinking_blocks": 0,
+      "output": 10244,
+      "effective_levels": {
+        "(['off'], ['None'])": 10
+      },
+      "one_reference_call": 9,
+      "sessions_with_both_previews": 10
+    }
+  },
+  "pairs": {
+    "less_output": 5,
+    "faster": 5,
+    "lost": [],
+    "gained": [
+      "ky:typed:9"
+    ]
+  },
+  "off_protocol_pairs": [],
+  "clean_summary": {
+    "old": {
+      "sessions": 10,
+      "correct": 9,
+      "seconds": 57.917,
+      "tokens": 1013220,
+      "usd": 0.027789,
+      "turns": 22,
+      "calls": 13,
+      "off_protocol": 0,
+      "server_rejects": 0,
+      "call_output": 1976,
+      "final_output": 8441,
+      "thinking_blocks": 0,
+      "output": 10417,
+      "effective_levels": {
+        "(['off'], ['None'])": 10
+      }
+    },
+    "new": {
+      "sessions": 10,
+      "correct": 10,
+      "seconds": 57.821,
+      "tokens": 1016149,
+      "usd": 0.028011,
+      "turns": 22,
+      "calls": 12,
+      "off_protocol": 0,
+      "server_rejects": 0,
+      "call_output": 1928,
+      "final_output": 8316,
+      "thinking_blocks": 0,
+      "output": 10244,
+      "effective_levels": {
+        "(['off'], ['None'])": 10
+      }
+    }
+  },
+  "sessions": [
+    {
+      "arm": "old",
+      "model": "claude-haiku-5-5",
+      "turns": 2,
+      "tokens": 91887,
+      "usage": {
+        "input": 6,
+        "cacheRead": 84429,
+        "cacheWrite": 6286,
+        "output": 1166
+      },
+      "usd": 0.0026850900000000002,
+      "wall_s": 6.466,
+      "rpc": [
+        {
+          "initialize": 25802
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "getContentLength",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          },
+          "pid": 25811
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":85,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":"
+        },
+        {
+          "matched_previews": 2
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "getContentLength",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          }
+        }
+      ],
+      "answer": "Evidence is complete (2 of 2 exact call sites). One point needs confirming: the upload path's zero-size case. The code `getBodySize(...) || getContentLength(...)` falls through to the header when `getBodySize` returns 0, and `withProgress` receives whatever total results. That is established by the shown code; I'll answer from it.\n\n**Functions that call `getContentLength`** (`source/utils/body.ts:22`, `const getContentLength = (headers) => Math.max(0, Number(headers.get('content-length')) || 0)`; completeness verdict COMPLETE, 2 exact call sites):\n\n1. **Download progress: `streamResponse`**, `source/utils/body.ts:210`.\n   - Returns the response unchanged when `wrappableBody(response)` is falsy (null-body status, or HEAD in runtimes with no body). No progress is reported.\n   - Reads `content-encoding`, lowercased. `isContentCoded` is true when the value is present and not `identity`.\n   - If `isContentCoded`, `totalBytes = 0` (unknown). Otherwise `totalBytes = getContentLength(response.headers)`.\n   - Rationale in the source comment: `content-length` counts wire (encoded) bytes, but progress counts decoded bytes, so a coded response would show ~100% too early. `identity` is treated as a no-op coding (RFC 9110 §8.4.2), so its header length stays valid.\n   - A missing or non-numeric header yields `0` via the `|| 0` in `getContentLength`.\n\n2. **Upload progress: `streamRequest`**, `source/utils/body.ts:231`.\n   - Returns the request unchanged when any of these hold: no `request.body`, `bodyUsed`, `body.locked`, `keepalive`, `mode === 'no-cors'`, or the object is not an `instanceof globalThis.Request`.\n   - `totalBytes = getBodySize(originalBody ?? request.body) || getContentLength(request.headers)`. The header is used only when `getBodySize` returns a falsy value (0). The comment says a `ReadableStream` measures 0, so the caller-declared `content-length` is the fallback. Browsers strip this header from requests, so the fallback mainly helps non-browser runtimes.\n   - **Zero computed size:** if `getBodySize` is 0 and the header is absent or invalid, `getContentLength` returns 0 and that value is passed to `withProgress` as the total. The code does not special-case this in `streamRequest`; the total is simply 0 (unknown).\n   - No content-encoding check applies to uploads here, since the header is read from the request, not from encoded response bytes.\n\n**Summary:** the download path gates the header on content-coding (identity or absent → use header; any other coding → 0). The upload path gates it on a zero computed body size (header used only as fallback; absent/invalid → 0).\n\nEvidence: `source/utils/body.ts:22`, `:210`, `:231` (ky repository, via `find_references` with `include_evidence: true`).",
+      "corpus": "ky",
+      "question_set": "typed",
+      "block": 1,
+      "other_tools": [],
+      "rpc_calls": 1,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        []
+      ],
+      "call_output": 151,
+      "final_output": 1015,
+      "post_s": 4.945825458,
+      "ttft_s": 1.495174542,
+      "call_text_chars": 59,
+      "session_id": "01a21391-e3d8-70f9-a6be-99ad22b31056",
+      "level_changes": [
+        "off"
+      ],
+      "efforts": [
+        "None"
+      ],
+      "thinking_blocks": 0,
+      "lexical_missing": [],
+      "correct": true,
+      "first_source": false,
+      "one_call": true,
+      "inverse_edge_seen": false,
+      "wrappers_in_same_turn": false,
+      "matched_previews_seen": 2
+    },
+    {
+      "arm": "new",
+      "model": "claude-haiku-5-5",
+      "turns": 2,
+      "tokens": 91863,
+      "usage": {
+        "input": 6,
+        "cacheRead": 84429,
+        "cacheWrite": 6506,
+        "output": 922
+      },
+      "usd": 0.0026070900000000003,
+      "wall_s": 5.314,
+      "rpc": [
+        {
+          "initialize": 26108
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "getContentLength",
+            "direction": "incoming",
+            "include_evidence": true,
+            "repo": "ky"
+          },
+          "pid": 26117
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":85,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":"
+        },
+        {
+          "matched_previews": 2
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "getContentLength",
+            "direction": "incoming",
+            "include_evidence": true,
+            "repo": "ky"
+          }
+        }
+      ],
+      "answer": "**Which functions use `getContentLength`** (`source/utils/body.ts:22`, the definition; `Math.max(0, Number(headers.get('content-length')) || 0)`). Complete: 2 of 2 exact callers.\n\n1. **Download (response) path: `streamResponse`**, `source/utils/body.ts:210`\n   `const totalBytes = isContentCoded ? 0 : getContentLength(response.headers);`\n   - Header used only when the response is **not content-coded**.\n   - `isContentCoded = Boolean(contentEncoding) && contentEncoding !== 'identity'`, where `contentEncoding` is the lowercased `content-encoding` header (`source/utils/body.ts:208-209`).\n   - Identity-coded or header-less responses use `content-length`. Any other coding (gzip, br, etc.) forces `totalBytes = 0` (unknown total), because `content-length` counts wire bytes while progress counts decompressed bytes (comment at `source/utils/body.ts:206`).\n   - Earlier exits (`wrappableBody` returns nothing, `source/utils/body.ts:202-205`) skip progress entirely, so the header is never consulted there.\n\n2. **Upload (request) path: `streamRequest`**, `source/utils/body.ts:231`\n   `const totalBytes = getBodySize(originalBody ?? request.body) || getContentLength(request.headers);`\n   - The header is used **only as a fallback when `getBodySize` returns 0**. `getBodySize` is applied first to `originalBody ?? request.body`; a `ReadableStream` measures 0, so the caller-declared `content-length` is the fallback (comment at `source/utils/body.ts:229`).\n   - Zero computed size: if both `getBodySize` and the header yield 0 (`getContentLength` clamps to 0 for absent/invalid values), `totalBytes` is 0 and the progress total is unknown.\n   - Upload progress is skipped entirely (request returned unchanged, `source/utils/body.ts:219-227`) when there is no body, the body was already used or locked, `keepalive` is set, `mode` is `no-cors`, or the object is not a `globalThis.Request`.\n\nNo other callers exist in the indexed `ky` repository.",
+      "corpus": "ky",
+      "question_set": "typed",
+      "block": 1,
+      "other_tools": [],
+      "rpc_calls": 1,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        []
+      ],
+      "call_output": 163,
+      "final_output": 759,
+      "post_s": 3.679047334,
+      "ttft_s": 1.5989526660000002,
+      "call_text_chars": 96,
+      "session_id": "01a21391-fed3-741c-840c-a3b0e78fa751",
+      "level_changes": [
+        "off"
+      ],
+      "efforts": [
+        "None"
+      ],
+      "thinking_blocks": 0,
+      "lexical_missing": [],
+      "correct": true,
+      "first_source": false,
+      "one_call": true,
+      "inverse_edge_seen": false,
+      "wrappers_in_same_turn": false,
+      "matched_previews_seen": 2
+    },
+    {
+      "arm": "new",
+      "model": "claude-haiku-5-5",
+      "turns": 2,
+      "tokens": 91981,
+      "usage": {
+        "input": 6,
+        "cacheRead": 84429,
+        "cacheWrite": 6525,
+        "output": 1021
+      },
+      "usd": 0.0026603900000000003,
+      "wall_s": 5.867,
+      "rpc": [
+        {
+          "initialize": 26264
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "getContentLength",
+            "direction": "incoming",
+            "repository": "ky",
+            "include_evidence": true,
+            "response_format": "detailed"
+          },
+          "pid": 26273
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":85,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":"
+        },
+        {
+          "matched_previews": 2
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "getContentLength",
+            "direction": "incoming",
+            "repository": "ky",
+            "include_evidence": true,
+            "response_format": "detailed"
+          }
+        }
+      ],
+      "answer": "Source evidence from `ky`, all in `source/utils/body.ts`. The references result is complete (2 of 2 exact `CALLS_DIRECT` edges).\n\n**Definition** (`source/utils/body.ts:22`):\n```ts\nconst getContentLength = (headers: Headers): number => Math.max(0, Number(headers.get('content-length')) || 0);\n```\nIt returns `0` when the header is missing or non-numeric, and clamps negatives to `0`.\n\n**Download (response) path: `streamResponse`, `source/utils/body.ts:200-214`**\n- Line 210: `const totalBytes = isContentCoded ? 0 : getContentLength(response.headers);`\n- Header is used only when the response is **not content-coded**. `isContentCoded` (line 208-209) is true when `content-encoding` is present and is not `identity` (case-insensitive).\n- Identity or absent `content-encoding`: the `content-length` total is used, since it matches the bytes delivered.\n- Any other coding (e.g. `gzip`, `br`): total is `0` (unknown). The code comment states that `content-length` counts encoded wire bytes, while progress counts decompressed bytes, so using it would pin progress near 100%.\n- Early return at lines 202-204: a response with no wrappable body is not streamed, so no progress is reported and the header is never read.\n\n**Upload (request) path: `streamRequest`, `source/utils/body.ts:217-242`**\n- Line 231: `const totalBytes = getBodySize(originalBody ?? request.body) || getContentLength(request.headers);`\n- The header is a **fallback**, used only when `getBodySize(...)` returns a falsy value. The comment (lines 228-229) says a `ReadableStream` measures `0`, so the caller-declared `content-length` is used in that case. Browsers strip this header from requests, so it mainly helps non-browser runtimes.\n- **Zero computed upload size:** if `getBodySize` yields `0` and the request has no `content-length` header, `getContentLength` returns `0` and the total is `0` (unknown). Progress still wraps the body; only the total is unavailable.\n- Early return at lines 218-226 (no body, body used or locked, `keepalive`, `no-cors`, or non-`Request` object) skips progress entirely, so the header is never consulted there.\n\n**Summary:** the download path gates the header on content-coding (identity/absent only). The upload path does not check encoding; it uses the header only when the body's own size is unknown or zero.",
+      "corpus": "ky",
+      "question_set": "typed",
+      "block": 2,
+      "other_tools": [],
+      "rpc_calls": 1,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        []
+      ],
+      "call_output": 182,
+      "final_output": 839,
+      "post_s": 4.340430916,
+      "ttft_s": 1.490569084,
+      "call_text_chars": 83,
+      "session_id": "01a21392-1540-718c-ab92-3bac4c2c27f5",
+      "level_changes": [
+        "off"
+      ],
+      "efforts": [
+        "None"
+      ],
+      "thinking_blocks": 0,
+      "lexical_missing": [],
+      "correct": true,
+      "first_source": false,
+      "one_call": true,
+      "inverse_edge_seen": false,
+      "wrappers_in_same_turn": false,
+      "matched_previews_seen": 2
+    },
+    {
+      "arm": "old",
+      "model": "claude-haiku-5-5",
+      "turns": 2,
+      "tokens": 91613,
+      "usage": {
+        "input": 6,
+        "cacheRead": 84429,
+        "cacheWrite": 6283,
+        "output": 895
+      },
+      "usd": 0.00254899,
+      "wall_s": 5.046,
+      "rpc": [
+        {
+          "initialize": 26423
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "getContentLength",
+            "repo": "ky",
+            "direction": "incoming",
+            "include_evidence": true
+          },
+          "pid": 26430
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":85,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":"
+        },
+        {
+          "matched_previews": 2
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "getContentLength",
+            "repo": "ky",
+            "direction": "incoming",
+            "include_evidence": true
+          }
+        }
+      ],
+      "answer": "Findings from `source/utils/body.ts` (the only caller file; the completeness verdict is COMPLETE, 2 exact `CALLS_DIRECT` edges).\n\n**Callers of `getContentLength`** (defined at `source/utils/body.ts:22`, `Math.max(0, Number(headers.get('content-length')) || 0)`):\n\n1. **Download progress: `streamResponse`**, `source/utils/body.ts:210`.\n   - Returns the response unchanged if `wrappableBody(response)` is falsy, so no progress is reported.\n   - Reads `content-encoding`, lowercased. `isContentCoded = Boolean(contentEncoding) && contentEncoding !== 'identity'`.\n   - `totalBytes = isContentCoded ? 0 : getContentLength(response.headers)`.\n   - Header is used only when there is no content coding, or the coding is `identity`. For any other coding, the total is `0` (unknown), because `content-length` counts wire bytes while progress counts decompressed bytes.\n   - A missing or unparseable header yields `0` through `getContentLength`'s `|| 0` and `Math.max`.\n\n2. **Upload progress: `streamRequest`**, `source/utils/body.ts:231`.\n   - Passes the request through unchanged if there is no body, the body is used or locked, `keepalive` is set, `mode` is `no-cors`, or the object is not a `Request` instance.\n   - `totalBytes = getBodySize(originalBody ?? request.body) || getContentLength(request.headers)`.\n   - The header is consulted only when `getBodySize` returns a falsy value. That covers a `ReadableStream` body, which measures 0, and any case where the size is unknown.\n   - Zero computed size: if `getBodySize` returns 0 and the request has no `content-length` header (or it is invalid), `getContentLength` returns 0, so `totalBytes` is 0 and progress reports an unknown total. Browsers strip `content-length` from requests, so this fallback mainly applies outside browsers.\n   - Unlike the download path, the upload path does not check `content-encoding`. The comment at line 210 concerns response decompression; request bodies here are not decompressed before the progress stream.",
+      "corpus": "ky",
+      "question_set": "typed",
+      "block": 2,
+      "other_tools": [],
+      "rpc_calls": 1,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        []
+      ],
+      "call_output": 148,
+      "final_output": 747,
+      "post_s": 3.4713484159999997,
+      "ttft_s": 1.5376515839999998,
+      "call_text_chars": 48,
+      "session_id": "01a21392-2dcc-720a-8434-77469cef41a3",
+      "level_changes": [
+        "off"
+      ],
+      "efforts": [
+        "None"
+      ],
+      "thinking_blocks": 0,
+      "lexical_missing": [],
+      "correct": true,
+      "first_source": false,
+      "one_call": true,
+      "inverse_edge_seen": false,
+      "wrappers_in_same_turn": false,
+      "matched_previews_seen": 2
+    },
+    {
+      "arm": "old",
+      "model": "claude-haiku-5-5",
+      "turns": 3,
+      "tokens": 138952,
+      "usage": {
+        "input": 8,
+        "cacheRead": 130630,
+        "cacheWrite": 7351,
+        "output": 963
+      },
+      "usd": 0.0032588,
+      "wall_s": 5.937,
+      "rpc": [
+        {
+          "initialize": 26616
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "getContentLength",
+            "repo": "ky",
+            "include_evidence": true
+          },
+          "pid": 26624
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":85,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":"
+        },
+        {
+          "matched_previews": 2
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "getBodySize",
+            "repo": "ky",
+            "include_evidence": true
+          },
+          "pid": 26624
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":85,\"total\":1,\"returned\":1,\"coverage\":{\"exact\":1},\"completeness\":{\"verdict\":"
+        },
+        {
+          "matched_previews": 1
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "getContentLength",
+            "repo": "ky",
+            "include_evidence": true
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "getBodySize",
+            "repo": "ky",
+            "include_evidence": true
+          }
+        }
+      ],
+      "answer": "`getContentLength` has two callers, both in `source/utils/body.ts`. The download path is `streamResponse`; the upload path is `streamRequest`.\n\n**Definition** (`source/utils/body.ts:22`): `Math.max(0, Number(headers.get('content-length')) || 0)`. A missing or non-numeric header yields `0`.\n\n**Download progress: `streamResponse`** (`source/utils/body.ts:210`)\n- Returns the response unchanged, with no progress, when `wrappableBody(response)` yields no body.\n- `totalBytes = isContentCoded ? 0 : getContentLength(response.headers)`.\n- `isContentCoded` is true when `content-encoding` is present and not `identity` (case-insensitive). `identity` is treated as a valid length (RFC 9110 §8.4.2).\n- So the header is used only for identity or absent encoding. For a compressed response the total is `0` (unknown), because `content-length` counts wire bytes while progress counts decompressed bytes.\n\n**Upload progress: `streamRequest`** (`source/utils/body.ts:231`)\n- Returns the request unchanged when there is no body, the body is used or locked, `keepalive` is set, `mode` is `no-cors`, or the object is not a real `Request`.\n- `totalBytes = getBodySize(originalBody ?? request.body) || getContentLength(request.headers)`.\n- The header is a fallback used only when `getBodySize` returns falsy. A `ReadableStream` measures `0`, so the caller-declared `content-length` supplies the total. Browsers drop that header from requests, so this mainly helps non-browser runtimes.\n- Zero computed size: if `getBodySize` returns `0` and the header is absent or invalid, `getContentLength` also returns `0`, so the total is unknown. The header is never preferred over a nonzero computed size.\n\nSources: `find_references` on `getContentLength` and `getBodySize` in repository `ky`, both reporting `COMPLETE` coverage.",
+      "corpus": "ky",
+      "question_set": "typed",
+      "block": 3,
+      "other_tools": [],
+      "rpc_calls": 2,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        [
+          "bench_find_references"
+        ],
+        []
+      ],
+      "call_output": 287,
+      "final_output": 676,
+      "post_s": 3.4504181239999996,
+      "ttft_s": 2.4455818760000003,
+      "call_text_chars": 223,
+      "session_id": "01a21392-432f-73d2-a305-1930ddd92706",
+      "level_changes": [
+        "off"
+      ],
+      "efforts": [
+        "None"
+      ],
+      "thinking_blocks": 0,
+      "lexical_missing": [],
+      "correct": true,
+      "first_source": false,
+      "one_call": false,
+      "inverse_edge_seen": false,
+      "wrappers_in_same_turn": false,
+      "matched_previews_seen": 3
+    },
+    {
+      "arm": "new",
+      "model": "claude-haiku-5-5",
+      "turns": 2,
+      "tokens": 91913,
+      "usage": {
+        "input": 6,
+        "cacheRead": 84429,
+        "cacheWrite": 6475,
+        "output": 1003
+      },
+      "usd": 0.0026413900000000004,
+      "wall_s": 5.505,
+      "rpc": [
+        {
+          "initialize": 26784
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "getContentLength",
+            "repo": "ky",
+            "include_evidence": true
+          },
+          "pid": 26793
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":85,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":"
+        },
+        {
+          "matched_previews": 2
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "getContentLength",
+            "repo": "ky",
+            "include_evidence": true
+          }
+        }
+      ],
+      "answer": "Findings for `getContentLength` (defined at `source/utils/body.ts:22`: `Math.max(0, Number(headers.get('content-length')) || 0)`). It has two callers, both in `source/utils/body.ts`, and the search is complete (2/2 exact).\n\n**Download progress: `streamResponse` (`source/utils/body.ts:200-214`)**\n- Caller at line 210: `const totalBytes = isContentCoded ? 0 : getContentLength(response.headers);`\n- The header is used only when the response is **not content-coded**. `isContentCoded` is `Boolean(contentEncoding) && contentEncoding !== 'identity'` (lines 208-209), where `contentEncoding` is the lowercased `content-encoding` header.\n- Identity responses (no `content-encoding`, or `content-encoding: identity`) use `content-length` as the total. Per the source comment, `identity` is a no-op coding (RFC 9110 §8.4.2), so the length is valid.\n- Compressed responses (any other coding, e.g. `gzip`, `br`) force `totalBytes = 0`, meaning unknown. The header counts encoded wire bytes, while progress counts decoded bytes, so using it would show a total below the real amount and every event would sit near 100%.\n- A response with no wrappable body returns early (line 204-206) and never reaches this line, so no progress is reported.\n\n**Upload progress: `streamRequest` (`source/utils/body.ts:217-242`)**\n- Caller at line 231: `const totalBytes = getBodySize(originalBody ?? request.body) || getContentLength(request.headers);`\n- The header is a **fallback**, used only when `getBodySize` returns a falsy value (0). It is not gated on content coding.\n- `getBodySize` is applied to `originalBody` when present, since `request.body` is already a stream that measures 0 (comment, lines 229-230).\n- Zero computed upload size: if the body measures 0 and the request carries a `content-length` header, that header value becomes the total. Browsers drop `content-length` from request headers, so the fallback only takes effect outside browsers (same comment).\n- If both are 0, `totalBytes` is 0, which the progress model treats as unknown.\n- Early-return guards (lines 218-227) skip progress entirely for a missing, used, locked, keepalive, `no-cors`, or non-`Request` body.\n\n**Summary:** download uses the header only for identity/uncoded responses and forces unknown for compressed ones. Upload uses the header only as a fallback when the body size computes to 0, and that fallback is non-browser only.",
+      "corpus": "ky",
+      "question_set": "typed",
+      "block": 3,
+      "other_tools": [],
+      "rpc_calls": 1,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        []
+      ],
+      "call_output": 132,
+      "final_output": 871,
+      "post_s": 3.8807758750000003,
+      "ttft_s": 1.587224125,
+      "call_text_chars": 85,
+      "session_id": "01a21392-5c11-72c6-9703-4455f9d0d5df",
+      "level_changes": [
+        "off"
+      ],
+      "efforts": [
+        "None"
+      ],
+      "thinking_blocks": 0,
+      "lexical_missing": [],
+      "correct": true,
+      "first_source": false,
+      "one_call": true,
+      "inverse_edge_seen": false,
+      "wrappers_in_same_turn": false,
+      "matched_previews_seen": 2
+    },
+    {
+      "arm": "new",
+      "model": "claude-haiku-5-5",
+      "turns": 2,
+      "tokens": 92022,
+      "usage": {
+        "input": 6,
+        "cacheRead": 84429,
+        "cacheWrite": 6522,
+        "output": 1065
+      },
+      "usd": 0.00268179,
+      "wall_s": 5.487,
+      "rpc": [
+        {
+          "initialize": 26976
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "getContentLength",
+            "repository": "ky",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          },
+          "pid": 26984
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":85,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":"
+        },
+        {
+          "matched_previews": 2
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "getContentLength",
+            "repository": "ky",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          }
+        }
+      ],
+      "answer": "The index reports two callers, both in `source/utils/body.ts`, with the definition at line 22. The results are complete.\n\n**Callers**\n\n1. **Download progress: `streamResponse`** (`source/utils/body.ts`, lines 200–214). `getContentLength(response.headers)` is called at line 210 under the condition `isContentCoded ? 0 : …`.\n2. **Upload progress: `streamRequest`** (`source/utils/body.ts`, lines 217–242). `getBodySize(originalBody ?? request.body) || getContentLength(request.headers)` is called at line 231.\n\n**Definition** (line 22): `const getContentLength = (headers: Headers): number => Math.max(0, Number(headers.get('content-length')) || 0);`. It returns 0 when the header is missing, non-numeric, or negative.\n\n**Download path: when the header is used**\n\n- Line 208–209 computes `isContentCoded = Boolean(contentEncoding) && contentEncoding !== 'identity'`.\n- The header is used only when `isContentCoded` is false: no `content-encoding` header, or a value of `identity` (case-insensitive, since it is lowercased first).\n- For a content-coded response (for example `gzip`), `totalBytes` is forced to `0`, so the total is unknown. The source comment (lines 203–205) gives the reason: `content-length` counts encoded wire bytes, while the progress stream counts decompressed bytes, so using it would show ~100% throughout.\n- A response with no wrappable body returns early at lines 201–204 and never reaches this logic.\n\n**Upload path: when the header is used**\n\n- The header is a fallback. `getBodySize(originalBody ?? request.body)` is tried first, and `getContentLength(request.headers)` is used only when that returns a falsy value (0).\n- The comment at lines 228–230 says a `ReadableStream` measures 0, so the fallback exists for that case. It also says browsers drop `content-length` from requests, so the fallback is effective mainly outside browsers.\n- `streamRequest` returns the request unchanged (no progress wrapping) when there is no body, the body is used or locked, `keepalive` is set, `mode` is `no-cors`, or the object is not a real `Request` (lines 218–227).\n- **Zero computed upload size:** if `getBodySize` returns 0 and the request has no usable `content-length`, `totalBytes` is `0`, which `Progress` treats as an unknown total. The body is still wrapped with `withProgress`, so events fire with no percentage.\n\n**Scope note:** the bench index found only these two direct callers. Calls made through other names, or from outside this index, are not covered.",
+      "corpus": "ky",
+      "question_set": "typed",
+      "block": 4,
+      "other_tools": [],
+      "rpc_calls": 1,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        []
+      ],
+      "call_output": 179,
+      "final_output": 886,
+      "post_s": 4.008619999,
+      "ttft_s": 1.4383800009999996,
+      "call_text_chars": 74,
+      "session_id": "01a21392-7359-705e-a2b4-607c36788791",
+      "level_changes": [
+        "off"
+      ],
+      "efforts": [
+        "None"
+      ],
+      "thinking_blocks": 0,
+      "lexical_missing": [],
+      "correct": true,
+      "first_source": false,
+      "one_call": true,
+      "inverse_edge_seen": false,
+      "wrappers_in_same_turn": false,
+      "matched_previews_seen": 2
+    },
+    {
+      "arm": "old",
+      "model": "claude-haiku-5-5",
+      "turns": 2,
+      "tokens": 91659,
+      "usage": {
+        "input": 6,
+        "cacheRead": 84429,
+        "cacheWrite": 6290,
+        "output": 934
+      },
+      "usd": 0.00256989,
+      "wall_s": 5.133,
+      "rpc": [
+        {
+          "initialize": 27133
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "getContentLength",
+            "repository": "ky",
+            "direction": "incoming",
+            "include_evidence": true
+          },
+          "pid": 27142
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":85,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":"
+        },
+        {
+          "matched_previews": 2
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "getContentLength",
+            "repository": "ky",
+            "direction": "incoming",
+            "include_evidence": true
+          }
+        }
+      ],
+      "answer": "Two callers, both in `source/utils/body.ts`; the result is complete (`COMPLETE`, 2 exact edges).\n\n**Definition** — `source/utils/body.ts:22`\n```ts\nconst getContentLength = (headers: Headers): number => Math.max(0, Number(headers.get('content-length')) || 0);\n```\n\n**Download progress — `streamResponse`** (`source/utils/body.ts:200-214`, call at line 210)\n\n```ts\nconst contentEncoding = response.headers.get('content-encoding')?.toLowerCase();\nconst isContentCoded = Boolean(contentEncoding) && contentEncoding !== 'identity';\nconst totalBytes = isContentCoded ? 0 : getContentLength(response.headers);\n```\n\n- The header is used only when there is no `content-encoding`, or the value is `identity` (case-insensitive). Identity is treated as a no-op coding (RFC 9110 §8.4.2), so the length stays valid.\n- For any other coding (gzip, br, etc.), `content-length` counts wire bytes while progress counts decompressed bytes, so the total is set to `0` (unknown).\n- Responses with no wrappable body return early (line 204) and report no progress at all.\n\n**Upload progress — `streamRequest`** (`source/utils/body.ts:217-242`, call at line 231)\n\n```ts\nconst totalBytes = getBodySize(originalBody ?? request.body) || getContentLength(request.headers);\n```\n\n- The size is taken from the original body via `getBodySize`. If that yields `0` (falsy), it falls back to the request's `content-length` header.\n- A `ReadableStream` body measures `0`, so the declared `content-length` is the fallback. The comment notes browsers drop this header from a request, so the fallback mainly helps outside browsers.\n- No content-encoding check applies on this path; the header is used whenever the computed size is zero.\n- Hook-supplied Request-like objects, consumed or locked bodies, `keepalive`, and `no-cors` requests skip progress entirely (lines 218-226).\n\n**Zero computed upload size:** the fallback is `getContentLength(request.headers)`, which returns `0` when the header is absent or non-numeric (`Math.max(0, … || 0)`). In that case `totalBytes` is `0`, meaning the total is unknown.",
+      "corpus": "ky",
+      "question_set": "typed",
+      "block": 4,
+      "other_tools": [],
+      "rpc_calls": 1,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        []
+      ],
+      "call_output": 155,
+      "final_output": 779,
+      "post_s": 3.3711399999999996,
+      "ttft_s": 1.72286,
+      "call_text_chars": 71,
+      "session_id": "01a21392-8a86-7017-a991-c175b6cfe0c2",
+      "level_changes": [
+        "off"
+      ],
+      "efforts": [
+        "None"
+      ],
+      "thinking_blocks": 0,
+      "lexical_missing": [],
+      "correct": true,
+      "first_source": false,
+      "one_call": true,
+      "inverse_edge_seen": false,
+      "wrappers_in_same_turn": false,
+      "matched_previews_seen": 2
+    },
+    {
+      "arm": "old",
+      "model": "claude-haiku-5-5",
+      "turns": 2,
+      "tokens": 91987,
+      "usage": {
+        "input": 6,
+        "cacheRead": 84429,
+        "cacheWrite": 6292,
+        "output": 1260
+      },
+      "usd": 0.00273329,
+      "wall_s": 6.563,
+      "rpc": [
+        {
+          "initialize": 27276
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "getContentLength",
+            "repository": "ky",
+            "direction": "incoming",
+            "include_evidence": true
+          },
+          "pid": 27283
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":85,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":"
+        },
+        {
+          "matched_previews": 2
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "getContentLength",
+            "repository": "ky",
+            "direction": "incoming",
+            "include_evidence": true
+          }
+        }
+      ],
+      "answer": "The references are complete (2 exact callers, `EXACT_TYPECHECKED`). Both callers are in `source/utils/body.ts`. Here is the analysis.\n\n## Callers of `getContentLength`\n\nDefinition: `source/utils/body.ts:22` — `Math.max(0, Number(headers.get('content-length')) || 0)`. It returns `0` when the header is absent or non-numeric.\n\nThere are exactly two callers, both in `source/utils/body.ts`:\n\n### 1. Download progress: `streamResponse` (`source/utils/body.ts:200–214`)\n\n```ts\nconst contentEncoding = response.headers.get('content-encoding')?.toLowerCase();\nconst isContentCoded = Boolean(contentEncoding) && contentEncoding !== 'identity';\nconst totalBytes = isContentCoded ? 0 : getContentLength(response.headers);\n```\n\nCondition for using the header:\n- **Identity (or no `content-encoding`)**: `isContentCoded` is false, so `content-length` is used as the total. `identity` is treated as a no-op coding (RFC 9110 §8.4.2) that leaves the length valid.\n- **Compressed (any other `content-encoding`)**: `isContentCoded` is true, so the total is `0` (\"unknown\"). The comment explains that `content-length` counts wire bytes, while the progress stream counts decompressed bytes, so using it would make every event sit near 100%.\n- Early return at line 203–205: if `wrappableBody(response)` is absent (e.g. null-body status or `HEAD`), no progress is reported at all and the header is never consulted.\n\n### 2. Upload progress: `streamRequest` (`source/utils/body.ts:217–242`)\n\n```ts\nconst totalBytes = getBodySize(originalBody ?? request.body) || getContentLength(request.headers);\n```\n\nCondition for using the header:\n- The header is used only when `getBodySize(...)` returns a falsy value (`0`). The comment says a `ReadableStream` measures `0`, so the caller-declared `content-length` is the fallback. Browsers strip this header from requests, so it effectively applies outside browsers.\n- **Zero computed upload size**: if `getBodySize` yields `0` and the request has no usable `content-length` header, `getContentLength` returns `0`, so `totalBytes` is `0` (unknown total). Progress is still wrapped via `withProgress`, just with an unknown total.\n- Early return at lines 219–227 skips progress entirely for a hook-supplied non-`Request` object, a body already used or locked, `keepalive`, or `mode: 'no-cors'`; there the header is never read.\n\n## Summary\n| Path | Function | Header used when | Otherwise |\n|---|---|---|---|\n| Download | `streamResponse` (210) | no `content-encoding`, or `identity` | total = `0` (compressed) |\n| Upload | `streamRequest` (231) | `getBodySize` is `0`/falsy | `getBodySize` value used; `0` if both are unknown |\n\nEvidence: callers from `find_references` (snapshot 85, COMPLETE, 2/2 exact); bodies from the returned `evidence` code. I did not open other bodies (e.g. `getBodySize`, `withProgress`), as the question did not require them.",
+      "corpus": "ky",
+      "question_set": "typed",
+      "block": 5,
+      "other_tools": [],
+      "rpc_calls": 1,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        []
+      ],
+      "call_output": 157,
+      "final_output": 1103,
+      "post_s": 4.726228792000001,
+      "ttft_s": 1.791771208,
+      "call_text_chars": 77,
+      "session_id": "01a21392-a05c-73b4-9d2c-4ccf26052f83",
+      "level_changes": [
+        "off"
+      ],
+      "efforts": [
+        "None"
+      ],
+      "thinking_blocks": 0,
+      "lexical_missing": [],
+      "correct": true,
+      "first_source": false,
+      "one_call": true,
+      "inverse_edge_seen": false,
+      "wrappers_in_same_turn": false,
+      "matched_previews_seen": 2
+    },
+    {
+      "arm": "new",
+      "model": "claude-haiku-5-5",
+      "turns": 2,
+      "tokens": 91923,
+      "usage": {
+        "input": 6,
+        "cacheRead": 84429,
+        "cacheWrite": 6492,
+        "output": 996
+      },
+      "usd": 0.00264129,
+      "wall_s": 5.315,
+      "rpc": [
+        {
+          "initialize": 27504
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "getContentLength",
+            "repo": "ky",
+            "direction": "incoming",
+            "include_evidence": true
+          },
+          "pid": 27515
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":85,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":"
+        },
+        {
+          "matched_previews": 2
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "getContentLength",
+            "repo": "ky",
+            "direction": "incoming",
+            "include_evidence": true
+          }
+        }
+      ],
+      "answer": "Two callers, both in `source/utils/body.ts`. The lookup is complete (`COMPLETE`, 2 exact edges).\n\n**Download (`streamResponse`, source/utils/body.ts:200-214)**\n\n- Line 208-209: `isContentCoded = Boolean(contentEncoding) && contentEncoding !== 'identity'`.\n- Line 210: `totalBytes = isContentCoded ? 0 : getContentLength(response.headers)`.\n- The `content-length` header is used only when there is no `content-encoding` header, or when the value is `identity` (case-folded). For any other coding the total is `0`, which means unknown. The comment at lines 205-207 explains why: `content-length` counts wire bytes, while the progress stream counts decompressed bytes.\n- Early return at lines 202-204: a response with no wrappable body is not streamed and reports no progress, so the header is never read.\n\n**Upload (`streamRequest`, source/utils/body.ts:217-242)**\n\n- Line 231: `totalBytes = getBodySize(originalBody ?? request.body) || getContentLength(request.headers)`.\n- The header is a fallback. It is consulted only when `getBodySize` returns a falsy value (0). The comment at lines 228-230 says a `ReadableStream` measures 0, so the caller-declared `content-length` is used instead. Browsers drop that header from a request, so the fallback mainly helps outside browsers.\n- Early return at lines 219-227: no body, body already used or locked, `keepalive`, `no-cors` mode, or a non-`Request` object skips progress entirely.\n\n**Zero computed upload size**\n\nIf `getBodySize` returns 0 and the request has no `content-length` header, `getContentLength` returns `Math.max(0, Number(null) || 0)` = `0`. The `||` chain then yields `0`, so `withProgress` receives `0` as the total. The definition at line 22 is `Math.max(0, Number(headers.get('content-length')) || 0)`, so a missing or non-numeric header becomes `0`, and a negative value is clamped to `0`. A total of `0` is the same \"unknown\" sentinel the download path uses.\n\nCitations: definition `source/utils/body.ts:22`; download caller `source/utils/body.ts:210`; upload caller `source/utils/body.ts:231`. The conditions above are from the code excerpts returned by `find_references`; I did not open the full `withProgress` or `getBodySize` bodies, so their exact behavior beyond the comments is not verified here.",
+      "corpus": "ky",
+      "question_set": "typed",
+      "block": 5,
+      "other_tools": [],
+      "rpc_calls": 1,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        []
+      ],
+      "call_output": 149,
+      "final_output": 847,
+      "post_s": 3.661719334,
+      "ttft_s": 1.6002806660000002,
+      "call_text_chars": 50,
+      "session_id": "01a21392-bb9e-73c3-8b3a-384fa4f0a025",
+      "level_changes": [
+        "off"
+      ],
+      "efforts": [
+        "None"
+      ],
+      "thinking_blocks": 0,
+      "lexical_missing": [],
+      "correct": true,
+      "first_source": false,
+      "one_call": true,
+      "inverse_edge_seen": false,
+      "wrappers_in_same_turn": false,
+      "matched_previews_seen": 2
+    },
+    {
+      "arm": "new",
+      "model": "claude-haiku-5-5",
+      "turns": 2,
+      "tokens": 91839,
+      "usage": {
+        "input": 6,
+        "cacheRead": 84429,
+        "cacheWrite": 6497,
+        "output": 907
+      },
+      "usd": 0.00259779,
+      "wall_s": 5.309,
+      "rpc": [
+        {
+          "initialize": 28232
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "getContentLength",
+            "repository": "ky",
+            "direction": "incoming",
+            "include_evidence": true
+          },
+          "pid": 28242
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":85,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":"
+        },
+        {
+          "matched_previews": 2
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "getContentLength",
+            "repository": "ky",
+            "direction": "incoming",
+            "include_evidence": true
+          }
+        }
+      ],
+      "answer": "The references are complete (2 exact callers, `COMPLETE` verdict). Both sit in `source/utils/body.ts`.\n\n**Callers of `getContentLength`** (defined at `source/utils/body.ts:22`: `Math.max(0, Number(headers.get('content-length')) || 0)`):\n\n1. **Download progress: `streamResponse`** (`source/utils/body.ts:210`)\n   - Computes `isContentCoded` from `content-encoding` (lowercased, lines 208–209). Non-empty and not `identity` means coded.\n   - Uses the header only when the response is **not** content-coded: `totalBytes = isContentCoded ? 0 : getContentLength(response.headers)`.\n   - Identity or absent encoding: the `content-length` header is trusted as the total. Any other coding: total is `0` (unknown), because the header counts encoded wire bytes while progress counts decompressed bytes.\n   - Early return at line 203–205 means no progress is reported at all when the response has no wrappable body (null-body status, or `HEAD` in runtimes without a body).\n\n2. **Upload progress: `streamRequest`** (`source/utils/body.ts:231`)\n   - `totalBytes = getBodySize(originalBody ?? request.body) || getContentLength(request.headers)`.\n   - The header is a **fallback**, used only when `getBodySize` returns a falsy value (0). `getBodySize` is measured on `originalBody` when present, since a `ReadableStream` body measures 0.\n   - No encoding check on the request path. The header is consulted only when the computed size is 0; a non-zero computed size wins.\n   - Note the comment at line 230: browsers strip `content-length` from requests, so the fallback only takes effect outside browsers.\n   - Bypass conditions (lines 218–226) return the request unchanged before any size is computed: no body, body used or locked, `keepalive`, `no-cors` mode, or a non-`Request` object.\n\n**Zero computed upload size:** the header is read and the result is `getContentLength(request.headers)`. If that is also 0 (header absent, empty, or non-numeric, since `Number(...) || 0` clamps to 0), `totalBytes` is 0, which `Progress` models as unknown total.",
+      "corpus": "ky",
+      "question_set": "typed",
+      "block": 6,
+      "other_tools": [],
+      "rpc_calls": 1,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        []
+      ],
+      "call_output": 154,
+      "final_output": 753,
+      "post_s": 3.5083394589999997,
+      "ttft_s": 1.7656605410000004,
+      "call_text_chars": 74,
+      "session_id": "01a21392-d22d-7496-bfcd-51b04c701a26",
+      "level_changes": [
+        "off"
+      ],
+      "efforts": [
+        "None"
+      ],
+      "thinking_blocks": 0,
+      "lexical_missing": [],
+      "correct": true,
+      "first_source": false,
+      "one_call": true,
+      "inverse_edge_seen": false,
+      "wrappers_in_same_turn": false,
+      "matched_previews_seen": 2
+    },
+    {
+      "arm": "old",
+      "model": "claude-haiku-5-5",
+      "turns": 2,
+      "tokens": 91682,
+      "usage": {
+        "input": 6,
+        "cacheRead": 84429,
+        "cacheWrite": 6290,
+        "output": 957
+      },
+      "usd": 0.0025813900000000002,
+      "wall_s": 5.295,
+      "rpc": [
+        {
+          "initialize": 29321
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "getContentLength",
+            "repository": "ky",
+            "direction": "incoming",
+            "include_evidence": true
+          },
+          "pid": 29331
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":85,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":"
+        },
+        {
+          "matched_previews": 2
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "getContentLength",
+            "repository": "ky",
+            "direction": "incoming",
+            "include_evidence": true
+          }
+        }
+      ],
+      "answer": "Both callers are visible in the evidence, so the question is settled without opening further bodies.\n\n**Callers of `getContentLength`** (defined at `source/utils/body.ts:22`: `Math.max(0, Number(headers.get('content-length')) || 0)`). Coverage is COMPLETE with 2 exact `CALLS_DIRECT` edges:\n\n1. **Download path: `streamResponse`**, `source/utils/body.ts:210`.\n   - Condition: `isContentCoded = Boolean(contentEncoding) && contentEncoding !== 'identity'`, where `contentEncoding` is the lowercased `content-encoding` header.\n   - `totalBytes = isContentCoded ? 0 : getContentLength(response.headers)`.\n   - So the header is used only when the response has no `content-encoding`, or its value is `identity`. For any other coding, the total is `0`, meaning unknown, because `content-length` counts wire bytes while progress counts decompressed bytes.\n   - Earlier exit (line 203-205): if `wrappableBody(response)` is null, the response is returned unwrapped, with no progress and no header read.\n\n2. **Upload path: `streamRequest`**, `source/utils/body.ts:231`.\n   - Condition: `totalBytes = getBodySize(originalBody ?? request.body) || getContentLength(request.headers)`.\n   - The header is used only when `getBodySize` returns a falsy value (`0`). `getBodySize` of a `ReadableStream` is 0, so the caller-declared `content-length` is the fallback. The comment (line 228) notes browsers strip this header from requests, so it only applies outside browsers.\n   - Early return (lines 219-227): a request with no body, a used or locked body, `keepalive`, `mode: 'no-cors'`, or a non-`Request` object is returned unwrapped, so no progress and no header read.\n\n**Zero computed upload size:** `getContentLength` returns `0` when the header is absent, non-numeric, or negative (via `Math.max(0, …)` and `|| 0`). Since `||` falls through on `0`, a zero computed size from `getBodySize` yields the header value, and if that is also `0`, `totalBytes` is `0`. Zero means \"total unknown\" in `withProgress`, not an empty body.\n\nVerification: the bench evidence contains the full code of both callers and the definition; I did not run a test.",
+      "corpus": "ky",
+      "question_set": "typed",
+      "block": 6,
+      "other_tools": [],
+      "rpc_calls": 1,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        []
+      ],
+      "call_output": 155,
+      "final_output": 802,
+      "post_s": 3.687845875,
+      "ttft_s": 1.575154125,
+      "call_text_chars": 84,
+      "session_id": "01a21392-e892-71fc-899d-95f7f5fb4414",
+      "level_changes": [
+        "off"
+      ],
+      "efforts": [
+        "None"
+      ],
+      "thinking_blocks": 0,
+      "lexical_missing": [],
+      "correct": true,
+      "first_source": false,
+      "one_call": true,
+      "inverse_edge_seen": false,
+      "wrappers_in_same_turn": false,
+      "matched_previews_seen": 2
+    },
+    {
+      "arm": "old",
+      "model": "claude-haiku-5-5",
+      "turns": 2,
+      "tokens": 91752,
+      "usage": {
+        "input": 6,
+        "cacheRead": 84429,
+        "cacheWrite": 6288,
+        "output": 1029
+      },
+      "usd": 0.00261699,
+      "wall_s": 5.398,
+      "rpc": [
+        {
+          "initialize": 30376
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "getContentLength",
+            "repo": "ky",
+            "direction": "incoming",
+            "include_evidence": true
+          },
+          "pid": 30390
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":85,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":"
+        },
+        {
+          "matched_previews": 2
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "getContentLength",
+            "repo": "ky",
+            "direction": "incoming",
+            "include_evidence": true
+          }
+        }
+      ],
+      "answer": "Two callers, both in `source/utils/body.ts`. The result is complete (`COMPLETE`, 2 exact `CALLS_DIRECT` edges). Definition is line 22.\n\n**Definition** — `source/utils/body.ts:22`\n```ts\nconst getContentLength = (headers: Headers): number => Math.max(0, Number(headers.get('content-length')) || 0);\n```\nIt returns 0 when the header is absent or non-numeric.\n\n## Download progress: `streamResponse` — `source/utils/body.ts:200-214`\n\nHeader is used only when the response is **not content-coded**:\n\n- Line 204–205: `contentEncoding = response.headers.get('content-encoding')?.toLowerCase()`; `isContentCoded = Boolean(contentEncoding) && contentEncoding !== 'identity'`.\n- Line 206: `totalBytes = isContentCoded ? 0 : getContentLength(response.headers)`.\n\nSo:\n- **Identity or no `content-encoding`**: total = `content-length` (or 0 if the header is missing).\n- **Any other coding (gzip, br, …)**: total = 0, i.e. unknown, because `content-length` counts wire bytes while progress counts decompressed bytes. The comment at lines 202–203 states this explicitly.\n- Responses with no wrappable body return early (lines 201–203) and report no progress at all.\n\n## Upload progress: `streamRequest` — `source/utils/body.ts:217-242`\n\nHere the header is a **fallback**, not gated on encoding:\n\n- Line 237: `totalBytes = getBodySize(originalBody ?? request.body) || getContentLength(request.headers)`.\n- `getBodySize` is tried first. If it returns 0 (the comment at lines 235–236 notes a `ReadableStream` measures 0), the code falls back to the request's `content-length` header.\n- Line 229 early-returns unwrapped (no progress) for: missing body, already-used or locked body, `keepalive`, `no-cors` mode, or a non-`Request` object.\n\n**Zero computed upload size**: if `getBodySize` yields 0 *and* the header is absent/invalid, `getContentLength` returns 0 and `totalBytes` is 0. The request is still wrapped with `withProgress(..., 0, ...)`, so progress events are emitted with an unknown total rather than skipping the stream. The comment at lines 235–236 notes browsers drop `content-length` from requests, so the fallback only helps outside browsers.\n\nNote: unlike the download path, the upload path does not check `content-encoding`. It assumes the request body is sent as-is.",
+      "corpus": "ky",
+      "question_set": "typed",
+      "block": 7,
+      "other_tools": [],
+      "rpc_calls": 1,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        []
+      ],
+      "call_output": 153,
+      "final_output": 876,
+      "post_s": 3.9103045830000003,
+      "ttft_s": 1.4456954169999996,
+      "call_text_chars": 70,
+      "session_id": "01a21392-fee4-70ff-bdbe-c81a75cbe683",
+      "level_changes": [
+        "off"
+      ],
+      "efforts": [
+        "None"
+      ],
+      "thinking_blocks": 0,
+      "lexical_missing": [],
+      "correct": true,
+      "first_source": false,
+      "one_call": true,
+      "inverse_edge_seen": false,
+      "wrappers_in_same_turn": false,
+      "matched_previews_seen": 2
+    },
+    {
+      "arm": "new",
+      "model": "claude-haiku-5-5",
+      "turns": 2,
+      "tokens": 91741,
+      "usage": {
+        "input": 6,
+        "cacheRead": 84429,
+        "cacheWrite": 6498,
+        "output": 808
+      },
+      "usd": 0.00254849,
+      "wall_s": 4.797,
+      "rpc": [
+        {
+          "initialize": 30513
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "getContentLength",
+            "repository": "ky",
+            "direction": "incoming",
+            "include_evidence": true
+          },
+          "pid": 30523
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":85,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":"
+        },
+        {
+          "matched_previews": 2
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "getContentLength",
+            "repository": "ky",
+            "direction": "incoming",
+            "include_evidence": true
+          }
+        }
+      ],
+      "answer": "**Callers of `getContentLength`** (`source/utils/body.ts:22`, complete, 2 call sites, both `EXACT_TYPECHECKED`):\n\n**1. Download: `streamResponse`, `source/utils/body.ts:200-214`**\n- Line 208–209 computes `isContentCoded` from `content-encoding`. It is true when the header is present and not `identity` (case-folded).\n- Line 210: `totalBytes = isContentCoded ? 0 : getContentLength(response.headers)`.\n- Header is used only for **identity (or absent) encoding**. Compressed responses get `0` (unknown total), because `content-length` counts wire bytes while progress counts decompressed bytes.\n- Early return at lines 203–205: a response with no wrappable body is not streamed, so no progress and no header read.\n\n**2. Upload: `streamRequest`, `source/utils/body.ts:217-242`**\n- Line 231: `totalBytes = getBodySize(originalBody ?? request.body) || getContentLength(request.headers)`.\n- Header is used only when the computed body size is falsy, i.e. **zero**. `getBodySize` returns 0 for a `ReadableStream` body, so the caller-declared `content-length` is the fallback.\n- Lines 220–228 skip progress entirely (return the request unchanged) when there is no body, body is used/locked, `keepalive` is set, `mode` is `no-cors`, or the request is not a real `Request` instance.\n- The source comment (line 230) notes browsers drop `content-length` from requests, so this fallback mainly helps non-browser runtimes.\n\n**Zero computed upload size:** the header is consulted, and `getContentLength` clamps the result to `>= 0` (line 22, `Math.max(0, Number(...) || 0)`), so a missing or malformed header yields `0` as well.\n\nNo compressed-request branch exists on the upload path; the content-encoding check applies only to downloads.",
+      "corpus": "ky",
+      "question_set": "typed",
+      "block": 7,
+      "other_tools": [],
+      "rpc_calls": 1,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        []
+      ],
+      "call_output": 155,
+      "final_output": 653,
+      "post_s": 3.246145375,
+      "ttft_s": 1.5128546250000001,
+      "call_text_chars": 71,
+      "session_id": "01a21393-15be-7565-a814-f17b5edaf58e",
+      "level_changes": [
+        "off"
+      ],
+      "efforts": [
+        "None"
+      ],
+      "thinking_blocks": 0,
+      "lexical_missing": [],
+      "correct": true,
+      "first_source": false,
+      "one_call": true,
+      "inverse_edge_seen": false,
+      "wrappers_in_same_turn": false,
+      "matched_previews_seen": 2
+    },
+    {
+      "arm": "new",
+      "model": "claude-haiku-5-5",
+      "turns": 4,
+      "tokens": 188822,
+      "usage": {
+        "input": 10,
+        "cacheRead": 178485,
+        "cacheWrite": 8979,
+        "output": 1348
+      },
+      "usd": 0.004255650000000001,
+      "wall_s": 8.186,
+      "rpc": [
+        {
+          "initialize": 30692
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "getContentLength",
+            "direction": "incoming",
+            "repo": "ky",
+            "include_evidence": true
+          },
+          "pid": 30737
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":85,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":"
+        },
+        {
+          "matched_previews": 2
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "getBodySize",
+            "direction": "incoming",
+            "repo": "ky",
+            "include_evidence": true
+          },
+          "pid": 30737
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":85,\"total\":1,\"returned\":1,\"coverage\":{\"exact\":1},\"completeness\":{\"verdict\":"
+        },
+        {
+          "matched_previews": 1
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ky",
+                "qualified_name": "getBodySize",
+                "path": "source/utils/body.ts"
+              }
+            ],
+            "context_lines": 5
+          },
+          "pid": 30737
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 85  1 bodies  context 5\n@ ky source/utils/body.ts:29-76 variable getBodySize [sho"
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "getContentLength",
+            "direction": "incoming",
+            "repo": "ky",
+            "include_evidence": true
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "getBodySize",
+            "direction": "incoming",
+            "repo": "ky",
+            "include_evidence": true
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ky",
+                "qualified_name": "getBodySize",
+                "path": "source/utils/body.ts"
+              }
+            ],
+            "context_lines": 5
+          }
+        }
+      ],
+      "answer": "The two functions that call `getContentLength` are `streamResponse` (download) and `streamRequest` (upload), both in `source/utils/body.ts`.\n\n**Download: `streamResponse`, `source/utils/body.ts:200-214`**\n\n- Line 210: `const totalBytes = isContentCoded ? 0 : getContentLength(response.headers);`\n- The header is used only when the response is identity-coded: `content-encoding` is absent, empty, or `identity` (case-insensitive). Any other coding sets `totalBytes` to `0`, meaning unknown.\n- The comment at lines 207-208 gives the reason: `content-length` counts encoded bytes on the wire, but progress counts bytes after decompression. Using it for a coded response would report a total smaller than what arrives, so progress would sit near 100%.\n- Before that, line 203 returns the response unchanged when there is no wrappable body, so no progress is reported.\n\n**Upload: `streamRequest`, `source/utils/body.ts:217-242`**\n\n- Line 231: `const totalBytes = getBodySize(originalBody ?? request.body) || getContentLength(request.headers);`\n- The header is used only when `getBodySize` returns `0` (falsy). `getBodySize` (`source/utils/body.ts:29-76`) returns `0` for a missing body and for an unrecognised body type. For a `ReadableStream` it returns `0`, which is why the caller passes `originalBody` when it has one.\n- An empty `FormData` also returns `0` (line 66 of the function), and so does any other body whose size is zero. In those cases `content-length` is used as the total if the caller set it.\n- Lines 222-229 return the request unchanged (no progress) when there is no body, the body is used, locked, `keepalive` is set, `mode` is `no-cors`, or the object is not a real `Request`.\n- The comment at lines 229-230 notes that browsers drop `content-length` from a request, so this fallback only helps outside browsers.\n\n**Zero computed upload size:** `getBodySize` returning `0` leads to the header fallback. If the header is also missing or `0`, `getContentLength` returns `0` (`source/utils/body.ts:22`), so `totalBytes` is `0`, which `Progress` treats as unknown.\n\nEvidence came from `find_references` (incoming, with evidence) on `getContentLength` and `getBodySize`, and `get_source` for `getBodySize`. I did not open `withProgress` or the `Progress` type, so how `0` is handled downstream is not verified here.",
+      "corpus": "ky",
+      "question_set": "typed",
+      "block": 8,
+      "other_tools": [],
+      "rpc_calls": 3,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        [
+          "bench_find_references"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 499,
+      "final_output": 849,
+      "post_s": 4.963994582999999,
+      "ttft_s": 3.1690054170000006,
+      "call_text_chars": 335,
+      "session_id": "01a21393-2a47-7460-bd14-e3b5a50dcc21",
+      "level_changes": [
+        "off"
+      ],
+      "efforts": [
+        "None"
+      ],
+      "thinking_blocks": 0,
+      "lexical_missing": [],
+      "correct": true,
+      "first_source": false,
+      "one_call": false,
+      "inverse_edge_seen": false,
+      "wrappers_in_same_turn": false,
+      "matched_previews_seen": 3
+    },
+    {
+      "arm": "old",
+      "model": "claude-haiku-5-5",
+      "turns": 2,
+      "tokens": 91683,
+      "usage": {
+        "input": 6,
+        "cacheRead": 84429,
+        "cacheWrite": 6292,
+        "output": 956
+      },
+      "usd": 0.00258129,
+      "wall_s": 5.386,
+      "rpc": [
+        {
+          "initialize": 30889
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "getContentLength",
+            "repository": "ky",
+            "direction": "incoming",
+            "include_evidence": true
+          },
+          "pid": 30898
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":85,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":"
+        },
+        {
+          "matched_previews": 2
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "getContentLength",
+            "repository": "ky",
+            "direction": "incoming",
+            "include_evidence": true
+          }
+        }
+      ],
+      "answer": "The graph returned two complete callers. Both are in `source/utils/body.ts`, and the evidence code answers the conditions directly, so no further reads are needed.\n\n**Callers of `getContentLength`** (definition: `source/utils/body.ts:22`, `const getContentLength = (headers) => Math.max(0, Number(headers.get('content-length')) || 0)`)\n\n**1. Download progress: `streamResponse`** (`source/utils/body.ts:200-214`)\n- Returns the response unchanged when there is no wrappable body (null-body status, or `HEAD` in runtimes that give it none), so no progress is reported.\n- `content-length` is used only when the response is **not content-coded**. Computed as `isContentCoded = Boolean(contentEncoding) && contentEncoding !== 'identity'`, then `totalBytes = isContentCoded ? 0 : getContentLength(response.headers)`.\n- Rationale in the source: `content-length` counts encoded wire bytes, while progress counts decompressed bytes, so a coded response would report a total too small and show ~100% throughout. `identity` is treated as a no-op coding (RFC 9110 §8.4.2), so its length stays valid.\n- Unknown total is `0`.\n\n**2. Upload progress: `streamRequest`** (`source/utils/body.ts:217-242`)\n- Passes the request through unchanged (no progress) when the body is absent, already used or locked, `keepalive` is set, `mode` is `no-cors`, or the object is not a real `Request`.\n- Size is `totalBytes = getBodySize(originalBody ?? request.body) || getContentLength(request.headers)`. The header is used only when `getBodySize` returns a falsy value, including `0`. This covers a `ReadableStream` body, which measures 0, so a caller-declared `content-length` is the fallback. The source notes browsers drop that header from requests, so the fallback only helps outside browsers.\n- **Zero computed upload size:** `getBodySize(...)` returns `0`, so the `||` falls through to `getContentLength(request.headers)`. If that header is absent or invalid, the header helper returns `0` (`Math.max(0, … || 0)`), and the total stays `0` (unknown).\n\nEdge (inferred from the code, not separately tested): a body whose computed size is genuinely `0` with a non-zero `content-length` header would take the header value.",
+      "corpus": "ky",
+      "question_set": "typed",
+      "block": 8,
+      "other_tools": [],
+      "rpc_calls": 1,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        []
+      ],
+      "call_output": 157,
+      "final_output": 799,
+      "post_s": 3.619063958,
+      "ttft_s": 1.7179360419999998,
+      "call_text_chars": 77,
+      "session_id": "01a21393-4c12-7575-a4bc-499f35f00cc4",
+      "level_changes": [
+        "off"
+      ],
+      "efforts": [
+        "None"
+      ],
+      "thinking_blocks": 0,
+      "lexical_missing": [],
+      "correct": true,
+      "first_source": false,
+      "one_call": true,
+      "inverse_edge_seen": false,
+      "wrappers_in_same_turn": false,
+      "matched_previews_seen": 2
+    },
+    {
+      "arm": "old",
+      "model": "claude-haiku-5-5",
+      "turns": 3,
+      "tokens": 140398,
+      "usage": {
+        "input": 8,
+        "cacheRead": 130644,
+        "cacheWrite": 8379,
+        "output": 1367
+      },
+      "usd": 0.0036665400000000003,
+      "wall_s": 7.661,
+      "rpc": [
+        {
+          "initialize": 31013
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "getContentLength",
+            "repo": "ky",
+            "direction": "incoming",
+            "include_evidence": true
+          },
+          "pid": 31021
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":85,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":"
+        },
+        {
+          "matched_previews": 2
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "getBodySize",
+            "repo": "ky",
+            "direction": "outgoing"
+          },
+          "pid": 31021
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ky",
+                "path": "source/utils/body.ts",
+                "qualified_name": "getBodySize"
+              }
+            ],
+            "context_lines": 5
+          },
+          "pid": 31021
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":85,\"total\":40,\"returned\":40,\"coverage\":{\"exact\":40},\"completeness\":{\"verdic"
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 85  1 bodies  context 5\n@ ky source/utils/body.ts:29-76 variable getBodySize [sho"
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "getContentLength",
+            "repo": "ky",
+            "direction": "incoming",
+            "include_evidence": true
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "getBodySize",
+            "repo": "ky",
+            "direction": "outgoing"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ky",
+                "path": "source/utils/body.ts",
+                "qualified_name": "getBodySize"
+              }
+            ],
+            "context_lines": 5
+          }
+        }
+      ],
+      "answer": "Answer, with the caller set confirmed as complete (2 incoming `CALLS_DIRECT` edges, exact, `COMPLETE` verdict).\n\n**Which progress functions use `getContentLength`**\n\n`getContentLength` (`source/utils/body.ts:22`) is `Math.max(0, Number(headers.get('content-length')) || 0)`. It has exactly two callers:\n\n1. **Download: `streamResponse`** (`source/utils/body.ts:210`).\n2. **Upload: `streamRequest`** (`source/utils/body.ts:231`).\n\n**Download path (`streamResponse`, lines 200-214)**\n\n- If `wrappableBody(response)` returns nothing, the response is returned unwrapped: no progress.\n- Otherwise `totalBytes = isContentCoded ? 0 : getContentLength(response.headers)`.\n- `isContentCoded` is true when `content-encoding` is present and, lowercased, is not `identity`.\n- So the header is used only for **identity** responses (no encoding, or `identity`, which RFC 9110 §8.4.2 treats as a no-op). For any other coding, the total is `0`, meaning unknown. The code comment gives the reason: `content-length` counts encoded wire bytes, while progress counts decoded bytes, so a header total would sit near 100% too early.\n\n**Upload path (`streamRequest`, lines 217-242)**\n\n- It returns the request unchanged, with no progress, if any of these hold: no body, body already used or locked, `keepalive`, `mode === 'no-cors'`, or the object is not a real `Request` instance.\n- Otherwise `totalBytes = getBodySize(originalBody ?? request.body) || getContentLength(request.headers)`.\n- `getContentLength` runs only when `getBodySize` returns `0`. That is the zero-computed-size case. `getBodySize` (`source/utils/body.ts:29-76`) returns `0` for a null body, an empty `FormData` (the code deliberately reports `0` there), or an unrecognised body type. A `ReadableStream` also measures `0`, because the code cannot size it.\n- The header is therefore a **fallback**. It is used only when the computed size is zero and the caller set `content-length`. The code comment notes browsers strip that header from a request, so the fallback only helps outside browsers.\n- Unlike download, the upload path has **no content-coding check**. The header is trusted regardless of `content-encoding`, because the upload stream is measured before any encoding applied by the runtime.\n\n**Summary:** download uses the header only for identity-coded responses (otherwise total = 0). Upload uses it only when the computed body size is 0, and it ignores content-encoding.",
+      "corpus": "ky",
+      "question_set": "typed",
+      "block": 9,
+      "other_tools": [],
+      "rpc_calls": 3,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        [
+          "bench_find_references",
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 466,
+      "final_output": 901,
+      "post_s": 5.283893542,
+      "ttft_s": 2.3361064579999997,
+      "call_text_chars": 323,
+      "session_id": "01a21393-62b7-7716-b36a-51611106bd7a",
+      "level_changes": [
+        "off"
+      ],
+      "efforts": [
+        "None"
+      ],
+      "thinking_blocks": 0,
+      "lexical_missing": [],
+      "correct": false,
+      "first_source": false,
+      "one_call": false,
+      "inverse_edge_seen": false,
+      "wrappers_in_same_turn": false,
+      "contradiction": "Requires the caller to set content-length for the zero-size lookup, then restricts download to identity-coded responses in the final summary.",
+      "matched_previews_seen": 2
+    },
+    {
+      "arm": "new",
+      "model": "claude-haiku-5-5",
+      "turns": 2,
+      "tokens": 91802,
+      "usage": {
+        "input": 6,
+        "cacheRead": 84429,
+        "cacheWrite": 6500,
+        "output": 867
+      },
+      "usd": 0.00257839,
+      "wall_s": 5.189,
+      "rpc": [
+        {
+          "initialize": 31164
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "getContentLength",
+            "repository": "ky",
+            "direction": "incoming",
+            "include_evidence": true
+          },
+          "pid": 31171
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":85,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":"
+        },
+        {
+          "matched_previews": 2
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "getContentLength",
+            "repository": "ky",
+            "direction": "incoming",
+            "include_evidence": true
+          }
+        }
+      ],
+      "answer": "Two call sites, both in `source/utils/body.ts`. The results are COMPLETE with exact coverage.\n\n**Download progress: `streamResponse`** (`source/utils/body.ts:200-214`)\n- Line 210: `const totalBytes = isContentCoded ? 0 : getContentLength(response.headers);`\n- The header is used only when the response is **identity-coded**: `content-encoding` is absent, empty, or `identity` (lines 208-209). Any other coding sets the total to `0`, which the comment at line 206 says means \"unknown.\"\n- The reason, per the comment: `content-length` counts encoded wire bytes, while progress counts post-decompression bytes, so a coded response would otherwise sit near 100%.\n- Early return (lines 202-205): if the response has no wrappable body, no progress is reported at all.\n\n**Upload progress: `streamRequest`** (`source/utils/body.ts:217-242`)\n- Line 231: `const totalBytes = getBodySize(originalBody ?? request.body) || getContentLength(request.headers);`\n- The size is computed first, from `originalBody` or `request.body`. The header is used only when that computed size is **falsy**, which includes `0`.\n- A zero computed size happens with a `ReadableStream` body, since it measures 0 (comment, line 230). Then the caller-declared `content-length` request header is the fallback. The comment (line 230) notes browsers strip that header from requests, so the fallback mainly helps non-browser runtimes.\n- No content-encoding check applies on the upload path. The request body is sent as-is, so the header is not subject to the decompression mismatch that drives the download guard.\n- Early return (lines 219-227): progress is skipped for a body-less, already-used, locked, `keepalive`, or `no-cors` request, and for a non-`Request` object from a hook.\n\n**Shared helper** (`source/utils/body.ts:22`): `Math.max(0, Number(headers.get('content-length')) || 0)`. A missing or non-numeric header yields `0`, and a negative value is clamped to `0`. Both `0` results therefore mean \"total unknown.\"",
+      "corpus": "ky",
+      "question_set": "typed",
+      "block": 9,
+      "other_tools": [],
+      "rpc_calls": 1,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        []
+      ],
+      "call_output": 157,
+      "final_output": 710,
+      "post_s": 3.635497875,
+      "ttft_s": 1.505502125,
+      "call_text_chars": 77,
+      "session_id": "01a21393-8255-7112-a066-2cbe6cf2684d",
+      "level_changes": [
+        "off"
+      ],
+      "efforts": [
+        "None"
+      ],
+      "thinking_blocks": 0,
+      "lexical_missing": [],
+      "correct": true,
+      "first_source": false,
+      "one_call": true,
+      "inverse_edge_seen": false,
+      "wrappers_in_same_turn": false,
+      "matched_previews_seen": 2
+    },
+    {
+      "arm": "new",
+      "model": "claude-haiku-5-5",
+      "turns": 2,
+      "tokens": 92243,
+      "usage": {
+        "input": 6,
+        "cacheRead": 84429,
+        "cacheWrite": 6501,
+        "output": 1307
+      },
+      "usd": 0.00279859,
+      "wall_s": 6.852,
+      "rpc": [
+        {
+          "initialize": 31294
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "getContentLength",
+            "repository": "ky",
+            "direction": "incoming",
+            "include_evidence": true
+          },
+          "pid": 31301
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":85,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":"
+        },
+        {
+          "matched_previews": 2
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "getContentLength",
+            "repository": "ky",
+            "direction": "incoming",
+            "include_evidence": true
+          }
+        }
+      ],
+      "answer": "The caller lookup is complete (2 of 2 exact). I have the evidence I need for both paths.\n\n**Functions that use `getContentLength`** (definition: `source/utils/body.ts:22`, `const getContentLength = (headers) => Math.max(0, Number(headers.get('content-length')) || 0)`):\n\n1. **Download (response) path: `streamResponse`**, `source/utils/body.ts:200-214`, call at line 210:\n   `const totalBytes = isContentCoded ? 0 : getContentLength(response.headers);`\n   - Returns the response unchanged, with no progress, if there is no wrappable body (`source/utils/body.ts:202-204`).\n   - `isContentCoded = Boolean(contentEncoding) && contentEncoding !== 'identity'` (line 209). The header is used only when there is no `content-encoding` header, or when it is exactly `identity` (case-folded). `identity` is treated as a no-op coding (RFC 9110 §8.4.2), so its `content-length` still counts the bytes that arrive.\n   - Any other coding (for example gzip or br) forces `totalBytes = 0`, meaning the total is unknown. The reason, from the source comment: `content-length` counts encoded wire bytes, while the progress stream counts decompressed bytes, so using it would show every event near 100%.\n   - A zero computed total is not special-cased here. `getContentLength` returns `0` when the header is missing or non-numeric, and `0` is passed on as the unknown-total value.\n\n2. **Upload (request) path: `streamRequest`**, `source/utils/body.ts:217-242`, call at line 231:\n   `const totalBytes = getBodySize(originalBody ?? request.body) || getContentLength(request.headers);`\n   - Returns the request unchanged, with no progress, if the body is missing, already used or locked, `keepalive` is set, `mode` is `no-cors`, or the object is not a real `Request` (`source/utils/body.ts:219-229`).\n   - The header is a fallback only. The size comes first from `getBodySize` of the original body. A `ReadableStream` measures `0`, so `getBodySize` returning `0` (falsy) is what triggers the fallback to the caller-declared `content-length` (comment at line 230; browsers strip that header, so it helps mainly outside browsers).\n   - A zero computed upload size: if `getBodySize` yields `0` and the header is absent or non-numeric, the `||` gives `getContentLength(...) = 0`, which is passed to `withProgress` as the unknown total. Note that the expression does not distinguish an empty body from an unknown one; both reach `withProgress` as `0`.\n   - Unlike the download path, the upload path does not check `content-encoding`. The request header is used whenever `getBodySize` is falsy, with no encoding gate.\n\n**Summary**\n- Download: header used only when there is no `content-encoding`, or when it is `identity`. Any other coding yields an unknown total (`0`).\n- Upload: header used only as a fallback when the measured body size is `0` (typically a stream). A zero total results in an unknown total, with no encoding check.\n\nSources: `source/utils/body.ts:22`, `:200-214` (`streamResponse`), `:217-242` (`streamRequest`). Caller completeness: COMPLETE, 2 exact `CALLS_DIRECT` edges, `EXACT_TYPECHECKED`.",
+      "corpus": "ky",
+      "question_set": "typed",
+      "block": 10,
+      "other_tools": [],
+      "rpc_calls": 1,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        []
+      ],
+      "call_output": 158,
+      "final_output": 1149,
+      "post_s": 5.208953623999999,
+      "ttft_s": 1.6030463760000002,
+      "call_text_chars": 78,
+      "session_id": "01a21393-9845-7372-844b-c88a9d2d5472",
+      "level_changes": [
+        "off"
+      ],
+      "efforts": [
+        "None"
+      ],
+      "thinking_blocks": 0,
+      "lexical_missing": [],
+      "correct": true,
+      "first_source": false,
+      "one_call": true,
+      "inverse_edge_seen": false,
+      "wrappers_in_same_turn": false,
+      "matched_previews_seen": 2
+    },
+    {
+      "arm": "old",
+      "model": "claude-haiku-5-5",
+      "turns": 2,
+      "tokens": 91607,
+      "usage": {
+        "input": 6,
+        "cacheRead": 84429,
+        "cacheWrite": 6282,
+        "output": 890
+      },
+      "usd": 0.00254629,
+      "wall_s": 5.032,
+      "rpc": [
+        {
+          "initialize": 31447
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "getContentLength",
+            "repo": "ky",
+            "direction": "incoming",
+            "include_evidence": true
+          },
+          "pid": 31456
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":85,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":"
+        },
+        {
+          "matched_previews": 2
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "getContentLength",
+            "repo": "ky",
+            "direction": "incoming",
+            "include_evidence": true
+          }
+        }
+      ],
+      "answer": "**Callers of `getContentLength`** (definition: `source/utils/body.ts:22`, `const getContentLength = (headers) => Math.max(0, Number(headers.get('content-length')) || 0)`). The index is complete for this symbol: 2 exact `CALLS_DIRECT` edges, both in `source/utils/body.ts`.\n\n**Download progress: `streamResponse`** (`source/utils/body.ts:200-214`)\n- Returns early, with no progress, when `wrappableBody(response)` yields nothing.\n- Header used only when the body is not content-coded: `totalBytes = isContentCoded ? 0 : getContentLength(response.headers)` (line 210).\n- `isContentCoded` is true when `content-encoding` is present and is not `identity` (case-insensitive). `identity` is treated as uncoded, since RFC 9110 §8.4.2 makes it a no-op.\n- For a compressed response the total is `0`, meaning unknown, because `content-length` counts wire bytes while progress counts decompressed bytes.\n- For an identity or absent `content-encoding`, the header value is the total. A missing or non-numeric header yields `0` through `|| 0` and the `Math.max(0, …)` clamp.\n\n**Upload progress: `streamRequest`** (`source/utils/body.ts:217-242`)\n- Skips progress entirely (returns the request unchanged) when there is no body, the body is used or locked, `keepalive` is set, `mode` is `no-cors`, or the object is not a `Request` instance (line 222-230).\n- Size is `getBodySize(originalBody ?? request.body) || getContentLength(request.headers)` (line 235). The header is a fallback used only when the measured size is `0`, which covers a `ReadableStream` body. The header is not consulted for content-coding; the upload path has no `content-encoding` check.\n- Zero computed size: if `getBodySize` returns `0` and the request has no usable `content-length`, `getContentLength` returns `0`, so the total is `0` (unknown) and the progress wrapper receives `0`. The header is trusted here as-is, and browsers strip it from requests, so this fallback only applies outside browsers (per the comment at line 234).",
+      "corpus": "ky",
+      "question_set": "typed",
+      "block": 10,
+      "other_tools": [],
+      "rpc_calls": 1,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        []
+      ],
+      "call_output": 147,
+      "final_output": 743,
+      "post_s": 3.447911583,
+      "ttft_s": 1.547088417,
+      "call_text_chars": 48,
+      "session_id": "01a21393-b4a9-75e1-b8af-8319785e8cb1",
+      "level_changes": [
+        "off"
+      ],
+      "efforts": [
+        "None"
+      ],
+      "thinking_blocks": 0,
+      "lexical_missing": [],
+      "correct": true,
+      "first_source": false,
+      "one_call": true,
+      "inverse_edge_seen": false,
+      "wrappers_in_same_turn": false,
+      "matched_previews_seen": 2
+    }
+  ]
+}

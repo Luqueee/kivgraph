@@ -1,0 +1,722 @@
+{
+  "date": "2026-11-24",
+  "server_build": "de7a74e0",
+  "environment": "darwin/arm64; rg 15.2.0; OMP scout",
+  "corpora": {
+    "cobra": "88b30ab89da2d0d0abb153818746c5a2d30eccec",
+    "ky": "3541888878c4d303a8bc2ad61815f4e048f55a5d",
+    "ripgrep": "4649aa9700619f94cf9c66876e9549d83420e16c"
+  },
+  "questions": {
+    "cobra": "When validating a command with ExactArgs, what happens if the argument count is wrong? Show one existing test that exercises this failure, including the concrete counts or expected error.",
+    "ky": "How does Ky decide whether the user supplied Content-Type, and what header inputs does it consult for that decision? Cite the implementation, including the exact predicate.",
+    "ripgrep": "When Standard builds its searcher sink with and without a path, how is its replacement helper initialized? Compare both construction sites and describe the initial internal state of the helper."
+  },
+  "prompt": "The corpus argument is exactly {c}. Answer the following maintainer question with evidence from the frozen {c} repository. Choose your searches and what to read; you may search again or batch needed reads. Cite file and line(s). Keep the answer to the question asked. Use only {tools} as evidence; no other tools, files, web, tests or edits. Starting symbol: {n}.\n",
+  "starting_symbols": {
+    "cobra": "ExactArgs",
+    "ky": "mergeHeaders",
+    "ripgrep": "Replacer"
+  },
+  "runs": [
+    {
+      "block": 1,
+      "corpus": "ripgrep",
+      "arm": "grep",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 199215,
+      "input": 14,
+      "cache_read": 161918,
+      "cache_write": 34122,
+      "output": 3161,
+      "wall_seconds": 28.724,
+      "model_turns": 5,
+      "reported_usd": 0.010025,
+      "evidence_calls": [
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "ripgrep",
+            "pattern": "Replacer|replacer",
+            "i": "Locating Replacer definitions and uses"
+          }
+        },
+        {
+          "tool": "text_read",
+          "args": {
+            "corpus": "ripgrep",
+            "ranges": [
+              "crates/printer/src/util.rs:10-50",
+              "crates/printer/src/standard.rs:520-590"
+            ],
+            "i": "Reading Replacer struct and both Standard construction sites"
+          }
+        },
+        {
+          "tool": "text_read",
+          "args": {
+            "corpus": "ripgrep",
+            "ranges": [
+              "crates/printer/src/util.rs:51-148"
+            ],
+            "i": "Reading replace_all and replacement accessors for lazy space handling"
+          }
+        }
+      ],
+      "answer_summary": "In ripgrep, `Standard::sink` and `Standard::sink_with_path` both initialize the replacement helper with `Replacer::new()`, so the helper's initial state is the same at both sites. The only difference is the `path` field. `Replacer::new()` sets `space: None`, meaning no capture locations or buffers exist until the first replacement allocates them."
+    },
+    {
+      "block": 1,
+      "corpus": "ripgrep",
+      "arm": "graph",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 155578,
+      "input": 12,
+      "cache_read": 98330,
+      "cache_write": 53592,
+      "output": 3644,
+      "wall_seconds": 26.802,
+      "model_turns": 4,
+      "reported_usd": 0.013525,
+      "evidence_calls": [
+        {
+          "tool": "graph_query",
+          "args": {
+            "corpus": "ripgrep",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"Replacer\"}",
+            "i": "Locating Replacer symbol declarations"
+          }
+        },
+        {
+          "tool": "graph_query",
+          "args": {
+            "corpus": "ripgrep",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"Replacer\"}",
+            "i": "Finding Replacer references and construction sites"
+          }
+        },
+        {
+          "tool": "graph_query",
+          "args": {
+            "corpus": "ripgrep",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ripgrep\",\"path\":\"crates/printer/src/standard.rs\",\"qualified_name\":\"standard::impl::Standard<W>::sink\"},{\"repository\":\"ripgrep\",\"path\":\"crates/printer/src/standard.rs\",\"qualified_name\":\"standard::impl::Standard<W>::sink_with_path\"},{\"repository\":\"ripgrep\",\"path\":\"crates/printer/src/util.rs\",\"qualified_name\":\"util::impl::Replacer<M>::new\"},{\"repository\":\"ripgrep\",\"path\":\"crates/printer/src/util.rs\",\"qualified_name\":\"util::Replacer\"}]}",
+            "i": "Reading both Standard sink construction sites and Replacer::new"
+          }
+        }
+      ],
+      "answer_summary": "Both Standard construction sites initialize the replacer the same way: `Replacer::new()`, which returns `Replacer { space: None }`. The only difference between the sites is the `path` field. `sink_with_path` delegates to `sink` when path printing is disabled, so the no-path initialization runs in both cases."
+    },
+    {
+      "block": 1,
+      "corpus": "ky",
+      "arm": "grep",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 474255,
+      "input": 20,
+      "cache_read": 383161,
+      "cache_write": 86760,
+      "output": 4314,
+      "wall_seconds": 34.682,
+      "model_turns": 8,
+      "reported_usd": 0.023343,
+      "evidence_calls": [
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "ky",
+            "pattern": "mergeHeaders|content-type|Content-Type|contentType",
+            "path": ".",
+            "i": "Locating header merge and Content-Type logic",
+            "context": 2
+          }
+        },
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "ky",
+            "pattern": "mergeHeaders|hasContentType|content-type",
+            "path": "source",
+            "i": "Finding mergeHeaders and content-type predicate in source",
+            "context": 3
+          }
+        },
+        {
+          "tool": "text_read",
+          "args": {
+            "corpus": "ky",
+            "ranges": [
+              "source/utils/merge.ts:73-100",
+              "source/core/Ky.ts:474-545"
+            ],
+            "i": "Reading mergeHeaders body and Ky constructor header logic"
+          }
+        },
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "ky",
+            "pattern": "const toHeaderObject|hooks\\.init|options\\.hooks\\.init|constructor\\(|class Ky",
+            "path": "source/utils/merge.ts;source/core/Ky.ts",
+            "i": "Locating toHeaderObject and where init hooks run",
+            "context": 6
+          }
+        },
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "ky",
+            "pattern": "toHeaderObject|init\\b.*hook|constructor\\(input|class Ky",
+            "path": "source",
+            "i": "Locating toHeaderObject and constructor init hooks",
+            "context": 4
+          }
+        },
+        {
+          "tool": "text_read",
+          "args": {
+            "corpus": "ky",
+            "ranges": [
+              "source/core/Ky.ts:349-375"
+            ],
+            "i": "Confirming init hook hand-off into constructor"
+          }
+        }
+      ],
+      "answer_summary": "Ky decides whether the caller supplied Content-Type in the Ky constructor with one predicate, at source/core/Ky.ts:525: `const userProvidedContentType = options.headers !== undefined && mergeHeaders({}, options.headers).has('content-type');`. It is true only when `options.headers` is defined and, after normalization, contains a content-type entry. The only header input consulted is `options.headers`. The Request input's headers are deliberately excluded (Ky.ts:524 comment). The predicate gates two writes: the JSON default at Ky.ts:527-532 (`content-type: application/json` is set only when `!userProvidedContentType`), and the deletion of an inherited content-type at Ky.ts:536-542 (only when the input is a Request, the body is FormData or URLSearchParams, and `!userProvidedContentType`). The init-hook ordering is now confirmed: Ky.create clones options for init hooks (Ky.ts:350-351), runs them synchronously (Ky.ts:353-355), then calls `new Ky(input, initHookOptions)` (Ky.ts:357), so the predicate sees headers after init-hook changes."
+    },
+    {
+      "block": 1,
+      "corpus": "ky",
+      "arm": "graph",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 321554,
+      "input": 16,
+      "cache_read": 261207,
+      "cache_write": 55843,
+      "output": 4488,
+      "wall_seconds": 42.277,
+      "model_turns": 7,
+      "reported_usd": 0.016026,
+      "evidence_calls": [
+        {
+          "tool": "graph_query",
+          "args": {
+            "corpus": "ky",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"mergeHeaders\"}",
+            "i": "Locating mergeHeaders declaration in ky"
+          }
+        },
+        {
+          "tool": "graph_query",
+          "args": {
+            "corpus": "ky",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ky\",\"path\":\"source/utils/merge.ts\",\"qualified_name\":\"mergeHeaders\"}]}",
+            "i": "Reading mergeHeaders source"
+          }
+        },
+        {
+          "tool": "graph_query",
+          "args": {
+            "corpus": "ky",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"mergeHeaders\"}",
+            "i": "Finding mergeHeaders callers in ky"
+          }
+        },
+        {
+          "tool": "graph_query",
+          "args": {
+            "corpus": "ky",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ky\",\"path\":\"source/core/Ky.ts\",\"qualified_name\":\"Ky.userProvidedContentType\"}]}",
+            "i": "Reading userProvidedContentType predicate in Ky.ts"
+          }
+        },
+        {
+          "tool": "graph_query",
+          "args": {
+            "corpus": "ky",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"userProvidedContentType\"}",
+            "i": "Finding userProvidedContentType uses in ky"
+          }
+        },
+        {
+          "tool": "graph_query",
+          "args": {
+            "corpus": "ky",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ky\",\"path\":\"source/core/Ky.ts\",\"qualified_name\":\"Ky\"}]}",
+            "i": "Reading Ky class body for header and content-type flow"
+          }
+        },
+        {
+          "tool": "graph_query",
+          "args": {
+            "corpus": "ky",
+            "operation": "get_symbol",
+            "arguments": "{\"repository\":\"ky\",\"path\":\"source/core/Ky.ts\",\"qualified_name\":\"Ky.constructor\"}",
+            "i": "Getting constructor line range in Ky.ts"
+          }
+        },
+        {
+          "tool": "graph_query",
+          "args": {
+            "corpus": "ky",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"constructor\"}",
+            "i": "Locating Ky constructor line range"
+          }
+        }
+      ],
+      "answer_summary": "Ky decides whether the user supplied Content-Type with one predicate in the Ky constructor: `options.headers !== undefined && mergeHeaders({}, options.headers).has('content-type')` (source/core/Ky.ts:525). The only header input it consults is the caller's `options.headers`. A Content-Type on a `Request` input does not count, because the input's headers are merged into `#options.headers` separately and the predicate never reads `input.headers`. The predicate is true only when `options.headers` is defined and, after normalization through `Headers` and the deletion-marker handling in `mergeHeaders`, still contains `content-type`. The flag is consumed in the same constructor: it suppresses the default `content-type: application/json` for `json` bodies, and it suppresses the deletion of `content-type` when a Request input is rebuilt with FormData or URLSearchParams bodies."
+    },
+    {
+      "block": 1,
+      "corpus": "cobra",
+      "arm": "grep",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 209281,
+      "input": 14,
+      "cache_read": 181276,
+      "cache_write": 25751,
+      "output": 2240,
+      "wall_seconds": 19.521,
+      "model_turns": 5,
+      "reported_usd": 0.008084,
+      "evidence_calls": [
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "cobra",
+            "pattern": "func ExactArgs|ExactArgs\\(",
+            "i": "Locating ExactArgs definition and uses",
+            "context": 3
+          }
+        },
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "cobra",
+            "pattern": "func exactArgsWithInvalidCount|func getCommand|func executeCommand|func (c \\*Command) ValidateArgs|c\\.ValidateArgs\\(|ValidateArgs\\(",
+            "i": "Locating test helper and arg validation call site",
+            "context": 4
+          }
+        },
+        {
+          "tool": "text_read",
+          "args": {
+            "corpus": "cobra",
+            "ranges": [
+              "args_test.go:88-98",
+              "args.go:93-101",
+              "command.go:960-970",
+              "command.go:1172-1177"
+            ],
+            "i": "Reading error helper, ExactArgs body, and validation call site"
+          }
+        }
+      ],
+      "answer_summary": "When the argument count is wrong, ExactArgs returns an error and the command's Run is never called. The error reads `accepts N arg(s), received M`, where N is the expected count and M is the actual count. Validation runs before Run. Existing test TestExactArgs_WithInvalidCount calls ExactArgs(2) with three args (\"a\", \"b\", \"c\") and asserts the message `accepts 2 arg(s), received 3`."
+    },
+    {
+      "block": 1,
+      "corpus": "cobra",
+      "arm": "graph",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 230425,
+      "input": 16,
+      "cache_read": 174143,
+      "cache_write": 53404,
+      "output": 2862,
+      "wall_seconds": 25.985,
+      "model_turns": 6,
+      "reported_usd": 0.013855,
+      "evidence_calls": [
+        {
+          "tool": "graph_query",
+          "args": {
+            "corpus": "cobra",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"ExactArgs\"}",
+            "i": "Locating ExactArgs declaration in cobra"
+          }
+        },
+        {
+          "tool": "graph_query",
+          "args": {
+            "corpus": "cobra",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"cobra\",\"path\":\"args.go\",\"qualified_name\":\"ExactArgs\"}]}",
+            "i": "Reading ExactArgs source in args.go"
+          }
+        },
+        {
+          "tool": "graph_query",
+          "args": {
+            "corpus": "cobra",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"ExactArgs\"}",
+            "i": "Finding callers of ExactArgs to locate tests"
+          }
+        },
+        {
+          "tool": "graph_query",
+          "args": {
+            "corpus": "cobra",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"cobra\",\"path\":\"args_test.go\",\"qualified_name\":\"TestExactArgs_WithInvalidCount\"},{\"repository\":\"cobra\",\"path\":\"args_test.go\",\"qualified_name\":\"TestExactArgs\"}]}",
+            "i": "Reading ExactArgs test cases for wrong count"
+          }
+        },
+        {
+          "tool": "graph_query",
+          "args": {
+            "corpus": "cobra",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"cobra\",\"path\":\"args_test.go\",\"qualified_name\":\"exactArgsWithInvalidCount\"}]}",
+            "i": "Reading the exact-count error assertion helper"
+          }
+        }
+      ],
+      "answer_summary": "ExactArgs(n) returns a validator that rejects any argument count other than n. It returns the error `accepts %d arg(s), received %d` with the expected and actual counts. Cobra's test suite covers this with TestExactArgs_WithInvalidCount: ExactArgs(2) given 3 args must yield `accepts 2 arg(s), received 3`. I did not trace command.go to confirm that the handler is skipped on error; that is inferred from the validator's return value, not read."
+    },
+    {
+      "block": 2,
+      "corpus": "cobra",
+      "arm": "graph",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 191981,
+      "input": 14,
+      "cache_read": 173271,
+      "cache_write": 16149,
+      "output": 2547,
+      "wall_seconds": 20.296,
+      "model_turns": 5,
+      "reported_usd": 0.006237,
+      "evidence_calls": [
+        {
+          "tool": "graph_query",
+          "args": {
+            "corpus": "cobra",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"ExactArgs\"}",
+            "i": "Locating ExactArgs declaration in cobra"
+          }
+        },
+        {
+          "tool": "graph_query",
+          "args": {
+            "corpus": "cobra",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"ExactArgs\"}",
+            "i": "Finding callers and tests of ExactArgs"
+          }
+        },
+        {
+          "tool": "graph_query",
+          "args": {
+            "corpus": "cobra",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"cobra\",\"path\":\"args.go\",\"qualified_name\":\"ExactArgs\"},{\"repository\":\"cobra\",\"path\":\"args.go\",\"qualified_name\":\"ExactValidArgs\"},{\"repository\":\"cobra\",\"path\":\"args_test.go\",\"qualified_name\":\"TestExactArgs_WithInvalidCount\"}]}",
+            "i": "Reading ExactArgs, ExactValidArgs, and a failing-count test"
+          }
+        },
+        {
+          "tool": "graph_query",
+          "args": {
+            "corpus": "cobra",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"cobra\",\"path\":\"args_test.go\",\"qualified_name\":\"exactArgsWithInvalidCount\"}]}",
+            "i": "Reading the expected-error helper used by the test"
+          }
+        }
+      ],
+      "answer_summary": "ExactArgs(n) returns a PositionalArgs validator that returns an error when the argument count differs from n. It does not panic and does not silently accept. For n=2 with three arguments the error text is \"accepts 2 arg(s), received 3\". The test TestExactArgs_WithInvalidCount exercises this case."
+    },
+    {
+      "block": 2,
+      "corpus": "cobra",
+      "arm": "grep",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 212482,
+      "input": 14,
+      "cache_read": 182283,
+      "cache_write": 27610,
+      "output": 2575,
+      "wall_seconds": 19.215,
+      "model_turns": 5,
+      "reported_usd": 0.008634,
+      "evidence_calls": [
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "cobra",
+            "pattern": "func ExactArgs|ExactArgs\\(",
+            "i": "Locating ExactArgs definition and uses",
+            "context": 3
+          }
+        },
+        {
+          "tool": "text_read",
+          "args": {
+            "corpus": "cobra",
+            "ranges": [
+              "args.go:93-101",
+              "args_test.go:308-312",
+              "args_test.go:1-60"
+            ],
+            "i": "Reading ExactArgs body, failing test, and helpers"
+          }
+        },
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "cobra",
+            "pattern": "func exactArgsWithInvalidCount|func getCommand|func executeCommand|ValidateArgs\\(|func validOnlyWithInvalidArgs",
+            "i": "Locating helper functions and arg validation call site",
+            "context": 2
+          }
+        },
+        {
+          "tool": "text_read",
+          "args": {
+            "corpus": "cobra",
+            "ranges": [
+              "args_test.go:88-100",
+              "command.go:960-972",
+              "command.go:1172-1176"
+            ],
+            "i": "Reading expected-error helper and ValidateArgs call path"
+          }
+        }
+      ],
+      "answer_summary": "ExactArgs(n) rejects any positional-argument count other than n. It returns an error and the command's Run is never called. The error text is \"accepts N arg(s), received M\". Existing test TestExactArgs_WithInvalidCount calls ExactArgs(2) with three args (\"a\", \"b\", \"c\") and expects exactly \"accepts 2 arg(s), received 3\"."
+    },
+    {
+      "block": 2,
+      "corpus": "ky",
+      "arm": "graph",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 244772,
+      "input": 14,
+      "cache_read": 186611,
+      "cache_write": 54761,
+      "output": 3386,
+      "wall_seconds": 25.903,
+      "model_turns": 6,
+      "reported_usd": 0.014513,
+      "evidence_calls": [
+        {
+          "tool": "graph_query",
+          "args": {
+            "corpus": "ky",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"mergeHeaders\"}"
+          }
+        },
+        {
+          "tool": "graph_query",
+          "args": {
+            "corpus": "ky",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ky\",\"path\":\"source/utils/merge.ts\",\"qualified_name\":\"mergeHeaders\"}]}"
+          }
+        },
+        {
+          "tool": "graph_query",
+          "args": {
+            "corpus": "ky",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"mergeHeaders\"}"
+          }
+        },
+        {
+          "tool": "graph_query",
+          "args": {
+            "corpus": "ky",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ky\",\"path\":\"source/core/Ky.ts\",\"qualified_name\":\"Ky.userProvidedContentType\"}]}"
+          }
+        },
+        {
+          "tool": "graph_query",
+          "args": {
+            "corpus": "ky",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"userProvidedContentType\"}"
+          }
+        },
+        {
+          "tool": "graph_query",
+          "args": {
+            "corpus": "ky",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ky\",\"path\":\"source/core/Ky.ts\",\"qualified_name\":\"Ky\"}]}"
+          }
+        }
+      ],
+      "answer_summary": "Ky decides whether the user supplied Content-Type in the `Ky` constructor, using only the caller's `options.headers`, never the `input` Request's headers. The predicate is `options.headers !== undefined && mergeHeaders({}, options.headers).has('content-type')` (source/core/Ky.ts:525). Only the `options.headers` value is consulted. Its result gates two later decisions: whether a `json` body sets `application/json`, and whether a Request-input FormData/URLSearchParams body drops the inherited Content-Type."
+    },
+    {
+      "block": 2,
+      "corpus": "ky",
+      "arm": "grep",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 329795,
+      "input": 16,
+      "cache_read": 267477,
+      "cache_write": 58822,
+      "output": 3480,
+      "wall_seconds": 27.512,
+      "model_turns": 6,
+      "reported_usd": 0.016181,
+      "evidence_calls": [
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "ky",
+            "pattern": "mergeHeaders|content-type|Content-Type",
+            "context": 2
+          }
+        },
+        {
+          "tool": "text_read",
+          "args": {
+            "corpus": "ky",
+            "ranges": [
+              "source/utils/merge.ts:55-100",
+              "source/core/Ky.ts:470-545"
+            ]
+          }
+        },
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "ky",
+            "pattern": "toHeaderObject",
+            "context": 8
+          }
+        },
+        {
+          "tool": "text_read",
+          "args": {
+            "corpus": "ky",
+            "ranges": [
+              "source/utils/merge.ts:170-184"
+            ]
+          }
+        }
+      ],
+      "answer_summary": "Ky decides whether the caller supplied a Content-Type with one predicate that reads only the caller's `options.headers`. It does not read a Request input's headers. The predicate is `options.headers !== undefined && mergeHeaders({}, options.headers).has('content-type')` (source/core/Ky.ts:524-525). It is true only when `options.headers` is defined and, after normalization, contains a content-type entry. `Headers.has` is case-insensitive. A `'content-type': undefined` entry is treated as not supplied, because `mergeHeaders` deletes keys whose value is `undefined`."
+    },
+    {
+      "block": 2,
+      "corpus": "ripgrep",
+      "arm": "graph",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 193882,
+      "input": 14,
+      "cache_read": 135483,
+      "cache_write": 55119,
+      "output": 3266,
+      "wall_seconds": 29.483,
+      "model_turns": 5,
+      "reported_usd": 0.014013,
+      "evidence_calls": [
+        {
+          "tool": "graph_query",
+          "args": {
+            "corpus": "ripgrep",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"Replacer\"}"
+          }
+        },
+        {
+          "tool": "graph_query",
+          "args": {
+            "corpus": "ripgrep",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"Standard\"}"
+          }
+        },
+        {
+          "tool": "graph_query",
+          "args": {
+            "corpus": "ripgrep",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"Replacer\"}"
+          }
+        },
+        {
+          "tool": "graph_query",
+          "args": {
+            "corpus": "ripgrep",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ripgrep\",\"path\":\"crates/printer/src/util.rs\",\"qualified_name\":\"util::Replacer\"},{\"repository\":\"ripgrep\",\"path\":\"crates/printer/src/standard.rs\",\"qualified_name\":\"standard::Standard\"}]}"
+          }
+        },
+        {
+          "tool": "graph_query",
+          "args": {
+            "corpus": "ripgrep",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ripgrep\",\"path\":\"crates/printer/src/standard.rs\",\"qualified_name\":\"standard::impl::Standard<W>::sink\"},{\"repository\":\"ripgrep\",\"path\":\"crates/printer/src/standard.rs\",\"qualified_name\":\"standard::impl::Standard<W>::sink_with_path\"},{\"repository\":\"ripgrep\",\"path\":\"crates/printer/src/util.rs\",\"qualified_name\":\"util::impl::Replacer<M>::new\"},{\"repository\":\"ripgrep\",\"path\":\"crates/printer/src/standard.rs\",\"qualified_name\":\"standard::StandardSink\"}]}"
+          }
+        }
+      ],
+      "answer_summary": "Both Standard sink constructors initialize the replacer identically with Replacer::new(), which returns Replacer { space: None }. The path argument changes only the sink's `path` field (None vs Some(PrinterPath)), not the replacer. The no-path constructor, Standard::sink, calls Replacer::new() directly. The path constructor, Standard::sink_with_path, first delegates to sink() when config.path is false, and otherwise calls Replacer::new() in the same way. The helper's initial state has no Space allocated."
+    },
+    {
+      "block": 2,
+      "corpus": "ripgrep",
+      "arm": "grep",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 160754,
+      "input": 10,
+      "cache_read": 153095,
+      "cache_write": 5777,
+      "output": 1872,
+      "wall_seconds": 15.788,
+      "model_turns": 4,
+      "reported_usd": 0.003623,
+      "evidence_calls": [
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "ripgrep",
+            "pattern": "Replacer|replacer",
+            "path": ".",
+            "context": 2
+          }
+        },
+        {
+          "tool": "text_read",
+          "args": {
+            "corpus": "ripgrep",
+            "ranges": [
+              "crates/printer/src/util.rs:13-50",
+              "crates/printer/src/standard.rs:520-585",
+              "crates/printer/src/standard.rs:650-665"
+            ]
+          }
+        },
+        {
+          "tool": "text_read",
+          "args": {
+            "corpus": "ripgrep",
+            "ranges": [
+              "crates/printer/src/util.rs:103-150"
+            ]
+          }
+        }
+      ],
+      "answer_summary": "Both `StandardSink` construction sites initialize the replacement helper identically: `replacer: Replacer::new()`. The path argument only affects the separate `path` field. `Replacer::new()` allocates nothing. Its internal `space` is `None`, and the capture, destination and match buffers are created lazily on the first replacement. Both sites build the sink with the same `Replacer::new()` call; the only difference is the `path` field. `sink_with_path` also returns early to `sink()` when path printing is disabled, so that case gets the same no-path state."
+    }
+  ]
+}
