@@ -161,7 +161,7 @@
   "summary": {
     "grep": {
       "sessions": 60,
-      "correct": 55,
+      "correct": 56,
       "seconds": 460.838,
       "tokens": 10513455,
       "usd": 0.23333,
@@ -187,7 +187,7 @@
       "summary": {
         "grep": {
           "sessions": 10,
-          "correct": 6,
+          "correct": 7,
           "seconds": 87.102,
           "tokens": 2005904,
           "usd": 0.04682,
@@ -349,7 +349,7 @@
   "clean_pairs_summary": {
     "grep": {
       "sessions": 59,
-      "correct": 54,
+      "correct": 55,
       "seconds": 449.699,
       "tokens": 10207806,
       "usd": 0.220773,
@@ -462,8 +462,7 @@
         "None"
       ],
       "lexical_missing": [],
-      "correct": false,
-      "contradiction": "Says the global never supplies a value; it supplies zero when set to zero."
+      "correct": true
     },
     {
       "arm": "mcp",
@@ -15674,6 +15673,10 @@
         25.101
       ]
     }
+  },
+  "turn_seconds_derivation": {
+    "fields": "[seconds in assistant turns that contain a toolCall, seconds in assistant turns without a toolCall]",
+    "derivation": "For every assigned session of the question and arm, including off-protocol pairs (primary population, not the clean-pair filter), select message_end events with message.role=assistant in its output.jsonl, sum (completedAt - timestamp)/1000 per turn, and split by presence of a toolCall in the message. The array positions do not represent individual session summary fields (ttft_s, post_s or wall_s). Every array in this report reproduces exactly from the retained six-off-vs-grep-quhnmfgh output.jsonl files; no value changed."
   },
   "mcp_diagnostics": {
     "GetActiveHelpConfig": {

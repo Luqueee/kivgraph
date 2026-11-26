@@ -3,6 +3,23 @@
   "model": "anthropic/claude-haiku-5-5",
   "thinking": "low",
   "binary_sha256": "e3f3aa6112d9897a0fa35e69318dc4009a94bd881116c5da5bca8e6a70f7b3e1",
+  "launch": {
+    "launcher": "$TMPDIR/six-current-vs-grep-trvfbm32/run.sh",
+    "launcher_sha256": "241df0bfbb97214f2fd58a3c110df8a8afa8b2de47fe6e827c81958f7d52aa4e",
+    "command": "omp -p --model anthropic/claude-haiku-5-5 --thinking low --no-title --no-context-files --no-rules --no-skills --no-extensions --no-lsp --mode json --tools \"$tools\" --session-dir \"$PWD/sessions\" \"$(cat prompt)\" >output.jsonl 2>stderr",
+    "tools": {
+      "grep": "grep,read",
+      "mcp": "read,write"
+    },
+    "benchmark_server_tools_advertised": [
+      "find_symbol",
+      "find_references",
+      "get_source"
+    ],
+    "binary": "POSITION_AB_BINARY in run.sh points to rust-inverse-result-ab-hbigid9x/reverted; its bytes hash to binary_sha256",
+    "server_build": "agent-builds.json records a dirty 43d1a11cfff138f65b4f7d81a7bf4e85df95046b server build; this is not an OMP harness revision",
+    "harness_revision": "not established; the launcher digest above is the retained provenance"
+  },
   "commits": {
     "cobra": "88b30ab89da2d0d0abb153818746c5a2d30eccec",
     "ky": "3541888878c4d303a8bc2ad61815f4e048f55a5d",
@@ -161,7 +178,7 @@
   "summary": {
     "grep": {
       "sessions": 60,
-      "correct": 58,
+      "correct": 57,
       "seconds": 569.267,
       "tokens": 10481568,
       "usd": 0.215489,
@@ -172,7 +189,7 @@
     },
     "mcp": {
       "sessions": 60,
-      "correct": 59,
+      "correct": 56,
       "seconds": 770.842,
       "tokens": 9602417,
       "usd": 0.217011,
@@ -198,7 +215,7 @@
         },
         "mcp": {
           "sessions": 10,
-          "correct": 10,
+          "correct": 9,
           "seconds": 107.026,
           "tokens": 1042334,
           "usd": 0.027682,
@@ -252,7 +269,7 @@
         },
         "mcp": {
           "sessions": 10,
-          "correct": 10,
+          "correct": 8,
           "seconds": 139.769,
           "tokens": 1355658,
           "usd": 0.034247,
@@ -268,7 +285,7 @@
       "summary": {
         "grep": {
           "sessions": 10,
-          "correct": 9,
+          "correct": 8,
           "seconds": 87.214,
           "tokens": 1327867,
           "usd": 0.031364,
@@ -349,7 +366,7 @@
   "clean_pairs_summary": {
     "grep": {
       "sessions": 56,
-      "correct": 54,
+      "correct": 53,
       "seconds": 531.177,
       "tokens": 9792746,
       "usd": 0.201748,
@@ -360,7 +377,7 @@
     },
     "mcp": {
       "sessions": 56,
-      "correct": 55,
+      "correct": 52,
       "seconds": 722.3,
       "tokens": 9003394,
       "usd": 0.202608,
@@ -3565,7 +3582,7 @@
       "started": 1795557331022,
       "ended": 1795557340139,
       "lexical_missing": [],
-      "correct": true
+      "correct": false
     },
     {
       "arm": "grep",
@@ -4474,7 +4491,7 @@
       "started": 1795557107489,
       "ended": 1795557121314,
       "lexical_missing": [],
-      "correct": true
+      "correct": false
     },
     {
       "arm": "mcp",
@@ -5116,7 +5133,7 @@
       "started": 1795557197546,
       "ended": 1795557212533,
       "lexical_missing": [],
-      "correct": true
+      "correct": false
     },
     {
       "arm": "mcp",
@@ -6605,7 +6622,7 @@
       "started": 1795557399152,
       "ended": 1795557409493,
       "lexical_missing": [],
-      "correct": true
+      "correct": false
     },
     {
       "arm": "grep",
@@ -12738,6 +12755,10 @@
         41.761
       ]
     }
+  },
+  "turn_seconds_derivation": {
+    "fields": "[seconds in assistant turns that contain a toolCall, seconds in assistant turns without a toolCall]",
+    "derivation": "For every assigned session of the question and arm, including off-protocol pairs (primary population, not the clean-pair filter), select message_end events with message.role=assistant in its output.jsonl, sum (completedAt - timestamp)/1000 per turn, and split by presence of a toolCall in the message. The array positions do not represent individual session summary fields (ttft_s, post_s or wall_s). Every array in this report reproduces exactly from the retained six-current-vs-grep-trvfbm32 output.jsonl files; no value changed."
   },
   "mcp_diagnostics": {
     "GetActiveHelpConfig": {

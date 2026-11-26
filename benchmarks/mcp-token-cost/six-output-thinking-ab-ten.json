@@ -1,6 +1,6 @@
 {
-  "design": "Independent fresh MCP only A/B, 10 matched pairs per question, starting arm not counterbalanced. Six concurrent corpus lanes across two experiments. One off session (Cobra typed new, block 1) ran first of all 120 sessions (earliest message timestamp in output.jsonl); that pair is new-first. All attempts retained. Times exclude launch and indexing. Sensitivity excludes whole off-protocol pairs. Tool restriction was not enforced: --tools read,write in run.sh did not stop global Kivgraph MCP tools from loading, and four low-thinking sessions called them (see annotation). Full and sensitivity results are observations of this run.",
-  "annotation": "Observed run, not a counterbalanced rerun. Full and sensitivity results are kept as observations of this run; how the failed sessions would have performed with the intended tools is not inferred. run.sh set KIVGRAPH_DISABLE_HOOK=1 and passed --tools read,write to each non-grep session, but that flag did not stop global Kivgraph MCP tools from loading; four low-thinking (old) sessions called them and were incorrect: Cobra typed blocks 3, 6, 8 and Ky control block 10. For an isolated rerun, expose only the mounted benchmark tools to both arms and verify the host's complete tool list, not just the benchmark server's list, before starting. Latency is qualified: starting arm and question slot are not counterbalanced, so arm position may be confounded with slot effects. A rerun should independently counterbalance question order and starting arm so each arm occupies every slot, and record the actual order with each timing. Session order comes from the earliest message timestamp in each session's output.jsonl (epoch ms), not from a start log; the run root holds no separate capture log. Sorted by that timestamp, the Ky and ripgrep sessions match order.ky and order.ripgrep exactly. For Cobra, cobra-typed-1-new has the earliest timestamp of all 120 sessions, so it ran first; order.cobra and the sessions array list it first.",
+  "design": "Independent fresh MCP only A/B, 10 matched pairs per question, starting arm not counterbalanced. Six concurrent corpus lanes across two experiments. One off session (Cobra typed new, block 1) has the earliest recorded message timestamp and session header of all 120 sessions; launch order is not recorded, so this is observed message order, not process launch, and that pair is new-first only in that sense. All attempts retained. Times exclude launch and indexing. Sensitivity excludes whole off-protocol pairs. Tool restriction was not enforced: --tools read,write in run.sh did not stop global Kivgraph MCP tools from loading, and four low-thinking sessions called them (see annotation). Full and sensitivity results are observations of this run.",
+  "annotation": "Observed run, not a counterbalanced rerun. Full and sensitivity results are kept as observations of this run; how the failed sessions would have performed with the intended tools is not inferred. run.sh set KIVGRAPH_DISABLE_HOOK=1 and passed --tools read,write to each non-grep session, but that flag did not stop global Kivgraph MCP tools from loading; four low-thinking (old) sessions called them and were incorrect: Cobra typed blocks 3, 6, 8 and Ky control block 10. For an isolated rerun, expose only the mounted benchmark tools to both arms and verify the host's complete tool list, not just the benchmark server's list, before starting. Latency is qualified: starting arm and question slot are not counterbalanced, so arm position may be confounded with slot effects. A rerun should independently counterbalance question order and starting arm so each arm occupies every slot, and record the actual order with each timing. Session order comes from the earliest message timestamp in each session's output.jsonl (epoch ms), not from a start log; the run root holds no separate capture log. Sorted by that timestamp, the Ky and ripgrep sessions match order.ky and order.ripgrep exactly. For Cobra, cobra-typed-1-new has the earliest recorded message timestamp (1795618622534 ms) and session header (14:57:02.158Z) of all 120 sessions; launch order is not recorded, so new-first means earliest observed message, not earliest process launch; order.cobra and the sessions array list it first. Cache state is uncontrolled: Ky delay block 1 wrote 44,733 cache tokens for old versus 4,710 for new (billed $0.01108468 versus $0.00268868). That pair survives the off-protocol filter. Full old/new spend $0.235760/$0.211546 and clean $0.224234/$0.202171 are retained; omitting this pair alone gives $0.224675/$0.208857, and $0.213149/$0.199483 after the existing clean exclusions as well. Neither comparison controls cache state, so neither isolates the cost of thinking level.",
   "experiment": "thinking",
   "binary_sha256": "e3f3aa6112d9897a0fa35e69318dc4009a94bd881116c5da5bca8e6a70f7b3e1",
   "model": "anthropic/claude-haiku-5-5",
@@ -184,7 +184,7 @@
     },
     "new": {
       "sessions": 60,
-      "correct": 59,
+      "correct": 58,
       "seconds": 428.812,
       "tokens": 10170291,
       "usd": 0.211546,
@@ -205,7 +205,8 @@
     "less_output": 53,
     "faster": 50,
     "lost": [
-      "ripgrep:typed:6"
+      "ripgrep:typed:6",
+      "ky:typed:9"
     ],
     "gained": [
       "cobra:typed:3",
@@ -382,7 +383,7 @@
         },
         "new": {
           "sessions": 10,
-          "correct": 10,
+          "correct": 9,
           "seconds": 58.985,
           "tokens": 1048721,
           "usd": 0.027168,
@@ -402,7 +403,9 @@
       "pairs": {
         "less_output": 9,
         "faster": 8,
-        "lost": [],
+        "lost": [
+          "ky:typed:9"
+        ],
         "gained": [
           "ky:typed:4"
         ]
@@ -546,7 +549,7 @@
     },
     "new": {
       "sessions": 56,
-      "correct": 55,
+      "correct": 54,
       "seconds": 408.895,
       "tokens": 9766525,
       "usd": 0.202171,
@@ -567,7 +570,8 @@
     "less_output": 49,
     "faster": 46,
     "lost": [
-      "ripgrep:typed:6"
+      "ripgrep:typed:6",
+      "ky:typed:9"
     ],
     "gained": [
       "ky:typed:4"
@@ -9319,7 +9323,8 @@
         "off"
       ],
       "lexical_missing": [],
-      "correct": true
+      "correct": false,
+      "contradiction": "Says the header is used only for non-identity content-encoding; body.ts selects it for absent, empty or identity encoding."
     },
     {
       "arm": "old",
