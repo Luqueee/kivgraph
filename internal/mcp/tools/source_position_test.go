@@ -110,9 +110,9 @@ func TestPositionSelectsInnermostArrowNotCallbackArgument(t *testing.T) {
 	root := testsupport.TempDir(t)
 	text := `export const outer = () => {
  const inner = <() => number>((() => {
-  const value = <() => number>((use(() => 1)) as (() => number));
+  const value = <() => number>((use(() => 1))! as (() => number));
   return value();
- })) satisfies (() => number) as (() => number);
+ }))! satisfies (() => number) as (() => number);
  return inner();
 };
 const a = () => 1, b = () => 2;

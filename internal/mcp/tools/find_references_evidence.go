@@ -157,6 +157,9 @@ func previewReference(ctx context.Context, row ReferenceSummary, sources map[str
 }
 
 func (source *evidenceSource) preview(ctx context.Context, row ReferenceSummary) (ReferencePreview, error) {
+	if err := ctx.Err(); err != nil {
+		return ReferencePreview{}, err
+	}
 	line := row.StartLine
 	request := SourceRequest{Repository: row.Repository, Line: &line, Publication: source.publication}
 	holder, err := source.positions.resolve(ctx, source.snapshot, request, row.FilePath, source.cache)

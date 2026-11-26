@@ -60,7 +60,7 @@ func TestReferencePreviewsShareOneSource(t *testing.T) {
 	}
 }
 
-func TestCanceledDefinitionDoesNotReadSource(t *testing.T) {
+func TestCanceledEvidenceDoesNotReadSource(t *testing.T) {
 	store, root := sourceSnapshot(t, 91)
 	snap := store.Load()
 	id, ok := snap.SymbolByStableKey("sym-merge")
@@ -92,6 +92,14 @@ func TestCanceledDefinitionDoesNotReadSource(t *testing.T) {
 	}
 	if !accessTime().Equal(before) {
 		t.Fatal("canceled definition read the source file")
+	}
+	row := ReferenceSummary{Repository: "alpha", FilePath: "set.go", StartLine: 5}
+	_, err := newEvidenceSource(snap).preview(ctx, row)
+	if !accessTime().Equal(before) {
+		t.Fatal("canceled caller preview read the source file")
+	}
+	if err != context.Canceled {
+		t.Fatalf("canceled caller preview returned %v", err)
 	}
 	if def := newEvidenceSource(snap).definition(t.Context(), id, ReferenceSubject{}); def == nil {
 		t.Fatal("uncanceled definition missing")
