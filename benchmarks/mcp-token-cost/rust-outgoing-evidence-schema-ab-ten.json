@@ -43,6 +43,9 @@
     "ripgrep-typed-10-old"
   ],
   "oracle": "LineStep::next forwards pair unchanged; next_match maps (s,e) to Match::new; LineIter::next indirectly via stepper.next_match",
+  "correctness_basis": "coverage of the three named oracle facts; not all-claims grading",
+  "disclosed_false_claim": {"arm": "new", "block": 1, "claim": "LineIter::next calls next_match twice", "pinned_source": "crates/searcher/src/lines.rs:34-36 contains one call"},
+  "all_claims_sensitivity": {"full": "9/10", "clean": "8/9", "affected_row": "new block 1"},
   "summary": {
     "old": {
       "sessions": 10,

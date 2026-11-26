@@ -263,7 +263,8 @@
       "wrong_active_help_path": 0,
       "queried_next_match_callers": 3,
       "copied_next_match_query": 0,
-      "received_offers": 0,
+      "sessions_with_offers": 0,
+      "offers_received": 0,
       "lineiter_selector_rejects": 7
     },
     "new": {
@@ -280,7 +281,8 @@
       "wrong_active_help_path": 0,
       "queried_next_match_callers": 2,
       "copied_next_match_query": 0,
-      "received_offers": 10,
+      "sessions_with_offers": 10,
+      "offers_received": 14,
       "lineiter_selector_rejects": 9
     }
   },
@@ -304,7 +306,8 @@
       "wrong_active_help_path": 0,
       "queried_next_match_callers": 3,
       "copied_next_match_query": 0,
-      "received_offers": 0,
+      "sessions_with_offers": 0,
+      "offers_received": 0,
       "lineiter_selector_rejects": 5
     },
     "new": {
@@ -321,7 +324,8 @@
       "wrong_active_help_path": 0,
       "queried_next_match_callers": 2,
       "copied_next_match_query": 0,
-      "received_offers": 8,
+      "sessions_with_offers": 8,
+      "offers_received": 12,
       "lineiter_selector_rejects": 7
     }
   },

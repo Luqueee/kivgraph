@@ -9,7 +9,7 @@
   "protocol": "2025-06-18",
   "design": "Two fresh agents per task and arm. Per graph agent: one initialized stdio server, no reconnect or preloaded answer; warm launch excluded. Sequential RPC IDs checked against a single PID. Text arm: rg plus host range reads. Concurrent sessions; uncontrolled prompt cache. Source checks score required facts, not incidental claims.",
   "replay": {
-    "order": "cobra, ky, ripgrep; control then typed, six alternating paired samples per selector. Fresh process includes startup and shutdown; persistent path includes local socket bridge.",
+    "order": "replayPersistenceP(): cobra, ky, ripgrep; control then typed in each corpus. For each selector, brokerQueryP(path, 'find_references', args) warms and supplies the expected rows. Time isolatedRPC(corpus, 'find_references', args) and brokerQueryP(path, 'find_references', args) in six pairs. Restart first in pairs 1, 3, 5; persistent first in pairs 2, 4, 6. Restart includes startup and shutdown; persistent includes the local socket bridge.",
     "find_references_arguments": {
       "cobra/typed": {
         "repository": "cobra",

@@ -83,6 +83,27 @@
       "ripgrep-typed-1-new"
     ]
   },
+  "provenance": {
+    "model": "anthropic/claude-haiku-5-5",
+    "thinking": "low",
+    "base": "43d1a11c-dirty",
+    "session_command": "omp -p --model \"$model\" --thinking \"$effort\" --no-title --no-context-files --no-rules --no-skills --no-extensions --no-lsp --mode json --tools \"$tools\" --session-dir \"$PWD/sessions\" \"$(cat prompt)\" >output.jsonl 2>stderr (the retained session command in agent-runs.md; fresh directory per session, no model seed supplied)",
+    "prompts": {
+      "mcp_arm_template": "Answer the maintainer question using source evidence. Use only the mounted bench MCP tools find_symbol, find_references and get_source on repository {corpus}. No other tools, web or edits. Cite file and lines. Starting symbol: {symbol}.\n{question}\n\n{guide}",
+      "grep_arm_template": "Answer the maintainer question using source evidence. Use only the host grep and read tools on the frozen repository at <checkout>. Choose your own search patterns, files and ranges. No other tools, web or edits. Cite file and lines. Starting symbol: {symbol}.\n{question}",
+      "guide": "The MCP guide in each prompt is guide_old for the old arm, and guide_old, a blank line, then added for the new arm; grep prompts have no guide. The question and starting symbol come from questions.",
+      "verification": "All 36 original and 3 replacement retained prompts match these templates exactly after replacing the corpus checkout path with <checkout>."
+    },
+    "schedule": {
+      "source": "order and replacement_order are the retained per-corpus schedules. Each original corpus order matches its retained order file and the recorded session start times; the replacement block started grep, old, new.",
+      "seed": "No model seed and no schedule generator seed were recorded for this pilot."
+    },
+    "mcp_adapter": {
+      "launcher": "Per-corpus adapter (cobra, ky or ripgrep) run in native mode, allowing find_symbol, find_references and get_source only; it starts a retained selector executable.",
+      "retained_executable_sha256": "e0cba1151a12528e434e4a26e73ffc5c0be1122e29edfc58ffd480cf50c1824b",
+      "attestation": "Adapter-to-retained-bytes match: the hash is of the retained file the adapters launch, not a per-start measurement. Build metadata identifies a dirty 43d1a11c base."
+    }
+  },
   "design": "Fresh low-thinking Haiku sessions. Grep vs previous guide vs previous guide plus one instruction. Reverse order in block two. Concurrent across corpora, replacement block alone. Original and replacement retained. Required-fact rubric; not every ancillary statement scored.",
   "original_summary": {
     "grep": {
@@ -117,6 +138,47 @@
       "call_output": 13889,
       "final_output": 9337,
       "call_text_chars": 1568
+    }
+  },
+  "original_excluding_ripgrep_typed_block_1_summary": {
+    "note": "Sensitivity, not a replacement: the original ripgrep/typed block 1 session is excluded from all three arms and no replacement row is added, leaving 11 sessions per arm. The original used concurrent corpus lanes; the replacement block ran alone.",
+    "summary": {
+      "grep": {
+        "tokens": 2073210,
+        "wall_s": 131.648,
+        "turns": 46,
+        "usd": 0.047035,
+        "post_s": 78.613016,
+        "ttft_s": 52.240984,
+        "call_output": 6934,
+        "final_output": 10811,
+        "call_text_chars": 0,
+        "n": 11
+      },
+      "old": {
+        "tokens": 2150675,
+        "wall_s": 176.858,
+        "turns": 47,
+        "usd": 0.0483,
+        "post_s": 120.029478,
+        "ttft_s": 56.071522,
+        "call_output": 13672,
+        "final_output": 10873,
+        "call_text_chars": 1848,
+        "n": 11
+      },
+      "new": {
+        "tokens": 1918122,
+        "wall_s": 154.863,
+        "turns": 42,
+        "usd": 0.04349,
+        "post_s": 107.802332,
+        "ttft_s": 46.380668,
+        "call_output": 11962,
+        "final_output": 8722,
+        "call_text_chars": 1568,
+        "n": 11
+      }
     }
   },
   "replacement_block_summary_all_arms": {
@@ -176,45 +238,45 @@
           "tool": "grep",
           "args": {
             "pattern": "func ExactArgs",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "ExactArgs\\(",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/args.go:90-102"
+            "path": "<checkout>/args.go:90-102"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/args_test.go:284-296"
+            "path": "<checkout>/args_test.go:284-296"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/args_test.go:308-332"
+            "path": "<checkout>/args_test.go:308-332"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "func exactArgsWithInvalidCount",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/args_test.go"
+            "path": "<checkout>/args_test.go"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/args_test.go:88-96"
+            "path": "<checkout>/args_test.go:88-96"
           }
         }
       ],
@@ -1132,46 +1194,46 @@
           "tool": "grep",
           "args": {
             "pattern": "func ExactArgs",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "ExactArgs\\(",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/args.go:90-102"
+            "path": "<checkout>/args.go:90-102"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/args_test.go:280-330"
+            "path": "<checkout>/args_test.go:280-330"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "func getCommand",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/args_test.go"
+            "path": "<checkout>/args_test.go"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "func exactArgsWithInvalidCount",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/args_test.go"
+            "path": "<checkout>/args_test.go"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/args_test.go:88-96"
+            "path": "<checkout>/args_test.go:88-96"
           }
         }
       ],
@@ -1543,26 +1605,26 @@
           "tool": "grep",
           "args": {
             "pattern": "MarkFlagRequired\\(",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "func MarkFlagRequired|func \\(c \\*Command\\) MarkFlagRequired|func \\(.*\\) MarkFlagRequired",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/shell_completions.go:20-50"
+            "path": "<checkout>/shell_completions.go:20-50"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/flag_groups.go:225-275"
+            "path": "<checkout>/flag_groups.go:225-275"
           }
         }
       ],
@@ -1611,26 +1673,26 @@
           "tool": "grep",
           "args": {
             "pattern": "MarkFlagRequired\\(",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/flag_groups.go:225-275"
+            "path": "<checkout>/flag_groups.go:225-275"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/shell_completions.go:20-50"
+            "path": "<checkout>/shell_completions.go:20-50"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "MarkPersistentFlagRequired\\(",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         }
       ],
@@ -2360,19 +2422,19 @@
           "tool": "grep",
           "args": {
             "pattern": "mergeHeaders|content-type",
-            "path": "/private/tmp/kivgraph-corpora/ky/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/core/Ky.ts:478-545"
+            "path": "<checkout>/source/core/Ky.ts:478-545"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/merge.ts:60-95"
+            "path": "<checkout>/source/utils/merge.ts:60-95"
           }
         }
       ],
@@ -2420,20 +2482,20 @@
           "tool": "grep",
           "args": {
             "pattern": "mergeHeaders|content-type",
-            "path": "/private/tmp/kivgraph-corpora/ky/src",
+            "path": "<checkout>",
             "case": false
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/core/Ky.ts:520-545"
+            "path": "<checkout>/source/core/Ky.ts:520-545"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/merge.ts:60-90"
+            "path": "<checkout>/source/utils/merge.ts:60-90"
           }
         }
       ],
@@ -3048,58 +3110,58 @@
           "tool": "grep",
           "args": {
             "pattern": "retry",
-            "path": "/private/tmp/kivgraph-corpora/ky/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "KEYS|knownKeys|optionKeys|validKeys",
-            "path": "/private/tmp/kivgraph-corpora/ky/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/core/Ky.ts:305:330"
+            "path": "<checkout>/source/core/Ky.ts:305:330"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "cloneDeep|'retry'|retryOnTimeout",
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source"
+            "path": "<checkout>/source"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/core/Ky.ts:312-330"
+            "path": "<checkout>/source/core/Ky.ts:312-330"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/merge.ts:125-165"
+            "path": "<checkout>/source/utils/merge.ts:125-165"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "const \\w*(Keys|Options|Names)\\w* *[:=]|\\.includes\\(key\\)|in options",
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source"
+            "path": "<checkout>/source"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/core/constants.ts:262-295"
+            "path": "<checkout>/source/core/constants.ts:262-295"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/core/Ky.ts:345-356"
+            "path": "<checkout>/source/core/Ky.ts:345-356"
           }
         }
       ],
@@ -3469,46 +3531,46 @@
           "tool": "grep",
           "args": {
             "pattern": "retry",
-            "path": "/private/tmp/kivgraph-corpora/ky/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "KEYS|OPTION_KEYS|knownKeys|recognized",
-            "path": "/private/tmp/kivgraph-corpora/ky/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/core/Ky.ts:305-330"
+            "path": "<checkout>/source/core/Ky.ts:305-330"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "'searchParams'.*'retry'|'retry',|'retry'\\]|\\['retry'",
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source"
+            "path": "<checkout>/source"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "cloneDeep|const .*(Keys|KEYS|OPTIONS|Options)\\w* = \\[|'hooks',|'prefixUrl'",
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source"
+            "path": "<checkout>/source"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/merge.ts:125-165"
+            "path": "<checkout>/source/utils/merge.ts:125-165"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/core/constants.ts:255-275"
+            "path": "<checkout>/source/core/constants.ts:255-275"
           }
         }
       ],
@@ -3879,26 +3941,26 @@
           "tool": "grep",
           "args": {
             "pattern": "Replacer|struct Standard|fn new_sink|Standard \\{",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/printer/src/standard.rs:525-590"
+            "path": "<checkout>/crates/printer/src/standard.rs:525-590"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/printer/src/util.rs:10-50"
+            "path": "<checkout>/crates/printer/src/util.rs:10-50"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "fn sink_with_path|fn sink\\(|fn sink_fishy|replacer",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/printer/src/standard.rs"
+            "path": "<checkout>/crates/printer/src/standard.rs"
           }
         }
       ],
@@ -4422,51 +4484,51 @@
           "tool": "grep",
           "args": {
             "pattern": "Replacer|Standard",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/printer/src/util.rs:1-60"
+            "path": "<checkout>/crates/printer/src/util.rs:1-60"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "Replacer|replacer|fn build|Sink|sink\\(|Standard\\s*\\{|struct Standard|fn sink",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/printer/src/standard.rs"
+            "path": "<checkout>/crates/printer/src/standard.rs"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/printer/src/standard.rs:524-580"
+            "path": "<checkout>/crates/printer/src/standard.rs:524-580"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/printer/src/util.rs:37-45"
+            "path": "<checkout>/crates/printer/src/util.rs:37-45"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/printer/src/standard.rs:654-668"
+            "path": "<checkout>/crates/printer/src/standard.rs:654-668"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "fn (clear|replacement)\\b|self\\.space",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/printer/src/util.rs"
+            "path": "<checkout>/crates/printer/src/util.rs"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/printer/src/util.rs:106-148"
+            "path": "<checkout>/crates/printer/src/util.rs:106-148"
           }
         }
       ],
@@ -4768,51 +4830,51 @@
       "rpc": [],
       "errors": [],
       "host_errors": [
-        "Path '/private/tmp/kivgraph-corpora/ripgrep/src/line_buffer.rs' not found"
+        "Path '<checkout>/line_buffer.rs' not found"
       ],
       "calls": [
         {
           "tool": "grep",
           "args": {
             "pattern": "Config",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/line_buffer.rs:1-120"
+            "path": "<checkout>/line_buffer.rs:1-120"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "struct Config|impl Default for Config|Config::default\\(\\)|: Config,|config: Config",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/*/src/line_buffer.rs;/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/*.rs"
+            "path": "<checkout>/crates/*/src/line_buffer.rs;<checkout>/crates/searcher/src/*.rs"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "line_buffer",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates"
+            "path": "<checkout>/crates"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/line_buffer.rs:84-120,290-300"
+            "path": "<checkout>/crates/searcher/src/line_buffer.rs:84-120,290-300"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "Config::default\\(\\)|config: Config|: Config,",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/line_buffer.rs"
+            "path": "<checkout>/crates/searcher/src/line_buffer.rs"
           }
         }
       ],
-      "answer": "Two structs in `crates/searcher/src/line_buffer.rs` store the private `Config` in a field: `LineBufferBuilder` (line 111) and `LineBuffer` (line 296). The constructor that calls `Config::default()` is `LineBufferBuilder::new` (line 117).\n\nDefault field value, from the `impl Default for Config` at lines 97\u2013103: `capacity: DEFAULT_BUFFER_CAPACITY` (line 100). The other fields default to `lineterm: b'\\n'` (line 101), `buffer_alloc: BufferAllocation::default()` and `binary: BinaryDetection::default()`.\n\nI did not open the `DEFAULT_BUFFER_CAPACITY` constant, so its numeric value is unverified.\n\nCitations, all in `/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/line_buffer.rs`:\n- `struct Config`: line 86\n- `impl Default for Config`: lines 97\u2013103\n- `LineBufferBuilder { config: Config }`: line 111\n- `LineBufferBuilder::new` calling `Config::default()`: line 117\n- `LineBuffer { config: Config }`: line 296",
+      "answer": "Two structs in `crates/searcher/src/line_buffer.rs` store the private `Config` in a field: `LineBufferBuilder` (line 111) and `LineBuffer` (line 296). The constructor that calls `Config::default()` is `LineBufferBuilder::new` (line 117).\n\nDefault field value, from the `impl Default for Config` at lines 97\u2013103: `capacity: DEFAULT_BUFFER_CAPACITY` (line 100). The other fields default to `lineterm: b'\\n'` (line 101), `buffer_alloc: BufferAllocation::default()` and `binary: BinaryDetection::default()`.\n\nI did not open the `DEFAULT_BUFFER_CAPACITY` constant, so its numeric value is unverified.\n\nCitations, all in `<checkout>/crates/searcher/src/line_buffer.rs`:\n- `struct Config`: line 86\n- `impl Default for Config`: lines 97\u2013103\n- `LineBufferBuilder { config: Config }`: line 111\n- `LineBufferBuilder::new` calling `Config::default()`: line 117\n- `LineBuffer { config: Config }`: line 296",
       "corpus": "ripgrep",
       "question_set": "typed",
       "block": 1,
@@ -5549,40 +5611,40 @@
       "rpc": [],
       "errors": [],
       "host_errors": [
-        "Path not found: /private/tmp/kivgraph-corpora/ripgrep/src/line_buffer.rs"
+        "Path not found: <checkout>/line_buffer.rs"
       ],
       "calls": [
         {
           "tool": "grep",
           "args": {
             "pattern": "Config",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/line_buffer.rs"
+            "path": "<checkout>/line_buffer.rs"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "line_buffer::Config|LineBufferReader|LineBufferBuilder|Config::default\\(\\)|Config \\{|: Config|<Config>|Config,",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "Config",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/line_buffer.rs"
+            "path": "<checkout>/crates/searcher/src/line_buffer.rs"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/line_buffer.rs:84-120"
+            "path": "<checkout>/crates/searcher/src/line_buffer.rs:84-120"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/line_buffer.rs:292-298"
+            "path": "<checkout>/crates/searcher/src/line_buffer.rs:292-298"
           }
         }
       ],
@@ -5631,54 +5693,54 @@
       "rpc": [],
       "errors": [],
       "host_errors": [
-        "Path '/private/tmp/kivgraph-corpora/ripgrep/src/line_buffer.rs' not found"
+        "Path '<checkout>/line_buffer.rs' not found"
       ],
       "calls": [
         {
           "tool": "grep",
           "args": {
             "pattern": "Config",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/line_buffer.rs:1-80"
+            "path": "<checkout>/line_buffer.rs:1-80"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "struct Config|Config::default\\(\\)|Config \\{",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src"
+            "path": "<checkout>/crates/searcher/src"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "line_buffer",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates"
+            "path": "<checkout>/crates"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/line_buffer.rs:84-120"
+            "path": "<checkout>/crates/searcher/src/line_buffer.rs:84-120"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "Config",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/searcher/mod.rs;/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/searcher/core.rs;/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/searcher/glue.rs"
+            "path": "<checkout>/crates/searcher/src/searcher/mod.rs;<checkout>/crates/searcher/src/searcher/core.rs;<checkout>/crates/searcher/src/searcher/glue.rs"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "config: Config|struct LineBuffer\\b|pub\\(crate\\) struct LineBuffer",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/line_buffer.rs"
+            "path": "<checkout>/crates/searcher/src/line_buffer.rs"
           }
         }
       ],

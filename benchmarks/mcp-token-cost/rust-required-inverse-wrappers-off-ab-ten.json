@@ -2,6 +2,7 @@
   "question": "LineStep::next_impl",
   "oracle": "LineStep::next forwards pair unchanged; next_match maps (s,e) to Match::new; LineIter::next indirectly via stepper.next_match",
   "design": "Independent ten matched pairs, fresh sessions with five starts per arm. Only documented guide treatment differs, pure MCP. No replacements. Timing excludes indexing and launch. Sensitivity excludes entire off-protocol pairs.",
+  "launch": {"launcher_sha256":"127ba76899f16a9eb779815e2984fb5cc97f7d96d5a2ca5bb36ad030a2914d79","command":"omp -p --model anthropic/claude-haiku-5-5 --thinking off --no-title --no-context-files --no-rules --no-skills --no-extensions --no-lsp --mode json --tools read,write --session-dir \"$PWD/sessions\" \"$(cat prompt)\" >output.jsonl 2>stderr","scope":"Both arms use the recorded fixed order below. The launcher supplied no model sampling seed."},
   "order": [
     "ripgrep-typed-1-new",
     "ripgrep-typed-1-old",

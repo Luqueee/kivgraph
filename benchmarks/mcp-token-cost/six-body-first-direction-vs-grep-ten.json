@@ -1,5 +1,5 @@
 {
-  "design": "Six held-out maintainer questions, 10 fresh paired repetitions per question, 120 sessions. One serial lane per corpus, three concurrent lanes. First arm alternates by repetition and question. No replacements. Session times exclude indexing and launch, not job makespan. Each off-protocol session remains in primary; sensitivity excludes the entire matched pair.",
+  "design": "Six maintainer questions reused from six-held-out-caller-guide-vs-grep-ten.json (the Ky and Rust typed questions also appear in earlier caller-guide and frozen-edge experiments), 10 fresh paired repetitions per question, 120 fresh sessions. Reuse is disclosed; no tuning set or chronology is established. One serial lane per corpus, three concurrent lanes. First arm alternates by repetition and question. No replacements. Session times exclude indexing and launch, not job makespan. Each off-protocol session remains in primary; sensitivity excludes the entire matched pair.",
   "model": "anthropic/claude-haiku-5-5",
   "thinking": "low",
   "binary_sha256": "e3f3aa6112d9897a0fa35e69318dc4009a94bd881116c5da5bca8e6a70f7b3e1",
@@ -1936,6 +1936,7 @@
       "started": 1795555327271,
       "ended": 1795555339215,
       "lexical_missing": [],
+      "grade_note": "Scoped claim: the statement that the program variable is never returned sits inside the numbered global=1 case; the same answer says global=0 returns its value. active_help.go:47-53 supports that reading. Grade unchanged: true.",
       "correct": true
     },
     {
@@ -3917,6 +3918,7 @@
       "started": 1795555527380,
       "ended": 1795555542564,
       "lexical_missing": [],
+      "grade_note": "Makes the unconditional claim in a separate conclusion after both cases; active_help.go:47-53 does not support it. Contrast block 4, where the same wording is scoped to the global=1 case. Grade unchanged: false.",
       "correct": false,
       "contradiction": "States the global value is never returned despite case 1 returning it."
     },

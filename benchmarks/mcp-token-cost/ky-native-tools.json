@@ -11,6 +11,7 @@
     "2-generic",
     "2-native"
   ],
+  "transport_note": "Within each arm the calls name a single PID, different from the recorded initialize PID. The four initialize/call PID pairs in run order are 83501/83514, 83844/83853, 84267/84276 and 84652/84660. The traces establish neither continuity from initialize to calls nor the cause of the discrepancy.",
   "wall": "user message timestamp through completedAt of final assistant answer; excludes setup and indexing",
   "runs": [
     {

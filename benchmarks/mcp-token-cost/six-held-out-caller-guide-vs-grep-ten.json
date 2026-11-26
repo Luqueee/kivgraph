@@ -1,5 +1,5 @@
 {
-  "design": "Six held-out maintainer questions, 10 fresh paired repetitions per question, 120 sessions. One serial lane per corpus, three concurrent lanes. First arm alternates by repetition and question. No replacements. Session times exclude indexing and launch, not job makespan. Each off-protocol session remains in primary; sensitivity excludes the entire matched pair.",
+  "design": "Six maintainer questions reused from earlier experiments, 10 fresh paired repetitions per question, 120 sessions. Reused questions: ky typed (as in ky-get-content-length-caller-guide-vs-grep-ten.json) and ripgrep typed (as in rust-next-impl-frozen-edge-off-ab-ten.json); all six also appear in six-body-first-direction-vs-grep-ten.json. Chronology of tuning is not inferred. One serial lane per corpus, three concurrent lanes. First arm alternates by repetition and question. No replacements. Session times exclude indexing and launch, not job makespan. Each off-protocol session remains in primary; sensitivity excludes the entire matched pair.",
   "model": "anthropic/claude-haiku-5-5",
   "thinking": "low",
   "binary_sha256": "8270f07709f03ec126d526838c6a31e03ae3522978c47aa5d3e7a8105b3e7728",
@@ -789,6 +789,7 @@
       "started": 1795550630847,
       "ended": 1795550646897,
       "lexical_missing": [],
+      "grade_scope": "required facts only; ancillary explanation not endorsed",
       "correct": true
     },
     {
@@ -3275,6 +3276,7 @@
       "started": 1795550852885,
       "ended": 1795550863989,
       "lexical_missing": [],
+      "grade_scope": "required facts only; ancillary explanation not endorsed",
       "correct": true
     },
     {
@@ -3660,6 +3662,7 @@
       "started": 1795550876498,
       "ended": 1795550903579,
       "lexical_missing": [],
+      "grade_scope": "required facts only; ancillary explanation not endorsed",
       "correct": true
     },
     {
@@ -3902,7 +3905,7 @@
           "args": {}
         }
       ],
-      "answer": "I can't answer this from the graph yet. The published snapshot (generation 308) only covers one repository, `kivgraph` at `<checkout>`. It does not include `cobra`, so any `Command.PrintErr` caller result would not be evidence about the cobra checkout. I did not run `find_references` on it.\n\nTo proceed, I need your consent to index the cobra checkout. The likely path is the working directory, `/var/folders/sr/6wjnf7m90n5_cw20t7xh39600000gn/T/six-guided-evidence-vs-grep-x01bnupu/cobra-typed-8-mcp`, registered as `cobra` with language `go`. Please confirm that path, or give the correct one. Once indexing finishes and `graph_status` attests `cobra`, I'll run `find_references` on `Command.PrintErr` with `include_evidence: true` and report each non-test formatted and newline caller, its formatter, and the writer passed to `fmt.Fprint`, with file and line citations.",
+      "answer": "I can't answer this from the graph yet. The published snapshot (generation 308) only covers one repository, `kivgraph` at `<checkout>`. It does not include `cobra`, so any `Command.PrintErr` caller result would not be evidence about the cobra checkout. I did not run `find_references` on it.\n\nTo proceed, I need your consent to index the cobra checkout. The likely path is the working directory, `<checkout>`, registered as `cobra` with language `go`. Please confirm that path, or give the correct one. Once indexing finishes and `graph_status` attests `cobra`, I'll run `find_references` on `Command.PrintErr` with `include_evidence: true` and report each non-test formatted and newline caller, its formatter, and the writer passed to `fmt.Fprint`, with file and line citations.",
       "corpus": "cobra",
       "question_set": "typed",
       "block": 8,
@@ -4572,6 +4575,7 @@
       "started": 1795550961045,
       "ended": 1795550975290,
       "lexical_missing": [],
+      "grade_scope": "required facts only; ancillary explanation not endorsed",
       "correct": true
     },
     {

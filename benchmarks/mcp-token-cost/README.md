@@ -307,8 +307,11 @@ does not establish that type resolution itself is slower. The new questions
 also admitted cheap text searches: for example, both Rust fields are in the
 same file, and the question identifies the module.
 
-A separate fixed-query replay isolated the transport: six selectors, six
-alternating pairs each, identical result rows. Median/p95 were 27.46/46.31 ms
+The fixed-query driver `replayPersistenceP()` visited Cobra, Ky, then ripgrep,
+control before typed. For each selector it warmed `find_references` through
+`brokerQueryP`, then timed six pairs of `isolatedRPC` and `brokerQueryP`
+with identical arguments and result rows. The restart arm went first in pairs
+1, 3 and 5; the persistent arm went first in 2, 4 and 6. Median/p95 were 27.46/46.31 ms
 starting and stopping a server per call versus 0.51/1.37 ms reusing one. The
 agent times exclude the initial connection and indexing and include inference;
 the replay includes neither inference nor agent decisions. Session totals are
@@ -321,8 +324,9 @@ Four fresh headless OMP sessions asked the same TS property question, without
 its path or any preloaded results. The native mount forwarded the server's
 `tools/list` descriptors unchanged for `find_symbol`, `find_references` and
 `get_source`. The control exposed the same operations through one MCP tool
-taking an operation and JSON argument string. Each session used one persistent
-server. The order was native, generic, generic, native; the model was
+taking an operation and JSON argument string. Within each session the calls
+report one PID, but the initialize event reports another. Process continuity
+through initialization is unverified. The order was native, generic, generic, native; the model was
 `claude-haiku-5-5` with low thinking. [Calls, usage and answers](ky-native-tools.json).
 
 | Arm (two sessions) | Rejected / attempted calls | Model turns | Full model tokens | Seconds to final token | Reported USD |
@@ -378,13 +382,15 @@ which also names the alternatives in the tool description, ran afterwards.
 | --- | ---: | ---: | ---: |
 | Invalid arguments / tool calls | 6 / 70 | 5 / 55 | 1 / 58 |
 | All rejected calls | 11 | 6 | 6 |
-| Answers meeting the rubric | 12 | 11 | 12 |
+| Complete explanations | 12 | 11 | 11 |
 | Model turns | 57 | 52 | 53 |
 | Full provider tokens | 2,663,662 | 2,361,705 | 2,457,800 |
 | Seconds through final answer | 153.2 | 150.9 | 132.2 |
 | Provider cost (USD) | 0.05714 | 0.05874 | 0.07812 |
 
 One field-only answer cited both Go callers but denied one was a caller.
+One final Ky answer quoted the right predicate but reversed the merge inputs
+in its explanation: `options.headers`, not `{}`, supplies the deletion markers.
 The final Rust run still mixed two selectors once. Three ambiguities and two
 missing symbols account for its other refusals. Historical grep used
 2,449,409 tokens: essentially level, not a demonstrated graph advantage.

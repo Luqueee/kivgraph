@@ -36,7 +36,8 @@
   },
   "description": {
     "before": "Typed references to a symbol; direction outgoing shows its uses. A bare name suffices. Check completeness before interpreting absence.",
-    "final": "Typed references. Pick ONE selector: name, stable_key, or qualified_name. With path use repository, not repo. Check completeness before inferring absence."
+    "final": "Typed references. Pick ONE selector: name, stable_key, or qualified_name. With path use repository, not repo. Check completeness before inferring absence.",
+    "final_binding": "Recovered: the 12 visible-selector sessions match six-visible-zvsc8c8i captures and use its native after wrapper, which forwards this text from /tmp/kv-selector-v2 (digest in agent-builds.json). Producer event 8805d354 sourced it via schemaRef; per-run tools/list descriptions were not logged."
   },
   "questions": {
     "cobra/control": [
@@ -5976,7 +5977,9 @@
       "rpc_calls": 4,
       "initializations": 1,
       "rubric": "required facts present",
-      "variant": "visible-selector"
+      "variant": "visible-selector",
+      "explanation_status": "partial",
+      "explanation_note": "Quotes the predicate but says source2 is {} with no deletion markers. Ky.ts:525 passes options.headers as source2, and merge.ts:73-86 processes its deletion markers. Rubric coverage stays separate; complete explanations for visible-selector: 11/12."
     },
     {
       "arm": "after",

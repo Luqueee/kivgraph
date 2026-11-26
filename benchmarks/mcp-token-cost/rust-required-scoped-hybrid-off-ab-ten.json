@@ -69,6 +69,12 @@
       }
     }
   },
+  "billed_cost_sensitivity": {
+    "all_pairs": {"old_usd": 0.04146886, "new_usd": 0.04645098, "new_minus_old_usd": 0.00498212},
+    "pairs_2_to_10": {"old_usd": 0.03790235, "new_usd": 0.03542647, "new_minus_old_usd": -0.00247588},
+    "block_1_cache_write_tokens": {"old": 6520, "new": 46173},
+    "note": "Cache state uncontrolled. Block 1 cache writes drive the all-pairs difference; not attributed to the treatment."
+  },
   "pairs": {
     "less_output": 7,
     "faster": 6,
@@ -121,6 +127,23 @@
     "gained": []
   },
   "hybrid_route_completed": 10,
+  "native_evidence": {
+    "scope": "new arm, rust-required-hybrid-off-b0id13vk session logs; native grep and read tool results only, no wrapper results; IDs are toolCallId values from output.jsonl",
+    "grep_excerpt": "*31|impl<'b> Iterator for LineIter<'b> {",
+    "read_excerpt": "self.stepper.next_match(self.bytes).map(|m| &self.bytes[m])",
+    "sessions": [
+      {"block": 1, "session_id": "01a21355-fbca-753c-ac80-f1434b034923", "grep_tool_call_id": "toolu_01Qmw7jjMqJ398tgM9Tp5wnX", "read_tool_call_id": "toolu_014vofC44KcmekztwnZxLfmF"},
+      {"block": 2, "session_id": "01a21356-561f-7078-88c6-fea82c70d130", "grep_tool_call_id": "toolu_01T8GFEqPTonwj9SdyGuEg19", "read_tool_call_id": "toolu_017bGxxBWUaH9bc9FLZMmdhX"},
+      {"block": 3, "session_id": "01a21356-76cb-74ef-a90e-aea00076dc90", "grep_tool_call_id": "toolu_01NtLS3c7drSRtehi9Xa2XD4", "read_tool_call_id": "toolu_01JnPgWKdGoshquAnrpGgRBo"},
+      {"block": 4, "session_id": "01a21356-d49b-71c0-855d-3f7f9d6e4bf8", "grep_tool_call_id": "toolu_01L5UAJWioaLqqGxYJXQufXZ", "read_tool_call_id": "toolu_01BwY4LGA5aW4grKzuqzXwHg"},
+      {"block": 5, "session_id": "01a21356-f614-716b-9c45-e0eff5bdd125", "grep_tool_call_id": "toolu_01Q782SzqEtEWQLY1tpiBNWU", "read_tool_call_id": "toolu_011CieomWjP4uXfVo2tchdCf"},
+      {"block": 6, "session_id": "01a21357-4df3-72c2-a5c8-db1f64df0e3d", "grep_tool_call_id": "toolu_01QjLsQ7D4RmLsi9YmyRJzVf", "read_tool_call_id": "toolu_01KpVkdNZ4LofmWKt9jnFR6n"},
+      {"block": 7, "session_id": "01a21357-6aff-7495-9578-876be03f339f", "grep_tool_call_id": "toolu_01Jh6PEXh7LtNH9gP7RqdCFZ", "read_tool_call_id": "toolu_0196bxDr4KsUVihsjwYgWxLP"},
+      {"block": 8, "session_id": "01a21357-c092-77a6-97f4-63920f62cbd6", "grep_tool_call_id": "toolu_017kpWZC7CmETJ4VAPf8Yr4q", "read_tool_call_id": "toolu_0141Nx5GofiFwDsNyiQEpopz"},
+      {"block": 9, "session_id": "01a21357-daf1-72e9-ba7b-67b2a000bb12", "grep_tool_call_id": "toolu_01FVPEjE3ZHxtTxFRf7peNXj", "read_tool_call_id": "toolu_01UcRtYBiN9jkP4aGewJndpH"},
+      {"block": 10, "session_id": "01a21358-37ce-76bd-a62f-9225277f6b16", "grep_tool_call_id": "toolu_01YRGueRTzDcGWXXgEs9YweW", "read_tool_call_id": "toolu_01G2jgmAf8yvt51HubAHBeiQ"}
+    ]
+  },
   "sessions": [
     {
       "arm": "new",

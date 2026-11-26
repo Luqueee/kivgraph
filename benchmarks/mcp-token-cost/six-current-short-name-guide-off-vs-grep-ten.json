@@ -9,18 +9,18 @@
     "ripgrep": "4649aa9700619f94cf9c66876e9549d83420e16c"
   },
   "prompts": {
-    "cobra-control-grep": "Answer the maintainer question using source evidence. Use only the host grep and read tools on the frozen repository at /private/tmp/kivgraph-corpora/cobra/src. Choose your own search patterns, files and ranges. No other tools, web or edits. Cite file and lines. Starting symbol: GetActiveHelpConfig.\nA subcommand runs with COBRA_ACTIVE_HELP=0 and the program-specific variable set to 1. What value does GetActiveHelpConfig return? What changes if the global value is 1 and the program-specific variable is unset? Explain whose command name determines the variable.",
+    "cobra-control-grep": "Answer the maintainer question using source evidence. Use only the host grep and read tools on the frozen repository at <checkout>. Choose your own search patterns, files and ranges. No other tools, web or edits. Cite file and lines. Starting symbol: GetActiveHelpConfig.\nA subcommand runs with COBRA_ACTIVE_HELP=0 and the program-specific variable set to 1. What value does GetActiveHelpConfig return? What changes if the global value is 1 and the program-specific variable is unset? Explain whose command name determines the variable.",
     "cobra-control-mcp": "Answer the maintainer question using source evidence. Use only the mounted bench MCP tools find_symbol, find_references and get_source on repository cobra. No other tools, web or edits. Cite file and lines. Starting symbol: GetActiveHelpConfig.\nA subcommand runs with COBRA_ACTIVE_HELP=0 and the program-specific variable set to 1. What value does GetActiveHelpConfig return? What changes if the global value is 1 and the program-specific variable is unset? Explain whose command name determines the variable.\n\nFor a known symbol's callers, start with `find_references` alone. If the\nquestion asks what the callers do, set `include_evidence: true`: it can return\nboth caller code and the subject definition. Use `find_symbol` only if the\nselector fails. Open another body only for a requested fact the returned code\ndoes not establish.\n\nTo explain a Rust free function given only its short name, first call\n`find_symbol` with `name` and `repo`. If several declarations match,\ndisambiguate them before reading. Pass the selected row's repository, file\nand qualified name to `get_source`.\n\nIf you already know a function's qualified name, start with `get_source`\nusing `repository` and `qualified_name`; omit `path` unless you know it. Request\n`context_lines: 5` to include a nearby doc comment. If the comment and body\nagree and answer the question, stop. Otherwise, batch only the declarations\nneeded to settle the missing or conflicting fact in one `get_source`.\nUse `find_references` with `direction: \"outgoing\"` only to locate a dependency\nyou still need. Do not trace how a helper works if its implementation cannot\nchange the answer.\n\nStart with two parallel `find_references` calls in the first turn when a Go\ncaller question names both a package function and a method with its receiver.\nUse `qualified_name` for each: the function name alone and `Receiver.Method`.\nDo not run `find_symbol` first. Use it only if a selector cannot be resolved;\nif it is ambiguous, use the returned candidates to narrow it rather than guess.\n\nFor Rust, a `Type::method` written from source resolves through `qualified_name`\nwhen the index proves the method belongs to that type. The exact canonical name,\nsuch as `shapes::impl::Circle::area`, always works. If the exact lookup finds\nnothing, the name may not be indexed in this snapshot at all, so the tool falls\nback to the method's declared type. The `METHOD_OF` edge that proves a method\nhas `STRUCTURAL_CERTAIN` confidence. If one proven method matches and no other\ncandidate of that name is unproven, it resolves. If two or more match, or one\nmatches alongside unproven candidates, the call returns `AMBIGUOUS_SYMBOL`;\nrepeat it with the exact `qualified_name` of the one you mean. If none is proven,\nit returns `SYMBOL_NOT_FOUND` with unproven candidates to inspect, not to repeat.\nFor a short name with no receiver, use `name` rather than inventing a qualified\npath.\n\nTo check whether a Rust method calls a target through one of its direct\ncallers, query incoming `find_references` on that caller. Copy its repository,\nfile and qualified name from the first result instead of guessing the outer\nmethod's trait or lifetime spelling. Look for an exact `CALLS_DIRECT` row for\nthe outer method; a missing row on a partial page does not rule it out.\n\nCall the tool directly without narrating the query. In the final answer,\ngive each requested fact with its source citation.",
     "cobra-typed-mcp": "Answer the maintainer question using source evidence. Use only the mounted bench MCP tools find_symbol, find_references and get_source on repository cobra. No other tools, web or edits. Cite file and lines. Starting symbol: Command.PrintErr.\nWhich non-test formatted and newline convenience methods are direct callers of Command.PrintErr? For each, identify the formatter it uses, and identify the writer PrintErr passes to fmt.Fprint.\n\nFor a known symbol's callers, start with `find_references` alone. If the\nquestion asks what the callers do, set `include_evidence: true`: it can return\nboth caller code and the subject definition. Use `find_symbol` only if the\nselector fails. Open another body only for a requested fact the returned code\ndoes not establish.\n\nTo explain a Rust free function given only its short name, first call\n`find_symbol` with `name` and `repo`. If several declarations match,\ndisambiguate them before reading. Pass the selected row's repository, file\nand qualified name to `get_source`.\n\nIf you already know a function's qualified name, start with `get_source`\nusing `repository` and `qualified_name`; omit `path` unless you know it. Request\n`context_lines: 5` to include a nearby doc comment. If the comment and body\nagree and answer the question, stop. Otherwise, batch only the declarations\nneeded to settle the missing or conflicting fact in one `get_source`.\nUse `find_references` with `direction: \"outgoing\"` only to locate a dependency\nyou still need. Do not trace how a helper works if its implementation cannot\nchange the answer.\n\nStart with two parallel `find_references` calls in the first turn when a Go\ncaller question names both a package function and a method with its receiver.\nUse `qualified_name` for each: the function name alone and `Receiver.Method`.\nDo not run `find_symbol` first. Use it only if a selector cannot be resolved;\nif it is ambiguous, use the returned candidates to narrow it rather than guess.\n\nFor Rust, a `Type::method` written from source resolves through `qualified_name`\nwhen the index proves the method belongs to that type. The exact canonical name,\nsuch as `shapes::impl::Circle::area`, always works. If the exact lookup finds\nnothing, the name may not be indexed in this snapshot at all, so the tool falls\nback to the method's declared type. The `METHOD_OF` edge that proves a method\nhas `STRUCTURAL_CERTAIN` confidence. If one proven method matches and no other\ncandidate of that name is unproven, it resolves. If two or more match, or one\nmatches alongside unproven candidates, the call returns `AMBIGUOUS_SYMBOL`;\nrepeat it with the exact `qualified_name` of the one you mean. If none is proven,\nit returns `SYMBOL_NOT_FOUND` with unproven candidates to inspect, not to repeat.\nFor a short name with no receiver, use `name` rather than inventing a qualified\npath.\n\nTo check whether a Rust method calls a target through one of its direct\ncallers, query incoming `find_references` on that caller. Copy its repository,\nfile and qualified name from the first result instead of guessing the outer\nmethod's trait or lifetime spelling. Look for an exact `CALLS_DIRECT` row for\nthe outer method; a missing row on a partial page does not rule it out.\n\nCall the tool directly without narrating the query. In the final answer,\ngive each requested fact with its source citation.",
-    "cobra-typed-grep": "Answer the maintainer question using source evidence. Use only the host grep and read tools on the frozen repository at /private/tmp/kivgraph-corpora/cobra/src. Choose your own search patterns, files and ranges. No other tools, web or edits. Cite file and lines. Starting symbol: Command.PrintErr.\nWhich non-test formatted and newline convenience methods are direct callers of Command.PrintErr? For each, identify the formatter it uses, and identify the writer PrintErr passes to fmt.Fprint.",
-    "ky-control-grep": "Answer the maintainer question using source evidence. Use only the host grep and read tools on the frozen repository at /private/tmp/kivgraph-corpora/ky/src. Choose your own search patterns, files and ranges. No other tools, web or edits. Cite file and lines. Starting symbol: delay.\nWhat happens if delay receives an already-aborted signal, if the signal aborts during the wait, and if the timer finishes normally? Explain timer and listener cleanup and the rejection reason.",
+    "cobra-typed-grep": "Answer the maintainer question using source evidence. Use only the host grep and read tools on the frozen repository at <checkout>. Choose your own search patterns, files and ranges. No other tools, web or edits. Cite file and lines. Starting symbol: Command.PrintErr.\nWhich non-test formatted and newline convenience methods are direct callers of Command.PrintErr? For each, identify the formatter it uses, and identify the writer PrintErr passes to fmt.Fprint.",
+    "ky-control-grep": "Answer the maintainer question using source evidence. Use only the host grep and read tools on the frozen repository at <checkout>. Choose your own search patterns, files and ranges. No other tools, web or edits. Cite file and lines. Starting symbol: delay.\nWhat happens if delay receives an already-aborted signal, if the signal aborts during the wait, and if the timer finishes normally? Explain timer and listener cleanup and the rejection reason.",
     "ky-control-mcp": "Answer the maintainer question using source evidence. Use only the mounted bench MCP tools find_symbol, find_references and get_source on repository ky. No other tools, web or edits. Cite file and lines. Starting symbol: delay.\nWhat happens if delay receives an already-aborted signal, if the signal aborts during the wait, and if the timer finishes normally? Explain timer and listener cleanup and the rejection reason.\n\nFor a known symbol's callers, start with `find_references` alone. If the\nquestion asks what the callers do, set `include_evidence: true`: it can return\nboth caller code and the subject definition. Use `find_symbol` only if the\nselector fails. Open another body only for a requested fact the returned code\ndoes not establish.\n\nTo explain a Rust free function given only its short name, first call\n`find_symbol` with `name` and `repo`. If several declarations match,\ndisambiguate them before reading. Pass the selected row's repository, file\nand qualified name to `get_source`.\n\nIf you already know a function's qualified name, start with `get_source`\nusing `repository` and `qualified_name`; omit `path` unless you know it. Request\n`context_lines: 5` to include a nearby doc comment. If the comment and body\nagree and answer the question, stop. Otherwise, batch only the declarations\nneeded to settle the missing or conflicting fact in one `get_source`.\nUse `find_references` with `direction: \"outgoing\"` only to locate a dependency\nyou still need. Do not trace how a helper works if its implementation cannot\nchange the answer.\n\nStart with two parallel `find_references` calls in the first turn when a Go\ncaller question names both a package function and a method with its receiver.\nUse `qualified_name` for each: the function name alone and `Receiver.Method`.\nDo not run `find_symbol` first. Use it only if a selector cannot be resolved;\nif it is ambiguous, use the returned candidates to narrow it rather than guess.\n\nFor Rust, a `Type::method` written from source resolves through `qualified_name`\nwhen the index proves the method belongs to that type. The exact canonical name,\nsuch as `shapes::impl::Circle::area`, always works. If the exact lookup finds\nnothing, the name may not be indexed in this snapshot at all, so the tool falls\nback to the method's declared type. The `METHOD_OF` edge that proves a method\nhas `STRUCTURAL_CERTAIN` confidence. If one proven method matches and no other\ncandidate of that name is unproven, it resolves. If two or more match, or one\nmatches alongside unproven candidates, the call returns `AMBIGUOUS_SYMBOL`;\nrepeat it with the exact `qualified_name` of the one you mean. If none is proven,\nit returns `SYMBOL_NOT_FOUND` with unproven candidates to inspect, not to repeat.\nFor a short name with no receiver, use `name` rather than inventing a qualified\npath.\n\nTo check whether a Rust method calls a target through one of its direct\ncallers, query incoming `find_references` on that caller. Copy its repository,\nfile and qualified name from the first result instead of guessing the outer\nmethod's trait or lifetime spelling. Look for an exact `CALLS_DIRECT` row for\nthe outer method; a missing row on a partial page does not rule it out.\n\nCall the tool directly without narrating the query. In the final answer,\ngive each requested fact with its source citation.",
     "ky-typed-mcp": "Answer the maintainer question using source evidence. Use only the mounted bench MCP tools find_symbol, find_references and get_source on repository ky. No other tools, web or edits. Cite file and lines. Starting symbol: getContentLength.\nWhich upload and download progress functions use getContentLength? Explain the condition for using the header on each path, including identity versus compressed responses and a zero computed upload size.\n\nFor a known symbol's callers, start with `find_references` alone. If the\nquestion asks what the callers do, set `include_evidence: true`: it can return\nboth caller code and the subject definition. Use `find_symbol` only if the\nselector fails. Open another body only for a requested fact the returned code\ndoes not establish.\n\nTo explain a Rust free function given only its short name, first call\n`find_symbol` with `name` and `repo`. If several declarations match,\ndisambiguate them before reading. Pass the selected row's repository, file\nand qualified name to `get_source`.\n\nIf you already know a function's qualified name, start with `get_source`\nusing `repository` and `qualified_name`; omit `path` unless you know it. Request\n`context_lines: 5` to include a nearby doc comment. If the comment and body\nagree and answer the question, stop. Otherwise, batch only the declarations\nneeded to settle the missing or conflicting fact in one `get_source`.\nUse `find_references` with `direction: \"outgoing\"` only to locate a dependency\nyou still need. Do not trace how a helper works if its implementation cannot\nchange the answer.\n\nStart with two parallel `find_references` calls in the first turn when a Go\ncaller question names both a package function and a method with its receiver.\nUse `qualified_name` for each: the function name alone and `Receiver.Method`.\nDo not run `find_symbol` first. Use it only if a selector cannot be resolved;\nif it is ambiguous, use the returned candidates to narrow it rather than guess.\n\nFor Rust, a `Type::method` written from source resolves through `qualified_name`\nwhen the index proves the method belongs to that type. The exact canonical name,\nsuch as `shapes::impl::Circle::area`, always works. If the exact lookup finds\nnothing, the name may not be indexed in this snapshot at all, so the tool falls\nback to the method's declared type. The `METHOD_OF` edge that proves a method\nhas `STRUCTURAL_CERTAIN` confidence. If one proven method matches and no other\ncandidate of that name is unproven, it resolves. If two or more match, or one\nmatches alongside unproven candidates, the call returns `AMBIGUOUS_SYMBOL`;\nrepeat it with the exact `qualified_name` of the one you mean. If none is proven,\nit returns `SYMBOL_NOT_FOUND` with unproven candidates to inspect, not to repeat.\nFor a short name with no receiver, use `name` rather than inventing a qualified\npath.\n\nTo check whether a Rust method calls a target through one of its direct\ncallers, query incoming `find_references` on that caller. Copy its repository,\nfile and qualified name from the first result instead of guessing the outer\nmethod's trait or lifetime spelling. Look for an exact `CALLS_DIRECT` row for\nthe outer method; a missing row on a partial page does not rule it out.\n\nCall the tool directly without narrating the query. In the final answer,\ngive each requested fact with its source citation.",
-    "ky-typed-grep": "Answer the maintainer question using source evidence. Use only the host grep and read tools on the frozen repository at /private/tmp/kivgraph-corpora/ky/src. Choose your own search patterns, files and ranges. No other tools, web or edits. Cite file and lines. Starting symbol: getContentLength.\nWhich upload and download progress functions use getContentLength? Explain the condition for using the header on each path, including identity versus compressed responses and a zero computed upload size.",
-    "ripgrep-control-grep": "Answer the maintainer question using source evidence. Use only the host grep and read tools on the frozen repository at /private/tmp/kivgraph-corpora/ripgrep/src. Choose your own search patterns, files and ranges. No other tools, web or edits. Cite file and lines. Starting symbol: without_terminator.\nFor a CRLF LineTerminator, what bytes does without_terminator return for inputs ending in CRLF versus a lone LF? Explain how it avoids underflow on an input shorter than the terminator.",
+    "ky-typed-grep": "Answer the maintainer question using source evidence. Use only the host grep and read tools on the frozen repository at <checkout>. Choose your own search patterns, files and ranges. No other tools, web or edits. Cite file and lines. Starting symbol: getContentLength.\nWhich upload and download progress functions use getContentLength? Explain the condition for using the header on each path, including identity versus compressed responses and a zero computed upload size.",
+    "ripgrep-control-grep": "Answer the maintainer question using source evidence. Use only the host grep and read tools on the frozen repository at <checkout>. Choose your own search patterns, files and ranges. No other tools, web or edits. Cite file and lines. Starting symbol: without_terminator.\nFor a CRLF LineTerminator, what bytes does without_terminator return for inputs ending in CRLF versus a lone LF? Explain how it avoids underflow on an input shorter than the terminator.",
     "ripgrep-control-mcp": "Answer the maintainer question using source evidence. Use only the mounted bench MCP tools find_symbol, find_references and get_source on repository ripgrep. No other tools, web or edits. Cite file and lines. Starting symbol: without_terminator.\nFor a CRLF LineTerminator, what bytes does without_terminator return for inputs ending in CRLF versus a lone LF? Explain how it avoids underflow on an input shorter than the terminator.\n\nFor a known symbol's callers, start with `find_references` alone. If the\nquestion asks what the callers do, set `include_evidence: true`: it can return\nboth caller code and the subject definition. Use `find_symbol` only if the\nselector fails. Open another body only for a requested fact the returned code\ndoes not establish.\n\nTo explain a Rust free function given only its short name, first call\n`find_symbol` with `name` and `repo`. If several declarations match,\ndisambiguate them before reading. Pass the selected row's repository, file\nand qualified name to `get_source`.\n\nIf you already know a function's qualified name, start with `get_source`\nusing `repository` and `qualified_name`; omit `path` unless you know it. Request\n`context_lines: 5` to include a nearby doc comment. If the comment and body\nagree and answer the question, stop. Otherwise, batch only the declarations\nneeded to settle the missing or conflicting fact in one `get_source`.\nUse `find_references` with `direction: \"outgoing\"` only to locate a dependency\nyou still need. Do not trace how a helper works if its implementation cannot\nchange the answer.\n\nStart with two parallel `find_references` calls in the first turn when a Go\ncaller question names both a package function and a method with its receiver.\nUse `qualified_name` for each: the function name alone and `Receiver.Method`.\nDo not run `find_symbol` first. Use it only if a selector cannot be resolved;\nif it is ambiguous, use the returned candidates to narrow it rather than guess.\n\nFor Rust, a `Type::method` written from source resolves through `qualified_name`\nwhen the index proves the method belongs to that type. The exact canonical name,\nsuch as `shapes::impl::Circle::area`, always works. If the exact lookup finds\nnothing, the name may not be indexed in this snapshot at all, so the tool falls\nback to the method's declared type. The `METHOD_OF` edge that proves a method\nhas `STRUCTURAL_CERTAIN` confidence. If one proven method matches and no other\ncandidate of that name is unproven, it resolves. If two or more match, or one\nmatches alongside unproven candidates, the call returns `AMBIGUOUS_SYMBOL`;\nrepeat it with the exact `qualified_name` of the one you mean. If none is proven,\nit returns `SYMBOL_NOT_FOUND` with unproven candidates to inspect, not to repeat.\nFor a short name with no receiver, use `name` rather than inventing a qualified\npath.\n\nTo check whether a Rust method calls a target through one of its direct\ncallers, query incoming `find_references` on that caller. Copy its repository,\nfile and qualified name from the first result instead of guessing the outer\nmethod's trait or lifetime spelling. Look for an exact `CALLS_DIRECT` row for\nthe outer method; a missing row on a partial page does not rule it out.\n\nCall the tool directly without narrating the query. In the final answer,\ngive each requested fact with its source citation.",
     "ripgrep-typed-mcp": "Answer the maintainer question using source evidence. Use only the mounted bench MCP tools find_symbol, find_references and get_source on repository ripgrep. No other tools, web or edits. Cite file and lines. Starting symbol: LineStep::next_impl.\nIdentify the direct callers of LineStep::next_impl. Which preserves the offset pair and which converts it to a Match? Does LineIter::next invoke next_impl directly, or through which method?\n\nFor a known symbol's callers, start with `find_references` alone. If the\nquestion asks what the callers do, set `include_evidence: true`: it can return\nboth caller code and the subject definition. Use `find_symbol` only if the\nselector fails. Open another body only for a requested fact the returned code\ndoes not establish.\n\nTo explain a Rust free function given only its short name, first call\n`find_symbol` with `name` and `repo`. If several declarations match,\ndisambiguate them before reading. Pass the selected row's repository, file\nand qualified name to `get_source`.\n\nIf you already know a function's qualified name, start with `get_source`\nusing `repository` and `qualified_name`; omit `path` unless you know it. Request\n`context_lines: 5` to include a nearby doc comment. If the comment and body\nagree and answer the question, stop. Otherwise, batch only the declarations\nneeded to settle the missing or conflicting fact in one `get_source`.\nUse `find_references` with `direction: \"outgoing\"` only to locate a dependency\nyou still need. Do not trace how a helper works if its implementation cannot\nchange the answer.\n\nStart with two parallel `find_references` calls in the first turn when a Go\ncaller question names both a package function and a method with its receiver.\nUse `qualified_name` for each: the function name alone and `Receiver.Method`.\nDo not run `find_symbol` first. Use it only if a selector cannot be resolved;\nif it is ambiguous, use the returned candidates to narrow it rather than guess.\n\nFor Rust, a `Type::method` written from source resolves through `qualified_name`\nwhen the index proves the method belongs to that type. The exact canonical name,\nsuch as `shapes::impl::Circle::area`, always works. If the exact lookup finds\nnothing, the name may not be indexed in this snapshot at all, so the tool falls\nback to the method's declared type. The `METHOD_OF` edge that proves a method\nhas `STRUCTURAL_CERTAIN` confidence. If one proven method matches and no other\ncandidate of that name is unproven, it resolves. If two or more match, or one\nmatches alongside unproven candidates, the call returns `AMBIGUOUS_SYMBOL`;\nrepeat it with the exact `qualified_name` of the one you mean. If none is proven,\nit returns `SYMBOL_NOT_FOUND` with unproven candidates to inspect, not to repeat.\nFor a short name with no receiver, use `name` rather than inventing a qualified\npath.\n\nTo check whether a Rust method calls a target through one of its direct\ncallers, query incoming `find_references` on that caller. Copy its repository,\nfile and qualified name from the first result instead of guessing the outer\nmethod's trait or lifetime spelling. Look for an exact `CALLS_DIRECT` row for\nthe outer method; a missing row on a partial page does not rule it out.\n\nCall the tool directly without narrating the query. In the final answer,\ngive each requested fact with its source citation.",
-    "ripgrep-typed-grep": "Answer the maintainer question using source evidence. Use only the host grep and read tools on the frozen repository at /private/tmp/kivgraph-corpora/ripgrep/src. Choose your own search patterns, files and ranges. No other tools, web or edits. Cite file and lines. Starting symbol: LineStep::next_impl.\nIdentify the direct callers of LineStep::next_impl. Which preserves the offset pair and which converts it to a Match? Does LineIter::next invoke next_impl directly, or through which method?"
+    "ripgrep-typed-grep": "Answer the maintainer question using source evidence. Use only the host grep and read tools on the frozen repository at <checkout>. Choose your own search patterns, files and ranges. No other tools, web or edits. Cite file and lines. Starting symbol: LineStep::next_impl.\nIdentify the direct callers of LineStep::next_impl. Which preserves the offset pair and which converts it to a Match? Does LineIter::next invoke next_impl directly, or through which method?"
   },
   "order_by_corpus": {
     "cobra": [
@@ -393,26 +393,26 @@
           "tool": "grep",
           "args": {
             "pattern": "GetActiveHelpConfig|activeHelpEnvVar|COBRA_ACTIVE_HELP|ActiveHelpEnvVar",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/active_help.go:20-62"
+            "path": "<checkout>/active_help.go:20-62"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "func configEnvVar|configEnvVarGlobalPrefix\\s*=|func configEnvVarGlobal",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/completions.go:990-1015"
+            "path": "<checkout>/completions.go:990-1015"
           }
         }
       ],
@@ -856,27 +856,27 @@
           "tool": "grep",
           "args": {
             "pattern": "func \\(c \\*Command\\) PrintErr|PrintErr\\(",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "func \\(c \\*Command\\) (PrintErr|PrintErrf|PrintErrln)\\b",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/command.go:1420-1465"
+            "path": "<checkout>/command.go:1420-1465"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "func \\(c \\*Command\\) (ErrOrStderr|getErr)\\(",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/command.go"
+            "path": "<checkout>/command.go"
           }
         }
       ],
@@ -938,13 +938,13 @@
           "tool": "grep",
           "args": {
             "pattern": "func \\(c \\*Command\\) PrintErr|PrintErr\\(",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/command.go:1420-1470"
+            "path": "<checkout>/command.go:1420-1470"
           }
         }
       ],
@@ -1382,30 +1382,30 @@
           "tool": "grep",
           "args": {
             "pattern": "GetActiveHelpConfig|ActiveHelpEnvVar|COBRA_ACTIVE_HELP",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/active_help.go:20-70"
+            "path": "<checkout>/active_help.go:20-70"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "func configEnvVar|configEnvVarGlobalPrefix\\s*=",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/completions.go:990-1015"
+            "path": "<checkout>/completions.go:990-1015"
           }
         }
       ],
-      "answer": "**Answer**\n\n**1. Subcommand run with `COBRA_ACTIVE_HELP=0` and `<PROGRAM>_ACTIVE_HELP=1`: returns `\"0\"`.**\n\n`GetActiveHelpConfig` reads the global variable first. If it equals `\"0\"` (`activeHelpGlobalDisable`), the program-specific lookup is skipped and the global value is returned (`active_help.go:47-53`). The program variable is only consulted when the global value is not `\"0\"`. So the global disable wins regardless of the program variable.\n\n**2. Global `COBRA_ACTIVE_HELP=1` and `<PROGRAM>_ACTIVE_HELP` unset: returns `\"\"`.**\n\nThe global value `\"1\"` is not `\"0\"`, so the code falls through to `os.Getenv(activeHelpEnvVar(cmd.Root().Name()))` (`active_help.go:49-50`). That lookup yields `\"\"` because the program variable is unset. The global value of `\"1\"` is discarded and never returned. Unlike `getEnvConfig` in `completions.go:1005-1013`, which falls back to `COBRA_<SUFFIX>` when the program variable is empty, `GetActiveHelpConfig` has no such fallback. The docs describe the empty string as the default (`site/content/active_help.md:140`), which matches this behavior. Global `\"1\"` therefore does not enable anything by itself; only `\"0\"` has global meaning.\n\n**3. Whose command name determines the variable: the root command's.**\n\n`activeHelpEnvVar(cmd.Root().Name())` calls `Root()`, so the name comes from the root of the command tree, not the invoked subcommand or `cmd` itself. The name is passed through `configEnvVar` (`completions.go:1002-1005`): `fmt.Sprintf(\"%s_%s\", name, suffix)`, uppercased, with every character outside `[A-Z0-9_]` replaced by `_`. For example, a root named `my-tool` gives `MY_TOOL_ACTIVE_HELP`.\n\nCaveat: this is read from the source at `/private/tmp/kivgraph-corpora/cobra/src`; I did not execute the code.",
+      "answer": "**Answer**\n\n**1. Subcommand run with `COBRA_ACTIVE_HELP=0` and `<PROGRAM>_ACTIVE_HELP=1`: returns `\"0\"`.**\n\n`GetActiveHelpConfig` reads the global variable first. If it equals `\"0\"` (`activeHelpGlobalDisable`), the program-specific lookup is skipped and the global value is returned (`active_help.go:47-53`). The program variable is only consulted when the global value is not `\"0\"`. So the global disable wins regardless of the program variable.\n\n**2. Global `COBRA_ACTIVE_HELP=1` and `<PROGRAM>_ACTIVE_HELP` unset: returns `\"\"`.**\n\nThe global value `\"1\"` is not `\"0\"`, so the code falls through to `os.Getenv(activeHelpEnvVar(cmd.Root().Name()))` (`active_help.go:49-50`). That lookup yields `\"\"` because the program variable is unset. The global value of `\"1\"` is discarded and never returned. Unlike `getEnvConfig` in `completions.go:1005-1013`, which falls back to `COBRA_<SUFFIX>` when the program variable is empty, `GetActiveHelpConfig` has no such fallback. The docs describe the empty string as the default (`site/content/active_help.md:140`), which matches this behavior. Global `\"1\"` therefore does not enable anything by itself; only `\"0\"` has global meaning.\n\n**3. Whose command name determines the variable: the root command's.**\n\n`activeHelpEnvVar(cmd.Root().Name())` calls `Root()`, so the name comes from the root of the command tree, not the invoked subcommand or `cmd` itself. The name is passed through `configEnvVar` (`completions.go:1002-1005`): `fmt.Sprintf(\"%s_%s\", name, suffix)`, uppercased, with every character outside `[A-Z0-9_]` replaced by `_`. For example, a root named `my-tool` gives `MY_TOOL_ACTIVE_HELP`.\n\nCaveat: this is read from the source at `<checkout>`; I did not execute the code.",
       "corpus": "cobra",
       "question_set": "control",
       "block": 2,
@@ -1467,45 +1467,45 @@
           "tool": "grep",
           "args": {
             "pattern": "GetActiveHelpConfig|activeHelpEnvVar|ActiveHelpEnvVar|COBRA_ACTIVE_HELP",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/active_help.go:20-62"
+            "path": "<checkout>/active_help.go:20-62"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "func configEnvVar|configEnvVarGlobalPrefix|func (c \\*Command) Name\\(\\)|func (c \\*Command) Root\\(\\)",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/completions.go:990-1025"
+            "path": "<checkout>/completions.go:990-1025"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "func \\(c \\*Command\\) Root\\(\\)|func \\(c \\*Command\\) Name\\(\\)",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/command.go:890-902"
+            "path": "<checkout>/command.go:890-902"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/command.go:1539-1555"
+            "path": "<checkout>/command.go:1539-1555"
           }
         }
       ],
@@ -1876,20 +1876,20 @@
           "tool": "grep",
           "args": {
             "pattern": "PrintErr\\b",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "func \\(c \\*Command\\) PrintErr",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/command.go:1440-1465"
+            "path": "<checkout>/command.go:1440-1465"
           }
         }
       ],
@@ -1950,13 +1950,13 @@
           "tool": "grep",
           "args": {
             "pattern": "func \\(c \\*Command\\) PrintErr|PrintErr\\(",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/command.go:1420-1465"
+            "path": "<checkout>/command.go:1420-1465"
           }
         }
       ],
@@ -2401,26 +2401,26 @@
           "tool": "grep",
           "args": {
             "pattern": "GetActiveHelpConfig|ActiveHelpEnvVar|COBRA_ACTIVE_HELP",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/active_help.go:20-70"
+            "path": "<checkout>/active_help.go:20-70"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "configEnvVarGlobalPrefix|func configEnvVar",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/completions.go:990-1025"
+            "path": "<checkout>/completions.go:990-1025"
           }
         }
       ],
@@ -2486,26 +2486,26 @@
           "tool": "grep",
           "args": {
             "pattern": "GetActiveHelpConfig|activeHelpEnvVar|ActiveHelpEnvVar|COBRA_ACTIVE_HELP",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/active_help.go:20-60"
+            "path": "<checkout>/active_help.go:20-60"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "func configEnvVar|configEnvVarGlobalPrefix\\s*=",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/completions.go:990-1015"
+            "path": "<checkout>/completions.go:990-1015"
           }
         }
       ],
@@ -2899,20 +2899,20 @@
           "tool": "grep",
           "args": {
             "pattern": "func \\(c \\*Command\\) (PrintErr|PrintErrf|PrintErrln)\\b",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "PrintErr\\(",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/command.go:1420-1465"
+            "path": "<checkout>/command.go:1420-1465"
           }
         }
       ],
@@ -2974,34 +2974,34 @@
           "tool": "grep",
           "args": {
             "pattern": "func \\(c \\*Command\\) PrintErr|PrintErr\\(",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/command.go:1420-1465"
+            "path": "<checkout>/command.go:1420-1465"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "PrintErr\\b|PrintErrln|PrintErrf",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "func \\(c \\*Command\\) ErrOrStderr",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/command.go"
+            "path": "<checkout>/command.go"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "PrintErr\\b|PrintErrln|PrintErrf",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/command.go"
+            "path": "<checkout>/command.go"
           }
         }
       ],
@@ -3485,17 +3485,17 @@
           "tool": "grep",
           "args": {
             "pattern": "GetActiveHelpConfig|activeHelpEnvVar|COBRA_ACTIVE_HELP",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/active_help.go:20-60"
+            "path": "<checkout>/active_help.go:20-60"
           }
         }
       ],
-      "answer": "Answers from the source at `/private/tmp/kivgraph-corpora/cobra/src`.\n\n**1. `COBRA_ACTIVE_HELP=0` plus `<PROGRAM>_ACTIVE_HELP=1` → returns `\"0\"`.**\n`GetActiveHelpConfig` (`active_help.go:47-53`) reads the global variable first. If it equals `activeHelpGlobalDisable` (`\"0\"`, defined at `active_help.go:26-29`), the function returns it immediately and never reads the program-specific variable. The program-specific `1` is ignored.\n\n**2. Global `COBRA_ACTIVE_HELP=1`, program-specific unset → returns `\"\"`.**\nThe global value is not `\"0\"`, so the branch at `active_help.go:49-51` runs: `os.Getenv(activeHelpEnvVar(cmd.Root().Name()))`. The program variable is unset, so `os.Getenv` returns the empty string. The global `1` is discarded; it only matters as a non-\"0\" value that lets the program-specific lookup run. The empty string is the documented default (`site/content/active_help.md:140`).\n\nGlobal `\"0\"` is a kill switch; any other global value, including `\"1\"`, defers entirely to the program variable. Note that when the global value is `\"1\"` and the program variable is set to `\"1\"`, the result is `\"1\"`, same as if the global were unset.\n\n**3. Whose command name determines the variable.**\n`cmd.Root().Name()` — the **root** command's name, not the invoked subcommand's. `Root()` walks up the parent chain, so every subcommand of a program resolves to the same variable. `activeHelpEnvVar` (`active_help.go:58-60`) upper-cases that name and replaces non-ASCII-alphanumerics with `_` via `configEnvVar`. Example: root `my-tool` → `MY_TOOL_ACTIVE_HELP`. Tests confirm this resolution (`active_help_test.go:281, 299, 336, 348, 364`), always using `rootCmd.Name()`.\n\nSide note: `GetActiveHelpConfig` never returns `\"0\"` on its own for an unset global; `COBRA_ACTIVE_HELP` must be explicitly `\"0\"` to force it.",
+      "answer": "Answers from the source at `<checkout>`.\n\n**1. `COBRA_ACTIVE_HELP=0` plus `<PROGRAM>_ACTIVE_HELP=1` → returns `\"0\"`.**\n`GetActiveHelpConfig` (`active_help.go:47-53`) reads the global variable first. If it equals `activeHelpGlobalDisable` (`\"0\"`, defined at `active_help.go:26-29`), the function returns it immediately and never reads the program-specific variable. The program-specific `1` is ignored.\n\n**2. Global `COBRA_ACTIVE_HELP=1`, program-specific unset → returns `\"\"`.**\nThe global value is not `\"0\"`, so the branch at `active_help.go:49-51` runs: `os.Getenv(activeHelpEnvVar(cmd.Root().Name()))`. The program variable is unset, so `os.Getenv` returns the empty string. The global `1` is discarded; it only matters as a non-\"0\" value that lets the program-specific lookup run. The empty string is the documented default (`site/content/active_help.md:140`).\n\nGlobal `\"0\"` is a kill switch; any other global value, including `\"1\"`, defers entirely to the program variable. Note that when the global value is `\"1\"` and the program variable is set to `\"1\"`, the result is `\"1\"`, same as if the global were unset.\n\n**3. Whose command name determines the variable.**\n`cmd.Root().Name()` — the **root** command's name, not the invoked subcommand's. `Root()` walks up the parent chain, so every subcommand of a program resolves to the same variable. `activeHelpEnvVar` (`active_help.go:58-60`) upper-cases that name and replaces non-ASCII-alphanumerics with `_` via `configEnvVar`. Example: root `my-tool` → `MY_TOOL_ACTIVE_HELP`. Tests confirm this resolution (`active_help_test.go:281, 299, 336, 348, 364`), always using `rootCmd.Name()`.\n\nSide note: `GetActiveHelpConfig` never returns `\"0\"` on its own for an unset global; `COBRA_ACTIVE_HELP` must be explicitly `\"0\"` to force it.",
       "corpus": "cobra",
       "question_set": "control",
       "block": 6,
@@ -3551,26 +3551,26 @@
           "tool": "grep",
           "args": {
             "pattern": "GetActiveHelpConfig|activeHelpEnvVar|COBRA_ACTIVE_HELP",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/active_help.go:20-62"
+            "path": "<checkout>/active_help.go:20-62"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "func configEnvVar|configEnvVarGlobalPrefix\\s*=",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/completions.go:990-1015"
+            "path": "<checkout>/completions.go:990-1015"
           }
         }
       ],
@@ -4175,20 +4175,20 @@
           "tool": "grep",
           "args": {
             "pattern": "PrintErr\\b",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "func \\(c \\*Command\\) PrintErr",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/command.go:1440-1465"
+            "path": "<checkout>/command.go:1440-1465"
           }
         }
       ],
@@ -4249,27 +4249,27 @@
           "tool": "grep",
           "args": {
             "pattern": "PrintErr",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "func \\(c \\*Command\\) PrintErr",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/command.go:1420-1470"
+            "path": "<checkout>/command.go:1420-1470"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "PrintErr(ln|f)?\\(",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/command.go"
+            "path": "<checkout>/command.go"
           }
         }
       ],
@@ -4567,13 +4567,13 @@
           "tool": "grep",
           "args": {
             "pattern": "GetActiveHelpConfig|ActiveHelpEnvVar|COBRA_ACTIVE_HELP",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/active_help.go:35-75"
+            "path": "<checkout>/active_help.go:35-75"
           }
         }
       ],
@@ -4633,32 +4633,32 @@
           "tool": "grep",
           "args": {
             "pattern": "func GetActiveHelpConfig|func GetActiveHelpConfig|activeHelpEnvVar|COBRA_ACTIVE_HELP",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/active_help.go:20-62"
+            "path": "<checkout>/active_help.go:20-62"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/site/content/active_help.md:130-142"
+            "path": "<checkout>/site/content/active_help.md:130-142"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "func configEnvVar|configEnvVarGlobalPrefix\\s*=",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/completions.go:990-1020"
+            "path": "<checkout>/completions.go:990-1020"
           }
         }
       ],
@@ -5291,20 +5291,20 @@
           "tool": "grep",
           "args": {
             "pattern": "PrintErr\\b",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "func \\(c \\*Command\\) (PrintErr|PrintErrf|PrintErrln)\\b",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/command.go:1420-1465"
+            "path": "<checkout>/command.go:1420-1465"
           }
         }
       ],
@@ -5365,21 +5365,21 @@
           "tool": "grep",
           "args": {
             "pattern": "func \\(c \\*Command\\) PrintErr|PrintErr\\(",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src",
+            "path": "<checkout>",
             "gitignore": false
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/command.go:1420-1465"
+            "path": "<checkout>/command.go:1420-1465"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "PrintErr\\b",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src",
+            "path": "<checkout>",
             "gitignore": false
           }
         }
@@ -5788,26 +5788,26 @@
           "tool": "grep",
           "args": {
             "pattern": "func GetActiveHelpConfig|ActiveHelpEnvVar|activeHelpEnvVar|COBRA_ACTIVE_HELP",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/active_help.go:20-65"
+            "path": "<checkout>/active_help.go:20-65"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "func configEnvVar|configEnvVarGlobalPrefix\\s*=|func configEnvVar\\(",
-            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/cobra/src/completions.go:990-1012"
+            "path": "<checkout>/completions.go:990-1012"
           }
         }
       ],
@@ -5871,13 +5871,13 @@
           "tool": "grep",
           "args": {
             "pattern": "delay",
-            "path": "/private/tmp/kivgraph-corpora/ky/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/delay.ts:1-60"
+            "path": "<checkout>/source/utils/delay.ts:1-60"
           }
         }
       ],
@@ -6138,13 +6138,13 @@
           "tool": "grep",
           "args": {
             "pattern": "getContentLength",
-            "path": "/private/tmp/kivgraph-corpora/ky/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/body.ts:1-260"
+            "path": "<checkout>/source/utils/body.ts:1-260"
           }
         }
       ],
@@ -6204,13 +6204,13 @@
           "tool": "grep",
           "args": {
             "pattern": "getContentLength",
-            "path": "/private/tmp/kivgraph-corpora/ky/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/body.ts:1-260"
+            "path": "<checkout>/source/utils/body.ts:1-260"
           }
         }
       ],
@@ -6469,17 +6469,17 @@
           "tool": "grep",
           "args": {
             "pattern": "export\\s+(async\\s+)?function\\s+delay|const\\s+delay\\s*=|function\\s+delay\\b",
-            "path": "/private/tmp/kivgraph-corpora/ky/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/delay.ts:1-60"
+            "path": "<checkout>/source/utils/delay.ts:1-60"
           }
         }
       ],
-      "answer": "Source: `/private/tmp/kivgraph-corpora/ky/src/source/utils/delay.ts`, lines 9–29.\n\n**Already-aborted signal (lines 15–16):** `signal.throwIfAborted()` throws synchronously inside the Promise executor. The executor's throw rejects the promise with `signal.reason`. No listener is added and no timer is created, so there is nothing to clean up.\n\n**Abort during the wait (lines 17–22, 24–27):** The `abort` listener is registered with `{once: true}`, so it removes itself after firing. `abortHandler` calls `clearTimeout(timeoutId)` and rejects with `signal.reason`. The timer is cancelled, so `resolve()` never runs. Because the listener is `once`, it is already gone and no explicit removal is needed. The rejection value is `signal.reason` cast to `Error`. The source does not normalize it, so whatever reason the caller passed to `abort()` is what the caller receives.\n\n**Timer finishes normally (lines 24–27):** The timeout callback calls `signal?.removeEventListener('abort', abortHandler)` and then `resolve()`. This is the only cleanup path for the listener on success. Without a signal, `signal?.` is a no-op.\n\n**Caveat:** `timeoutId` is referenced inside `abortHandler` before its `const` declaration at line 24. This is safe because `abortHandler` only runs from an `abort` event, which cannot fire before the executor finishes. The `once` option also means the listener cannot be called twice.",
+      "answer": "Source: `<checkout>/source/utils/delay.ts`, lines 9–29.\n\n**Already-aborted signal (lines 15–16):** `signal.throwIfAborted()` throws synchronously inside the Promise executor. The executor's throw rejects the promise with `signal.reason`. No listener is added and no timer is created, so there is nothing to clean up.\n\n**Abort during the wait (lines 17–22, 24–27):** The `abort` listener is registered with `{once: true}`, so it removes itself after firing. `abortHandler` calls `clearTimeout(timeoutId)` and rejects with `signal.reason`. The timer is cancelled, so `resolve()` never runs. Because the listener is `once`, it is already gone and no explicit removal is needed. The rejection value is `signal.reason` cast to `Error`. The source does not normalize it, so whatever reason the caller passed to `abort()` is what the caller receives.\n\n**Timer finishes normally (lines 24–27):** The timeout callback calls `signal?.removeEventListener('abort', abortHandler)` and then `resolve()`. This is the only cleanup path for the listener on success. Without a signal, `signal?.` is a no-op.\n\n**Caveat:** `timeoutId` is referenced inside `abortHandler` before its `const` declaration at line 24. This is safe because `abortHandler` only runs from an `abort` event, which cannot fire before the executor finishes. The `once` option also means the listener cannot be called twice.",
       "corpus": "ky",
       "question_set": "control",
       "block": 2,
@@ -6535,17 +6535,17 @@
           "tool": "grep",
           "args": {
             "pattern": "export\\s+(async\\s+)?function\\s+delay|const\\s+delay\\s*=|function\\s+delay\\b",
-            "path": "/private/tmp/kivgraph-corpora/ky/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/delay.ts"
+            "path": "<checkout>/source/utils/delay.ts"
           }
         }
       ],
-      "answer": "Source evidence from `/private/tmp/kivgraph-corpora/ky/src/source/utils/delay.ts` (the file has 33 lines; the body is lines 9–33).\n\n**Already-aborted signal (line 15):** `signal.throwIfAborted()` runs synchronously inside the Promise executor. It throws `signal.reason`, and the executor turns that throw into a rejection of the promise. The listener is not added (line 16 is never reached) and no timer is created (line 25 is never reached). Nothing needs cleanup. The rejection reason is `signal.reason`, the value the signal was aborted with (the `DOMException` `AbortError` by default, or a custom reason).\n\n**Abort during the wait (lines 16, 18–21):** `abortHandler` is registered with `{once: true}`. When it fires, it calls `clearTimeout(timeoutId)` (line 19), so the pending timer is cancelled, and then rejects with `signal!.reason as Error` (line 20). The promise rejects with the abort reason. The `once: true` option means the browser/runtime removes the listener after it fires, so the handler does not remain attached.\n\n**Timer finishes normally (lines 25–28):** the timeout callback removes the abort listener (line 26) and then resolves with `undefined` (line 27). The listener is detached so a later abort does not reference a finished promise.\n\n**Cleanup summary:**\n- Abort path: timer cleared via `clearTimeout`; listener removed automatically by `once: true`.\n- Normal path: listener removed explicitly in the timer callback; timer has already fired so nothing to clear.\n- Pre-aborted path: neither a timer nor a listener is created.\n\n**Observations / caveats (for the maintainer):**\n- The abort path does not explicitly call `removeEventListener`; it relies on `{once: true}`. That is correct per the DOM event spec, but it means the cleanup is implicit.\n- `reject(signal!.reason as Error)` casts `reason` (type `any`) to `Error`; if the caller aborted with a non-Error value, the type claim is false at runtime. The value itself still propagates unchanged.\n- `delay` has no `ms`-validation; negative or `NaN` values are passed straight to `setTimeout`.",
+      "answer": "Source evidence from `<checkout>/source/utils/delay.ts` (the file has 33 lines; the body is lines 9–33).\n\n**Already-aborted signal (line 15):** `signal.throwIfAborted()` runs synchronously inside the Promise executor. It throws `signal.reason`, and the executor turns that throw into a rejection of the promise. The listener is not added (line 16 is never reached) and no timer is created (line 25 is never reached). Nothing needs cleanup. The rejection reason is `signal.reason`, the value the signal was aborted with (the `DOMException` `AbortError` by default, or a custom reason).\n\n**Abort during the wait (lines 16, 18–21):** `abortHandler` is registered with `{once: true}`. When it fires, it calls `clearTimeout(timeoutId)` (line 19), so the pending timer is cancelled, and then rejects with `signal!.reason as Error` (line 20). The promise rejects with the abort reason. The `once: true` option means the browser/runtime removes the listener after it fires, so the handler does not remain attached.\n\n**Timer finishes normally (lines 25–28):** the timeout callback removes the abort listener (line 26) and then resolves with `undefined` (line 27). The listener is detached so a later abort does not reference a finished promise.\n\n**Cleanup summary:**\n- Abort path: timer cleared via `clearTimeout`; listener removed automatically by `once: true`.\n- Normal path: listener removed explicitly in the timer callback; timer has already fired so nothing to clear.\n- Pre-aborted path: neither a timer nor a listener is created.\n\n**Observations / caveats (for the maintainer):**\n- The abort path does not explicitly call `removeEventListener`; it relies on `{once: true}`. That is correct per the DOM event spec, but it means the cleanup is implicit.\n- `reject(signal!.reason as Error)` casts `reason` (type `any`) to `Error`; if the caller aborted with a non-Error value, the type claim is false at runtime. The value itself still propagates unchanged.\n- `delay` has no `ms`-validation; negative or `NaN` values are passed straight to `setTimeout`.",
       "corpus": "ky",
       "question_set": "control",
       "block": 3,
@@ -6800,44 +6800,44 @@
           "tool": "grep",
           "args": {
             "pattern": "getContentLength",
-            "path": "/private/tmp/kivgraph-corpora/ky/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "onDownloadProgress|onUploadProgress|Content-Length|content-length",
-            "path": "/private/tmp/kivgraph-corpora/ky/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/body.ts:15-30"
+            "path": "<checkout>/source/utils/body.ts:15-30"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/body.ts:195-240"
+            "path": "<checkout>/source/utils/body.ts:195-240"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/core/Ky.ts:645-660"
+            "path": "<checkout>/source/core/Ky.ts:645-660"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/core/Ky.ts:1360-1376"
+            "path": "<checkout>/source/core/Ky.ts:1360-1376"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/body.ts:33-120"
+            "path": "<checkout>/source/utils/body.ts:33-120"
           }
         }
       ],
@@ -6904,32 +6904,32 @@
           "tool": "grep",
           "args": {
             "pattern": "getContentLength",
-            "path": "/private/tmp/kivgraph-corpora/ky/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "onDownloadProgress|onUploadProgress",
-            "path": "/private/tmp/kivgraph-corpora/ky/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/body.ts:15-240"
+            "path": "<checkout>/source/utils/body.ts:15-240"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/core/Ky.ts:645-662"
+            "path": "<checkout>/source/core/Ky.ts:645-662"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/core/Ky.ts:1362-1376"
+            "path": "<checkout>/source/core/Ky.ts:1362-1376"
           }
         }
       ],
@@ -6969,6 +6969,7 @@
         "None"
       ],
       "lexical_missing": [],
+      "grade_note": "The answer first says the header is not consulted for content-coded uploads, then says there is no encoding check. source/utils/body.ts:231 gates the header only on the computed size, so the answer contradicts itself. Grade unchanged: false.",
       "correct": false
     },
     {
@@ -7191,25 +7192,25 @@
           "tool": "grep",
           "args": {
             "pattern": "delay",
-            "path": "/private/tmp/kivgraph-corpora/ky/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/delay.ts"
+            "path": "<checkout>/source/utils/delay.ts"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/test/errors.ts:313-330"
+            "path": "<checkout>/test/errors.ts:313-330"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/test/http-error.ts:929-960"
+            "path": "<checkout>/test/http-error.ts:929-960"
           }
         }
       ],
@@ -7273,25 +7274,25 @@
           "tool": "grep",
           "args": {
             "pattern": "delay",
-            "path": "/private/tmp/kivgraph-corpora/ky/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/delay.ts"
+            "path": "<checkout>/source/utils/delay.ts"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/test/errors.ts:313-330"
+            "path": "<checkout>/test/errors.ts:313-330"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/test/http-error.ts:929-960"
+            "path": "<checkout>/test/http-error.ts:929-960"
           }
         }
       ],
@@ -7558,13 +7559,13 @@
           "tool": "grep",
           "args": {
             "pattern": "getContentLength",
-            "path": "/private/tmp/kivgraph-corpora/ky/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/body.ts:1-260"
+            "path": "<checkout>/source/utils/body.ts:1-260"
           }
         }
       ],
@@ -7624,13 +7625,13 @@
           "tool": "grep",
           "args": {
             "pattern": "getContentLength",
-            "path": "/private/tmp/kivgraph-corpora/ky/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/body.ts:1-260"
+            "path": "<checkout>/source/utils/body.ts:1-260"
           }
         }
       ],
@@ -7891,19 +7892,19 @@
           "tool": "grep",
           "args": {
             "pattern": "delay",
-            "path": "/private/tmp/kivgraph-corpora/ky/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/delay.ts"
+            "path": "<checkout>/source/utils/delay.ts"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/test/errors.ts:313-325"
+            "path": "<checkout>/test/errors.ts:313-325"
           }
         }
       ],
@@ -7966,29 +7967,29 @@
           "tool": "grep",
           "args": {
             "pattern": "delay",
-            "path": "/private/tmp/kivgraph-corpora/ky/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/delay.ts"
+            "path": "<checkout>/source/utils/delay.ts"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/test/errors.ts:313-335"
+            "path": "<checkout>/test/errors.ts:313-335"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/test/http-error.ts:929-960"
+            "path": "<checkout>/test/http-error.ts:929-960"
           }
         }
       ],
-      "answer": "Answer, from source at `/private/tmp/kivgraph-corpora/ky/src`:\n\n**Implementation:** `source/utils/delay.ts`, lines 9–29. `delay(ms, {signal})` returns a Promise that wraps a `setTimeout`.\n\n**1. Already-aborted signal.** `signal.throwIfAborted()` (line 14) runs synchronously inside the Promise executor. It throws `signal.reason`, which the executor turns into a rejection. No listener is added (line 15 is never reached) and no timer is created (line 25 is never reached). So nothing needs cleanup. The rejection reason is the signal's `reason` value, not a generic `AbortError`. The test at `test/errors.ts:315–320` asserts `error === reason`.\n\n**2. Abort during the wait.** Line 15 registers `abortHandler` with `{once: true}`. When the signal fires, `abortHandler` (lines 18–21) calls `clearTimeout(timeoutId)` so the timer is cancelled, then rejects with `signal!.reason as Error` (line 20). The reason is passed through unchanged. The `once` option removes the listener automatically after it fires. The timer's own callback is not called, so `resolve()` never runs.\n\n**3. Timer finishes normally.** The `setTimeout` callback (lines 24–27) calls `signal?.removeEventListener('abort', abortHandler)` before `resolve()`. That removes the listener so a later abort cannot reject an already-settled Promise and the signal does not retain the closure. If no signal was passed, the optional chaining makes this a no-op.\n\n**Cleanup gap to note:** `timeoutId` is referenced in `abortHandler` before its `const` declaration (line 25). This is safe only because `abortHandler` runs asynchronously, after line 25 has executed. The listener is attached before the timer is created (lines 15 vs 24), so an abort that fires synchronously during `addEventListener` cannot occur in practice. The code relies on that ordering rather than enforcing it.\n\n**Caller-side coverage:** `source/core/Ky.ts:1129–1143` passes only the user's signal (`#userProvidedAbortSignal`) to `delay`, not the internal controller. `test/http-error.ts:929–960` checks that after a user abort during the retry wait, the user's reason is thrown and no timers remain active.",
+      "answer": "Answer, from source at `<checkout>`:\n\n**Implementation:** `source/utils/delay.ts`, lines 9–29. `delay(ms, {signal})` returns a Promise that wraps a `setTimeout`.\n\n**1. Already-aborted signal.** `signal.throwIfAborted()` (line 14) runs synchronously inside the Promise executor. It throws `signal.reason`, which the executor turns into a rejection. No listener is added (line 15 is never reached) and no timer is created (line 25 is never reached). So nothing needs cleanup. The rejection reason is the signal's `reason` value, not a generic `AbortError`. The test at `test/errors.ts:315–320` asserts `error === reason`.\n\n**2. Abort during the wait.** Line 15 registers `abortHandler` with `{once: true}`. When the signal fires, `abortHandler` (lines 18–21) calls `clearTimeout(timeoutId)` so the timer is cancelled, then rejects with `signal!.reason as Error` (line 20). The reason is passed through unchanged. The `once` option removes the listener automatically after it fires. The timer's own callback is not called, so `resolve()` never runs.\n\n**3. Timer finishes normally.** The `setTimeout` callback (lines 24–27) calls `signal?.removeEventListener('abort', abortHandler)` before `resolve()`. That removes the listener so a later abort cannot reject an already-settled Promise and the signal does not retain the closure. If no signal was passed, the optional chaining makes this a no-op.\n\n**Cleanup gap to note:** `timeoutId` is referenced in `abortHandler` before its `const` declaration (line 25). This is safe only because `abortHandler` runs asynchronously, after line 25 has executed. The listener is attached before the timer is created (lines 15 vs 24), so an abort that fires synchronously during `addEventListener` cannot occur in practice. The code relies on that ordering rather than enforcing it.\n\n**Caller-side coverage:** `source/core/Ky.ts:1129–1143` passes only the user's signal (`#userProvidedAbortSignal`) to `delay`, not the internal controller. `test/http-error.ts:929–960` checks that after a user abort during the retry wait, the user's reason is thrown and no timers remain active.",
       "corpus": "ky",
       "question_set": "control",
       "block": 7,
@@ -8249,13 +8250,13 @@
           "tool": "grep",
           "args": {
             "pattern": "getContentLength",
-            "path": "/private/tmp/kivgraph-corpora/ky/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/body.ts:1-260"
+            "path": "<checkout>/source/utils/body.ts:1-260"
           }
         }
       ],
@@ -8316,13 +8317,13 @@
           "tool": "grep",
           "args": {
             "pattern": "getContentLength",
-            "path": "/private/tmp/kivgraph-corpora/ky/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/body.ts:1-260"
+            "path": "<checkout>/source/utils/body.ts:1-260"
           }
         }
       ],
@@ -8583,19 +8584,19 @@
           "tool": "grep",
           "args": {
             "pattern": "delay",
-            "path": "/private/tmp/kivgraph-corpora/ky/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/delay.ts:raw"
+            "path": "<checkout>/source/utils/delay.ts:raw"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/test/errors.ts:313-330"
+            "path": "<checkout>/test/errors.ts:313-330"
           }
         }
       ],
@@ -8656,25 +8657,25 @@
           "tool": "grep",
           "args": {
             "pattern": "delay",
-            "path": "/private/tmp/kivgraph-corpora/ky/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/delay.ts:1-60"
+            "path": "<checkout>/source/utils/delay.ts:1-60"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/test/errors.ts:313-325"
+            "path": "<checkout>/test/errors.ts:313-325"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/test/http-error.ts:929-960"
+            "path": "<checkout>/test/http-error.ts:929-960"
           }
         }
       ],
@@ -8939,30 +8940,30 @@
           "tool": "grep",
           "args": {
             "pattern": "getContentLength",
-            "path": "/private/tmp/kivgraph-corpora/ky/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "onDownloadProgress|onUploadProgress|Content-Encoding|content-encoding",
-            "path": "/private/tmp/kivgraph-corpora/ky/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/body.ts:1-240"
+            "path": "<checkout>/source/utils/body.ts:1-240"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/core/Ky.ts:1365-1376"
+            "path": "<checkout>/source/core/Ky.ts:1365-1376"
           }
         }
       ],
-      "answer": "I checked the download path in `streamResponse` and the upload path in `streamRequest`, both in `source/utils/body.ts`, plus the call gating in `source/core/Ky.ts`. Source citations below are to `/private/tmp/kivgraph-corpora/ky/src/source/utils/body.ts` unless noted.\n\n**Definition (`body.ts:22`)**\n`getContentLength` returns `Math.max(0, Number(headers.get('content-length')) || 0)`. A missing, non-numeric, or negative header becomes `0`, which the progress code treats as \"total unknown.\"\n\n**Download progress: `streamResponse` (`body.ts:200-214`)**\n- Gate: `Ky.ts:651-657` calls `streamResponse` only when `onDownloadProgress` is set. `wrappableBody` (`body.ts:~190`) returns the original body unchanged (no progress) when the body is absent, already used or locked, or the status is one of `101, 103, 204, 205, 304`.\n- Header use, at `body.ts:208-210`:\n  - Reads `content-encoding`, lowercased.\n  - `isContentCoded = Boolean(enc) && enc !== 'identity'`.\n  - `totalBytes = isContentCoded ? 0 : getContentLength(response.headers)`.\n- Identity or no encoding: `content-length` is the total. A `content-length`-less response yields `0`.\n- Compressed (`gzip`, `br`, etc.): total is forced to `0` regardless of the header, because `content-length` counts encoded bytes while the stream counts decoded bytes. The comment at `body.ts:207` states this. Per `readme.md:808` and `options.ts:298`, the percentage is not computable until completion.\n- Cross-origin browser caveat (docs only, `options.ts:298`): `content-encoding` is visible only if the server exposes it via `Access-Control-Expose-Headers`. Otherwise Ky cannot detect compression, and the header-based total can be wrong. The source does not special-case this.\n\n**Upload progress: `streamRequest` (`body.ts:217-240`)**\n- Gate: `Ky.ts:1370-1374` (`#wrapRequestWithUploadProgress`) skips wrapping when there is no `onUploadProgress`, when `supportsRequestStreams` is false, or when there is no body. `streamRequest` itself also returns the request unchanged for a used or locked body, `keepalive: true`, `mode: 'no-cors'`, or a non-`Request` object (`body.ts:~222-228`).\n- Size, at `body.ts:231`: `totalBytes = getBodySize(originalBody ?? request.body) || getContentLength(request.headers)`.\n  - `getBodySize` (`body.ts:~30-75`) computes the size from the original body (string, Blob, buffer, URLSearchParams, or an estimate for FormData). A `ReadableStream` body yields `0`.\n  - Only when that computed size is `0` does the code fall back to the request's `content-length` header. A caller-declared header is used; browsers strip it, so the fallback mainly helps non-browser runtimes.\n- Compression is not considered on the upload side: the request body is sent as-is, so the header-as-total logic has no encoding condition.\n\n**Zero computed upload size**\n`getBodySize(...) || getContentLength(...)` means a computed `0` falls through to the header. If both are `0`, `withProgress` (`body.ts:78-110`) sets `totalBytes = 0`, so `percent` stays `0` for every intermediate chunk (`body.ts:~95`), and `totalBytes` in each event is the running `transferredBytes`, not the true total. The final `flush` reports `percent: 1`. An empty `FormData` returns `0` by design (`body.ts:~64`).\n\n**Summary of the condition**\n- Download: header used only if the response is not content-coded (`content-encoding` absent or `identity`); otherwise total is `0`.\n- Upload: header used only when the computed body size is `0` (streams, or unmeasurable bodies); it is not gated on encoding.\n\nI did not run any tests; this is from reading the frozen source only.",
+      "answer": "I checked the download path in `streamResponse` and the upload path in `streamRequest`, both in `source/utils/body.ts`, plus the call gating in `source/core/Ky.ts`. Source citations below are to `<checkout>/source/utils/body.ts` unless noted.\n\n**Definition (`body.ts:22`)**\n`getContentLength` returns `Math.max(0, Number(headers.get('content-length')) || 0)`. A missing, non-numeric, or negative header becomes `0`, which the progress code treats as \"total unknown.\"\n\n**Download progress: `streamResponse` (`body.ts:200-214`)**\n- Gate: `Ky.ts:651-657` calls `streamResponse` only when `onDownloadProgress` is set. `wrappableBody` (`body.ts:~190`) returns the original body unchanged (no progress) when the body is absent, already used or locked, or the status is one of `101, 103, 204, 205, 304`.\n- Header use, at `body.ts:208-210`:\n  - Reads `content-encoding`, lowercased.\n  - `isContentCoded = Boolean(enc) && enc !== 'identity'`.\n  - `totalBytes = isContentCoded ? 0 : getContentLength(response.headers)`.\n- Identity or no encoding: `content-length` is the total. A `content-length`-less response yields `0`.\n- Compressed (`gzip`, `br`, etc.): total is forced to `0` regardless of the header, because `content-length` counts encoded bytes while the stream counts decoded bytes. The comment at `body.ts:207` states this. Per `readme.md:808` and `options.ts:298`, the percentage is not computable until completion.\n- Cross-origin browser caveat (docs only, `options.ts:298`): `content-encoding` is visible only if the server exposes it via `Access-Control-Expose-Headers`. Otherwise Ky cannot detect compression, and the header-based total can be wrong. The source does not special-case this.\n\n**Upload progress: `streamRequest` (`body.ts:217-240`)**\n- Gate: `Ky.ts:1370-1374` (`#wrapRequestWithUploadProgress`) skips wrapping when there is no `onUploadProgress`, when `supportsRequestStreams` is false, or when there is no body. `streamRequest` itself also returns the request unchanged for a used or locked body, `keepalive: true`, `mode: 'no-cors'`, or a non-`Request` object (`body.ts:~222-228`).\n- Size, at `body.ts:231`: `totalBytes = getBodySize(originalBody ?? request.body) || getContentLength(request.headers)`.\n  - `getBodySize` (`body.ts:~30-75`) computes the size from the original body (string, Blob, buffer, URLSearchParams, or an estimate for FormData). A `ReadableStream` body yields `0`.\n  - Only when that computed size is `0` does the code fall back to the request's `content-length` header. A caller-declared header is used; browsers strip it, so the fallback mainly helps non-browser runtimes.\n- Compression is not considered on the upload side: the request body is sent as-is, so the header-as-total logic has no encoding condition.\n\n**Zero computed upload size**\n`getBodySize(...) || getContentLength(...)` means a computed `0` falls through to the header. If both are `0`, `withProgress` (`body.ts:78-110`) sets `totalBytes = 0`, so `percent` stays `0` for every intermediate chunk (`body.ts:~95`), and `totalBytes` in each event is the running `transferredBytes`, not the true total. The final `flush` reports `percent: 1`. An empty `FormData` returns `0` by design (`body.ts:~64`).\n\n**Summary of the condition**\n- Download: header used only if the response is not content-coded (`content-encoding` absent or `identity`); otherwise total is `0`.\n- Upload: header used only when the computed body size is `0` (streams, or unmeasurable bodies); it is not gated on encoding.\n\nI did not run any tests; this is from reading the frozen source only.",
       "corpus": "ky",
       "question_set": "typed",
       "block": 9,
@@ -9020,19 +9021,19 @@
           "tool": "grep",
           "args": {
             "pattern": "getContentLength",
-            "path": "/private/tmp/kivgraph-corpora/ky/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/body.ts:1-60"
+            "path": "<checkout>/source/utils/body.ts:1-60"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/body.ts:180-260"
+            "path": "<checkout>/source/utils/body.ts:180-260"
           }
         }
       ],
@@ -9294,20 +9295,20 @@
           "tool": "grep",
           "args": {
             "pattern": "delay",
-            "path": "/private/tmp/kivgraph-corpora/ky/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/delay.ts"
+            "path": "<checkout>/source/utils/delay.ts"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "already aborted|aborts during|finishes normally|reason",
-            "path": "/private/tmp/kivgraph-corpora/ky/src/test/errors.ts;/private/tmp/kivgraph-corpora/ky/src/test/http-error.ts"
+            "path": "<checkout>/test/errors.ts;<checkout>/test/http-error.ts"
           }
         }
       ],
@@ -9368,26 +9369,26 @@
           "tool": "grep",
           "args": {
             "pattern": "fn without_terminator",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "CRLF",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/lines.rs:100-150"
+            "path": "<checkout>/crates/searcher/src/lines.rs:100-150"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/matcher/src/lib.rs:186-270"
+            "path": "<checkout>/crates/matcher/src/lib.rs:186-270"
           }
         }
       ],
@@ -9843,17 +9844,17 @@
           "tool": "grep",
           "args": {
             "pattern": "next_impl|LineStep|impl.*LineIter|fn next\\b",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/lines.rs:1-200"
+            "path": "<checkout>/crates/searcher/src/lines.rs:1-200"
           }
         }
       ],
-      "answer": "Findings from `/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/lines.rs`:\n\n**Direct callers of `LineStep::next_impl`** (the only call sites in this file; `next_impl` is private, defined at line 73–74 area, body 76–100):\n\n1. **`LineStep::next`** (line 68–70, `pub fn next(&mut self, bytes) -> Option<(usize, usize)>`): calls `self.next_impl(bytes)` and returns the tuple unchanged. This preserves the offset pair `(start, end)`.\n2. **`LineStep::next_match`** (lines 72–75, `pub(crate)`, `#[inline(always)]`): calls `self.next_impl(bytes).map(|(s, e)| Match::new(s, e))`. This converts the offset pair into a `Match`.\n\n**`LineIter::next`** (lines 31–36) does **not** call `next_impl` directly. It calls `self.stepper.next_match(self.bytes)` (line 35) and maps the resulting `Match` to a slice `&self.bytes[m]`. So the path is `LineIter::next → LineStep::next_match → LineStep::next_impl`.\n\nNote: I only read `lines.rs`. The other `LineStep` users in `core.rs` and `glue.rs` call `new`/`next`, not `next_impl`, per the grep results, so I did not verify their bodies.",
+      "answer": "Findings from `<checkout>/crates/searcher/src/lines.rs`:\n\n**Direct callers of `LineStep::next_impl`** (the only call sites in this file; `next_impl` is private, defined at line 73–74 area, body 76–100):\n\n1. **`LineStep::next`** (line 68–70, `pub fn next(&mut self, bytes) -> Option<(usize, usize)>`): calls `self.next_impl(bytes)` and returns the tuple unchanged. This preserves the offset pair `(start, end)`.\n2. **`LineStep::next_match`** (lines 72–75, `pub(crate)`, `#[inline(always)]`): calls `self.next_impl(bytes).map(|(s, e)| Match::new(s, e))`. This converts the offset pair into a `Match`.\n\n**`LineIter::next`** (lines 31–36) does **not** call `next_impl` directly. It calls `self.stepper.next_match(self.bytes)` (line 35) and maps the resulting `Match` to a slice `&self.bytes[m]`. So the path is `LineIter::next → LineStep::next_match → LineStep::next_impl`.\n\nNote: I only read `lines.rs`. The other `LineStep` users in `core.rs` and `glue.rs` call `new`/`next`, not `next_impl`, per the grep results, so I did not verify their bodies.",
       "corpus": "ripgrep",
       "question_set": "typed",
       "block": 1,
@@ -9909,13 +9910,13 @@
           "tool": "grep",
           "args": {
             "pattern": "next_impl|LineStep|impl.*LineIter|fn next\\b",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/lines.rs:1-140"
+            "path": "<checkout>/crates/searcher/src/lines.rs:1-140"
           }
         }
       ],
@@ -10480,40 +10481,40 @@
           "tool": "grep",
           "args": {
             "pattern": "fn without_terminator",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "without_terminator",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/lines.rs:90-150"
+            "path": "<checkout>/crates/searcher/src/lines.rs:90-150"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "fn as_bytes|CRLF|\\\\r\\\\n",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src"
+            "path": "<checkout>/crates/searcher/src"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "struct LineTerminator|impl LineTerminator",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/matcher/src/lib.rs:195-260"
+            "path": "<checkout>/crates/matcher/src/lib.rs:195-260"
           }
         }
       ],
@@ -10583,40 +10584,40 @@
           "tool": "grep",
           "args": {
             "pattern": "fn without_terminator",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/lines.rs:100-140"
+            "path": "<checkout>/crates/searcher/src/lines.rs:100-140"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "fn as_bytes|CRLF|\\\\r\\\\n|b\"\\\\r\\\\n\"",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src"
+            "path": "<checkout>/crates/searcher/src"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "LineTerminator",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/line_buffer.rs;/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/searcher/mod.rs"
+            "path": "<checkout>/crates/searcher/src/line_buffer.rs;<checkout>/crates/searcher/src/searcher/mod.rs"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "pub fn as_bytes|enum Kind|crlf\\(\\)|fn crlf",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates"
+            "path": "<checkout>/crates"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/matcher/src/lib.rs:195-260"
+            "path": "<checkout>/crates/matcher/src/lib.rs:195-260"
           }
         }
       ],
@@ -10974,17 +10975,17 @@
           "tool": "grep",
           "args": {
             "pattern": "next_impl|struct LineStep|impl.*LineStep|impl.*LineIter|fn next\\b",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/lines.rs:20-120"
+            "path": "<checkout>/crates/searcher/src/lines.rs:20-120"
           }
         }
       ],
-      "answer": "Findings from `/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/lines.rs`:\n\n**Direct callers of `LineStep::next_impl`** (defined at line 85, `#[inline(always)] fn next_impl`, private to the impl):\n\n1. **`LineStep::next`** (lines 74–76, `pub fn next(&mut self, bytes: &[u8]) -> Option<(usize, usize)>`) calls `self.next_impl(bytes)` and returns the result unchanged. This **preserves the offset pair** `(start, end)`.\n2. **`LineStep::next_match`** (lines 80–82, `pub(crate) fn next_match`) calls `self.next_impl(bytes).map(|(s, e)| Match::new(s, e))`. This **converts the pair into a `Match`**.\n\nNo other call sites exist in this file's search results.\n\n**Does `LineIter::next` call `next_impl` directly?** No. `impl Iterator for LineIter` (lines 31–36) has `next` at line 34, which calls `self.stepper.next_match(self.bytes)` and then maps the result with `&self.bytes[m]`. The path is therefore:\n\n`LineIter::next` → `LineStep::next_match` → `LineStep::next_impl`\n\n`LineIter` never touches `next_impl` or `next` on `LineStep` directly; it goes through the `Match`-returning wrapper.",
+      "answer": "Findings from `<checkout>/crates/searcher/src/lines.rs`:\n\n**Direct callers of `LineStep::next_impl`** (defined at line 85, `#[inline(always)] fn next_impl`, private to the impl):\n\n1. **`LineStep::next`** (lines 74–76, `pub fn next(&mut self, bytes: &[u8]) -> Option<(usize, usize)>`) calls `self.next_impl(bytes)` and returns the result unchanged. This **preserves the offset pair** `(start, end)`.\n2. **`LineStep::next_match`** (lines 80–82, `pub(crate) fn next_match`) calls `self.next_impl(bytes).map(|(s, e)| Match::new(s, e))`. This **converts the pair into a `Match`**.\n\nNo other call sites exist in this file's search results.\n\n**Does `LineIter::next` call `next_impl` directly?** No. `impl Iterator for LineIter` (lines 31–36) has `next` at line 34, which calls `self.stepper.next_match(self.bytes)` and then maps the result with `&self.bytes[m]`. The path is therefore:\n\n`LineIter::next` → `LineStep::next_match` → `LineStep::next_impl`\n\n`LineIter` never touches `next_impl` or `next` on `LineStep` directly; it goes through the `Match`-returning wrapper.",
       "corpus": "ripgrep",
       "question_set": "typed",
       "block": 3,
@@ -11040,20 +11041,20 @@
           "tool": "grep",
           "args": {
             "pattern": "next_impl|struct LineStep|impl.*LineStep|impl.*LineIter|fn next\\b",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "LineStep",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/lines.rs:15-100"
+            "path": "<checkout>/crates/searcher/src/lines.rs:15-100"
           }
         }
       ],
@@ -11318,47 +11319,47 @@
           "tool": "grep",
           "args": {
             "pattern": "fn without_terminator",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "without_terminator",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/lines.rs:90-150"
+            "path": "<checkout>/crates/searcher/src/lines.rs:90-150"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "fn as_bytes|CRLF|\\\\r\\\\n",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/line_buffer.rs;/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/searcher/mod.rs"
+            "path": "<checkout>/crates/searcher/src/line_buffer.rs;<checkout>/crates/searcher/src/searcher/mod.rs"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "fn as_bytes",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src"
+            "path": "<checkout>/crates/searcher/src"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "pub fn as_bytes\\(&self\\)",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates"
+            "path": "<checkout>/crates"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/matcher/src/lib.rs:200-260"
+            "path": "<checkout>/crates/matcher/src/lib.rs:200-260"
           }
         }
       ],
@@ -11431,26 +11432,26 @@
           "tool": "grep",
           "args": {
             "pattern": "fn without_terminator",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "CRLF",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/lines.rs:90-150"
+            "path": "<checkout>/crates/searcher/src/lines.rs:90-150"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/matcher/src/lib.rs:228-258"
+            "path": "<checkout>/crates/matcher/src/lib.rs:228-258"
           }
         }
       ],
@@ -11885,24 +11886,24 @@
           "tool": "grep",
           "args": {
             "pattern": "next_impl|fn next\\b|impl.*LineStep|LineStep|LineIter",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/lines.rs:30-200"
+            "path": "<checkout>/crates/searcher/src/lines.rs:30-200"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "next_impl",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/lines.rs"
+            "path": "<checkout>/crates/searcher/src/lines.rs"
           }
         }
       ],
-      "answer": "Answers, with evidence from `/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/lines.rs`:\n\n**Direct callers of `LineStep::next_impl`:** exactly two, both inside `LineStep` itself.\n\n- `LineStep::next` (line 75, `self.next_impl(bytes)`) returns the raw offset pair `Option<(usize, usize)>` unchanged, so it preserves the `(start, end)` tuple.\n- `LineStep::next_match` (line 81, `self.next_impl(bytes).map(|(s, e)| Match::new(s, e))`) converts the pair into a `Match`. It is `pub(crate)` and marked `#[inline(always)]`.\n\nNo other call site of `next_impl` exists in this file; the grep for the identifier returned only the definition (line 85) and those two calls.\n\n**`LineIter::next` (lines 31–36):** does not call `next_impl` directly. It goes through `next_match`:\n\n```rust\nfn next(&mut self) -> Option<&'b [u8]> {\n    self.stepper.next_match(self.bytes).map(|m| &self.bytes[m])\n}\n```\n\nSo the chain is `LineIter::next` → `LineStep::next_match` → `LineStep::next_impl`, and the `Match` produced at line 81 is used to slice `self.bytes`.",
+      "answer": "Answers, with evidence from `<checkout>/crates/searcher/src/lines.rs`:\n\n**Direct callers of `LineStep::next_impl`:** exactly two, both inside `LineStep` itself.\n\n- `LineStep::next` (line 75, `self.next_impl(bytes)`) returns the raw offset pair `Option<(usize, usize)>` unchanged, so it preserves the `(start, end)` tuple.\n- `LineStep::next_match` (line 81, `self.next_impl(bytes).map(|(s, e)| Match::new(s, e))`) converts the pair into a `Match`. It is `pub(crate)` and marked `#[inline(always)]`.\n\nNo other call site of `next_impl` exists in this file; the grep for the identifier returned only the definition (line 85) and those two calls.\n\n**`LineIter::next` (lines 31–36):** does not call `next_impl` directly. It goes through `next_match`:\n\n```rust\nfn next(&mut self) -> Option<&'b [u8]> {\n    self.stepper.next_match(self.bytes).map(|m| &self.bytes[m])\n}\n```\n\nSo the chain is `LineIter::next` → `LineStep::next_match` → `LineStep::next_impl`, and the `Match` produced at line 81 is used to slice `self.bytes`.",
       "corpus": "ripgrep",
       "question_set": "typed",
       "block": 5,
@@ -11959,20 +11960,20 @@
           "tool": "grep",
           "args": {
             "pattern": "next_impl|LineStep|impl.*LineIter|fn next\\b",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "LineStep",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/lines.rs:1-130"
+            "path": "<checkout>/crates/searcher/src/lines.rs:1-130"
           }
         }
       ],
@@ -12389,40 +12390,40 @@
           "tool": "grep",
           "args": {
             "pattern": "fn without_terminator",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "without_terminator",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/lines.rs:100-150"
+            "path": "<checkout>/crates/searcher/src/lines.rs:100-150"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "fn is_terminator|CRLF|fn is_crlf|\\bcrlf\\b",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/lines.rs"
+            "path": "<checkout>/crates/searcher/src/lines.rs"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "pub struct LineTerminator|fn as_bytes|crlf\\(\\)|b\"\\\\r\\\\n\"",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates"
+            "path": "<checkout>/crates"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/matcher/src/lib.rs:190-260"
+            "path": "<checkout>/crates/matcher/src/lib.rs:190-260"
           }
         }
       ],
@@ -12490,26 +12491,26 @@
           "tool": "grep",
           "args": {
             "pattern": "fn without_terminator",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "CRLF",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/lines.rs:100-150"
+            "path": "<checkout>/crates/searcher/src/lines.rs:100-150"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/matcher/src/lib.rs:186-275"
+            "path": "<checkout>/crates/matcher/src/lib.rs:186-275"
           }
         }
       ],
@@ -12882,24 +12883,24 @@
           "tool": "grep",
           "args": {
             "pattern": "next_impl|LineStep",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "impl.*LineIter|fn next\\b",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/lines.rs:15-95"
+            "path": "<checkout>/crates/searcher/src/lines.rs:15-95"
           }
         }
       ],
-      "answer": "Findings from `/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/lines.rs`:\n\n**Direct callers of `LineStep::next_impl`** (only two, both inside `impl LineStep`):\n\n- `LineStep::next` (lines 74–76) calls `self.next_impl(bytes)` and returns the `(usize, usize)` pair unchanged. This is the method that **preserves the offset pair**.\n- `LineStep::next_match` (lines 80–82, `#[inline(always)]`, `pub(crate)`) calls `self.next_impl(bytes).map(|(s, e)| Match::new(s, e))`. This is the method that **converts to a `Match`**.\n\nNo other file calls `next_impl`; the grep hits in `core.rs`, `glue.rs`, and `printer/standard.rs` are `LineStep::new` constructions, not `next_impl` calls.\n\n**`LineIter::next`** (lines 31–36) does not call `next_impl` directly. It goes through **`LineStep::next_match`**: `self.stepper.next_match(self.bytes).map(|m| &self.bytes[m])` at line 35. So the chain is `LineIter::next` → `LineStep::next_match` → `LineStep::next_impl`, and the `Match` is used to slice `self.bytes` to produce the `&[u8]` line.",
+      "answer": "Findings from `<checkout>/crates/searcher/src/lines.rs`:\n\n**Direct callers of `LineStep::next_impl`** (only two, both inside `impl LineStep`):\n\n- `LineStep::next` (lines 74–76) calls `self.next_impl(bytes)` and returns the `(usize, usize)` pair unchanged. This is the method that **preserves the offset pair**.\n- `LineStep::next_match` (lines 80–82, `#[inline(always)]`, `pub(crate)`) calls `self.next_impl(bytes).map(|(s, e)| Match::new(s, e))`. This is the method that **converts to a `Match`**.\n\nNo other file calls `next_impl`; the grep hits in `core.rs`, `glue.rs`, and `printer/standard.rs` are `LineStep::new` constructions, not `next_impl` calls.\n\n**`LineIter::next`** (lines 31–36) does not call `next_impl` directly. It goes through **`LineStep::next_match`**: `self.stepper.next_match(self.bytes).map(|m| &self.bytes[m])` at line 35. So the chain is `LineIter::next` → `LineStep::next_match` → `LineStep::next_impl`, and the `Match` is used to slice `self.bytes` to produce the `&[u8]` line.",
       "corpus": "ripgrep",
       "question_set": "typed",
       "block": 7,
@@ -12956,17 +12957,17 @@
           "tool": "grep",
           "args": {
             "pattern": "next_impl|LineStep|struct LineIter|impl.*LineIter|fn next\\b",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/lines.rs:1-200"
+            "path": "<checkout>/crates/searcher/src/lines.rs:1-200"
           }
         }
       ],
-      "answer": "Findings from `/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/lines.rs`:\n\n**Direct callers of `LineStep::next_impl`** (defined at lines 91–117, `#[inline(always)] fn next_impl`):\n\n- `LineStep::next` (lines 77–79) calls `self.next_impl(bytes)` and returns the `(usize, usize)` pair unchanged. This is the caller that **preserves the offset pair**.\n- `LineStep::next_match` (lines 82–85, `pub(crate)`) calls `self.next_impl(bytes).map(|(s, e)| Match::new(s, e))`. This is the caller that **converts the pair into a `Match`**.\n\nNo other call to `next_impl` appears in this file.\n\n**`LineIter::next`** (lines 31–36, `impl Iterator for LineIter`) does **not** call `next_impl` directly. It goes through `self.stepper.next_match(self.bytes)` (line 35), so the chain is `LineIter::next` → `LineStep::next_match` → `LineStep::next_impl`. It then slices `self.bytes` with the returned `Match`.\n\nI did not search the other crate files for external `next_impl` callers, since it is private to `LineStep` and the `fn` is not `pub`, so any external caller would have to go through `next` or `next_match`.",
+      "answer": "Findings from `<checkout>/crates/searcher/src/lines.rs`:\n\n**Direct callers of `LineStep::next_impl`** (defined at lines 91–117, `#[inline(always)] fn next_impl`):\n\n- `LineStep::next` (lines 77–79) calls `self.next_impl(bytes)` and returns the `(usize, usize)` pair unchanged. This is the caller that **preserves the offset pair**.\n- `LineStep::next_match` (lines 82–85, `pub(crate)`) calls `self.next_impl(bytes).map(|(s, e)| Match::new(s, e))`. This is the caller that **converts the pair into a `Match`**.\n\nNo other call to `next_impl` appears in this file.\n\n**`LineIter::next`** (lines 31–36, `impl Iterator for LineIter`) does **not** call `next_impl` directly. It goes through `self.stepper.next_match(self.bytes)` (line 35), so the chain is `LineIter::next` → `LineStep::next_match` → `LineStep::next_impl`. It then slices `self.bytes` with the returned `Match`.\n\nI did not search the other crate files for external `next_impl` callers, since it is private to `LineStep` and the `fn` is not `pub`, so any external caller would have to go through `next` or `next_match`.",
       "corpus": "ripgrep",
       "question_set": "typed",
       "block": 8,
@@ -13326,40 +13327,40 @@
           "tool": "grep",
           "args": {
             "pattern": "fn without_terminator",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "without_terminator",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/lines.rs:90-160"
+            "path": "<checkout>/crates/searcher/src/lines.rs:90-160"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "fn as_bytes|CRLF|struct LineTerminator|enum LineTerminator|\\\\r\\\\n",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src"
+            "path": "<checkout>/crates/searcher/src"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "LineTerminator",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates"
+            "path": "<checkout>/crates"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/matcher/src/lib.rs:195-245"
+            "path": "<checkout>/crates/matcher/src/lib.rs:195-245"
           }
         }
       ],
@@ -13429,33 +13430,33 @@
           "tool": "grep",
           "args": {
             "pattern": "fn without_terminator",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/lines.rs:95-150"
+            "path": "<checkout>/crates/searcher/src/lines.rs:95-150"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "fn as_bytes|CRLF|\\\\r\\\\n|enum LineTerminatorImpl|fn crlf",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src"
+            "path": "<checkout>/crates/searcher/src"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "pub fn as_bytes|struct LineTerminator|enum LineTerminator",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates"
+            "path": "<checkout>/crates"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/matcher/src/lib.rs:195-260"
+            "path": "<checkout>/crates/matcher/src/lib.rs:195-260"
           }
         }
       ],
@@ -14015,20 +14016,20 @@
           "tool": "grep",
           "args": {
             "pattern": "next_impl|struct LineStep|impl.*LineStep|impl.*LineIter|fn next\\b",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/lines.rs:20-120"
+            "path": "<checkout>/crates/searcher/src/lines.rs:20-120"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "\\.next_impl\\(|\\.next_match\\(|\\.next\\(",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/lines.rs"
+            "path": "<checkout>/crates/searcher/src/lines.rs"
           }
         }
       ],
@@ -14091,21 +14092,21 @@
           "tool": "grep",
           "args": {
             "pattern": "next_impl|LineStep|struct LineIter|impl.*LineIter|fn next\\b",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src",
+            "path": "<checkout>",
             "case": true
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/lines.rs:1-200"
+            "path": "<checkout>/crates/searcher/src/lines.rs:1-200"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "next_impl|fn next",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/lines.rs"
+            "path": "<checkout>/crates/searcher/src/lines.rs"
           }
         }
       ],
@@ -14602,39 +14603,39 @@
           "tool": "grep",
           "args": {
             "pattern": "fn without_terminator",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+            "path": "<checkout>"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/lines.rs:100-150"
+            "path": "<checkout>/crates/searcher/src/lines.rs:100-150"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "fn as_bytes|CRLF|struct LineTerminator|enum LineTerminator",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src"
+            "path": "<checkout>/crates/searcher/src"
           }
         },
         {
           "tool": "grep",
           "args": {
             "pattern": "LineTerminator",
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates"
+            "path": "<checkout>/crates"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/matcher/src/lib.rs:195-245"
+            "path": "<checkout>/crates/matcher/src/lib.rs:195-245"
           }
         },
         {
           "tool": "read",
           "args": {
-            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/matcher/src/lib.rs:246-262"
+            "path": "<checkout>/crates/matcher/src/lib.rs:246-262"
           }
         }
       ],

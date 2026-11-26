@@ -75,6 +75,11 @@
       "go": "go1.26.11",
       "revision": "43d1a11cfff138f65b4f7d81a7bf4e85df95046b"
     },
+    "e0cba1151a12528e434e4a26e73ffc5c0be1122e29edfc58ffd480cf50c1824b": {
+      "dirty": true,
+      "go": "go1.26.11",
+      "revision": "43d1a11cfff138f65b4f7d81a7bf4e85df95046b"
+    },
     "e3f3aa6112d9897a0fa35e69318dc4009a94bd881116c5da5bca8e6a70f7b3e1": {
       "dirty": true,
       "go": "go1.26.11",
@@ -304,7 +309,10 @@
       ]
     },
     "rust-selectors-ab-ten.json": {
-      "matched_binary_digests": []
+      "launch": "native after wrappers: six-visible-zvsc8c8i/ripgrep-after.py launched /tmp/kv-selector-v2; 40 report RPC arrays match rust-selector-ab-64uazudg session logs; retained-byte digest, not launch-time attestation",
+      "matched_binary_digests": [
+        "e0cba1151a12528e434e4a26e73ffc5c0be1122e29edfc58ffd480cf50c1824b"
+      ]
     },
     "rust-short-name-first-off-ab-ten.json": {
       "launch": "headless command in agent-runs.md; recovered launcher matched by session UUID",
@@ -316,9 +324,17 @@
       "matched_binary_digests": []
     },
     "selector-schema-ab.json": {
-      "matched_binary_digests": []
+      "launch": "visible-selector arms: six-visible-zvsc8c8i native after wrappers launched /tmp/kv-selector-v2 and forwarded its descriptions; retained-byte digest, not launch-time attestation",
+      "matched_binary_digests": [
+        "e0cba1151a12528e434e4a26e73ffc5c0be1122e29edfc58ffd480cf50c1824b"
+      ]
     },
     "selector-vs-stop-ten.json": {
+      "session_evidence": {
+        "ky/control/selector/7": {"uuid": "01a20d88-deb4-7644-8bc1-61dd6eb1faaf", "call_pid": 93902},
+        "cobra/typed/base/3": {"uuid": "01a20d84-5f5b-753a-85de-908da6216ced", "call_pid": 79985},
+        "interpretation": "Both session headers and first-user timestamps match distinct captured sessions. Each call PID is unique to that run. Both RPC logs start at tools and contain no initialize event; fresh model sessions are verified, the reason for the missing initialization record is not. Neither pair is excluded."
+      },
       "matched_binary_digests": []
     },
     "six-body-first-direction-vs-grep-ten.json": {
@@ -342,7 +358,10 @@
       "matched_binary_digests": []
     },
     "six-concise-guide.json": {
-      "matched_binary_digests": []
+      "launch": "six-visible-zvsc8c8i/*-after.py wrapper launching /tmp/kv-selector-v2; retained-byte match, not a per-start attestation",
+      "matched_binary_digests": [
+        "e0cba1151a12528e434e4a26e73ffc5c0be1122e29edfc58ffd480cf50c1824b"
+      ]
     },
     "six-current-short-name-guide-off-vs-grep-ten.json": {
       "launch": "headless command in agent-runs.md; recovered launcher matched by session UUID",
@@ -354,10 +373,15 @@
       "matched_binary_digests": []
     },
     "six-final-mcp-vs-grep.json": {
-      "matched_binary_digests": []
+      "matched_binary_digests": [
+        "e0cba1151a12528e434e4a26e73ffc5c0be1122e29edfc58ffd480cf50c1824b"
+      ]
     },
     "six-guided-mcp-vs-grep.json": {
-      "matched_binary_digests": []
+      "launch": "six-visible-zvsc8c8i/*-after.py wrapper launching /tmp/kv-selector-v2; retained-byte match, not a per-start attestation",
+      "matched_binary_digests": [
+        "e0cba1151a12528e434e4a26e73ffc5c0be1122e29edfc58ffd480cf50c1824b"
+      ]
     },
     "six-held-out-caller-guide-vs-grep-ten.json": {
       "matched_binary_digests": [
@@ -376,7 +400,10 @@
       "matched_binary_digests": []
     },
     "six-native-vs-grep.json": {
-      "matched_binary_digests": []
+      "launch": "/tmp/kv-main comparator; retained-byte match, not a per-start attestation",
+      "matched_binary_digests": [
+        "4a93e9e4587a2e3c3cd97849783f748f85d1967d857a46d99648f8a5ee22bb38"
+      ]
     },
     "six-new-explicit-router-vs-grep-mcp-ten.json": {
       "matched_binary_digests": []

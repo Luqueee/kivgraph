@@ -1,5 +1,5 @@
 {
-  "design": "Fresh headless OMP sessions, Haiku low. Two pairs per question; control questions grep/MCP then MCP/grep, typed questions reversed. Sequential within corpus, concurrent across corpora. No evidence preloaded. Only assigned evidence tools used. Times from first message through final completion; excludes indexing and launch. No controlled provider cache or random seed.",
+  "design": "Fresh headless OMP sessions, Haiku low. Two pairs per question; control questions grep/MCP then MCP/grep, typed questions reversed. Sequential within corpus, concurrent across corpora. No evidence preloaded. Only assigned evidence tools used. Times from first message through final completion; excludes indexing and launch. No controlled provider cache or random seed. Each run records its OMP session-start timestamp (UTC, first session event, not OS process spawn) and start_position within its pair.",
   "candidate": "43d1a11c-dirty",
   "binary_sha256": "e0cba1151a12528e434e4a26e73ffc5c0be1122e29edfc58ffd480cf50c1824b",
   "description": "find_references: Typed references. Pick ONE selector: name, stable_key, or qualified_name. With path use repository, not repo. Check completeness before inferring absence.",
@@ -53,6 +53,8 @@
   "runs": [
     {
       "arm": "grep",
+      "session_start": "2026-11-24T11:23:44.407Z",
+      "start_position": 1,
       "model": "claude-haiku-5-5",
       "turns": 6,
       "tokens": 260698,
@@ -137,6 +139,8 @@
     },
     {
       "arm": "native",
+      "session_start": "2026-11-24T11:23:56.776Z",
+      "start_position": 2,
       "model": "claude-haiku-5-5",
       "turns": 4,
       "tokens": 179204,
@@ -306,6 +310,8 @@
     },
     {
       "arm": "grep",
+      "session_start": "2026-11-24T11:24:16.996Z",
+      "start_position": 2,
       "model": "claude-haiku-5-5",
       "turns": 5,
       "tokens": 219989,
@@ -371,6 +377,8 @@
     },
     {
       "arm": "native",
+      "session_start": "2026-11-24T11:24:06.108Z",
+      "start_position": 1,
       "model": "claude-haiku-5-5",
       "turns": 6,
       "tokens": 269559,
@@ -566,6 +574,8 @@
     },
     {
       "arm": "grep",
+      "session_start": "2026-11-24T11:24:39.900Z",
+      "start_position": 2,
       "model": "claude-haiku-5-5",
       "turns": 3,
       "tokens": 128380,
@@ -611,6 +621,8 @@
     },
     {
       "arm": "native",
+      "session_start": "2026-11-24T11:24:26.579Z",
+      "start_position": 1,
       "model": "claude-haiku-5-5",
       "turns": 4,
       "tokens": 186283,
@@ -818,6 +830,8 @@
     },
     {
       "arm": "grep",
+      "session_start": "2026-11-24T11:24:52.609Z",
+      "start_position": 1,
       "model": "claude-haiku-5-5",
       "turns": 3,
       "tokens": 127853,
@@ -863,6 +877,8 @@
     },
     {
       "arm": "native",
+      "session_start": "2026-11-24T11:25:00.701Z",
+      "start_position": 2,
       "model": "claude-haiku-5-5",
       "turns": 4,
       "tokens": 182959,
@@ -1068,6 +1084,8 @@
     },
     {
       "arm": "grep",
+      "session_start": "2026-11-24T11:23:44.409Z",
+      "start_position": 1,
       "model": "claude-haiku-5-5",
       "turns": 3,
       "tokens": 136188,
@@ -1114,6 +1132,8 @@
     },
     {
       "arm": "native",
+      "session_start": "2026-11-24T11:23:53.938Z",
+      "start_position": 2,
       "model": "claude-haiku-5-5",
       "turns": 4,
       "tokens": 179545,
@@ -1265,6 +1285,8 @@
     },
     {
       "arm": "grep",
+      "session_start": "2026-11-24T11:24:18.620Z",
+      "start_position": 2,
       "model": "claude-haiku-5-5",
       "turns": 6,
       "tokens": 283322,
@@ -1352,6 +1374,8 @@
     },
     {
       "arm": "native",
+      "session_start": "2026-11-24T11:24:03.663Z",
+      "start_position": 1,
       "model": "claude-haiku-5-5",
       "turns": 5,
       "tokens": 224822,
@@ -1529,6 +1553,8 @@
     },
     {
       "arm": "grep",
+      "session_start": "2026-11-24T11:24:45.737Z",
+      "start_position": 2,
       "model": "claude-haiku-5-5",
       "turns": 4,
       "tokens": 202400,
@@ -1602,6 +1628,8 @@
     },
     {
       "arm": "native",
+      "session_start": "2026-11-24T11:24:33.338Z",
+      "start_position": 1,
       "model": "claude-haiku-5-5",
       "turns": 4,
       "tokens": 194672,
@@ -1789,6 +1817,8 @@
     },
     {
       "arm": "grep",
+      "session_start": "2026-11-24T11:24:58.334Z",
+      "start_position": 1,
       "model": "claude-haiku-5-5",
       "turns": 3,
       "tokens": 140651,
@@ -1847,6 +1877,8 @@
     },
     {
       "arm": "native",
+      "session_start": "2026-11-24T11:25:09.094Z",
+      "start_position": 2,
       "model": "claude-haiku-5-5",
       "turns": 3,
       "tokens": 134095,
@@ -2002,6 +2034,8 @@
     },
     {
       "arm": "grep",
+      "session_start": "2026-11-24T11:23:44.411Z",
+      "start_position": 1,
       "model": "claude-haiku-5-5",
       "turns": 4,
       "tokens": 175841,
@@ -2054,6 +2088,8 @@
     },
     {
       "arm": "native",
+      "session_start": "2026-11-24T11:23:54.873Z",
+      "start_position": 2,
       "model": "claude-haiku-5-5",
       "turns": 4,
       "tokens": 180700,
@@ -2261,6 +2297,8 @@
     },
     {
       "arm": "grep",
+      "session_start": "2026-11-24T11:24:17.040Z",
+      "start_position": 2,
       "model": "claude-haiku-5-5",
       "turns": 3,
       "tokens": 130893,
@@ -2306,6 +2344,8 @@
     },
     {
       "arm": "native",
+      "session_start": "2026-11-24T11:24:05.377Z",
+      "start_position": 1,
       "model": "claude-haiku-5-5",
       "turns": 4,
       "tokens": 180861,
@@ -2497,6 +2537,8 @@
     },
     {
       "arm": "grep",
+      "session_start": "2026-11-24T11:24:34.470Z",
+      "start_position": 2,
       "model": "claude-haiku-5-5",
       "turns": 3,
       "tokens": 128457,
@@ -2551,6 +2593,8 @@
     },
     {
       "arm": "native",
+      "session_start": "2026-11-24T11:24:27.360Z",
+      "start_position": 1,
       "model": "claude-haiku-5-5",
       "turns": 3,
       "tokens": 135524,
@@ -2706,6 +2750,8 @@
     },
     {
       "arm": "grep",
+      "session_start": "2026-11-24T11:24:42.317Z",
+      "start_position": 1,
       "model": "claude-haiku-5-5",
       "turns": 4,
       "tokens": 175448,
@@ -2760,6 +2806,8 @@
     },
     {
       "arm": "native",
+      "session_start": "2026-11-24T11:24:50.227Z",
+      "start_position": 2,
       "model": "claude-haiku-5-5",
       "turns": 5,
       "tokens": 229682,

@@ -85,6 +85,21 @@
     "gained": []
   },
   "off_protocol_pairs": [],
+  "off_protocol_scope": "tool-scope-only: pairs that used a non-permitted tool; does not measure conditional fallback adherence",
+  "conditional_fallback": {
+    "eligible_pairs": 9,
+    "fallbacks_followed": 0,
+    "ineligible_pairs": [9],
+    "note": "Block 9 not eligible: the first successful wrapper query and iterator-body read returned in the same turn, before fallback was needed."
+  },
+  "strict_sensitivity": {
+    "pairs": [9],
+    "old": {"seconds": 8.324, "tokens": 232374, "usd": 0.00426203, "correct": true},
+    "new": {"seconds": 5.678, "tokens": 138963, "usd": 0.00332297, "correct": true},
+    "faster": 1,
+    "less_output": 1,
+    "note": "Block-9 only; all ten pairs remain the primary result."
+  },
   "clean_summary": {
     "old": {
       "sessions": 10,

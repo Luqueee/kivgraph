@@ -2,6 +2,7 @@
   "model": "anthropic/claude-haiku-5-5",
   "thinking": "low",
   "candidate": "43d1a11c-dirty",
+  "binary_sha256": "e0cba1151a12528e434e4a26e73ffc5c0be1122e29edfc58ffd480cf50c1824b",
   "guide": "Start with two parallel `find_references` calls in the first turn when a Go\ncaller question names both a package function and a method with its receiver.\nUse `qualified_name` for each: the function name alone and `Receiver.Method`.\nDo not run `find_symbol` first. Use it only if a selector cannot be resolved;\nif it is ambiguous, use the returned candidates to narrow it rather than guess.",
   "corpora": {
     "cobra": "88b30ab89da2d0d0abb153818746c5a2d30eccec",
@@ -72,7 +73,7 @@
       "ripgrep-typed-2-native"
     ]
   },
-  "design": "Fresh processes, paired in both orders; concurrent across corpora. Replacement pair ran alone after one original MCP run used the global graph and did not answer. Times sum session durations excluding launch and indexing.",
+  "design": "Fresh processes, paired in both orders; concurrent across corpora. Replacement pair ran alone after one original MCP run used the global graph and did not answer. Times sum session durations excluding launch and indexing. The 24 original and 2 replacement MCP configs invoke six-visible-zvsc8c8i/*-after.py, which launches /tmp/kv-selector-v2; binary_sha256 is the SHA-256 of those retained bytes (the same executable six-final used), matched through the adapter rather than hashed at each session start. The earlier six-native comparator used /tmp/kv-main (SHA-256 4a93e9e4587a2e3c3cd97849783f748f85d1967d857a46d99648f8a5ee22bb38), so cross-report differences are uncontrolled and not attributable solely to the guide.",
   "original_summary": {
     "grep": {
       "tokens": 2520599,

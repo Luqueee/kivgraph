@@ -1,6 +1,16 @@
 {
   "design": "Live native server option; same prompt/guide and transparent logging proxy. No replay, hints or injected edges. Five first starts per arm.",
   "option": "indirect_caller_name",
+  "warm_probe": {
+    "session": "01a1dc22-2737-70f5-9932-b55d831672a1",
+    "events": ["15005ce0", "0114c1e9", "3e0bc0e9", "56d147e7"],
+    "request": {"repository": "ripgrep", "qualified_name": "LineStep::next_impl", "include_evidence": true},
+    "control": "no indirect edge",
+    "treatment": "indirect_caller_name='next' returns exactly one LineIter::next via LineStep::next_match",
+    "warmups_discarded": 2,
+    "measured_per_arm": 20,
+    "note": "warm probe only; agent-session option uptake remains 0"
+  },
   "order": [
     "ripgrep-typed-1-old",
     "ripgrep-typed-1-new",

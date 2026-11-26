@@ -56,10 +56,11 @@ Exact historical patches, per-run host/tool versions and provider hardware
 were not recorded for every run. The live-option and automatic-edge trials
 include their experimental source diff. For identical-binary guide trials,
 use the recorded binary digest for both arms.
-The [build inventory](agent-builds.json) maps the reported SHA-256 values to
-`go version -m` on the retained executable bytes: 18 distinct binaries and
-46 matching reports. An empty match list means no digest match was found,
-not that the artifact was produced by the last known build.
+The [build inventory](agent-builds.json) distinguishes digests reported in
+the artifacts from binaries identified through retained launcher and adapter
+configurations. `go version -m` describes the retained executable bytes;
+it cannot attest which bytes were in memory at launch. An empty match list
+means the build was not identified, not that the last known build was used.
 
 ## Earlier adapters
 
@@ -71,6 +72,10 @@ standalone Python (`tool`, `agent` and `wait` come from the host). They expect
 the frozen checkouts at `/tmp/kivgraph-corpora/{cobra,ky,ripgrep}/src`, a
 published index in each sibling `home`, the native binary from `de7a74e0`
 at `/tmp/kv-main`, and `/opt/homebrew/bin/rg`. From the repository root:
+
+The replay adapters include later corrections for request handling, socket
+cleanup and `rg` isolation. They are not byte-identical historical drivers.
+The original `RIPGREP_CONFIG_PATH` was not recorded.
 
 ```python
 %load benchmarks/mcp-token-cost/replay/scouts.py
