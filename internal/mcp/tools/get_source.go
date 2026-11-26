@@ -344,16 +344,16 @@ func getSource(
 	// code travels as code and the envelope's counters travel in the header line.
 	rendered := renderSourceText(metadata.ID, result)
 	return &sdkmcp.CallToolResult{
-		Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: rendered}},
-	}, Response[SourceResult]{
-		SnapshotID:    &snapshotID,
-		SnapshotAgeMS: &snapshotAgeMS,
-		Total:         len(selectors),
-		Returned:      len(result.Bodies),
-		Truncated:     result.Trimmed > 0,
-		Coverage:      coverage,
-		Results:       result,
-	}, nil
+			Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: rendered}},
+		}, Response[SourceResult]{
+			SnapshotID:    &snapshotID,
+			SnapshotAgeMS: &snapshotAgeMS,
+			Total:         len(selectors),
+			Returned:      len(result.Bodies),
+			Truncated:     result.Trimmed > 0,
+			Coverage:      coverage,
+			Results:       result,
+		}, nil
 }
 
 // sourceFile is one file read once: its lines and whether the bytes still hash
