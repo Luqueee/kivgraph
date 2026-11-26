@@ -57,11 +57,11 @@ type SourceRequest struct {
 	Publication   string  `json:"publication,omitempty" jsonschema:"With line: copy the reference publication."`
 }
 
-// publicationToken names one publication of the graph. The numeric generation
-// is reused after a rebuild, so alone it cannot tell two graphs apart; the
-// persisted build time can, and it does not change when the same snapshot is
-// mapped again by another process.
+// In-memory snapshots have no generation directory; their lifetime is the build.
 func publicationToken(metadata hotsnapshot.SnapshotMetadata) string {
+	if metadata.Publication != "" {
+		return strconv.FormatUint(metadata.ID, 36) + "-" + metadata.Publication
+	}
 	return strconv.FormatUint(metadata.ID, 36) + "-" + strconv.FormatInt(metadata.CreatedAt.UnixNano(), 36)
 }
 
@@ -344,16 +344,16 @@ func getSource(
 	// code travels as code and the envelope's counters travel in the header line.
 	rendered := renderSourceText(metadata.ID, result)
 	return &sdkmcp.CallToolResult{
-			Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: rendered}},
-		}, Response[SourceResult]{
-			SnapshotID:    &snapshotID,
-			SnapshotAgeMS: &snapshotAgeMS,
-			Total:         len(selectors),
-			Returned:      len(result.Bodies),
-			Truncated:     result.Trimmed > 0,
-			Coverage:      coverage,
-			Results:       result,
-		}, nil
+		Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: rendered}},
+	}, Response[SourceResult]{
+		SnapshotID:    &snapshotID,
+		SnapshotAgeMS: &snapshotAgeMS,
+		Total:         len(selectors),
+		Returned:      len(result.Bodies),
+		Truncated:     result.Trimmed > 0,
+		Coverage:      coverage,
+		Results:       result,
+	}, nil
 }
 
 // sourceFile is one file read once: its lines and whether the bytes still hash

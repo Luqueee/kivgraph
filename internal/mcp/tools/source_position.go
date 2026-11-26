@@ -139,35 +139,43 @@ func locatePositionFile(snapshot *hotsnapshot.GraphSnapshot, repository, path st
 
 // candidatesOf returns the symbols of one file. The first call scans the symbol
 // table once for every file the batch names that is still unscanned. Names that
-// do not resolve are left out; their own selector reports the error.
+// do not resolve are left out; their own selector reports the error. A file the
+// batch did not name (an evidence preview source has no requests) costs one
+// further scan for itself, then stays cached.
 func (files *positionFiles) candidatesOf(ctx context.Context, snapshot *hotsnapshot.GraphSnapshot, id hotsnapshot.FileID) ([]callableCandidate, error) {
-	if files.candidates != nil {
-		return files.candidates[id], nil
+	if found, ok := files.candidates[id]; ok {
+		return found, nil
 	}
-	found := map[hotsnapshot.FileID][]callableCandidate{id: nil}
-	publication := publicationToken(snapshot.Metadata())
-	for i, request := range files.requests {
-		if request.Line == nil || request.Publication != publication {
-			continue
-		}
-		if _, fileID, err := locatePositionFile(snapshot, request.Repository, files.selectors[i].Path); err == nil {
-			found[fileID] = nil
+	wanted := map[hotsnapshot.FileID][]callableCandidate{id: nil}
+	if files.candidates == nil {
+		publication := publicationToken(snapshot.Metadata())
+		for i, request := range files.requests {
+			if request.Line == nil || request.Publication != publication {
+				continue
+			}
+			if _, fileID, err := locatePositionFile(snapshot, request.Repository, files.selectors[i].Path); err == nil {
+				wanted[fileID] = nil
+			}
 		}
 	}
 	table := snapshot.Strings()
 	err := snapshot.VisitSymbols(ctx, 0, hotsnapshot.SymbolID(snapshot.Metadata().Counts.Symbols), func(symbolID hotsnapshot.SymbolID, s hotsnapshot.SymbolRecord) error {
-		if _, ok := found[s.File]; !ok || s.StartLine == 0 || s.EndLine < s.StartLine {
+		if _, ok := wanted[s.File]; !ok || s.StartLine == 0 || s.EndLine < s.StartLine {
 			return nil
 		}
 		kind, _ := table.String(s.Kind)
-		found[s.File] = append(found[s.File], callableCandidate{symbolID, s.Name, kind, s.StartLine, s.EndLine})
+		wanted[s.File] = append(wanted[s.File], callableCandidate{symbolID, s.Name, kind, s.StartLine, s.EndLine})
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	files.candidates = found
-	return files.candidates[id], nil
+	if files.candidates == nil {
+		files.candidates = wanted
+	} else {
+		files.candidates[id] = wanted[id]
+	}
+	return wanted[id], nil
 }
 
 type bindingRange struct {

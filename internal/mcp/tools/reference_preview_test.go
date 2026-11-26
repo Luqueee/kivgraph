@@ -39,6 +39,25 @@ func TestReferencePreviewKeepsOnlyVerifiedDistinctExactLocations(t *testing.T) {
 	}
 }
 
+// Two previews from two files read one shared source and each shows its own
+// expected declaration.
+func TestReferencePreviewsShareOneSource(t *testing.T) {
+	store, _ := sourceSnapshot(t, 92)
+	merge := ReferenceSummary{Repository: "alpha", FilePath: "set.go", StartLine: 5, Confidence: "EXACT_TYPECHECKED"}
+	other := ReferenceSummary{Repository: "alpha", FilePath: "other.go", StartLine: 3, Confidence: "EXACT_TYPECHECKED"}
+	source := newEvidenceSource(store.Load())
+	previews, trimmed := referenceEvidence(t.Context(), []ReferenceSummary{merge, other}, map[string]*evidenceSource{"": source})
+	if trimmed != 0 || len(previews) != 2 {
+		t.Fatalf("previews = %+v, trimmed = %d", previews, trimmed)
+	}
+	if previews[0].QualifiedName != "pkg.Merge" || previews[0].Code != "func Merge() {\n\treturn\n}" {
+		t.Fatalf("first preview = %+v", previews[0])
+	}
+	if previews[1].QualifiedName != "other.Other" || previews[1].Code != "func Other() {\n}" || previews[1].Unavailable != "" {
+		t.Fatalf("second preview = %+v", previews[1])
+	}
+}
+
 func TestReferencePreviewWholeCallableByteBoundary(t *testing.T) {
 	for _, tc := range []struct {
 		name  string

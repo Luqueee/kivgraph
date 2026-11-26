@@ -52,10 +52,7 @@ type ReferencePreview struct {
 // already indexed, each paid for once per page.
 type evidenceSource struct {
 	snapshot *hotsnapshot.GraphSnapshot
-	// publication is the generation the rows were read from, as the token a
-	// caller copies. positionFiles refuses to resolve against any other, so a
-	// store re-published between the query and its previews yields no preview
-	// instead of a wrong one.
+	// Previews stay bound to this snapshot even if the store publishes another.
 	publication string
 	positions   positionFiles
 	cache       map[string]*sourceFile

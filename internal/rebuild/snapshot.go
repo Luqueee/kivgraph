@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 	"sort"
 	"time"
 
@@ -117,7 +118,11 @@ func BuildSnapshot(ctx context.Context, options BuildSnapshotOptions) (*hotsnaps
 	// of the same underlying graph — published as different generations,
 	// built at different wall clock times — compare equal by construction,
 	// not by convention.
-	snapshot, err := hotsnapshot.BuildGraphSnapshot(rows, options.SnapshotID, time.Now().UTC(), SnapshotRowFormatVersion)
+	publication, err := generationPublication(filepath.Dir(options.DatabasePath), report.Digest)
+	if err != nil {
+		return nil, report, err
+	}
+	snapshot, err := hotsnapshot.BuildPublishedSnapshot(rows, options.SnapshotID, time.Now().UTC(), SnapshotRowFormatVersion, publication)
 	if err != nil {
 		return nil, report, fmt.Errorf("%w: build graph snapshot: %w", ErrSnapshotBuildFailed, err)
 	}

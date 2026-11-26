@@ -58,7 +58,7 @@ checkout, which is what a reader on a fork or without a network still has.
 | I don't know what it is called, what files to open | `find_by_intent` |
 | what is declared in this package | `get_file_outline` |
 | give me the code of these symbols | `get_source` |
-| give me the code at one file line, from a stack frame or a diff | `get_source` |
+| which callable contains this reference line | `get_source` with `line` and `publication` from the same response |
 | everything about this one symbol | `get_symbol` |
 | what is indexed, and is the graph current | `list_repositories`, `graph_status` |
 | how is an asynchronous index progressing | `get_index_status` |

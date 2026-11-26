@@ -176,6 +176,7 @@ type GraphSnapshotInput struct {
 type SnapshotMetadata struct {
 	ID              uint64
 	CreatedAt       time.Time
+	Publication     string `json:"-"`
 	Version         uint32
 	SchemaVersion   int
 	ResolverVersion string

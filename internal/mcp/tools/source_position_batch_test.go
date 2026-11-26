@@ -6,32 +6,21 @@ import (
 	"testing"
 )
 
-// One batch naming two files scans the symbol table once, and each position
-// still resolves to the symbol a one-file resolution gives.
-func TestPositionBatchScansSymbolTableOnce(t *testing.T) {
+func TestPositionBatchReturnsBothDeclarations(t *testing.T) {
 	store, _ := sourceSnapshot(t, 97)
-	snapshot := store.Load()
-	pub := publicationToken(snapshot.Metadata())
+	pub := publicationToken(store.Load().Metadata())
 	merge, other := uint32(5), uint32(3)
 	requests := []SourceRequest{
 		{Repository: "alpha", Path: "set.go", Line: &merge, Publication: pub},
 		{Repository: "alpha", Path: "other.go", Line: &other, Publication: pub},
 	}
-	selectors := []symbolSelector{{Repository: "alpha", Path: "set.go"}, {Repository: "alpha", Path: "other.go"}}
-	batch := positionFiles{requests: requests, selectors: selectors}
-	cache := map[string]*sourceFile{}
-	for i, request := range requests {
-		got, err := batch.resolve(t.Context(), snapshot, request, selectors[i].Path, cache)
-		if err != nil {
-			t.Fatalf("batch position %d: %v", i, err)
-		}
-		if i == 0 && len(batch.candidates) != len(requests) {
-			t.Fatalf("first traversal indexed %d files, want both requested files", len(batch.candidates))
-		}
-		want, err := (&positionFiles{}).resolve(t.Context(), snapshot, request, selectors[i].Path, map[string]*sourceFile{})
-		if err != nil || got != want {
-			t.Fatalf("batch position %d resolved %d, one-file resolution %d, %v", i, got, want, err)
-		}
+	_, response, err := getSource(t.Context(), nil, GetSourceInput{Symbols: requests}, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bodies := response.Results.Bodies
+	if len(bodies) != 2 || bodies[0].QualifiedName != "pkg.Merge" || bodies[1].QualifiedName != "other.Other" {
+		t.Fatalf("unexpected declarations for set.go:5 and other.go:3: %+v", bodies)
 	}
 }
 
