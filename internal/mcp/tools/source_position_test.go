@@ -98,7 +98,7 @@ func TestPublicationTokenTracksPublicationNotProcessIdentity(t *testing.T) {
 
 func TestPositionSelectsInnermostArrowNotCallbackArgument(t *testing.T) {
 	root := testsupport.TempDir(t)
-	text := "export const outer = () => {\n const inner = ((() => {\n  const value = (use(() => 1));\n  return value;\n }));\n return inner();\n};\nconst a = () => 1, b = () => 2;\n"
+	text := "export const outer = () => {\n const inner = ((() => {\n  const value = (use(() => 1)) satisfies number;\n  return value;\n })) satisfies (() => number);\n return inner();\n};\nconst a = () => 1, b = () => 2;\n"
 	if err := os.WriteFile(filepath.Join(root, "body.ts"), []byte(text), 0o600); err != nil {
 		t.Fatal(err)
 	}

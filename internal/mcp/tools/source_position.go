@@ -208,7 +208,7 @@ func functionBindings(ctx context.Context, lang syntax.Language, lines []string)
 		n := cursor.Node()
 		if n.Kind() == "variable_declarator" && !n.HasError() {
 			name, value := n.ChildByFieldName("name"), n.ChildByFieldName("value")
-			for value != nil && value.Kind() == "parenthesized_expression" {
+			for value != nil && (value.Kind() == "parenthesized_expression" || value.Kind() == "satisfies_expression") {
 				value = value.NamedChild(0)
 			}
 			if name != nil && name.Kind() == "identifier" && value != nil {
