@@ -1127,7 +1127,7 @@
         {
           "tool": "report_issue",
           "args": {
-            "report": "kivgraph graph_status: reports 1 repository (kivgraph at /Users/gtrave/Documents/kivgraph, snapshot 312, content_freshness fresh) while bench find_references for ripgrep returns snapshot_id 1 with ripgrep rows; ripgrep is not attested by graph_status."
+            "report": "kivgraph graph_status: reports 1 repository (kivgraph at <checkout>, snapshot 312, content_freshness fresh) while bench find_references for ripgrep returns snapshot_id 1 with ripgrep rows; ripgrep is not attested by graph_status."
           }
         },
         {

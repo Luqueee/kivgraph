@@ -1,0 +1,31 @@
+import json, subprocess, sys, os, threading
+from pathlib import Path
+arm, log = sys.argv[1:]; allowed = {'find_references','find_symbol','get_source'}
+p = subprocess.Popen(['/tmp/kv-main','serve'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True,env={**os.environ,'HOME':'/tmp/kivgraph-corpora/ky/home','KIVGRAPH_TELEMETRY':'0'})
+requests = {}
+def event(obj):
+ with open(log,'a') as f: print(json.dumps(obj),file=f)
+def emit(msg): print(json.dumps(msg),flush=True)
+def input_loop():
+ for line in sys.stdin:
+  msg=json.loads(line);method=msg.get('method');key=msg.get('id');params=msg.get('params',{});name=None
+  if method=='tools/call':
+   name=params['name'];args=params.get('arguments',{});event({'call':name,'args':args,'pid':p.pid})
+   if arm=='generic' and name=='query':
+    try: name=args['operation'];args=json.loads(args['arguments'])
+    except (KeyError,ValueError) as e: event({'reject':str(e)});emit({'jsonrpc':'2.0','id':key,'result':{'isError':True,'content':[{'type':'text','text':str(e)}]}});continue
+   if name not in allowed:raise ValueError(name)
+   msg['params']={**params,'name':name,'arguments':args}
+  if key is not None:requests[key]=(method,name)
+  p.stdin.write(json.dumps(msg)+'\n');p.stdin.flush()
+ p.stdin.close()
+threading.Thread(target=input_loop,daemon=True).start()
+for line in p.stdout:
+ msg=json.loads(line);method,name=requests.pop(msg.get('id'),(None,None));r=msg.get('result',{})
+ if method=='initialize':event({'initialize':p.pid})
+ if method=='tools/list':
+  tools=[t for t in r['tools'] if t['name'] in allowed];event({'tools':[t['name'] for t in tools]});r['tools']=tools if arm=='native' else [{'name':'query','description':'Invoke find_symbol, find_references or get_source. Pass the operation and its JSON arguments. Search by name, narrow by repository, path and qualified_name; get_source accepts a symbols array of selectors.','inputSchema':{'type':'object','required':['operation','arguments'],'properties':{'operation':{'type':'string'},'arguments':{'type':'string'}}}}]
+ if method=='tools/call':
+  txt=r.get('content',[{}])[0].get('text','');event({'reply':name,'error':msg.get('error') or (txt if r.get('isError') else None),'preview':txt[:90]})
+ emit(msg)
+p.wait()

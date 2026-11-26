@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"os"
 	"slices"
 	"time"
 
@@ -93,13 +94,52 @@ func sampleRoute(ctx context.Context, s *sdkmcp.ClientSession, q question, direc
 	return v, err
 }
 
-func compareRoutes(ctx context.Context, s *sdkmcp.ClientSession, t *counter, questions []question, baseline results) error {
+var routeArms = [2]string{"lookup-first", "direct"}
+
+// routeRow is one measured route sample, kept in the order it ran.
+type routeRow struct {
+	Question  string `json:"question"`
+	Pair      int    `json:"pair"`
+	Arm       string `json:"arm"`
+	Position  int    `json:"position"`
+	AnswerNS  int64  `json:"answer_ns"`
+	SessionNS int64  `json:"session_ns"`
+}
+
+// writeRouteRows records every sample of one pair before the samples are pooled
+// into percentiles, so the percentiles can be recomputed from the same rows.
+func writeRouteRows(enc *json.Encoder, question string, pair int, order [2]int, samples [2]routeSample) error {
+	if enc == nil {
+		return nil
+	}
+	for pos := range 2 {
+		k := (order[0] - 1 + pos) % 2
+		v := samples[k]
+		row := routeRow{Question: question, Pair: pair, Arm: routeArms[k], Position: order[k], AnswerNS: v.answer.Nanoseconds(), SessionNS: v.full.Nanoseconds()}
+		if err := enc.Encode(row); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func compareRoutes(ctx context.Context, s *sdkmcp.ClientSession, t *counter, questions []question, baseline results, rawPath string) error {
 	const pairs = 20
 	var answers, full [2][]time.Duration
 	var answerTokens, sessionTokens [2]int
+	var raw *json.Encoder
+	if rawPath != "" {
+		f, err := os.OpenFile(rawPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		raw = json.NewEncoder(f)
+	}
 	for _, q := range questions {
 		for i := -1; i < pairs; i++ {
 			var samples [2]routeSample
+			var order [2]int
 			for j := range 2 {
 				k := (i + 1 + j) % 2
 				v, err := sampleRoute(ctx, s, q, k == 1)
@@ -107,12 +147,16 @@ func compareRoutes(ctx context.Context, s *sdkmcp.ClientSession, t *counter, que
 					return fmt.Errorf("%s: %w", q.Symbol, err)
 				}
 				samples[k] = v
+				order[k] = j + 1
 			}
 			if !samePage(samples[0].page, samples[1].page) || !slices.Equal(samples[0].bodies, samples[1].bodies) {
 				return fmt.Errorf("%s: reference pages or source batches differ", q.Symbol)
 			}
 			if i < 0 {
 				continue
+			}
+			if err := writeRouteRows(raw, q.Symbol, i, order, samples); err != nil {
+				return err
 			}
 			for k, v := range samples {
 				answers[k] = append(answers[k], v.answer)
@@ -129,7 +173,7 @@ func compareRoutes(ctx context.Context, s *sdkmcp.ClientSession, t *counter, que
 		}
 	}
 	fmt.Printf("native: %d answer tokens, %d session tokens\n", baseline.Totals.NativeAnswer, baseline.Totals.Native)
-	for k, name := range []string{"lookup-first", "direct"} {
+	for k, name := range routeArms {
 		fmt.Printf("%s: %d answer tokens, %d served session tokens; %d samples", name, answerTokens[k], sessionTokens[k], len(full[k]))
 		for i, series := range [][]time.Duration{answers[k], full[k]} {
 			slices.Sort(series)

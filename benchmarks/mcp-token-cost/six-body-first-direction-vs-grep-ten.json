@@ -167,7 +167,7 @@
       "usd": 0.217193,
       "turns": 238,
       "calls": 222,
-      "off_protocol": 0,
+      "off_protocol": 1,
       "server_rejects": 0
     },
     "mcp": {
@@ -193,7 +193,7 @@
           "usd": 0.039048,
           "turns": 44,
           "calls": 41,
-          "off_protocol": 0,
+          "off_protocol": 1,
           "server_rejects": 0
         },
         "mcp": {
@@ -348,24 +348,24 @@
   },
   "clean_pairs_summary": {
     "grep": {
-      "sessions": 57,
-      "correct": 56,
-      "seconds": 550.261,
-      "tokens": 9849435,
-      "usd": 0.20713,
-      "turns": 227,
-      "calls": 212,
+      "sessions": 56,
+      "correct": 55,
+      "seconds": 533.577,
+      "tokens": 9588861,
+      "usd": 0.202282,
+      "turns": 221,
+      "calls": 207,
       "off_protocol": 0,
       "server_rejects": 0
     },
     "mcp": {
-      "sessions": 57,
-      "correct": 56,
-      "seconds": 657.209,
-      "tokens": 9522863,
-      "usd": 0.203852,
-      "turns": 209,
-      "calls": 157,
+      "sessions": 56,
+      "correct": 55,
+      "seconds": 643.885,
+      "tokens": 9341773,
+      "usd": 0.199975,
+      "turns": 205,
+      "calls": 154,
       "off_protocol": 0,
       "server_rejects": 31
     }
@@ -375,6 +375,11 @@
       "cobra",
       "control",
       10
+    ],
+    [
+      "cobra",
+      "control",
+      3
     ],
     [
       "cobra",
@@ -1241,6 +1246,7 @@
       "question_set": "control",
       "block": 3,
       "other_tools": [],
+      "exclusion_note": "Off-protocol: call 4 searched /private/tmp/kivgraph-corpora/cobra, not .../cobra/src. Answer correct. Kept in primary; pair excluded from sensitivity.",
       "rpc_calls": 0,
       "initializations": 0,
       "route": [
@@ -1713,7 +1719,7 @@
           "args": {}
         }
       ],
-      "answer": "I could not answer from source because the Kivgraph graph does not contain the `cobra` repository.\n\n- `find_references` with `repository: \"cobra\"` and `qualified_name: \"Command.PrintErr\"` returned `REPOSITORY_NOT_FOUND`.\n- `list_repositories` and `graph_status` list one published repository, `kivgraph` (`/Users/gtrave/Documents/kivgraph`, commit `43d1a11`). No `cobra` entry exists, so no freshness attestation for it.\n\nI did not index `cobra`. Indexing needs your approval, since it writes a rebuild of the published graph. Once you approve, I can run `start_index_project` for `cobra`, poll it to completion, confirm freshness with `graph_status`, and then answer the three questions with citations:\n\n1. Which non-test formatted and newline convenience methods directly call `Command.PrintErr`.\n2. Which formatter each one uses.\n3. Which writer `PrintErr` passes to `fmt.Fprint`.\n\nIf `cobra` is already indexed under a different name, tell me the name and I will query that instead.",
+      "answer": "I could not answer from source because the Kivgraph graph does not contain the `cobra` repository.\n\n- `find_references` with `repository: \"cobra\"` and `qualified_name: \"Command.PrintErr\"` returned `REPOSITORY_NOT_FOUND`.\n- `list_repositories` and `graph_status` list one published repository, `kivgraph` (`<checkout>`, commit `43d1a11`). No `cobra` entry exists, so no freshness attestation for it.\n\nI did not index `cobra`. Indexing needs your approval, since it writes a rebuild of the published graph. Once you approve, I can run `start_index_project` for `cobra`, poll it to completion, confirm freshness with `graph_status`, and then answer the three questions with citations:\n\n1. Which non-test formatted and newline convenience methods directly call `Command.PrintErr`.\n2. Which formatter each one uses.\n3. Which writer `PrintErr` passes to `fmt.Fprint`.\n\nIf `cobra` is already indexed under a different name, tell me the name and I will query that instead.",
       "corpus": "cobra",
       "question_set": "typed",
       "block": 4,
@@ -11106,6 +11112,7 @@
       "correct": true
     },
     {
+      "annotation": "For abc\\n, crates/searcher/src/lines.rs:118-127 compares c\\n starting at index 2 (4 minus 2), not a lone LF at index 3. The requested result is correct: without_terminator preserves a lone LF. The worked example is incorrect; the grade is unchanged.",
       "arm": "grep",
       "model": "claude-haiku-5-5",
       "turns": 7,
@@ -13369,6 +13376,18 @@
       "correct": true
     }
   ],
+  "turn_seconds_by_question_definition": {
+    "buckets": [
+      "first: assistant turns whose content contains a toolCall",
+      "second: assistant turns whose content has no toolCall"
+    ],
+    "source_fields": "session transcript assistant messages: completedAt and timestamp (ms); seconds = (completedAt - timestamp) / 1000, rounded to 3 decimals",
+    "grouping": "summed per question and arm over the 10 repetitions; each list is [first bucket, second bucket]",
+    "not": "not run order, not tool execution time, not TTFT or post-TTFT",
+    "reducer": "the reducer script is not in this repository; reproduce from the session transcripts",
+    "run": "captured with run.sh in the capture directory (not in this repository): omp -p --model anthropic/claude-haiku-5-5 --thinking low; dataset: three corpora (cobra, ky, ripgrep) at the pinned commits in top-level commits, with six prompts in top-level prompts; three concurrent corpus lanes; binary hash in binary_sha256; environment: host details not recorded (see limitations); seed: not recorded (see limitations)",
+    "limitations": "model seed not recorded; host details not recorded; server source revision not recorded; launch and indexing excluded from timings"
+  },
   "turn_seconds_by_question": {
     "GetActiveHelpConfig": {
       "grep": [

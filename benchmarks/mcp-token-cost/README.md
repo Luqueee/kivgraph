@@ -172,6 +172,11 @@ for c in cobra ky ripgrep; do
 done
 ```
 
+For new measurements, pass `--routes-raw /path/to/new-file.jsonl` to record
+each measured pair before pooling: question, zero-based pair, arm, one-based
+position, and answer/session durations in nanoseconds. Existing files are
+never overwritten. Historical percentiles cannot reconstruct the raw samples.
+
 Local stdio, darwin/arm64, server built at `de7a74e0`, 2026-11-24. Each
 question gets one discarded pair, then 20 pairs alternating which goes first,
 on the same warm MCP session. Percentiles pool 120 samples per corpus and arm.
@@ -254,6 +259,8 @@ lookups with `find_symbol`, `find_references` and `get_source`, including
 symbols outside the first page. Both could stop when they had enough evidence.
 [Session records](selective-grep.json) include the prompts, frozen revisions,
 queries, selected reads, provider usage and summaries.
+See the [agent run record](agent-runs.md) for launch, seed and provenance
+details, including which historical adapters cannot be replayed exactly.
 
 | Corpus | Full tokens: grep / graph | Sum of session seconds: grep / graph |
 | --- | ---: | ---: |

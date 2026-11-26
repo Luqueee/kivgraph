@@ -36,14 +36,15 @@ The fallback splits the qualified name at its last `::` into a receiver and a
 method. It finds the symbols named by the method, narrowed by `repository` and
 `path` as the exact lookup is. Each one is classified against the receiver:
 
-- **Proven**: the symbol has an outgoing `METHOD_OF` edge with provenance
-  `rust-analyzer-definition` whose target is a declared symbol matching the
-  receiver. The match is the target's canonical name equal to the whole receiver,
+- **Proven**: the symbol has an outgoing `METHOD_OF` edge with confidence
+  `STRUCTURAL_CERTAIN` and provenance `rust-analyzer-definition`. Its target is
+  a declared symbol matching the receiver: the target's canonical name,
   or, when the receiver is one identifier, the target's own name.
 - **Unproven**: the symbol is a Rust symbol whose canonical name carries the
   receiver's last step before its method step, which is what an impl block the
   index did not pair with a declared type looks like.
-- **Unrelated**: anything else. It is never named.
+- **Unrelated**: this includes a method proven to belong to another type,
+  even if its canonical name mentions the requested receiver.
 
 The outcomes follow the proven count:
 
@@ -55,15 +56,16 @@ The outcomes follow the proven count:
   the verified method and the unproven candidates, and asks for the exact
   `qualified_name`. The fallback does not pick the proven one, because the
   unproven candidates might be the method the caller meant.
-- **Two or more proven**: `AMBIGUOUS_SYMBOL`, naming each method by canonical name
-  so the next call can resolve it exactly. The fallback never picks the first,
+- **Two or more proven**: `AMBIGUOUS_SYMBOL`, with a bounded sample and the
+  total match count. The fallback never picks the first,
   prefers an inherent method over a trait one, or prefers the nearer type. Two
   traits that define `name` are two methods, and only the caller knows which
   one was meant.
 
-Nothing else resolves a Rust method. `crate::`, `self::`, `super::` and
-`<T as Trait>::method` are not parsed as receivers, and a receiver with generic
-arguments, references or `dyn` does not match a declared type.
+The fallback does not resolve `crate::`, `self::` or `super::` relative to a
+call site. This is not a syntax error: exact canonical lookup still runs
+first. Nor does the fallback interpret `<T as Trait>`, generic arguments,
+references or `dyn` as type expressions.
 
 ## Limits
 
@@ -78,5 +80,7 @@ arguments, references or `dyn` does not match a declared type.
 
 - A caller who writes `Type::method` from source gets the canonical method when
   the index proves it, and a named list of candidates when it cannot.
-- A miss never guesses. The worst outcome is `SYMBOL_NOT_FOUND` with suggestions,
-  which costs one more call with an exact `qualified_name`.
+- A miss never guesses. `SYMBOL_NOT_FOUND` means no owner was proven;
+  `AMBIGUOUS_SYMBOL` means the caller must choose. Retry with the canonical
+  `qualified_name` and narrow with `repository` and `path` as needed. If
+  declarations share all three, use the intended symbol's `stable_key` alone.

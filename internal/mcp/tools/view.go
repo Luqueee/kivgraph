@@ -55,6 +55,7 @@ func normalizeView(value string, filesAllowed bool) (string, error) {
 // a cursor that does not exist, and coverage categories at zero.
 type compactEnvelope[T any] struct {
 	SnapshotID        *uint64                  `json:"snapshot_id,omitempty"`
+	Publication       string                   `json:"publication,omitempty"`
 	Profile           string                   `json:"profile,omitempty"`
 	Profiles          []compactProfileSnapshot `json:"profiles,omitempty"`
 	CrossProfileEdges string                   `json:"cross_profile_edges,omitempty"`
@@ -96,6 +97,7 @@ func (coverage Coverage) compact() *compactCoverage {
 func (response Response[T]) MarshalJSON() ([]byte, error) {
 	type fullEnvelope struct {
 		SnapshotID        *uint64           `json:"snapshot_id"`
+		Publication       string            `json:"publication,omitempty"`
 		Profile           string            `json:"profile,omitempty"`
 		Profiles          []ProfileSnapshot `json:"profiles,omitempty"`
 		CrossProfileEdges string            `json:"cross_profile_edges,omitempty"`
@@ -112,6 +114,7 @@ func (response Response[T]) MarshalJSON() ([]byte, error) {
 	if response.View == ViewFull || response.View == "" {
 		return json.Marshal(fullEnvelope{
 			SnapshotID:        response.SnapshotID,
+			Publication:       response.Publication,
 			Profile:           response.Profile,
 			Profiles:          response.Profiles,
 			CrossProfileEdges: response.CrossProfileEdges,
@@ -128,6 +131,7 @@ func (response Response[T]) MarshalJSON() ([]byte, error) {
 	}
 	return json.Marshal(compactEnvelope[T]{
 		SnapshotID:        response.SnapshotID,
+		Publication:       response.Publication,
 		Profile:           response.Profile,
 		Profiles:          compactProfiles(response.Profiles),
 		CrossProfileEdges: response.CrossProfileEdges,

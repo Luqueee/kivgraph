@@ -167,7 +167,7 @@
       "usd": 0.215489,
       "turns": 242,
       "calls": 217,
-      "off_protocol": 0,
+      "off_protocol": 2,
       "server_rejects": 0
     },
     "mcp": {
@@ -193,7 +193,7 @@
           "usd": 0.036092,
           "turns": 43,
           "calls": 38,
-          "off_protocol": 0,
+          "off_protocol": 1,
           "server_rejects": 0
         },
         "mcp": {
@@ -328,7 +328,7 @@
           "usd": 0.03059,
           "turns": 31,
           "calls": 30,
-          "off_protocol": 0,
+          "off_protocol": 1,
           "server_rejects": 0
         },
         "mcp": {
@@ -348,26 +348,26 @@
   },
   "clean_pairs_summary": {
     "grep": {
-      "sessions": 58,
-      "correct": 56,
-      "seconds": 554.448,
-      "tokens": 10185788,
-      "usd": 0.210073,
-      "turns": 235,
-      "calls": 211,
+      "sessions": 56,
+      "correct": 54,
+      "seconds": 531.177,
+      "tokens": 9792746,
+      "usd": 0.201748,
+      "turns": 226,
+      "calls": 202,
       "off_protocol": 0,
       "server_rejects": 0
     },
     "mcp": {
-      "sessions": 58,
-      "correct": 57,
-      "seconds": 750.0,
-      "tokens": 9370878,
-      "usd": 0.21046,
-      "turns": 204,
-      "calls": 150,
+      "sessions": 56,
+      "correct": 55,
+      "seconds": 722.3,
+      "tokens": 9003394,
+      "usd": 0.202608,
+      "turns": 196,
+      "calls": 144,
       "off_protocol": 0,
-      "server_rejects": 35
+      "server_rejects": 34
     }
   },
   "excluded_pairs_in_sensitivity": [
@@ -380,6 +380,16 @@
       "cobra",
       "typed",
       5
+    ],
+    [
+      "ripgrep",
+      "typed",
+      4
+    ],
+    [
+      "cobra",
+      "control",
+      9
     ]
   ],
   "sessions": [
@@ -2956,6 +2966,7 @@
       "question_set": "control",
       "block": 9,
       "other_tools": [],
+      "exclusion_note": "Off-protocol: call 4 searched /private/tmp/kivgraph-corpora/cobra, not .../cobra/src. Answer correct. Kept in primary; pair excluded from sensitivity.",
       "rpc_calls": 0,
       "initializations": 0,
       "route": [
@@ -8754,6 +8765,7 @@
       "question_set": "typed",
       "block": 4,
       "other_tools": [],
+      "exclusion_note": "Off-protocol: call 2 searched /private/tmp/kivgraph-corpora/ripgrep, not .../ripgrep/src. Answer correct. Kept in primary; pair excluded from sensitivity.",
       "rpc_calls": 0,
       "initializations": 0,
       "route": [

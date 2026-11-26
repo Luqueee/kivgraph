@@ -52,16 +52,17 @@ type ReferencePreview struct {
 // already indexed, each paid for once per page.
 type evidenceSource struct {
 	snapshot *hotsnapshot.GraphSnapshot
-	// snapshotID is the generation the rows were read from. positionFiles
-	// refuses to resolve against any other, so a store re-published between
-	// the query and its previews yields no preview instead of a wrong one.
-	snapshotID uint64
-	positions  positionFiles
-	cache      map[string]*sourceFile
+	// publication is the generation the rows were read from, as the token a
+	// caller copies. positionFiles refuses to resolve against any other, so a
+	// store re-published between the query and its previews yields no preview
+	// instead of a wrong one.
+	publication string
+	positions   positionFiles
+	cache       map[string]*sourceFile
 }
 
 func newEvidenceSource(snapshot *hotsnapshot.GraphSnapshot) *evidenceSource {
-	return &evidenceSource{snapshot: snapshot, snapshotID: snapshot.Metadata().ID, cache: map[string]*sourceFile{}}
+	return &evidenceSource{snapshot: snapshot, publication: publicationToken(snapshot.Metadata()), cache: map[string]*sourceFile{}}
 }
 
 // A subject is already resolved. Read its own range, not an enclosing callable.
@@ -157,8 +158,8 @@ func previewReference(ctx context.Context, row ReferenceSummary, sources map[str
 }
 
 func (source *evidenceSource) preview(ctx context.Context, row ReferenceSummary) (ReferencePreview, error) {
-	line, snapshotID := row.StartLine, source.snapshotID
-	request := SourceRequest{Repository: row.Repository, Line: &line, SnapshotID: &snapshotID}
+	line := row.StartLine
+	request := SourceRequest{Repository: row.Repository, Line: &line, Publication: source.publication}
 	holder, err := source.positions.resolve(ctx, source.snapshot, request, row.FilePath, source.cache)
 	if err != nil {
 		return ReferencePreview{}, err

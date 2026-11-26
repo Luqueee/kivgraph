@@ -1076,3 +1076,116 @@ func TestFindReferencesCursorDoesNotSurviveTheTestFilter(t *testing.T) {
 		t.Fatalf("a cursor minted without exclude_tests was accepted with it: %s", contentText(result))
 	}
 }
+
+// rustCursorSnapshot is one crate holding a Rust type, Cursor, and one method
+// `next` per canonical name. A paired method carries the analyzer's METHOD_OF
+// edge, which is what proves its receiver; an unpaired one is only a candidate
+// the index cannot vouch for.
+func rustCursorSnapshot(t *testing.T, id uint64, repository string, paired bool, canonicalNames ...string) *hotsnapshot.SnapshotStore {
+	t.Helper()
+	rows := hotsnapshot.LadybugSnapshotRows{
+		Repositories: []hotsnapshot.RepositoryRow{{Key: "repo", Name: repository, Path: "/" + repository, Languages: "rust"}},
+		Packages:     []hotsnapshot.PackageRow{{Key: "pkg", RepositoryKey: "repo", Language: "rust", Name: "crate", ModulePath: "crate"}},
+		Files:        []hotsnapshot.FileRow{{Key: "f", RepositoryKey: "repo", PackageKey: "pkg", Language: "rust", Path: "lines.rs"}},
+		Symbols:      []hotsnapshot.SymbolRow{{StableKey: "owner", CanonicalIdentity: "rust:owner", FileKey: "f", Language: "rust", Kind: "struct", Name: "Cursor", QualifiedName: "lines::Cursor", StartLine: 1, EndLine: 1}},
+	}
+	for i, name := range canonicalNames {
+		key := hotsnapshot.StableKey(name)
+		rows.Symbols = append(rows.Symbols, hotsnapshot.SymbolRow{StableKey: key, CanonicalIdentity: "rust:" + name, FileKey: "f", Language: "rust", Kind: "method", Name: "next", QualifiedName: name, StartLine: uint32(i + 2), EndLine: uint32(i + 2)})
+		if paired {
+			rows.Edges = append(rows.Edges, hotsnapshot.EdgeRow{SourceKey: key, TargetKey: "owner", Kind: facts.CodeMethodOf, Confidence: facts.CodeStructuralCertain, Provenance: facts.CodeRustAnalyzerDefinition, EvidenceKind: "scip", EvidenceSourceFileKey: "f", EvidenceTargetFileKey: "f"})
+		}
+	}
+	snapshot, err := hotsnapshot.BuildGraphSnapshot(rows, id, time.Unix(1_700_000_000+int64(id), 0).UTC(), 1)
+	if err != nil {
+		t.Fatalf("BuildGraphSnapshot() error = %v", err)
+	}
+	return hotsnapshot.NewSnapshotStore(snapshot)
+}
+
+// TestFindReferencesAllMissKeepsRustSuggestionsByProfile defends what the miss
+// of a Rust shorthand tells the caller. `Cursor::next` that the index cannot
+// prove is answered with the canonical names it could mean, and one profile's
+// answer is not the union's: those names have to survive when every selected
+// profile misses -- and only then, each under the profile that holds it.
+func TestFindReferencesAllMissKeepsRustSuggestionsByProfile(t *testing.T) {
+	const (
+		reader = "lines::impl::Cursor::Reader::next"
+		writer = "words::impl::Cursor::Writer::next"
+	)
+	query := FindReferencesInput{QualifiedName: "Cursor::next", View: ViewFull}
+	bare := NewToolError(CodeSymbolNotFound, "symbol was not found in the selected profiles").Error()
+	both := func(alpha, beta *hotsnapshot.SnapshotStore) []hotsnapshot.ProfileStore {
+		return []hotsnapshot.ProfileStore{{Name: "alpha", Store: alpha}, {Name: "beta", Store: beta}}
+	}
+	miss := func(t *testing.T, input FindReferencesInput, profiles []hotsnapshot.ProfileStore) string {
+		t.Helper()
+		_, _, err := findReferencesAcrossProfiles(context.Background(), nil, input, profiles)
+		if ErrorCode(err) != CodeSymbolNotFound {
+			t.Fatalf("error = %v, want %s", err, CodeSymbolNotFound)
+		}
+		return err.Error()
+	}
+
+	t.Run("names the profile that held the candidates", func(t *testing.T) {
+		message := miss(t, query, both(rustCursorSnapshot(t, 91, "crate", false, reader), rustCursorSnapshot(t, 92, "crate", false)))
+		for _, want := range []string{`profile "alpha"`, reader} {
+			if !strings.Contains(message, want) {
+				t.Fatalf("message = %q, want it to contain %q", message, want)
+			}
+		}
+		if strings.Contains(message, "beta") {
+			t.Fatalf("message = %q names a profile that offered nothing", message)
+		}
+	})
+
+	t.Run("keeps each profile's candidates under its own name", func(t *testing.T) {
+		message := miss(t, query, both(rustCursorSnapshot(t, 93, "crate", false, reader), rustCursorSnapshot(t, 94, "crate", false, writer)))
+		alpha, beta := strings.Index(message, `profile "alpha"`), strings.Index(message, `profile "beta"`)
+		if alpha < 0 || beta < alpha {
+			t.Fatalf("message = %q, want alpha's part before beta's", message)
+		}
+		if part := message[alpha:beta]; !strings.Contains(part, reader) || strings.Contains(part, writer) {
+			t.Fatalf("alpha's part = %q, want %s and not %s", part, reader, writer)
+		}
+		if part := message[beta:]; !strings.Contains(part, writer) || strings.Contains(part, reader) {
+			t.Fatalf("beta's part = %q, want %s and not %s", part, writer, reader)
+		}
+	})
+
+	t.Run("leaves out a profile without the repository", func(t *testing.T) {
+		input := query
+		input.Repository = "crate"
+		message := miss(t, input, both(rustCursorSnapshot(t, 95, "crate", false, reader), rustCursorSnapshot(t, 96, "elsewhere", false, writer)))
+		if !strings.Contains(message, `profile "alpha"`) || !strings.Contains(message, reader) {
+			t.Fatalf("message = %q, want alpha's candidate %s", message, reader)
+		}
+		if strings.Contains(message, "beta") || strings.Contains(message, writer) {
+			t.Fatalf("message = %q reports a profile that does not hold the repository", message)
+		}
+	})
+
+	t.Run("says nothing of them once a profile resolves", func(t *testing.T) {
+		_, response, err := findReferencesAcrossProfiles(context.Background(), nil, query, both(rustCursorSnapshot(t, 97, "crate", true, reader), rustCursorSnapshot(t, 98, "crate", false, writer)))
+		if err != nil || response.Results.Subject.QualifiedName != reader {
+			t.Fatalf("union = %#v, %v, want %s resolved by alpha alone", response.Results.Subject, err, reader)
+		}
+	})
+
+	t.Run("keeps the generic message for a bare absence", func(t *testing.T) {
+		const other = "lines::impl::Other::Reader::next"
+		for _, tc := range []struct {
+			name  string
+			input FindReferencesInput
+		}{
+			{"same-named methods of another receiver", query},
+			{"a repository no profile holds", FindReferencesInput{QualifiedName: "Cursor::next", Repository: "nowhere", View: ViewFull}},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				if got := miss(t, tc.input, both(rustCursorSnapshot(t, 99, "crate", false, other), rustCursorSnapshot(t, 100, "crate", false, other))); got != bare {
+					t.Fatalf("message = %q, want %q", got, bare)
+				}
+			})
+		}
+	})
+}

@@ -16,6 +16,33 @@ import (
 	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
+func TestGetSourceValidatesPositionAfterTrim(t *testing.T) {
+	store, root := sourceSnapshot(t, 91)
+	long := "package pkg\n\n\nfunc Merge() {\n//" + strings.Repeat("x", MaximumSourceBytes) + "\n}\n"
+	if err := os.WriteFile(filepath.Join(root, "set.go"), []byte(long), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	req := GetSourceInput{Symbols: []SourceRequest{
+		{StableKey: "sym-other"},
+		{StableKey: "sym-merge"},
+		{Repository: "alpha", Path: "other.go", Line: new(uint32(3)), Publication: publicationOf(store)},
+	}}
+	_, r, err := getSource(t.Context(), nil, req, store)
+	if err != nil || r.Returned != 1 || r.Results.Trimmed != 2 {
+		t.Fatalf("valid trimmed batch: returned %d, trimmed %d, err %v", r.Returned, r.Results.Trimmed, err)
+	}
+	stale, _ := sourceSnapshot(t, 90)
+	req.Symbols[2].Publication = publicationOf(stale)
+	if _, _, err = getSource(t.Context(), nil, req, store); ErrorCode(err) != CodeSnapshotUnavailable {
+		t.Fatalf("trimmed stale position: %v", err)
+	}
+}
+
+// publicationOf is the token a caller copies from a response served by store.
+func publicationOf(store *hotsnapshot.SnapshotStore) string {
+	return publicationToken(store.Load().Metadata())
+}
+
 func TestGetSourceServesSeveralBodiesInOneCall(t *testing.T) {
 	store, _ := sourceSnapshot(t, 91)
 	_, response, err := getSource(context.Background(), nil, GetSourceInput{
@@ -135,7 +162,7 @@ func TestGetSourceIncludesSurroundingLinesOnRequest(t *testing.T) {
 			Symbols: []SourceRequest{{StableKey: "sym-merge"}}, ContextLines: tc.context,
 		}, store)
 		if err != nil {
-			t.Fatal(err)
+			t.Fatalf("context_lines=%d: %v", tc.context, err)
 		}
 		if text := result.Content[0].(*sdkmcp.TextContent).Text; !strings.Contains(text, tc.header) {
 			t.Fatalf("context %d: expected %q in %q", tc.context, tc.header, text)
@@ -275,7 +302,7 @@ func TestReanchorDeclarationRefusesEquallyCloseHomonyms(t *testing.T) {
 
 // sourceSnapshot writes two real files and publishes a generation that records
 // their digests, so freshness is a fact about the bytes rather than a flag.
-func sourceSnapshot(t *testing.T, id uint64) (*hotsnapshot.SnapshotStore, string) {
+func sourceSnapshot(t testing.TB, id uint64) (*hotsnapshot.SnapshotStore, string) {
 	t.Helper()
 	root := testsupport.TempDir(t)
 	setSource := "package pkg\n\n// Merge merges.\nfunc Merge() {\n\treturn\n}\n\nfunc Helper() int {\n\treturn 1\n}\n"

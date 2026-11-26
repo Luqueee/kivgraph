@@ -130,15 +130,18 @@ Do not run `find_symbol` first. Use it only if a selector cannot be resolved;
 if it is ambiguous, use the returned candidates to narrow it rather than guess.
 
 For Rust, a `Type::method` written from source resolves through `qualified_name`
-when the index proves the method belongs to that type. The exact canonical name,
-such as `shapes::impl::Circle::area`, always works. If the exact lookup finds
-nothing, the name may not be indexed in this snapshot at all, so the tool falls
+when the index proves the method belongs to that type. An exact canonical name
+such as `shapes::impl::Circle::area` resolves when exactly one declaration in
+the selected scope has that name. Multiple exact matches are `AMBIGUOUS_SYMBOL`.
+If the exact lookup finds nothing, the tool falls
 back to the method's declared type. The `METHOD_OF` edge that proves a method
 has `STRUCTURAL_CERTAIN` confidence. If one proven method matches and no other
 candidate of that name is unproven, it resolves. If two or more match, or one
 matches alongside unproven candidates, the call returns `AMBIGUOUS_SYMBOL`;
-repeat it with the exact `qualified_name` of the one you mean. If none is proven,
-it returns `SYMBOL_NOT_FOUND` with unproven candidates to inspect, not to repeat.
+retry with the intended canonical `qualified_name`, adding `repository` and
+`path` if needed. If those still match multiple declarations, use the intended
+`stable_key` alone. With no proven match the tool returns `SYMBOL_NOT_FOUND`;
+any unproven candidates are suggestions, not proof of ownership.
 For a short name with no receiver, use `name` rather than inventing a qualified
 path.
 

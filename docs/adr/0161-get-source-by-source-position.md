@@ -3,7 +3,8 @@
 ## Status
 
 Accepted. Adds an optional entry shape to `get_source`. The existing selectors,
-the 20-symbol limit and the 262144-byte ceiling are unchanged.
+the 20-symbol limit and the 262144-byte ceiling are unchanged. The
+`snapshot_id` field of this entry is replaced by `publication` (ADR 0164).
 
 ## Context
 
@@ -25,13 +26,13 @@ A `symbols[]` entry may name a position instead of a symbol:
   "repository": "kivgraph",
   "path": "internal/facts/facts.go",
   "line": 530,
-  "snapshot_id": 30
+  "publication": "3-1dk8sq0g9x5k"
 }
 ```
 
-- `repository`, `path`, `line` and `snapshot_id` are required together in each
-  entry. `line` is one-based and positive. `snapshot_id` is the generation the
-  line was read from; it is an integer, per entry.
+- `repository`, `path`, `line` and `publication` are required together in each
+  entry. `line` is one-based and positive. `publication` is the token the
+  reference answer carried (ADR 0164), per entry.
 - A position entry is exclusive with `stable_key` and `qualified_name`. Mixing
   them in one entry is rejected, not resolved by precedence.
 - A position entry selects one profile, as a stable key does when several
@@ -42,8 +43,8 @@ A `symbols[]` entry may name a position instead of a symbol:
 
 The selector fails closed. It never guesses:
 
-- A `snapshot_id` other than the published generation is refused. A line only
-  means something in the generation it was read from.
+- A `publication` other than the published snapshot's token is refused. A line
+  only means something in the publication it was read from.
 - A line that no indexed callable contains, or that two equally innermost
   callables both contain, is refused. Choosing between them would be a guess.
 - A file that no longer hashes to the generation's `ContentDigest` is refused
@@ -57,10 +58,10 @@ variable that happens to hold a callable value does not qualify.
 
 ## Consequences
 
-- The caller copies the position and snapshot identifier from the same
-  reference answer. No extra symbol discovery is needed.
-- The answer is as fresh as the generation. After a re-index, the caller takes
-  the new `snapshot_id` and the new line. An old pair is refused, not silently
+- The caller copies the position and publication from the same reference
+  answer. No extra symbol discovery is needed.
+- The answer is as fresh as the publication. After a re-index, the caller takes
+  the new `publication` and the new line. An old pair is refused, not silently
   remapped.
 - Existing requests keep their meaning. Only entries carrying `line` take the
   new path.

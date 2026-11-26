@@ -15,14 +15,14 @@ description: Read the code of up to twenty symbols in one call, as plain text, w
 | `symbols[].qualified_name` | string | unset | The qualified name of the symbol, as every row of this surface returns it. |
 | `symbols[].repository` | string | unset | Narrows that entry's `qualified_name` to one repository, matched by name. |
 | `symbols[].path` | string | unset | Narrows that entry's `qualified_name` to a repository-relative file, or to a directory containing it, matched at a path-segment boundary: `src/util.ts` does not match `src/util.tsx`, and `src/ut` matches nothing. It requires `repository`. An absolute path or any `..` segment is rejected. |
-| `symbols[].line` | integer | unset | A one-based line in the file. Requires `repository`, `path` and `snapshot_id` in the same entry, and is exclusive with `stable_key` and `qualified_name`. The entry reads the innermost indexed callable whose range contains the line. See [Reading a file position](#reading-a-file-position). |
-| `symbols[].snapshot_id` | integer | unset | The generation the line was read from. Required with `line`; any other generation is refused. |
+| `symbols[].line` | integer | unset | One-based line in the file. Requires `repository`, `path` and `publication`; exclusive with `stable_key` and `qualified_name`. Reads the innermost indexed callable containing the line. See [Reading a file position](#reading-a-file-position). |
+| `symbols[].publication` | string | unset | Opaque token from the reference response that supplied the line. Required with `line`. |
 | `context_lines` | integer | `0` | Lines kept before and after the declaration. Must be between 0 and 100; anything else is rejected with `INVALID_ARGUMENT`. The window is clamped at the first and last line of the file. |
 | `response_format` | string | `concise` | `concise` or `detailed`. `detailed` appends the stable key to each header line. Any other value is rejected with `INVALID_ARGUMENT`. |
 
 ## Reading a file position
 
-Copy the file, line and `snapshot_id` from the same reference response.
+Copy the file, line and `publication` from the same single-profile reference response.
 For example, `totalBytes@210` locates a local variable, but the position
 selector returns its enclosing function, not the variable's initializer.
 
@@ -33,7 +33,7 @@ selector returns its enclosing function, not the variable's initializer.
       "repository": "ky",
       "path": "source/utils/body.ts",
       "line": 210,
-      "snapshot_id": 3
+      "publication": "3-1dk8sq0g9x5k"
     }
   ]
 }
@@ -41,8 +41,8 @@ selector returns its enclosing function, not the variable's initializer.
 
 The graph refuses a position rather than answering a nearby one:
 
-- A `snapshot_id` other than the generation the line belongs to is refused.
-  A line only means something in its own generation.
+- A token from another publication is refused, even if its numeric generation
+  was reused. Repeat the reference query to obtain a fresh line and token.
 - A line that no indexed callable contains, or that two equally innermost
   callables both contain, is refused.
 - A file that no longer hashes to the generation's digest is refused. A line has

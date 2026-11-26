@@ -89,20 +89,42 @@
       "calls": 47
     }
   },
-  "assigned_tools_only_summary": {
+  "clean_original_sensitivity": {
+    "excluded_pair": "ripgrep typed block 2: native called mcp__kivgraph_graph_status and did not answer",
     "grep": {
-      "tokens": 2565367,
-      "seconds": 135.165,
-      "turns": 57,
-      "usd": 0.054382,
-      "calls": 70
+      "tokens": 2344244,
+      "seconds": 124.244,
+      "turns": 52,
+      "usd": 0.05013458,
+      "calls": 64,
+      "correct": "10/11"
     },
     "native": {
-      "tokens": 2289586,
-      "seconds": 189.827,
-      "turns": 50,
-      "usd": 0.0532764,
-      "calls": 49
+      "tokens": 2058779,
+      "seconds": 174.555,
+      "turns": 45,
+      "usd": 0.04807118,
+      "calls": 45,
+      "correct": "11/11"
+    }
+  },
+  "standalone_replacement": {
+    "run_label": "ripgrep-typed-2-replacement",
+    "grep": {
+      "tokens": 221123,
+      "seconds": 10.921,
+      "turns": 5,
+      "usd": 0.00424737,
+      "calls": 6,
+      "correct": true
+    },
+    "native": {
+      "tokens": 230807,
+      "seconds": 15.272,
+      "turns": 5,
+      "usd": 0.00520524,
+      "calls": 4,
+      "correct": true
     }
   },
   "original": [
@@ -3062,7 +3084,7 @@
           "args": {}
         }
       ],
-      "answer": "I can't answer yet. The graph freshness gate has not passed for ripgrep.\n\n- **Freshness:** `graph_status` (snapshot 285, generation 285, state `fresh`) attests only one repository, `kivgraph` at `/Users/gtrave/Documents/kivgraph`. It does not list ripgrep or the checkout at `/tmp/six-guided-k7m29xkw/ripgrep-typed-2-native`.\n- **Symbol hit:** `find_symbol` with `qualified_exact` `line_buffer::Config` returned one struct in repository `ripgrep`, at `crates/searcher/src/line_buffer.rs:86-95`. That result is not covered by an attested freshness check, so I have not used it for the answer.\n- **Not run:** `find_references` and `get_source` on ripgrep. They would produce evidence from the same unattested graph.\n\nTo continue, I need your approval to index ripgrep. I would call `start_index_project` with `name: \"ripgrep\"`, `path: \"/tmp/six-guided-k7m29xkw/ripgrep-typed-2-native\"`, and `languages: [\"rust\"]`. Once the status is `fresh` for ripgrep, I'll run the two `find_references` lookups on `line_buffer::Config` and the `get_source` calls that cite the fields and the constructor's `Default` call.",
+      "answer": "I can't answer yet. The graph freshness gate has not passed for ripgrep.\n\n- **Freshness:** `graph_status` (snapshot 285, generation 285, state `fresh`) attests only one repository, `kivgraph` at `<checkout>`. It does not list ripgrep or the checkout at `/tmp/six-guided-k7m29xkw/ripgrep-typed-2-native`.\n- **Symbol hit:** `find_symbol` with `qualified_exact` `line_buffer::Config` returned one struct in repository `ripgrep`, at `crates/searcher/src/line_buffer.rs:86-95`. That result is not covered by an attested freshness check, so I have not used it for the answer.\n- **Not run:** `find_references` and `get_source` on ripgrep. They would produce evidence from the same unattested graph.\n\nTo continue, I need your approval to index ripgrep. I would call `start_index_project` with `name: \"ripgrep\"`, `path: \"/tmp/six-guided-k7m29xkw/ripgrep-typed-2-native\"`, and `languages: [\"rust\"]`. Once the status is `fresh` for ripgrep, I'll run the two `find_references` lookups on `line_buffer::Config` and the `get_source` calls that cite the fields and the constructor's `Default` call.",
       "corpus": "ripgrep",
       "question_set": "typed",
       "block": 2,

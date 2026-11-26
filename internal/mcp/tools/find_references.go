@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -529,6 +530,7 @@ func findReferencesAcrossProfiles(
 	dispatch := make(map[string]struct{})
 	foundSubject := false
 	divergentSubjects := make([]string, 0)
+	missNotes := make([]string, 0)
 	var subjectProfile string
 	var sources map[string]*evidenceSource
 	if arguments.IncludeEvidence {
@@ -555,6 +557,9 @@ func findReferencesAcrossProfiles(
 			_, response, queryErr := findReferences(ctx, request, pageArguments, profile.Store)
 			if queryErr != nil {
 				if firstPage && (ErrorCode(queryErr) == CodeSymbolNotFound || ErrorCode(queryErr) == CodeRepositoryNotFound) {
+					if note, ok := missSuggestion(options.Selector, queryErr); ok {
+						missNotes = append(missNotes, fmt.Sprintf("profile %q: %s", profile.Name, note))
+					}
 					break
 				}
 				return nil, Response[ReferenceResult]{}, queryErr
@@ -608,7 +613,11 @@ func findReferencesAcrossProfiles(
 		profiles = append(profiles, ProfileSnapshot{Name: profile.Name, SnapshotID: snapshot.Metadata().ID, Completeness: &completeness})
 	}
 	if !foundSubject {
-		return nil, Response[ReferenceResult]{}, NewToolError(CodeSymbolNotFound, "symbol was not found in the selected profiles")
+		message := "symbol was not found in the selected profiles"
+		if len(missNotes) > 0 {
+			message += "; " + strings.Join(missNotes, "; ")
+		}
+		return nil, Response[ReferenceResult]{}, NewToolError(CodeSymbolNotFound, message)
 	}
 	offset, end, next, err := profilePageBounds(profiles, queryHash, SortingVersionReferencesV1, arguments.Cursor, options.Limit, len(rows))
 	if err != nil {
@@ -643,6 +652,21 @@ func findReferencesAcrossProfiles(
 		},
 		View: options.View,
 	}, nil
+}
+
+// missSuggestion reports a miss whose text extends the bare qualified-name not-found message with candidates.
+func missSuggestion(selector symbolSelector, err error) (string, bool) {
+	var found, bare *ToolError
+	if selector.QualifiedName == "" || !errors.As(err, &found) || found.Code != CodeSymbolNotFound {
+		return "", false
+	}
+	if !errors.As(errSelectorNotFound(selector), &bare) {
+		return "", false
+	}
+	if extra, ok := strings.CutPrefix(found.Message, bare.Message); !ok || extra == "" {
+		return "", false
+	}
+	return found.Message, true
 }
 
 func findReferences(
@@ -832,6 +856,7 @@ func findReferences(
 	}
 	return nil, Response[ReferenceResult]{
 		SnapshotID:    &snapshotID,
+		Publication:   publicationToken(metadata),
 		SnapshotAgeMS: &snapshotAgeMS,
 		Total:         total,
 		Returned:      len(results),

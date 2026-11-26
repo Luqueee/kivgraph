@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -52,8 +53,16 @@ type SourceRequest struct {
 	QualifiedName string  `json:"qualified_name,omitempty" jsonschema:"Qualified declaration name."`
 	Repository    string  `json:"repository,omitempty" jsonschema:"Declaring repository."`
 	Path          string  `json:"path,omitempty" jsonschema:"Repository-relative file."`
-	Line          *uint32 `json:"line,omitempty" jsonschema:"Reference line; requires snapshot_id from the same response."`
-	SnapshotID    *uint64 `json:"snapshot_id,omitempty" jsonschema:"With line: copy the reference snapshot_id."`
+	Line          *uint32 `json:"line,omitempty" jsonschema:"Reference line; requires publication from the same response."`
+	Publication   string  `json:"publication,omitempty" jsonschema:"With line: copy the reference publication."`
+}
+
+// publicationToken names one publication of the graph. The numeric generation
+// is reused after a rebuild, so alone it cannot tell two graphs apart; the
+// persisted build time can, and it does not change when the same snapshot is
+// mapped again by another process.
+func publicationToken(metadata hotsnapshot.SnapshotMetadata) string {
+	return strconv.FormatUint(metadata.ID, 36) + "-" + strconv.FormatInt(metadata.CreatedAt.UnixNano(), 36)
 }
 
 // SourceBody is the code of one symbol, or the reason there is none.
@@ -133,7 +142,7 @@ func RegisterGetSourceWithObserverAndSnapshotStore(
 		}
 		if count > 1 && (len(arguments.Profile) != 1 || arguments.Profile[0] == "*") {
 			for _, symbol := range arguments.Symbols {
-				if symbol.Line != nil || symbol.SnapshotID != nil {
+				if symbol.Line != nil || symbol.Publication != "" {
 					return nil, Response[SourceResult]{}, NewToolError(CodeInvalidArgument, "a source position requires exactly one named profile")
 				}
 			}
@@ -286,7 +295,7 @@ func getSource(
 	// Files are read once even when several requested symbols share one, which
 	// on a reference answer is the common case.
 	cache := map[string]*sourceFile{}
-	var positions positionFiles
+	positions := positionFiles{requests: arguments.Symbols, selectors: selectors}
 	for index, selector := range selectors {
 		var symbolID hotsnapshot.SymbolID
 		var resolveErr error
@@ -297,6 +306,9 @@ func getSource(
 		}
 		if resolveErr != nil {
 			return nil, Response[SourceResult]{}, resolveErr
+		}
+		if result.Trimmed != 0 {
+			continue
 		}
 		symbol, found := snapshot.Symbol(symbolID)
 		if !found {
@@ -312,7 +324,7 @@ func getSource(
 		}
 		if len(body.Code) > budget {
 			result.Trimmed = len(selectors) - index
-			break
+			continue
 		}
 		budget -= len(body.Code)
 		if body.Unavailable == "" {
@@ -564,9 +576,9 @@ func normalizeGetSourceInput(arguments GetSourceInput) ([]symbolSelector, int, s
 	}
 	selectors := make([]symbolSelector, 0, len(arguments.Symbols))
 	for _, request := range arguments.Symbols {
-		if request.Line != nil || request.SnapshotID != nil {
-			if request.Line == nil || *request.Line == 0 || request.SnapshotID == nil || request.Repository == "" || request.Path == "" || request.StableKey != "" || request.QualifiedName != "" {
-				return nil, 0, "", NewToolError(CodeInvalidArgument, "position requires repository, path, positive line and snapshot_id instead of stable_key or qualified_name")
+		if request.Line != nil || request.Publication != "" {
+			if request.Line == nil || *request.Line == 0 || request.Publication == "" || request.Repository == "" || request.Path == "" || request.StableKey != "" || request.QualifiedName != "" {
+				return nil, 0, "", NewToolError(CodeInvalidArgument, "position requires repository, path, positive line and publication instead of stable_key or qualified_name")
 			}
 			if _, err := normalizeOutlineArgument(request.Repository, "repository"); err != nil {
 				return nil, 0, "", err

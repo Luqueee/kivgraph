@@ -161,7 +161,7 @@
   "summary": {
     "grep": {
       "sessions": 60,
-      "correct": 56,
+      "correct": 55,
       "seconds": 460.838,
       "tokens": 10513455,
       "usd": 0.23333,
@@ -187,7 +187,7 @@
       "summary": {
         "grep": {
           "sessions": 10,
-          "correct": 7,
+          "correct": 6,
           "seconds": 87.102,
           "tokens": 2005904,
           "usd": 0.04682,
@@ -349,7 +349,7 @@
   "clean_pairs_summary": {
     "grep": {
       "sessions": 59,
-      "correct": 55,
+      "correct": 54,
       "seconds": 449.699,
       "tokens": 10207806,
       "usd": 0.220773,
@@ -3237,7 +3237,8 @@
         "None"
       ],
       "lexical_missing": [],
-      "correct": true
+      "correct": false,
+      "contradiction": "Says the global is only a kill switch and not a value source, though it returns the global value `0` as the answer."
     },
     {
       "arm": "mcp",

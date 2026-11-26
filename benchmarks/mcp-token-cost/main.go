@@ -43,6 +43,7 @@ type config struct {
 	SurfaceOnly bool
 	Check       bool
 	Routes      bool
+	RoutesRaw   string
 	Tolerance   float64
 }
 
@@ -55,6 +56,7 @@ func main() {
 	flag.BoolVar(&cfg.SurfaceOnly, "smoke", false, "measure the surface and prove every tool answers, without writing anything")
 	flag.BoolVar(&cfg.Check, "check", false, "compare a fresh run with the committed results.json of the corpus and fail on a regression, writing nothing")
 	flag.BoolVar(&cfg.Routes, "routes", false, "compare warm lookup-first and direct MCP sessions against the frozen baseline, without writing it")
+	flag.StringVar(&cfg.RoutesRaw, "routes-raw", "", "with -routes, write one JSON line per measured sample, in the order each pair ran, before pooling")
 	flag.Float64Var(&cfg.Tolerance, "tolerance", defaultTolerance, "with --check, how much a token figure may grow before it fails, as a fraction")
 	flag.Parse()
 
@@ -102,6 +104,9 @@ func run(ctx context.Context, cfg config, command string) error {
 	tokens, err := newCounter()
 	if err != nil {
 		return err
+	}
+	if cfg.RoutesRaw != "" && !cfg.Routes {
+		return fmt.Errorf("-routes-raw needs -routes")
 	}
 	if cfg.SurfaceOnly {
 		return runSmoke(ctx, cfg, tokens)
@@ -180,7 +185,7 @@ func run(ctx context.Context, cfg config, command string) error {
 		if err := checkRun(cfg, out); err != nil {
 			return err
 		}
-		return compareRoutes(ctx, session, tokens, questions.Questions, out)
+		return compareRoutes(ctx, session, tokens, questions.Questions, out, cfg.RoutesRaw)
 	}
 
 	if stderr.Len() > 0 {

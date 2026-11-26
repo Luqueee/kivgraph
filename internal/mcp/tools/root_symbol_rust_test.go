@@ -9,6 +9,19 @@ import (
 	"github.com/Luqueee/kivgraph/internal/hotsnapshot"
 )
 
+func TestRustIdentifierUsesUnicodeXID(t *testing.T) {
+	for _, s := range []string{"\u0301a", "a\u037a", "\u2e2f", "a-b", "_"} {
+		if isRustIdentifier(s) {
+			t.Errorf("accepted non-identifier %q", s)
+		}
+	}
+	for _, s := range []string{"a\u0301", "_あ", "\u2118x", "\u2160", "x\u00b7y"} {
+		if !isRustIdentifier(s) {
+			t.Errorf("rejected Rust identifier %q", s)
+		}
+	}
+}
+
 func TestRustReceiverSelector(t *testing.T) {
 	const first = "lines::impl::Cursor::Reader::next"
 	const second = "lines::impl::Cursor<'a>::Iterator::next"
@@ -18,6 +31,9 @@ func TestRustReceiverSelector(t *testing.T) {
 		query, path, code string
 		labels            []string
 	}{
+		{"same short owner in another module", 1, 1, "elsewhere::Cursor::next", "", CodeSymbolNotFound, nil},
+		{"duplicate canonical name", 2, 2, "Cursor::next", "lines.rs", CodeAmbiguousSymbol, []string{"stable_key key-a", "stable_key key-b", "stable_key alone"}},
+		{"duplicate mixed", 2, 1, "Cursor::next", "lines.rs", CodeAmbiguousSymbol, []string{"stable_key key-a", "stable_key key-b", "stable_key alone"}},
 		{"two traits", 2, 2, "Cursor::next", "", CodeAmbiguousSymbol, []string{first, second}},
 		{"mixed evidence", 2, 1, "Cursor::next", "", CodeAmbiguousSymbol, []string{first, second, "unproven"}},
 		{"suggestion only", 2, 0, "Cursor::next", "", CodeSymbolNotFound, []string{first, second, "unproven"}},
@@ -35,7 +51,10 @@ func TestRustReceiverSelector(t *testing.T) {
 			}
 			for i, qn := range []string{first, second}[:tc.methods] {
 				key := hotsnapshot.StableKey(qn)
-				rows.Symbols = append(rows.Symbols, hotsnapshot.SymbolRow{StableKey: key, CanonicalIdentity: "rust:" + qn, FileKey: "f", Language: "rust", Kind: "method", Name: "next", QualifiedName: qn, StartLine: uint32(i + 2), EndLine: uint32(i + 2)})
+				if strings.HasPrefix(tc.name, "duplicate") {
+					qn, key = first, []hotsnapshot.StableKey{"key-a", "key-b"}[i]
+				}
+				rows.Symbols = append(rows.Symbols, hotsnapshot.SymbolRow{StableKey: key, CanonicalIdentity: "rust:" + string(key), FileKey: "f", Language: "rust", Kind: "method", Name: "next", QualifiedName: qn, StartLine: uint32(i + 2), EndLine: uint32(i + 2)})
 				if i < tc.paired {
 					rows.Edges = append(rows.Edges, hotsnapshot.EdgeRow{SourceKey: key, TargetKey: "owner", Kind: facts.CodeMethodOf, Confidence: facts.CodeStructuralCertain, Provenance: facts.CodeRustAnalyzerDefinition, EvidenceKind: "scip", EvidenceSourceFileKey: "f", EvidenceTargetFileKey: "f"})
 				}
@@ -48,6 +67,9 @@ func TestRustReceiverSelector(t *testing.T) {
 			if tc.code != "" {
 				if err == nil || ErrorCode(err) != tc.code {
 					t.Fatalf("want %s; got %v", tc.code, err)
+				}
+				if tc.query == "elsewhere::Cursor::next" && strings.Contains(err.Error(), first) {
+					t.Fatalf("suggested a method proven to belong to a different owner: %v", err)
 				}
 				for _, label := range tc.labels {
 					if !strings.Contains(err.Error(), label) {
@@ -64,5 +86,18 @@ func TestRustReceiverSelector(t *testing.T) {
 				t.Fatalf("resolved to %q instead of %q", got, first)
 			}
 		})
+	}
+}
+
+func TestRustAmbiguityBoundsExamplesNotCount(t *testing.T) {
+	var names []string
+	for _, trait := range []string{"A", "B", "C", "D", "E", "F", "G"} {
+		names = append(names, "lines::impl::Cursor::"+trait+"::next")
+	}
+	s := rustCursorSnapshot(t, 1, "crate", true, names...).Load()
+	_, err := resolveSymbolSelector(s, symbolSelector{QualifiedName: "Cursor::next"})
+	if ErrorCode(err) != CodeAmbiguousSymbol || !strings.Contains(err.Error(), "7 Rust methods") ||
+		!strings.Contains(err.Error(), "(+2 more)") || strings.Count(err.Error(), "lines::impl::Cursor::") != 5 {
+		t.Fatalf("expected five examples and the full count of seven: %v", err)
 	}
 }

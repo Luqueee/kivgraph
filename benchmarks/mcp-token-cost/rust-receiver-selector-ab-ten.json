@@ -36,7 +36,7 @@
   "summary": {
     "old": {
       "sessions": 10,
-      "correct": 10,
+      "correct": 8,
       "seconds": 200.455,
       "tokens": 3170199,
       "usd": 0.062347,
@@ -68,7 +68,7 @@
   "clean_summary": {
     "old": {
       "sessions": 9,
-      "correct": 9,
+      "correct": 7,
       "seconds": 171.733,
       "tokens": 2798700,
       "usd": 0.054988,
@@ -361,7 +361,7 @@
       "ttft_s": 9.261503958000002,
       "call_text_chars": 0,
       "lexical_missing": [],
-      "correct": true
+      "correct": false
     },
     {
       "arm": "new",
@@ -781,7 +781,7 @@
       "ttft_s": 5.747890292999998,
       "call_text_chars": 0,
       "lexical_missing": [],
-      "correct": true
+      "correct": false
     },
     {
       "arm": "old",

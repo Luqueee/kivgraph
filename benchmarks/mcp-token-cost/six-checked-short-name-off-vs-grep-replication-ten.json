@@ -172,7 +172,7 @@
     },
     "mcp": {
       "sessions": 60,
-      "correct": 55,
+      "correct": 54,
       "seconds": 428.911,
       "tokens": 10366476,
       "usd": 0.212778,
@@ -198,7 +198,7 @@
         },
         "mcp": {
           "sessions": 10,
-          "correct": 9,
+          "correct": 8,
           "seconds": 122.307,
           "tokens": 3072599,
           "usd": 0.055864,
@@ -360,7 +360,7 @@
     },
     "mcp": {
       "sessions": 60,
-      "correct": 55,
+      "correct": 54,
       "seconds": 428.911,
       "tokens": 10366476,
       "usd": 0.212778,
@@ -2395,7 +2395,7 @@
         "None"
       ],
       "lexical_missing": [],
-      "correct": true
+      "correct": false
     },
     {
       "arm": "grep",
@@ -14753,6 +14753,7 @@
   },
   "paired_fact_changes": {
     "lost": [
+      "cobra:control:4",
       "cobra:control:5",
       "ky:typed:7",
       "ripgrep:typed:1",

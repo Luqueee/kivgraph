@@ -35,7 +35,7 @@
   "summary": {
     "old": {
       "sessions": 10,
-      "correct": 10,
+      "correct": 9,
       "seconds": 105.368,
       "tokens": 2699328,
       "usd": 0.049954,
@@ -84,7 +84,9 @@
     "lost": [
       "cobra:control:9"
     ],
-    "gained": []
+    "gained": [
+      "cobra:control:3"
+    ]
   },
   "off_protocol_pairs": [
     9
@@ -92,7 +94,7 @@
   "clean_summary": {
     "old": {
       "sessions": 9,
-      "correct": 9,
+      "correct": 8,
       "seconds": 90.295,
       "tokens": 2279103,
       "usd": 0.042838,
@@ -131,7 +133,9 @@
     "less_output": 6,
     "faster": 5,
     "lost": [],
-    "gained": []
+    "gained": [
+      "cobra:control:3"
+    ]
   },
   "sessions": [
     {
@@ -1375,7 +1379,7 @@
       ],
       "thinking_blocks": 0,
       "lexical_missing": [],
-      "correct": true,
+      "correct": false,
       "first_source": false,
       "one_call": false,
       "inverse_edge_seen": false,
@@ -4516,7 +4520,7 @@
           "args": {}
         }
       ],
-      "answer": "The only indexed repository is `kivgraph`; `cobra` is not in the published graph. I cannot answer from source with the bench tools as they stand, so I'm stopping here rather than guessing.\n\n**Findings**\n\n- `find_symbol` for `GetActiveHelpConfig` (exact) returned 0 results.\n- `find_symbol` substring search for `ActiveHelp` returned 0 results.\n- Both reports carry `completeness.verdict: LOWER_BOUND`, with invisible scopes: 18 occurrences of `github.com/Luqueee/kivgraph/internal/procstat` (declared in a Go build cache entry) and one `vitest` package provider miss. Neither is a `cobra` package.\n- `list_repositories` shows one repository, `kivgraph` (path `/Users/gtrave/Documents/kivgraph`, languages go/python/typescript). No `cobra` repository is registered.\n\n**Conclusion**\n\nThe `repo: \"cobra\"` selector does not match any indexed repository, so the symbol lookup cannot establish anything about `GetActiveHelpConfig`. I have no source evidence for the three requested answers:\n\n1. The value returned when `COBRA_ACTIVE_HELP=0` and the program-specific variable is `1`.\n2. The behavior when the global value is `1` and the program-specific variable is unset.\n3. Whose command name determines the variable.\n\nI did not read any files or use other tools, per your constraint.\n\n**What would unblock this**\n\nRegister the cobra checkout with `start_index_project` (name `cobra`, its absolute path, languages `go`), then poll `get_index_status`. That step requires your approval, since it writes an index. Once `cobra` is indexed, I can run `find_symbol` for `GetActiveHelpConfig` and then `get_source` with `context_lines: 5` to answer all three questions with citations.",
+      "answer": "The only indexed repository is `kivgraph`; `cobra` is not in the published graph. I cannot answer from source with the bench tools as they stand, so I'm stopping here rather than guessing.\n\n**Findings**\n\n- `find_symbol` for `GetActiveHelpConfig` (exact) returned 0 results.\n- `find_symbol` substring search for `ActiveHelp` returned 0 results.\n- Both reports carry `completeness.verdict: LOWER_BOUND`, with invisible scopes: 18 occurrences of `github.com/Luqueee/kivgraph/internal/procstat` (declared in a Go build cache entry) and one `vitest` package provider miss. Neither is a `cobra` package.\n- `list_repositories` shows one repository, `kivgraph` (path `<checkout>`, languages go/python/typescript). No `cobra` repository is registered.\n\n**Conclusion**\n\nThe `repo: \"cobra\"` selector does not match any indexed repository, so the symbol lookup cannot establish anything about `GetActiveHelpConfig`. I have no source evidence for the three requested answers:\n\n1. The value returned when `COBRA_ACTIVE_HELP=0` and the program-specific variable is `1`.\n2. The behavior when the global value is `1` and the program-specific variable is unset.\n3. Whose command name determines the variable.\n\nI did not read any files or use other tools, per your constraint.\n\n**What would unblock this**\n\nRegister the cobra checkout with `start_index_project` (name `cobra`, its absolute path, languages `go`), then poll `get_index_status`. That step requires your approval, since it writes an index. Once `cobra` is indexed, I can run `find_symbol` for `GetActiveHelpConfig` and then `get_source` with `context_lines: 5` to answer all three questions with citations.",
       "corpus": "cobra",
       "question_set": "control",
       "block": 9,

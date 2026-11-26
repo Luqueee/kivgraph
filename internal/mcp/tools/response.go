@@ -10,6 +10,9 @@ package tools
 // ADR 0046 and `MarshalJSON` in `view.go`.
 type Response[T any] struct {
 	SnapshotID *uint64 `json:"snapshot_id"`
+	// Publication identifies the snapshot a position request must copy back.
+	// Single-profile answers carry it; see publicationToken.
+	Publication string `json:"publication,omitempty"`
 	// Profile scopes a single-profile answer when the installation contains
 	// several profiles. It is omitted for the compatibility shape.
 	Profile string `json:"profile,omitempty"`

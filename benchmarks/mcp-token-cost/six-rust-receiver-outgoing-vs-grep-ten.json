@@ -161,7 +161,7 @@
   "summary": {
     "grep": {
       "sessions": 60,
-      "correct": 59,
+      "correct": 58,
       "seconds": 595.435,
       "tokens": 10342755,
       "usd": 0.212561,
@@ -322,7 +322,7 @@
       "summary": {
         "grep": {
           "sessions": 10,
-          "correct": 10,
+          "correct": 9,
           "seconds": 70.968,
           "tokens": 1280132,
           "usd": 0.027951,
@@ -349,7 +349,7 @@
   "clean_pairs_summary": {
     "grep": {
       "sessions": 58,
-      "correct": 57,
+      "correct": 56,
       "seconds": 581.106,
       "tokens": 10089119,
       "usd": 0.207333,
@@ -6677,7 +6677,7 @@
           }
         }
       ],
-      "answer": "I can't answer this from source evidence. The bench graph does not contain the `ky` repository, so the Kivgraph tools have no code for `getContentLength` to cite.\n\n- **Published graph:** `graph_status` (snapshot 311, generation 311) lists one repository, `kivgraph` (`/Users/gtrave/Documents/kivgraph`, commit `43d1a11`). `ky` is not in it.\n- **Lookup:** `find_references` for `getContentLength` returned `SYMBOL_NOT_FOUND`. `find_symbol` with `repo: ky` and substring matching returned 0 results. Its completeness verdict is `LOWER_BOUND`: 18 occurrences in a Go build-cache package (`github.com/Luqueee/kivgraph/internal/procstat`) and one `vitest` package could not be read. Neither affects a `ky` symbol, but the result is a lower bound, not proof of absence.\n- **Not done:** I did not index `ky`. Indexing needs `start_index_project` or `index_project`, which are outside the tools you allowed and need your consent. I also did not use grep or file reads.\n\nTo get the answer, approve indexing `ky` (or give me its absolute path and the languages to index). Once indexing finishes and `graph_status` shows `ky` at the expected commit, I can run `find_references` on `getContentLength`, then read the upload and download progress callers and their header-length conditions with citations.",
+      "answer": "I can't answer this from source evidence. The bench graph does not contain the `ky` repository, so the Kivgraph tools have no code for `getContentLength` to cite.\n\n- **Published graph:** `graph_status` (snapshot 311, generation 311) lists one repository, `kivgraph` (`<checkout>`, commit `43d1a11`). `ky` is not in it.\n- **Lookup:** `find_references` for `getContentLength` returned `SYMBOL_NOT_FOUND`. `find_symbol` with `repo: ky` and substring matching returned 0 results. Its completeness verdict is `LOWER_BOUND`: 18 occurrences in a Go build-cache package (`github.com/Luqueee/kivgraph/internal/procstat`) and one `vitest` package could not be read. Neither affects a `ky` symbol, but the result is a lower bound, not proof of absence.\n- **Not done:** I did not index `ky`. Indexing needs `start_index_project` or `index_project`, which are outside the tools you allowed and need your consent. I also did not use grep or file reads.\n\nTo get the answer, approve indexing `ky` (or give me its absolute path and the languages to index). Once indexing finishes and `graph_status` shows `ky` at the expected commit, I can run `find_references` on `getContentLength`, then read the upload and download progress callers and their header-length conditions with citations.",
       "corpus": "ky",
       "question_set": "typed",
       "block": 3,
@@ -11675,7 +11675,8 @@
       "started": 1795554267656,
       "ended": 1795554276087,
       "lexical_missing": [],
-      "correct": true
+      "correct": false,
+      "contradiction": "Opens by calling `LineStep::next_match` the only direct caller of `next_impl`, then lists `LineStep::next` as a direct caller too (lines 75 and 81)."
     },
     {
       "arm": "mcp",

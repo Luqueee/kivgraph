@@ -1,5 +1,6 @@
 {
-  "design": "Independent fresh MCP only A/B, 10 matched pairs per question, balanced starting arm. Six concurrent corpus lanes across two experiments. One off session (Cobra typed new, block 1) ran first to validate the setting; that pair retained its new-first order. All attempts retained. Times exclude launch and indexing. Sensitivity excludes whole off-protocol pairs.",
+  "design": "Independent fresh MCP only A/B, 10 matched pairs per question, starting arm not counterbalanced. Six concurrent corpus lanes across two experiments. One off session (Cobra typed new, block 1) ran first of all 120 sessions (earliest message timestamp in output.jsonl); that pair is new-first. All attempts retained. Times exclude launch and indexing. Sensitivity excludes whole off-protocol pairs. Tool restriction was not enforced: --tools read,write in run.sh did not stop global Kivgraph MCP tools from loading, and four low-thinking sessions called them (see annotation). Full and sensitivity results are observations of this run.",
+  "annotation": "Observed run, not a counterbalanced rerun. Full and sensitivity results are kept as observations of this run; how the failed sessions would have performed with the intended tools is not inferred. run.sh set KIVGRAPH_DISABLE_HOOK=1 and passed --tools read,write to each non-grep session, but that flag did not stop global Kivgraph MCP tools from loading; four low-thinking (old) sessions called them and were incorrect: Cobra typed blocks 3, 6, 8 and Ky control block 10. For an isolated rerun, expose only the mounted benchmark tools to both arms and verify the host's complete tool list, not just the benchmark server's list, before starting. Latency is qualified: starting arm and question slot are not counterbalanced, so arm position may be confounded with slot effects. A rerun should independently counterbalance question order and starting arm so each arm occupies every slot, and record the actual order with each timing. Session order comes from the earliest message timestamp in each session's output.jsonl (epoch ms), not from a start log; the run root holds no separate capture log. Sorted by that timestamp, the Ky and ripgrep sessions match order.ky and order.ripgrep exactly. For Cobra, cobra-typed-1-new has the earliest timestamp of all 120 sessions, so it ran first; order.cobra and the sessions array list it first.",
   "experiment": "thinking",
   "binary_sha256": "e3f3aa6112d9897a0fa35e69318dc4009a94bd881116c5da5bca8e6a70f7b3e1",
   "model": "anthropic/claude-haiku-5-5",
@@ -22,9 +23,9 @@
   },
   "order": {
     "cobra": [
+      "cobra-typed-1-new",
       "cobra-control-1-old",
       "cobra-control-1-new",
-      "cobra-typed-1-new",
       "cobra-typed-1-old",
       "cobra-typed-2-old",
       "cobra-typed-2-new",
@@ -574,6 +575,120 @@
   },
   "sessions": [
     {
+      "arm": "new",
+      "model": "claude-haiku-5-5",
+      "turns": 2,
+      "tokens": 89932,
+      "usage": {
+        "input": 6,
+        "cacheRead": 44005,
+        "cacheWrite": 45275,
+        "output": 646
+      },
+      "usd": 0.009818650000000002,
+      "wall_s": 3.699,
+      "rpc": [
+        {
+          "initialize": 51204
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "repository": "cobra",
+            "qualified_name": "Command.PrintErr",
+            "direction": "incoming",
+            "include_evidence": true,
+            "exclude_tests": true
+          },
+          "pid": 51217
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "Command.PrintErr"
+              }
+            ],
+            "context_lines": 5
+          },
+          "pid": 51217
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 10  1 bodies  context 5\n@ cobra command.go:1450-1452 method Command.PrintErr [sho"
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":10,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":"
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "repository": "cobra",
+            "qualified_name": "Command.PrintErr",
+            "direction": "incoming",
+            "include_evidence": true,
+            "exclude_tests": true
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "Command.PrintErr"
+              }
+            ],
+            "context_lines": 5
+          }
+        }
+      ],
+      "answer": "Two non-test direct callers of `Command.PrintErr`, both in `command.go`:\n\n- **`Command.PrintErrln`** (`command.go:1455-1457`): `c.PrintErr(fmt.Sprintln(i...))`. Newline formatter: `fmt.Sprintln`.\n- **`Command.PrintErrf`** (`command.go:1460-1462`): `c.PrintErr(fmt.Sprintf(format, i...))`. Formatted formatter: `fmt.Sprintf`.\n\n`Command.PrintErr` itself (`command.go:1450-1452`) calls `fmt.Fprint(c.ErrOrStderr(), i...)`. The writer passed to `fmt.Fprint` is `c.ErrOrStderr()`, which returns the command's configured error output, falling back to stderr when none is set.\n\nThe reference query returned `COMPLETE` with 2 exact (`EXACT_TYPECHECKED`, `CALLS_DIRECT`) results after excluding tests.",
+      "corpus": "cobra",
+      "question_set": "typed",
+      "block": 1,
+      "other_tools": [],
+      "rpc_calls": 2,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references",
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 302,
+      "final_output": 344,
+      "post_s": 2.01180425,
+      "ttft_s": 1.6321957499999997,
+      "call_text_chars": 83,
+      "efforts": [
+        "None"
+      ],
+      "thinking_blocks": 0,
+      "level_changes": [
+        "off"
+      ],
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
       "arm": "old",
       "model": "claude-haiku-5-5",
       "turns": 4,
@@ -917,120 +1032,6 @@
       "post_s": 5.002638499999999,
       "ttft_s": 3.2883615000000006,
       "call_text_chars": 478,
-      "efforts": [
-        "None"
-      ],
-      "thinking_blocks": 0,
-      "level_changes": [
-        "off"
-      ],
-      "lexical_missing": [],
-      "correct": true
-    },
-    {
-      "arm": "new",
-      "model": "claude-haiku-5-5",
-      "turns": 2,
-      "tokens": 89932,
-      "usage": {
-        "input": 6,
-        "cacheRead": 44005,
-        "cacheWrite": 45275,
-        "output": 646
-      },
-      "usd": 0.009818650000000002,
-      "wall_s": 3.699,
-      "rpc": [
-        {
-          "initialize": 51204
-        },
-        {
-          "tools": [
-            "find_references",
-            "find_symbol",
-            "get_source"
-          ]
-        },
-        {
-          "call": "find_references",
-          "args": {
-            "repository": "cobra",
-            "qualified_name": "Command.PrintErr",
-            "direction": "incoming",
-            "include_evidence": true,
-            "exclude_tests": true
-          },
-          "pid": 51217
-        },
-        {
-          "call": "get_source",
-          "args": {
-            "symbols": [
-              {
-                "repository": "cobra",
-                "qualified_name": "Command.PrintErr"
-              }
-            ],
-            "context_lines": 5
-          },
-          "pid": 51217
-        },
-        {
-          "reply": "get_source",
-          "error": null,
-          "preview": "snapshot 10  1 bodies  context 5\n@ cobra command.go:1450-1452 method Command.PrintErr [sho"
-        },
-        {
-          "reply": "find_references",
-          "error": null,
-          "preview": "{\"snapshot_id\":10,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":"
-        }
-      ],
-      "errors": [],
-      "host_errors": [],
-      "calls": [
-        {
-          "tool": "mcp__bench_find_references",
-          "args": {
-            "repository": "cobra",
-            "qualified_name": "Command.PrintErr",
-            "direction": "incoming",
-            "include_evidence": true,
-            "exclude_tests": true
-          }
-        },
-        {
-          "tool": "mcp__bench_get_source",
-          "args": {
-            "symbols": [
-              {
-                "repository": "cobra",
-                "qualified_name": "Command.PrintErr"
-              }
-            ],
-            "context_lines": 5
-          }
-        }
-      ],
-      "answer": "Two non-test direct callers of `Command.PrintErr`, both in `command.go`:\n\n- **`Command.PrintErrln`** (`command.go:1455-1457`): `c.PrintErr(fmt.Sprintln(i...))`. Newline formatter: `fmt.Sprintln`.\n- **`Command.PrintErrf`** (`command.go:1460-1462`): `c.PrintErr(fmt.Sprintf(format, i...))`. Formatted formatter: `fmt.Sprintf`.\n\n`Command.PrintErr` itself (`command.go:1450-1452`) calls `fmt.Fprint(c.ErrOrStderr(), i...)`. The writer passed to `fmt.Fprint` is `c.ErrOrStderr()`, which returns the command's configured error output, falling back to stderr when none is set.\n\nThe reference query returned `COMPLETE` with 2 exact (`EXACT_TYPECHECKED`, `CALLS_DIRECT`) results after excluding tests.",
-      "corpus": "cobra",
-      "question_set": "typed",
-      "block": 1,
-      "other_tools": [],
-      "rpc_calls": 2,
-      "initializations": 1,
-      "route": [
-        [
-          "bench_find_references",
-          "bench_get_source"
-        ],
-        []
-      ],
-      "call_output": 302,
-      "final_output": 344,
-      "post_s": 2.01180425,
-      "ttft_s": 1.6321957499999997,
-      "call_text_chars": 83,
       "efforts": [
         "None"
       ],
@@ -1999,7 +2000,7 @@
           }
         }
       ],
-      "answer": "I could not answer the question: the `cobra` repository is not in the published Kivgraph graph, so there is no caller evidence yet.\n\n- `find_references` with `repository: \"cobra\"`, `qualified_name: \"Command.PrintErr\"` returned `REPOSITORY_NOT_FOUND: repository \"cobra\" is not in the published graph`.\n- `graph_status` attests one repository only: `kivgraph` (`/Users/gtrave/Documents/kivgraph`, branch `main`, generation 314). It does not attest a `cobra` checkout, so the freshness gate fails.\n\nIndexing `cobra` needs your approval. Kivgraph's `start_index_project` writes a rebuild of the shared published graph, so I have not run it. The working directory is `/var/folders/sr/6wjnf7m90n5_cw20t7xh39600000gn/T/six-output-thinking-arj1qmsm/cobra-typed-3-old`. If you approve, I will register that path as `cobra` (language `go`), poll until it completes, confirm with `graph_status`, and then run the `Command.PrintErr` caller query with evidence.\n\nNo citations yet. The three facts you asked for (the direct non-test formatted and newline callers, their formatters, and the writer passed to `fmt.Fprint`) remain unestablished.",
+      "answer": "I could not answer the question: the `cobra` repository is not in the published Kivgraph graph, so there is no caller evidence yet.\n\n- `find_references` with `repository: \"cobra\"`, `qualified_name: \"Command.PrintErr\"` returned `REPOSITORY_NOT_FOUND: repository \"cobra\" is not in the published graph`.\n- `graph_status` attests one repository only: `kivgraph` (`<checkout>`, branch `main`, generation 314). It does not attest a `cobra` checkout, so the freshness gate fails.\n\nIndexing `cobra` needs your approval. Kivgraph's `start_index_project` writes a rebuild of the shared published graph, so I have not run it. The working directory is `/var/folders/sr/6wjnf7m90n5_cw20t7xh39600000gn/T/six-output-thinking-arj1qmsm/cobra-typed-3-old`. If you approve, I will register that path as `cobra` (language `go`), poll until it completes, confirm with `graph_status`, and then run the `Command.PrintErr` caller query with evidence.\n\nNo citations yet. The three facts you asked for (the direct non-test formatted and newline callers, their formatters, and the writer passed to `fmt.Fprint`) remain unestablished.",
       "corpus": "cobra",
       "question_set": "typed",
       "block": 3,
@@ -9754,7 +9755,7 @@
           "args": {}
         }
       ],
-      "answer": "I could not read `delay` yet, and I have not answered the three questions.\n\n- **Ambiguous selector:** `qualified_name: \"delay\"` in repository `ky` matches two symbols:\n  - `source/utils/delay.ts:9-29`, which is the likely candidate.\n  - `source/core/retry-timing.ts:153`.\n- **Freshness gate not met:** `graph_status` reports one published repository, `kivgraph` at `/Users/gtrave/Documents/kivgraph`, with `indexed_dirty: true`. It does not list `ky`, so the graph does not attest the `ky` checkout. The `ky` results above come from a graph that does not confirm they match the current checkout.\n\nTo continue, I need your approval to re-index `ky` with `start_index_project`. Once it finishes and `graph_status` attests `ky`, I will read `source/utils/delay.ts:9-29` with `get_source` and `context_lines: 5`, then answer the three questions with citations. If you would rather not re-index, tell me and I will say that the answer is unverified from the graph.",
+      "answer": "I could not read `delay` yet, and I have not answered the three questions.\n\n- **Ambiguous selector:** `qualified_name: \"delay\"` in repository `ky` matches two symbols:\n  - `source/utils/delay.ts:9-29`, which is the likely candidate.\n  - `source/core/retry-timing.ts:153`.\n- **Freshness gate not met:** `graph_status` reports one published repository, `kivgraph` at `<checkout>`, with `indexed_dirty: true`. It does not list `ky`, so the graph does not attest the `ky` checkout. The `ky` results above come from a graph that does not confirm they match the current checkout.\n\nTo continue, I need your approval to re-index `ky` with `start_index_project`. Once it finishes and `graph_status` attests `ky`, I will read `source/utils/delay.ts:9-29` with `get_source` and `context_lines: 5`, then answer the three questions with citations. If you would rather not re-index, tell me and I will say that the answer is unverified from the graph.",
       "corpus": "ky",
       "question_set": "control",
       "block": 10,

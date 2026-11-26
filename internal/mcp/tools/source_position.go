@@ -15,23 +15,31 @@ type callableRange struct {
 	start, end uint32
 }
 
-type positionFiles map[hotsnapshot.FileID][]callableRange
+// positionFiles caches callable ranges for the requested files of one batch.
+type positionFiles struct {
+	requests   []SourceRequest
+	selectors  []symbolSelector
+	candidates map[hotsnapshot.FileID][]callableCandidate
+	ranges     map[hotsnapshot.FileID][]callableRange
+}
+
+type callableCandidate struct {
+	id         hotsnapshot.SymbolID
+	name       hotsnapshot.InternedString
+	kind       string
+	start, end uint32
+}
 
 func (files *positionFiles) resolve(ctx context.Context, snapshot *hotsnapshot.GraphSnapshot, request SourceRequest, path string, cache map[string]*sourceFile) (hotsnapshot.SymbolID, error) {
-	if *request.SnapshotID != snapshot.Metadata().ID {
-		return 0, NewToolError(CodeSnapshotUnavailable, "snapshot_id changed; repeat the reference query")
+	if request.Publication != publicationToken(snapshot.Metadata()) {
+		return 0, NewToolError(CodeSnapshotUnavailable, "publication changed; repeat the reference query")
 	}
-	repoID, ok := snapshot.RepositoryByName(request.Repository)
-	if !ok {
-		return 0, NewToolError(CodeRepositoryNotFound, fmt.Sprintf("unknown repository %q", request.Repository))
+	repoID, id, err := locatePositionFile(snapshot, request.Repository, path)
+	if err != nil {
+		return 0, err
 	}
 	table := snapshot.Strings()
-	pathID, known := table.Lookup(path)
-	id, ok := snapshot.FileByRepoPath(hotsnapshot.RepoPathKey{Repository: repoID, Path: pathID})
-	if !known || !ok {
-		return 0, NewToolError(CodeSymbolNotFound, fmt.Sprintf("no indexed file at %s:%s", request.Repository, path))
-	}
-	ranges, ready := (*files)[id]
+	ranges, ready := files.ranges[id]
 	if !ready {
 		repo, _ := snapshot.Repository(repoID)
 		root, _ := table.String(repo.Path)
@@ -49,49 +57,45 @@ func (files *positionFiles) resolve(ctx context.Context, snapshot *hotsnapshot.G
 			return 0, NewToolError(CodeSnapshotUnavailable, "position source differs from the snapshot or has no indexed digest")
 		}
 		language, _ := table.String(file.Language)
+		candidates, err := files.candidatesOf(ctx, snapshot, id)
+		if err != nil {
+			return 0, WrapToolError(CodeSnapshotUnavailable, "inspect indexed callable ranges", err)
+		}
 		var bindings map[bindingRange]bool
-		err := snapshot.VisitSymbols(ctx, 0, hotsnapshot.SymbolID(snapshot.Metadata().Counts.Symbols), func(symbolID hotsnapshot.SymbolID, s hotsnapshot.SymbolRecord) error {
-			if s.File != id || s.StartLine == 0 || s.EndLine < s.StartLine {
-				return nil
-			}
-			kind, _ := table.String(s.Kind)
-			switch kind {
-			case "func", "function", "method", "constructor":
+		for _, c := range candidates {
+			switch c.kind {
+			case "func", "function", "method", "static_method", "constructor":
 			case "variable", "constant":
 				if language != "typescript" && language != "javascript" {
-					return nil
+					continue
 				}
 				if bindings == nil {
 					lang := syntax.Language(language)
 					if filepath.Ext(path) == ".tsx" {
 						lang = syntax.LanguageTSX
 					}
-					var err error
 					bindings, err = functionBindings(ctx, lang, source.lines)
 					if err != nil {
-						return err
+						return 0, WrapToolError(CodeSnapshotUnavailable, "inspect indexed callable ranges", err)
 					}
 				}
-				name, _ := table.String(s.Name)
-				if !bindings[bindingRange{name, s.StartLine, s.EndLine}] {
-					return nil
+				name, _ := table.String(c.name)
+				if !bindings[bindingRange{name, c.start, c.end}] {
+					continue
 				}
 			default:
-				return nil
+				continue
 			}
-			if uint64(s.EndLine) > uint64(len(source.lines)) {
-				return fmt.Errorf("indexed callable at %s:%d-%d exceeds the verified file", path, s.StartLine, s.EndLine)
+			if uint64(c.end) > uint64(len(source.lines)) {
+				return 0, WrapToolError(CodeSnapshotUnavailable, "inspect indexed callable ranges",
+					fmt.Errorf("indexed callable at %s:%d-%d exceeds the verified file", path, c.start, c.end))
 			}
-			ranges = append(ranges, callableRange{symbolID, s.StartLine, s.EndLine})
-			return nil
-		})
-		if err != nil {
-			return 0, WrapToolError(CodeSnapshotUnavailable, "inspect indexed callable ranges", err)
+			ranges = append(ranges, callableRange{c.id, c.start, c.end})
 		}
-		if *files == nil {
-			*files = make(positionFiles)
+		if files.ranges == nil {
+			files.ranges = make(map[hotsnapshot.FileID][]callableRange)
 		}
-		(*files)[id] = ranges
+		files.ranges[id] = ranges
 	}
 	// An innermost range must be contained in every matching range, not just shorter.
 	var lo, hi uint32 = 0, ^uint32(0)
@@ -118,6 +122,52 @@ func (files *positionFiles) resolve(ctx context.Context, snapshot *hotsnapshot.G
 		return 0, NewToolError(CodeAmbiguousSymbol, fmt.Sprintf("multiple enclosing functions at %s:%d; use a symbol selector", path, *request.Line))
 	}
 	return found, nil
+}
+
+func locatePositionFile(snapshot *hotsnapshot.GraphSnapshot, repository, path string) (hotsnapshot.RepositoryID, hotsnapshot.FileID, error) {
+	repoID, ok := snapshot.RepositoryByName(repository)
+	if !ok {
+		return 0, 0, NewToolError(CodeRepositoryNotFound, fmt.Sprintf("unknown repository %q", repository))
+	}
+	pathID, known := snapshot.Strings().Lookup(path)
+	id, ok := snapshot.FileByRepoPath(hotsnapshot.RepoPathKey{Repository: repoID, Path: pathID})
+	if !known || !ok {
+		return 0, 0, NewToolError(CodeSymbolNotFound, fmt.Sprintf("no indexed file at %s:%s", repository, path))
+	}
+	return repoID, id, nil
+}
+
+// candidatesOf returns the symbols of one file. The first call scans the symbol
+// table once for every file the batch names that is still unscanned. Names that
+// do not resolve are left out; their own selector reports the error.
+func (files *positionFiles) candidatesOf(ctx context.Context, snapshot *hotsnapshot.GraphSnapshot, id hotsnapshot.FileID) ([]callableCandidate, error) {
+	if files.candidates != nil {
+		return files.candidates[id], nil
+	}
+	found := map[hotsnapshot.FileID][]callableCandidate{id: nil}
+	publication := publicationToken(snapshot.Metadata())
+	for i, request := range files.requests {
+		if request.Line == nil || request.Publication != publication {
+			continue
+		}
+		if _, fileID, err := locatePositionFile(snapshot, request.Repository, files.selectors[i].Path); err == nil {
+			found[fileID] = nil
+		}
+	}
+	table := snapshot.Strings()
+	err := snapshot.VisitSymbols(ctx, 0, hotsnapshot.SymbolID(snapshot.Metadata().Counts.Symbols), func(symbolID hotsnapshot.SymbolID, s hotsnapshot.SymbolRecord) error {
+		if _, ok := found[s.File]; !ok || s.StartLine == 0 || s.EndLine < s.StartLine {
+			return nil
+		}
+		kind, _ := table.String(s.Kind)
+		found[s.File] = append(found[s.File], callableCandidate{symbolID, s.Name, kind, s.StartLine, s.EndLine})
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	files.candidates = found
+	return files.candidates[id], nil
 }
 
 type bindingRange struct {
@@ -150,6 +200,9 @@ func functionBindings(ctx context.Context, lang syntax.Language, lines []string)
 		n := cursor.Node()
 		if n.Kind() == "variable_declarator" && !n.HasError() {
 			name, value := n.ChildByFieldName("name"), n.ChildByFieldName("value")
+			for value != nil && value.Kind() == "parenthesized_expression" {
+				value = value.NamedChild(0)
+			}
 			if name != nil && name.Kind() == "identifier" && value != nil {
 				switch value.Kind() {
 				case "arrow_function", "function_expression", "generator_function":

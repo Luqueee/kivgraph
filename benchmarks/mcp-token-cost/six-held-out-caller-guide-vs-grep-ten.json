@@ -172,7 +172,7 @@
     },
     "mcp": {
       "sessions": 60,
-      "correct": 58,
+      "correct": 57,
       "seconds": 818.901,
       "tokens": 12073858,
       "usd": 0.255808,
@@ -306,7 +306,7 @@
         },
         "mcp": {
           "sessions": 10,
-          "correct": 10,
+          "correct": 9,
           "seconds": 183.079,
           "tokens": 2942384,
           "usd": 0.055245,
@@ -3902,7 +3902,7 @@
           "args": {}
         }
       ],
-      "answer": "I can't answer this from the graph yet. The published snapshot (generation 308) only covers one repository, `kivgraph` at `/Users/gtrave/Documents/kivgraph`. It does not include `cobra`, so any `Command.PrintErr` caller result would not be evidence about the cobra checkout. I did not run `find_references` on it.\n\nTo proceed, I need your consent to index the cobra checkout. The likely path is the working directory, `/var/folders/sr/6wjnf7m90n5_cw20t7xh39600000gn/T/six-guided-evidence-vs-grep-x01bnupu/cobra-typed-8-mcp`, registered as `cobra` with language `go`. Please confirm that path, or give the correct one. Once indexing finishes and `graph_status` attests `cobra`, I'll run `find_references` on `Command.PrintErr` with `include_evidence: true` and report each non-test formatted and newline caller, its formatter, and the writer passed to `fmt.Fprint`, with file and line citations.",
+      "answer": "I can't answer this from the graph yet. The published snapshot (generation 308) only covers one repository, `kivgraph` at `<checkout>`. It does not include `cobra`, so any `Command.PrintErr` caller result would not be evidence about the cobra checkout. I did not run `find_references` on it.\n\nTo proceed, I need your consent to index the cobra checkout. The likely path is the working directory, `/var/folders/sr/6wjnf7m90n5_cw20t7xh39600000gn/T/six-guided-evidence-vs-grep-x01bnupu/cobra-typed-8-mcp`, registered as `cobra` with language `go`. Please confirm that path, or give the correct one. Once indexing finishes and `graph_status` attests `cobra`, I'll run `find_references` on `Command.PrintErr` with `include_evidence: true` and report each non-test formatted and newline caller, its formatter, and the writer passed to `fmt.Fprint`, with file and line citations.",
       "corpus": "cobra",
       "question_set": "typed",
       "block": 8,
@@ -14724,7 +14724,7 @@
       "started": 1795551195405,
       "ended": 1795551211904,
       "lexical_missing": [],
-      "correct": true
+      "correct": false
     },
     {
       "arm": "grep",

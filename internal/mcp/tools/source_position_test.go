@@ -14,22 +14,27 @@ import (
 
 func TestPositionRequiresUnchangedSnapshotAndFile(t *testing.T) {
 	store, root := sourceSnapshot(t, 91)
-	line, gen := uint32(5), uint64(91)
-	pos := SourceRequest{Repository: "alpha", Path: "set.go", Line: &line, SnapshotID: &gen}
+	line := uint32(5)
+	pos := SourceRequest{Repository: "alpha", Path: "set.go", Line: &line, Publication: publicationOf(store)}
 	call := func(q SourceRequest) (Response[SourceResult], error) {
 		_, r, err := getSource(t.Context(), nil, GetSourceInput{Symbols: []SourceRequest{{StableKey: "sym-other"}, q}}, store)
 		return r, err
 	}
+	stale, _ := sourceSnapshot(t, 90)
+	replaced := store.Load().Metadata()
+	replaced.CreatedAt = replaced.CreatedAt.Add(-time.Hour)
 	for _, tc := range []struct {
 		name, code string
 		change     func(*SourceRequest)
 	}{
-		{"missing snapshot", CodeInvalidArgument, func(q *SourceRequest) { q.SnapshotID = nil }},
+		{"missing publication", CodeInvalidArgument, func(q *SourceRequest) { q.Publication = "" }},
 		{"missing file", CodeInvalidArgument, func(q *SourceRequest) { q.Path = "" }},
 		{"mixed selectors", CodeInvalidArgument, func(q *SourceRequest) { q.StableKey = "sym-helper" }},
 		{"bad path", CodeInvalidArgument, func(q *SourceRequest) { q.Path = "../set.go" }},
 		{"zero line", CodeInvalidArgument, func(q *SourceRequest) { q.Line = new(uint32) }},
-		{"old snapshot", CodeSnapshotUnavailable, func(q *SourceRequest) { q.SnapshotID = new(uint64(90)) }},
+		{"old snapshot", CodeSnapshotUnavailable, func(q *SourceRequest) { q.Publication = publicationOf(stale) }},
+		{"reused generation", CodeSnapshotUnavailable, func(q *SourceRequest) { q.Publication = publicationToken(replaced) }},
+		{"malformed publication", CodeSnapshotUnavailable, func(q *SourceRequest) { q.Publication = "3.1dk8sq0g9x5k" }},
 		{"outside function", CodeSymbolNotFound, func(q *SourceRequest) { q.Line = new(uint32(7)) }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -53,9 +58,47 @@ func TestPositionRequiresUnchangedSnapshotAndFile(t *testing.T) {
 	}
 }
 
+func TestPositionInsideRustAssociatedFunction(t *testing.T) {
+	root := testsupport.TempDir(t)
+	text := "struct Cursor;\nimpl Cursor {\n fn new() -> Self {\n  Self\n }\n}\n"
+	if err := os.WriteFile(filepath.Join(root, "lib.rs"), []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rows := hotsnapshot.LadybugSnapshotRows{
+		Repositories: []hotsnapshot.RepositoryRow{{Key: "r", Name: "cursor", Path: root, Languages: "rust"}},
+		Packages:     []hotsnapshot.PackageRow{{Key: "p", RepositoryKey: "r", Language: "rust", Name: "cursor"}},
+		Files:        []hotsnapshot.FileRow{{Key: "f", RepositoryKey: "r", PackageKey: "p", Path: "lib.rs", Language: "rust", ContentHash: digestOf(text)}},
+		Symbols:      []hotsnapshot.SymbolRow{{StableKey: "new", CanonicalIdentity: "rust:Cursor:new", FileKey: "f", Language: "rust", Name: "new", QualifiedName: "impl::Cursor::new", Kind: "static_method", StartLine: 3, EndLine: 5}},
+	}
+	snap, err := hotsnapshot.BuildGraphSnapshot(rows, 1, time.Now(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	q := SourceRequest{Repository: "cursor", Path: "lib.rs", Line: new(uint32(4)), Publication: publicationToken(snap.Metadata())}
+	_, r, err := getSource(t.Context(), nil, GetSourceInput{Symbols: []SourceRequest{q}}, hotsnapshot.NewSnapshotStore(snap))
+	if err != nil || len(r.Results.Bodies) != 1 || r.Results.Bodies[0].QualifiedName != "impl::Cursor::new" {
+		t.Fatalf("Rust associated function: %+v, %v", r, err)
+	}
+}
+
+func TestPublicationTokenTracksPublicationNotProcessIdentity(t *testing.T) {
+	published := time.Unix(1_700_000_000, 0).UTC()
+	first := hotsnapshot.SnapshotMetadata{ID: 1, CreatedAt: published}
+	// A rebuild reuses the numeric generation; only its publication time tells them apart.
+	rebuilt := hotsnapshot.SnapshotMetadata{ID: 1, CreatedAt: published.Add(time.Minute)}
+	if publicationToken(first) == publicationToken(rebuilt) {
+		t.Fatal("rebuilt snapshot with a reused id kept the old publication token")
+	}
+	// A remap reads the same header back, so the token must not move.
+	remapped := hotsnapshot.SnapshotMetadata{ID: 1, CreatedAt: published}
+	if publicationToken(first) != publicationToken(remapped) {
+		t.Fatal("remapped publication changed its token")
+	}
+}
+
 func TestPositionSelectsInnermostArrowNotCallbackArgument(t *testing.T) {
 	root := testsupport.TempDir(t)
-	text := "export const outer = () => {\n const inner = () => {\n  const value = use(() => 1);\n  return value;\n };\n return inner();\n};\nconst a = () => 1, b = () => 2;\n"
+	text := "export const outer = () => {\n const inner = ((() => {\n  const value = (use(() => 1));\n  return value;\n }));\n return inner();\n};\nconst a = () => 1, b = () => 2;\n"
 	if err := os.WriteFile(filepath.Join(root, "body.ts"), []byte(text), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +122,7 @@ func TestPositionSelectsInnermostArrowNotCallbackArgument(t *testing.T) {
 		line uint32
 		want string
 	}{{3, "inner"}, {6, "outer"}, {8, ""}} {
-		_, r, err := getSource(t.Context(), nil, GetSourceInput{Symbols: []SourceRequest{{Repository: "ky", Path: "body.ts", Line: &tc.line, SnapshotID: new(uint64(1))}}}, store)
+		_, r, err := getSource(t.Context(), nil, GetSourceInput{Symbols: []SourceRequest{{Repository: "ky", Path: "body.ts", Line: &tc.line, Publication: publicationOf(store)}}}, store)
 		if tc.want == "" {
 			if err == nil || ErrorCode(err) != CodeAmbiguousSymbol {
 				t.Fatalf("same-line bindings: %v", err)
@@ -114,17 +157,24 @@ func TestPositionRefusesImplicitProfileEvenWhenIDsCoincide(t *testing.T) {
 	}
 	defer cs.Close()
 	for _, p := range [][]string{nil, {"*"}, {"first", "second"}, {"second"}} {
-		r, err := cs.CallTool(t.Context(), &sdkmcp.CallToolParams{Name: "get_source", Arguments: GetSourceInput{Profile: p, Symbols: []SourceRequest{{Repository: "alpha", Path: "set.go", Line: new(uint32(5)), SnapshotID: new(uint64(91))}}}})
+		r, err := cs.CallTool(t.Context(), &sdkmcp.CallToolParams{Name: "get_source", Arguments: GetSourceInput{Profile: p, Symbols: []SourceRequest{{Repository: "alpha", Path: "set.go", Line: new(uint32(5)), Publication: publicationToken(b.Load().Metadata())}}}})
 		if err != nil {
-			t.Fatal(err)
+			t.Fatalf("profiles %v: %v", p, err)
 		}
-		text := r.Content[0].(*sdkmcp.TextContent).Text
+		if r == nil || len(r.Content) != 1 {
+			t.Fatalf("profiles %v: expected one response block, got %+v", p, r)
+		}
+		block, ok := r.Content[0].(*sdkmcp.TextContent)
+		if !ok || block == nil {
+			t.Fatalf("profiles %v: expected text, got %T", p, r.Content[0])
+		}
+		text := block.Text
 		if len(p) == 1 && p[0] == "second" {
 			if r.IsError || !strings.Contains(text, "func Merge()") {
-				t.Fatal(text)
+				t.Fatalf("profiles %v: %s", p, text)
 			}
 		} else if !r.IsError || !strings.Contains(text, "one named profile") {
-			t.Fatal(text)
+			t.Fatalf("profiles %v: %s", p, text)
 		}
 	}
 }

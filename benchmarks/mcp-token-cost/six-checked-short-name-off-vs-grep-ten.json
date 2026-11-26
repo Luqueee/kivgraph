@@ -1,5 +1,5 @@
 {
-  "design": "Ten fresh paired sessions per arm and question, five starts per arm. Native grep/read vs pure MCP with the current full routing excerpt, including the Rust short-name rule. No mandatory hybrid. Same binary, model and frozen corpora. Time from user turn to last completed response, excluding launch and indexing. No replacements; sensitivity excludes whole off-protocol pairs.",
+  "design": "Ten fresh paired sessions per arm and question, five starts per arm. Native grep/read vs pure MCP with the current full routing excerpt, including the Rust short-name rule. No mandatory hybrid. Same binary, model and frozen corpora. Time from user turn to last completed response, excluding launch and indexing. No replacements; sensitivity excludes whole off-protocol pairs. The corpus lanes ran concurrently, so the 531.652 s grep and 421.555 s MCP totals sum session durations under shared load; neither is isolated latency or batch elapsed time.",
   "model": "anthropic/claude-haiku-5-5",
   "thinking": "off",
   "binary_sha256": "12d18c225198fbd0a0772dc8855044fd42c635c1b416b2bb9b3c9ca0f85bf197",
@@ -172,7 +172,7 @@
     },
     "mcp": {
       "sessions": 60,
-      "correct": 56,
+      "correct": 57,
       "seconds": 421.555,
       "tokens": 10167080,
       "usd": 0.206089,
@@ -279,7 +279,7 @@
         },
         "mcp": {
           "sessions": 10,
-          "correct": 7,
+          "correct": 8,
           "seconds": 55.983,
           "tokens": 917398,
           "usd": 0.025962,
@@ -360,7 +360,7 @@
     },
     "mcp": {
       "sessions": 60,
-      "correct": 56,
+      "correct": 57,
       "seconds": 421.555,
       "tokens": 10167080,
       "usd": 0.206089,
@@ -8671,8 +8671,7 @@
         "None"
       ],
       "lexical_missing": [],
-      "correct": false,
-      "contradiction": "Final summary restricts download header use to identity responses, omitting the uncoded case the body describes."
+      "correct": true
     },
     {
       "arm": "mcp",
@@ -14339,7 +14338,6 @@
   "paired_fact_changes": {
     "lost": [
       "ky:typed:5",
-      "ky:typed:8",
       "ky:typed:10",
       "ripgrep:typed:10"
     ],

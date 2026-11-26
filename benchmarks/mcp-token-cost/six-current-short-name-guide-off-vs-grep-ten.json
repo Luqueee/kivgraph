@@ -161,7 +161,7 @@
   "summary": {
     "grep": {
       "sessions": 60,
-      "correct": 58,
+      "correct": 57,
       "seconds": 432.738,
       "tokens": 9782328,
       "usd": 0.208292,
@@ -268,7 +268,7 @@
       "summary": {
         "grep": {
           "sessions": 10,
-          "correct": 9,
+          "correct": 8,
           "seconds": 79.811,
           "tokens": 1376787,
           "usd": 0.037741,
@@ -349,7 +349,7 @@
   "clean_pairs_summary": {
     "grep": {
       "sessions": 60,
-      "correct": 58,
+      "correct": 57,
       "seconds": 432.738,
       "tokens": 9782328,
       "usd": 0.208292,
@@ -6969,7 +6969,7 @@
         "None"
       ],
       "lexical_missing": [],
-      "correct": true
+      "correct": false
     },
     {
       "arm": "mcp",
@@ -14696,6 +14696,7 @@
     ],
     "gained": [
       "cobra:typed:5",
+      "ky:typed:4",
       "ky:typed:7"
     ]
   }

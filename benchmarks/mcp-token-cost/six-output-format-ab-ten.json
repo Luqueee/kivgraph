@@ -165,7 +165,7 @@
   "summary": {
     "old": {
       "sessions": 60,
-      "correct": 58,
+      "correct": 57,
       "seconds": 627.525,
       "tokens": 9821240,
       "usd": 0.242648,
@@ -211,7 +211,8 @@
     ],
     "gained": [
       "ky:control:2",
-      "ky:typed:10"
+      "ky:typed:10",
+      "ripgrep:control:10"
     ]
   },
   "by_question": {
@@ -412,7 +413,7 @@
       "summary": {
         "old": {
           "sessions": 10,
-          "correct": 10,
+          "correct": 9,
           "seconds": 164.361,
           "tokens": 3485278,
           "usd": 0.068682,
@@ -451,7 +452,9 @@
         "less_output": 5,
         "faster": 4,
         "lost": [],
-        "gained": []
+        "gained": [
+          "ripgrep:control:10"
+        ]
       }
     },
     "LineStep::next_impl": {
@@ -543,7 +546,7 @@
   "clean_summary": {
     "old": {
       "sessions": 53,
-      "correct": 52,
+      "correct": 51,
       "seconds": 558.109,
       "tokens": 8578418,
       "usd": 0.21688,
@@ -585,7 +588,8 @@
       "cobra:control:3"
     ],
     "gained": [
-      "ky:typed:10"
+      "ky:typed:10",
+      "ripgrep:control:10"
     ]
   },
   "sessions": [
@@ -4190,7 +4194,7 @@
           }
         }
       ],
-      "answer": "I could not answer from the graph. The published graph has no `cobra` repository. `graph_status` lists one repository, `kivgraph` (`/Users/gtrave/Documents/kivgraph`, commit `43d1a11`), and `find_references` for `Command.PrintErr` in `cobra` returned `REPOSITORY_NOT_FOUND`.\n\nI did not index `cobra`. Registering it would rebuild the graph and needs your explicit approval. If you approve, I can run `start_index_project` for `cobra` at its checkout path, poll until it finishes, check `graph_status`, and then rerun the `Command.PrintErr` callers query. The path is not in this session, so I need it from you.",
+      "answer": "I could not answer from the graph. The published graph has no `cobra` repository. `graph_status` lists one repository, `kivgraph` (`<checkout>`, commit `43d1a11`), and `find_references` for `Command.PrintErr` in `cobra` returned `REPOSITORY_NOT_FOUND`.\n\nI did not index `cobra`. Registering it would rebuild the graph and needs your explicit approval. If you approve, I can run `start_index_project` for `cobra` at its checkout path, poll until it finishes, check `graph_status`, and then rerun the `Command.PrintErr` callers query. The path is not in this session, so I need it from you.",
       "corpus": "cobra",
       "question_set": "typed",
       "block": 10,
@@ -5330,7 +5334,7 @@
           "args": {}
         }
       ],
-      "answer": "I could not answer the question from the bench tools. The published graph does not contain repository `ky`, so there is no `delay` source to cite.\n\n- `get_source` with `repository: \"ky\"` and `qualified_name: \"delay\"` returned `REPOSITORY_NOT_FOUND`.\n- `find_symbol` for `delay` returned zero declarations. Its completeness note reports `LOWER_BOUND` with an invisible scope, a Go build-cache package under `internal/procstat`, and a package provider miss for `vitest`. Neither is `ky`.\n- `list_repositories` lists one repository: `kivgraph` (go, python, typescript), at `/Users/gtrave/Documents/kivgraph`, commit `43d1a11`.\n\nNothing in the bench graph establishes the behavior for an already-aborted signal, an abort during the wait, or a normal timer finish, nor the timer and listener cleanup or the rejection reason. The `ky` repository must be indexed before these questions can be answered from source. I did not index it, because indexing needs your approval. If you approve, I can run `start_index_project` for `ky` and then re-query `delay`.",
+      "answer": "I could not answer the question from the bench tools. The published graph does not contain repository `ky`, so there is no `delay` source to cite.\n\n- `get_source` with `repository: \"ky\"` and `qualified_name: \"delay\"` returned `REPOSITORY_NOT_FOUND`.\n- `find_symbol` for `delay` returned zero declarations. Its completeness note reports `LOWER_BOUND` with an invisible scope, a Go build-cache package under `internal/procstat`, and a package provider miss for `vitest`. Neither is `ky`.\n- `list_repositories` lists one repository: `kivgraph` (go, python, typescript), at `<checkout>`, commit `43d1a11`.\n\nNothing in the bench graph establishes the behavior for an already-aborted signal, an abort during the wait, or a normal timer finish, nor the timer and listener cleanup or the rejection reason. The `ky` repository must be indexed before these questions can be answered from source. I did not index it, because indexing needs your approval. If you approve, I can run `start_index_project` for `ky` and then re-query `delay`.",
       "corpus": "ky",
       "question_set": "control",
       "block": 2,
@@ -17452,7 +17456,8 @@
         "low"
       ],
       "lexical_missing": [],
-      "correct": true
+      "correct": false,
+      "contradiction": "Says `get` returns `None` for short input, then states `get(0..)` returns the whole slice; `saturating_sub` makes the start zero, so the slice exists and the first claim is wrong."
     }
   ]
 }

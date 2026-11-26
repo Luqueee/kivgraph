@@ -96,9 +96,11 @@ repository/path/qualified-name triple remains portable across profiles.
    opening it, and `get_source` answers in prose rather than JSON and takes a
    list of selectors, so one call reads several declarations.
    A stack frame or diff line needs no symbol lookup: pass its `repository`,
-   `path`, `line` and `snapshot_id` in one entry; `get_source` reads the callable
-   that contains the line. A refused position fails the call and says why; retry
-   with the `snapshot_id` of the generation the line belongs to.
+   `path`, `line` and `publication` in one entry; `get_source` reads the callable
+   that contains the line. Name the supplying profile on multi-profile servers.
+   If the publication changed, rerun the reference query for a fresh position.
+   If the file changed, follow the freshness checks below or read it directly;
+   do not call a direct read graph-verified.
 4. **Follow the edges.** `find_references` for direct incoming or outgoing
    references, `find_implementations` for typed implementations (declared and
    structural TypeScript, with generation and completeness),
