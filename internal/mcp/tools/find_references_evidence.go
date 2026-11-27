@@ -103,7 +103,8 @@ func (source *evidenceSource) definition(ctx context.Context, id hotsnapshot.Sym
 //
 // Only an exact row has a proven holder to show: previewing a candidate or an
 // unresolved one would pass a guess off as a fact. A holder that reaches the
-// subject through several edge kinds is one row of code, not several.
+// subject through several edge kinds is one row of code, not several; two
+// callers that merely start on the same line are two.
 //
 // `sources` is keyed by profile name, and by "" when the page names none.
 func referenceEvidence(ctx context.Context, rows []ReferenceSummary, sources map[string]*evidenceSource) ([]ReferencePreview, int) {
@@ -114,7 +115,8 @@ func referenceEvidence(ctx context.Context, rows []ReferenceSummary, sources map
 		if !facts.Confidence(row.Confidence).Exact() {
 			continue
 		}
-		key := string(row.Profiles) + "\x00" + row.Repository + "\x00" + row.FilePath + "\x00" + strconv.FormatUint(uint64(row.StartLine), 10)
+		key := string(row.Profiles) + "\x00" + row.Repository + "\x00" + row.FilePath + "\x00" + row.QualifiedName + "\x00" +
+			strconv.FormatUint(uint64(row.StartLine), 10) + "\x00" + strconv.FormatUint(uint64(row.EndLine), 10)
 		if _, repeated := seen[key]; repeated {
 			continue
 		}

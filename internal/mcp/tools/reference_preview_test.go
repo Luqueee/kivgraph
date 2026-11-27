@@ -93,6 +93,15 @@ func TestReferencePreviewKeepsNestedCallableOnTheSameLine(t *testing.T) {
 	if _, err := source.preview(t.Context(), ReferenceSummary{Repository: "r", FilePath: "p.go", QualifiedName: "p.outer", StartLine: 2, EndLine: 3}); err == nil {
 		t.Fatal("a row whose range names no callable was attached to a neighbour")
 	}
+	if _, err := source.preview(t.Context(), ReferenceSummary{Repository: "r", FilePath: "p.go", QualifiedName: "p.outer"}); err == nil {
+		t.Fatal("a row with no start line was previewed")
+	}
+	outer := ReferenceSummary{Repository: "r", FilePath: "p.go", QualifiedName: "p.outer", StartLine: 2, EndLine: 4, Confidence: "EXACT_TYPECHECKED"}
+	inner := ReferenceSummary{Repository: "r", FilePath: "p.go", QualifiedName: "p.inner", StartLine: 2, EndLine: 3, Confidence: "EXACT_TYPECHECKED"}
+	previews, trimmed := referenceEvidence(t.Context(), []ReferenceSummary{outer, inner, outer}, map[string]*evidenceSource{"": source})
+	if trimmed != 0 || len(previews) != 2 || previews[0].QualifiedName != "p.outer" || previews[1].QualifiedName != "p.inner" {
+		t.Fatalf("callers starting on one line collapsed: %+v, trimmed %d", previews, trimmed)
+	}
 }
 
 func TestCanceledEvidenceDoesNotReadSource(t *testing.T) {
