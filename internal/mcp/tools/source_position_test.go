@@ -116,6 +116,11 @@ func TestPositionSelectsInnermostArrowNotCallbackArgument(t *testing.T) {
  return inner();
 };
 const a = () => 1, b = () => 2;
+const specialized = (<T>(x: T) => {
+ return x;
+})<number>;
+const alias = specialized<number>;
+const callbackResult = use(() => 1)<number>;
 `
 	if err := os.WriteFile(filepath.Join(root, "body.ts"), []byte(text), 0o600); err != nil {
 		t.Fatal(err)
@@ -124,7 +129,7 @@ const a = () => 1, b = () => 2;
 	for _, s := range []struct {
 		name       string
 		start, end uint32
-	}{{"outer", 1, 7}, {"inner", 2, 5}, {"value", 3, 3}, {"a", 8, 8}, {"b", 8, 8}} {
+	}{{"outer", 1, 7}, {"inner", 2, 5}, {"value", 3, 3}, {"a", 8, 8}, {"b", 8, 8}, {"specialized", 9, 11}, {"alias", 12, 12}, {"callbackResult", 13, 13}} {
 		rows.Symbols = append(rows.Symbols, hotsnapshot.SymbolRow{
 			StableKey: hotsnapshot.StableKey(s.name), CanonicalIdentity: "ts:" + s.name,
 			FileKey: "f", Language: "typescript", Name: s.name, QualifiedName: s.name,
@@ -139,11 +144,15 @@ const a = () => 1, b = () => 2;
 	for _, tc := range []struct {
 		line uint32
 		want string
-	}{{3, "inner"}, {6, "outer"}, {8, ""}} {
+	}{{3, "inner"}, {6, "outer"}, {8, ""}, {10, "specialized"}, {12, ""}, {13, ""}} {
 		_, r, err := getSource(t.Context(), nil, GetSourceInput{Symbols: []SourceRequest{{Repository: "ky", Path: "body.ts", Line: &tc.line, Publication: publicationOf(store)}}}, store)
 		if tc.want == "" {
-			if err == nil || ErrorCode(err) != CodeAmbiguousSymbol {
-				t.Fatalf("same-line bindings: %v", err)
+			wantCode := CodeSymbolNotFound
+			if tc.line == 8 {
+				wantCode = CodeAmbiguousSymbol
+			}
+			if err == nil || ErrorCode(err) != wantCode {
+				t.Fatalf("line %d: got %v, want %s", tc.line, err, wantCode)
 			}
 			continue
 		}

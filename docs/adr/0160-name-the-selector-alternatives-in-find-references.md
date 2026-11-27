@@ -18,7 +18,10 @@ invalid calls. Changing field descriptions alone yielded five; also naming the
 choice in the tool description yielded one. Both the original and final runs
 answered all twelve questions correctly on the required facts. The small,
 non-randomized final comparison does not establish a general cost advantage.
-See `benchmarks/mcp-token-cost/selector-schema-ab.json` for all three variants.
+The capture for all three variants ships separately in [PR #282][bench]:
+`benchmarks/mcp-token-cost/selector-schema-ab.json` at commit `084eea9fdc`.
+
+[bench]: https://github.com/Luqueee/kivgraph/pull/282/files
 
 ## Amendment: redundant short name
 

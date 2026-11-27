@@ -212,7 +212,7 @@ func functionBindings(ctx context.Context, lang syntax.Language, lines []string)
 		unwrap:
 			for value != nil {
 				switch value.Kind() {
-				case "parenthesized_expression", "satisfies_expression", "as_expression", "non_null_expression":
+				case "parenthesized_expression", "satisfies_expression", "as_expression", "non_null_expression", "instantiation_expression":
 					value = value.NamedChild(0)
 				case "type_assertion":
 					// In <Type>expr the type precedes the asserted expression.
