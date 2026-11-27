@@ -208,8 +208,10 @@ arista: ver ADR 0040.
 fuera de la ruta del repositorio ni a través de un componente symlink, con la
 misma función que usa la capa de indexación.
 
-Para abrir la función que contiene una línea de referencia, copia `repository`,
-`path`, `line` y `publication` de la misma respuesta de `find_references`.
+Para abrir la función de una fila de `find_references`, pasa su `repository`,
+su `file_path` como `path` y su `start_line` como `line` a `get_source`.
+`start_line` indica dónde empieza la declaración del símbolo, no la línea
+exacta del uso. Toma `publication` de esa misma respuesta.
 Solo una respuesta de un perfil incluye `publication`, y únicamente al pedir
 `response_format: "detailed"` o `include_evidence: true`. Una respuesta de
 varios perfiles omite el token: repite la consulta en el perfil de esa línea.

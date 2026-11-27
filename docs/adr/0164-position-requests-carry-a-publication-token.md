@@ -59,8 +59,9 @@ Its contents are table counts and are **not** evidence of graph identity.
 
 ## Consequences
 
-- Callers copy `publication` and `line` from the same reference answer, as
-  before with `snapshot_id`.
+- Pass the row's `file_path` as `path` and `start_line` as `line`, with
+  `publication` from the same response. The line identifies the start of the
+  symbol's declaration, not the occurrence of the reference.
 - A changed graph invalidates the token even when its numeric ID is reused.
 - Evidence previews use the snapshot retained by the query, even if the store
   publishes another one before rendering. The source bytes must still match

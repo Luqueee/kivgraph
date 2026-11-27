@@ -95,10 +95,11 @@ repository/path/qualified-name triple remains portable across profiles.
    `get_file_outline` reads the declarations of a file or a directory without
    opening it, and `get_source` answers in prose rather than JSON and takes a
    list of selectors, so one call reads several declarations.
-   For the callable enclosing a reference line, pass `repository`, `path`,
-   `line` and `publication` from the same single-profile `find_references`
-   response. Request detailed format or evidence to get the token, and use
-   that profile for `get_source`. Outside indexed callables, read the file.
+   To open a reference row's callable, pass its `repository`, `file_path` as
+   `path` and `start_line` as `line`. This is the declaration start, not the
+   use site. Take `publication` from the same single-profile `find_references`
+   response (detailed or with evidence) and use that profile for `get_source`.
+   Outside indexed callables, read the file.
    If the publication changed, rerun the reference query for a fresh position.
    If the file changed, follow the freshness checks below or read it directly;
    do not call a direct read graph-verified.
