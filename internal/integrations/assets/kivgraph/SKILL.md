@@ -83,6 +83,9 @@ repository/path/qualified-name triple remains portable across profiles.
    `trace_dependencies`. `find_symbol` is for the case where locating the
    declaration *is* the question -- by name, qualified name, prefix or
    substring.
+   When the question also asks what callers do, `include_evidence: true`
+   adds verified excerpts to incoming `find_references` rows. Read the full
+   callable with `get_source` if the excerpt does not show the condition.
 3. **Narrow before you read.** Every row carries repository,
    repository-relative path, qualified name and a line range, and every tool
    accepts that triple in place of a stable key: build the next call out of
@@ -92,6 +95,14 @@ repository/path/qualified-name triple remains portable across profiles.
    `get_file_outline` reads the declarations of a file or a directory without
    opening it, and `get_source` answers in prose rather than JSON and takes a
    list of selectors, so one call reads several declarations.
+   To open a reference row's callable, pass its `repository`, `file_path` as
+   `path` and `start_line` as `line`. This is the declaration start, not the
+   use site. Take `publication` from the same single-profile `find_references`
+   response (detailed or with evidence) and use that profile for `get_source`.
+   Outside indexed callables, read the file.
+   If the publication changed, rerun the reference query for a fresh position.
+   If the file changed, follow the freshness checks below or read it directly;
+   do not call a direct read graph-verified.
 4. **Follow the edges.** `find_references` for direct incoming or outgoing
    references, `find_implementations` for typed implementations (declared and
    structural TypeScript, with generation and completeness),

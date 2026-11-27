@@ -16,14 +16,15 @@ description: Type-checked incoming or outgoing references for one symbol, with t
 | `edge_kinds` | array of string | none, meaning every reference kind except `EXPORTS` and `REEXPORTS` | Restricts rows to these relations. The default leaves out the forwarding bindings: an `export { x }` or `export { x } from "./y"` names a path to the declaration rather than a use of it, and the response says so under `edge_kinds_default_excluded`. Nothing becomes unreachable -- the checker resolves an import through however many barrels stand in the way, so every consumer behind one carries its own `IMPORTS_SYMBOL` edge and is listed without them. A list replaces that default; `["*"]` reports every reference kind, and the wildcard stands alone since mixing it with names asks for a filter and for no filter at once. Accepted: `IMPORTS_SYMBOL`, `EXPORTS`, `REEXPORTS`, `REFERENCES`, `CALLS_DIRECT`, `PASSES_AS_CALLBACK`, `ASSIGNS_FUNCTION`, `RETURNS_FUNCTION`, `TYPE_USES`, `IMPLEMENTS`, `EXTENDS`, `EMBEDS`, `OVERRIDES`, `PART_OF`. Containment and package kinds are rejected. Duplicates collapse; an empty or space-padded entry is rejected. |
 | `exclude_tests` | boolean | `false` | Drops the rows declared in a test file, recognised by path: `_test.go`, `_test.py`, `_test.dart`, `test_*.py`, `*.test.*`, `*.spec.*`, Java and C# files ending in `Test` or `Tests`, and a `test`, `tests`, `__tests__`, `spec`, `specs` or `integration_test` directory, or under Maven's `src/it/`. Applied before the total and the page, so a cursor taken without it is rejected under it. Tests are in the graph unless `go.include_tests` or `dart.include_tests` is `false`. |
 | `include_derived` | boolean | `false` | Includes rows from providers Kivgraph derives from the machine, which take the `rust:` namespace, such as a Rust toolchain's standard library. Naming one of them in `repo` has the same effect. |
+| `include_evidence` | boolean | `false` | Adds `results.evidence`: the source around the first five distinct exact incoming rows, so their callers can be read in the same call, without a follow-up `get_source`. Valid only for incoming queries in the `compact` or `full` view; with `direction: "outgoing"` or `view: "files"` it is rejected with `INVALID_ARGUMENT`. |
 | `language` | string | none | Keeps rows whose symbol carries this language: `go`, `typescript`, `rust`, `python`, `dart`, `java` or `csharp`, as stored for the symbol. Compared exactly, so the registry aliases such as `ts`, `rs`, `py` and `cs` match nothing; surrounding whitespace is rejected. |
 | `limit` | integer | `50` | Rows in this page. Must be between 1 and 500. |
-| `name` | string | none | The unqualified name of the declaration to ask about, so the common question costs one call instead of two. One declaration carrying that name is answered directly; several are rejected with `AMBIGUOUS_SYMBOL` naming the candidates as `repository:path:line`. Cannot be combined with `stable_key` or `qualified_name`; `repository`, or `repository` plus `path`, narrows it. A name that is only imported or re-exported and never declared is `SYMBOL_NOT_FOUND`, because the declaration is what a reference question is about. |
+| `name` | string | none | Bare declaration name. With `qualified_name`, checks the exact declared short name after resolution; a mismatch is `INVALID_ARGUMENT`. Alone, searches declarations, optionally narrowed by `repository` and `path`: several matches yield `AMBIGUOUS_SYMBOL` with candidates, and mentions without a declaration yield `SYMBOL_NOT_FOUND`. Cannot be combined with `stable_key`. |
 | `path` | string | none | Repository-relative path narrowing `qualified_name`. Requires `repository`. Rejected together with `stable_key`. |
-| `qualified_name` | string | none | Names the symbol to ask about. One of `qualified_name`, `stable_key` or `name` is required, never two of them. A name matching more than one symbol is rejected with `AMBIGUOUS_SYMBOL` instead of being resolved silently. |
+| `qualified_name` | string | none | Selects the subject without falling back to `name`. A missing or ambiguous qualified selector remains `SYMBOL_NOT_FOUND` or `AMBIGUOUS_SYMBOL` even if the supplied short name alone is unique. |
 | `repo` | string | none | Keeps only rows belonging to this repository, by name, compared exactly. It filters the answer; `repository` selects the subject. |
 | `repository` | string | none | Repository of the symbol being asked about. Narrows `qualified_name`. |
-| `response_format` | string | `concise` | `concise` or `detailed`. Detailed adds the derived identifiers -- `stable_key`, `file_key`, `repository_key` and `evidence_kind` -- to the rows of the `full` view. The compact and files views carry none of them under either format: a row is addressed by the header's repository plus its own path and qualified name. Anything else is rejected with `INVALID_ARGUMENT`. |
+| `response_format` | string | `concise` | `concise` or `detailed`. A single-profile query returns `publication` for position lookups when detailed or when `include_evidence` is true. Detailed adds the derived identifiers -- `stable_key`, `file_key`, `repository_key` and `evidence_kind` -- to the rows of the `full` view. The compact and files views carry none of them under either format: a row is addressed by the header's repository plus its own path and qualified name. Anything else is rejected with `INVALID_ARGUMENT`. |
 | `stable_key` | string | none | Names the symbol directly. Cannot be combined with `qualified_name`, `name`, `repository` or `path`. |
 | `view` | string | `compact` | The granularity of the answer, never a different answer. `compact` lifts into a header what every row shares and groups the rows by file. `full` is the field-per-row shape. `files` answers only which files hold references and how many each holds, and raises the default `limit` to 500 so a file list is never cut by a page. Any other value is rejected with `INVALID_ARGUMENT`. |
 
@@ -54,6 +55,41 @@ over the same two questions of that corpus, `1.205` and `1.143` tokens fell to `
 and `779`. See [when a page groups](/mcp/usage/#when-a-page-groups) for the
 mechanism shared by six tools, and [reading a grouped page](#reading-a-grouped-page)
 below for a captured page.
+
+## Evidence previews
+
+`include_evidence` shows what the code around each caller looks like in the same
+call. It is off by default, and the default answer is unchanged.
+
+On an incoming query the result gains `results.evidence`, an array of at most
+five entries. The first five distinct exact rows of the page, in page order, each
+get one. Candidate and unresolved rows never do.
+
+Each entry names the enclosing callable with `repository`, `path` and
+`qualified_name`, gives the lines it shows as `shown_start_line` and
+`shown_end_line` (1-based, inclusive), and carries their text in `code`. The
+whole callable is returned if it fits in 1,536 bytes. Otherwise the entry
+also gives `callable_start_line` and `callable_end_line` for comparison with
+the shown range. This excerpt keeps the anchor and up to four whole lines on
+each side. The anchor is the row's declaration start, not a token position.
+
+The same opt-in adds `results.definition` once per page when the queried
+symbol's own declaration fits in 1,536 bytes and its file matches the snapshot.
+This is separate from the five caller previews. If it is absent, use the
+subject location with `get_source` when the definition matters.
+
+An entry that cannot be verified carries `unavailable` instead of the shown
+bounds and `code`. The reason is short and specific: the file differs from the
+snapshot or cannot be read, the enclosing callable is missing or ambiguous,
+or the anchor alone exceeds the byte cap. In a multi-profile response, `profile`
+names the verifying profile on success, or the attempted profiles on failure.
+The union reads each profile's snapshot when it reaches that profile. All its
+pages, previews and reported snapshot ID come from that snapshot. Publishing a
+new generation does not interrupt the query or switch it to the new snapshot.
+
+When more than five distinct exact rows exist, `results.evidence_trimmed` gives
+how many got no entry. It is omitted when zero. The flag never changes `total`,
+the rows, the coverage or a cursor.
 
 ## Example
 

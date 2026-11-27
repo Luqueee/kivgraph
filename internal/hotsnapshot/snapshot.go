@@ -176,6 +176,7 @@ type GraphSnapshotInput struct {
 type SnapshotMetadata struct {
 	ID              uint64
 	CreatedAt       time.Time
+	Publication     string `json:"-"`
 	Version         uint32
 	SchemaVersion   int
 	ResolverVersion string
@@ -203,9 +204,11 @@ type GraphSnapshot struct {
 	reverseOffsets []uint32
 	reverseEdges   []PackedEdge
 
-	stableKeys     StableKeyTable
-	symbolsByName  symbolIndex
-	symbolsByQName symbolIndex
+	stableKeys      StableKeyTable
+	symbolsByName   symbolIndex
+	symbolsByQName  symbolIndex
+	rustNamesOnce   sync.Once
+	rustNameAliases map[string][]InternedString
 	// symbolsByTerm answers a question that names no symbol exactly. It is
 	// derived at load like the two above, from the same records.
 	symbolsByTerm  termIndex

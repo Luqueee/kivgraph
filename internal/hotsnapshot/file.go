@@ -303,11 +303,17 @@ func ReadSnapshot(data []byte, contentDigest [sha256.Size]byte) (*GraphSnapshot,
 // Everything else is copied either way, so the arena is the only thing this
 // contract is about. See ADR 0045.
 func MapSnapshot(data []byte, contentDigest [sha256.Size]byte, release func()) (*GraphSnapshot, error) {
+	return MapPublishedSnapshot(data, contentDigest, release, "")
+}
+
+// MapPublishedSnapshot binds the verified mapping to its generation before use.
+func MapPublishedSnapshot(data []byte, contentDigest [sha256.Size]byte, release func(), publication string) (*GraphSnapshot, error) {
 	anchor := &mapping{release: release}
 	snapshot, err := readSnapshot(data, contentDigest, anchor)
 	if err != nil {
 		return nil, err
 	}
+	snapshot.metadata.Publication = publication
 	runtime.AddCleanup(anchor, func(release func()) { release() }, release)
 	return snapshot, nil
 }

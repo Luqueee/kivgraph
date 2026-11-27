@@ -26,6 +26,10 @@ result instead of treating an absence as a fact.
    `find_cross_repo_consumers`.
 5. Read implementation only after the graph identifies it: call `get_source`
    for the returned symbols, with at most 20 symbols in one request.
+   To open a reference row's callable, pass its `repository`, `file_path` as
+   `path` and `start_line` (declaration start) as `line`. Take `publication`
+   from the same single-profile `find_references` response (detailed or with
+   evidence).
 6. Preserve the response's repository, path, qualified name, line range,
    `completeness`, and result kind when deciding or making the next call.
 

@@ -38,7 +38,7 @@ const PublishedSnapshotFileName = "snapshot.kvsnap"
 // A generation published before this file existed carries none, which is not a
 // defect: the reader cannot prove the snapshot and derives the graph from the
 // canonical store exactly as it always did.
-const PublishedSnapshotDigestFileName = "snapshot.content.sha256"
+const PublishedSnapshotDigestFileName = "snapshot.content.v" + snapshotContentDigestFormat + ".sha256"
 
 // writePublishedSnapshot writes the snapshot into a generation directory,
 // together with the record that proves which graph it holds.
@@ -119,7 +119,12 @@ func loadPublishedSnapshot(directory string) (*hotsnapshot.GraphSnapshot, error)
 	if err != nil {
 		return nil, fmt.Errorf("read published snapshot: %w", err)
 	}
-	snapshot, err := hotsnapshot.MapSnapshot(data, contentDigest, release)
+	publication, err := generationPublication(directory, hex.EncodeToString(contentDigest[:]))
+	if err != nil {
+		release()
+		return nil, err
+	}
+	snapshot, err := hotsnapshot.MapPublishedSnapshot(data, contentDigest, release, publication)
 	if err != nil {
 		release()
 		return nil, err
@@ -180,6 +185,20 @@ func LoadOrBuildSnapshot(ctx context.Context, options BuildSnapshotOptions) (*ho
 	}
 	report.LoadRefused = err.Error()
 	return snapshot, report, nil
+}
+
+// snapshot.sha256 predates the optional snapshot cache and is written once per
+// generation. Its timestamp distinguishes republications; its contents (table
+// counts) cannot prove graph identity, so always include the canonical digest.
+func generationPublication(directory, digest string) (string, error) {
+	info, err := os.Stat(filepath.Join(directory, snapshotFileName))
+	if errors.Is(err, os.ErrNotExist) {
+		return digest, nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("stat generation marker: %w", err)
+	}
+	return fmt.Sprintf("%x-%s", info.ModTime().UnixNano(), digest), nil
 }
 
 // decodeSnapshotDigest turns a generation's hexadecimal digest into the raw

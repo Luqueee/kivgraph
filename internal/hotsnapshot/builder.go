@@ -114,6 +114,15 @@ type UnresolvedReferenceRow struct {
 	StartOffset      uint32
 }
 
+// BuildPublishedSnapshot binds canonical rows to the generation they came from.
+func BuildPublishedSnapshot(rows LadybugSnapshotRows, id uint64, createdAt time.Time, version uint32, publication string) (*GraphSnapshot, error) {
+	snapshot, err := BuildGraphSnapshot(rows, id, createdAt, version)
+	if err == nil {
+		snapshot.metadata.Publication = publication
+	}
+	return snapshot, err
+}
+
 // BuildGraphSnapshot converts canonical LadybugDB rows into one validated,
 func BuildGraphSnapshot(rows LadybugSnapshotRows, snapshotID uint64, createdAt time.Time, version uint32) (*GraphSnapshot, error) {
 	repositories := append([]RepositoryRow(nil), rows.Repositories...)

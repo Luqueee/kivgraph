@@ -44,6 +44,40 @@ func symbolsWithNames(names ...InternedString) []SymbolRecord {
 	return records
 }
 
+func TestRustNameSpellingsGroupsOnlyCanonicalEquivalents(t *testing.T) {
+	interner := NewStringInterner()
+	var records []SymbolRecord
+	groups := make(map[string][]InternedString)
+	for _, prefix := range []string{"", "r#"} {
+		for _, first := range []string{"é", "e\u0301"} {
+			for _, last := range []string{"ö", "o\u0308", "ｏ"} {
+				spelling := prefix + first + last
+				id, err := interner.Intern(spelling)
+				if err != nil {
+					t.Fatal(err)
+				}
+				group := "éö"
+				if last == "ｏ" { // Compatibility folding is not Rust identity.
+					group = "éｏ"
+				}
+				groups[group] = append(groups[group], id)
+				records = append(records, SymbolRecord{Name: id}, SymbolRecord{Name: id})
+			}
+		}
+	}
+	snapshot := GraphSnapshot{strings: interner.Freeze(), symbolsByName: newSymbolIndex(records, symbolName)}
+	for _, want := range groups {
+		slices.Sort(want)
+		for _, id := range want {
+			name, _ := snapshot.strings.String(id)
+			got := slices.Sorted(snapshot.RustNameSpellings(name))
+			if !slices.Equal(got, want) {
+				t.Fatalf("spellings of %q: got %v, want %v", name, got, want)
+			}
+		}
+	}
+}
+
 func TestNewSymbolIndexAgreesWithTheMapItReplaced(t *testing.T) {
 	for _, testCase := range []struct {
 		name  string
@@ -200,9 +234,11 @@ func TestNewFileIndexRefusesTwoFilesAtOnePath(t *testing.T) {
 	}{
 		{"adjacent in record order", filesAt([2]InternedString{1, 4}, [2]InternedString{1, 4})},
 		{"apart in record order", filesAt(
-			[2]InternedString{1, 4}, [2]InternedString{0, 9}, [2]InternedString{1, 4})},
+			[2]InternedString{1, 4}, [2]InternedString{0, 9}, [2]InternedString{1, 4},
+		)},
 		{"three at one path", filesAt(
-			[2]InternedString{1, 4}, [2]InternedString{1, 4}, [2]InternedString{1, 4})},
+			[2]InternedString{1, 4}, [2]InternedString{1, 4}, [2]InternedString{1, 4},
+		)},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			_, err := newFileIndex(testCase.files)

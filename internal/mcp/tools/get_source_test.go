@@ -16,6 +16,33 @@ import (
 	"github.com/Luqueee/kivgraph/internal/testsupport"
 )
 
+func TestGetSourceValidatesPositionAfterTrim(t *testing.T) {
+	store, root := sourceSnapshot(t, 91)
+	long := "package pkg\n\n\nfunc Merge() {\n//" + strings.Repeat("x", MaximumSourceBytes) + "\n}\n"
+	if err := os.WriteFile(filepath.Join(root, "set.go"), []byte(long), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	req := GetSourceInput{Symbols: []SourceRequest{
+		{StableKey: "sym-other"},
+		{StableKey: "sym-merge"},
+		{Repository: "alpha", Path: "other.go", Line: new(uint32(3)), Publication: publicationOf(store)},
+	}}
+	_, r, err := getSource(t.Context(), nil, req, store)
+	if err != nil || r.Returned != 1 || r.Results.Trimmed != 2 {
+		t.Fatalf("valid trimmed batch: returned %d, trimmed %d, err %v", r.Returned, r.Results.Trimmed, err)
+	}
+	stale, _ := sourceSnapshot(t, 90)
+	req.Symbols[2].Publication = publicationOf(stale)
+	if _, _, err = getSource(t.Context(), nil, req, store); ErrorCode(err) != CodeSnapshotUnavailable {
+		t.Fatalf("trimmed stale position: %v", err)
+	}
+}
+
+// publicationOf is the token a caller copies from a response served by store.
+func publicationOf(store *hotsnapshot.SnapshotStore) string {
+	return publicationToken(store.Load().Metadata())
+}
+
 func TestGetSourceServesSeveralBodiesInOneCall(t *testing.T) {
 	store, _ := sourceSnapshot(t, 91)
 	_, response, err := getSource(context.Background(), nil, GetSourceInput{
@@ -105,12 +132,17 @@ func TestGetSourceKeepsSamePathInTwoRepositoriesApart(t *testing.T) {
 
 func TestGetSourceIncludesSurroundingLinesOnRequest(t *testing.T) {
 	store, _ := sourceSnapshot(t, 92)
-	_, response, err := getSource(context.Background(), nil, GetSourceInput{
+	result, response, err := getSource(context.Background(), nil, GetSourceInput{
 		Symbols:      []SourceRequest{{StableKey: "sym-merge"}},
 		ContextLines: 2,
 	}, store)
 	if err != nil {
 		t.Fatal(err)
+	}
+	for _, text := range []string{result.Content[0].(*sdkmcp.TextContent).Text, renderSourceProfiles(nil, response.Results)} {
+		if !strings.Contains(text, "set.go:4-6 func pkg.Merge [shown 2-8]") {
+			t.Fatalf("source header does not distinguish declaration and excerpt:\n%s", text)
+		}
 	}
 	code := response.Results.Bodies[0].Code
 	if !strings.Contains(code, "// Merge merges.") || !strings.Contains(code, "func Helper() int {") {
@@ -118,6 +150,23 @@ func TestGetSourceIncludesSurroundingLinesOnRequest(t *testing.T) {
 	}
 	if response.Results.ContextLines != 2 {
 		t.Fatalf("context_lines = %d, want it echoed", response.Results.ContextLines)
+	}
+	for _, tc := range []struct {
+		context int
+		header  string
+	}{
+		{0, "set.go:4-6 func pkg.Merge\nfunc Merge()"},
+		{100, "set.go:4-6 func pkg.Merge [shown 1-10]\npackage pkg"},
+	} {
+		result, _, err := getSource(t.Context(), nil, GetSourceInput{
+			Symbols: []SourceRequest{{StableKey: "sym-merge"}}, ContextLines: tc.context,
+		}, store)
+		if err != nil {
+			t.Fatalf("context_lines=%d: %v", tc.context, err)
+		}
+		if text := result.Content[0].(*sdkmcp.TextContent).Text; !strings.Contains(text, tc.header) {
+			t.Fatalf("context %d: expected %q in %q", tc.context, tc.header, text)
+		}
 	}
 	for _, contextLines := range []int{-1, MaximumSourceContextLines + 1} {
 		if _, _, err := getSource(context.Background(), nil, GetSourceInput{
@@ -253,7 +302,7 @@ func TestReanchorDeclarationRefusesEquallyCloseHomonyms(t *testing.T) {
 
 // sourceSnapshot writes two real files and publishes a generation that records
 // their digests, so freshness is a fact about the bytes rather than a flag.
-func sourceSnapshot(t *testing.T, id uint64) (*hotsnapshot.SnapshotStore, string) {
+func sourceSnapshot(t testing.TB, id uint64) (*hotsnapshot.SnapshotStore, string) {
 	t.Helper()
 	root := testsupport.TempDir(t)
 	setSource := "package pkg\n\n// Merge merges.\nfunc Merge() {\n\treturn\n}\n\nfunc Helper() int {\n\treturn 1\n}\n"
@@ -290,6 +339,78 @@ func sourceSnapshot(t *testing.T, id uint64) (*hotsnapshot.SnapshotStore, string
 func digestOf(content string) string {
 	digest := sha256.Sum256([]byte(content))
 	return hex.EncodeToString(digest[:])
+}
+
+// rangeSnapshot publishes one fresh file whose single symbol records the given
+// line range, which may lie past the file's end.
+func rangeSnapshot(t testing.TB, content string, start, end uint32) *hotsnapshot.SnapshotStore {
+	t.Helper()
+	root := testsupport.TempDir(t)
+	if err := os.WriteFile(filepath.Join(root, "eof.go"), []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rows := hotsnapshot.LadybugSnapshotRows{
+		Repositories: []hotsnapshot.RepositoryRow{{Key: "repo-alpha", Name: "alpha", Path: root, Languages: "go"}},
+		Packages:     []hotsnapshot.PackageRow{{Key: "package-alpha", RepositoryKey: "repo-alpha", Language: "go", Name: "example.com/alpha/pkg", ModulePath: "example.com/alpha"}},
+		Files:        []hotsnapshot.FileRow{{Key: "file-eof", RepositoryKey: "repo-alpha", PackageKey: "package-alpha", Path: "eof.go", Language: "go", ContentHash: digestOf(content)}},
+		Symbols:      []hotsnapshot.SymbolRow{{StableKey: "sym-eof", CanonicalIdentity: "go:pkg.Eof", FileKey: "file-eof", Language: "go", Name: "Eof", QualifiedName: "pkg.Eof", Kind: "func", StartLine: start, EndLine: end}},
+	}
+	snapshot, err := hotsnapshot.BuildGraphSnapshot(rows, 93, time.Unix(1_700_000_093, 0).UTC(), 1)
+	if err != nil {
+		t.Fatalf("BuildGraphSnapshot() error = %v", err)
+	}
+	return hotsnapshot.NewSnapshotStore(snapshot)
+}
+
+// TestSourceBodyRefusesDeclarationStartingPastEndOfFile: a start beyond the last
+// physical line must be declared unavailable whatever the context, and the
+// empty element Split leaves after a terminal newline is not a line.
+func TestSourceBodyRefusesDeclarationStartingPastEndOfFile(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		content string
+		start   uint32
+	}{
+		{"terminal newline, start on sentinel", "a\nb\n", 3},
+		{"terminal newline, start beyond sentinel", "a\nb\n", 4},
+		{"no terminal newline", "a\nb", 3},
+		{"empty file", "", 1},
+	} {
+		store := rangeSnapshot(t, tc.content, tc.start, tc.start)
+		for _, contextLines := range []int{0, 2, 100} {
+			_, response, err := getSource(t.Context(), nil, GetSourceInput{
+				Symbols: []SourceRequest{{StableKey: "sym-eof"}}, ContextLines: contextLines,
+			}, store)
+			if err != nil {
+				t.Fatalf("%s, context %d: %v", tc.name, contextLines, err)
+			}
+			body := response.Results.Bodies[0]
+			if body.Unavailable == "" || body.Code != "" {
+				t.Fatalf("%s, context %d: unavailable=%q code=%q, want unavailable and no code", tc.name, contextLines, body.Unavailable, body.Code)
+			}
+		}
+	}
+}
+
+func TestSourceBodyKeepsLastLineBehavior(t *testing.T) {
+	for _, content := range []string{"a\nb\n", "a\nb"} {
+		store := rangeSnapshot(t, content, 2, 2)
+		for _, tc := range []struct {
+			context int
+			want    string
+		}{{0, "b"}, {5, "a\nb"}} {
+			_, response, err := getSource(t.Context(), nil, GetSourceInput{
+				Symbols: []SourceRequest{{StableKey: "sym-eof"}}, ContextLines: tc.context,
+			}, store)
+			if err != nil {
+				t.Fatal(err)
+			}
+			body := response.Results.Bodies[0]
+			if body.Unavailable != "" || body.Code != tc.want {
+				t.Fatalf("content %q context %d: unavailable=%q code=%q, want %q", content, tc.context, body.Unavailable, body.Code, tc.want)
+			}
+		}
+	}
 }
 
 // TestGetSourceAnswersInProseNotJSON is the measurement that shaped this tool:

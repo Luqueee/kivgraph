@@ -145,6 +145,74 @@ func TestLoadOrBuildSnapshotFallsBackAndSaysWhy(t *testing.T) {
 	}
 }
 
+func TestMissingSnapshotRetainsPublicationAcrossDerivations(t *testing.T) {
+	directory := t.TempDir()
+	databasePath := filepath.Join(directory, "graph.lbdb")
+	seedPublishedGeneration(t, directory, databasePath)
+	options := BuildSnapshotOptions{DatabasePath: databasePath, SnapshotID: 42, Scan: refusingScan(t)}
+
+	mapped, report, err := LoadOrBuildSnapshot(context.Background(), options)
+	if err != nil || !report.Loaded {
+		t.Fatalf("mapped load: loaded = %v, err = %v", report.Loaded, err)
+	}
+	want := mapped.Metadata().Publication
+	if want == "" {
+		t.Fatal("missing publication identity")
+	}
+	remove(t, directory, PublishedSnapshotFileName)
+	options.Scan = fixedScan(fakeCanonicalGraph())
+	for range 2 {
+		derived, report, err := LoadOrBuildSnapshot(t.Context(), options)
+		if err != nil || report.Loaded || derived.Metadata().Publication != want || derived.Metadata().ID != mapped.Metadata().ID {
+			t.Fatalf("derived snapshot differs from publication %s: %+v, %v", want, report, err)
+		}
+	}
+	// Reuse the ID and graph with a different generation marker.
+	stamp := time.Unix(1, 0)
+	if err := os.Chtimes(filepath.Join(directory, snapshotFileName), stamp, stamp); err != nil {
+		t.Fatal(err)
+	}
+	rebuilt, _, err := LoadOrBuildSnapshot(t.Context(), options)
+	if err != nil || rebuilt.Metadata().Publication == want {
+		t.Fatalf("new generation retained the old token: %v", err)
+	}
+}
+
+func TestFileHashAloneChangesPublication(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "graph.lbdb")
+	original := seedPublishedGeneration(t, directory, path)
+	graph := fakeCanonicalGraph()
+	graph.Files[0].ContentHash = strings.Repeat("ab", 32)
+	want, report, err := BuildSnapshot(t.Context(), BuildSnapshotOptions{
+		DatabasePath: path, SnapshotID: original.Metadata().ID, Scan: fixedScan(graph),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if original.Metadata().Publication == want.Metadata().Publication {
+		t.Fatal("file hash change retained the publication token")
+	}
+	// The legacy proof does not cover file hashes. Never serve its cached file.
+	if err := os.Rename(filepath.Join(directory, PublishedSnapshotDigestFileName),
+		filepath.Join(directory, "snapshot.content.sha256")); err != nil {
+		t.Fatal(err)
+	}
+	got, derived, err := LoadOrBuildSnapshot(t.Context(), BuildSnapshotOptions{
+		DatabasePath: path, SnapshotID: original.Metadata().ID, Scan: fixedScan(graph),
+	})
+	if err != nil || derived.Loaded || !derived.Passed || got.Metadata().Publication != want.Metadata().Publication {
+		t.Fatalf("legacy cache: report=%+v err=%v", derived, err)
+	}
+	if err := writePublishedSnapshot(directory, got, report.Digest); err != nil {
+		t.Fatal(err)
+	}
+	mapped, err := loadPublishedSnapshot(directory)
+	if err != nil || mapped.Metadata().Publication != want.Metadata().Publication {
+		t.Fatalf("mapped and derived publication differ: %v", err)
+	}
+}
+
 // TestTableCountsCannotProveWhichGraphAFileHolds is the measurement that
 // motivated ADR 0061, as a test.
 //
@@ -265,14 +333,6 @@ func TestAGenerationWithoutTheRecordIsAnUpgradeNotAFailure(t *testing.T) {
 func seedPublishedGeneration(t *testing.T, directory, databasePath string) *hotsnapshot.GraphSnapshot {
 	t.Helper()
 	graph := fakeCanonicalGraph()
-	built, report, err := BuildSnapshot(context.Background(), BuildSnapshotOptions{
-		DatabasePath: databasePath,
-		SnapshotID:   42,
-		Scan:         fixedScan(graph),
-	})
-	if err != nil {
-		t.Fatalf("build the snapshot to publish: %v", err)
-	}
 	if err := os.WriteFile(databasePath, []byte("graph"), 0o600); err != nil {
 		t.Fatalf("seed database file: %v", err)
 	}
@@ -282,6 +342,14 @@ func seedPublishedGeneration(t *testing.T, directory, databasePath string) *hots
 	// consult it -- proving a snapshot against counts is exactly the hole the
 	// recorded graph digest closes.
 	write(t, directory, snapshotFileName, canonicalSnapshotDigest(map[string]int64{"Symbol": 2}))
+	built, report, err := BuildSnapshot(context.Background(), BuildSnapshotOptions{
+		DatabasePath: databasePath,
+		SnapshotID:   42,
+		Scan:         fixedScan(graph),
+	})
+	if err != nil {
+		t.Fatalf("build the snapshot to publish: %v", err)
+	}
 	if err := writePublishedSnapshot(directory, built, report.Digest); err != nil {
 		t.Fatalf("write the published snapshot: %v", err)
 	}

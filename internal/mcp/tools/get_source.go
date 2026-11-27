@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -40,18 +41,28 @@ const (
 // key, or the repository, path and qualified name of a row the caller already
 // read.
 type GetSourceInput struct {
-	Profile        []string        `json:"profile,omitempty" jsonschema:"Profiles; omit for default or use * alone for all."`
-	Symbols        []SourceRequest `json:"symbols" jsonschema:"The symbols whose code you want, up to 20 in one call, across any files and repositories."`
-	ContextLines   int             `json:"context_lines,omitempty" jsonschema:"Source lines to add around each declaration. Defaults to 0, maximum 100."`
-	ResponseFormat string          `json:"response_format,omitempty" jsonschema:"concise (default), or detailed with derived identifiers."`
+	Profile        []string        `json:"profile,omitempty" jsonschema:"Profiles; default if omitted."`
+	Symbols        []SourceRequest `json:"symbols" jsonschema:"Up to 20 selectors."`
+	ContextLines   int             `json:"context_lines,omitempty" jsonschema:"Full body included. Omit unless you need surrounding lines (0–100)."`
+	ResponseFormat string          `json:"response_format,omitempty" jsonschema:"concise or detailed (with keys)."`
 }
 
 // SourceRequest names one symbol.
 type SourceRequest struct {
-	StableKey     string `json:"stable_key,omitempty" jsonschema:"The symbol durable key. The triple below works instead."`
-	QualifiedName string `json:"qualified_name,omitempty" jsonschema:"The symbol fully qualified name, as every row of this surface carries it."`
-	Repository    string `json:"repository,omitempty" jsonschema:"The repository that declares the symbol."`
-	Path          string `json:"path,omitempty" jsonschema:"The repository-relative file that declares the symbol."`
+	StableKey     string  `json:"stable_key,omitempty" jsonschema:"Durable symbol key."`
+	QualifiedName string  `json:"qualified_name,omitempty" jsonschema:"Qualified declaration name."`
+	Repository    string  `json:"repository,omitempty" jsonschema:"Declaring repository."`
+	Path          string  `json:"path,omitempty" jsonschema:"Repository-relative file."`
+	Line          *uint32 `json:"line,omitempty" jsonschema:"Reference line; requires publication from the same response."`
+	Publication   string  `json:"publication,omitempty" jsonschema:"With line: copy the reference publication."`
+}
+
+// In-memory snapshots have no generation directory; their lifetime is the build.
+func publicationToken(metadata hotsnapshot.SnapshotMetadata) string {
+	if metadata.Publication != "" {
+		return strconv.FormatUint(metadata.ID, 36) + "-" + metadata.Publication
+	}
+	return strconv.FormatUint(metadata.ID, 36) + "-" + strconv.FormatInt(metadata.CreatedAt.UnixNano(), 36)
 }
 
 // SourceBody is the code of one symbol, or the reason there is none.
@@ -62,15 +73,17 @@ type SourceRequest struct {
 // declaration is re-anchored by name, Shifted says by how many lines, and the
 // caller can see that the graph's own numbers moved. See ADR 0040.
 type SourceBody struct {
-	Profiles      ProfileNames `json:"profile,omitempty"`
-	Repository    string       `json:"repository"`
-	Path          string       `json:"path"`
-	QualifiedName string       `json:"qualified_name"`
-	Kind          string       `json:"kind"`
-	StartLine     uint32       `json:"start_line"`
-	EndLine       uint32       `json:"end_line"`
-	Fresh         bool         `json:"fresh"`
-	Code          string       `json:"code,omitempty"`
+	Profiles       ProfileNames `json:"profile,omitempty"`
+	Repository     string       `json:"repository"`
+	Path           string       `json:"path"`
+	QualifiedName  string       `json:"qualified_name"`
+	Kind           string       `json:"kind"`
+	StartLine      uint32       `json:"start_line"`
+	EndLine        uint32       `json:"end_line"`
+	ShownStartLine uint32       `json:"shown_start_line,omitempty"`
+	ShownEndLine   uint32       `json:"shown_end_line,omitempty"`
+	Fresh          bool         `json:"fresh"`
+	Code           string       `json:"code,omitempty"`
 
 	// Shifted is the signed line offset between the range the generation
 	// recorded and the range served. It is absent when nothing moved.
@@ -127,6 +140,13 @@ func RegisterGetSourceWithObserverAndSnapshotStore(
 		if err != nil {
 			return nil, Response[SourceResult]{}, err
 		}
+		if count > 1 && (len(arguments.Profile) != 1 || arguments.Profile[0] == "*") {
+			for _, symbol := range arguments.Symbols {
+				if symbol.Line != nil || symbol.Publication != "" {
+					return nil, Response[SourceResult]{}, NewToolError(CodeInvalidArgument, "a source position requires exactly one named profile")
+				}
+			}
+		}
 		if len(selected) > 1 {
 			return getSourceAcrossProfiles(ctx, request, arguments, selected)
 		}
@@ -150,7 +170,7 @@ func RegisterGetSourceWithObserverAndSnapshotStore(
 	}
 	addQueryTool(server, &sdkmcp.Tool{
 		Name:        getSourceToolName,
-		Description: "Source of several symbols across files and repositories in one call; no line numbers needed.",
+		Description: "Read symbol bodies or enclosing functions at reference lines, in one batch.",
 		Annotations: readOnlyClosedWorld(),
 		Meta:        alwaysLoadMeta(),
 	}, handler)
@@ -252,7 +272,7 @@ func getSourceAcrossProfiles(
 }
 
 func getSource(
-	_ context.Context,
+	ctx context.Context,
 	_ *sdkmcp.CallToolRequest,
 	arguments GetSourceInput,
 	snapshotStore *hotsnapshot.SnapshotStore,
@@ -275,10 +295,20 @@ func getSource(
 	// Files are read once even when several requested symbols share one, which
 	// on a reference answer is the common case.
 	cache := map[string]*sourceFile{}
+	positions := positionFiles{requests: arguments.Symbols, selectors: selectors}
 	for index, selector := range selectors {
-		symbolID, resolveErr := resolveSymbolSelector(snapshot, selector)
+		var symbolID hotsnapshot.SymbolID
+		var resolveErr error
+		if position := arguments.Symbols[index]; position.Line != nil {
+			symbolID, resolveErr = positions.resolve(ctx, snapshot, position, selector.Path, cache)
+		} else {
+			symbolID, resolveErr = resolveSymbolSelector(snapshot, selector)
+		}
 		if resolveErr != nil {
 			return nil, Response[SourceResult]{}, resolveErr
+		}
+		if result.Trimmed != 0 {
+			continue
 		}
 		symbol, found := snapshot.Symbol(symbolID)
 		if !found {
@@ -294,7 +324,7 @@ func getSource(
 		}
 		if len(body.Code) > budget {
 			result.Trimmed = len(selectors) - index
-			break
+			continue
 		}
 		budget -= len(body.Code)
 		if body.Unavailable == "" {
@@ -332,6 +362,14 @@ type sourceFile struct {
 	lines []string
 	fresh bool
 	err   error
+}
+
+func (file *sourceFile) physicalLines() int {
+	n := len(file.lines)
+	if n > 0 && file.lines[n-1] == "" {
+		return n - 1 // Split leaves a sentinel after a terminal newline.
+	}
+	return n
 }
 
 func sourceBody(
@@ -404,7 +442,16 @@ func sourceBody(
 		body.StartLine, body.EndLine = uint32(start), uint32(end)
 		body.Shifted = shifted
 	}
-	body.Code = sliceLines(loaded.lines, start, end, contextLines)
+	physical := loaded.physicalLines()
+	if start > physical {
+		body.Unavailable = fmt.Sprintf("the declaration starts at line %d, past the end of the file (%d lines)", start, physical)
+		return body, nil
+	}
+	from, to := max(1, start-contextLines), min(physical, end+contextLines)
+	body.Code = strings.Join(loaded.lines[from-1:to], "\n")
+	if from != start || to != end {
+		body.ShownStartLine, body.ShownEndLine = uint32(from), uint32(to)
+	}
 	return body, nil
 }
 
@@ -517,18 +564,6 @@ func isIdentifierByte(value byte) bool {
 	}
 }
 
-func sliceLines(lines []string, start, end, contextLines int) string {
-	from := start - contextLines
-	if from < 1 {
-		from = 1
-	}
-	to := end + contextLines
-	if to > len(lines) {
-		to = len(lines)
-	}
-	return strings.Join(lines[from-1:to], "\n")
-}
-
 func normalizeGetSourceInput(arguments GetSourceInput) ([]symbolSelector, int, string, error) {
 	if len(arguments.Symbols) == 0 {
 		return nil, 0, "", NewToolError(CodeInvalidArgument, "symbols must name at least one symbol")
@@ -550,6 +585,20 @@ func normalizeGetSourceInput(arguments GetSourceInput) ([]symbolSelector, int, s
 	}
 	selectors := make([]symbolSelector, 0, len(arguments.Symbols))
 	for _, request := range arguments.Symbols {
+		if request.Line != nil || request.Publication != "" {
+			if request.Line == nil || *request.Line == 0 || request.Publication == "" || request.Repository == "" || request.Path == "" || request.StableKey != "" || request.QualifiedName != "" {
+				return nil, 0, "", NewToolError(CodeInvalidArgument, "position requires repository, path, positive line and publication instead of stable_key or qualified_name")
+			}
+			if _, err := normalizeOutlineArgument(request.Repository, "repository"); err != nil {
+				return nil, 0, "", err
+			}
+			path, err := normalizeOutlinePath(request.Path)
+			if err != nil {
+				return nil, 0, "", err
+			}
+			selectors = append(selectors, symbolSelector{Repository: request.Repository, Path: path})
+			continue
+		}
 		selector, err := normalizeSymbolSelector(request.StableKey, request.Repository, request.Path, request.QualifiedName)
 		if err != nil {
 			return nil, 0, "", err
@@ -579,17 +628,24 @@ func renderSourceText(snapshotID uint64, result SourceResult) string {
 		}
 		fmt.Fprintf(builder, "@ %s %s:%d-%d %s %s",
 			body.Repository, body.Path, body.StartLine, body.EndLine, body.Kind, body.QualifiedName)
-		if !body.Fresh {
-			fmt.Fprintf(builder, " [file changed, re-anchored %+d]", body.Shifted)
-		}
-		if body.StableKey != "" {
-			fmt.Fprintf(builder, " %s", body.StableKey)
-		}
-		builder.WriteByte('\n')
-		builder.WriteString(body.Code)
-		builder.WriteByte('\n')
+		writeSourceSuffix(builder, body)
 	}
 	return builder.String()
+}
+
+func writeSourceSuffix(builder *strings.Builder, body SourceBody) {
+	if body.ShownStartLine != 0 {
+		fmt.Fprintf(builder, " [shown %d-%d]", body.ShownStartLine, body.ShownEndLine)
+	}
+	if !body.Fresh {
+		fmt.Fprintf(builder, " [file changed, re-anchored %+d]", body.Shifted)
+	}
+	if body.StableKey != "" {
+		fmt.Fprintf(builder, " %s", body.StableKey)
+	}
+	builder.WriteByte('\n')
+	builder.WriteString(body.Code)
+	builder.WriteByte('\n')
 }
 
 func renderSourceProfiles(profiles []ProfileSnapshot, result SourceResult) string {
@@ -611,15 +667,7 @@ func renderSourceProfiles(profiles []ProfileSnapshot, result SourceResult) strin
 		}
 		fmt.Fprintf(builder, "@ [%s] %s %s:%d-%d %s %s",
 			profileLabel, body.Repository, body.Path, body.StartLine, body.EndLine, body.Kind, body.QualifiedName)
-		if !body.Fresh {
-			fmt.Fprintf(builder, " [file changed, re-anchored %+d]", body.Shifted)
-		}
-		if body.StableKey != "" {
-			fmt.Fprintf(builder, " %s", body.StableKey)
-		}
-		builder.WriteByte('\n')
-		builder.WriteString(body.Code)
-		builder.WriteByte('\n')
+		writeSourceSuffix(builder, body)
 	}
 	return builder.String()
 }

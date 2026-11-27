@@ -3,7 +3,7 @@ title: get_source
 description: Read the code of up to twenty symbols in one call, as plain text, with the range re-anchored when the file changed.
 ---
 
-> Source of several symbols across files and repositories in one call; no line numbers needed.
+> Read symbol bodies or enclosing functions at reference lines, in one batch.
 
 ## Arguments
 
@@ -11,12 +11,47 @@ description: Read the code of up to twenty symbols in one call, as plain text, w
 | --- | --- | --- | --- |
 | `profile` | array of strings | configured default | Profiles to query. `["*"]` alone selects all. A stable key requires exactly one named profile when several profiles exist. |
 | `symbols` | array | none, required | The symbols to read. At least one and at most 20; an empty array or more than 20 is rejected with `INVALID_ARGUMENT`. |
-| `symbols[].stable_key` | string | unset | The durable key of one symbol. Exactly one of `stable_key` or `qualified_name` per entry; both is rejected, and a key together with `repository` or `path` is rejected. |
+| `symbols[].stable_key` | string | unset | A durable key. Use it alone, instead of a name or position. |
 | `symbols[].qualified_name` | string | unset | The qualified name of the symbol, as every row of this surface returns it. |
 | `symbols[].repository` | string | unset | Narrows that entry's `qualified_name` to one repository, matched by name. |
 | `symbols[].path` | string | unset | Narrows that entry's `qualified_name` to a repository-relative file, or to a directory containing it, matched at a path-segment boundary: `src/util.ts` does not match `src/util.tsx`, and `src/ut` matches nothing. It requires `repository`. An absolute path or any `..` segment is rejected. |
+| `symbols[].line` | integer | unset | One-based line in the file. Requires `repository`, `path` and `publication`; exclusive with `stable_key` and `qualified_name`. Reads the innermost indexed callable containing the line. See [Reading a file position](#reading-a-file-position). |
+| `symbols[].publication` | string | unset | Opaque token from the reference response that supplied the line. Required with `line`. |
 | `context_lines` | integer | `0` | Lines kept before and after the declaration. Must be between 0 and 100; anything else is rejected with `INVALID_ARGUMENT`. The window is clamped at the first and last line of the file. |
 | `response_format` | string | `concise` | `concise` or `detailed`. `detailed` appends the stable key to each header line. Any other value is rejected with `INVALID_ARGUMENT`. |
+
+## Reading a file position
+
+Request `response_format: "detailed"` or `include_evidence: true` from
+`find_references`. Copy the file, line and `publication` from that same single-profile response.
+For example, `totalBytes@210` locates a local variable, but the position
+selector returns its enclosing function, not the variable's initializer.
+
+```json
+{
+  "symbols": [
+    {
+      "repository": "ky",
+      "path": "source/utils/body.ts",
+      "line": 210,
+      "publication": "3-1dk8sq0g9x5k"
+    }
+  ]
+}
+```
+
+The graph refuses a position rather than answering a nearby one:
+
+- A token from another publication is refused, even if its numeric generation
+  was reused. Repeat the reference query to obtain a fresh line and token.
+- A line that no indexed callable contains, or that two equally innermost
+  callables both contain, is refused.
+- A file that no longer hashes to the generation's digest is refused. A line has
+  no name to re-anchor by.
+
+A refused position fails the whole call with its reason, as an unresolved
+selector does today, so the call returns no bodies. A call that includes
+position entries names one profile, as a stable key does when several profiles exist.
 
 ## Answers
 
@@ -31,6 +66,11 @@ opens with `@ <repository> <path>:<start>-<end> <kind> <qualified_name>`,
 followed by the bytes, unescaped and unnumbered. A row that has no bytes opens
 with `!` instead and names the reason. Files shared by several requested
 symbols are read once.
+
+The range after the path identifies the declaration. If `context_lines` adds
+lines, `[shown <first>-<last>]` gives the inclusive range of the excerpt:
+its first printed line is `<first>`. Adjacent excerpts can show the same line
+without representing two references. No marker means both ranges agree.
 
 ## Example
 

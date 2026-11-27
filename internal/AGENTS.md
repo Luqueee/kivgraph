@@ -252,8 +252,8 @@ surface has its own in `internal/mcp/AGENTS.md`.
   it instead of deriving it from the canonical graph: `rebuild.LoadOrBuildSnapshot`
   is the door, and the three paths that install a generation -`serve`'s startup,
   the follower and the parent of a pass- go through it. What proves the file
-  belongs to that generation is `snapshot.content.sha256`, the digest of the
-  graph the file contains, repeated in its header. **It is not
+  belongs to that generation is `snapshot.content.v2.sha256`, the graph digest
+  including indexed file hashes, repeated in its header. **It is not
   `snapshot.sha256`**, which digests the counters per table and therefore does
   not tell two graphs of the same shape apart: measured on `workspace`, two
   indexings whose graphs differed in 288 rows gave a byte-identical
@@ -268,6 +268,9 @@ surface has its own in `internal/mcp/AGENTS.md`.
   every installation when updating. Measured on `devlabs`: 253-255 MB of RSS and
   787-836 MB of peak deriving, against 150-152 MB and 264-269 MB reading. See ADR
   0045 and ADR 0061.
+- Position tokens use the canonical graph digest and generation marker on
+  both the mapped and derived paths, never the header of a refused cache.
+  See ADR 0164.
 - `doctor` asks **both** questions, and they are different. `snapshot` derives
   the snapshot from the canonical graph and never reads the file: it reports
   whether **this graph** can still become a snapshot, and reading a file written

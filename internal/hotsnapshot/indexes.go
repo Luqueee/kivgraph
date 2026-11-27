@@ -3,8 +3,12 @@ package hotsnapshot
 import (
 	"cmp"
 	"fmt"
+	"iter"
 	"slices"
 	"sort"
+	"strings"
+
+	"golang.org/x/text/unicode/norm"
 )
 
 // The indexes in this file replace the maps GraphSnapshot used to hold. A map is
@@ -85,6 +89,38 @@ func newSymbolIndex(symbols []SymbolRecord, keyFor func(SymbolRecord) InternedSt
 		position = end
 	}
 	return index
+}
+
+// RustNameSpellings yields distinct indexed names equivalent to the selector.
+// The ordinary name already has an index; retain only exceptional spellings,
+// once per snapshot and only if a Rust receiver query needs them.
+func (snapshot *GraphSnapshot) RustNameSpellings(name string) iter.Seq[InternedString] {
+	return func(yield func(InternedString) bool) {
+		snapshot.rustNamesOnce.Do(func() {
+			for _, id := range snapshot.symbolsByName.keys {
+				if uint32(id) >= snapshot.strings.stats.Entries {
+					continue
+				}
+				value := snapshot.strings.value(id)
+				key := norm.NFC.String(strings.TrimPrefix(value, "r#"))
+				if key != value {
+					if snapshot.rustNameAliases == nil {
+						snapshot.rustNameAliases = make(map[string][]InternedString)
+					}
+					snapshot.rustNameAliases[key] = append(snapshot.rustNameAliases[key], id)
+				}
+			}
+		})
+		key := norm.NFC.String(strings.TrimPrefix(name, "r#"))
+		if id, ok := snapshot.strings.Lookup(key); ok && len(snapshot.symbolsByName.lookup(id)) != 0 && !yield(id) {
+			return
+		}
+		for _, id := range snapshot.rustNameAliases[key] {
+			if !yield(id) {
+				return
+			}
+		}
+	}
 }
 
 // lookup returns the run for key, or nil when the index does not hold it.

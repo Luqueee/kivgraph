@@ -70,6 +70,8 @@ model at the moment it decides whether to call anything.
 | What are this symbol's package, signature, visibility and line range | [`get_symbol`](/docs/tools/get-symbol/) |
 | What is declared under this path | [`get_file_outline`](/docs/tools/get-file-outline/) |
 | Give me the code of these symbols | [`get_source`](/docs/tools/get-source/) |
+| Which callable contains a reference line | [`get_source`](/docs/tools/get-source/) with the position and `publication` from the same single-profile reference response |
+| What is at a line from a stack frame or diff | Read the file at the revision the frame or diff refers to |
 | Which repositories does the graph cover, at which commit | [`list_repositories`](/docs/tools/list-repositories/) |
 | Is the published graph current | [`graph_status`](/docs/tools/graph-status/) |
 | Start a rebuild without a long call | [`start_index_project`](/docs/tools/start-index-project/) |
@@ -97,6 +99,61 @@ answers a question nobody asked. `repository` and `path` narrow a
 `qualified_name`; a `stable_key` already names one symbol, so combining them is
 also rejected. `path` alone is rejected too: it is repository-relative, so it
 requires `repository`.
+
+`find_references` also takes a bare `name`. If you switch to `stable_key` or
+`qualified_name`, remove `name` from the request. Use `repository` with `path`
+to locate the subject; `repo` filters the returned references instead.
+
+For a known symbol's callers, start with `find_references` alone. If the
+question asks what the callers do, set `include_evidence: true`: it can return
+both caller code and the subject definition. Use `find_symbol` only if the
+selector fails. Open another body only for a requested fact the returned code
+does not establish.
+
+To explain a Rust free function given only its short name, first call
+`find_symbol` with `name` and `repo`. If several declarations match,
+disambiguate them before reading. Pass the selected row's repository, file
+and qualified name to `get_source`.
+
+If you already know a function's qualified name, start with `get_source`
+using `repository` and `qualified_name`; omit `path` unless you know it. Request
+`context_lines: 5` to include a nearby doc comment. If the comment and body
+agree and answer the question, stop. Otherwise, batch only the declarations
+needed to settle the missing or conflicting fact in one `get_source`.
+Use `find_references` with `direction: "outgoing"` only to locate a dependency
+you still need. Do not trace how a helper works if its implementation cannot
+change the answer.
+
+Start with two parallel `find_references` calls in the first turn when a Go
+caller question names both a package function and a method with its receiver.
+Use `qualified_name` for each: the function name alone and `Receiver.Method`.
+Do not run `find_symbol` first. Use it only if a selector cannot be resolved;
+if it is ambiguous, use the returned candidates to narrow it rather than guess.
+
+For Rust, a `Type::method` written from source resolves through `qualified_name`
+when the index proves the method belongs to that type. An exact canonical name
+such as `shapes::impl::Circle::area` resolves when exactly one declaration in
+the selected scope has that name. Multiple exact matches are `AMBIGUOUS_SYMBOL`.
+If the exact lookup finds nothing, the tool falls
+back to the method's declared type. The `METHOD_OF` edge that proves a method
+has `STRUCTURAL_CERTAIN` confidence. If one proven method matches and no other
+candidate of that name is unproven, it resolves. If two or more match, or one
+matches alongside unproven candidates, the call returns `AMBIGUOUS_SYMBOL`;
+retry with the intended canonical `qualified_name`, adding `repository` and
+`path` if needed. If those still match multiple declarations, use the intended
+`stable_key` alone. With no proven match the tool returns `SYMBOL_NOT_FOUND`;
+any unproven candidates are suggestions, not proof of ownership.
+For a short name with no receiver, use `name` rather than inventing a qualified
+path.
+
+To check whether a Rust method calls a target through one of its direct
+callers, query incoming `find_references` on that caller. Copy its repository,
+file and qualified name from the first result instead of guessing the outer
+method's trait or lifetime spelling. Look for an exact `CALLS_DIRECT` row for
+the outer method; a missing row on a partial page does not rule it out.
+
+Call the tool directly without narrating the query. In the final answer,
+give each requested fact with its source citation.
 
 A stable key is exact and durable, and it is also about thirty-five tokens of
 opaque base32 that nothing outside the server can read. You never need one,
