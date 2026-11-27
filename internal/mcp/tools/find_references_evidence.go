@@ -156,13 +156,44 @@ func previewReference(ctx context.Context, row ReferenceSummary, sources map[str
 	return unavailable
 }
 
+// holder picks the callable the row names. A row's start and end lines are its
+// caller's declaration, so a nested callable that begins on the same line has a
+// different range or name and is never mistaken for it.
+func (source *evidenceSource) holder(ranges []callableRange, row ReferenceSummary) (hotsnapshot.SymbolID, error) {
+	var found hotsnapshot.SymbolID
+	matches := 0
+	for _, r := range ranges {
+		if r.start != row.StartLine || r.end != row.EndLine {
+			continue
+		}
+		symbol, ok := source.snapshot.Symbol(r.id)
+		if !ok {
+			continue
+		}
+		if name, _ := source.snapshot.Strings().String(symbol.QualifiedName); name == row.QualifiedName {
+			found = r.id
+			matches++
+		}
+	}
+	switch matches {
+	case 0:
+		return 0, errors.New("the enclosing callable is not an indexed callable")
+	case 1:
+		return found, nil
+	}
+	return 0, errors.New("several indexed callables share this caller's range and name")
+}
+
 func (source *evidenceSource) preview(ctx context.Context, row ReferenceSummary) (ReferencePreview, error) {
 	if err := ctx.Err(); err != nil {
 		return ReferencePreview{}, err
 	}
 	line := row.StartLine
-	request := SourceRequest{Repository: row.Repository, Line: &line, Publication: source.publication}
-	holder, err := source.positions.resolve(ctx, source.snapshot, request, row.FilePath, source.cache)
+	ranges, err := source.positions.callableRanges(ctx, source.snapshot, source.publication, row.Repository, row.FilePath, source.cache)
+	if err != nil {
+		return ReferencePreview{}, err
+	}
+	holder, err := source.holder(ranges, row)
 	if err != nil {
 		return ReferencePreview{}, err
 	}

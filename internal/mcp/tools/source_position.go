@@ -30,13 +30,16 @@ type callableCandidate struct {
 	start, end uint32
 }
 
-func (files *positionFiles) resolve(ctx context.Context, snapshot *hotsnapshot.GraphSnapshot, request SourceRequest, path string, cache map[string]*sourceFile) (hotsnapshot.SymbolID, error) {
-	if request.Publication != publicationToken(snapshot.Metadata()) {
-		return 0, NewToolError(CodeSnapshotUnavailable, "publication changed; repeat the reference query")
+// callableRanges returns the indexed callables of one verified file. The caller
+// chooses among them: by occurrence line for a position, by exact range for the
+// holder a reference row already names.
+func (files *positionFiles) callableRanges(ctx context.Context, snapshot *hotsnapshot.GraphSnapshot, publication, repository, path string, cache map[string]*sourceFile) ([]callableRange, error) {
+	if publication != publicationToken(snapshot.Metadata()) {
+		return nil, NewToolError(CodeSnapshotUnavailable, "publication changed; repeat the reference query")
 	}
-	repoID, id, err := locatePositionFile(snapshot, request.Repository, path)
+	repoID, id, err := locatePositionFile(snapshot, repository, path)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	table := snapshot.Strings()
 	ranges, ready := files.ranges[id]
@@ -51,15 +54,15 @@ func (files *positionFiles) resolve(ctx context.Context, snapshot *hotsnapshot.G
 			cache[key] = source
 		}
 		if source.err != nil {
-			return 0, WrapToolError(CodeSnapshotUnavailable, "cannot verify position source", source.err)
+			return nil, WrapToolError(CodeSnapshotUnavailable, "cannot verify position source", source.err)
 		}
 		if !source.fresh {
-			return 0, NewToolError(CodeSnapshotUnavailable, "position source differs from the snapshot or has no indexed digest")
+			return nil, NewToolError(CodeSnapshotUnavailable, "position source differs from the snapshot or has no indexed digest")
 		}
 		language, _ := table.String(file.Language)
 		candidates, err := files.candidatesOf(ctx, snapshot, id)
 		if err != nil {
-			return 0, WrapToolError(CodeSnapshotUnavailable, "inspect indexed callable ranges", err)
+			return nil, WrapToolError(CodeSnapshotUnavailable, "inspect indexed callable ranges", err)
 		}
 		var bindings map[bindingRange]bool
 		last := uint64(source.physicalLines())
@@ -77,7 +80,7 @@ func (files *positionFiles) resolve(ctx context.Context, snapshot *hotsnapshot.G
 					}
 					bindings, err = functionBindings(ctx, lang, source.lines)
 					if err != nil {
-						return 0, WrapToolError(CodeSnapshotUnavailable, "inspect indexed callable ranges", err)
+						return nil, WrapToolError(CodeSnapshotUnavailable, "inspect indexed callable ranges", err)
 					}
 				}
 				name, _ := table.String(c.name)
@@ -88,7 +91,7 @@ func (files *positionFiles) resolve(ctx context.Context, snapshot *hotsnapshot.G
 				continue
 			}
 			if uint64(c.end) > last {
-				return 0, WrapToolError(CodeSnapshotUnavailable, "inspect indexed callable ranges",
+				return nil, WrapToolError(CodeSnapshotUnavailable, "inspect indexed callable ranges",
 					fmt.Errorf("indexed callable at %s:%d-%d exceeds the verified file", path, c.start, c.end))
 			}
 			ranges = append(ranges, callableRange{c.id, c.start, c.end})
@@ -97,6 +100,14 @@ func (files *positionFiles) resolve(ctx context.Context, snapshot *hotsnapshot.G
 			files.ranges = make(map[hotsnapshot.FileID][]callableRange)
 		}
 		files.ranges[id] = ranges
+	}
+	return ranges, nil
+}
+
+func (files *positionFiles) resolve(ctx context.Context, snapshot *hotsnapshot.GraphSnapshot, request SourceRequest, path string, cache map[string]*sourceFile) (hotsnapshot.SymbolID, error) {
+	ranges, err := files.callableRanges(ctx, snapshot, request.Publication, request.Repository, path, cache)
+	if err != nil {
+		return 0, err
 	}
 	// An innermost range must be contained in every matching range, not just shorter.
 	var lo, hi uint32 = 0, ^uint32(0)

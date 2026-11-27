@@ -15,7 +15,7 @@ import (
 
 func TestReferencePreviewKeepsOnlyVerifiedDistinctExactLocations(t *testing.T) {
 	store, root := sourceSnapshot(t, 91)
-	row := ReferenceSummary{Repository: "alpha", FilePath: "set.go", StartLine: 5, Confidence: "EXACT_TYPECHECKED"}
+	row := ReferenceSummary{Repository: "alpha", FilePath: "set.go", QualifiedName: "pkg.Merge", StartLine: 4, EndLine: 6, Confidence: "EXACT_TYPECHECKED"}
 	candidate := row
 	candidate.Confidence = "CANDIDATE"
 	candidate.StartLine = 7
@@ -29,14 +29,14 @@ func TestReferencePreviewKeepsOnlyVerifiedDistinctExactLocations(t *testing.T) {
 		return previews
 	}
 	got := read()[0]
-	if got.StartLine != 5 || got.ShownStartLine != 4 || got.ShownEndLine != 6 || got.Code != "func Merge() {\n\treturn\n}" || got.Unavailable != "" {
+	if got.StartLine != 4 || got.ShownStartLine != 4 || got.ShownEndLine != 6 || got.Code != "func Merge() {\n\treturn\n}" || got.Unavailable != "" {
 		t.Fatalf("preview = %+v", got)
 	}
 	if err := os.WriteFile(filepath.Join(root, "set.go"), []byte("changed\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	got = read()[0]
-	if got.StartLine != 5 || got.Unavailable == "" || got.Code != "" || got.QualifiedName != "" || got.ShownStartLine != 0 || got.ShownEndLine != 0 {
+	if got.StartLine != 4 || got.Unavailable == "" || got.Code != "" || got.QualifiedName != "" || got.ShownStartLine != 0 || got.ShownEndLine != 0 {
 		t.Fatalf("changed file served as verified: %+v", got)
 	}
 }
@@ -45,8 +45,8 @@ func TestReferencePreviewKeepsOnlyVerifiedDistinctExactLocations(t *testing.T) {
 // expected declaration.
 func TestReferencePreviewsShareOneSource(t *testing.T) {
 	store, _ := sourceSnapshot(t, 92)
-	merge := ReferenceSummary{Repository: "alpha", FilePath: "set.go", StartLine: 5, Confidence: "EXACT_TYPECHECKED"}
-	other := ReferenceSummary{Repository: "alpha", FilePath: "other.go", StartLine: 3, Confidence: "EXACT_TYPECHECKED"}
+	merge := ReferenceSummary{Repository: "alpha", FilePath: "set.go", QualifiedName: "pkg.Merge", StartLine: 4, EndLine: 6, Confidence: "EXACT_TYPECHECKED"}
+	other := ReferenceSummary{Repository: "alpha", FilePath: "other.go", QualifiedName: "other.Other", StartLine: 3, EndLine: 4, Confidence: "EXACT_TYPECHECKED"}
 	source := newEvidenceSource(store.Load())
 	previews, trimmed := referenceEvidence(t.Context(), []ReferenceSummary{merge, other}, map[string]*evidenceSource{"": source})
 	if trimmed != 0 || len(previews) != 2 {
@@ -57,6 +57,41 @@ func TestReferencePreviewsShareOneSource(t *testing.T) {
 	}
 	if previews[1].QualifiedName != "other.Other" || previews[1].Code != "func Other() {\n}" || previews[1].Unavailable != "" {
 		t.Fatalf("second preview = %+v", previews[1])
+	}
+}
+
+func TestReferencePreviewKeepsNestedCallableOnTheSameLine(t *testing.T) {
+	root := testsupport.TempDir(t)
+	text := "package p\nfunc outer() { inner := func() {\n target()\n}; inner() }\n"
+	if err := os.WriteFile(filepath.Join(root, "p.go"), []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rows := hotsnapshot.LadybugSnapshotRows{
+		Repositories: []hotsnapshot.RepositoryRow{{Key: "r", Name: "r", Path: root, Languages: "go"}},
+		Packages:     []hotsnapshot.PackageRow{{Key: "p", RepositoryKey: "r", Name: "p", Language: "go"}},
+		Files:        []hotsnapshot.FileRow{{Key: "f", RepositoryKey: "r", PackageKey: "p", Path: "p.go", Language: "go", ContentHash: digestOf(text)}},
+		Symbols: []hotsnapshot.SymbolRow{
+			{StableKey: "outer", CanonicalIdentity: "go:outer", FileKey: "f", Name: "outer", QualifiedName: "p.outer", Language: "go", Kind: "func", StartLine: 2, EndLine: 4},
+			{StableKey: "inner", CanonicalIdentity: "go:inner", FileKey: "f", Name: "inner", QualifiedName: "p.inner", Language: "go", Kind: "func", StartLine: 2, EndLine: 3},
+		},
+	}
+	snap, err := hotsnapshot.BuildGraphSnapshot(rows, 1, time.Now(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := newEvidenceSource(snap)
+	for _, tc := range []struct {
+		name, qualified string
+		end             uint32
+	}{{"outer", "p.outer", 4}, {"inner", "p.inner", 3}} {
+		row := ReferenceSummary{Repository: "r", FilePath: "p.go", QualifiedName: tc.qualified, StartLine: 2, EndLine: tc.end}
+		got, err := source.preview(t.Context(), row)
+		if err != nil || got.QualifiedName != tc.qualified || got.ShownEndLine != tc.end {
+			t.Fatalf("%s preview = %+v, %v", tc.name, got, err)
+		}
+	}
+	if _, err := source.preview(t.Context(), ReferenceSummary{Repository: "r", FilePath: "p.go", QualifiedName: "p.outer", StartLine: 2, EndLine: 3}); err == nil {
+		t.Fatal("a row whose range names no callable was attached to a neighbour")
 	}
 }
 
@@ -93,7 +128,7 @@ func TestCanceledEvidenceDoesNotReadSource(t *testing.T) {
 	if !accessTime().Equal(before) {
 		t.Fatal("canceled definition read the source file")
 	}
-	row := ReferenceSummary{Repository: "alpha", FilePath: "set.go", StartLine: 5}
+	row := ReferenceSummary{Repository: "alpha", FilePath: "set.go", QualifiedName: "pkg.Merge", StartLine: 4, EndLine: 6}
 	_, err := newEvidenceSource(snap).preview(ctx, row)
 	if !accessTime().Equal(before) {
 		t.Fatal("canceled caller preview read the source file")
@@ -133,7 +168,7 @@ func TestReferencePreviewWholeCallableByteBoundary(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			p, err := newEvidenceSource(snap).preview(t.Context(), ReferenceSummary{Repository: "r", FilePath: "p.go", StartLine: 8})
+			p, err := newEvidenceSource(snap).preview(t.Context(), ReferenceSummary{Repository: "r", FilePath: "p.go", QualifiedName: "p.caller", StartLine: 2, EndLine: 14})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -141,7 +176,7 @@ func TestReferencePreviewWholeCallableByteBoundary(t *testing.T) {
 				if p.Code != body || p.ShownStartLine != 2 || p.ShownEndLine != 14 || p.CallableStartLine != 0 || p.CallableEndLine != 0 {
 					t.Fatalf("whole callable not served at byte cap: %+v", p)
 				}
-			} else if p.Code != strings.Join(lines[2:11], "\n") || p.ShownStartLine != 4 || p.ShownEndLine != 12 || p.CallableStartLine != 2 || p.CallableEndLine != 14 {
+			} else if p.Code != strings.Join(lines[:5], "\n") || p.ShownStartLine != 2 || p.ShownEndLine != 6 || p.CallableStartLine != 2 || p.CallableEndLine != 14 {
 				t.Fatalf("oversized callable not identified as partial: %+v", p)
 			}
 			store := hotsnapshot.NewSnapshotStore(snap)
