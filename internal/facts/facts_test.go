@@ -233,6 +233,42 @@ func TestValidateRejectsASymbolWithTwoDefiners(t *testing.T) {
 	}
 }
 
+// TestValidateNamesWhereAnEdgeWithAnUnknownTargetWasObserved keeps the error
+// of a dangling edge readable. The key of the missing symbol is base32 that is
+// in no source file, so the message has to carry what can be opened: the
+// symbol the edge leaves from and the line that holds its evidence.
+func TestValidateNamesWhereAnEdgeWithAnUnknownTargetWasObserved(t *testing.T) {
+	repository := Repository{Key: "repo:acme", Name: "acme", RootPath: "/repos/acme", Languages: []Language{LanguageGo}}
+	pkg := Package{Key: "pkg:acme:widgets", RepositoryKey: repository.Key, Language: LanguageGo, Name: "widgets", RootPath: "/repos/acme/widgets"}
+	file := File{Key: "file:acme:a.go", RepositoryKey: repository.Key, PackageKey: pkg.Key, Path: "widgets/a.go", Language: LanguageGo}
+	symbol := Symbol{
+		Key: "sym:acme:widgets.Caller", CanonicalIdentity: "acme/widgets.Caller",
+		RepositoryKey: repository.Key, PackageKey: pkg.Key, FileKey: file.Key,
+		Language: LanguageGo, Name: "Caller", QualifiedName: "widgets.Caller", Kind: "func",
+	}
+	evidence := Evidence{Key: "evidence:1", RepositoryKey: repository.Key, FileKey: file.Key, Start: Position{Line: 12, Column: 4}}
+	set := Set{
+		Repositories: []Repository{repository},
+		Packages:     []Package{pkg},
+		Files:        []File{file},
+		Symbols:      []Symbol{symbol},
+		Evidence:     []Evidence{evidence},
+		Edges: []Edge{
+			{Kind: Defines, SourceKey: file.Key, TargetKey: symbol.Key, Confidence: StructuralCertain, Provenance: GoTypesDefinition},
+			{Kind: References, SourceKey: symbol.Key, TargetKey: "sym:elsewhere", Confidence: ExactTypechecked, Provenance: GoTypesUse, EvidenceKey: evidence.Key},
+		},
+	}
+	err := set.Validate()
+	if err == nil {
+		t.Fatal("Validate() error = nil, want the dangling edge rejected")
+	}
+	for _, named := range []string{"sym:elsewhere", "source widgets.Caller", "widgets/a.go:12:5"} {
+		if !strings.Contains(err.Error(), named) {
+			t.Fatalf("Validate() error = %v, want it to name %q", err, named)
+		}
+	}
+}
+
 // TestValidateRejectsAFileUnderTwoPackages is the CONTAINS_FILE counterpart of
 // the test above. A file has one container; two payloads that both claim it
 // merge into one File and two edges, and LadybugDB refuses the second with a

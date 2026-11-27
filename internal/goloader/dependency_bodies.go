@@ -117,6 +117,11 @@ func (stripper *bodyStripper) touches(roots []*packages.Package) bool {
 // forgive removes, from the dependencies, the unused-import errors the missing
 // bodies cause. Any other error of a dependency stays: only an error in a file
 // that lost its bodies, saying exactly this, is the stripping's doing.
+//
+// Which file an error is in is read from the checker's own position, without
+// `//line` directives. A generated parser reports under the .y file its
+// directives name, and a directive can just as well name another real file of
+// the package: the name in the message proves nothing about who lost bodies.
 func (stripper *bodyStripper) forgive(roots []*packages.Package) {
 	isRoot := make(map[*packages.Package]struct{}, len(roots))
 	for _, root := range roots {
@@ -128,7 +133,7 @@ func (stripper *bodyStripper) forgive(roots []*packages.Package) {
 		}
 		kept := loaded.Errors[:0]
 		for _, failure := range loaded.Errors {
-			if failure.Kind == packages.TypeError && unusedImport.MatchString(failure.Msg) && stripper.lostBodies(failure.Pos) {
+			if failure.Kind == packages.TypeError && unusedImport.MatchString(failure.Msg) && stripper.lostBodies(loaded, failure) {
 				continue
 			}
 			kept = append(kept, failure)
@@ -143,9 +148,19 @@ func (stripper *bodyStripper) forgive(roots []*packages.Package) {
 	})
 }
 
-// lostBodies says whether the position, `file:line:column`, is in a file whose
-// bodies were dropped.
-func (stripper *bodyStripper) lostBodies(position string) bool {
+// lostBodies says whether the unused import was reported in a file whose bodies
+// were dropped. The physical file comes from the checker's error that the
+// failure was made from; a failure with no such error, which only a hand-made
+// package is, is judged by the position it prints.
+func (stripper *bodyStripper) lostBodies(loaded *packages.Package, failure packages.Error) bool {
+	for _, reported := range loaded.TypeErrors {
+		if reported.Msg != failure.Msg || reported.Fset == nil || reported.Fset.Position(reported.Pos).String() != failure.Pos {
+			continue
+		}
+		_, stripped := stripper.stripped.Load(reported.Fset.PositionFor(reported.Pos, false).Filename)
+		return stripped
+	}
+	position := failure.Pos
 	for range 2 {
 		index := strings.LastIndexByte(position, ':')
 		if index < 0 {

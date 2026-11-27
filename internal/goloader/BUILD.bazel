@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "crossrepo.go",
         "definitions.go",
+        "field_owners.go",
         "inspect.go",
         "loader.go",
         "methods.go",
