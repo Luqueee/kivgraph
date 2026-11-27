@@ -105,6 +105,44 @@ func main() { println(dep.Describe(1)) }
 	}
 }
 
+// TestLoadKeepsAnUnusedImportOfAFileTheDirectivesNameButNeverStripped is the
+// other side of the test above. The generated parser names `types.go` in its
+// `//line` directive, and `types.go` is a real file that holds no function, so
+// it lost nothing: an unused import there is the dependency's own error, and
+// the name in the message must not make it look like the stripping's.
+func TestLoadKeepsAnUnusedImportOfAFileTheDirectivesNameButNeverStripped(t *testing.T) {
+	root := testsupport.TempDir(t)
+	main := filepath.Join(root, "main")
+	dependency := filepath.Join(root, "dep")
+	writeFiles(t, dependency, map[string]string{
+		"go.mod": "module example.com/dep\n\ngo 1.24\n",
+		"parser.go": `package dep
+
+//line types.go:1
+import __yyfmt__ "fmt"
+
+func Describe(value int) string { return __yyfmt__.Sprint(value) }
+`,
+		"types.go": "package dep\n\nimport \"os\"\n",
+	})
+	writeFiles(t, main, map[string]string{
+		"go.mod": "module example.com/main\n\ngo 1.24\n\nrequire example.com/dep v0.0.0\n\nreplace example.com/dep => ../dep\n",
+		"main.go": `package main
+
+import "example.com/dep"
+
+func main() { println(dep.Describe(1)) }
+`,
+	})
+	result, err := Load(context.Background(), Options{Directory: main})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if len(result.Errors) != 1 || result.Errors[0].Message != `"os" imported and not used` {
+		t.Fatalf("errors = %#v, want only the unused os import of types.go", result.Errors)
+	}
+}
+
 // TestLoadKeepsTheBodiesOfARootOutsideTheLoadDirectory is the guard of the
 // stripping: a file is a dependency's because it is outside the directory, and a
 // root can be outside it. Such a load is done again whole, and what is returned

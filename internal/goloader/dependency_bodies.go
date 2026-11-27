@@ -29,10 +29,6 @@ import (
 type bodyStripper struct {
 	directories []string
 	stripped    sync.Map
-	// remapped holds the names a stripped file gives its own lines through
-	// `//line` directives. A generated parser reports its errors under the .y
-	// file it came from, not under the .go file that lost its bodies.
-	remapped sync.Map
 }
 
 func newBodyStripper(directory string) *bodyStripper {
@@ -60,53 +56,7 @@ func (stripper *bodyStripper) parse(fileSet *token.FileSet, filename string, sou
 			stripper.stripped.Store(filename, struct{}{})
 		}
 	}
-	if _, lost := stripper.stripped.Load(filename); lost {
-		for _, name := range lineDirectiveFiles(file, filename) {
-			stripper.remapped.Store(name, struct{}{})
-		}
-	}
 	return file, err
-}
-
-// lineDirectiveFiles lists the file names the `//line filename:line[:column]`
-// directives of a file give its positions, as the checker spells them: a
-// relative name is relative to the directory of the file.
-func lineDirectiveFiles(file *ast.File, filename string) []string {
-	var names []string
-	for _, group := range file.Comments {
-		for _, comment := range group.List {
-			directive, isLine := strings.CutPrefix(comment.Text, "//line ")
-			if !isLine {
-				continue
-			}
-			name := directive
-			for range 2 {
-				if index := strings.LastIndexByte(name, ':'); index >= 0 && isDigits(name[index+1:]) {
-					name = name[:index]
-				}
-			}
-			if name == "" || name == directive {
-				continue
-			}
-			if !filepath.IsAbs(name) {
-				name = filepath.Join(filepath.Dir(filename), name)
-			}
-			names = append(names, filepath.Clean(name))
-		}
-	}
-	return names
-}
-
-func isDigits(text string) bool {
-	if text == "" {
-		return false
-	}
-	for _, character := range text {
-		if character < '0' || character > '9' {
-			return false
-		}
-	}
-	return true
 }
 
 func (stripper *bodyStripper) keeps(filename string) bool {
@@ -167,6 +117,11 @@ func (stripper *bodyStripper) touches(roots []*packages.Package) bool {
 // forgive removes, from the dependencies, the unused-import errors the missing
 // bodies cause. Any other error of a dependency stays: only an error in a file
 // that lost its bodies, saying exactly this, is the stripping's doing.
+//
+// Which file an error is in is read from the checker's own position, without
+// `//line` directives. A generated parser reports under the .y file its
+// directives name, and a directive can just as well name another real file of
+// the package: the name in the message proves nothing about who lost bodies.
 func (stripper *bodyStripper) forgive(roots []*packages.Package) {
 	isRoot := make(map[*packages.Package]struct{}, len(roots))
 	for _, root := range roots {
@@ -178,7 +133,7 @@ func (stripper *bodyStripper) forgive(roots []*packages.Package) {
 		}
 		kept := loaded.Errors[:0]
 		for _, failure := range loaded.Errors {
-			if failure.Kind == packages.TypeError && unusedImport.MatchString(failure.Msg) && stripper.lostBodies(failure.Pos) {
+			if failure.Kind == packages.TypeError && unusedImport.MatchString(failure.Msg) && stripper.lostBodies(loaded, failure) {
 				continue
 			}
 			kept = append(kept, failure)
@@ -193,31 +148,28 @@ func (stripper *bodyStripper) forgive(roots []*packages.Package) {
 	})
 }
 
-// lostBodies says whether the position, `file:line:column` or `file:line`, is
-// in a file whose bodies were dropped, or in a file such a file names with a
-// `//line` directive.
-func (stripper *bodyStripper) lostBodies(position string) bool {
-	for segments := 2; segments > 0; segments-- {
-		name := position
-		for range segments {
-			index := strings.LastIndexByte(name, ':')
-			if index < 0 {
-				name = ""
-				break
-			}
-			name = name[:index]
-		}
-		if name == "" {
+// lostBodies says whether the unused import was reported in a file whose bodies
+// were dropped. The physical file comes from the checker's error that the
+// failure was made from; a failure with no such error, which only a hand-made
+// package is, is judged by the position it prints.
+func (stripper *bodyStripper) lostBodies(loaded *packages.Package, failure packages.Error) bool {
+	for _, reported := range loaded.TypeErrors {
+		if reported.Msg != failure.Msg || reported.Fset == nil || reported.Fset.Position(reported.Pos).String() != failure.Pos {
 			continue
 		}
-		if _, stripped := stripper.stripped.Load(name); stripped {
-			return true
-		}
-		if _, named := stripper.remapped.Load(name); named {
-			return true
-		}
+		_, stripped := stripper.stripped.Load(reported.Fset.PositionFor(reported.Pos, false).Filename)
+		return stripped
 	}
-	return false
+	position := failure.Pos
+	for range 2 {
+		index := strings.LastIndexByte(position, ':')
+		if index < 0 {
+			return false
+		}
+		position = position[:index]
+	}
+	_, stripped := stripper.stripped.Load(position)
+	return stripped
 }
 
 // allAdvisories says whether every error is the toolchain-skew advisory, which
