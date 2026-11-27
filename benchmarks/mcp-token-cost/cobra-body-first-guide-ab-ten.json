@@ -1,0 +1,4874 @@
+{
+  "design": "Two independent before/after comparisons, ten fresh matched pairs per question. Within each question old first on odd blocks, new first on even blocks. No replacements. Results are model-session time, excluding process launch and indexing. Not a new grep comparison. The correct field grades only the three oracle facts (0 on global 0; empty when global 1 and program variable unset; root command name); it does not verify other claims or citations. Old block 6 answers all three oracle facts and is graded correct on that basis, but also claims that an empty global setting turns help off, which is false: completions.go:257 disables output only for \"0\".",
+  "question": "GetActiveHelpConfig",
+  "revision": "88b30ab89da2d0d0abb153818746c5a2d30eccec",
+  "model": "anthropic/claude-haiku-5-5",
+  "thinking": "low",
+  "old_binary_sha256": "dfb033b7ff3d2bdd36f7cd32fcfd29eb4d08fb05c5138696be6c20aa3251c596",
+  "new_binary_sha256": "dfb033b7ff3d2bdd36f7cd32fcfd29eb4d08fb05c5138696be6c20aa3251c596",
+  "schema_delta": {},
+  "prompts": {
+    "old": "Answer the maintainer question using source evidence. Use only the mounted bench MCP tools find_symbol, find_references and get_source on repository cobra. No other tools, web or edits. Cite file and lines. Starting symbol: GetActiveHelpConfig.\nA subcommand runs with COBRA_ACTIVE_HELP=0 and the program-specific variable set to 1. What value does GetActiveHelpConfig return? What changes if the global value is 1 and the program-specific variable is unset? Explain whose command name determines the variable.\n\nFor a known symbol's callers, start with `find_references` alone. If the\nquestion asks what the callers do, set `include_evidence: true`: it can return\nboth caller code and the subject definition. Use `find_symbol` only if the\nselector fails. Open another body only for a requested fact the returned code\ndoes not establish.\n\nWhen a known function's behavior depends on helpers or constants, start with\n`find_references` on its name with `direction: \"outgoing\"`. Read the function\nand the dependencies needed for the answer in one `get_source` batch, using\ntheir returned paths rather than assuming they share a file. Follow a helper's\noutgoing references only if the requested behavior is still unclear.\n\nStart with two parallel `find_references` calls in the first turn when a Go\ncaller question names both a package function and a method with its receiver.\nUse `qualified_name` for each: the function name alone and `Receiver.Method`.\nDo not run `find_symbol` first. Use it only if a selector cannot be resolved;\nif it is ambiguous, use the returned candidates to narrow it rather than guess.\n\nCall the tool directly without narrating the query. In the final answer,\ngive each requested fact with its source citation.",
+    "new": "Answer the maintainer question using source evidence. Use only the mounted bench MCP tools find_symbol, find_references and get_source on repository cobra. No other tools, web or edits. Cite file and lines. Starting symbol: GetActiveHelpConfig.\nA subcommand runs with COBRA_ACTIVE_HELP=0 and the program-specific variable set to 1. What value does GetActiveHelpConfig return? What changes if the global value is 1 and the program-specific variable is unset? Explain whose command name determines the variable.\n\nFor a known symbol's callers, start with `find_references` alone. If the\nquestion asks what the callers do, set `include_evidence: true`: it can return\nboth caller code and the subject definition. Use `find_symbol` only if the\nselector fails. Open another body only for a requested fact the returned code\ndoes not establish.\n\nTo explain a known function's behavior, start with `get_source` using its\n`repository` and `qualified_name`; omit `path` unless you know it. Read the\nbody before looking up dependencies. If a requested fact still depends on a\nconstant or helper, batch only the declarations needed in one `get_source`.\nUse `find_references` with `direction: \"outgoing\"` only to locate a dependency\nyou still need. Do not trace how a helper works if its implementation cannot\nchange the answer.\n\nStart with two parallel `find_references` calls in the first turn when a Go\ncaller question names both a package function and a method with its receiver.\nUse `qualified_name` for each: the function name alone and `Receiver.Method`.\nDo not run `find_symbol` first. Use it only if a selector cannot be resolved;\nif it is ambiguous, use the returned candidates to narrow it rather than guess.\n\nCall the tool directly without narrating the query. In the final answer,\ngive each requested fact with its source citation."
+  },
+  "order": [
+    "cobra-control-1-old",
+    "cobra-control-1-new",
+    "cobra-control-2-new",
+    "cobra-control-2-old",
+    "cobra-control-3-old",
+    "cobra-control-3-new",
+    "cobra-control-4-new",
+    "cobra-control-4-old",
+    "cobra-control-5-old",
+    "cobra-control-5-new",
+    "cobra-control-6-new",
+    "cobra-control-6-old",
+    "cobra-control-7-old",
+    "cobra-control-7-new",
+    "cobra-control-8-new",
+    "cobra-control-8-old",
+    "cobra-control-9-old",
+    "cobra-control-9-new",
+    "cobra-control-10-new",
+    "cobra-control-10-old"
+  ],
+  "oracle": "0 on global 0; empty when global 1 and program variable unset; root command name",
+  "summary": {
+    "old": {
+      "sessions": 10,
+      "correct": 10,
+      "seconds": 192.395,
+      "tokens": 2611835,
+      "usd": 0.055037,
+      "turns": 56,
+      "calls": 60,
+      "off_protocol": 1,
+      "server_rejects": 7,
+      "outgoing_first": 5,
+      "wrong_active_help_path": 3,
+      "get_source_first": 0,
+      "outgoing_with_evidence": 2,
+      "outgoing_sessions": 10,
+      "invalid_combo_sessions": 2
+    },
+    "new": {
+      "sessions": 10,
+      "correct": 10,
+      "seconds": 144.639,
+      "tokens": 1954663,
+      "usd": 0.041393,
+      "turns": 43,
+      "calls": 33,
+      "off_protocol": 0,
+      "server_rejects": 0,
+      "outgoing_first": 0,
+      "wrong_active_help_path": 0,
+      "get_source_first": 10,
+      "outgoing_with_evidence": 0,
+      "outgoing_sessions": 0,
+      "invalid_combo_sessions": 0
+    }
+  },
+  "faster_new_pairs": 7,
+  "off_protocol_pairs": [
+    9
+  ],
+  "clean_summary": {
+    "old": {
+      "sessions": 9,
+      "correct": 9,
+      "seconds": 166.242,
+      "tokens": 2271605,
+      "usd": 0.047672,
+      "turns": 49,
+      "calls": 51,
+      "off_protocol": 0,
+      "server_rejects": 5,
+      "outgoing_first": 5,
+      "wrong_active_help_path": 2,
+      "get_source_first": 0,
+      "outgoing_with_evidence": 1,
+      "outgoing_sessions": 9,
+      "invalid_combo_sessions": 1
+    },
+    "new": {
+      "sessions": 9,
+      "correct": 9,
+      "seconds": 127.645,
+      "tokens": 1726478,
+      "usd": 0.036793,
+      "turns": 38,
+      "calls": 29,
+      "off_protocol": 0,
+      "server_rejects": 0,
+      "outgoing_first": 0,
+      "wrong_active_help_path": 0,
+      "get_source_first": 9,
+      "outgoing_with_evidence": 0,
+      "outgoing_sessions": 0,
+      "invalid_combo_sessions": 0
+    }
+  },
+  "sessions": [
+    {
+      "arm": "old",
+      "model": "claude-haiku-5-5",
+      "turns": 5,
+      "tokens": 230173,
+      "usage": {
+        "input": 12,
+        "cacheRead": 220497,
+        "cacheWrite": 7015,
+        "output": 2649
+      },
+      "usd": 0.00493367,
+      "wall_s": 15.727,
+      "rpc": [
+        {
+          "initialize": 26429
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "repository": "cobra",
+            "direction": "outgoing"
+          },
+          "pid": 26435
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":9,\"total\":6,\"returned\":6,\"coverage\":{\"exact\":6},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "GetActiveHelpConfig"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "path": "command.go",
+                "qualified_name": "Command.Root"
+              },
+              {
+                "repository": "cobra",
+                "path": "command.go",
+                "qualified_name": "Command.Name"
+              }
+            ],
+            "context_lines": 0
+          },
+          "pid": 26435
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  6 bodies  context 0\n@ cobra active_help.go:47-53 func GetActiveHelpConfig\nfunc"
+        },
+        {
+          "call": "find_symbol",
+          "args": {
+            "name": "configEnvVar",
+            "repo": "cobra"
+          },
+          "pid": 26435
+        },
+        {
+          "call": "find_symbol",
+          "args": {
+            "name": "activeHelpEnvVarSuffix",
+            "repo": "cobra"
+          },
+          "pid": 26435
+        },
+        {
+          "call": "find_symbol",
+          "args": {
+            "name": "configEnvVarGlobalPrefix",
+            "repo": "cobra"
+          },
+          "pid": 26435
+        },
+        {
+          "reply": "find_symbol",
+          "error": null,
+          "preview": "{\"snapshot_id\":9,\"total\":1,\"returned\":1,\"results\":{\"name\":\"configEnvVarGlobalPrefix\",\"kind"
+        },
+        {
+          "reply": "find_symbol",
+          "error": null,
+          "preview": "{\"snapshot_id\":9,\"total\":1,\"returned\":1,\"results\":{\"name\":\"activeHelpEnvVarSuffix\",\"kind\":"
+        },
+        {
+          "reply": "find_symbol",
+          "error": null,
+          "preview": "{\"snapshot_id\":9,\"total\":1,\"returned\":1,\"results\":{\"name\":\"configEnvVar\",\"kind\":\"func\",\"ex"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              }
+            ],
+            "context_lines": 0
+          },
+          "pid": 26435
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  3 bodies  context 0\n@ cobra completions.go:1002-1007 func configEnvVar\nfunc co"
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "repository": "cobra",
+            "direction": "outgoing"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "GetActiveHelpConfig"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "path": "command.go",
+                "qualified_name": "Command.Root"
+              },
+              {
+                "repository": "cobra",
+                "path": "command.go",
+                "qualified_name": "Command.Name"
+              }
+            ],
+            "context_lines": 0
+          }
+        },
+        {
+          "tool": "mcp__bench_find_symbol",
+          "args": {
+            "name": "configEnvVar",
+            "repo": "cobra"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_symbol",
+          "args": {
+            "name": "activeHelpEnvVarSuffix",
+            "repo": "cobra"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_symbol",
+          "args": {
+            "name": "configEnvVarGlobalPrefix",
+            "repo": "cobra"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              }
+            ],
+            "context_lines": 0
+          }
+        }
+      ],
+      "answer": "**Result: `GetActiveHelpConfig` returns `\"0\"` in your first case.** The program-specific variable is never read.\n\n**Source**\n- `GetActiveHelpConfig` (`active_help.go:47-53`):\n  ```go\n  activeHelpCfg := os.Getenv(activeHelpGlobalEnvVar)\n  if activeHelpCfg != activeHelpGlobalDisable {\n      activeHelpCfg = os.Getenv(activeHelpEnvVar(cmd.Root().Name()))\n  }\n  return activeHelpCfg\n  ```\n- `activeHelpGlobalEnvVar` = `configEnvVarGlobalPrefix + \"_\" + activeHelpEnvVarSuffix` = `\"COBRA_ACTIVE_HELP\"` (`active_help.go:27`; `configEnvVarGlobalPrefix = \"COBRA\"` at `completions.go:993`; `activeHelpEnvVarSuffix = \"ACTIVE_HELP\"` at `active_help.go:26`).\n- `activeHelpGlobalDisable = \"0\"` (`active_help.go:28`).\n- `activeHelpEnvVar(name)` → `configEnvVar(name, \"ACTIVE_HELP\")` (`active_help.go:58-60`).\n- `configEnvVar` uppercases `name_suffix` and applies `configEnvVarPrefixSubstRegexp` (`completions.go:1002-1007`). I did not read that regexp's definition, so the exact character substitution is unverified; the uppercase-and-join step is confirmed.\n\n**Case 1: `COBRA_ACTIVE_HELP=0`, program variable `=1`**\nThe global value equals `\"0\"`, so the `if` is false and the program variable is never read. Returns `\"0\"`.\n\n**Case 2: `COBRA_ACTIVE_HELP=1`, program variable unset**\nThe global value `\"1\"` is not `\"0\"`, so the code reads the program variable. `os.Getenv` returns `\"\"` when unset, so the function returns `\"\"`. The global `1` is not returned; it only causes the program-specific lookup, and a missing program variable yields an empty result.\n\n**Whose name determines the variable**\nThe root command's name, not the subcommand's: `cmd.Root().Name()` (`active_help.go:50`). `Root()` walks parents until it reaches a command with no parent (`command.go:892-897`). `Name()` is the first word of `Use` (`command.go:1541-1548`). So `PROG` comes from the root's `Use`, e.g. `Use: \"mytool\"` gives `MYTOOL_ACTIVE_HELP`, and every subcommand reads that same variable.",
+      "corpus": "cobra",
+      "question_set": "control",
+      "block": 1,
+      "other_tools": [],
+      "rpc_calls": 6,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_find_symbol",
+          "bench_find_symbol",
+          "bench_find_symbol"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 1325,
+      "final_output": 1324,
+      "post_s": 10.747048625000001,
+      "ttft_s": 4.936951374999999,
+      "call_text_chars": 0,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "new",
+      "model": "claude-haiku-5-5",
+      "turns": 4,
+      "tokens": 182459,
+      "usage": {
+        "input": 10,
+        "cacheRead": 173953,
+        "cacheWrite": 6181,
+        "output": 2315
+      },
+      "usd": 0.004134230000000001,
+      "wall_s": 13.7,
+      "rpc": [
+        {
+          "initialize": 26937
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "GetActiveHelpConfig"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 26967
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  1 bodies  context 0\n@ cobra active_help.go:47-53 func GetActiveHelpConfig 5AUC"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVar"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 26967
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  3 bodies  context 0\n@ cobra active_help.go:27-27 const activeHelpGlobalEnvVar "
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVar"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 26967
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  3 bodies  context 0\n@ cobra completions.go:993-993 const configEnvVarGlobalPre"
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "GetActiveHelpConfig"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVar"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVar"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        }
+      ],
+      "answer": "**Answers**\n\n1. **Global `COBRA_ACTIVE_HELP=0`, program variable `=1`: returns `\"0\"`.** `GetActiveHelpConfig` reads the global value first. It equals `activeHelpGlobalDisable` (`\"0\"`), so the `if` is false, the program-specific variable is never read, and `\"0\"` is returned. The `1` is ignored. (`active_help.go:47-53`, `active_help.go:27-28`)\n\n2. **Global `COBRA_ACTIVE_HELP=1`, program variable unset: returns `\"\"`.** `\"1\" != \"0\"`, so the function reads `os.Getenv(activeHelpEnvVar(cmd.Root().Name()))`. That variable is unset, so the result is the empty string. The global value does not return itself. Whether an empty string means \"active help off\" is decided by the caller; I did not read the callers, so that part is unverified. (`active_help.go:47-53`)\n\n3. **Whose name determines the variable: the root command's name.** `cmd.Root().Name()` is used, not the running subcommand's name. `activeHelpEnvVar(name)` calls `configEnvVar(name, \"ACTIVE_HELP\")` (`active_help.go:58-60`). `configEnvVar` builds `strings.ToUpper(name + \"_\" + suffix)`, then applies `configEnvVarPrefixSubstRegexp` (`completions.go:1002-1007`). For a root command named `mycli`, the variable is `MYCLI_ACTIVE_HELP`. I did not read that regexp, so the exact handling of characters other than letters and digits is unverified.\n\n**Constants:** `activeHelpGlobalEnvVar` = `COBRA` + `_` + `ACTIVE_HELP` = `COBRA_ACTIVE_HELP` (`active_help.go:27`; `configEnvVarGlobalPrefix = \"COBRA\"` at `completions.go:993`; suffix `\"ACTIVE_HELP\"` at `active_help.go:26`). `activeHelpGlobalDisable` = `\"0\"` (`active_help.go:28`).",
+      "corpus": "cobra",
+      "question_set": "control",
+      "block": 1,
+      "other_tools": [],
+      "rpc_calls": 3,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 1041,
+      "final_output": 1274,
+      "post_s": 10.220794082,
+      "ttft_s": 3.430205918000001,
+      "call_text_chars": 422,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "new",
+      "model": "claude-haiku-5-5",
+      "turns": 5,
+      "tokens": 228019,
+      "usage": {
+        "input": 12,
+        "cacheRead": 219454,
+        "cacheWrite": 6288,
+        "output": 2265
+      },
+      "usd": 0.00458584,
+      "wall_s": 18.011,
+      "rpc": [
+        {
+          "initialize": 27394
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "GetActiveHelpConfig"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 27419
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  1 bodies  context 0\n@ cobra active_help.go:47-53 func GetActiveHelpConfig 5AUC"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVar"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 27419
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  3 bodies  context 0\n@ cobra active_help.go:27-27 const activeHelpGlobalEnvVar "
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVar"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 27419
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  3 bodies  context 0\n@ cobra completions.go:993-993 const configEnvVarGlobalPre"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVarPrefixSubstRegexp"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 27419
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  1 bodies  context 0\n@ cobra completions.go:997-997 var configEnvVarPrefixSubst"
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "GetActiveHelpConfig"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVar"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVar"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVarPrefixSubstRegexp"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        }
+      ],
+      "answer": "**Answers**\n\n1. **Global `COBRA_ACTIVE_HELP=0`, program variable `=1`: returns `\"0\"`.** `GetActiveHelpConfig` reads the global value first. It equals `activeHelpGlobalDisable` (`\"0\"`), so the `if` at `active_help.go:49` is skipped and the program-specific value is never read. The function returns `\"0\"`. (`active_help.go:47-53`, `active_help.go:28`)\n\n2. **Global `COBRA_ACTIVE_HELP=1`, program variable unset: returns `\"\"`.** The global value `\"1\"` is not `\"0\"`, so the `if` at `active_help.go:49` runs and replaces the value with `os.Getenv(<program var>)`. An unset variable yields the empty string. The global value is never returned; it only decides whether the program-specific variable is consulted. (`active_help.go:48-51`)\n\n3. **Whose name:** the root command's name, `cmd.Root().Name()`, at `active_help.go:50`. A subcommand's own name is not used. The name goes through `activeHelpEnvVar` → `configEnvVar(name, \"ACTIVE_HELP\")` (`active_help.go:58-60`). `configEnvVar` uppercases `<name>_ACTIVE_HELP` and replaces every character outside `[A-Z0-9_]` with `_` (`completions.go:1002-1007`, regex at `completions.go:997`). The global prefix is the constant `\"COBRA\"` (`completions.go:993`), so the global variable is `COBRA_ACTIVE_HELP` (`active_help.go:27`). For example, a root named `cobra-control-2` maps to `COBRA_CONTROL_2_ACTIVE_HELP`.",
+      "corpus": "cobra",
+      "question_set": "control",
+      "block": 2,
+      "other_tools": [],
+      "rpc_calls": 4,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 1028,
+      "final_output": 1237,
+      "post_s": 13.016810582000002,
+      "ttft_s": 4.926189417999997,
+      "call_text_chars": 0,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "old",
+      "model": "claude-haiku-5-5",
+      "turns": 7,
+      "tokens": 318858,
+      "usage": {
+        "input": 16,
+        "cacheRead": 309469,
+        "cacheWrite": 6862,
+        "output": 2511
+      },
+      "usd": 0.0057241900000000005,
+      "wall_s": 17.283,
+      "rpc": [
+        {
+          "initialize": 27975
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_symbol",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "repo": "cobra"
+          },
+          "pid": 27982
+        },
+        {
+          "reply": "find_symbol",
+          "error": null,
+          "preview": "{\"snapshot_id\":9,\"total\":1,\"returned\":1,\"results\":{\"name\":\"GetActiveHelpConfig\",\"kind\":\"fu"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "GetActiveHelpConfig"
+              }
+            ],
+            "context_lines": 0
+          },
+          "pid": 27982
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  1 bodies  context 0\n@ cobra active_help.go:47-53 func GetActiveHelpConfig\nfunc"
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "repo": "cobra",
+            "direction": "outgoing"
+          },
+          "pid": 27982
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":9,\"total\":6,\"returned\":6,\"coverage\":{\"exact\":6},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "path": "command.go",
+                "qualified_name": "Command.Root"
+              }
+            ],
+            "context_lines": 0
+          },
+          "pid": 27982
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  4 bodies  context 0\n@ cobra active_help.go:58-60 func activeHelpEnvVar\nfunc ac"
+        },
+        {
+          "call": "find_symbol",
+          "args": {
+            "name": "configEnvVar",
+            "repo": "cobra"
+          },
+          "pid": 27982
+        },
+        {
+          "call": "find_symbol",
+          "args": {
+            "name": "configEnvVarGlobalPrefix",
+            "repo": "cobra"
+          },
+          "pid": 27982
+        },
+        {
+          "call": "find_symbol",
+          "args": {
+            "name": "activeHelpEnvVarSuffix",
+            "repo": "cobra"
+          },
+          "pid": 27982
+        },
+        {
+          "reply": "find_symbol",
+          "error": null,
+          "preview": "{\"snapshot_id\":9,\"total\":1,\"returned\":1,\"results\":{\"name\":\"configEnvVar\",\"kind\":\"func\",\"ex"
+        },
+        {
+          "reply": "find_symbol",
+          "error": null,
+          "preview": "{\"snapshot_id\":9,\"total\":1,\"returned\":1,\"results\":{\"name\":\"configEnvVarGlobalPrefix\",\"kind"
+        },
+        {
+          "reply": "find_symbol",
+          "error": null,
+          "preview": "{\"snapshot_id\":9,\"total\":1,\"returned\":1,\"results\":{\"name\":\"activeHelpEnvVarSuffix\",\"kind\":"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              }
+            ],
+            "context_lines": 0
+          },
+          "pid": 27982
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  3 bodies  context 0\n@ cobra completions.go:1002-1007 func configEnvVar\nfunc co"
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_symbol",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "repo": "cobra"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "GetActiveHelpConfig"
+              }
+            ],
+            "context_lines": 0
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "repo": "cobra",
+            "direction": "outgoing"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "path": "command.go",
+                "qualified_name": "Command.Root"
+              }
+            ],
+            "context_lines": 0
+          }
+        },
+        {
+          "tool": "mcp__bench_find_symbol",
+          "args": {
+            "name": "configEnvVar",
+            "repo": "cobra"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_symbol",
+          "args": {
+            "name": "configEnvVarGlobalPrefix",
+            "repo": "cobra"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_symbol",
+          "args": {
+            "name": "activeHelpEnvVarSuffix",
+            "repo": "cobra"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              }
+            ],
+            "context_lines": 0
+          }
+        }
+      ],
+      "answer": "**Case 1: `COBRA_ACTIVE_HELP=0` and `<PROG>_ACTIVE_HELP=1` → returns `\"0\"`.**\n`GetActiveHelpConfig` first reads the global variable into `activeHelpCfg` (active_help.go:48). The condition `activeHelpCfg != activeHelpGlobalDisable` (active_help.go:49) is false because the global is `\"0\"` (active_help.go:28). The program-specific lookup is skipped, so the function returns `\"0\"` (active_help.go:52). The program-specific `1` is ignored.\n\n**Case 2: `COBRA_ACTIVE_HELP=1` and the program-specific variable unset → returns `\"\"`.**\nThe global value `\"1\"` is not equal to `\"0\"`, so line 50 runs `os.Getenv(activeHelpEnvVar(cmd.Root().Name()))`. That variable is unset, so the function returns the empty string (active_help.go:50, 52). The global `1` is overwritten and has no effect. Only a global value of exactly `\"0\"` acts as a switch-off that short-circuits the program-specific lookup. Any other global value, including `1`, is discarded in favour of the program-specific variable.\n\n**Whose name determines the variable: the root command's name, not the subcommand's.**\n`activeHelpEnvVar` (active_help.go:58-60) receives `cmd.Root().Name()`. `Root()` walks up parents until it reaches the command with no parent (command.go:892-897). Its name is therefore the program name. `activeHelpEnvVar` calls `configEnvVar(name, \"ACTIVE_HELP\")` (completions.go:1002-1007), which builds `strings.ToUpper(name + \"_\" + suffix)` and then applies `configEnvVarPrefixSubstRegexp`. The suffix is `\"ACTIVE_HELP\"` (active_help.go:26), and the global prefix is `\"COBRA\"` (completions.go:993), so the global variable is `COBRA_ACTIVE_HELP` (active_help.go:27).\n\nNot checked: `Command.Name()` (command.go:1541-1548) is referenced by this path but I did not open it. `configEnvVarPrefixSubstRegexp` is also unread, so the exact character substitution in the program-name portion of the variable is not verified here.",
+      "corpus": "cobra",
+      "question_set": "control",
+      "block": 2,
+      "other_tools": [],
+      "rpc_calls": 8,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_symbol"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_find_references"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_find_symbol",
+          "bench_find_symbol",
+          "bench_find_symbol"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 1158,
+      "final_output": 1353,
+      "post_s": 9.538994874,
+      "ttft_s": 7.6650051260000005,
+      "call_text_chars": 0,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "old",
+      "model": "claude-haiku-5-5",
+      "turns": 6,
+      "tokens": 277839,
+      "usage": {
+        "input": 14,
+        "cacheRead": 267681,
+        "cacheWrite": 7300,
+        "output": 2844
+      },
+      "usd": 0.00556021,
+      "wall_s": 19.459,
+      "rpc": [
+        {
+          "initialize": 28623
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "direction": "outgoing",
+            "repository": "cobra"
+          },
+          "pid": 28629
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":9,\"total\":6,\"returned\":6,\"coverage\":{\"exact\":6},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "GetActiveHelpConfig"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "path": "command.go",
+                "qualified_name": "Command.Name"
+              },
+              {
+                "repository": "cobra",
+                "path": "command.go",
+                "qualified_name": "Command.Root"
+              }
+            ]
+          },
+          "pid": 28629
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  6 bodies  context 0\n@ cobra active_help.go:47-53 func GetActiveHelpConfig\nfunc"
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "activeHelpEnvVar",
+            "direction": "outgoing",
+            "repository": "cobra"
+          },
+          "pid": 28629
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":9,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              },
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              }
+            ]
+          },
+          "pid": 28629
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  3 bodies  context 0\n@ cobra completions.go:1002-1007 func configEnvVar\nfunc co"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVarPrefixSubstRegexp"
+              }
+            ]
+          },
+          "pid": 28629
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  1 bodies  context 0\n@ cobra completions.go:997-997 var configEnvVarPrefixSubst"
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "direction": "outgoing",
+            "repository": "cobra"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "GetActiveHelpConfig"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "path": "command.go",
+                "qualified_name": "Command.Name"
+              },
+              {
+                "repository": "cobra",
+                "path": "command.go",
+                "qualified_name": "Command.Root"
+              }
+            ]
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "activeHelpEnvVar",
+            "direction": "outgoing",
+            "repository": "cobra"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              },
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              }
+            ]
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVarPrefixSubstRegexp"
+              }
+            ]
+          }
+        }
+      ],
+      "answer": "**Case 1: `COBRA_ACTIVE_HELP=0`, program variable `=1`.** `GetActiveHelpConfig` returns `\"0\"`. The global value is first read into `activeHelpCfg`. It equals `activeHelpGlobalDisable` (`\"0\"`), so the `!=` guard is false and the program-specific lookup is skipped. The program-specific `1` is ignored. (`active_help.go:47-53`, `:28`)\n\n**Case 2: global `COBRA_ACTIVE_HELP=1`, program variable unset.** It returns `\"\"`, not `\"1\"`. The global value `\"1\"` is not `\"0\"`, so the code overwrites it with `os.Getenv(activeHelpEnvVar(...))`. That variable is unset, so the result is the empty string. (`active_help.go:47-53`)\n\nSo the global variable only works as a kill switch when it is `\"0\"`. Any other value is discarded.\n\n**Whose name determines the variable:** the root command's name, not the subcommand's.\n- `cmd.Root()` walks parents until it reaches the root (`command.go:892-897`).\n- `Name()` takes `Use` up to the first space (`command.go:1541-1548`).\n- `activeHelpEnvVar(name)` calls `configEnvVar(name, \"ACTIVE_HELP\")` (`active_help.go:58-60`, `:26`).\n- `configEnvVar` builds `\"<name>_ACTIVE_HELP\"`, uppercases it, and replaces every character outside `[A-Z0-9_]` with `_` (`completions.go:1002-1007`, regex at `:997`). The global prefix is `COBRA` (`completions.go:993`).\n\nFor example, a root with `Use: \"my-app [flags]\"` reads `MY_APP_ACTIVE_HELP`, and every subcommand under it reads the same variable.",
+      "corpus": "cobra",
+      "question_set": "control",
+      "block": 3,
+      "other_tools": [],
+      "rpc_calls": 5,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_find_references"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 1648,
+      "final_output": 1196,
+      "post_s": 12.167419541000001,
+      "ttft_s": 7.229580458999999,
+      "call_text_chars": 355,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "new",
+      "model": "claude-haiku-5-5",
+      "turns": 4,
+      "tokens": 180826,
+      "usage": {
+        "input": 10,
+        "cacheRead": 173327,
+        "cacheWrite": 5502,
+        "output": 1987
+      },
+      "usd": 0.00382817,
+      "wall_s": 12.949,
+      "rpc": [
+        {
+          "initialize": 29145
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "GetActiveHelpConfig"
+              }
+            ],
+            "context_lines": 0
+          },
+          "pid": 29151
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  1 bodies  context 0\n@ cobra active_help.go:47-53 func GetActiveHelpConfig\nfunc"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVar"
+              }
+            ],
+            "context_lines": 0
+          },
+          "pid": 29151
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  3 bodies  context 0\n@ cobra active_help.go:27-27 const activeHelpGlobalEnvVar\n"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVar"
+              }
+            ],
+            "context_lines": 0
+          },
+          "pid": 29151
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  3 bodies  context 0\n@ cobra completions.go:993-993 const configEnvVarGlobalPre"
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "GetActiveHelpConfig"
+              }
+            ],
+            "context_lines": 0
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVar"
+              }
+            ],
+            "context_lines": 0
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVar"
+              }
+            ],
+            "context_lines": 0
+          }
+        }
+      ],
+      "answer": "**Answers**\n\n1. **Subcommand run with `COBRA_ACTIVE_HELP=0` and `<PROGRAM>_ACTIVE_HELP=1`: returns `\"0\"`.** The global value `\"0\"` equals `activeHelpGlobalDisable`, so the `if` at `active_help.go:49` is false and the program-specific lookup is skipped. The function returns the global value. (`active_help.go:47-53`, `:28`)\n\n2. **Global `COBRA_ACTIVE_HELP=1` and program variable unset: returns `\"\"`.** `\"1\"` is not `\"0\"`, so the `if` at `active_help.go:49` is true and `activeHelpCfg` is overwritten with `os.Getenv(activeHelpEnvVar(cmd.Root().Name()))`. That lookup returns `\"\"` when unset, so the global `1` is discarded, not returned. (`active_help.go:47-53`)\n\n3. **Whose command name determines the variable: the root command's.** The name comes from `cmd.Root().Name()` (`active_help.go:50`), not from the subcommand that runs. `activeHelpEnvVar` calls `configEnvVar(name, \"ACTIVE_HELP\")` (`active_help.go:58-60`). `configEnvVar` builds `\"<NAME>_ACTIVE_HELP\"`, uppercases it, and then runs `configEnvVarPrefixSubstRegexp` to replace characters (`completions.go:1002-1007`). The global prefix is `\"COBRA\"` (`completions.go:993`), and the suffix is `\"ACTIVE_HELP\"` (`active_help.go:26`). So a root command named `helm` reads `HELM_ACTIVE_HELP`.\n\n**Not verified:** I did not read `configEnvVarPrefixSubstRegexp`, so the exact character substitution is unconfirmed. I also did not read the callers of `GetActiveHelpConfig`, so what an empty result means downstream is unconfirmed.",
+      "corpus": "cobra",
+      "question_set": "control",
+      "block": 3,
+      "other_tools": [],
+      "rpc_calls": 3,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 752,
+      "final_output": 1235,
+      "post_s": 9.118574375,
+      "ttft_s": 3.771425625000001,
+      "call_text_chars": 0,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "new",
+      "model": "claude-haiku-5-5",
+      "turns": 4,
+      "tokens": 181162,
+      "usage": {
+        "input": 10,
+        "cacheRead": 173463,
+        "cacheWrite": 5802,
+        "output": 1887
+      },
+      "usd": 0.00383953,
+      "wall_s": 12.912,
+      "rpc": [
+        {
+          "initialize": 29580
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "GetActiveHelpConfig"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 29589
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  1 bodies  context 0\n@ cobra active_help.go:47-53 func GetActiveHelpConfig 5AUC"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVar"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 29589
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  3 bodies  context 0\n@ cobra active_help.go:27-27 const activeHelpGlobalEnvVar "
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVar"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 29589
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  3 bodies  context 0\n@ cobra completions.go:993-993 const configEnvVarGlobalPre"
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "GetActiveHelpConfig"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVar"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVar"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        }
+      ],
+      "answer": "**Answers**\n\n1. **`COBRA_ACTIVE_HELP=0` plus a program-specific variable set to `1` returns `\"0\"`.** The global value is checked first. `activeHelpCfg` is read from `COBRA_ACTIVE_HELP`, and when it equals the disable value `\"0\"` the function returns it without reading the program variable. (`active_help.go:47-53`; `activeHelpGlobalDisable = \"0\"` at `active_help.go:28`; `activeHelpGlobalEnvVar` is `configEnvVarGlobalPrefix + \"_\" + activeHelpEnvVarSuffix` at `active_help.go:27`, where the prefix is `\"COBRA\"` (`completions.go:993`) and the suffix is `\"ACTIVE_HELP\"` (`active_help.go:26`).)\n\n2. **Global `COBRA_ACTIVE_HELP=1` with the program variable unset returns `\"\"`.** The global value `\"1\"` is not `\"0\"`, so the code takes the `if` branch and overwrites `activeHelpCfg` with `os.Getenv(activeHelpEnvVar(cmd.Root().Name()))`. That variable is unset, so the result is the empty string. The global `1` is not used as a fallback; it is discarded. (`active_help.go:47-53`.) Whether an empty result means \"active help off\" depends on the caller, which I did not read.\n\n3. **The root command's name determines the variable.** `GetActiveHelpConfig` calls `cmd.Root().Name()`, so a subcommand uses the name of the top-level program, not its own name. `activeHelpEnvVar` (`active_help.go:58-60`) calls `configEnvVar(name, \"ACTIVE_HELP\")` (`completions.go:1002-1007`), which builds `strings.ToUpper(name + \"_ACTIVE_HELP\")` and then applies `configEnvVarPrefixSubstRegexp` to replace characters. For a program named `mytool`, the variable is `MYTOOL_ACTIVE_HELP`. I did not open the regex declaration, so the exact character substitution is not verified here.",
+      "corpus": "cobra",
+      "question_set": "control",
+      "block": 4,
+      "other_tools": [],
+      "rpc_calls": 3,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 690,
+      "final_output": 1197,
+      "post_s": 8.979160584,
+      "ttft_s": 3.8658394159999996,
+      "call_text_chars": 0,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "old",
+      "model": "claude-haiku-5-5",
+      "turns": 6,
+      "tokens": 280732,
+      "usage": {
+        "input": 14,
+        "cacheRead": 268664,
+        "cacheWrite": 8400,
+        "output": 3654
+      },
+      "usd": 0.00619504,
+      "wall_s": 20.789,
+      "rpc": [
+        {
+          "initialize": 29959
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "repository": "cobra",
+            "direction": "outgoing",
+            "response_format": "detailed"
+          },
+          "pid": 29968
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":9,\"total\":6,\"returned\":6,\"coverage\":{\"exact\":6},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "GetActiveHelpConfig"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "command.go",
+                "qualified_name": "Command.Root"
+              },
+              {
+                "repository": "cobra",
+                "path": "command.go",
+                "qualified_name": "Command.Name"
+              }
+            ],
+            "context_lines": 0,
+            "response_format": "detailed"
+          },
+          "pid": 29968
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  4 bodies  context 0\n@ cobra active_help.go:47-53 func GetActiveHelpConfig 5AUC"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "configEnvVar"
+              }
+            ],
+            "context_lines": 0,
+            "response_format": "detailed"
+          },
+          "pid": 29968
+        },
+        {
+          "reply": "get_source",
+          "error": "SYMBOL_NOT_FOUND: qualified name \"configEnvVar\" was not found under cobra active_help.go; call it without repository and path to search the whole graph",
+          "preview": "SYMBOL_NOT_FOUND: qualified name \"configEnvVar\" was not found under cobra active_help.go; "
+        },
+        {
+          "call": "find_symbol",
+          "args": {
+            "name": "configEnvVar",
+            "repo": "cobra",
+            "response_format": "detailed"
+          },
+          "pid": 29968
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              }
+            ],
+            "context_lines": 0,
+            "response_format": "detailed"
+          },
+          "pid": 29968
+        },
+        {
+          "reply": "find_symbol",
+          "error": null,
+          "preview": "{\"snapshot_id\":9,\"total\":1,\"returned\":1,\"results\":{\"name\":\"configEnvVar\",\"kind\":\"func\",\"ex"
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  3 bodies  context 0\n@ cobra active_help.go:27-27 const activeHelpGlobalEnvVar "
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              }
+            ],
+            "context_lines": 0,
+            "response_format": "detailed"
+          },
+          "pid": 29968
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  2 bodies  context 0\n@ cobra completions.go:1002-1007 func configEnvVar LXL5YJZ"
+        }
+      ],
+      "errors": [
+        "SYMBOL_NOT_FOUND: qualified name \"configEnvVar\" was not found under cobra active_help.go; call it without repository and path to search the whole graph"
+      ],
+      "host_errors": [
+        "Error: SYMBOL_NOT_FOUND: qualified name \"configEnvVar\" was not found under cobra active_help.go; call it without repository and path to search the whole graph"
+      ],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "repository": "cobra",
+            "direction": "outgoing",
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "GetActiveHelpConfig"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "command.go",
+                "qualified_name": "Command.Root"
+              },
+              {
+                "repository": "cobra",
+                "path": "command.go",
+                "qualified_name": "Command.Name"
+              }
+            ],
+            "context_lines": 0,
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "configEnvVar"
+              }
+            ],
+            "context_lines": 0,
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_symbol",
+          "args": {
+            "name": "configEnvVar",
+            "repo": "cobra",
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              }
+            ],
+            "context_lines": 0,
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              }
+            ],
+            "context_lines": 0,
+            "response_format": "detailed"
+          }
+        }
+      ],
+      "answer": "**Answer: `GetActiveHelpConfig` returns `\"0\"` in your first case. In the second case it returns `\"\"`, so the global `1` has no effect. The variable name is built from the root command's name, not the subcommand's.**\n\n**Logic** (`active_help.go:47-53`):\n```go\nactiveHelpCfg := os.Getenv(activeHelpGlobalEnvVar)\nif activeHelpCfg != activeHelpGlobalDisable {\n    activeHelpCfg = os.Getenv(activeHelpEnvVar(cmd.Root().Name()))\n}\nreturn activeHelpCfg\n```\n\n**Constants and name building:**\n- `activeHelpGlobalEnvVar = configEnvVarGlobalPrefix + \"_\" + activeHelpEnvVarSuffix` (`active_help.go:27`), which is `COBRA_ACTIVE_HELP`. The prefix is `\"COBRA\"` (`completions.go:993`) and the suffix is `\"ACTIVE_HELP\"` (`active_help.go:26`).\n- `activeHelpGlobalDisable = \"0\"` (`active_help.go:28`).\n- `activeHelpEnvVar(name)` returns `configEnvVar(name, \"ACTIVE_HELP\")` (`active_help.go:58-60`).\n- `configEnvVar` uppercases `name_suffix` and then applies `configEnvVarPrefixSubstRegexp` (`completions.go:1002-1007`). I did not read that regexp, so the exact character substitution is unverified. Plain alphanumeric names are unaffected.\n\n**Case 1: `COBRA_ACTIVE_HELP=0`, program variable set to 1.** The global value is `\"0\"`, which equals `activeHelpGlobalDisable`. The `if` is skipped and the function returns `\"0\"`. The program-specific variable is never read.\n\n**Case 2: `COBRA_ACTIVE_HELP=1`, program variable unset.** The global value `\"1\"` is not `\"0\"`, so the program-specific lookup runs. `os.Getenv` of an unset variable returns `\"\"`, so the function returns `\"\"`. The global `1` is overwritten and does not enable active help. Only the program-specific value can override a global value other than `\"0\"`, and the function returns whatever that lookup yields.\n\n**Whose name:** `cmd.Root().Name()` (`active_help.go:50`). `Root()` walks up the parent chain (`command.go:892-897`), so the root command's name decides the variable, whichever subcommand is running. `Name()` takes `Use` up to the first space (`command.go:1541-1548`). For a root with `Use: \"mytool\"`, the variable is `MYTOOL_ACTIVE_HELP`.",
+      "corpus": "cobra",
+      "question_set": "control",
+      "block": 4,
+      "other_tools": [],
+      "rpc_calls": 6,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_find_symbol",
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 2224,
+      "final_output": 1430,
+      "post_s": 15.093775333000002,
+      "ttft_s": 5.618224666999999,
+      "call_text_chars": 667,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "old",
+      "model": "claude-haiku-5-5",
+      "turns": 3,
+      "tokens": 135700,
+      "usage": {
+        "input": 8,
+        "cacheRead": 128593,
+        "cacheWrite": 5421,
+        "output": 1678
+      },
+      "usd": 0.00320993,
+      "wall_s": 9.57,
+      "rpc": [
+        {
+          "initialize": 30398
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_symbol",
+          "args": {
+            "name": "GetActiveHelpConfig"
+          },
+          "pid": 30406
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "direction": "outgoing"
+          },
+          "pid": 30406
+        },
+        {
+          "reply": "find_symbol",
+          "error": null,
+          "preview": "{\"snapshot_id\":9,\"total\":1,\"returned\":1,\"results\":{\"name\":\"GetActiveHelpConfig\",\"kind\":\"fu"
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":9,\"total\":6,\"returned\":6,\"coverage\":{\"exact\":6},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "GetActiveHelpConfig"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalDisable"
+              }
+            ],
+            "context_lines": 0
+          },
+          "pid": 30406
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  4 bodies  context 0\n@ cobra active_help.go:47-53 func GetActiveHelpConfig\nfunc"
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_symbol",
+          "args": {
+            "name": "GetActiveHelpConfig"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "direction": "outgoing"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "GetActiveHelpConfig"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalDisable"
+              }
+            ],
+            "context_lines": 0
+          }
+        }
+      ],
+      "answer": "**Answer:** With `COBRA_ACTIVE_HELP=0` set, `GetActiveHelpConfig` returns `\"0\"` and the program-specific variable is ignored. With the global value `1` and the program-specific variable unset, it returns `\"\"`. The root command's name, not the subcommand's, selects the program-specific variable.\n\n**Evidence**\n\n- `GetActiveHelpConfig` (active_help.go:47-53):\n  ```go\n  activeHelpCfg := os.Getenv(activeHelpGlobalEnvVar)\n  if activeHelpCfg != activeHelpGlobalDisable {\n      activeHelpCfg = os.Getenv(activeHelpEnvVar(cmd.Root().Name()))\n  }\n  return activeHelpCfg\n  ```\n- `activeHelpGlobalDisable = \"0\"` (active_help.go:28). `activeHelpGlobalEnvVar` is `configEnvVarGlobalPrefix + \"_\" + activeHelpEnvVarSuffix` (active_help.go:27).\n- `activeHelpEnvVar(name)` returns `configEnvVar(name, activeHelpEnvVarSuffix)` (active_help.go:58-60). I did not open `configEnvVar`, so the exact program-specific variable name format is unverified.\n\n**Case 1: `COBRA_ACTIVE_HELP=0`, program variable `=1`**\nThe global value equals `\"0\"`, so the `if` branch is skipped. The function returns `\"0\"`. The program-specific `=1` is never read.\n\n**Case 2: global `=1`, program variable unset**\nThe global value `\"1\"` is not `\"0\"`, so the function reads the program-specific variable. It is unset, so the function returns `\"\"`. The global `1` is not returned as the result.\n\n**Whose command name determines the variable:** the root command's. `cmd.Root().Name()` (active_help.go:50) resolves the program name from the root, so a subcommand gets the same variable as its root. The `Root()` body is at command.go:892-897 (listed as an outgoing reference of `GetActiveHelpConfig`). I did not open it, but the call is the evidence for the root lookup.",
+      "corpus": "cobra",
+      "question_set": "control",
+      "block": 5,
+      "other_tools": [],
+      "rpc_calls": 3,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_symbol",
+          "bench_find_references"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 395,
+      "final_output": 1283,
+      "post_s": 6.0228466240000005,
+      "ttft_s": 3.505153376,
+      "call_text_chars": 0,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "new",
+      "model": "claude-haiku-5-5",
+      "turns": 4,
+      "tokens": 182669,
+      "usage": {
+        "input": 10,
+        "cacheRead": 173880,
+        "cacheWrite": 6137,
+        "output": 2642
+      },
+      "usd": 0.004288200000000001,
+      "wall_s": 17.015,
+      "rpc": [
+        {
+          "initialize": 30760
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "GetActiveHelpConfig"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 30768
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  1 bodies  context 0\n@ cobra active_help.go:47-53 func GetActiveHelpConfig 5AUC"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVar"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 30768
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  3 bodies  context 0\n@ cobra active_help.go:27-27 const activeHelpGlobalEnvVar "
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVar"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 30768
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  3 bodies  context 0\n@ cobra completions.go:993-993 const configEnvVarGlobalPre"
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "GetActiveHelpConfig"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVar"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVar"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        }
+      ],
+      "answer": "**Answer: with `COBRA_ACTIVE_HELP=0` and the program variable set to 1, `GetActiveHelpConfig` returns `\"0\"`.** The program variable is never read.\n\nThe function body (`active_help.go:47-53`) is:\n\n```go\nactiveHelpCfg := os.Getenv(activeHelpGlobalEnvVar)\nif activeHelpCfg != activeHelpGlobalDisable {\n    activeHelpCfg = os.Getenv(activeHelpEnvVar(cmd.Root().Name()))\n}\nreturn activeHelpCfg\n```\n\n- The global name is `COBRA_ACTIVE_HELP`. It is `configEnvVarGlobalPrefix + \"_\" + activeHelpEnvVarSuffix` (`active_help.go:27`), with prefix `\"COBRA\"` (`completions.go:993`) and suffix `\"ACTIVE_HELP\"` (`active_help.go:26`).\n- The disable value is `\"0\"` (`active_help.go:28`).\n- The program variable comes from `activeHelpEnvVar(name)` (`active_help.go:58-60`), which calls `configEnvVar(name, \"ACTIVE_HELP\")`. That builds `strings.ToUpper(name + \"_ACTIVE_HELP\")` and then applies `configEnvVarPrefixSubstRegexp` (`completions.go:1002-1007`). I did not read that regex, so the exact handling of non-alphanumeric characters in the program name is unverified.\n\n**Global = 1, program variable unset:** the global value is not `\"0\"`, so the function falls through to `os.Getenv(\"<PROG>_ACTIVE_HELP\")`. That is unset, so the function returns `\"\"`. The global value of 1 does not itself enable or set anything. It only stops the global `0` from disabling the program variable. Whether `\"\"` counts as enabled is decided by the caller, which I did not read.\n\n**Whose name determines the variable:** the root command's name, `cmd.Root().Name()` (`active_help.go:49`). `cmd` is the command passed in, but its root is used, so a subcommand's own name is ignored. Every subcommand of the same program reads the same program variable.\n\nOther behavior: global unset gives `\"\"`, which is not `\"0\"`, so the program variable is consulted. Only an exact `\"0\"` in `COBRA_ACTIVE_HELP` disables it.\n\nI did not call `graph_status` to attest freshness, because the tools were limited to `get_source`, `find_references` and `find_symbol`.",
+      "corpus": "cobra",
+      "question_set": "control",
+      "block": 5,
+      "other_tools": [],
+      "rpc_calls": 3,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 1025,
+      "final_output": 1617,
+      "post_s": 12.973163834,
+      "ttft_s": 3.9828361660000007,
+      "call_text_chars": 441,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "new",
+      "model": "claude-haiku-5-5",
+      "turns": 4,
+      "tokens": 180705,
+      "usage": {
+        "input": 10,
+        "cacheRead": 173225,
+        "cacheWrite": 5745,
+        "output": 1725
+      },
+      "usd": 0.0037447500000000002,
+      "wall_s": 10.578,
+      "rpc": [
+        {
+          "initialize": 31199
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "GetActiveHelpConfig"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 31205
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  1 bodies  context 0\n@ cobra active_help.go:47-53 func GetActiveHelpConfig 5AUC"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalDisable"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 31205
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  3 bodies  context 0\n@ cobra active_help.go:58-60 func activeHelpEnvVar ID37AFX"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 31205
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  3 bodies  context 0\n@ cobra completions.go:1002-1007 func configEnvVar LXL5YJZ"
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "GetActiveHelpConfig"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalDisable"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        }
+      ],
+      "answer": "**Case 1: `COBRA_ACTIVE_HELP=0`, program variable `=1`: returns `\"0\"`.** The function reads the global variable first. Its value equals `activeHelpGlobalDisable` (`\"0\"`), so the `if` at active_help.go:49 is false and the program-specific lookup is skipped. The program-specific `1` is ignored. (active_help.go:47-53, 27-28)\n\n**Case 2: global `COBRA_ACTIVE_HELP=1`, program variable unset: returns `\"\"`.** `\"1\"` is not `\"0\"`, so the branch at active_help.go:49 runs and replaces the global value with `os.Getenv(<PROG>_ACTIVE_HELP)`. That is unset, so the result is the empty string. The global `1` has no effect. What callers do with `\"\"` is outside what I read, so I did not check it.\n\n**Whose name determines the variable:** the root command's name, `cmd.Root().Name()` (active_help.go:50). A subcommand inherits the root's name, so every subcommand of one program reads the same variable. The name is built by `activeHelpEnvVar` (active_help.go:58-60) as `configEnvVar(name, \"ACTIVE_HELP\")`. That function uppercases `\"<name>_ACTIVE_HELP\"` and applies `configEnvVarPrefixSubstRegexp` (completions.go:1002-1007). I did not open that regexp, so I cannot say exactly how non-alphanumeric characters in the root name are rewritten. The global name is `COBRA_ACTIVE_HELP` (active_help.go:27; prefix at completions.go:993).\n\nCitations: active_help.go:26-28, 47-53, 58-60; completions.go:993, 1002-1007.",
+      "corpus": "cobra",
+      "question_set": "control",
+      "block": 6,
+      "other_tools": [],
+      "rpc_calls": 3,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 633,
+      "final_output": 1092,
+      "post_s": 7.065776541,
+      "ttft_s": 3.4702234589999996,
+      "call_text_chars": 0,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "old",
+      "model": "claude-haiku-5-5",
+      "turns": 3,
+      "tokens": 135990,
+      "usage": {
+        "input": 8,
+        "cacheRead": 128617,
+        "cacheWrite": 5911,
+        "output": 1454
+      },
+      "usd": 0.00319617,
+      "wall_s": 9.472,
+      "rpc": [
+        {
+          "initialize": 31552
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_symbol",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "repo": "cobra"
+          },
+          "pid": 31558
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "direction": "outgoing"
+          },
+          "pid": 31558
+        },
+        {
+          "reply": "find_symbol",
+          "error": null,
+          "preview": "{\"snapshot_id\":9,\"total\":1,\"returned\":1,\"results\":{\"name\":\"GetActiveHelpConfig\",\"kind\":\"fu"
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":9,\"total\":6,\"returned\":6,\"coverage\":{\"exact\":6},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "GetActiveHelpConfig"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "path": "command.go",
+                "qualified_name": "Command.Name"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 31558
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  5 bodies  context 0\n@ cobra active_help.go:47-53 func GetActiveHelpConfig 5AUC"
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_symbol",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "repo": "cobra"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "direction": "outgoing"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "GetActiveHelpConfig"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "path": "command.go",
+                "qualified_name": "Command.Name"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        }
+      ],
+      "answer": "**Answers**\n\n1. **Value with `COBRA_ACTIVE_HELP=0` and the program-specific variable set to 1: `\"0\"`.** `GetActiveHelpConfig` reads the global variable first. If it equals `activeHelpGlobalDisable` (`\"0\"`), the function returns it without reading the program-specific variable (`active_help.go:47-53`, constant `active_help.go:28`). The program-specific `1` is ignored.\n\n2. **Global value 1, program-specific variable unset: returns `\"\"`.** `\"1\"` is not `\"0\"`, so the function replaces it with `os.Getenv(activeHelpEnvVar(cmd.Root().Name()))`, which is empty (`active_help.go:47-53`). The global `1` is discarded, not used as a fallback. The effect is that active help is off. The program-specific variable is required to enable it, and the global value only disables it when set to `0`.\n\n3. **Whose name determines the variable: the root command's name.** `cmd.Root().Name()` climbs to the top-level command (`active_help.go:50`). `Command.Name()` takes the first word of `Use` (`command.go:1541-1548`). So a subcommand uses the program's root name, not its own. The variable name comes from `activeHelpEnvVar` (`active_help.go:58-60`) through `configEnvVar`, which I did not open. The exact spelling of the variable is therefore `[INFERENCE]` and was not verified.",
+      "corpus": "cobra",
+      "question_set": "control",
+      "block": 6,
+      "other_tools": [],
+      "rpc_calls": 3,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_symbol",
+          "bench_find_references"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 534,
+      "final_output": 920,
+      "post_s": 5.737008708,
+      "ttft_s": 3.692991292,
+      "call_text_chars": 0,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "old",
+      "model": "claude-haiku-5-5",
+      "turns": 7,
+      "tokens": 335037,
+      "usage": {
+        "input": 16,
+        "cacheRead": 321406,
+        "cacheWrite": 9586,
+        "output": 4029
+      },
+      "usd": 0.00714736,
+      "wall_s": 23.193,
+      "rpc": [
+        {
+          "initialize": 31903
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_symbol",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "repo": "cobra"
+          },
+          "pid": 31911
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "repo": "cobra",
+            "include_evidence": true
+          },
+          "pid": 31911
+        },
+        {
+          "reply": "find_symbol",
+          "error": null,
+          "preview": "{\"snapshot_id\":9,\"total\":1,\"returned\":1,\"results\":{\"name\":\"GetActiveHelpConfig\",\"kind\":\"fu"
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":9,\"total\":4,\"returned\":4,\"coverage\":{\"exact\":4},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "repo": "cobra",
+            "direction": "outgoing",
+            "response_format": "detailed"
+          },
+          "pid": 31911
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":9,\"total\":6,\"returned\":6,\"coverage\":{\"exact\":6},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "GetActiveHelpConfig"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "path": "command.go",
+                "qualified_name": "Command.Root"
+              },
+              {
+                "repository": "cobra",
+                "path": "command.go",
+                "qualified_name": "Command.Name"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 31911
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  6 bodies  context 0\n@ cobra active_help.go:47-53 func GetActiveHelpConfig 5AUC"
+        },
+        {
+          "call": "find_symbol",
+          "args": {
+            "name": "configEnvVarGlobalPrefix",
+            "repo": "cobra"
+          },
+          "pid": 31911
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "activeHelpEnvVar",
+            "repo": "cobra",
+            "direction": "outgoing",
+            "response_format": "detailed"
+          },
+          "pid": 31911
+        },
+        {
+          "reply": "find_symbol",
+          "error": null,
+          "preview": "{\"snapshot_id\":9,\"total\":1,\"returned\":1,\"results\":{\"name\":\"configEnvVarGlobalPrefix\",\"kind"
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":9,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVar"
+              },
+              {
+                "repository": "completions.go",
+                "path": "completions.go",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 31911
+        },
+        {
+          "reply": "get_source",
+          "error": "REPOSITORY_NOT_FOUND: repository \"completions.go\" is not in the published graph",
+          "preview": "REPOSITORY_NOT_FOUND: repository \"completions.go\" is not in the published graph"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 31911
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  3 bodies  context 0\n@ cobra completions.go:1002-1007 func configEnvVar LXL5YJZ"
+        }
+      ],
+      "errors": [
+        "REPOSITORY_NOT_FOUND: repository \"completions.go\" is not in the published graph"
+      ],
+      "host_errors": [
+        "Error: REPOSITORY_NOT_FOUND: repository \"completions.go\" is not in the published graph"
+      ],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_symbol",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "repo": "cobra"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "repo": "cobra",
+            "include_evidence": true
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "repo": "cobra",
+            "direction": "outgoing",
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "GetActiveHelpConfig"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "path": "command.go",
+                "qualified_name": "Command.Root"
+              },
+              {
+                "repository": "cobra",
+                "path": "command.go",
+                "qualified_name": "Command.Name"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "activeHelpEnvVar",
+            "repo": "cobra",
+            "direction": "outgoing",
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_symbol",
+          "args": {
+            "name": "configEnvVarGlobalPrefix",
+            "repo": "cobra"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVar"
+              },
+              {
+                "repository": "completions.go",
+                "path": "completions.go",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        }
+      ],
+      "answer": "**Answers**\n\n1. **COBRA_ACTIVE_HELP=0 and `<ROOT>_ACTIVE_HELP=1`: returns `\"0\"`.** The global value is read first (`os.Getenv(activeHelpGlobalEnvVar)`). It equals `activeHelpGlobalDisable` (`\"0\"`), so the `if` is false and the program-specific variable is never read. The function returns the global `\"0\"`. (active_help.go:47-53, constants at active_help.go:27-28)\n\n2. **COBRA_ACTIVE_HELP=1 and the program-specific variable unset: returns `\"\"`.** `\"1\"` is not `\"0\"`, so the code overwrites the value with `os.Getenv(activeHelpEnvVar(cmd.Root().Name()))`. That variable is unset, so the result is the empty string. The global `1` has no effect. (active_help.go:47-53)\n   - Whether an empty string disables active help depends on the callers, which I did not open. The only caller found is `Command.initCompleteCmd` (completions.go:231-235), and its body was not read.\n\n3. **Whose command name determines the variable: the root command's name, not the subcommand's.**\n   - `cmd.Root()` walks up through `Parent()` until it reaches the top command (command.go:892-897).\n   - `Command.Name()` returns the first word of `Use` (command.go:1541-1548).\n   - `activeHelpEnvVar(name)` calls `configEnvVar(name, \"ACTIVE_HELP\")` (active_help.go:58-60).\n   - `configEnvVar` builds `\"<NAME>_ACTIVE_HELP\"`, uppercased, then applies `configEnvVarPrefixSubstRegexp` (completions.go:1002-1007).\n   - So for a program whose root `Use` is `mytool`, the variable is `MYTOOL_ACTIVE_HELP`, whichever subcommand runs.\n   - The global name is `COBRA_ACTIVE_HELP`, built from `configEnvVarGlobalPrefix = \"COBRA\"` (completions.go:993) and `activeHelpEnvVarSuffix = \"ACTIVE_HELP\"` (active_help.go:26).\n\n**Evidence**\n\n- Definition: active_help.go:47-53 (`GetActiveHelpConfig`).\n- Callers (4 incoming, complete): completions.go:231 `Command.initCompleteCmd`; active_help_test.go:266 `TestConfigActiveHelp` and :319 `TestDisableActiveHelp`.\n- Outgoing edges (complete): command.go:892 `Command.Root`, command.go:1541 `Command.Name`, active_help.go:58 `activeHelpEnvVar`, active_help.go:27-28 constants.\n\n**Not established**\n\n- `configEnvVarPrefixSubstRegexp` was not read, so the exact character substitution for unusual root names is unverified. It does not affect plain names like `mytool`.\n- Consumers of an empty return value were not checked.",
+      "corpus": "cobra",
+      "question_set": "control",
+      "block": 7,
+      "other_tools": [],
+      "rpc_calls": 8,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_symbol",
+          "bench_find_references"
+        ],
+        [
+          "bench_find_references"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_find_references",
+          "bench_find_symbol"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 2089,
+      "final_output": 1940,
+      "post_s": 16.471993081999997,
+      "ttft_s": 6.630006918000004,
+      "call_text_chars": 444,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "new",
+      "model": "claude-haiku-5-5",
+      "turns": 4,
+      "tokens": 181880,
+      "usage": {
+        "input": 10,
+        "cacheRead": 173681,
+        "cacheWrite": 5946,
+        "output": 2243
+      },
+      "usd": 0.00404851,
+      "wall_s": 15.232,
+      "rpc": [
+        {
+          "initialize": 32546
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "GetActiveHelpConfig"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 32555
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  1 bodies  context 0\n@ cobra active_help.go:47-53 func GetActiveHelpConfig 5AUC"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVar"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 32555
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  3 bodies  context 0\n@ cobra active_help.go:27-27 const activeHelpGlobalEnvVar "
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVar"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 32555
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  3 bodies  context 0\n@ cobra completions.go:993-993 const configEnvVarGlobalPre"
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "GetActiveHelpConfig"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVar"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVar"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        }
+      ],
+      "answer": "**Answers**\n\n1. **Global `COBRA_ACTIVE_HELP=0`, program variable `PROG_ACTIVE_HELP=1`: returns `\"0\"`.** The global value is read first (`active_help.go:48`). The override only runs when it is not `\"0\"` (`active_help.go:49`, `activeHelpGlobalDisable = \"0\"` at `active_help.go:28`). Since it is `\"0\"`, the program-specific variable is never read, so `1` is ignored. (`active_help.go:47-53`)\n\n2. **Global `COBRA_ACTIVE_HELP=1`, program variable unset: returns `\"\"`.** `\"1\"` is not `\"0\"`, so the code replaces the value with `os.Getenv(activeHelpEnvVar(cmd.Root().Name()))` (`active_help.go:49-50`). That variable is unset, so the result is empty. The global `1` is discarded, not used as a fallback. Only an unset or non-`\"0\"` global triggers the override, and the override replaces it entirely.\n\n3. **Whose command name:** the root command's name, via `cmd.Root().Name()` (`active_help.go:50`). A subcommand's own name is not used. `Root()` walks up to the top-level command, so for a program named `kubectl` the variable is `KUBECTL_ACTIVE_HELP`. The name is built by `configEnvVar(name, \"ACTIVE_HELP\")` (`active_help.go:58-60`), which uppercases `name_ACTIVE_HELP` (`completions.go:1002-1004`) and then applies `configEnvVarPrefixSubstRegexp` (`completions.go:1005`). I did not read that regex, so how non-identifier characters in a program name are rewritten is unverified.\n\n**Citations**\n- `GetActiveHelpConfig`: `active_help.go:47-53`\n- `activeHelpGlobalEnvVar` = `configEnvVarGlobalPrefix + \"_\" + activeHelpEnvVarSuffix`: `active_help.go:27`, which resolves to `COBRA_ACTIVE_HELP`\n- `activeHelpGlobalDisable = \"0\"`: `active_help.go:28`\n- `activeHelpEnvVarSuffix = \"ACTIVE_HELP\"`: `active_help.go:26`\n- `configEnvVarGlobalPrefix = \"COBRA\"`: `completions.go:993`\n- `activeHelpEnvVar`: `active_help.go:58-60`\n- `configEnvVar`: `completions.go:1002-1007`",
+      "corpus": "cobra",
+      "question_set": "control",
+      "block": 7,
+      "other_tools": [],
+      "rpc_calls": 3,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 835,
+      "final_output": 1408,
+      "post_s": 10.462897917,
+      "ttft_s": 4.7201020830000004,
+      "call_text_chars": 0,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "new",
+      "model": "claude-haiku-5-5",
+      "turns": 5,
+      "tokens": 228235,
+      "usage": {
+        "input": 12,
+        "cacheRead": 219511,
+        "cacheWrite": 6338,
+        "output": 2374
+      },
+      "usd": 0.00465091,
+      "wall_s": 17.079,
+      "rpc": [
+        {
+          "initialize": 32979
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "GetActiveHelpConfig"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 32988
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  1 bodies  context 0\n@ cobra active_help.go:47-53 func GetActiveHelpConfig 5AUC"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVar"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 32988
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  3 bodies  context 0\n@ cobra active_help.go:27-27 const activeHelpGlobalEnvVar "
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVar"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 32988
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  3 bodies  context 0\n@ cobra completions.go:993-993 const configEnvVarGlobalPre"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVarPrefixSubstRegexp"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 32988
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  1 bodies  context 0\n@ cobra completions.go:997-997 var configEnvVarPrefixSubst"
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "GetActiveHelpConfig"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVar"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVar"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVarPrefixSubstRegexp"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        }
+      ],
+      "answer": "**Case 1: `COBRA_ACTIVE_HELP=0` and the program-specific variable set to `1`.** `GetActiveHelpConfig` returns `\"0\"`. The global value is read first (`active_help.go:48`). Because it equals `activeHelpGlobalDisable` (`\"0\"`, `active_help.go:28`), the `if` at line 49 is false, so the program-specific lookup at line 50 never runs. The function returns `\"0\"` (line 52). The `1` is ignored.\n\n**Case 2: global `1`, program-specific variable unset.** The function returns `\"\"`. The global value `\"1\"` is not `\"0\"`, so line 50 runs and reads the program-specific variable, which is unset, giving `\"\"`. The global value is never returned: it only decides whether the program-specific variable is consulted. Whether `\"\"` means \"active help off\" depends on the caller, which I did not read.\n\n**Whose command name determines the variable.** The root command's name, not the subcommand's. Line 50 calls `activeHelpEnvVar(cmd.Root().Name())`, and `cmd.Root()` walks up to the top-level command. The name is built as follows:\n- `activeHelpEnvVar` (`active_help.go:58-60`) calls `configEnvVar(name, \"ACTIVE_HELP\")`.\n- `configEnvVar` (`completions.go:1002-1007`) uppercases `\"<name>_ACTIVE_HELP\"` and replaces every character outside `[A-Z0-9_]` with `_` (regexp at `completions.go:997`).\n- So a root named `my-tool` gives `MY_TOOL_ACTIVE_HELP`.\n\nThe global variable is `COBRA_ACTIVE_HELP` (`active_help.go:27`, prefix `\"COBRA\"` at `completions.go:993`, suffix `\"ACTIVE_HELP\"` at `active_help.go:26`).",
+      "corpus": "cobra",
+      "question_set": "control",
+      "block": 8,
+      "other_tools": [],
+      "rpc_calls": 4,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 1079,
+      "final_output": 1295,
+      "post_s": 12.333700123000002,
+      "ttft_s": 4.677299876999999,
+      "call_text_chars": 0,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "old",
+      "model": "claude-haiku-5-5",
+      "turns": 6,
+      "tokens": 277676,
+      "usage": {
+        "input": 14,
+        "cacheRead": 266662,
+        "cacheWrite": 8030,
+        "output": 2970
+      },
+      "usd": 0.00575902,
+      "wall_s": 26.998,
+      "rpc": [
+        {
+          "initialize": 33574
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "repository": "cobra",
+            "direction": "outgoing",
+            "include_evidence": true
+          },
+          "pid": 33581
+        },
+        {
+          "reply": "find_references",
+          "error": "INVALID_ARGUMENT: include_evidence requires incoming references in compact or full view",
+          "preview": "INVALID_ARGUMENT: include_evidence requires incoming references in compact or full view"
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "repository": "cobra",
+            "direction": "outgoing"
+          },
+          "pid": 33581
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":9,\"total\":6,\"returned\":6,\"coverage\":{\"exact\":6},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "GetActiveHelpConfig"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "path": "command.go",
+                "qualified_name": "Command.Root"
+              },
+              {
+                "repository": "cobra",
+                "path": "command.go",
+                "qualified_name": "Command.Name"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 33581
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  6 bodies  context 0\n@ cobra active_help.go:47-53 func GetActiveHelpConfig 5AUC"
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "configEnvVar",
+            "repository": "cobra",
+            "direction": "outgoing"
+          },
+          "pid": 33581
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 33581
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":9,\"total\":1,\"returned\":1,\"coverage\":{\"exact\":1},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "reply": "get_source",
+          "error": "SYMBOL_NOT_FOUND: qualified name \"configEnvVarGlobalPrefix\" was not found under cobra active_help.go; call it without repository and path to search the whole graph",
+          "preview": "SYMBOL_NOT_FOUND: qualified name \"configEnvVarGlobalPrefix\" was not found under cobra acti"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              },
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVarPrefixSubstRegexp"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 33581
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  4 bodies  context 0\n@ cobra completions.go:1002-1007 func configEnvVar LXL5YJZ"
+        }
+      ],
+      "errors": [
+        "INVALID_ARGUMENT: include_evidence requires incoming references in compact or full view",
+        "SYMBOL_NOT_FOUND: qualified name \"configEnvVarGlobalPrefix\" was not found under cobra active_help.go; call it without repository and path to search the whole graph"
+      ],
+      "host_errors": [
+        "Error: INVALID_ARGUMENT: include_evidence requires incoming references in compact or full view",
+        "Error: SYMBOL_NOT_FOUND: qualified name \"configEnvVarGlobalPrefix\" was not found under cobra active_help.go; call it without repository and path to search the whole graph"
+      ],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "repository": "cobra",
+            "direction": "outgoing",
+            "include_evidence": true
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "repository": "cobra",
+            "direction": "outgoing"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "GetActiveHelpConfig"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "path": "command.go",
+                "qualified_name": "Command.Root"
+              },
+              {
+                "repository": "cobra",
+                "path": "command.go",
+                "qualified_name": "Command.Name"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "configEnvVar",
+            "repository": "cobra",
+            "direction": "outgoing"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              },
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVarPrefixSubstRegexp"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        }
+      ],
+      "answer": "**Result for `subcommand` runs with `COBRA_ACTIVE_HELP=0` and `<PROG>_ACTIVE_HELP=1`: `GetActiveHelpConfig` returns `\"0\"`.**\n\nThe function reads the global variable first. If it equals `\"0\"`, it returns that value and never reads the program-specific variable (`active_help.go:47-53`):\n\n```go\nactiveHelpCfg := os.Getenv(activeHelpGlobalEnvVar)\nif activeHelpCfg != activeHelpGlobalDisable {\n    activeHelpCfg = os.Getenv(activeHelpEnvVar(cmd.Root().Name()))\n}\nreturn activeHelpCfg\n```\n\n`activeHelpGlobalDisable = \"0\"` (`active_help.go:28`), and `activeHelpGlobalEnvVar` is `COBRA_ACTIVE_HELP` (`active_help.go:27`, built from `configEnvVarGlobalPrefix = \"COBRA\"` at `completions.go:993` and `activeHelpEnvVarSuffix = \"ACTIVE_HELP\"` at `active_help.go:26`). The global `0` disables active help for every program, so the program variable's `1` is ignored.\n\n**Global `COBRA_ACTIVE_HELP=1`, program variable unset:** the global value is not `\"0\"`, so the program lookup runs. `os.Getenv` on the unset name returns `\"\"`, and the function returns `\"\"`. Setting the global to `1` does not enable active help. Only the program-specific variable can turn it on. A global value other than `\"0\"` is effectively ignored.\n\n**Whose name is used:** the root command's name, not the subcommand's. `cmd.Root()` walks parents until it reaches the command with no parent (`command.go:892-897`). `Name()` returns the first word of `Use` (`command.go:1541-1548`). `activeHelpEnvVar(name)` calls `configEnvVar(name, \"ACTIVE_HELP\")` (`active_help.go:58-60`). `configEnvVar` upper-cases `name_suffix` and replaces every character outside `[A-Z0-9_]` with `_` (`completions.go:1002-1007`, regexp at `completions.go:997`). For example, a root `Use` of `my-prog` gives `MY_PROG_ACTIVE_HELP`.",
+      "corpus": "cobra",
+      "question_set": "control",
+      "block": 8,
+      "other_tools": [],
+      "rpc_calls": 6,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        [
+          "bench_find_references"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_find_references",
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 1754,
+      "final_output": 1216,
+      "post_s": 12.533461959,
+      "ttft_s": 14.382538040999998,
+      "call_text_chars": 0,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "old",
+      "model": "claude-haiku-5-5",
+      "turns": 7,
+      "tokens": 340230,
+      "usage": {
+        "input": 16,
+        "cacheRead": 325670,
+        "cacheWrite": 10552,
+        "output": 3992
+      },
+      "usd": 0.0073647,
+      "wall_s": 26.153,
+      "rpc": [
+        {
+          "initialize": 34221
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "direction": "outgoing",
+            "include_evidence": true
+          },
+          "pid": 34229
+        },
+        {
+          "reply": "find_references",
+          "error": "INVALID_ARGUMENT: include_evidence requires incoming references in compact or full view",
+          "preview": "INVALID_ARGUMENT: include_evidence requires incoming references in compact or full view"
+        },
+        {
+          "call": "find_symbol",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "repo": "cobra"
+          },
+          "pid": 34229
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "direction": "outgoing"
+          },
+          "pid": 34229
+        },
+        {
+          "reply": "find_symbol",
+          "error": null,
+          "preview": "{\"snapshot_id\":9,\"total\":1,\"returned\":1,\"results\":{\"name\":\"GetActiveHelpConfig\",\"kind\":\"fu"
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":9,\"total\":6,\"returned\":6,\"coverage\":{\"exact\":6},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "GetActiveHelpConfig"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "path": "command.go",
+                "qualified_name": "Command.Root"
+              },
+              {
+                "repository": "cobra",
+                "path": "command.go",
+                "qualified_name": "Command.Name"
+              }
+            ],
+            "context_lines": 2
+          },
+          "pid": 34229
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  6 bodies  context 2\n@ cobra active_help.go:47-53 func GetActiveHelpConfig [sho"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "configEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              }
+            ],
+            "context_lines": 2
+          },
+          "pid": 34229
+        },
+        {
+          "reply": "get_source",
+          "error": "SYMBOL_NOT_FOUND: qualified name \"configEnvVar\" was not found under cobra active_help.go; call it without repository and path to search the whole graph",
+          "preview": "SYMBOL_NOT_FOUND: qualified name \"configEnvVar\" was not found under cobra active_help.go; "
+        },
+        {
+          "call": "find_symbol",
+          "args": {
+            "name": "configEnvVar",
+            "repo": "cobra"
+          },
+          "pid": 34229
+        },
+        {
+          "call": "find_symbol",
+          "args": {
+            "name": "configEnvVarGlobalPrefix",
+            "repo": "cobra"
+          },
+          "pid": 34229
+        },
+        {
+          "reply": "find_symbol",
+          "error": null,
+          "preview": "{\"snapshot_id\":9,\"total\":1,\"returned\":1,\"results\":{\"name\":\"configEnvVar\",\"kind\":\"func\",\"ex"
+        },
+        {
+          "reply": "find_symbol",
+          "error": null,
+          "preview": "{\"snapshot_id\":9,\"total\":1,\"returned\":1,\"results\":{\"name\":\"configEnvVarGlobalPrefix\",\"kind"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              }
+            ],
+            "context_lines": 2
+          },
+          "pid": 34229
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  2 bodies  context 2\n@ cobra completions.go:1002-1007 func configEnvVar [shown "
+        }
+      ],
+      "errors": [
+        "INVALID_ARGUMENT: include_evidence requires incoming references in compact or full view",
+        "SYMBOL_NOT_FOUND: qualified name \"configEnvVar\" was not found under cobra active_help.go; call it without repository and path to search the whole graph"
+      ],
+      "host_errors": [
+        "Error: INVALID_ARGUMENT: include_evidence requires incoming references in compact or full view",
+        "Error: SYMBOL_NOT_FOUND: qualified name \"configEnvVar\" was not found under cobra active_help.go; call it without repository and path to search the whole graph"
+      ],
+      "calls": [
+        {
+          "tool": "mcp__kivgraph_graph_status",
+          "args": {}
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "direction": "outgoing",
+            "include_evidence": true
+          }
+        },
+        {
+          "tool": "mcp__bench_find_symbol",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "repo": "cobra"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "direction": "outgoing"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "GetActiveHelpConfig"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "path": "command.go",
+                "qualified_name": "Command.Root"
+              },
+              {
+                "repository": "cobra",
+                "path": "command.go",
+                "qualified_name": "Command.Name"
+              }
+            ],
+            "context_lines": 2
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "configEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              }
+            ],
+            "context_lines": 2
+          }
+        },
+        {
+          "tool": "mcp__bench_find_symbol",
+          "args": {
+            "name": "configEnvVar",
+            "repo": "cobra"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_symbol",
+          "args": {
+            "name": "configEnvVarGlobalPrefix",
+            "repo": "cobra"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "completions.go",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              }
+            ],
+            "context_lines": 2
+          }
+        }
+      ],
+      "answer": "**Answers** (cobra `active_help.go` and `completions.go`)\n\n1. **Subcommand with `COBRA_ACTIVE_HELP=0` and `<PROGRAM>_ACTIVE_HELP=1`: returns `\"0\"`.** `GetActiveHelpConfig` reads the global variable first. If it equals the disable value `\"0\"`, the `if` is skipped and the program-specific variable is never read (`active_help.go:47-53`, disable constant at `:28`). The result is `\"0\"`.\n\n2. **Global `COBRA_ACTIVE_HELP=1`, program-specific variable unset: returns `\"\"`.** `\"1\"` is not `\"0\"`, so the function reads `os.Getenv(activeHelpEnvVar(cmd.Root().Name()))` (`active_help.go:50-52`). That variable is unset, so the result is empty. A global value of `1` does not enable active help by itself. It only suppresses the program-specific override when it is `\"0\"`. Global `\"1\"` and an unset global behave the same way here.\n\n3. **Whose command name determines the variable: the root command's.** `activeHelpEnvVar` (`active_help.go:58-60`) calls `configEnvVar(name, \"ACTIVE_HELP\")`. The name comes from `cmd.Root().Name()`. `Root()` walks up parents (`command.go:892-897`). `Name()` returns the first word of `Use` (`command.go:1541-1548`). The subcommand's own name is never used. `configEnvVar` upper-cases `<name>_<suffix>` and replaces non-alphanumeric characters with `_` (`completions.go:1002-1007`). For a root `mytool`, the variable is `MYTOOL_ACTIVE_HELP`. The global prefix is `COBRA` (`completions.go:993`), so the global variable is `COBRA_ACTIVE_HELP` (`active_help.go:27`).\n\n**Caveats**\n- The `graph_status` output attests only a `kivgraph` repository (snapshot 312). I did not confirm that the `cobra` graph (snapshot 9) is fresh. The `cobra` results above come from that snapshot without a freshness check.\n- The `find_references` call with `include_evidence` failed because that option requires incoming references. I re-ran it without the option. The outgoing list was complete (`COMPLETE`, all `EXACT_TYPECHECKED`).\n- The `Name()` detail for `Use` strings with spaces comes from the source body. I did not check the regex `configEnvVarPrefixSubstRegexp`. I inferred its replacement from the doc comment.",
+      "corpus": "cobra",
+      "question_set": "control",
+      "block": 9,
+      "other_tools": [
+        "mcp__kivgraph_graph_status"
+      ],
+      "rpc_calls": 8,
+      "initializations": 1,
+      "route": [
+        [
+          "kivgraph_graph_status",
+          "bench_find_references"
+        ],
+        [
+          "bench_find_symbol",
+          "bench_find_references"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_find_symbol",
+          "bench_find_symbol"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 2525,
+      "final_output": 1467,
+      "post_s": 18.035500876,
+      "ttft_s": 7.9904991239999985,
+      "call_text_chars": 494,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "new",
+      "model": "claude-haiku-5-5",
+      "turns": 5,
+      "tokens": 228185,
+      "usage": {
+        "input": 12,
+        "cacheRead": 219575,
+        "cacheWrite": 6319,
+        "output": 2279
+      },
+      "usd": 0.00460025,
+      "wall_s": 16.994,
+      "rpc": [
+        {
+          "initialize": 34592
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "GetActiveHelpConfig"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 34598
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  1 bodies  context 0\n@ cobra active_help.go:47-53 func GetActiveHelpConfig 5AUC"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVar"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 34598
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  3 bodies  context 0\n@ cobra active_help.go:27-27 const activeHelpGlobalEnvVar "
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVar"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 34598
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  3 bodies  context 0\n@ cobra completions.go:993-993 const configEnvVarGlobalPre"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVarPrefixSubstRegexp"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 34598
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  1 bodies  context 0\n@ cobra completions.go:997-997 var configEnvVarPrefixSubst"
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "GetActiveHelpConfig"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVar"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVar"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVarPrefixSubstRegexp"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        }
+      ],
+      "answer": "**Answer: with `COBRA_ACTIVE_HELP=0` and the program variable set to `1`, `GetActiveHelpConfig` returns `\"0\"`. The program variable is ignored.**\n\nSource: `GetActiveHelpConfig` (active_help.go:47-53):\n```go\nactiveHelpCfg := os.Getenv(activeHelpGlobalEnvVar)\nif activeHelpCfg != activeHelpGlobalDisable {\n    activeHelpCfg = os.Getenv(activeHelpEnvVar(cmd.Root().Name()))\n}\nreturn activeHelpCfg\n```\n- `activeHelpGlobalEnvVar` = `\"COBRA\" + \"_\" + \"ACTIVE_HELP\"` = `COBRA_ACTIVE_HELP` (active_help.go:27; completions.go:993 for the `\"COBRA\"` prefix).\n- `activeHelpGlobalDisable` = `\"0\"` (active_help.go:28).\n- The global value `\"0\"` equals the disable value, so the `if` is false and the function returns `\"0\"`.\n\n**Global `1`, program variable unset:** the global value `\"1\"` is not `\"0\"`, so the `if` is taken and the value is replaced by `os.Getenv(<program var>)`. The program variable is unset, so the function returns `\"\"`. The global `1` has no effect here. Whether an empty string enables or disables active help depends on the callers of `GetActiveHelpConfig`, which I did not check.\n\n**Whose name determines the variable:** the root command's name, `cmd.Root().Name()`, not the subcommand's. Subcommands resolve to the root, so the same variable applies everywhere under that root.\n- `activeHelpEnvVar(name)` = `configEnvVar(name, \"ACTIVE_HELP\")` (active_help.go:58-60).\n- `configEnvVar` uppercases `name_SUFFIX` and replaces every character outside `[A-Z0-9_]` with `_` (completions.go:1002-1007, regexp at completions.go:997). For example, a root named `my-app` yields `MY-APP_ACTIVE_HELP` → `MY_APP_ACTIVE_HELP`.\n\nI did not check the callers of `GetActiveHelpConfig`, so I have not verified what `\"\"` vs `\"0\"` causes downstream.",
+      "corpus": "cobra",
+      "question_set": "control",
+      "block": 9,
+      "other_tools": [],
+      "rpc_calls": 4,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 1060,
+      "final_output": 1219,
+      "post_s": 12.053531625,
+      "ttft_s": 4.885468375,
+      "call_text_chars": 0,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "new",
+      "model": "claude-haiku-5-5",
+      "turns": 4,
+      "tokens": 180523,
+      "usage": {
+        "input": 10,
+        "cacheRead": 173225,
+        "cacheWrite": 5681,
+        "output": 1607
+      },
+      "usd": 0.00367295,
+      "wall_s": 10.169,
+      "rpc": [
+        {
+          "initialize": 34882
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "GetActiveHelpConfig"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 34888
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  1 bodies  context 0\n@ cobra active_help.go:47-53 func GetActiveHelpConfig 5AUC"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalDisable"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 34888
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  3 bodies  context 0\n@ cobra active_help.go:58-60 func activeHelpEnvVar ID37AFX"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 34888
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  3 bodies  context 0\n@ cobra completions.go:1002-1007 func configEnvVar LXL5YJZ"
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "GetActiveHelpConfig"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpGlobalDisable"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        }
+      ],
+      "answer": "**Answers**\n\n1. **Global `COBRA_ACTIVE_HELP=0`, program-specific variable set to `1`: returns `\"0\"`.** The function reads the global variable first. If its value equals `\"0\"` (`activeHelpGlobalDisable`), the `if` is skipped and the program-specific variable is never read, so the `1` is ignored. (`active_help.go:47-53`, `active_help.go:28`)\n\n2. **Global `COBRA_ACTIVE_HELP=1`, program-specific variable unset: returns `\"\"`.** `\"1\" != \"0\"`, so the function reads the program-specific variable. It is unset, so the result is the empty string. The global `1` is not returned. (`active_help.go:47-53`)\n\n3. **Whose command name determines the variable: the root command's name.** The lookup uses `cmd.Root().Name()`, not the subcommand's name, so every subcommand of one program reads the same variable. (`active_help.go:47-53`, `active_help.go:58-60`) The name is built by `configEnvVar(name, \"ACTIVE_HELP\")`, which uppercases `\"<name>_ACTIVE_HELP\"` and then applies `configEnvVarPrefixSubstRegexp` (`completions.go:1002-1007`). I did not read that regex, so I cannot state exactly how non-alphanumeric characters in a root name are rewritten.\n\nThe global variable name is `COBRA_ACTIVE_HELP`, from `configEnvVarGlobalPrefix = \"COBRA\"` and `activeHelpEnvVarSuffix = \"ACTIVE_HELP\"` (`active_help.go:26-27`, `completions.go:993`).",
+      "corpus": "cobra",
+      "question_set": "control",
+      "block": 10,
+      "other_tools": [],
+      "rpc_calls": 3,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 569,
+      "final_output": 1038,
+      "post_s": 6.786526165,
+      "ttft_s": 3.3474738350000006,
+      "call_text_chars": 0,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "old",
+      "model": "claude-haiku-5-5",
+      "turns": 6,
+      "tokens": 279600,
+      "usage": {
+        "input": 14,
+        "cacheRead": 268277,
+        "cacheWrite": 7974,
+        "output": 3335
+      },
+      "usd": 0.005946470000000001,
+      "wall_s": 23.751,
+      "rpc": [
+        {
+          "initialize": 35110
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "direction": "outgoing",
+            "repository": "cobra",
+            "response_format": "detailed"
+          },
+          "pid": 35118
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":9,\"total\":6,\"returned\":6,\"coverage\":{\"exact\":6},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "GetActiveHelpConfig"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "command.go",
+                "qualified_name": "Command.Root"
+              },
+              {
+                "repository": "cobra",
+                "path": "command.go",
+                "qualified_name": "Command.Name"
+              }
+            ],
+            "context_lines": 0,
+            "response_format": "detailed"
+          },
+          "pid": 35118
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  4 bodies  context 0\n@ cobra active_help.go:47-53 func GetActiveHelpConfig 5AUC"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "configEnvVar"
+              }
+            ],
+            "context_lines": 0,
+            "response_format": "detailed"
+          },
+          "pid": 35118
+        },
+        {
+          "reply": "get_source",
+          "error": "SYMBOL_NOT_FOUND: qualified name \"configEnvVar\" was not found under cobra active_help.go; call it without repository and path to search the whole graph",
+          "preview": "SYMBOL_NOT_FOUND: qualified name \"configEnvVar\" was not found under cobra active_help.go; "
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVar"
+              }
+            ],
+            "context_lines": 0,
+            "response_format": "detailed"
+          },
+          "pid": 35118
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              }
+            ],
+            "context_lines": 0,
+            "response_format": "detailed"
+          },
+          "pid": 35118
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  2 bodies  context 0\n@ cobra active_help.go:28-28 const activeHelpGlobalDisable"
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  1 bodies  context 0\n@ cobra completions.go:1002-1007 func configEnvVar LXL5YJZ"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              }
+            ],
+            "context_lines": 0,
+            "response_format": "detailed"
+          },
+          "pid": 35118
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 9  2 bodies  context 0\n@ cobra completions.go:993-993 const configEnvVarGlobalPre"
+        }
+      ],
+      "errors": [
+        "SYMBOL_NOT_FOUND: qualified name \"configEnvVar\" was not found under cobra active_help.go; call it without repository and path to search the whole graph"
+      ],
+      "host_errors": [
+        "Error: SYMBOL_NOT_FOUND: qualified name \"configEnvVar\" was not found under cobra active_help.go; call it without repository and path to search the whole graph"
+      ],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "GetActiveHelpConfig",
+            "direction": "outgoing",
+            "repository": "cobra",
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "GetActiveHelpConfig"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "command.go",
+                "qualified_name": "Command.Root"
+              },
+              {
+                "repository": "cobra",
+                "path": "command.go",
+                "qualified_name": "Command.Name"
+              }
+            ],
+            "context_lines": 0,
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "configEnvVar"
+              }
+            ],
+            "context_lines": 0,
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalDisable"
+              },
+              {
+                "repository": "cobra",
+                "path": "active_help.go",
+                "qualified_name": "activeHelpGlobalEnvVar"
+              }
+            ],
+            "context_lines": 0,
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVar"
+              }
+            ],
+            "context_lines": 0,
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "qualified_name": "configEnvVarGlobalPrefix"
+              },
+              {
+                "repository": "cobra",
+                "qualified_name": "activeHelpEnvVarSuffix"
+              }
+            ],
+            "context_lines": 0,
+            "response_format": "detailed"
+          }
+        }
+      ],
+      "answer": "**Answer: GetActiveHelpConfig returns `\"0\"` in your first case.**\n\nWith `COBRA_ACTIVE_HELP=0` and `<PROG>_ACTIVE_HELP=1`, the function reads the global variable first. Because it equals the disable sentinel, the program-specific variable is never read, so the function returns `\"0\"`.\n\n**Source for the logic:**\n- `GetActiveHelpConfig` reads `os.Getenv(activeHelpGlobalEnvVar)`, then reads `os.Getenv(activeHelpEnvVar(cmd.Root().Name()))` only if the global value is not `activeHelpGlobalDisable`. It returns whichever value was last assigned. (active_help.go:47-53)\n- `activeHelpGlobalDisable = \"0\"` (active_help.go:28).\n- `activeHelpGlobalEnvVar = configEnvVarGlobalPrefix + \"_\" + activeHelpEnvVarSuffix`, which resolves to `COBRA_ACTIVE_HELP` (active_help.go:27; completions.go:993 `configEnvVarGlobalPrefix = \"COBRA\"`; active_help.go:26 `activeHelpEnvVarSuffix = \"ACTIVE_HELP\"`).\n\n**Second case: global `COBRA_ACTIVE_HELP=1`, program variable unset.** The function returns `\"\"`, not `\"1\"`. The global value `\"1\"` is not the disable sentinel, so the function overwrites it with the program-specific lookup, which is unset and therefore empty. A global value of `1` is never returned. Only the sentinel `\"0\"` short-circuits the lookup.\n\n**Whose command name selects the variable: the root command's.** `activeHelpEnvVar(cmd.Root().Name())` walks up parents to the root (command.go:892-897, `Root`), then takes the root's `Name()`, which is `Use` up to its first space (command.go:1541-1548). The subcommand's own name is never used. `configEnvVar` uppercases `<name>_<suffix>` and applies a substitution regexp to it (completions.go:1002-1007). I did not open `configEnvVarPrefixSubstRegexp`, so the exact character substitution is unverified.",
+      "corpus": "cobra",
+      "question_set": "control",
+      "block": 10,
+      "other_tools": [],
+      "rpc_calls": 6,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source",
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 2067,
+      "final_output": 1268,
+      "post_s": 17.476068749,
+      "ttft_s": 6.198931251,
+      "call_text_chars": 148,
+      "lexical_missing": [],
+      "correct": true
+    }
+  ]
+}

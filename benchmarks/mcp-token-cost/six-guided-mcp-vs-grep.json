@@ -1,0 +1,3435 @@
+{
+  "model": "anthropic/claude-haiku-5-5",
+  "thinking": "low",
+  "candidate": "43d1a11c-dirty",
+  "binary_sha256": "e0cba1151a12528e434e4a26e73ffc5c0be1122e29edfc58ffd480cf50c1824b",
+  "guide": "Start with two parallel `find_references` calls in the first turn when a Go\ncaller question names both a package function and a method with its receiver.\nUse `qualified_name` for each: the function name alone and `Receiver.Method`.\nDo not run `find_symbol` first. Use it only if a selector cannot be resolved;\nif it is ambiguous, use the returned candidates to narrow it rather than guess.",
+  "corpora": {
+    "cobra": "88b30ab89da2d0d0abb153818746c5a2d30eccec",
+    "ky": "3541888878c4d303a8bc2ad61815f4e048f55a5d",
+    "ripgrep": "4649aa9700619f94cf9c66876e9549d83420e16c"
+  },
+  "questions": {
+    "cobra/control": [
+      "ExactArgs",
+      "When validating a command with ExactArgs, what happens if the argument count is wrong? Show one existing test that exercises this failure, including the concrete counts or expected error."
+    ],
+    "ky/control": [
+      "mergeHeaders",
+      "How does Ky decide whether the user supplied Content-Type, and what header inputs does it consult for that decision? Cite the implementation, including the exact predicate."
+    ],
+    "ripgrep/control": [
+      "Replacer",
+      "When Standard builds its searcher sink with and without a path, how is its replacement helper initialized? Compare both construction sites and describe the initial internal state of the helper."
+    ],
+    "cobra/typed": [
+      "MarkFlagRequired",
+      "Which non-test methods directly call the package-level MarkFlagRequired function (not the identically named Command method), and which flag set does each pass? Identify one production caller of the Command method instead and cite the evidence."
+    ],
+    "ky/typed": [
+      "KyOptions.retry",
+      "Trace the retry property of KyOptions, not the retry helper or retry hook. Which init-hook options clone reads it, how is the property copied (including nested arrays), and which constant lists this option as a recognized key? Cite the code."
+    ],
+    "ripgrep/typed": [
+      "line_buffer::Config",
+      "For the private line_buffer::Config, not the searcher or printer Config, which two structs store this exact type in a field, and which constructor explicitly calls its Default implementation? Give one default field value and cite the source."
+    ]
+  },
+  "order": {
+    "cobra": [
+      "cobra-control-1-grep",
+      "cobra-control-1-native",
+      "cobra-control-2-native",
+      "cobra-control-2-grep",
+      "cobra-typed-1-native",
+      "cobra-typed-1-grep",
+      "cobra-typed-2-grep",
+      "cobra-typed-2-native"
+    ],
+    "ky": [
+      "ky-control-1-grep",
+      "ky-control-1-native",
+      "ky-control-2-native",
+      "ky-control-2-grep",
+      "ky-typed-1-native",
+      "ky-typed-1-grep",
+      "ky-typed-2-grep",
+      "ky-typed-2-native"
+    ],
+    "ripgrep": [
+      "ripgrep-control-1-grep",
+      "ripgrep-control-1-native",
+      "ripgrep-control-2-native",
+      "ripgrep-control-2-grep",
+      "ripgrep-typed-1-native",
+      "ripgrep-typed-1-grep",
+      "ripgrep-typed-2-grep",
+      "ripgrep-typed-2-native"
+    ]
+  },
+  "replacement_order": {
+    "ripgrep": [
+      "ripgrep-typed-2-grep",
+      "ripgrep-typed-2-native"
+    ]
+  },
+  "design": "Fresh processes, paired in both orders; concurrent across corpora. Replacement pair ran alone after one original MCP run used the global graph and did not answer. Times sum session durations excluding launch and indexing. The 24 original and 2 replacement MCP configs invoke six-visible-zvsc8c8i/*-after.py, which launches /tmp/kv-selector-v2; binary_sha256 is the SHA-256 of those retained bytes (the same executable six-final used), matched through the adapter rather than hashed at each session start. The earlier six-native comparator used /tmp/kv-main (SHA-256 4a93e9e4587a2e3c3cd97849783f748f85d1967d857a46d99648f8a5ee22bb38), so cross-report differences are uncontrolled and not attributable solely to the guide.",
+  "original_summary": {
+    "grep": {
+      "tokens": 2520599,
+      "seconds": 133.857,
+      "turns": 56,
+      "usd": 0.0539212,
+      "calls": 69
+    },
+    "native": {
+      "tokens": 2149648,
+      "seconds": 183.753,
+      "turns": 47,
+      "usd": 0.0508356,
+      "calls": 47
+    }
+  },
+  "clean_original_sensitivity": {
+    "excluded_pair": "ripgrep typed block 2: native called mcp__kivgraph_graph_status and did not answer",
+    "grep": {
+      "tokens": 2344244,
+      "seconds": 124.244,
+      "turns": 52,
+      "usd": 0.05013458,
+      "calls": 64,
+      "correct": "10/11"
+    },
+    "native": {
+      "tokens": 2058779,
+      "seconds": 174.555,
+      "turns": 45,
+      "usd": 0.04807118,
+      "calls": 45,
+      "correct": "11/11"
+    }
+  },
+  "standalone_replacement": {
+    "run_label": "ripgrep-typed-2-replacement",
+    "grep": {
+      "tokens": 221123,
+      "seconds": 10.921,
+      "turns": 5,
+      "usd": 0.00424737,
+      "calls": 6,
+      "correct": true
+    },
+    "native": {
+      "tokens": 230807,
+      "seconds": 15.272,
+      "turns": 5,
+      "usd": 0.00520524,
+      "calls": 4,
+      "correct": true
+    }
+  },
+  "original": [
+    {
+      "arm": "grep",
+      "model": "claude-haiku-5-5",
+      "turns": 5,
+      "tokens": 216509,
+      "usage": {
+        "input": 12,
+        "cacheRead": 209620,
+        "cacheWrite": 5823,
+        "output": 1054
+      },
+      "usd": 0.0037890000000000003,
+      "wall_s": 8.37,
+      "rpc": [],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "func ExactArgs|ExactArgs\\(",
+            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "func TestExactArgs|ExactArgs\\(\\d",
+            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/cobra/src/args.go:88-110"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/cobra/src/args_test.go:308-315"
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "func exactArgsWithInvalidCount",
+            "path": "/private/tmp/kivgraph-corpora/cobra/src/args_test.go"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/cobra/src/args_test.go:88-96"
+          }
+        }
+      ],
+      "answer": "**Answer:** `ExactArgs(n)` returns a non-nil error whenever `len(args) != n`. It does not clamp, truncate, or ignore extra args. The error message is `accepts N arg(s), received M`.\n\n**Implementation** (`args.go`, lines 93\u2013100):\n```go\n// ExactArgs returns an error if there are not exactly n args.\nfunc ExactArgs(n int) PositionalArgs {\n\treturn func(cmd *Command, args []string) error {\n\t\tif len(args) != n {\n\t\t\treturn fmt.Errorf(\"accepts %d arg(s), received %d\", n, len(args))\n\t\t}\n\t\treturn nil\n\t}\n}\n```\n\n**Existing test exercising the failure:** `TestExactArgs_WithInvalidCount` (`args_test.go`, lines 308\u2013311):\n```go\nc := getCommand(ExactArgs(2), false)\n_, err := executeCommand(c, \"a\", \"b\", \"c\")\nexactArgsWithInvalidCount(err, t)\n```\nConcrete counts: `ExactArgs(2)` receives 3 args. The shared helper `exactArgsWithInvalidCount` (`args_test.go`, lines 88\u201395) asserts that the error is non-nil and that its text equals exactly `\"accepts 2 arg(s), received 3\"`.\n\nA variant with valid-args checking, `TestExactArgs_WithInvalidCount_WithValid` (lines 313\u2013317), runs `ExactArgs(2)` with `\"three\", \"one\", \"two\"` and checks the same message.",
+      "corpus": "cobra",
+      "question_set": "control",
+      "block": 1,
+      "other_tools": [],
+      "rpc_calls": 0,
+      "initializations": 0,
+      "route": [
+        [
+          "grep",
+          "grep"
+        ],
+        [
+          "read",
+          "read"
+        ],
+        [
+          "grep"
+        ],
+        [
+          "read"
+        ],
+        []
+      ],
+      "required_facts_correct": true
+    },
+    {
+      "arm": "native",
+      "model": "claude-haiku-5-5",
+      "turns": 5,
+      "tokens": 226342,
+      "usage": {
+        "input": 12,
+        "cacheRead": 218310,
+        "cacheWrite": 6210,
+        "output": 1810
+      },
+      "usd": 0.0043313,
+      "wall_s": 13.284,
+      "rpc": [
+        {
+          "initialize": 29922
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_symbol",
+          "args": {
+            "name": "ExactArgs",
+            "repo": "cobra"
+          },
+          "pid": 29948
+        },
+        {
+          "reply": "find_symbol",
+          "error": null,
+          "preview": "{\"snapshot_id\":7,\"total\":1,\"returned\":1,\"results\":{\"name\":\"ExactArgs\",\"kind\":\"func\",\"expor"
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "ExactArgs",
+            "direction": "incoming",
+            "limit": 50
+          },
+          "pid": 29948
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "args.go",
+                "qualified_name": "ExactArgs"
+              }
+            ],
+            "context_lines": 3
+          },
+          "pid": 29948
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":7,\"total\":17,\"returned\":17,\"coverage\":{\"exact\":17},\"completeness\":{\"verdict"
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 7  1 bodies  context 3\n@ cobra args.go:94-101 func ExactArgs\n}\n\n// ExactArgs retu"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "args_test.go",
+                "qualified_name": "TestExactArgs_WithInvalidCount"
+              }
+            ],
+            "context_lines": 2
+          },
+          "pid": 29948
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 7  1 bodies  context 2\n@ cobra args_test.go:308-312 func TestExactArgs_WithInvali"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "args_test.go",
+                "qualified_name": "exactArgsWithInvalidCount"
+              }
+            ],
+            "context_lines": 0
+          },
+          "pid": 29948
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 7  1 bodies  context 0\n@ cobra args_test.go:88-97 func exactArgsWithInvalidCount\n"
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_symbol",
+          "args": {
+            "name": "ExactArgs",
+            "repo": "cobra"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "args.go",
+                "qualified_name": "ExactArgs"
+              }
+            ],
+            "context_lines": 3
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "ExactArgs",
+            "direction": "incoming",
+            "limit": 50
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "args_test.go",
+                "qualified_name": "TestExactArgs_WithInvalidCount"
+              }
+            ],
+            "context_lines": 2
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "args_test.go",
+                "qualified_name": "exactArgsWithInvalidCount"
+              }
+            ],
+            "context_lines": 0
+          }
+        }
+      ],
+      "answer": "**Answer:** When the count is wrong, `ExactArgs` returns an error and does not run the command. It does not fall back or clamp.\n\n**Behavior** (`args.go:94-101`):\n```go\nfunc ExactArgs(n int) PositionalArgs {\n\treturn func(cmd *Command, args []string) error {\n\t\tif len(args) != n {\n\t\t\treturn fmt.Errorf(\"accepts %d arg(s), received %d\", n, len(args))\n\t\t}\n\t\treturn nil\n\t}\n}\n```\n- The check is `len(args) != n`, so both too few and too many arguments fail.\n- The message is `accepts N arg(s), received M`, where N is the expected count and M is the actual count.\n\n**Callers:** The validator is reached through `PositionalArgs`. The only callers are tests in `args_test.go` and `command_test.go` plus `ExactValidArgs` in `args.go:129-131`. Kivgraph reports 17 incoming references, marked COMPLETE and EXACT_TYPECHECKED.\n\n**Test exercising the failure:** `args_test.go:308-312`\n```go\nfunc TestExactArgs_WithInvalidCount(t *testing.T) {\n\tc := getCommand(ExactArgs(2), false)\n\t_, err := executeCommand(c, \"a\", \"b\", \"c\")\n\texactArgsWithInvalidCount(err, t)\n}\n```\n- Expected count: 2. Actual count: 3 (`a`, `b`, `c`).\n- The helper `exactArgsWithInvalidCount` (`args_test.go:88-97`) requires a non-nil error whose text is exactly `accepts 2 arg(s), received 3`.\n\n**Not verified:** I did not run the tests. I did not trace how `command.go` invokes the validator on the execution path, so the exact point where the error surfaces to the user is inferred from the test harness, not from source I read.",
+      "corpus": "cobra",
+      "question_set": "control",
+      "block": 1,
+      "other_tools": [],
+      "rpc_calls": 5,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_symbol"
+        ],
+        [
+          "bench_get_source",
+          "bench_find_references"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "required_facts_correct": true
+    },
+    {
+      "arm": "native",
+      "model": "claude-haiku-5-5",
+      "turns": 4,
+      "tokens": 181434,
+      "usage": {
+        "input": 10,
+        "cacheRead": 173919,
+        "cacheWrite": 6037,
+        "output": 1468
+      },
+      "usd": 0.00368159,
+      "wall_s": 10.061,
+      "rpc": [
+        {
+          "initialize": 30341
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_symbol",
+          "args": {
+            "name": "ExactArgs",
+            "repo": "cobra"
+          },
+          "pid": 30350
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "ExactArgs",
+            "repo": "cobra"
+          },
+          "pid": 30350
+        },
+        {
+          "reply": "find_symbol",
+          "error": null,
+          "preview": "{\"snapshot_id\":7,\"total\":1,\"returned\":1,\"results\":{\"name\":\"ExactArgs\",\"kind\":\"func\",\"expor"
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":7,\"total\":17,\"returned\":17,\"coverage\":{\"exact\":17},\"completeness\":{\"verdict"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "args.go",
+                "qualified_name": "ExactArgs"
+              },
+              {
+                "repository": "cobra",
+                "path": "args_test.go",
+                "qualified_name": "TestExactArgs_WithInvalidCount"
+              }
+            ],
+            "context_lines": 3
+          },
+          "pid": 30350
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 7  2 bodies  context 3\n@ cobra args.go:94-101 func ExactArgs\n}\n\n// ExactArgs retu"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "args_test.go",
+                "qualified_name": "exactArgsWithInvalidCount"
+              }
+            ],
+            "context_lines": 2
+          },
+          "pid": 30350
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 7  1 bodies  context 2\n@ cobra args_test.go:88-97 func exactArgsWithInvalidCount\n"
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_symbol",
+          "args": {
+            "name": "ExactArgs",
+            "repo": "cobra"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "ExactArgs",
+            "repo": "cobra"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "args.go",
+                "qualified_name": "ExactArgs"
+              },
+              {
+                "repository": "cobra",
+                "path": "args_test.go",
+                "qualified_name": "TestExactArgs_WithInvalidCount"
+              }
+            ],
+            "context_lines": 3
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "args_test.go",
+                "qualified_name": "exactArgsWithInvalidCount"
+              }
+            ],
+            "context_lines": 2
+          }
+        }
+      ],
+      "answer": "**Answer:** If the argument count is wrong, `ExactArgs` returns an error and the command fails. It does not panic or silently accept the input.\n\n**Source:**\n- `args.go:94-101`: `ExactArgs(n)` returns a validator. When `len(args) != n`, it returns `fmt.Errorf(\"accepts %d arg(s), received %d\", n, len(args))`. Otherwise it returns `nil`.\n\n**Existing test covering this failure:**\n- `args_test.go:308-312`, `TestExactArgs_WithInvalidCount`: builds a command with `ExactArgs(2)`, runs it with three args (`\"a\", \"b\", \"c\"`), and passes the error to `exactArgsWithInvalidCount`.\n- `args_test.go:88-97`, `exactArgsWithInvalidCount`: requires a non-nil error and checks that its text is exactly `accepts 2 arg(s), received 3`.\n\nSo with `ExactArgs(2)` and 3 args, the expected error is `accepts 2 arg(s), received 3`.\n\n**Callers:** `find_references` returned 17 exact (`EXACT_TYPECHECKED`) incoming references with completeness `COMPLETE`. They are all in `args_test.go` and `command_test.go`, plus `ExactValidArgs` at `args.go:129-131`.\n\n**Caveat:** I did not call `graph_status`, because it was not in the allowed tool set. Graph freshness for snapshot 7 is therefore unverified.",
+      "corpus": "cobra",
+      "question_set": "control",
+      "block": 2,
+      "other_tools": [],
+      "rpc_calls": 4,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_symbol",
+          "bench_find_references"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "required_facts_correct": true
+    },
+    {
+      "arm": "grep",
+      "model": "claude-haiku-5-5",
+      "turns": 6,
+      "tokens": 259657,
+      "usage": {
+        "input": 14,
+        "cacheRead": 252359,
+        "cacheWrite": 6013,
+        "output": 1271
+      },
+      "usd": 0.00436309,
+      "wall_s": 10.43,
+      "rpc": [],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "func ExactArgs",
+            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "ExactArgs\\(",
+            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/cobra/src/args.go:90-105"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/cobra/src/args_test.go:284-296"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/cobra/src/args_test.go:300-331"
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "func exactArgsWithInvalidCount",
+            "path": "/private/tmp/kivgraph-corpora/cobra/src/args_test.go"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/cobra/src/args_test.go:88-96"
+          }
+        }
+      ],
+      "answer": "**Answer:** If the count is wrong, `ExactArgs` returns an error and the command does not run. The error is `accepts N arg(s), received M`, where N is the expected count and M is the count actually passed.\n\n**Implementation** (`args.go:94-101`):\n```go\nfunc ExactArgs(n int) PositionalArgs {\n\treturn func(cmd *Command, args []string) error {\n\t\tif len(args) != n {\n\t\t\treturn fmt.Errorf(\"accepts %d arg(s), received %d\", n, len(args))\n\t\t}\n\t\treturn nil\n\t}\n}\n```\nThe check is `len(args) != n`, so both too few and too many arguments fail.\n\n**Test exercising the failure:** `args_test.go:309-312`\n```go\nfunc TestExactArgs_WithInvalidCount(t *testing.T) {\n\tc := getCommand(ExactArgs(2), false)\n\t_, err := executeCommand(c, \"a\", \"b\", \"c\")\n\texactArgsWithInvalidCount(err, t)\n}\n```\nThis passes 3 arguments to a command that requires 2. The helper at `args_test.go:88-96` asserts that an error is returned and that its text is exactly `\"accepts 2 arg(s), received 3\"`.\n\n**Other uses:** `TestExactArgs_WithInvalidCount_WithValid` (`args_test.go:314-317`) and `TestExactArgs_WithInvalidCount_WithValid_WithInvalidArgs` (`args_test.go:319-322`) cover the same count failure with `OnlyValidArgs` enabled.\n\n**Deprecated wrapper:** `ExactValidArgs` (`args.go:128-130`) is `MatchAll(ExactArgs(n), OnlyValidArgs)`, so the count check runs first and the same error applies.",
+      "corpus": "cobra",
+      "question_set": "control",
+      "block": 2,
+      "other_tools": [],
+      "rpc_calls": 0,
+      "initializations": 0,
+      "route": [
+        [
+          "grep",
+          "grep"
+        ],
+        [
+          "read",
+          "read"
+        ],
+        [
+          "read"
+        ],
+        [
+          "grep"
+        ],
+        [
+          "read"
+        ],
+        []
+      ],
+      "required_facts_correct": true
+    },
+    {
+      "arm": "native",
+      "model": "claude-haiku-5-5",
+      "turns": 3,
+      "tokens": 137226,
+      "usage": {
+        "input": 8,
+        "cacheRead": 128157,
+        "cacheWrite": 7253,
+        "output": 1808
+      },
+      "usd": 0.0036369700000000002,
+      "wall_s": 10.596,
+      "rpc": [
+        {
+          "initialize": 31090
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "repository": "cobra",
+            "qualified_name": "MarkFlagRequired",
+            "exclude_tests": true,
+            "response_format": "detailed"
+          },
+          "pid": 31101
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "repository": "cobra",
+            "qualified_name": "Command.MarkFlagRequired",
+            "exclude_tests": true,
+            "response_format": "detailed"
+          },
+          "pid": 31101
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":7,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":7,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "shell_completions.go",
+                "qualified_name": "MarkFlagRequired"
+              },
+              {
+                "repository": "cobra",
+                "path": "shell_completions.go",
+                "qualified_name": "Command.MarkFlagRequired"
+              },
+              {
+                "repository": "cobra",
+                "path": "shell_completions.go",
+                "qualified_name": "Command.MarkPersistentFlagRequired"
+              },
+              {
+                "repository": "cobra",
+                "path": "flag_groups.go",
+                "qualified_name": "Command.enforceFlagGroupsForCompletion"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 31101
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 7  4 bodies  context 0\n@ cobra shell_completions.go:38-40 func MarkFlagRequired R"
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "repository": "cobra",
+            "qualified_name": "MarkFlagRequired",
+            "exclude_tests": true,
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "repository": "cobra",
+            "qualified_name": "Command.MarkFlagRequired",
+            "exclude_tests": true,
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "shell_completions.go",
+                "qualified_name": "MarkFlagRequired"
+              },
+              {
+                "repository": "cobra",
+                "path": "shell_completions.go",
+                "qualified_name": "Command.MarkFlagRequired"
+              },
+              {
+                "repository": "cobra",
+                "path": "shell_completions.go",
+                "qualified_name": "Command.MarkPersistentFlagRequired"
+              },
+              {
+                "repository": "cobra",
+                "path": "flag_groups.go",
+                "qualified_name": "Command.enforceFlagGroupsForCompletion"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        }
+      ],
+      "answer": "Two non-test methods call the package-level `MarkFlagRequired`, both in `shell_completions.go`. Each passes a different flag set:\n\n- `Command.MarkFlagRequired` (lines 24-26) calls `MarkFlagRequired(c.Flags(), name)`, so it uses the command's local flags.\n- `Command.MarkPersistentFlagRequired` (lines 31-33) calls `MarkFlagRequired(c.PersistentFlags(), name)`, so it uses the persistent flags.\n\nThe package function (lines 38-40) does `flags.SetAnnotation(name, BashCompOneRequiredFlag, []string{\"true\"})`.\n\nProduction caller of the `Command` method: `Command.enforceFlagGroupsForCompletion` in `flag_groups.go` (lines 225-290). It calls `c.MarkFlagRequired(fName)` at two sites, once for required-as-group flags and once for one-required groups with no flag set.\n\nBoth `find_references` results were `COMPLETE` with `EXACT_TYPECHECKED` edges, and the reference counts were exact.",
+      "corpus": "cobra",
+      "question_set": "typed",
+      "block": 1,
+      "other_tools": [],
+      "rpc_calls": 3,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references",
+          "bench_find_references"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "required_facts_correct": true
+    },
+    {
+      "arm": "grep",
+      "model": "claude-haiku-5-5",
+      "turns": 5,
+      "tokens": 214958,
+      "usage": {
+        "input": 12,
+        "cacheRead": 207476,
+        "cacheWrite": 6169,
+        "output": 1301
+      },
+      "usd": 0.00396026,
+      "wall_s": 12.455,
+      "rpc": [],
+      "errors": [],
+      "host_errors": [
+        "Invalid line selector ':20:50'. Use :20 for a single line or :20-50 for a range.",
+        "Invalid line selector ':235:275'. Use :235 for a single line or :235-275 for a range."
+      ],
+      "calls": [
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "MarkFlagRequired\\(",
+            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/cobra/src/shell_completions.go:20:50"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/cobra/src/flag_groups.go:235:275"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/cobra/src/shell_completions.go:20-50"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/cobra/src/flag_groups.go:235-275"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/cobra/src/flag_groups.go:225-234"
+          }
+        }
+      ],
+      "answer": "No non-test code calls the package-level `MarkFlagRequired` function directly from a method. The only non-test call sites of `MarkFlagRequired` are wrappers or the `Command` method.\n\n**Package-level function (`shell_completions.go`)**\n- `shell_completions.go:38`: `func MarkFlagRequired(flags *pflag.FlagSet, name string) error` sets the `BashCompOneRequiredFlag` annotation.\n- Its only direct caller is the `Command` method at `shell_completions.go:25`, which passes `c.Flags()`.\n- `shell_completions.go:32` (`MarkPersistentFlagRequired`) also calls it, passing `c.PersistentFlags()`.\n\nSo the two `Command` methods that wrap the package function are:\n- `(*Command).MarkFlagRequired` (`shell_completions.go:24-26`): flag set `c.Flags()`.\n- `(*Command).MarkPersistentFlagRequired` (`shell_completions.go:31-33`): flag set `c.PersistentFlags()`.\n\n**Production caller of the `Command` method**\n- `flag_groups.go:247` and `flag_groups.go:268`, in `(*Command).enforceFlagGroupsForCompletion` (`flag_groups.go:226`), call `c.MarkFlagRequired(fName)`. This is the `Command` method, not the package function, and it passes `c.Flags()` implicitly.\n\n**Test-only callers, excluded:** `bash_completions_test.go:92`, `command_test.go:856-883`, `completions_test.go:860-870,3402`.\n\n**Docs, not code:** `site/content/user_guide.md:323` and `site/content/completions/_index.md:280-281`.",
+      "corpus": "cobra",
+      "question_set": "typed",
+      "block": 1,
+      "other_tools": [],
+      "rpc_calls": 0,
+      "initializations": 0,
+      "route": [
+        [
+          "grep"
+        ],
+        [
+          "read",
+          "read"
+        ],
+        [
+          "read",
+          "read"
+        ],
+        [
+          "read"
+        ],
+        []
+      ],
+      "required_facts_correct": false
+    },
+    {
+      "arm": "grep",
+      "model": "claude-haiku-5-5",
+      "turns": 3,
+      "tokens": 128183,
+      "usage": {
+        "input": 8,
+        "cacheRead": 121277,
+        "cacheWrite": 5520,
+        "output": 1378
+      },
+      "usd": 0.00300657,
+      "wall_s": 9.507,
+      "rpc": [],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "MarkFlagRequired\\(",
+            "path": "/private/tmp/kivgraph-corpora/cobra/src"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/cobra/src/flag_groups.go:225-275"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/cobra/src/shell_completions.go:15-50"
+          }
+        }
+      ],
+      "answer": "**Package-level `MarkFlagRequired` callers (non-test):** two Command methods in `shell_completions.go`. No other non-test method calls the package function directly.\n\n- `(*Command).MarkFlagRequired`, `shell_completions.go:24-25`: `return MarkFlagRequired(c.Flags(), name)`. Flag set: `c.Flags()`.\n- `(*Command).MarkPersistentFlagRequired`, `shell_completions.go:31-32`: `return MarkFlagRequired(c.PersistentFlags(), name)`. Flag set: `c.PersistentFlags()`.\n\nThe package function itself is at `shell_completions.go:38-39`. It calls `flags.SetAnnotation(name, BashCompOneRequiredFlag, []string{\"true\"})`.\n\n**Production caller of the Command method:** `(*Command).enforceFlagGroupsForCompletion` in `flag_groups.go`.\n- Line 247: `_ = c.MarkFlagRequired(fName)`, inside the loop over `groupStatus` for flags in a required group that are set.\n- Line 268: `_ = c.MarkFlagRequired(fName)`, inside the loop over `oneRequiredGroupStatus` when no flag in the group is set.\n\nThis method runs on `c.Flags()` and passes the command's own flags through the Command method, so it reaches the package function via `c.Flags()`.\n\n**Not production code:** `bash_completions_test.go`, `command_test.go`, `completions_test.go` (test files) and `site/content/` docs (`user_guide.md:323`, `completions/_index.md:280-281`) also call the Command method.",
+      "corpus": "cobra",
+      "question_set": "typed",
+      "block": 2,
+      "other_tools": [],
+      "rpc_calls": 0,
+      "initializations": 0,
+      "route": [
+        [
+          "grep"
+        ],
+        [
+          "read",
+          "read"
+        ],
+        []
+      ],
+      "required_facts_correct": true
+    },
+    {
+      "arm": "native",
+      "model": "claude-haiku-5-5",
+      "turns": 3,
+      "tokens": 136663,
+      "usage": {
+        "input": 8,
+        "cacheRead": 128068,
+        "cacheWrite": 6777,
+        "output": 1810
+      },
+      "usd": 0.00354188,
+      "wall_s": 13.903,
+      "rpc": [
+        {
+          "initialize": 31988
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "qualified_name": "MarkFlagRequired",
+            "repository": "cobra",
+            "exclude_tests": true
+          },
+          "pid": 31994
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "qualified_name": "Command.MarkFlagRequired",
+            "repository": "cobra",
+            "exclude_tests": true
+          },
+          "pid": 31994
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":7,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":7,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "shell_completions.go",
+                "qualified_name": "MarkFlagRequired"
+              },
+              {
+                "repository": "cobra",
+                "path": "shell_completions.go",
+                "qualified_name": "Command.MarkFlagRequired"
+              },
+              {
+                "repository": "cobra",
+                "path": "shell_completions.go",
+                "qualified_name": "Command.MarkPersistentFlagRequired"
+              },
+              {
+                "repository": "cobra",
+                "path": "flag_groups.go",
+                "qualified_name": "Command.enforceFlagGroupsForCompletion"
+              }
+            ],
+            "context_lines": 0
+          },
+          "pid": 31994
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 7  4 bodies  context 0\n@ cobra shell_completions.go:38-40 func MarkFlagRequired\nf"
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "qualified_name": "MarkFlagRequired",
+            "repository": "cobra",
+            "exclude_tests": true
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "qualified_name": "Command.MarkFlagRequired",
+            "repository": "cobra",
+            "exclude_tests": true
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "cobra",
+                "path": "shell_completions.go",
+                "qualified_name": "MarkFlagRequired"
+              },
+              {
+                "repository": "cobra",
+                "path": "shell_completions.go",
+                "qualified_name": "Command.MarkFlagRequired"
+              },
+              {
+                "repository": "cobra",
+                "path": "shell_completions.go",
+                "qualified_name": "Command.MarkPersistentFlagRequired"
+              },
+              {
+                "repository": "cobra",
+                "path": "flag_groups.go",
+                "qualified_name": "Command.enforceFlagGroupsForCompletion"
+              }
+            ],
+            "context_lines": 0
+          }
+        }
+      ],
+      "answer": "**Package-level `MarkFlagRequired` (shell_completions.go:38-40)** has no direct non-test callers except the two `Command` methods. Test callers were excluded by the query (`exclude_tests=true`), so tests are not covered by this answer.\n\n| Caller | Location | Flag set passed |\n|---|---|---|\n| `Command.MarkFlagRequired` | shell_completions.go:24-26 | `c.Flags()` |\n| `Command.MarkPersistentFlagRequired` | shell_completions.go:31-33 | `c.PersistentFlags()` |\n\nBoth methods call `MarkFlagRequired(<set>, name)`, which sets the `BashCompOneRequiredFlag` annotation on `name` (shell_completions.go:38-40).\n\n**Production caller of the `Command` method:** `Command.enforceFlagGroupsForCompletion` in flag_groups.go:225-290 calls `c.MarkFlagRequired(fName)` in two loops: the required-group branch and the one-required-group branch. The reference index gives the enclosing function range (225-290) and not the exact call lines, so I have not cited individual call lines.",
+      "corpus": "cobra",
+      "question_set": "typed",
+      "block": 2,
+      "other_tools": [],
+      "rpc_calls": 3,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references",
+          "bench_find_references"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "required_facts_correct": true
+    },
+    {
+      "arm": "grep",
+      "model": "claude-haiku-5-5",
+      "turns": 3,
+      "tokens": 136050,
+      "usage": {
+        "input": 8,
+        "cacheRead": 125562,
+        "cacheWrite": 9413,
+        "output": 1067
+      },
+      "usd": 0.0036725200000000003,
+      "wall_s": 6.924,
+      "rpc": [],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "mergeHeaders|content-type",
+            "path": "/private/tmp/kivgraph-corpora/ky/src",
+            "case": false
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/ky/src/source/core/Ky.ts:520-545"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/merge.ts:60-95"
+          }
+        }
+      ],
+      "answer": "The decision is made in `Ky.ts` at lines 524\u2013525, not in `mergeHeaders` itself. `mergeHeaders` is only the helper used to read the header.\n\n**Predicate (`source/core/Ky.ts:524-525`):**\n\n```ts\n// A `Request` input's headers are already merged in, so only a content-type from `options.headers` counts as user-provided.\nconst userProvidedContentType = options.headers !== undefined && mergeHeaders({}, options.headers).has('content-type');\n```\n\nSo the user counts as having supplied Content-Type only when all of these hold:\n- `options.headers` is defined (not `undefined`), and\n- after `mergeHeaders({}, options.headers)` normalizes it into a `Headers` object, `.has('content-type')` is true. `Headers.has` is case-insensitive.\n\n**Inputs consulted:** only `options.headers`. The predicate does not look at the `input` `Request`'s headers, which the comment says are already merged in, and it does not look at the body. The `input` is checked separately, at line 533, only for the delete path.\n\n**How the flag is used:**\n- **JSON body** (`Ky.ts:527-531`): when `options.json` is set, the body is stringified, and `content-type: application/json` is set on `this.#options.headers` only if `!userProvidedContentType`.\n- **Request-with-FormData/URLSearchParams body** (`Ky.ts:533-542`): when `input` is a `Request`, the body is `FormData` (if supported) or `URLSearchParams`, and `!userProvidedContentType`, the inherited `content-type` is deleted so the new `Request` regenerates it with the correct multipart boundary.\n- Otherwise, the `Request` constructor sets the type from the body (per `readme.md:1457`, `1470`).\n\n**`mergeHeaders` (`source/utils/merge.ts:73-86`):** copies `source1` into a new `Headers`, then applies `source2`. A key whose value is `undefined` is deleted, and any other value is set. Here it is called with `{}` as `source1`, so the result reflects only `options.headers`.\n\n**Test coverage:** `test/headers.ts:172-200` covers a manual header and the `json` option overriding a `Request` input's inherited content-type. `test/formdata-searchparams.ts:175` covers the delete-and-regenerate path.",
+      "corpus": "ky",
+      "question_set": "control",
+      "block": 1,
+      "other_tools": [],
+      "rpc_calls": 0,
+      "initializations": 0,
+      "route": [
+        [
+          "grep"
+        ],
+        [
+          "read",
+          "read"
+        ],
+        []
+      ],
+      "required_facts_correct": true
+    },
+    {
+      "arm": "native",
+      "model": "claude-haiku-5-5",
+      "turns": 3,
+      "tokens": 136603,
+      "usage": {
+        "input": 8,
+        "cacheRead": 128258,
+        "cacheWrite": 5859,
+        "output": 2478
+      },
+      "usd": 0.00369418,
+      "wall_s": 17.174,
+      "rpc": [
+        {
+          "initialize": 29731
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_symbol",
+          "args": {
+            "name": "mergeHeaders",
+            "repo": "ky"
+          },
+          "pid": 29738
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "mergeHeaders",
+            "repository": "ky"
+          },
+          "pid": 29738
+        },
+        {
+          "reply": "find_symbol",
+          "error": null,
+          "preview": "{\"snapshot_id\":3,\"total\":2,\"returned\":2,\"results\":{\"name\":\"mergeHeaders\",\"exported\":true,\""
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":3,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ky",
+                "path": "source/utils/merge.ts",
+                "qualified_name": "mergeHeaders"
+              },
+              {
+                "repository": "ky",
+                "path": "source/core/Ky.ts",
+                "qualified_name": "Ky.userProvidedContentType"
+              }
+            ],
+            "context_lines": 6
+          },
+          "pid": 29738
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 3  2 bodies  context 6\n@ ky source/utils/merge.ts:73-86 variable mergeHeaders\n\t\t}"
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_symbol",
+          "args": {
+            "name": "mergeHeaders",
+            "repo": "ky"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "mergeHeaders",
+            "repository": "ky"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ky",
+                "path": "source/utils/merge.ts",
+                "qualified_name": "mergeHeaders"
+              },
+              {
+                "repository": "ky",
+                "path": "source/core/Ky.ts",
+                "qualified_name": "Ky.userProvidedContentType"
+              }
+            ],
+            "context_lines": 6
+          }
+        }
+      ],
+      "answer": "Ky decides this in one place: `Ky.userProvidedContentType`, a local in the `Ky` constructor, at `source/core/Ky.ts:525`. It is true only when `options.headers` is defined and its merged form has a `content-type` entry.\n\n**Predicate** (`source/core/Ky.ts:524-525`):\n\n```ts\n// A `Request` input's headers are already merged in, so only a content-type from `options.headers` counts as user-provided.\nconst userProvidedContentType = options.headers !== undefined && mergeHeaders({}, options.headers).has('content-type');\n```\n\n**Header inputs consulted:** only `options.headers`. The `Request` input's own headers are excluded by design, since they are already merged in by the time this runs (per the comment on line 524).\n\n**Why `mergeHeaders({}, ...)` counts correctly** (`source/utils/merge.ts:73-86`): it builds a `Headers` from an empty base, then walks `options.headers` through `toHeaderObject`. An entry whose value is `undefined` calls `result.delete(key)`; any other value calls `result.set(key, value)`. So a `content-type` key whose value is `undefined` (a deletion marker) reads as not user-provided, and any real value reads as provided. Header-name matching is case-insensitive because `Headers` normalizes names.\n\n**Use of the decision** (`source/core/Ky.ts:527-530`): inside `if (this.#options.json !== undefined)`, the JSON body is serialized and `content-type: application/json` is set only when `!userProvidedContentType`. A caller-supplied content type is never overwritten.\n\n**Coverage:** `find_references` for `mergeHeaders` returned 2 exact, `EXACT_TYPECHECKED` edges, both in `source/core/Ky.ts` (the `userProvidedContentType` local and the enclosing `Ky` class), and the result was marked COMPLETE. The 2 references are the one call on line 525 and the class-level container; no other file consults this decision.",
+      "corpus": "ky",
+      "question_set": "control",
+      "block": 1,
+      "other_tools": [],
+      "rpc_calls": 3,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_symbol",
+          "bench_find_references"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "required_facts_correct": true
+    },
+    {
+      "arm": "native",
+      "model": "claude-haiku-5-5",
+      "turns": 5,
+      "tokens": 228423,
+      "usage": {
+        "input": 12,
+        "cacheRead": 219070,
+        "cacheWrite": 6798,
+        "output": 2543
+      },
+      "usd": 0.004823,
+      "wall_s": 17.725,
+      "rpc": [
+        {
+          "initialize": 30551
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_symbol",
+          "args": {
+            "name": "mergeHeaders",
+            "repo": "ky",
+            "view": "full"
+          },
+          "pid": 30560
+        },
+        {
+          "reply": "find_symbol",
+          "error": null,
+          "preview": "{\"snapshot_id\":3,\"snapshot_age_ms\":3656223,\"total\":2,\"returned\":2,\"truncated\":false,\"next_"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ky",
+                "path": "source/utils/merge.ts",
+                "qualified_name": "mergeHeaders"
+              }
+            ],
+            "context_lines": 5
+          },
+          "pid": 30560
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 3  1 bodies  context 5\n@ ky source/utils/merge.ts:73-86 variable mergeHeaders\n\t}\n"
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "repository": "ky",
+            "path": "source/utils/merge.ts",
+            "qualified_name": "mergeHeaders",
+            "view": "full"
+          },
+          "pid": 30560
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":3,\"snapshot_age_ms\":3661392,\"total\":2,\"returned\":2,\"truncated\":false,\"next_"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ky",
+                "path": "source/core/Ky.ts",
+                "qualified_name": "Ky.userProvidedContentType"
+              }
+            ],
+            "context_lines": 12
+          },
+          "pid": 30560
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 3  1 bodies  context 12\n@ ky source/core/Ky.ts:525-525 variable Ky.userProvidedCo"
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_symbol",
+          "args": {
+            "name": "mergeHeaders",
+            "repo": "ky",
+            "view": "full"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ky",
+                "path": "source/utils/merge.ts",
+                "qualified_name": "mergeHeaders"
+              }
+            ],
+            "context_lines": 5
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "repository": "ky",
+            "path": "source/utils/merge.ts",
+            "qualified_name": "mergeHeaders",
+            "view": "full"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ky",
+                "path": "source/core/Ky.ts",
+                "qualified_name": "Ky.userProvidedContentType"
+              }
+            ],
+            "context_lines": 12
+          }
+        }
+      ],
+      "answer": "**Short answer:** Ky's \"user supplied Content-Type\" flag is `userProvidedContentType`, computed once in the `Ky` constructor from `options.headers` only. `mergeHeaders` is the helper it calls, not the decider.\n\n**Predicate** (`source/core/Ky.ts:525`):\n\n```ts\nconst userProvidedContentType = options.headers !== undefined && mergeHeaders({}, options.headers).has('content-type');\n```\n\n- It is true only if `options.headers` is defined and, after merging into an empty `Headers`, contains `content-type`. `Headers.has` is case-insensitive.\n- The inline comment on the line above says a `Request` input's headers are already merged in, so they are deliberately not consulted. The input `Request` is not part of the decision.\n\n**Inputs consulted:** only `options.headers` (the per-call options argument). Not `input` (the `Request`), not `this.#options.headers` (the merged result), and not the `json` value.\n\n**Where it is used** (same file, lines below 525 as shown in the snippet, not individually line-numbered by the tool):\n- JSON branch: when `this.#options.json !== undefined`, the body is stringified and `content-type: application/json` is set only if `!userProvidedContentType`.\n- Form-body branch: the snippet's comment says the `Content-Type` header is deleted for a `Request` built from FormData or URLSearchParams, \"only if the user didn't explicitly provide a custom content-type\". I did not see the full condition for that `if`, so I have not verified how it consumes the flag.\n\n**Callers of `mergeHeaders`** (`source/utils/merge.ts:73`, complete per tool): `Ky.userProvidedContentType` at `source/core/Ky.ts:525`, and the `Ky` class at `source/core/Ky.ts:348-1376`.\n\n**Note:** `mergeHeaders` itself (`merge.ts:73-86`) copies `source1` into a new `Headers` and applies `source2` entries, deleting keys whose value is `undefined`. Here it is called as `mergeHeaders({}, options.headers)`, so the result is just the normalized user headers.\n\nI did not run `graph_status` because it is not in the allowed tool set, so freshness of the snapshot is unattested.",
+      "corpus": "ky",
+      "question_set": "control",
+      "block": 2,
+      "other_tools": [],
+      "rpc_calls": 4,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_symbol"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_find_references"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "required_facts_correct": true
+    },
+    {
+      "arm": "grep",
+      "model": "claude-haiku-5-5",
+      "turns": 4,
+      "tokens": 188041,
+      "usage": {
+        "input": 10,
+        "cacheRead": 173952,
+        "cacheWrite": 12110,
+        "output": 1969
+      },
+      "usd": 0.00514702,
+      "wall_s": 13.201,
+      "rpc": [],
+      "errors": [],
+      "host_errors": [
+        "Invalid line selector ':520:545'. Use :520 for a single line or :520-545 for a range."
+      ],
+      "calls": [
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "mergeHeaders|content-type",
+            "path": "/private/tmp/kivgraph-corpora/ky/src",
+            "case": false
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/ky/src/source/core/Ky.ts:520:545"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/merge.ts"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/ky/src/source/core/Ky.ts:515-545"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/merge.ts:60-115"
+          }
+        }
+      ],
+      "answer": "**Answer:** Ky decides \"user supplied Content-Type\" from `options.headers` only, the raw option passed to the constructor. It does not look at a `Request` input's headers or its body.\n\n**The predicate** (`source/core/Ky.ts:524-525`):\n\n```ts\n// A `Request` input's headers are already merged in, so only a content-type from `options.headers` counts as user-provided.\nconst userProvidedContentType = options.headers !== undefined && mergeHeaders({}, options.headers).has('content-type');\n```\n\nIt is true only when all of these hold:\n- `options.headers !== undefined`\n- `mergeHeaders({}, options.headers)` yields a `Headers` object that has `content-type`. `Headers#has` is case-insensitive.\n\n**Header inputs consulted:**\n- **`options.headers`** is the only input to the predicate.\n- **`input.headers`** (the `Request` input) is not checked. Its headers are merged into `this.#options.headers` earlier, at `Ky.ts:486`: `headers: mergeHeaders((input as Request).headers, options.headers)`. The predicate reads the raw `options.headers`, so an inherited `Request` content-type does not count as user-provided.\n\n**How `mergeHeaders` affects the result** (`source/utils/merge.ts:73-84`):\n- The first argument is copied as-is into a `Headers` instance. The predicate passes `{}`, so nothing is copied there.\n- The second argument goes through `toHeaderObject`. A value of `undefined` is a deletion marker, so `{'content-type': undefined}` does not count as provided. Its key is deleted from the result, so `has()` is false.\n- In the `Headers`-instance case, the string `'undefined'` is also a deletion marker (per the comment at `merge.ts:70`).\n\n**What the flag controls** (`Ky.ts:527-542`):\n1. **JSON body** (`json !== undefined`): sets the body with `stringifyJson` or `JSON.stringify`. It sets `content-type: application/json` only when `!userProvidedContentType` (`Ky.ts:527-531`).\n2. **`Request` input with FormData or URLSearchParams body**: deletes `content-type` so the `Request` constructor regenerates it with the correct multipart boundary. This runs only when `!userProvidedContentType` (`Ky.ts:534-542`).\n\n**Caveats:**\n- The predicate tests the constructor's raw `options`. Changes made in an `init` hook are later and are not seen by it, so a hook that sets the header does not change the JSON decision. The `headers.ts:6960` test covers a hook that edits the header after the JSON default, which is a separate path.\n- The readme (`readme.md:191`, `:1457`, `:1470`) matches this behavior: a user `Content-Type` in `headers` wins, and a `Request` input's `Content-Type` is replaced.",
+      "corpus": "ky",
+      "question_set": "control",
+      "block": 2,
+      "other_tools": [],
+      "rpc_calls": 0,
+      "initializations": 0,
+      "route": [
+        [
+          "grep"
+        ],
+        [
+          "read",
+          "read"
+        ],
+        [
+          "read",
+          "read"
+        ],
+        []
+      ],
+      "required_facts_correct": true
+    },
+    {
+      "arm": "native",
+      "model": "claude-haiku-5-5",
+      "turns": 5,
+      "tokens": 230119,
+      "usage": {
+        "input": 12,
+        "cacheRead": 218277,
+        "cacheWrite": 7218,
+        "output": 4612
+      },
+      "usd": 0.00593357,
+      "wall_s": 28.098,
+      "rpc": [
+        {
+          "initialize": 31447
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_symbol",
+          "args": {
+            "name": "KyOptions",
+            "repo": "ky"
+          },
+          "pid": 31454
+        },
+        {
+          "reply": "find_symbol",
+          "error": null,
+          "preview": "{\"snapshot_id\":3,\"total\":2,\"returned\":2,\"results\":{\"name\":\"KyOptions\",\"exported\":true,\"rep"
+        },
+        {
+          "call": "find_symbol",
+          "args": {
+            "name": "retry",
+            "repo": "ky",
+            "path_prefix": "source/types/options.ts",
+            "mode": "exact"
+          },
+          "pid": 31454
+        },
+        {
+          "reply": "find_symbol",
+          "error": null,
+          "preview": "{\"snapshot_id\":3,\"total\":4,\"returned\":4,\"results\":{\"name\":\"retry\",\"kind\":\"property\",\"expor"
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "qualified_name": "KyOptions.retry",
+            "repository": "ky",
+            "path": "source/types/options.ts",
+            "direction": "incoming",
+            "edge_kinds": [
+              "*"
+            ]
+          },
+          "pid": 31454
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ky",
+                "path": "source/types/options.ts",
+                "qualified_name": "KyOptions.retry"
+              }
+            ],
+            "context_lines": 6
+          },
+          "pid": 31454
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 3  1 bodies  context 6\n@ ky source/types/options.ts:209-209 property KyOptions.re"
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":3,\"total\":4,\"returned\":4,\"coverage\":{\"exact\":4},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ky",
+                "path": "source/core/Ky.ts",
+                "qualified_name": "cloneInitHookOptions"
+              },
+              {
+                "repository": "ky",
+                "path": "source/core/constants.ts",
+                "qualified_name": "kyOptionKeys"
+              }
+            ],
+            "context_lines": 2
+          },
+          "pid": 31454
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 3  2 bodies  context 2\n@ ky source/core/Ky.ts:312-327 function cloneInitHookOptio"
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_symbol",
+          "args": {
+            "name": "KyOptions",
+            "repo": "ky"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_symbol",
+          "args": {
+            "name": "retry",
+            "repo": "ky",
+            "path_prefix": "source/types/options.ts",
+            "mode": "exact"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "qualified_name": "KyOptions.retry",
+            "repository": "ky",
+            "path": "source/types/options.ts",
+            "direction": "incoming",
+            "edge_kinds": [
+              "*"
+            ]
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ky",
+                "path": "source/types/options.ts",
+                "qualified_name": "KyOptions.retry"
+              }
+            ],
+            "context_lines": 6
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ky",
+                "path": "source/core/Ky.ts",
+                "qualified_name": "cloneInitHookOptions"
+              },
+              {
+                "repository": "ky",
+                "path": "source/core/constants.ts",
+                "qualified_name": "kyOptionKeys"
+              }
+            ],
+            "context_lines": 2
+          }
+        }
+      ],
+      "answer": "**Answer:** `KyOptions.retry` is read by one init-hook clone function, `cloneInitHookOptions`. It is copied with `cloneDeep`. `kyOptionKeys` lists `retry` as a recognized key.\n\n**Declaration:** `source/types/options.ts:209`. The property is `retry?: RetryOptions | number | undefined;`.\n\n**Readers (from `find_references`, incoming, EXACT_TYPECHECKED, COMPLETE):**\n- `source/core/constants.ts` (`kyOptionKeys` variable, lines 268-285).\n- `source/core/Ky.ts` (`cloneInitHookOptions.clonedOptions`, lines 313-324).\n- `source/core/Ky.ts`, a reference at the `Ky` class scope (lines 348-1376). I did not open these lines, so I cannot say what this reference does.\n\n**Copy mechanics (`source/core/Ky.ts:312-327`):**\n- Line 314: `...options` shallow-copies every property, so `retry` initially shares its object with the caller's options.\n- Line 323: `retry: cloneDeep(options.retry),` overrides that with a deep copy. This is the only retry-specific code in the function.\n- Line 322 comment: \"Clone nested arrays too so init hooks can mutate retry config without leaking state across requests.\" `retry` has no array-specific code. Any nested arrays in `RetryOptions` (for example `methods`, `statusCodes`) are copied only because `cloneDeep` recurses through the whole value.\n- Line 310 comment says non-plain values such as functions and class instances are kept by reference. Line 323 uses `cloneDeep` on `retry`, so the copy behavior for class instances inside `retry` depends on `cloneDeep`'s implementation. I did not verify that implementation.\n\n**Recognized-key list:** `source/core/constants.ts:275` has `retry: true,` inside `export const kyOptionKeys: KyOptionsRegistry`. Line 275 is inferred from the declared range 268-285 and the order of the entries; the tool did not return an exact line for that entry.",
+      "corpus": "ky",
+      "question_set": "typed",
+      "block": 1,
+      "other_tools": [],
+      "rpc_calls": 5,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_symbol"
+        ],
+        [
+          "bench_find_symbol"
+        ],
+        [
+          "bench_find_references",
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "required_facts_correct": true
+    },
+    {
+      "arm": "grep",
+      "model": "claude-haiku-5-5",
+      "turns": 5,
+      "tokens": 247198,
+      "usage": {
+        "input": 12,
+        "cacheRead": 230040,
+        "cacheWrite": 14891,
+        "output": 2255
+      },
+      "usd": 0.0064073,
+      "wall_s": 14.631,
+      "rpc": [],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "retry",
+            "path": "/private/tmp/kivgraph-corpora/ky/src"
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "KyOptions",
+            "path": "/private/tmp/kivgraph-corpora/ky/src"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/ky/src/source/core/Ky.ts:305-330"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/ky/src/source/core/constants.ts:266-300"
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "cloneDeep|function clone|retry",
+            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/clone.ts;/private/tmp/kivgraph-corpora/ky/src/source/core/Ky.ts"
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "cloneDeep|cloneInitHookOptions",
+            "path": "/private/tmp/kivgraph-corpora/ky/src"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/merge.ts:125-170"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/ky/src/source/core/Ky.ts:346-356"
+          }
+        }
+      ],
+      "answer": "**Init-hook clone that reads `retry`:** only one. `cloneInitHookOptions` (`source/core/Ky.ts:312-327`) contains `retry: cloneDeep(options.retry),` at line 323. Its comment at line 322 says the nested arrays are cloned so init hooks can mutate retry config without leaking state across requests. It runs only when init hooks exist: `Ky.create` at `Ky.ts:351` sets `initHookOptions = initHooks.length > 0 ? cloneInitHookOptions(options) : options`, and the hooks receive that copy at `Ky.ts:353`.\n\n**How it is copied:** `cloneDeep` (`source/utils/merge.ts:129-161`), re-exported via `source/index.ts:13`.\n- Non-mergeable values (functions, class instances, and so on) are returned by reference (`merge.ts:130-132`).\n- Arrays are copied element by element, recursively (`merge.ts:139-146`), so nested arrays such as `methods`, `statusCodes` and `afterStatusCodes` get fresh arrays.\n- Plain objects are copied key by key with `Reflect.ownKeys` and enumerable checks, recursively, with `Object.defineProperty` (`merge.ts:148-160`). A null prototype is preserved.\n- A `WeakMap` (`seen`) keeps shared and cyclic references intact (`merge.ts:133-137`).\n\n**Recognized-key constant:** `kyOptionKeys` in `source/core/constants.ts:268`, which is typed `KyOptionsRegistry`. Line 275 is `retry: true,`. The type is `{[K in keyof KyOptions]-?: true}` (`source/types/options.ts:445`), so every `KyOptions` key must appear there. `KyOptions.retry` is declared at `source/types/options.ts:209` as `retry?: RetryOptions | number | undefined;`.\n\n**Related, for context (not the requested clone):**\n- `Ky.ts:493` normalizes it in the constructor with `normalizeRetryOptions(options.retry)`, and `Ky.ts:503` and `Ky.ts:595` read `.limit` from it.\n- `source/utils/merge.ts:420-439` handles `retry` during option merging (numeric shorthand expansion and the `isRoot` check).",
+      "corpus": "ky",
+      "question_set": "typed",
+      "block": 1,
+      "other_tools": [],
+      "rpc_calls": 0,
+      "initializations": 0,
+      "route": [
+        [
+          "grep",
+          "grep"
+        ],
+        [
+          "read",
+          "read",
+          "grep"
+        ],
+        [
+          "grep"
+        ],
+        [
+          "read",
+          "read"
+        ],
+        []
+      ],
+      "required_facts_correct": true
+    },
+    {
+      "arm": "grep",
+      "model": "claude-haiku-5-5",
+      "turns": 5,
+      "tokens": 240584,
+      "usage": {
+        "input": 12,
+        "cacheRead": 226060,
+        "cacheWrite": 12675,
+        "output": 1837
+      },
+      "usd": 0.0057153,
+      "wall_s": 13.804,
+      "rpc": [],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "retry",
+            "path": "/private/tmp/kivgraph-corpora/ky/src"
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "KEYS|OPTION_KEYS|knownKeys|validKeys",
+            "path": "/private/tmp/kivgraph-corpora/ky/src"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/ky/src/source/core/Ky.ts:305-330"
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "'retryOnTimeout'|cloneDeep|'afterStatusCodes'",
+            "path": "/private/tmp/kivgraph-corpora/ky/src/source"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/ky/src/source/utils/merge.ts:125-165"
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "'retry',|'retry'\\]|retry: true|\\['retry'|new Set\\(",
+            "path": "/private/tmp/kivgraph-corpora/ky/src/source"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/ky/src/source/core/constants.ts:255-290"
+          }
+        }
+      ],
+      "answer": "**Answer:** The only init-hook clone that reads `KyOptions.retry` is `cloneInitHookOptions` in `core/Ky.ts`. It copies `retry` with `cloneDeep`, which recursively copies arrays. The option is listed as recognized in `kyOptionKeys` in `core/constants.ts`.\n\n**1. The init-hook clone reads `retry`**\n\n`core/Ky.ts:319-323`, inside `cloneInitHookOptions(options: Options): InitOptions`:\n\n```ts\n// Clone nested arrays too so init hooks can mutate retry config without leaking state across requests.\nretry: cloneDeep(options.retry),\n```\n\nThe function spreads `...options` first, then overrides `retry` with the deep copy (`Ky.ts:313-327`). I did not locate the call site of `cloneInitHookOptions`, so I cannot say from this search which hook dispatch invokes it.\n\n**2. How the copy works (`utils/merge.ts:129-161`, `cloneDeep`)**\n\n- Non-mergeable values (functions, class instances, `Date`, `URLSearchParams`) are returned by reference (`merge.ts:132-134`).\n- Cyclic and shared references are preserved through a `WeakMap` `seen` table (`merge.ts:136-140`).\n- Arrays are copied element by element, recursively (`merge.ts:142-148`). This covers the nested `methods`, `statusCodes` and `afterStatusCodes` arrays.\n- Plain objects are copied by enumerable own keys via `Object.defineProperty`, with null-prototype objects preserved (`merge.ts:150-165`).\n\nA numeric `retry` is a plain number, so `cloneDeep` returns it unchanged.\n\n**3. Recognized-key constant**\n\n`core/constants.ts:274-276`, in `kyOptionKeys: KyOptionsRegistry`:\n\n```ts\nretry: true,\n```\n\nThe same registry lists `json`, `searchParams`, `timeout`, `hooks` and the other top-level options.\n\n**Not part of the init-hook copy**\n\n`retry` is not in `beforeRetryOptionKeys` (`constants.ts:272`). That list holds `onUploadProgress`, `onDownloadProgress`, `timeout`, `fetch` and `throwHttpErrors`. A `beforeRetry` hook cannot return `retry`; `types/hooks.ts` and `test-d/hooks.ts:53-54` mark this with `@ts-expect-error`.",
+      "corpus": "ky",
+      "question_set": "typed",
+      "block": 2,
+      "other_tools": [],
+      "rpc_calls": 0,
+      "initializations": 0,
+      "route": [
+        [
+          "grep",
+          "grep"
+        ],
+        [
+          "read",
+          "grep"
+        ],
+        [
+          "read",
+          "grep"
+        ],
+        [
+          "read"
+        ],
+        []
+      ],
+      "required_facts_correct": true
+    },
+    {
+      "arm": "native",
+      "model": "claude-haiku-5-5",
+      "turns": 3,
+      "tokens": 136991,
+      "usage": {
+        "input": 8,
+        "cacheRead": 128189,
+        "cacheWrite": 6094,
+        "output": 2700
+      },
+      "usd": 0.00385149,
+      "wall_s": 15.676,
+      "rpc": [
+        {
+          "initialize": 32698
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_symbol",
+          "args": {
+            "name": "KyOptions",
+            "repo": "ky"
+          },
+          "pid": 32705
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "qualified_name": "KyOptions.retry",
+            "repository": "ky",
+            "direction": "incoming"
+          },
+          "pid": 32705
+        },
+        {
+          "reply": "find_symbol",
+          "error": null,
+          "preview": "{\"snapshot_id\":3,\"total\":2,\"returned\":2,\"results\":{\"name\":\"KyOptions\",\"exported\":true,\"rep"
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":3,\"total\":4,\"returned\":4,\"coverage\":{\"exact\":4},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ky",
+                "path": "source/types/options.ts",
+                "qualified_name": "KyOptions.retry"
+              },
+              {
+                "repository": "ky",
+                "path": "source/core/constants.ts",
+                "qualified_name": "kyOptionKeys"
+              },
+              {
+                "repository": "ky",
+                "path": "source/core/Ky.ts",
+                "qualified_name": "cloneInitHookOptions"
+              }
+            ],
+            "context_lines": 2
+          },
+          "pid": 32705
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 3  3 bodies  context 2\n@ ky source/types/options.ts:209-209 property KyOptions.re"
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_symbol",
+          "args": {
+            "name": "KyOptions",
+            "repo": "ky"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "qualified_name": "KyOptions.retry",
+            "repository": "ky",
+            "direction": "incoming"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ky",
+                "path": "source/types/options.ts",
+                "qualified_name": "KyOptions.retry"
+              },
+              {
+                "repository": "ky",
+                "path": "source/core/constants.ts",
+                "qualified_name": "kyOptionKeys"
+              },
+              {
+                "repository": "ky",
+                "path": "source/core/Ky.ts",
+                "qualified_name": "cloneInitHookOptions"
+              }
+            ],
+            "context_lines": 2
+          }
+        }
+      ],
+      "answer": "**Answer: `KyOptions.retry` is read by one clone path, `cloneInitHookOptions`, and listed in one key registry, `kyOptionKeys`.**\n\n**1. Declaration**\n- `source/types/options.ts:209`: `retry?: RetryOptions | number | undefined;` (the property is optional; it is a union of an object or a number).\n\n**2. Incoming references** (`find_references`, EXACT_TYPECHECKED, COMPLETE, 4 hits)\n- `source/core/constants.ts`, `kyOptionKeys` (268-285)\n- `source/core/Ky.ts`, `cloneInitHookOptions.clonedOptions` (313-324), listed twice\n- `source/core/Ky.ts`, class `Ky` (348-1376). The reference is reported at class scope; I did not read that span, so I can't say how it uses `retry`.\n\n**3. Init-hook clone that reads it**\n`source/core/Ky.ts`, function `cloneInitHookOptions` (312-327):\n```ts\nfunction cloneInitHookOptions(options: Options): InitOptions {\n\tconst clonedOptions: Options = {\n\t\t...options,\n\t\theaders: mergeHeaderContainers({}, options.headers ?? {}),\n\t\tcontext: {...options.context},\n\t\tjson: cloneDeep(options.json),\n\t\tsearchParams: cloneSearchParameters(options.searchParams),\n\t\t// Clone nested arrays too so init hooks can mutate retry config without leaking state across requests.\n\t\tretry: cloneDeep(options.retry),\n\t};\n\treturn clonedOptions as InitOptions;\n}\n```\n\n**4. How it is copied**\n- Shallow spread first (`...options`), so `retry` is copied by reference.\n- Then `retry` is overwritten with `cloneDeep(options.retry)`. That is a full deep copy of the object or number, so nested arrays inside a `RetryOptions` object are copied too. The comment says the copy exists so hooks can mutate retry config without leaking state across requests.\n- The function does not special-case arrays. Any array in `retry` is handled by `cloneDeep`, not by a separate array branch.\n- Caveat: `cloneDeep` is applied to whatever `retry` holds, including functions if `RetryOptions` contains any. I did not check `RetryOptions`, so I can't say whether functions appear there.\n\n**5. Recognized-key constant**\n`source/core/constants.ts`, `kyOptionKeys` (268-285), typed `KyOptionsRegistry`, contains `retry: true,` (line within 268-285; I did not get the exact line). `retry` is one of the 16 entries.\n\n**Not verified:** the `Ky` class reference at 348-1376, and the exact line numbers for `retry: true` and the `cloneDeep` line. The bench tools returned spans, not per-line hits, for those.",
+      "corpus": "ky",
+      "question_set": "typed",
+      "block": 2,
+      "other_tools": [],
+      "rpc_calls": 3,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_symbol",
+          "bench_find_references"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "required_facts_correct": true
+    },
+    {
+      "arm": "grep",
+      "model": "claude-haiku-5-5",
+      "turns": 6,
+      "tokens": 271589,
+      "usage": {
+        "input": 14,
+        "cacheRead": 260796,
+        "cacheWrite": 9316,
+        "output": 1463
+      },
+      "usd": 0.00520406,
+      "wall_s": 11.561,
+      "rpc": [],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "Replacer|struct Standard|impl.*Standard|fn new|with_path|Sink",
+            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "Replacer|struct Standard",
+            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/printer/src"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/printer/src/util.rs:1-60"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/printer/src/standard.rs:525-590"
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "fn replacement|self.space|space = |space.take|get_or_insert|fn clear",
+            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/printer/src/util.rs"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/printer/src/util.rs:105-148"
+          }
+        }
+      ],
+      "answer": "Both construction sites initialize the replacement helper identically: `Replacer::new()`, which sets `space: None`. The only difference between the two sites is whether the sink records a path.\n\n**Construction sites** (`crates/printer/src/standard.rs`)\n\n- `Standard::sink` (lines 525\u2013554): builds `StandardSink` with `replacer: Replacer::new()` at line 539, and `path: None`.\n- `Standard::sink_with_path` (lines 556\u2013593):\n  - Line 561 short-circuits to `self.sink(matcher)` when `self.config.path` is false, so the no-path sink is used and the replacer is initialized the same way.\n  - Otherwise it builds `StandardSink` with `replacer: Replacer::new()` at line 576, and `path: Some(ppath)`, where `ppath` is a `PrinterPath` built from the given path.\n\nSo the path affects only the `path` field. The replacer is constructed the same way in both branches.\n\n**Initial state of the helper** (`crates/printer/src/util.rs`)\n\n- `Replacer::new()` (lines 37\u201344) is documented as non-allocating. It returns `Replacer { space: None }`.\n- `space` is `Option<Space<M>>`. `Space` holds the capture locations (`caps`), the replacement buffer (`dst`), and the match offsets (`matches`). None of these exist until the first replacement.\n- `allocate` (lines 139\u2013147) is the only place that creates `Space`. It runs lazily, calling `matcher.new_captures()` and creating empty `dst` and `matches` vectors, only when `space` is still `None`.\n- `replacement()` (lines 109\u2013121) returns `None` while `space` is `None`, and also when `space` exists but `matches` is empty.\n- `clear()` (lines 128\u2013134) is a no-op while `space` is `None`.\n\nIn short, a freshly constructed helper has no allocation, no captures, and reports no replacement. The first replacement triggers allocation, and it is reused afterward.",
+      "corpus": "ripgrep",
+      "question_set": "control",
+      "block": 1,
+      "other_tools": [],
+      "rpc_calls": 0,
+      "initializations": 0,
+      "route": [
+        [
+          "grep"
+        ],
+        [
+          "grep"
+        ],
+        [
+          "read",
+          "read"
+        ],
+        [
+          "grep"
+        ],
+        [
+          "read"
+        ],
+        []
+      ],
+      "required_facts_correct": true
+    },
+    {
+      "arm": "native",
+      "model": "claude-haiku-5-5",
+      "turns": 6,
+      "tokens": 277278,
+      "usage": {
+        "input": 14,
+        "cacheRead": 265125,
+        "cacheWrite": 8432,
+        "output": 3707
+      },
+      "usd": 0.006192550000000001,
+      "wall_s": 23.884,
+      "rpc": [
+        {
+          "initialize": 30080
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "qualified_name": "Replacer",
+            "repository": "ripgrep"
+          },
+          "pid": 30089
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "qualified_name": "Standard.Replacer",
+            "repository": "ripgrep"
+          },
+          "pid": 30089
+        },
+        {
+          "reply": "find_references",
+          "error": "SYMBOL_NOT_FOUND: qualified name \"Replacer\" was not found under ripgrep; call it without repository and path to search the whole graph",
+          "preview": "SYMBOL_NOT_FOUND: qualified name \"Replacer\" was not found under ripgrep; call it without r"
+        },
+        {
+          "reply": "find_references",
+          "error": "SYMBOL_NOT_FOUND: qualified name \"Standard.Replacer\" was not found under ripgrep; call it without repository and path to search the whole graph",
+          "preview": "SYMBOL_NOT_FOUND: qualified name \"Standard.Replacer\" was not found under ripgrep; call it "
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "qualified_name": "Replacer"
+          },
+          "pid": 30089
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "qualified_name": "Standard.Replacer"
+          },
+          "pid": 30089
+        },
+        {
+          "reply": "find_references",
+          "error": "SYMBOL_NOT_FOUND: qualified name \"Replacer\" was not found",
+          "preview": "SYMBOL_NOT_FOUND: qualified name \"Replacer\" was not found"
+        },
+        {
+          "reply": "find_references",
+          "error": "SYMBOL_NOT_FOUND: qualified name \"Standard.Replacer\" was not found",
+          "preview": "SYMBOL_NOT_FOUND: qualified name \"Standard.Replacer\" was not found"
+        },
+        {
+          "call": "find_symbol",
+          "args": {
+            "name": "Replacer",
+            "mode": "substring",
+            "repo": "ripgrep"
+          },
+          "pid": 30089
+        },
+        {
+          "reply": "find_symbol",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":1,\"returned\":1,\"results\":{\"name\":\"Replacer\",\"kind\":\"struct\",\"expo"
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "qualified_name": "util::Replacer",
+            "repository": "ripgrep"
+          },
+          "pid": 30089
+        },
+        {
+          "call": "find_symbol",
+          "args": {
+            "name": "Standard",
+            "mode": "exact",
+            "repo": "ripgrep"
+          },
+          "pid": 30089
+        },
+        {
+          "reply": "find_symbol",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":4,\"returned\":4,\"results\":{\"name\":\"Standard\",\"repository\":\"ripgrep"
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":8,\"returned\":8,\"coverage\":{\"exact\":8},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "path": "crates/printer/src/standard.rs",
+                "qualified_name": "standard::impl::Standard<W>::sink"
+              },
+              {
+                "repository": "ripgrep",
+                "path": "crates/printer/src/standard.rs",
+                "qualified_name": "standard::impl::Standard<W>::sink_with_path"
+              },
+              {
+                "repository": "ripgrep",
+                "path": "crates/printer/src/util.rs",
+                "qualified_name": "util::impl::Replacer<M>::new"
+              },
+              {
+                "repository": "ripgrep",
+                "path": "crates/printer/src/util.rs",
+                "qualified_name": "util::Replacer"
+              }
+            ],
+            "context_lines": 2
+          },
+          "pid": 30089
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 1  4 bodies  context 2\n@ ripgrep crates/printer/src/standard.rs:528-549 method st"
+        }
+      ],
+      "errors": [
+        "SYMBOL_NOT_FOUND: qualified name \"Replacer\" was not found under ripgrep; call it without repository and path to search the whole graph",
+        "SYMBOL_NOT_FOUND: qualified name \"Standard.Replacer\" was not found under ripgrep; call it without repository and path to search the whole graph",
+        "SYMBOL_NOT_FOUND: qualified name \"Replacer\" was not found",
+        "SYMBOL_NOT_FOUND: qualified name \"Standard.Replacer\" was not found"
+      ],
+      "host_errors": [
+        "Error: SYMBOL_NOT_FOUND: qualified name \"Replacer\" was not found under ripgrep; call it without repository and path to search the whole graph",
+        "Error: SYMBOL_NOT_FOUND: qualified name \"Standard.Replacer\" was not found under ripgrep; call it without repository and path to search the whole graph",
+        "Error: SYMBOL_NOT_FOUND: qualified name \"Replacer\" was not found",
+        "Error: SYMBOL_NOT_FOUND: qualified name \"Standard.Replacer\" was not found"
+      ],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "qualified_name": "Replacer",
+            "repository": "ripgrep"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "qualified_name": "Standard.Replacer",
+            "repository": "ripgrep"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "qualified_name": "Replacer"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "qualified_name": "Standard.Replacer"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_symbol",
+          "args": {
+            "name": "Replacer",
+            "mode": "substring",
+            "repo": "ripgrep"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "qualified_name": "util::Replacer",
+            "repository": "ripgrep"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_symbol",
+          "args": {
+            "name": "Standard",
+            "mode": "exact",
+            "repo": "ripgrep"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "path": "crates/printer/src/standard.rs",
+                "qualified_name": "standard::impl::Standard<W>::sink"
+              },
+              {
+                "repository": "ripgrep",
+                "path": "crates/printer/src/standard.rs",
+                "qualified_name": "standard::impl::Standard<W>::sink_with_path"
+              },
+              {
+                "repository": "ripgrep",
+                "path": "crates/printer/src/util.rs",
+                "qualified_name": "util::impl::Replacer<M>::new"
+              },
+              {
+                "repository": "ripgrep",
+                "path": "crates/printer/src/util.rs",
+                "qualified_name": "util::Replacer"
+              }
+            ],
+            "context_lines": 2
+          }
+        }
+      ],
+      "answer": "Both construction sites initialize the replacement helper the same way: `Replacer::new()`. The only difference between them is the `path` field.\n\n**Replacer state at construction.** `Replacer<M>` holds one field, `space: Option<Space<M>>` (`crates/printer/src/util.rs:14-16`). Its constructor is `pub(crate) fn new() -> Replacer<M> { Replacer { space: None } }` (`util.rs:42-44`). It does not allocate. The doc comment says space for replacements is allocated lazily, only when needed. So the initial state is `space: None`, and the `Space` buffer is created on first replacement.\n\n**Site 1: `Standard::sink`, no path** (`crates/printer/src/standard.rs:528-549`). It builds `StandardSink { matcher, standard: self, replacer: Replacer::new(), interpolator, path: None, start_time, match_count: 0, after_context_remaining: 0, binary_byte_offset: None, stats, needs_match_granularity }`.\n\n**Site 2: `Standard::sink_with_path`, with path** (`standard.rs:555-586`). It first checks `if !self.config.path { return self.sink(matcher); }`, so a printer configured without path printing takes site 1. Otherwise it builds the same struct with `replacer: Replacer::new()` and `path: Some(ppath)`, where `ppath = PrinterPath::new(path.as_ref()).with_separator(self.config.separator_path)`.\n\n**Comparison.** The helper is initialized identically at both sites: `Replacer::new()`, so `space: None`, with no allocation. The sites differ only in `path` (`None` vs `Some(PrinterPath)`) and in the early delegation to `sink` when path printing is disabled.\n\nCaveat: the `find_references` results show `Replacer` is `pub(crate)`. The call-site line numbers above are from the `get_source` ranges, not individually verified.",
+      "corpus": "ripgrep",
+      "question_set": "control",
+      "block": 1,
+      "other_tools": [],
+      "rpc_calls": 8,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references",
+          "bench_find_references"
+        ],
+        [
+          "bench_find_references",
+          "bench_find_references"
+        ],
+        [
+          "bench_find_symbol"
+        ],
+        [
+          "bench_find_references",
+          "bench_find_symbol"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "required_facts_correct": true
+    },
+    {
+      "arm": "native",
+      "model": "claude-haiku-5-5",
+      "turns": 4,
+      "tokens": 181545,
+      "usage": {
+        "input": 10,
+        "cacheRead": 172798,
+        "cacheWrite": 6808,
+        "output": 1929
+      },
+      "usd": 0.00405508,
+      "wall_s": 12.546,
+      "rpc": [
+        {
+          "initialize": 30837
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_symbol",
+          "args": {
+            "name": "Replacer",
+            "repo": "ripgrep"
+          },
+          "pid": 30848
+        },
+        {
+          "reply": "find_symbol",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":1,\"returned\":1,\"results\":{\"name\":\"Replacer\",\"kind\":\"struct\",\"expo"
+        },
+        {
+          "call": "find_symbol",
+          "args": {
+            "name": "Standard",
+            "repo": "ripgrep"
+          },
+          "pid": 30848
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "qualified_name": "util::Replacer",
+            "repository": "ripgrep",
+            "path": "crates/printer/src/util.rs",
+            "direction": "incoming",
+            "response_format": "detailed"
+          },
+          "pid": 30848
+        },
+        {
+          "reply": "find_symbol",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":4,\"returned\":4,\"results\":{\"name\":\"Standard\",\"repository\":\"ripgrep"
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":8,\"returned\":8,\"coverage\":{\"exact\":8},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "standard::impl::Standard<W>::sink",
+                "path": "crates/printer/src/standard.rs"
+              },
+              {
+                "repository": "ripgrep",
+                "qualified_name": "standard::impl::Standard<W>::sink_with_path",
+                "path": "crates/printer/src/standard.rs"
+              },
+              {
+                "repository": "ripgrep",
+                "qualified_name": "util::impl::Replacer<M>::new",
+                "path": "crates/printer/src/util.rs"
+              },
+              {
+                "repository": "ripgrep",
+                "qualified_name": "util::Replacer",
+                "path": "crates/printer/src/util.rs"
+              }
+            ],
+            "context_lines": 2
+          },
+          "pid": 30848
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 1  4 bodies  context 2\n@ ripgrep crates/printer/src/standard.rs:528-549 method st"
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_symbol",
+          "args": {
+            "name": "Replacer",
+            "repo": "ripgrep"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "qualified_name": "util::Replacer",
+            "repository": "ripgrep",
+            "path": "crates/printer/src/util.rs",
+            "direction": "incoming",
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_symbol",
+          "args": {
+            "name": "Standard",
+            "repo": "ripgrep"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "standard::impl::Standard<W>::sink",
+                "path": "crates/printer/src/standard.rs"
+              },
+              {
+                "repository": "ripgrep",
+                "qualified_name": "standard::impl::Standard<W>::sink_with_path",
+                "path": "crates/printer/src/standard.rs"
+              },
+              {
+                "repository": "ripgrep",
+                "qualified_name": "util::impl::Replacer<M>::new",
+                "path": "crates/printer/src/util.rs"
+              },
+              {
+                "repository": "ripgrep",
+                "qualified_name": "util::Replacer",
+                "path": "crates/printer/src/util.rs"
+              }
+            ],
+            "context_lines": 2
+          }
+        }
+      ],
+      "answer": "**Answer:** Both construction sites initialize the replacer the same way: `Replacer::new()`, which starts with `space: None`. The only difference between the two sites is the `path` field.\n\n**Construction sites** (`crates/printer/src/standard.rs`):\n\n- **`Standard::sink`, lines 528-549.** Used when no path is associated. It builds `StandardSink { ..., replacer: Replacer::new(), ..., path: None, ... }`.\n- **`Standard::sink_with_path`, lines 555-586.** If `!self.config.path`, it returns `self.sink(matcher)` immediately, so the no-path construction is reused. Otherwise it builds the same `StandardSink` literal with `replacer: Replacer::new()` and `path: Some(ppath)`, where `ppath` is a `PrinterPath` built from the given path with the configured separator.\n\nThe `replacer` field is declared at `standard.rs:657` as `StandardSink`'s member of type `Replacer`.\n\n**Helper initialization** (`crates/printer/src/util.rs`):\n\n- `pub(crate) fn new() -> Replacer<M>` at lines 42-44 returns `Replacer { space: None }`.\n- `struct Replacer<M: Matcher> { space: Option<Space<M>> }` is declared at lines 14-16.\n\n**Initial internal state:** `space` is `None`. Per the doc comment at lines 42-43, the constructor does not allocate. The `Space<M>` buffer is allocated lazily, only when a replacement actually runs. The replacer's state does not depend on whether a path is present.\n\n**Line-number caveat:** I cited the function ranges returned by `get_source` and `find_references`, not the exact line of each `replacer:` initializer. The field-initializer lines fall inside those ranges.",
+      "corpus": "ripgrep",
+      "question_set": "control",
+      "block": 2,
+      "other_tools": [],
+      "rpc_calls": 4,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_symbol"
+        ],
+        [
+          "bench_find_references",
+          "bench_find_symbol"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "required_facts_correct": true
+    },
+    {
+      "arm": "grep",
+      "model": "claude-haiku-5-5",
+      "turns": 6,
+      "tokens": 266957,
+      "usage": {
+        "input": 14,
+        "cacheRead": 256995,
+        "cacheWrite": 8490,
+        "output": 1458
+      },
+      "usd": 0.00499835,
+      "wall_s": 12.389,
+      "rpc": [],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "Replacer|struct Standard|impl.*Standard|Standard::new|Standard \\{",
+            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/printer/src/util.rs:10-60"
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "Replacer::new|replacer|with_path|fn sink|Sink<'a>|fn new\\(|fn with_path",
+            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/printer/src/standard.rs"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/printer/src/standard.rs:523-600"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/printer/src/util.rs:37-50"
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "fn clear|fn replacement|self\\.space = |space: None|Space \\{",
+            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/printer/src/util.rs"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/printer/src/util.rs:105-150"
+          }
+        }
+      ],
+      "answer": "Both construction sites initialize the replacer identically: `Replacer::new()`, which sets `space: None`. The path argument affects only the sink's `path` field, not the replacer.\n\n**Construction sites** (`crates/printer/src/standard.rs`)\n\n- `Standard::sink` (lines 528\u2013545): builds `StandardSink { matcher, standard: self, replacer: Replacer::new(), interpolator, path: None, \u2026 }` at line 539.\n- `Standard::sink_with_path` (lines 555\u2013581): first, if `!self.config.path` (line 563\u2013565), it returns `self.sink(matcher)`, so the no-path path is taken. Otherwise it builds the same struct with `replacer: Replacer::new()` at line 576 and `path: Some(ppath)` (where `ppath = PrinterPath::new(path.as_ref()).with_separator(...)`).\n\nSo both sites call the same constructor with the same arguments. The only difference is `path`: `None` in one, `Some(PrinterPath)` in the other.\n\n**Initial state of the helper** (`crates/printer/src/util.rs`)\n\n- `Replacer::new()` (lines 42\u201343) returns `Replacer { space: None }`. Its doc comment says the constructor does not allocate and that space is allocated lazily.\n- Because `space` is `None`, `replacement()` (lines 109\u2013121) returns `None` before any replacement runs.\n- `clear()` (lines 128\u2013133) is a no-op while `space` is `None`.\n- The `Space` buffers (`caps`, `dst: Vec<u8>`, `matches: Vec<Match>`) are created only in `allocate()` (lines 141\u2013147), which runs the first time a replacement is needed. At that point `caps` comes from `matcher.new_captures()` and `dst` and `matches` start empty.",
+      "corpus": "ripgrep",
+      "question_set": "control",
+      "block": 2,
+      "other_tools": [],
+      "rpc_calls": 0,
+      "initializations": 0,
+      "route": [
+        [
+          "grep"
+        ],
+        [
+          "read",
+          "grep"
+        ],
+        [
+          "read",
+          "read"
+        ],
+        [
+          "grep"
+        ],
+        [
+          "read"
+        ],
+        []
+      ],
+      "required_facts_correct": true
+    },
+    {
+      "arm": "native",
+      "model": "claude-haiku-5-5",
+      "turns": 4,
+      "tokens": 186155,
+      "usage": {
+        "input": 10,
+        "cacheRead": 176097,
+        "cacheWrite": 8188,
+        "output": 1860
+      },
+      "usd": 0.0043295700000000005,
+      "wall_s": 11.608,
+      "rpc": [
+        {
+          "initialize": 31680
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_symbol",
+          "args": {
+            "name": "Config",
+            "repo": "ripgrep",
+            "mode": "exact",
+            "response_format": "detailed"
+          },
+          "pid": 31689
+        },
+        {
+          "reply": "find_symbol",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":8,\"returned\":8,\"coverage\":{\"unresolved_related\":1},\"completeness\""
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "repository": "ripgrep",
+            "path": "crates/searcher/src/line_buffer.rs",
+            "qualified_name": "line_buffer::Config",
+            "direction": "incoming",
+            "response_format": "detailed"
+          },
+          "pid": 31689
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":6,\"returned\":6,\"coverage\":{\"exact\":6},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/line_buffer.rs",
+                "qualified_name": "line_buffer::Config"
+              },
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/line_buffer.rs",
+                "qualified_name": "line_buffer::impl::Config::Default::default"
+              },
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/line_buffer.rs",
+                "qualified_name": "line_buffer::impl::LineBufferBuilder::new"
+              },
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/line_buffer.rs",
+                "qualified_name": "line_buffer::LineBufferBuilder::config"
+              },
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/line_buffer.rs",
+                "qualified_name": "line_buffer::LineBuffer::config"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 31689
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 1  5 bodies  context 0\n@ ripgrep crates/searcher/src/line_buffer.rs:86-95 struct "
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_symbol",
+          "args": {
+            "name": "Config",
+            "repo": "ripgrep",
+            "mode": "exact",
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "repository": "ripgrep",
+            "path": "crates/searcher/src/line_buffer.rs",
+            "qualified_name": "line_buffer::Config",
+            "direction": "incoming",
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/line_buffer.rs",
+                "qualified_name": "line_buffer::Config"
+              },
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/line_buffer.rs",
+                "qualified_name": "line_buffer::impl::Config::Default::default"
+              },
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/line_buffer.rs",
+                "qualified_name": "line_buffer::impl::LineBufferBuilder::new"
+              },
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/line_buffer.rs",
+                "qualified_name": "line_buffer::LineBufferBuilder::config"
+              },
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/line_buffer.rs",
+                "qualified_name": "line_buffer::LineBuffer::config"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        }
+      ],
+      "answer": "**Answer:** Two structs store `line_buffer::Config` in a field, and `LineBufferBuilder::new` is the constructor that explicitly calls its `Default` implementation.\n\n- **Fields holding the type:**\n  - `LineBufferBuilder.config: Config`, `crates/searcher/src/line_buffer.rs:111`\n  - `LineBuffer.config: Config`, `crates/searcher/src/line_buffer.rs:296`\n- **Constructor calling `Default`:** `LineBufferBuilder::new()` at `crates/searcher/src/line_buffer.rs:116-118` builds `LineBufferBuilder { config: Config::default() }`. The reference graph lists it as a direct call (`CALLS_DIRECT`).\n- **Default implementation:** `impl Default for Config`, `crates/searcher/src/line_buffer.rs:98-105`.\n- **One default field value:** `lineterm: b'\\n'` at `crates/searcher/src/line_buffer.rs:101`.\n\nThe reference query returned 6 `EXACT_TYPECHECKED` rows with `COMPLETE` status. The struct is declared at `crates/searcher/src/line_buffer.rs:86-95` and is not exported.",
+      "corpus": "ripgrep",
+      "question_set": "typed",
+      "block": 1,
+      "other_tools": [],
+      "rpc_calls": 3,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_symbol"
+        ],
+        [
+          "bench_find_references"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "required_facts_correct": true
+    },
+    {
+      "arm": "grep",
+      "model": "claude-haiku-5-5",
+      "turns": 4,
+      "tokens": 174518,
+      "usage": {
+        "input": 10,
+        "cacheRead": 166071,
+        "cacheWrite": 6697,
+        "output": 1740
+      },
+      "usd": 0.0038711099999999997,
+      "wall_s": 10.972,
+      "rpc": [],
+      "errors": [],
+      "host_errors": [
+        "Path not found: /private/tmp/kivgraph-corpora/ripgrep/src/line_buffer.rs"
+      ],
+      "calls": [
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "line_buffer::Config|LineBufferConfig|config: Config|Config::default\\(\\)|: Config,",
+            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "struct Config|impl Default for Config|pub struct LineBuffer|fn new\\(",
+            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/line_buffer.rs"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/line_buffer.rs:100-125"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/line_buffer.rs:270-300"
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "struct Config|impl Default for Config|line_buffer::|LineBufferBuilder|LineBuffer::new|capacity:",
+            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src"
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "const DEFAULT_BUFFER_CAPACITY",
+            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/line_buffer.rs"
+          }
+        }
+      ],
+      "answer": "Two structs store `line_buffer::Config` in a field, and one constructor calls its `Default` impl. All citations are in `crates/searcher/src/line_buffer.rs`, since the repo's `src/` root holds the crate tree (no `line_buffer.rs` sits directly under `src/`).\n\n**Structs storing `Config` in a field**\n1. `LineBufferBuilder`: `config: Config,` at line 111 (`#[derive(Clone, Debug, Default)] pub(crate) struct LineBufferBuilder`, lines 109\u2013111).\n2. `LineBuffer`: `config: Config,` at line 296 (`pub(crate) struct LineBuffer`, lines 292\u2013296). `LineBuffer::build` copies it with `config: self.config,` (line ~121).\n\nThe grep matches in `core/search.rs`, `printer/`, `regex/`, and `searcher/src/searcher/mod.rs` are other `Config` types. I did not read them, so I'm not claiming anything about them.\n\n**Constructor calling `Config::default()`**\n- `LineBufferBuilder::new()` at line 116\u2013117: `LineBufferBuilder { config: Config::default() }`.\n\n**Default field value**\n- `impl Default for Config` at lines 97\u2013104 sets `capacity: DEFAULT_BUFFER_CAPACITY` (line 100).\n- `DEFAULT_BUFFER_CAPACITY` is `pub(crate) const DEFAULT_BUFFER_CAPACITY: usize = 64 * (1 << 10); // 64 KB` (line 6). So the default capacity is 64 KiB (65,536 bytes).",
+      "corpus": "ripgrep",
+      "question_set": "typed",
+      "block": 1,
+      "other_tools": [],
+      "rpc_calls": 0,
+      "initializations": 0,
+      "route": [
+        [
+          "grep",
+          "grep"
+        ],
+        [
+          "read",
+          "read",
+          "grep"
+        ],
+        [
+          "grep"
+        ],
+        []
+      ],
+      "required_facts_correct": true
+    },
+    {
+      "arm": "grep",
+      "model": "claude-haiku-5-5",
+      "turns": 4,
+      "tokens": 176355,
+      "usage": {
+        "input": 10,
+        "cacheRead": 167873,
+        "cacheWrite": 7097,
+        "output": 1375
+      },
+      "usd": 0.00378663,
+      "wall_s": 9.613,
+      "rpc": [],
+      "errors": [],
+      "host_errors": [
+        "Path '/private/tmp/kivgraph-corpora/ripgrep/src/line_buffer.rs' not found"
+      ],
+      "calls": [
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "Config",
+            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/line_buffer.rs:1-120"
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "Config|Default::default\\(\\)|struct |impl Default",
+            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/line_buffer.rs"
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "line_buffer::Config|LineBufferConfig|\\bconfig: Config\\b|: Config,",
+            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/line_buffer.rs:84-120,292-297"
+          }
+        }
+      ],
+      "answer": "**Answer:** Two private `line_buffer::Config` fields exist, and one constructor calls its `Default` impl.\n\n- **Structs storing `Config`:**\n  - `LineBufferBuilder`, field `config: Config` at `crates/searcher/src/line_buffer.rs:111`.\n  - `LineBuffer`, field `config: Config` at `crates/searcher/src/line_buffer.rs:296`.\n- **Constructor calling `Default`:** `LineBufferBuilder::new()` at `crates/searcher/src/line_buffer.rs:117` builds `LineBufferBuilder { config: Config::default() }`.\n- **Default field value:** `capacity: DEFAULT_BUFFER_CAPACITY` at `crates/searcher/src/line_buffer.rs:100`, inside `impl Default for Config` (lines 97\u2013104). The same impl sets `lineterm: b'\\n'` at line 101.\n\nThe path in the task (`/private/tmp/kivgraph-corpora/ripgrep/src`) is the repo root, so the source is under `crates/searcher/src/`. I did not open the `DEFAULT_BUFFER_CAPACITY` constant, so its numeric value is not shown here.",
+      "corpus": "ripgrep",
+      "question_set": "typed",
+      "block": 2,
+      "other_tools": [],
+      "rpc_calls": 0,
+      "initializations": 0,
+      "route": [
+        [
+          "grep",
+          "read"
+        ],
+        [
+          "grep",
+          "grep"
+        ],
+        [
+          "read"
+        ],
+        []
+      ],
+      "required_facts_correct": true
+    },
+    {
+      "arm": "native",
+      "model": "claude-haiku-5-5",
+      "turns": 2,
+      "tokens": 90869,
+      "usage": {
+        "input": 6,
+        "cacheRead": 83475,
+        "cacheWrite": 5883,
+        "output": 1505
+      },
+      "usd": 0.0027644500000000003,
+      "wall_s": 9.198,
+      "rpc": [
+        {
+          "initialize": 32302
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_symbol",
+          "args": {
+            "name": "line_buffer::Config",
+            "mode": "qualified_exact",
+            "repo": "ripgrep"
+          },
+          "pid": 32308
+        },
+        {
+          "reply": "find_symbol",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":1,\"returned\":1,\"results\":{\"name\":\"Config\",\"kind\":\"struct\",\"export"
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_symbol",
+          "args": {
+            "name": "line_buffer::Config",
+            "mode": "qualified_exact",
+            "repo": "ripgrep"
+          }
+        },
+        {
+          "tool": "mcp__kivgraph_graph_status",
+          "args": {}
+        }
+      ],
+      "answer": "I can't answer yet. The graph freshness gate has not passed for ripgrep.\n\n- **Freshness:** `graph_status` (snapshot 285, generation 285, state `fresh`) attests only one repository, `kivgraph` at `<checkout>`. It does not list ripgrep or the checkout at `/tmp/six-guided-k7m29xkw/ripgrep-typed-2-native`.\n- **Symbol hit:** `find_symbol` with `qualified_exact` `line_buffer::Config` returned one struct in repository `ripgrep`, at `crates/searcher/src/line_buffer.rs:86-95`. That result is not covered by an attested freshness check, so I have not used it for the answer.\n- **Not run:** `find_references` and `get_source` on ripgrep. They would produce evidence from the same unattested graph.\n\nTo continue, I need your approval to index ripgrep. I would call `start_index_project` with `name: \"ripgrep\"`, `path: \"/tmp/six-guided-k7m29xkw/ripgrep-typed-2-native\"`, and `languages: [\"rust\"]`. Once the status is `fresh` for ripgrep, I'll run the two `find_references` lookups on `line_buffer::Config` and the `get_source` calls that cite the fields and the constructor's `Default` call.",
+      "corpus": "ripgrep",
+      "question_set": "typed",
+      "block": 2,
+      "other_tools": [
+        "mcp__kivgraph_graph_status"
+      ],
+      "rpc_calls": 1,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_symbol",
+          "kivgraph_graph_status"
+        ],
+        []
+      ],
+      "required_facts_correct": false
+    }
+  ],
+  "replacement": [
+    {
+      "arm": "grep",
+      "model": "claude-haiku-5-5",
+      "turns": 5,
+      "tokens": 221123,
+      "usage": {
+        "input": 12,
+        "cacheRead": 212407,
+        "cacheWrite": 7433,
+        "output": 1271
+      },
+      "usd": 0.00424737,
+      "wall_s": 10.921,
+      "rpc": [],
+      "errors": [],
+      "host_errors": [
+        "Path '/private/tmp/kivgraph-corpora/ripgrep/src/line_buffer.rs' not found"
+      ],
+      "calls": [
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "Config",
+            "path": "/private/tmp/kivgraph-corpora/ripgrep/src"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/line_buffer.rs:1-120"
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "struct Config|impl Default for Config|Config::default\\(\\)",
+            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/line_buffer.rs:80-120"
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "pattern": "Config",
+            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/line_buffer.rs"
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "/private/tmp/kivgraph-corpora/ripgrep/src/crates/searcher/src/line_buffer.rs:292-298"
+          }
+        }
+      ],
+      "answer": "Two structs store the private `line_buffer::Config` in a field, and `LineBufferBuilder::new` is the constructor that explicitly calls `Config::default()`.\n\n- **Structs with a `config: Config` field:**\n  - `LineBufferBuilder`, `crates/searcher/src/line_buffer.rs:111`\n  - `LineBuffer`, `crates/searcher/src/line_buffer.rs:296`\n- **Constructor calling `Default`:** `LineBufferBuilder::new`, `crates/searcher/src/line_buffer.rs:117`, which does `LineBufferBuilder { config: Config::default() }`.\n- **Default field value:** `capacity: DEFAULT_BUFFER_CAPACITY` (`crates/searcher/src/line_buffer.rs:97-106`, the `impl Default for Config` block). The `lineterm` default in the same block is `b'\\n'`.\n\nThe starting path `src/line_buffer.rs` does not exist. The file is at `crates/searcher/src/line_buffer.rs`.",
+      "corpus": "ripgrep",
+      "question_set": "typed",
+      "block": 2,
+      "other_tools": [],
+      "rpc_calls": 0,
+      "initializations": 0,
+      "route": [
+        [
+          "grep",
+          "read"
+        ],
+        [
+          "grep"
+        ],
+        [
+          "read",
+          "grep"
+        ],
+        [
+          "read"
+        ],
+        []
+      ],
+      "required_facts_correct": true
+    },
+    {
+      "arm": "native",
+      "model": "claude-haiku-5-5",
+      "turns": 5,
+      "tokens": 230807,
+      "usage": {
+        "input": 12,
+        "cacheRead": 219904,
+        "cacheWrite": 8135,
+        "output": 2756
+      },
+      "usd": 0.00520524,
+      "wall_s": 15.272,
+      "rpc": [
+        {
+          "initialize": 33346
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_symbol",
+          "args": {
+            "name": "Config",
+            "repo": "ripgrep",
+            "mode": "exact",
+            "limit": 50
+          },
+          "pid": 33355
+        },
+        {
+          "reply": "find_symbol",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":8,\"returned\":8,\"coverage\":{\"unresolved_related\":1},\"completeness\""
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "qualified_name": "line_buffer::Config",
+            "repository": "ripgrep",
+            "path": "crates/searcher/src/line_buffer.rs",
+            "direction": "incoming",
+            "limit": 50
+          },
+          "pid": 33355
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":6,\"returned\":6,\"coverage\":{\"exact\":6},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/line_buffer.rs",
+                "qualified_name": "line_buffer::Config"
+              },
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/line_buffer.rs",
+                "qualified_name": "line_buffer::LineBufferBuilder"
+              },
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/line_buffer.rs",
+                "qualified_name": "line_buffer::LineBufferBuilder::new"
+              },
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/line_buffer.rs",
+                "qualified_name": "line_buffer::LineBuffer"
+              }
+            ],
+            "context_lines": 2
+          },
+          "pid": 33355
+        },
+        {
+          "reply": "get_source",
+          "error": "SYMBOL_NOT_FOUND: qualified name \"line_buffer::LineBufferBuilder::new\" was not found under ripgrep crates/searcher/src/line_buffer.rs; call it without repository and path to search the whole graph",
+          "preview": "SYMBOL_NOT_FOUND: qualified name \"line_buffer::LineBufferBuilder::new\" was not found under"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/line_buffer.rs",
+                "qualified_name": "line_buffer::Config"
+              },
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/line_buffer.rs",
+                "qualified_name": "line_buffer::impl::Config::Default::default"
+              },
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/line_buffer.rs",
+                "qualified_name": "line_buffer::impl::LineBufferBuilder::new"
+              },
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/line_buffer.rs",
+                "qualified_name": "line_buffer::LineBuffer"
+              },
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/line_buffer.rs",
+                "qualified_name": "line_buffer::LineBufferBuilder"
+              }
+            ],
+            "context_lines": 2
+          },
+          "pid": 33355
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 1  5 bodies  context 2\n@ ripgrep crates/searcher/src/line_buffer.rs:86-95 struct "
+        }
+      ],
+      "errors": [
+        "SYMBOL_NOT_FOUND: qualified name \"line_buffer::LineBufferBuilder::new\" was not found under ripgrep crates/searcher/src/line_buffer.rs; call it without repository and path to search the whole graph"
+      ],
+      "host_errors": [
+        "Error: SYMBOL_NOT_FOUND: qualified name \"line_buffer::LineBufferBuilder::new\" was not found under ripgrep crates/searcher/src/line_buffer.rs; call it without repository and path to search the whole graph"
+      ],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_symbol",
+          "args": {
+            "name": "Config",
+            "repo": "ripgrep",
+            "mode": "exact",
+            "limit": 50
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "qualified_name": "line_buffer::Config",
+            "repository": "ripgrep",
+            "path": "crates/searcher/src/line_buffer.rs",
+            "direction": "incoming",
+            "limit": 50
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/line_buffer.rs",
+                "qualified_name": "line_buffer::Config"
+              },
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/line_buffer.rs",
+                "qualified_name": "line_buffer::LineBufferBuilder"
+              },
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/line_buffer.rs",
+                "qualified_name": "line_buffer::LineBufferBuilder::new"
+              },
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/line_buffer.rs",
+                "qualified_name": "line_buffer::LineBuffer"
+              }
+            ],
+            "context_lines": 2
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/line_buffer.rs",
+                "qualified_name": "line_buffer::Config"
+              },
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/line_buffer.rs",
+                "qualified_name": "line_buffer::impl::Config::Default::default"
+              },
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/line_buffer.rs",
+                "qualified_name": "line_buffer::impl::LineBufferBuilder::new"
+              },
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/line_buffer.rs",
+                "qualified_name": "line_buffer::LineBuffer"
+              },
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/line_buffer.rs",
+                "qualified_name": "line_buffer::LineBufferBuilder"
+              }
+            ],
+            "context_lines": 2
+          }
+        }
+      ],
+      "answer": "**Answer:** `LineBuffer` and `LineBufferBuilder` store `line_buffer::Config` in a field. `LineBufferBuilder::new` is the constructor that explicitly calls `Config::default()`.\n\n- **Struct fields:**\n  - `LineBuffer` has `config: Config` at `crates/searcher/src/line_buffer.rs:296` (struct at 294-323).\n  - `LineBufferBuilder` has `config: Config` at `crates/searcher/src/line_buffer.rs:111` (struct at 110-112).\n- **Explicit Default call:** `LineBufferBuilder::new()` at `crates/searcher/src/line_buffer.rs:116-118` returns `LineBufferBuilder { config: Config::default() }`.\n- **Default field value:** the `Default for Config` impl at `crates/searcher/src/line_buffer.rs:98-105` sets `lineterm: b'\\n'` (line 102). It also sets `capacity: DEFAULT_BUFFER_CAPACITY` (line 101).\n\nThe Go-specific instruction (parallel `find_references` on a function and a `Receiver.Method`) does not apply here: this is a Rust question with no such pair, so I did not run it.",
+      "corpus": "ripgrep",
+      "question_set": "typed",
+      "block": 2,
+      "other_tools": [],
+      "rpc_calls": 4,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_symbol"
+        ],
+        [
+          "bench_find_references"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "required_facts_correct": true
+    }
+  ]
+}

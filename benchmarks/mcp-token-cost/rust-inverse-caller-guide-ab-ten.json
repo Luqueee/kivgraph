@@ -1,0 +1,3233 @@
+{
+  "design": "Two independent before/after comparisons, ten fresh matched pairs per question. Within each question old first on odd blocks, new first on even blocks. No replacements. Results are model-session time, excluding process launch and indexing. Not a new grep comparison.",
+  "order": [
+    "ripgrep-typed-1-old",
+    "ripgrep-typed-1-new",
+    "ripgrep-typed-2-new",
+    "ripgrep-typed-2-old",
+    "ripgrep-typed-3-old",
+    "ripgrep-typed-3-new",
+    "ripgrep-typed-4-new",
+    "ripgrep-typed-4-old",
+    "ripgrep-typed-5-old",
+    "ripgrep-typed-5-new",
+    "ripgrep-typed-6-new",
+    "ripgrep-typed-6-old",
+    "ripgrep-typed-7-old",
+    "ripgrep-typed-7-new",
+    "ripgrep-typed-8-new",
+    "ripgrep-typed-8-old",
+    "ripgrep-typed-9-old",
+    "ripgrep-typed-9-new",
+    "ripgrep-typed-10-new",
+    "ripgrep-typed-10-old"
+  ],
+  "question": "LineStep::next_impl",
+  "model": "anthropic/claude-haiku-5-5",
+  "thinking": "low",
+  "binary_sha256": "e3f3aa6112d9897a0fa35e69318dc4009a94bd881116c5da5bca8e6a70f7b3e1",
+  "revision": "4649aa9700619f94cf9c66876e9549d83420e16c",
+  "prompts": {
+    "old": "Answer the maintainer question using source evidence. Use only the mounted bench MCP tools find_symbol, find_references and get_source on repository ripgrep. No other tools, web or edits. Cite file and lines. Starting symbol: LineStep::next_impl.\nIdentify the direct callers of LineStep::next_impl. Which preserves the offset pair and which converts it to a Match? Does LineIter::next invoke next_impl directly, or through which method?\n\nFor a known symbol's callers, start with `find_references` alone. If the\nquestion asks what the callers do, set `include_evidence: true`: it can return\nboth caller code and the subject definition. Use `find_symbol` only if the\nselector fails. Open another body only for a requested fact the returned code\ndoes not establish.\n\nTo explain a known function's behavior, start with `get_source` using its\n`repository` and `qualified_name`; omit `path` unless you know it. Read the\nbody before looking up dependencies. If a requested fact still depends on a\nconstant or helper, batch only the declarations needed in one `get_source`.\nUse `find_references` with `direction: \"outgoing\"` only to locate a dependency\nyou still need. Do not trace how a helper works if its implementation cannot\nchange the answer.\n\nStart with two parallel `find_references` calls in the first turn when a Go\ncaller question names both a package function and a method with its receiver.\nUse `qualified_name` for each: the function name alone and `Receiver.Method`.\nDo not run `find_symbol` first. Use it only if a selector cannot be resolved;\nif it is ambiguous, use the returned candidates to narrow it rather than guess.\n\nFor Rust, a `Type::method` written from source resolves through `qualified_name`\nwhen the index proves the method belongs to that type. The exact canonical name,\nsuch as `shapes::impl::Circle::area`, always works. If the exact lookup finds\nnothing, the name may not be indexed in this snapshot at all, so the tool falls\nback to the method's declared type. The `METHOD_OF` edge that proves a method\nhas `STRUCTURAL_CERTAIN` confidence. If one proven method matches and no other\ncandidate of that name is unproven, it resolves. If two or more match, or one\nmatches alongside unproven candidates, the call returns `AMBIGUOUS_SYMBOL`;\nrepeat it with the exact `qualified_name` of the one you mean. If none is proven,\nit returns `SYMBOL_NOT_FOUND` with unproven candidates to inspect, not to repeat.\nFor a short name with no receiver, use `name` rather than inventing a qualified\npath.\n\nCall the tool directly without narrating the query. In the final answer,\ngive each requested fact with its source citation.",
+    "new": "Answer the maintainer question using source evidence. Use only the mounted bench MCP tools find_symbol, find_references and get_source on repository ripgrep. No other tools, web or edits. Cite file and lines. Starting symbol: LineStep::next_impl.\nIdentify the direct callers of LineStep::next_impl. Which preserves the offset pair and which converts it to a Match? Does LineIter::next invoke next_impl directly, or through which method?\n\nFor a known symbol's callers, start with `find_references` alone. If the\nquestion asks what the callers do, set `include_evidence: true`: it can return\nboth caller code and the subject definition. Use `find_symbol` only if the\nselector fails. Open another body only for a requested fact the returned code\ndoes not establish.\n\nTo explain a known function's behavior, start with `get_source` using its\n`repository` and `qualified_name`; omit `path` unless you know it. Read the\nbody before looking up dependencies. If a requested fact still depends on a\nconstant or helper, batch only the declarations needed in one `get_source`.\nUse `find_references` with `direction: \"outgoing\"` only to locate a dependency\nyou still need. Do not trace how a helper works if its implementation cannot\nchange the answer.\n\nStart with two parallel `find_references` calls in the first turn when a Go\ncaller question names both a package function and a method with its receiver.\nUse `qualified_name` for each: the function name alone and `Receiver.Method`.\nDo not run `find_symbol` first. Use it only if a selector cannot be resolved;\nif it is ambiguous, use the returned candidates to narrow it rather than guess.\n\nFor Rust, a `Type::method` written from source resolves through `qualified_name`\nwhen the index proves the method belongs to that type. The exact canonical name,\nsuch as `shapes::impl::Circle::area`, always works. If the exact lookup finds\nnothing, the name may not be indexed in this snapshot at all, so the tool falls\nback to the method's declared type. The `METHOD_OF` edge that proves a method\nhas `STRUCTURAL_CERTAIN` confidence. If one proven method matches and no other\ncandidate of that name is unproven, it resolves. If two or more match, or one\nmatches alongside unproven candidates, the call returns `AMBIGUOUS_SYMBOL`;\nrepeat it with the exact `qualified_name` of the one you mean. If none is proven,\nit returns `SYMBOL_NOT_FOUND` with unproven candidates to inspect, not to repeat.\nFor a short name with no receiver, use `name` rather than inventing a qualified\npath.\n\nTo check whether a Rust method calls a target through one of its direct\ncallers, query incoming `find_references` on that caller. Copy its repository,\nfile and qualified name from the first result instead of guessing the outer\nmethod's trait or lifetime spelling. Look for an exact `CALLS_DIRECT` row for\nthe outer method; a missing row on a partial page does not rule it out.\n\nCall the tool directly without narrating the query. In the final answer,\ngive each requested fact with its source citation."
+  },
+  "oracle": "LineStep::next forwards pair unchanged; next_match maps (s,e) to Match::new; LineIter::next indirectly via stepper.next_match",
+  "probe": {
+    "initial": {
+      "snapshot_id": 1,
+      "total": 2,
+      "returned": 2,
+      "coverage": {
+        "exact": 2
+      },
+      "completeness": {
+        "verdict": "COMPLETE"
+      },
+      "results": {
+        "subject": "ripgrep:crates/searcher/src/lines.rs:85",
+        "qn": "lines::impl::LineStep::next_impl",
+        "direction": "incoming",
+        "repository": "ripgrep",
+        "kind": "method",
+        "edge_kind": "CALLS_DIRECT",
+        "confidence": "EXACT_TYPECHECKED",
+        "provenance": "RUST_SYNTAX_CALL",
+        "edge_kinds_default_excluded": [
+          "EXPORTS",
+          "REEXPORTS"
+        ],
+        "files": [
+          {
+            "file": "crates/searcher/src/lines.rs",
+            "at": [
+              "lines::impl::LineStep::next@74-76",
+              "lines::impl::LineStep::next_match@80-82"
+            ]
+          }
+        ]
+      }
+    },
+    "inverse_arguments": {
+      "repository": "ripgrep",
+      "path": "crates/searcher/src/lines.rs",
+      "qualified_name": "lines::impl::LineStep::next_match"
+    },
+    "inverse": {
+      "snapshot_id": 1,
+      "total": 9,
+      "returned": 9,
+      "coverage": {
+        "exact": 9
+      },
+      "completeness": {
+        "verdict": "COMPLETE"
+      },
+      "results": {
+        "subject": "ripgrep:crates/searcher/src/lines.rs:80",
+        "qn": "lines::impl::LineStep::next_match",
+        "direction": "incoming",
+        "repository": "ripgrep",
+        "edge_kind": "CALLS_DIRECT",
+        "confidence": "EXACT_TYPECHECKED",
+        "provenance": "RUST_SYNTAX_CALL",
+        "edge_kinds_default_excluded": [
+          "EXPORTS",
+          "REEXPORTS"
+        ],
+        "files": [
+          {
+            "file": "crates/searcher/src/searcher/core.rs",
+            "at": [
+              [
+                "searcher::core::impl::Core<'s, M, S>::match_by_line_fast_invert@356-395",
+                "method"
+              ],
+              [
+                "searcher::core::impl::Core<'s, M, S>::match_by_line_slow@265-313",
+                "method"
+              ],
+              [
+                "searcher::core::impl::Core<'s, M, S>::before_context_by_line@185-219",
+                "method"
+              ],
+              [
+                "searcher::core::impl::Core<'s, M, S>::other_context_by_line@246-263",
+                "method"
+              ],
+              [
+                "searcher::core::impl::Core<'s, M, S>::after_context_by_line@221-244",
+                "method"
+              ]
+            ]
+          },
+          {
+            "file": "crates/searcher/src/lines.rs",
+            "at": [
+              [
+                "lines::tests::lines@216-223",
+                "function"
+              ],
+              [
+                "lines::impl::LineIter<'b>::Iterator::next@34-36",
+                "method"
+              ],
+              [
+                "lines::tests::line_ranges@225-232",
+                "function"
+              ]
+            ]
+          },
+          {
+            "file": "crates/searcher/src/searcher/glue.rs",
+            "at": [
+              [
+                "searcher::glue::impl::MultiLine<'s, M, S>::sink_matched_inverted@251-288",
+                "method"
+              ]
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "summary": {
+    "old": {
+      "sessions": 10,
+      "correct": 10,
+      "seconds": 123.322,
+      "tokens": 1641666,
+      "usd": 0.041091,
+      "turns": 35,
+      "calls": 31,
+      "off_protocol": 0,
+      "server_rejects": 6,
+      "outgoing_first": 0,
+      "wrong_active_help_path": 0,
+      "get_source_first": 0,
+      "outgoing_with_evidence": 0,
+      "outgoing_sessions": 2,
+      "invalid_combo_sessions": 0,
+      "inverse_sessions": 4,
+      "context_first_sessions": 0,
+      "single_bench_call_sessions": 0,
+      "lineiter_selector_rejects": 6
+    },
+    "new": {
+      "sessions": 10,
+      "correct": 10,
+      "seconds": 107.355,
+      "tokens": 1804094,
+      "usd": 0.038831,
+      "turns": 39,
+      "calls": 37,
+      "off_protocol": 1,
+      "server_rejects": 15,
+      "outgoing_first": 0,
+      "wrong_active_help_path": 0,
+      "get_source_first": 0,
+      "outgoing_with_evidence": 1,
+      "outgoing_sessions": 3,
+      "invalid_combo_sessions": 1,
+      "inverse_sessions": 1,
+      "context_first_sessions": 0,
+      "single_bench_call_sessions": 0,
+      "lineiter_selector_rejects": 9
+    }
+  },
+  "faster_new_pairs": 7,
+  "off_protocol_pairs": [
+    8
+  ],
+  "clean_summary": {
+    "old": {
+      "sessions": 9,
+      "correct": 9,
+      "seconds": 112.736,
+      "tokens": 1458034,
+      "usd": 0.037416,
+      "turns": 31,
+      "calls": 28,
+      "off_protocol": 0,
+      "server_rejects": 5,
+      "outgoing_first": 0,
+      "wrong_active_help_path": 0,
+      "get_source_first": 0,
+      "outgoing_with_evidence": 0,
+      "outgoing_sessions": 2,
+      "invalid_combo_sessions": 0
+    },
+    "new": {
+      "sessions": 9,
+      "correct": 9,
+      "seconds": 93.274,
+      "tokens": 1573530,
+      "usd": 0.034409,
+      "turns": 34,
+      "calls": 33,
+      "off_protocol": 0,
+      "server_rejects": 14,
+      "outgoing_first": 0,
+      "wrong_active_help_path": 0,
+      "get_source_first": 0,
+      "outgoing_with_evidence": 1,
+      "outgoing_sessions": 3,
+      "invalid_combo_sessions": 1
+    }
+  },
+  "sessions": [
+    {
+      "arm": "old",
+      "model": "claude-haiku-5-5",
+      "turns": 3,
+      "tokens": 143784,
+      "usage": {
+        "input": 8,
+        "cacheRead": 130148,
+        "cacheWrite": 11566,
+        "output": 2062
+      },
+      "usd": 0.00464648,
+      "wall_s": 17.089,
+      "rpc": [
+        {
+          "initialize": 55564
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "LineStep::next_impl",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          },
+          "pid": 55584
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "lines::impl::LineStep::next",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          },
+          "pid": 55584
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "lines::impl::LineStep::next_match",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          },
+          "pid": 55584
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":4,\"returned\":4,\"coverage\":{\"exact\":4},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":9,\"returned\":9,\"coverage\":{\"exact\":9},\"completeness\":{\"verdict\":\""
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "LineStep::next_impl",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "lines::impl::LineStep::next",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "lines::impl::LineStep::next_match",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          }
+        }
+      ],
+      "answer": "**Direct callers of `LineStep::next_impl`** (`crates/searcher/src/lines.rs:85-107`). The index reports two `CALLS_DIRECT` edges, both `EXACT_TYPECHECKED`, and the search is complete:\n\n- **`LineStep::next`** (`lines.rs:74-76`) calls `self.next_impl(bytes)` and returns it unchanged. This preserves the `(usize, usize)` offset pair, returning `Option<(usize, usize)>`.\n- **`LineStep::next_match`** (`lines.rs:80-82`) calls `self.next_impl(bytes).map(|(s, e)| Match::new(s, e))`. This converts the pair into a `Match`.\n\n**`LineIter::next`** does not call `next_impl` directly. The index shows it calls `LineStep::next_match`, at `crates/searcher/src/lines.rs:34-36` (`lines::impl::LineIter<'b>::Iterator::next`). The chain is `LineIter::next` → `LineStep::next_match` (`lines.rs:80-82`) → `LineStep::next_impl` (`lines.rs:85-107`).\n\nThe `lines.rs:34-36` location comes from the reference index. I did not open that body, so the exact call expression there is inferred from the edge.",
+      "corpus": "ripgrep",
+      "question_set": "typed",
+      "block": 1,
+      "other_tools": [],
+      "rpc_calls": 3,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        [
+          "bench_find_references",
+          "bench_find_references"
+        ],
+        []
+      ],
+      "call_output": 1154,
+      "final_output": 908,
+      "post_s": 13.591209335000002,
+      "ttft_s": 3.462790664999998,
+      "call_text_chars": 305,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "new",
+      "model": "claude-haiku-5-5",
+      "turns": 3,
+      "tokens": 143277,
+      "usage": {
+        "input": 8,
+        "cacheRead": 130260,
+        "cacheWrite": 11451,
+        "output": 1558
+      },
+      "usd": 0.004372600000000001,
+      "wall_s": 10.103,
+      "rpc": [
+        {
+          "initialize": 57389
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "LineStep::next_impl",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          },
+          "pid": 57399
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "lines::impl::LineStep::next",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          },
+          "pid": 57399
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "lines::impl::LineStep::next_match",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          },
+          "pid": 57399
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":4,\"returned\":4,\"coverage\":{\"exact\":4},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":9,\"returned\":9,\"coverage\":{\"exact\":9},\"completeness\":{\"verdict\":\""
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "LineStep::next_impl",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "lines::impl::LineStep::next",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "lines::impl::LineStep::next_match",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          }
+        }
+      ],
+      "answer": "**Direct callers of `LineStep::next_impl`** (`crates/searcher/src/lines.rs:85-107`, definition; 2 incoming `CALLS_DIRECT` edges, completeness COMPLETE):\n\n- **`LineStep::next`** (`crates/searcher/src/lines.rs:74-76`): `self.next_impl(bytes)`. It **preserves the offset pair**, returning `Option<(usize, usize)>` unchanged.\n- **`LineStep::next_match`** (`crates/searcher/src/lines.rs:80-82`): `self.next_impl(bytes).map(|(s, e)| Match::new(s, e))`. It **converts the pair to a `Match`**.\n\n**LineIter::next:** It does not call `next_impl` directly. It goes through `next_match`. The incoming edges on `next_match` (`crates/searcher/src/lines.rs:80`) include `lines::impl::LineIter<'b>::Iterator::next@34-36` in `crates/searcher/src/lines.rs`. I did not open lines 34-36 itself, so the function body is established only by that reference row.\n\n**Other callers of `next_match`** (not on the `next_impl` path): `Core::before_context_by_line`, `Core::match_by_line_slow`, `Core::match_by_line_fast_invert`, `Core::after_context_by_line`, `Core::other_context_by_line` (`crates/searcher/src/searcher/core.rs`), and `MultiLine::sink_matched_inverted` (`crates/searcher/src/searcher/glue.rs:251-288`).",
+      "corpus": "ripgrep",
+      "question_set": "typed",
+      "block": 1,
+      "other_tools": [],
+      "rpc_calls": 3,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        [
+          "bench_find_references",
+          "bench_find_references"
+        ],
+        []
+      ],
+      "call_output": 917,
+      "final_output": 641,
+      "post_s": 6.437005458,
+      "ttft_s": 3.530994542,
+      "call_text_chars": 204,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "new",
+      "model": "claude-haiku-5-5",
+      "turns": 4,
+      "tokens": 184901,
+      "usage": {
+        "input": 10,
+        "cacheRead": 176621,
+        "cacheWrite": 6687,
+        "output": 1583
+      },
+      "usd": 0.00389611,
+      "wall_s": 13.592,
+      "rpc": [
+        {
+          "initialize": 59181
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "LineStep::next_impl",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          },
+          "pid": 59193
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "lines::impl::LineIter::next"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 59193
+        },
+        {
+          "reply": "get_source",
+          "error": "SYMBOL_NOT_FOUND: qualified name \"lines::impl::LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualified_name of the one you mean: lines::impl::LineIter<'b>::Iterator::next (ripgrep:crates/searcher/src/lines.rs:34)",
+          "preview": "SYMBOL_NOT_FOUND: qualified name \"lines::impl::LineIter::next\" was not found under ripgrep"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "lines::impl::LineIter<'b>::Iterator::next"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 59193
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 1  1 bodies  context 0\n@ ripgrep crates/searcher/src/lines.rs:34-36 method lines:"
+        }
+      ],
+      "errors": [
+        "SYMBOL_NOT_FOUND: qualified name \"lines::impl::LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualified_name of the one you mean: lines::impl::LineIter<'b>::Iterator::next (ripgrep:crates/searcher/src/lines.rs:34)"
+      ],
+      "host_errors": [
+        "Error: SYMBOL_NOT_FOUND: qualified name \"lines::impl::LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the e"
+      ],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "LineStep::next_impl",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "lines::impl::LineIter::next"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "lines::impl::LineIter<'b>::Iterator::next"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        }
+      ],
+      "answer": "**Direct callers of `LineStep::next_impl`** (`find_references`, incoming, complete: 2 of 2 exact `CALLS_DIRECT` edges):\n\n1. **`LineStep::next`** (`crates/searcher/src/lines.rs:74-76`) returns `self.next_impl(bytes)` unchanged, so it preserves the `(usize, usize)` offset pair.\n2. **`LineStep::next_match`** (`crates/searcher/src/lines.rs:80-82`) calls `self.next_impl(bytes).map(|(s, e)| Match::new(s, e))`, so it converts the pair to a `Match`.\n\nThe definition is at `crates/searcher/src/lines.rs:85-107`. It returns `Option<(usize, usize)>`.\n\n**`LineIter::next`** does not call `next_impl` directly. It is at `crates/searcher/src/lines.rs:34-36` and calls `self.stepper.next_match(self.bytes)`, then maps the resulting `Match` to a slice. The path is `LineIter::next` → `LineStep::next_match` → `LineStep::next_impl`.\n\nCaveat: the graph lists `LineIter::next` under the qualified name `lines::impl::LineIter<'b>::Iterator::next`, and I did not check whether anything calls `LineStep::next` besides the callers above. The graph status freshness check was not run because only find_symbol, find_references and get_source were permitted.",
+      "corpus": "ripgrep",
+      "question_set": "typed",
+      "block": 2,
+      "other_tools": [],
+      "rpc_calls": 3,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 842,
+      "final_output": 741,
+      "post_s": 8.107253917,
+      "ttft_s": 5.424746083,
+      "call_text_chars": 0,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "old",
+      "model": "claude-haiku-5-5",
+      "turns": 3,
+      "tokens": 145256,
+      "usage": {
+        "input": 8,
+        "cacheRead": 130225,
+        "cacheWrite": 13218,
+        "output": 1805
+      },
+      "usd": 0.00484915,
+      "wall_s": 13.437,
+      "rpc": [
+        {
+          "initialize": 59619
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "LineStep::next_impl",
+            "include_evidence": true,
+            "view": "full"
+          },
+          "pid": 59627
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"snapshot_age_ms\":40617516,\"total\":2,\"returned\":2,\"truncated\":false,\"next"
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "lines::impl::LineStep::next",
+            "include_evidence": true,
+            "view": "full"
+          },
+          "pid": 59627
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "lines::impl::LineStep::next_match",
+            "include_evidence": true,
+            "view": "full"
+          },
+          "pid": 59627
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"snapshot_age_ms\":40621353,\"total\":4,\"returned\":4,\"truncated\":false,\"next"
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"snapshot_age_ms\":40621353,\"total\":9,\"returned\":9,\"truncated\":false,\"next"
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "LineStep::next_impl",
+            "include_evidence": true,
+            "view": "full"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "lines::impl::LineStep::next",
+            "include_evidence": true,
+            "view": "full"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "lines::impl::LineStep::next_match",
+            "include_evidence": true,
+            "view": "full"
+          }
+        }
+      ],
+      "answer": "**Direct callers of `LineStep::next_impl`** (`crates/searcher/src/lines.rs:85-107`): two, both in the same file, both via `CALLS_DIRECT` with `EXACT_TYPECHECKED` confidence. The reference set is COMPLETE.\n\n- **`LineStep::next`** (`lines.rs:74-76`) calls `self.next_impl(bytes)` at line 75 and returns the pair unchanged. It preserves the `(usize, usize)` offset pair.\n- **`LineStep::next_match`** (`lines.rs:80-82`) calls `self.next_impl(bytes).map(|(s, e)| Match::new(s, e))` at line 81. It converts the pair into a `Match`.\n\n**`LineIter::next`** does not call `next_impl` directly. It reaches it through `LineStep::next_match`. The incoming references to `next_match` include `lines::impl::LineIter<'b>::Iterator::next` (`lines.rs:34-36`) as a `CALLS_DIRECT` edge. So the chain is `LineIter::next` → `LineStep::next_match` → `LineStep::next_impl`. I took the `LineIter::next` → `next_match` link from the reference edge and did not open its body.\n\nCaveat: I did not call `graph_status`, so I have no attestation that the snapshot matches the checkout. The snapshot reports an age of about 40,600 seconds (roughly 11 hours).",
+      "corpus": "ripgrep",
+      "question_set": "typed",
+      "block": 2,
+      "other_tools": [],
+      "rpc_calls": 3,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        [
+          "bench_find_references",
+          "bench_find_references"
+        ],
+        []
+      ],
+      "call_output": 874,
+      "final_output": 931,
+      "post_s": 9.227964168,
+      "ttft_s": 4.150035832000001,
+      "call_text_chars": 0,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "old",
+      "model": "claude-haiku-5-5",
+      "turns": 4,
+      "tokens": 183854,
+      "usage": {
+        "input": 10,
+        "cacheRead": 175983,
+        "cacheWrite": 6452,
+        "output": 1409
+      },
+      "usd": 0.00375573,
+      "wall_s": 10.327,
+      "rpc": [
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "qualified_name": "LineStep::next_impl",
+            "repository": "ripgrep",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          },
+          "pid": 60105
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "LineIter::next"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 60105
+        },
+        {
+          "reply": "get_source",
+          "error": "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualified_name of the one you mean: lines::impl::LineIter<'b>::Iterator::next (ripgrep:crates/searcher/src/lines.rs:34)",
+          "preview": "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it wit"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "lines::impl::LineIter<'b>::Iterator::next",
+                "path": "crates/searcher/src/lines.rs"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 60105
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 1  1 bodies  context 0\n@ ripgrep crates/searcher/src/lines.rs:34-36 method lines:"
+        }
+      ],
+      "errors": [
+        "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualified_name of the one you mean: lines::impl::LineIter<'b>::Iterator::next (ripgrep:crates/searcher/src/lines.rs:34)"
+      ],
+      "host_errors": [
+        "Error: SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualifie"
+      ],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "qualified_name": "LineStep::next_impl",
+            "repository": "ripgrep",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "LineIter::next"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "lines::impl::LineIter<'b>::Iterator::next",
+                "path": "crates/searcher/src/lines.rs"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        }
+      ],
+      "answer": "Direct callers of `LineStep::next_impl` (`lines::impl::LineStep::next_impl`, `crates/searcher/src/lines.rs:85`): two, both in the same file. The reference query reports `COMPLETE`, edge `CALLS_DIRECT`, confidence `EXACT_TYPECHECKED`.\n\n- **`LineStep::next`** (`crates/searcher/src/lines.rs:74-76`) preserves the offset pair. It returns `self.next_impl(bytes)` unchanged, so the caller gets `Option<(usize, usize)>`.\n- **`LineStep::next_match`** (`crates/searcher/src/lines.rs:80-82`) converts the pair to a `Match`. It runs `self.next_impl(bytes).map(|(s, e)| Match::new(s, e))`.\n\n`LineIter::next` does not call `next_impl` directly. It goes through `next_match`: `self.stepper.next_match(self.bytes).map(|m| &self.bytes[m])` (`crates/searcher/src/lines.rs:34-36`, body at line 35). That is the `Iterator::next` impl for `LineIter<'b>`; the bare name `LineIter::next` did not resolve.\n\nI did not call `graph_status` to attest the index freshness before using these results.",
+      "corpus": "ripgrep",
+      "question_set": "typed",
+      "block": 3,
+      "other_tools": [],
+      "rpc_calls": 3,
+      "initializations": 0,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 734,
+      "final_output": 675,
+      "post_s": 6.220519126000001,
+      "ttft_s": 4.011480873999999,
+      "call_text_chars": 188,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "new",
+      "model": "claude-haiku-5-5",
+      "turns": 4,
+      "tokens": 185259,
+      "usage": {
+        "input": 10,
+        "cacheRead": 177027,
+        "cacheWrite": 6944,
+        "output": 1278
+      },
+      "usd": 0.0037990700000000003,
+      "wall_s": 9.893,
+      "rpc": [
+        {
+          "initialize": 60487
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "qualified_name": "LineStep::next_impl",
+            "repository": "ripgrep",
+            "direction": "incoming",
+            "include_evidence": true,
+            "view": "full"
+          },
+          "pid": 60494
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"snapshot_age_ms\":40640998,\"total\":2,\"returned\":2,\"truncated\":false,\"next"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/lines.rs",
+                "qualified_name": "lines::impl::LineIter::next"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 60494
+        },
+        {
+          "reply": "get_source",
+          "error": "SYMBOL_NOT_FOUND: qualified name \"lines::impl::LineIter::next\" was not found under ripgrep crates/searcher/src/lines.rs; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualified_name of the one you mean: lines::impl::LineIter<'b>::Iterator::next (ripgrep:crates/searcher/src/lines.rs:34)",
+          "preview": "SYMBOL_NOT_FOUND: qualified name \"lines::impl::LineIter::next\" was not found under ripgrep"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/lines.rs",
+                "qualified_name": "lines::impl::LineIter<'b>::Iterator::next"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 60494
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 1  1 bodies  context 0\n@ ripgrep crates/searcher/src/lines.rs:34-36 method lines:"
+        }
+      ],
+      "errors": [
+        "SYMBOL_NOT_FOUND: qualified name \"lines::impl::LineIter::next\" was not found under ripgrep crates/searcher/src/lines.rs; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualified_name of the one you mean: lines::impl::LineIter<'b>::Iterator::next (ripgrep:crates/searcher/src/lines."
+      ],
+      "host_errors": [
+        "Error: SYMBOL_NOT_FOUND: qualified name \"lines::impl::LineIter::next\" was not found under ripgrep crates/searcher/src/lines.rs; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are "
+      ],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "qualified_name": "LineStep::next_impl",
+            "repository": "ripgrep",
+            "direction": "incoming",
+            "include_evidence": true,
+            "view": "full"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/lines.rs",
+                "qualified_name": "lines::impl::LineIter::next"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/lines.rs",
+                "qualified_name": "lines::impl::LineIter<'b>::Iterator::next"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        }
+      ],
+      "answer": "**Direct callers of `LineStep::next_impl`** (`crates/searcher/src/lines.rs`, definition at lines 85-107; `find_references` reports exactly 2 incoming `CALLS_DIRECT` edges, completeness COMPLETE):\n\n- **`LineStep::next`**, lines 74-76: `self.next_impl(bytes)`. It returns `Option<(usize, usize)>` unchanged, so it **preserves the offset pair**.\n- **`LineStep::next_match`**, lines 80-82: `self.next_impl(bytes).map(|(s, e)| Match::new(s, e))`. It **converts the pair to a `Match`**.\n\n**`LineIter::next`** does not call `next_impl` directly. Its body at `crates/searcher/src/lines.rs:34-36` is `self.stepper.next_match(self.bytes).map(|m| &self.bytes[m])`, so it reaches `next_impl` through **`LineStep::next_match`**, and it gets the `Match` from that conversion.",
+      "corpus": "ripgrep",
+      "question_set": "typed",
+      "block": 3,
+      "other_tools": [],
+      "rpc_calls": 3,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 788,
+      "final_output": 490,
+      "post_s": 6.033634626,
+      "ttft_s": 3.7973653740000004,
+      "call_text_chars": 97,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "new",
+      "model": "claude-haiku-5-5",
+      "turns": 4,
+      "tokens": 184961,
+      "usage": {
+        "input": 10,
+        "cacheRead": 176667,
+        "cacheWrite": 6748,
+        "output": 1536
+      },
+      "usd": 0.00388527,
+      "wall_s": 15.807,
+      "rpc": [
+        {
+          "initialize": 60878
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "LineStep::next_impl",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          },
+          "pid": 60886
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "LineIter::next",
+                "path": "crates/searcher/src/lines.rs"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 60886
+        },
+        {
+          "reply": "get_source",
+          "error": "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep crates/searcher/src/lines.rs; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualified_name of the one you mean: lines::impl::LineIter<'b>::Iterator::next (ripgrep:crates/searcher/src/lines.rs:34)",
+          "preview": "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep crates/searc"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "lines::impl::LineIter<'b>::Iterator::next",
+                "path": "crates/searcher/src/lines.rs"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 60886
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 1  1 bodies  context 0\n@ ripgrep crates/searcher/src/lines.rs:34-36 method lines:"
+        }
+      ],
+      "errors": [
+        "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep crates/searcher/src/lines.rs; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualified_name of the one you mean: lines::impl::LineIter<'b>::Iterator::next (ripgrep:crates/searcher/src/lines.rs:34)"
+      ],
+      "host_errors": [
+        "Error: SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep crates/searcher/src/lines.rs; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- r"
+      ],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "LineStep::next_impl",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "LineIter::next",
+                "path": "crates/searcher/src/lines.rs"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "lines::impl::LineIter<'b>::Iterator::next",
+                "path": "crates/searcher/src/lines.rs"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        }
+      ],
+      "answer": "**Direct callers of `LineStep::next_impl`** (`find_references`, incoming, complete: 2 of 2, `CALLS_DIRECT`, `EXACT_TYPECHECKED`)\n\n- **`LineStep::next`**, `crates/searcher/src/lines.rs:74-76`: `self.next_impl(bytes)`, returned unchanged. It preserves the `(usize, usize)` offset pair.\n- **`LineStep::next_match`**, `crates/searcher/src/lines.rs:80-82`: `self.next_impl(bytes).map(|(s, e)| Match::new(s, e))`. It converts the offset pair to a `Match`.\n\n**`LineIter::next`** does not call `next_impl` directly. It is at `crates/searcher/src/lines.rs:34-36`: `self.stepper.next_match(self.bytes).map(|m| &self.bytes[m])`. It goes through `LineStep::next_match`, so the chain is `LineIter::next` → `LineStep::next_match` → `LineStep::next_impl`.\n\n`next_impl` is defined at `crates/searcher/src/lines.rs:85-107`. The graph index names it `lines::impl::LineStep::next_impl`. The `LineIter::next` lookup needed the exact qualified name `lines::impl::LineIter<'b>::Iterator::next`, which the tool suggested after the short form failed.",
+      "corpus": "ripgrep",
+      "question_set": "typed",
+      "block": 4,
+      "other_tools": [],
+      "rpc_calls": 3,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 894,
+      "final_output": 642,
+      "post_s": 11.880202375000001,
+      "ttft_s": 3.847797624999999,
+      "call_text_chars": 0,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "old",
+      "model": "claude-haiku-5-5",
+      "turns": 3,
+      "tokens": 138565,
+      "usage": {
+        "input": 8,
+        "cacheRead": 130334,
+        "cacheWrite": 6745,
+        "output": 1478
+      },
+      "usd": 0.00339214,
+      "wall_s": 10.318,
+      "rpc": [
+        {
+          "initialize": 61723
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "LineIter::next",
+            "direction": "outgoing",
+            "response_format": "detailed"
+          },
+          "pid": 61735
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "LineStep::next_impl",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          },
+          "pid": 61735
+        },
+        {
+          "reply": "find_references",
+          "error": "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualified_name of the one you mean: lines::impl::LineIter<'b>::Iterator::next (ripgrep:crates/searcher/src/lines.rs:34)",
+          "preview": "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it wit"
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "lines::impl::LineIter<'b>::Iterator::next",
+            "direction": "outgoing",
+            "response_format": "detailed"
+          },
+          "pid": 61735
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":4,\"returned\":4,\"coverage\":{\"exact\":4},\"completeness\":{\"verdict\":\""
+        }
+      ],
+      "errors": [
+        "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualified_name of the one you mean: lines::impl::LineIter<'b>::Iterator::next (ripgrep:crates/searcher/src/lines.rs:34)"
+      ],
+      "host_errors": [
+        "Error: SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualifie"
+      ],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "LineStep::next_impl",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "LineIter::next",
+            "direction": "outgoing",
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "lines::impl::LineIter<'b>::Iterator::next",
+            "direction": "outgoing",
+            "response_format": "detailed"
+          }
+        }
+      ],
+      "answer": "**Direct callers of `LineStep::next_impl`** (definition at `crates/searcher/src/lines.rs:85-107`; incoming references are complete, 2 results, `EXACT_TYPECHECKED`):\n\n- **`LineStep::next`** (`crates/searcher/src/lines.rs:74-76`) calls `self.next_impl(bytes)` and returns it unchanged. This one preserves the `(usize, usize)` offset pair.\n- **`LineStep::next_match`** (`crates/searcher/src/lines.rs:80-82`) calls `self.next_impl(bytes).map(|(s, e)| Match::new(s, e))`. This one converts the pair into a `Match`.\n\n**`LineIter::next`** does not call `next_impl` directly. Its outgoing references (`crates/searcher/src/lines.rs:34`, complete, `EXACT_TYPECHECKED`) show it reaches the stepper through the `stepper` field (`lines.rs:19`) and calls `LineStep::next_match` (`lines.rs:80-82`). The call chain is `LineIter::next` → `LineStep::next_match` → `LineStep::next_impl`.\n\nNote: the bare selector `LineIter::next` returned `SYMBOL_NOT_FOUND`. The exact name `lines::impl::LineIter<'b>::Iterator::next` resolved it.",
+      "corpus": "ripgrep",
+      "question_set": "typed",
+      "block": 4,
+      "other_tools": [],
+      "rpc_calls": 3,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references",
+          "bench_find_references"
+        ],
+        [
+          "bench_find_references"
+        ],
+        []
+      ],
+      "call_output": 761,
+      "final_output": 717,
+      "post_s": 7.346533916000001,
+      "ttft_s": 2.925466083999999,
+      "call_text_chars": 0,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "old",
+      "model": "claude-haiku-5-5",
+      "turns": 4,
+      "tokens": 183507,
+      "usage": {
+        "input": 10,
+        "cacheRead": 175888,
+        "cacheWrite": 6380,
+        "output": 1229
+      },
+      "usd": 0.00365038,
+      "wall_s": 9.613,
+      "rpc": [
+        {
+          "initialize": 63020
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "LineStep::next_impl",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          },
+          "pid": 63034
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "lines::impl::LineIter::next"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 63034
+        },
+        {
+          "reply": "get_source",
+          "error": "SYMBOL_NOT_FOUND: qualified name \"lines::impl::LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualified_name of the one you mean: lines::impl::LineIter<'b>::Iterator::next (ripgrep:crates/searcher/src/lines.rs:34)",
+          "preview": "SYMBOL_NOT_FOUND: qualified name \"lines::impl::LineIter::next\" was not found under ripgrep"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "lines::impl::LineIter<'b>::Iterator::next"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 63034
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 1  1 bodies  context 0\n@ ripgrep crates/searcher/src/lines.rs:34-36 method lines:"
+        }
+      ],
+      "errors": [
+        "SYMBOL_NOT_FOUND: qualified name \"lines::impl::LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualified_name of the one you mean: lines::impl::LineIter<'b>::Iterator::next (ripgrep:crates/searcher/src/lines.rs:34)"
+      ],
+      "host_errors": [
+        "Error: SYMBOL_NOT_FOUND: qualified name \"lines::impl::LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the e"
+      ],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "LineStep::next_impl",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "lines::impl::LineIter::next"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "lines::impl::LineIter<'b>::Iterator::next"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        }
+      ],
+      "answer": "**Direct callers of `LineStep::next_impl`** (definition at `crates/searcher/src/lines.rs:85-107`; the index has exactly 2 incoming references, both `EXACT_TYPECHECKED`, and the set is complete):\n\n- **`LineStep::next`** (`crates/searcher/src/lines.rs:74-76`) calls `self.next_impl(bytes)` and returns the `(usize, usize)` pair unchanged. This is the method that preserves the offset pair.\n- **`LineStep::next_match`** (`crates/searcher/src/lines.rs:80-82`) calls `self.next_impl(bytes).map(|(s, e)| Match::new(s, e))`. This is the method that converts the pair into a `Match`.\n\n**`LineIter::next`** does not call `next_impl` directly. It goes through `next_match`: `self.stepper.next_match(self.bytes).map(|m| &self.bytes[m])` (`crates/searcher/src/lines.rs:34-36`). The chain is `LineIter::next` → `LineStep::next_match` → `LineStep::next_impl`.\n\nThe index also lists the method as `lines::impl::LineIter<'b>::Iterator::next`. The shorter name `lines::impl::LineIter::next` did not resolve.",
+      "corpus": "ripgrep",
+      "question_set": "typed",
+      "block": 5,
+      "other_tools": [],
+      "rpc_calls": 3,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 656,
+      "final_output": 573,
+      "post_s": 5.200531001000001,
+      "ttft_s": 4.364468999,
+      "call_text_chars": 0,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "new",
+      "model": "claude-haiku-5-5",
+      "turns": 3,
+      "tokens": 137264,
+      "usage": {
+        "input": 8,
+        "cacheRead": 129345,
+        "cacheWrite": 6827,
+        "output": 1084
+      },
+      "usd": 0.0032016500000000003,
+      "wall_s": 6.805,
+      "rpc": [
+        {
+          "initialize": 64995
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "next_impl",
+            "qualified_name": "LineStep::next_impl",
+            "repository": "ripgrep",
+            "direction": "incoming",
+            "include_evidence": true
+          },
+          "pid": 65013
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "LineStep::next_impl"
+              },
+              {
+                "repository": "ripgrep",
+                "qualified_name": "LineIter::next"
+              }
+            ]
+          },
+          "pid": 65013
+        },
+        {
+          "reply": "find_references",
+          "error": "INVALID_ARGUMENT: name identifies a declaration on its own; pass stable_key or qualified_name instead, not both",
+          "preview": "INVALID_ARGUMENT: name identifies a declaration on its own; pass stable_key or qualified_n"
+        },
+        {
+          "reply": "get_source",
+          "error": "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualified_name of the one you mean: lines::impl::LineIter<'b>::Iterator::next (ripgrep:crates/searcher/src/lines.rs:34)",
+          "preview": "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it wit"
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "qualified_name": "LineStep::next_impl",
+            "repository": "ripgrep",
+            "direction": "incoming",
+            "include_evidence": true
+          },
+          "pid": 65013
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "LineStep::next_impl"
+              },
+              {
+                "repository": "ripgrep",
+                "qualified_name": "lines::impl::LineIter<'b>::Iterator::next"
+              }
+            ]
+          },
+          "pid": 65013
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 1  2 bodies  context 0\n@ ripgrep crates/searcher/src/lines.rs:85-107 method lines"
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":\""
+        }
+      ],
+      "errors": [
+        "INVALID_ARGUMENT: name identifies a declaration on its own; pass stable_key or qualified_name instead, not both",
+        "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualified_name of the one you mean: lines::impl::LineIter<'b>::Iterator::next (ripgrep:crates/searcher/src/lines.rs:34)"
+      ],
+      "host_errors": [
+        "Error: INVALID_ARGUMENT: name identifies a declaration on its own; pass stable_key or qualified_name instead, not both",
+        "Error: SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualifie"
+      ],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "next_impl",
+            "qualified_name": "LineStep::next_impl",
+            "repository": "ripgrep",
+            "direction": "incoming",
+            "include_evidence": true
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "LineStep::next_impl"
+              },
+              {
+                "repository": "ripgrep",
+                "qualified_name": "LineIter::next"
+              }
+            ]
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "qualified_name": "LineStep::next_impl",
+            "repository": "ripgrep",
+            "direction": "incoming",
+            "include_evidence": true
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "LineStep::next_impl"
+              },
+              {
+                "repository": "ripgrep",
+                "qualified_name": "lines::impl::LineIter<'b>::Iterator::next"
+              }
+            ]
+          }
+        }
+      ],
+      "answer": "**Direct callers of `LineStep::next_impl`** (`crates/searcher/src/lines.rs`, definition at line 85; the incoming query returned exactly two direct `CALLS_DIRECT` callers, marked COMPLETE):\n\n- **`LineStep::next`**, lines 74-76: `self.next_impl(bytes)`. It returns the `(usize, usize)` offset pair unchanged.\n- **`LineStep::next_match`**, lines 80-82: `self.next_impl(bytes).map(|(s, e)| Match::new(s, e))`. It converts the pair into a `Match`.\n\n**`LineIter::next`** does not call `next_impl` directly. It goes through `next_match`, at `crates/searcher/src/lines.rs:34-36`: `self.stepper.next_match(self.bytes).map(|m| &self.bytes[m])`. So the chain is `LineIter::next` → `LineStep::next_match` → `LineStep::next_impl`.\n\nNote: the `LineIter::next` qualified name is `lines::impl::LineIter<'b>::Iterator::next`. The shorter `LineIter::next` did not resolve.",
+      "corpus": "ripgrep",
+      "question_set": "typed",
+      "block": 5,
+      "other_tools": [],
+      "rpc_calls": 4,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references",
+          "bench_get_source"
+        ],
+        [
+          "bench_find_references",
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 579,
+      "final_output": 505,
+      "post_s": 3.3700103340000007,
+      "ttft_s": 3.3549896659999994,
+      "call_text_chars": 87,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "new",
+      "model": "claude-haiku-5-5",
+      "turns": 4,
+      "tokens": 184046,
+      "usage": {
+        "input": 10,
+        "cacheRead": 175705,
+        "cacheWrite": 7020,
+        "output": 1311
+      },
+      "usd": 0.0038175500000000003,
+      "wall_s": 8.735,
+      "rpc": [
+        {
+          "initialize": 65294
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "next",
+            "qualified_name": "LineIter::next",
+            "repository": "ripgrep",
+            "direction": "outgoing"
+          },
+          "pid": 65306
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "next_impl",
+            "qualified_name": "LineStep::next_impl",
+            "repository": "ripgrep",
+            "direction": "incoming",
+            "include_evidence": true
+          },
+          "pid": 65306
+        },
+        {
+          "reply": "find_references",
+          "error": "INVALID_ARGUMENT: name identifies a declaration on its own; pass stable_key or qualified_name instead, not both",
+          "preview": "INVALID_ARGUMENT: name identifies a declaration on its own; pass stable_key or qualified_n"
+        },
+        {
+          "reply": "find_references",
+          "error": "INVALID_ARGUMENT: name identifies a declaration on its own; pass stable_key or qualified_name instead, not both",
+          "preview": "INVALID_ARGUMENT: name identifies a declaration on its own; pass stable_key or qualified_n"
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "qualified_name": "LineIter::next",
+            "repository": "ripgrep",
+            "direction": "outgoing"
+          },
+          "pid": 65306
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "qualified_name": "LineStep::next_impl",
+            "repository": "ripgrep",
+            "direction": "incoming",
+            "include_evidence": true
+          },
+          "pid": 65306
+        },
+        {
+          "reply": "find_references",
+          "error": "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualified_name of the one you mean: lines::impl::LineIter<'b>::Iterator::next (ripgrep:crates/searcher/src/lines.rs:34)",
+          "preview": "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it wit"
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "qualified_name": "lines::impl::LineIter<'b>::Iterator::next",
+            "repository": "ripgrep",
+            "direction": "outgoing"
+          },
+          "pid": 65306
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":4,\"returned\":4,\"coverage\":{\"exact\":4},\"completeness\":{\"verdict\":\""
+        }
+      ],
+      "errors": [
+        "INVALID_ARGUMENT: name identifies a declaration on its own; pass stable_key or qualified_name instead, not both",
+        "INVALID_ARGUMENT: name identifies a declaration on its own; pass stable_key or qualified_name instead, not both",
+        "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualified_name of the one you mean: lines::impl::LineIter<'b>::Iterator::next (ripgrep:crates/searcher/src/lines.rs:34)"
+      ],
+      "host_errors": [
+        "Error: INVALID_ARGUMENT: name identifies a declaration on its own; pass stable_key or qualified_name instead, not both",
+        "Error: INVALID_ARGUMENT: name identifies a declaration on its own; pass stable_key or qualified_name instead, not both",
+        "Error: SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualifie"
+      ],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "next_impl",
+            "qualified_name": "LineStep::next_impl",
+            "repository": "ripgrep",
+            "direction": "incoming",
+            "include_evidence": true
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "next",
+            "qualified_name": "LineIter::next",
+            "repository": "ripgrep",
+            "direction": "outgoing"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "qualified_name": "LineStep::next_impl",
+            "repository": "ripgrep",
+            "direction": "incoming",
+            "include_evidence": true
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "qualified_name": "LineIter::next",
+            "repository": "ripgrep",
+            "direction": "outgoing"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "qualified_name": "lines::impl::LineIter<'b>::Iterator::next",
+            "repository": "ripgrep",
+            "direction": "outgoing"
+          }
+        }
+      ],
+      "answer": "**Direct callers of `LineStep::next_impl`** (`crates/searcher/src/lines.rs:85`, graph-complete, 2 incoming):\n\n- `LineStep::next` at `crates/searcher/src/lines.rs:74-76`. It calls `self.next_impl(bytes)` and returns the `(usize, usize)` offset pair unchanged. This is the offset-pair-preserving caller.\n- `LineStep::next_match` at `crates/searcher/src/lines.rs:80-82`. It calls `self.next_impl(bytes).map(|(s, e)| Match::new(s, e))`, converting the pair into a `Match`.\n\n**`LineIter::next`:** The subject is `lines::impl::LineIter<'b>::Iterator::next` (`crates/searcher/src/lines.rs:34`). Its outgoing direct calls are `stepper` (`lines.rs:19`) and `LineStep::next_match` (`lines.rs:80-82`). It does not call `next_impl` directly. It reaches `next_impl` through `LineStep::next_match`.\n\nCaveat: the first `find_references` call failed because I passed `name` together with `qualified_name`. The `LineIter::next` lookup also needed the exact qualified name from the selector error. I did not open the `LineIter::next` body, so the \"through `next_match`\" claim rests on the graph's `CALLS_DIRECT` edge, not on reading the code.",
+      "corpus": "ripgrep",
+      "question_set": "typed",
+      "block": 6,
+      "other_tools": [],
+      "rpc_calls": 5,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references",
+          "bench_find_references"
+        ],
+        [
+          "bench_find_references",
+          "bench_find_references"
+        ],
+        [
+          "bench_find_references"
+        ],
+        []
+      ],
+      "call_output": 753,
+      "final_output": 558,
+      "post_s": 4.195467042,
+      "ttft_s": 4.454532958,
+      "call_text_chars": 110,
+      "lexical_missing": [],
+      "correct": true,
+      "incidental_note": "Calls the stepper field a direct call; source shows it is the receiver. Requested indirect path is correct."
+    },
+    {
+      "arm": "old",
+      "model": "claude-haiku-5-5",
+      "turns": 3,
+      "tokens": 143086,
+      "usage": {
+        "input": 8,
+        "cacheRead": 130052,
+        "cacheWrite": 11438,
+        "output": 1588
+      },
+      "usd": 0.00438292,
+      "wall_s": 16.559,
+      "rpc": [
+        {
+          "initialize": 65746
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "LineStep::next_impl",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          },
+          "pid": 65753
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "lines::impl::LineStep::next",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          },
+          "pid": 65753
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "lines::impl::LineStep::next_match",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          },
+          "pid": 65753
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":4,\"returned\":4,\"coverage\":{\"exact\":4},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":9,\"returned\":9,\"coverage\":{\"exact\":9},\"completeness\":{\"verdict\":\""
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "LineStep::next_impl",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "lines::impl::LineStep::next",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "lines::impl::LineStep::next_match",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          }
+        }
+      ],
+      "answer": "**Direct callers of `LineStep::next_impl`** (`crates/searcher/src/lines.rs:85-107`, definition `lines::impl::LineStep::next_impl`). Graph reports 2 incoming calls, completeness COMPLETE, EXACT_TYPECHECKED:\n\n1. **`LineStep::next`**, `crates/searcher/src/lines.rs:74-76`: `self.next_impl(bytes)`. Returns the `(usize, usize)` pair unchanged, so it **preserves the offset pair**.\n2. **`LineStep::next_match`**, `crates/searcher/src/lines.rs:80-82`: `self.next_impl(bytes).map(|(s, e)| Match::new(s, e))`. **Converts the pair to a `Match`**.\n\n**`LineIter::next`:** it does not call `next_impl` directly. Its call chain goes through `LineStep::next_match`. The graph lists `lines::impl::LineIter<'b>::Iterator::next` at `crates/searcher/src/lines.rs:34-36` as a caller of `next_match`. I did not open that body, so the exact lines are per the graph evidence, not from source I read.\n\n**Caveat:** I did not run `graph_status` to attest the ripgrep checkout and generation, because that tool was not in the mounted set you specified. The results above are unattested.",
+      "corpus": "ripgrep",
+      "question_set": "typed",
+      "block": 6,
+      "other_tools": [],
+      "rpc_calls": 3,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        [
+          "bench_find_references",
+          "bench_find_references"
+        ],
+        []
+      ],
+      "call_output": 1025,
+      "final_output": 563,
+      "post_s": 13.701764626000001,
+      "ttft_s": 2.7962353739999988,
+      "call_text_chars": 0,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "old",
+      "model": "claude-haiku-5-5",
+      "turns": 4,
+      "tokens": 195417,
+      "usage": {
+        "input": 10,
+        "cacheRead": 181511,
+        "cacheWrite": 12031,
+        "output": 1865
+      },
+      "usd": 0.00515481,
+      "wall_s": 12.54,
+      "rpc": [
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "LineStep::next_impl",
+            "direction": "incoming",
+            "include_evidence": true
+          },
+          "pid": 66088
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "lines::impl::LineStep::next",
+            "direction": "incoming",
+            "include_evidence": true
+          },
+          "pid": 66088
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "lines::impl::LineStep::next_match",
+            "direction": "incoming",
+            "include_evidence": true
+          },
+          "pid": 66088
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":4,\"returned\":4,\"coverage\":{\"exact\":4},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":9,\"returned\":9,\"coverage\":{\"exact\":9},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/lines.rs",
+                "qualified_name": "lines::impl::LineIter<'b>::Iterator::next"
+              }
+            ],
+            "response_format": "concise"
+          },
+          "pid": 66088
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 1  1 bodies  context 0\n@ ripgrep crates/searcher/src/lines.rs:34-36 method lines:"
+        }
+      ],
+      "errors": [],
+      "host_errors": [],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "LineStep::next_impl",
+            "direction": "incoming",
+            "include_evidence": true
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "lines::impl::LineStep::next",
+            "direction": "incoming",
+            "include_evidence": true
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "lines::impl::LineStep::next_match",
+            "direction": "incoming",
+            "include_evidence": true
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "path": "crates/searcher/src/lines.rs",
+                "qualified_name": "lines::impl::LineIter<'b>::Iterator::next"
+              }
+            ],
+            "response_format": "concise"
+          }
+        }
+      ],
+      "answer": "Direct callers of `LineStep::next_impl` (ripgrep, `crates/searcher/src/lines.rs`):\n\n- **`LineStep::next`** (`lines.rs:74-76`) calls `self.next_impl(bytes)` and returns the `Option<(usize, usize)>` unchanged. This preserves the offset pair.\n- **`LineStep::next_match`** (`lines.rs:80-82`) calls `self.next_impl(bytes).map(|(s, e)| Match::new(s, e))`. This converts the pair into a `Match`.\n\nBoth are the only incoming `CALLS_DIRECT` edges to `next_impl`. The index reports `COMPLETE` with `EXACT_TYPECHECKED` confidence.\n\n`LineIter::next` does not call `next_impl` directly. It is `Iterator::next` at `lines.rs:34-36`, whose body is `self.stepper.next_match(self.bytes).map(|m| &self.bytes[m])`. So it goes through **`LineStep::next_match`**, and therefore through `next_impl`, and it yields byte slices rather than offset pairs.",
+      "corpus": "ripgrep",
+      "question_set": "typed",
+      "block": 7,
+      "other_tools": [],
+      "rpc_calls": 4,
+      "initializations": 0,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        [
+          "bench_find_references",
+          "bench_find_references"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 1485,
+      "final_output": 380,
+      "post_s": 8.574071835,
+      "ttft_s": 3.8649281650000002,
+      "call_text_chars": 426,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "new",
+      "model": "claude-haiku-5-5",
+      "turns": 5,
+      "tokens": 230928,
+      "usage": {
+        "input": 12,
+        "cacheRead": 222280,
+        "cacheWrite": 7186,
+        "output": 1450
+      },
+      "usd": 0.0043862,
+      "wall_s": 9.368,
+      "rpc": [
+        {
+          "initialize": 66491
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "next",
+            "qualified_name": "LineIter::next",
+            "direction": "outgoing",
+            "repository": "ripgrep"
+          },
+          "pid": 66500
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "name": "next_impl",
+            "qualified_name": "LineStep::next_impl",
+            "direction": "incoming",
+            "include_evidence": true,
+            "repository": "ripgrep"
+          },
+          "pid": 66500
+        },
+        {
+          "reply": "find_references",
+          "error": "INVALID_ARGUMENT: name identifies a declaration on its own; pass stable_key or qualified_name instead, not both",
+          "preview": "INVALID_ARGUMENT: name identifies a declaration on its own; pass stable_key or qualified_n"
+        },
+        {
+          "reply": "find_references",
+          "error": "INVALID_ARGUMENT: name identifies a declaration on its own; pass stable_key or qualified_name instead, not both",
+          "preview": "INVALID_ARGUMENT: name identifies a declaration on its own; pass stable_key or qualified_n"
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "qualified_name": "LineIter::next",
+            "direction": "outgoing",
+            "repository": "ripgrep"
+          },
+          "pid": 66500
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "qualified_name": "LineStep::next_impl",
+            "direction": "incoming",
+            "include_evidence": true,
+            "repository": "ripgrep"
+          },
+          "pid": 66500
+        },
+        {
+          "reply": "find_references",
+          "error": "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualified_name of the one you mean: lines::impl::LineIter<'b>::Iterator::next (ripgrep:crates/searcher/src/lines.rs:34)",
+          "preview": "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it wit"
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "qualified_name": "lines::impl::LineIter<'b>::Iterator::next",
+            "direction": "outgoing",
+            "repository": "ripgrep",
+            "include_evidence": true
+          },
+          "pid": 66500
+        },
+        {
+          "reply": "find_references",
+          "error": "INVALID_ARGUMENT: include_evidence requires incoming references in compact or full view",
+          "preview": "INVALID_ARGUMENT: include_evidence requires incoming references in compact or full view"
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "qualified_name": "lines::impl::LineIter<'b>::Iterator::next",
+            "direction": "outgoing",
+            "repository": "ripgrep"
+          },
+          "pid": 66500
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":4,\"returned\":4,\"coverage\":{\"exact\":4},\"completeness\":{\"verdict\":\""
+        }
+      ],
+      "errors": [
+        "INVALID_ARGUMENT: name identifies a declaration on its own; pass stable_key or qualified_name instead, not both",
+        "INVALID_ARGUMENT: name identifies a declaration on its own; pass stable_key or qualified_name instead, not both",
+        "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualified_name of the one you mean: lines::impl::LineIter<'b>::Iterator::next (ripgrep:crates/searcher/src/lines.rs:34)",
+        "INVALID_ARGUMENT: include_evidence requires incoming references in compact or full view"
+      ],
+      "host_errors": [
+        "Error: INVALID_ARGUMENT: name identifies a declaration on its own; pass stable_key or qualified_name instead, not both",
+        "Error: INVALID_ARGUMENT: name identifies a declaration on its own; pass stable_key or qualified_name instead, not both",
+        "Error: SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualifie",
+        "Error: INVALID_ARGUMENT: include_evidence requires incoming references in compact or full view"
+      ],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "next_impl",
+            "qualified_name": "LineStep::next_impl",
+            "direction": "incoming",
+            "include_evidence": true,
+            "repository": "ripgrep"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "name": "next",
+            "qualified_name": "LineIter::next",
+            "direction": "outgoing",
+            "repository": "ripgrep"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "qualified_name": "LineStep::next_impl",
+            "direction": "incoming",
+            "include_evidence": true,
+            "repository": "ripgrep"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "qualified_name": "LineIter::next",
+            "direction": "outgoing",
+            "repository": "ripgrep"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "qualified_name": "lines::impl::LineIter<'b>::Iterator::next",
+            "direction": "outgoing",
+            "repository": "ripgrep",
+            "include_evidence": true
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "qualified_name": "lines::impl::LineIter<'b>::Iterator::next",
+            "direction": "outgoing",
+            "repository": "ripgrep"
+          }
+        }
+      ],
+      "answer": "**Direct callers of `LineStep::next_impl`** (definition: `crates/searcher/src/lines.rs:85-107`, `lines::impl::LineStep::next_impl`). Both are `CALLS_DIRECT`, `EXACT_TYPECHECKED`, and the result is COMPLETE:\n\n1. **`LineStep::next`**, `crates/searcher/src/lines.rs:74-76`. Calls `self.next_impl(bytes)` and returns it unchanged. This preserves the `(start, end)` offset pair as `Option<(usize, usize)>`.\n2. **`LineStep::next_match`**, `crates/searcher/src/lines.rs:80-82`. Calls `self.next_impl(bytes).map(|(s, e)| Match::new(s, e))`. This converts the offset pair into a `Match`.\n\n**`LineIter::next`**: the index resolves it as `lines::impl::LineIter<'b>::Iterator::next` (`crates/searcher/src/lines.rs:34`). It does not call `next_impl` directly. Its outgoing edges are:\n- `stepper` field, `lines.rs:19`, `CALLS_DIRECT`\n- `LineStep::next_match`, `lines.rs:80-82`, `CALLS_DIRECT`\n- `bytes` field, `lines.rs:18`, `REFERENCES` (two rows)\n\nSo `LineIter::next` reaches `next_impl` through `LineStep::next_match`, using the `stepper` field.\n\nCaveat: I did not open the `LineIter::next` body, so the field-to-call mapping is from the edge list only. The `next_impl` callers and the `next_match` conversion come from the returned code.",
+      "corpus": "ripgrep",
+      "question_set": "typed",
+      "block": 7,
+      "other_tools": [],
+      "rpc_calls": 6,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references",
+          "bench_find_references"
+        ],
+        [
+          "bench_find_references",
+          "bench_find_references"
+        ],
+        [
+          "bench_find_references"
+        ],
+        [
+          "bench_find_references"
+        ],
+        []
+      ],
+      "call_output": 875,
+      "final_output": 575,
+      "post_s": 4.246708457,
+      "ttft_s": 5.055291542999999,
+      "call_text_chars": 104,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "new",
+      "model": "claude-haiku-5-5",
+      "turns": 5,
+      "tokens": 230564,
+      "usage": {
+        "input": 12,
+        "cacheRead": 221956,
+        "cacheWrite": 6988,
+        "output": 1608
+      },
+      "usd": 0.00442236,
+      "wall_s": 14.081,
+      "rpc": [
+        {
+          "initialize": 66891
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "qualified_name": "LineStep::next_impl",
+            "repository": "ripgrep",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          },
+          "pid": 66900
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "LineIter::next"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 66900
+        },
+        {
+          "reply": "get_source",
+          "error": "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualified_name of the one you mean: lines::impl::LineIter<'b>::Iterator::next (ripgrep:crates/searcher/src/lines.rs:34)",
+          "preview": "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it wit"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "lines::impl::LineIter<'b>::Iterator::next",
+                "path": "crates/searcher/src/lines.rs"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 66900
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 1  1 bodies  context 0\n@ ripgrep crates/searcher/src/lines.rs:34-36 method lines:"
+        }
+      ],
+      "errors": [
+        "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualified_name of the one you mean: lines::impl::LineIter<'b>::Iterator::next (ripgrep:crates/searcher/src/lines.rs:34)"
+      ],
+      "host_errors": [
+        "Error: REPOSITORY_NOT_FOUND: repository \"ripgrep\" is not in the published graph",
+        "Error: SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualifie"
+      ],
+      "calls": [
+        {
+          "tool": "mcp__kivgraph_find_references",
+          "args": {
+            "qualified_name": "LineStep::next_impl",
+            "repository": "ripgrep",
+            "direction": "incoming",
+            "include_evidence": "true",
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "qualified_name": "LineStep::next_impl",
+            "repository": "ripgrep",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "LineIter::next"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "lines::impl::LineIter<'b>::Iterator::next",
+                "path": "crates/searcher/src/lines.rs"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        }
+      ],
+      "answer": "**Direct callers of `LineStep::next_impl`** (`find_references`, incoming, complete, 2 of 2 exact):\n\n- **`LineStep::next`** (`crates/searcher/src/lines.rs:74-76`) calls `self.next_impl(bytes)` and returns its `Option<(usize, usize)>` unchanged. This preserves the offset pair.\n- **`LineStep::next_match`** (`crates/searcher/src/lines.rs:80-82`) calls `self.next_impl(bytes).map(|(s, e)| Match::new(s, e))`. This converts the pair into a `Match`.\n\nThe definition is at `crates/searcher/src/lines.rs:85-107`. It returns `(self.pos, self.pos + line_end + 1)` for a found terminator, or `(self.pos, bytes.len())` for a trailing unterminated line.\n\n**`LineIter::next`** does not call `next_impl` directly. It goes through `LineStep::next_match`: `self.stepper.next_match(self.bytes).map(|m| &self.bytes[m])` (`crates/searcher/src/lines.rs:34-36`). The `LineIter::next` symbol resolved to `lines::impl::LineIter<'b>::Iterator::next`.\n\nNote: `repository: \"ripgrep\"` was rejected by `kivgraph_find_references` (not in the published graph). I used the bench tool, which accepted the same name.",
+      "corpus": "ripgrep",
+      "question_set": "typed",
+      "block": 8,
+      "other_tools": [
+        "mcp__kivgraph_find_references"
+      ],
+      "rpc_calls": 3,
+      "initializations": 1,
+      "route": [
+        [
+          "kivgraph_find_references"
+        ],
+        [
+          "bench_find_references"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 1102,
+      "final_output": 506,
+      "post_s": 8.651207583,
+      "ttft_s": 5.296792417,
+      "call_text_chars": 0,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "old",
+      "model": "claude-haiku-5-5",
+      "turns": 4,
+      "tokens": 183632,
+      "usage": {
+        "input": 10,
+        "cacheRead": 175915,
+        "cacheWrite": 6460,
+        "output": 1247
+      },
+      "usd": 0.00367565,
+      "wall_s": 10.586,
+      "rpc": [
+        {
+          "initialize": 67593
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "qualified_name": "LineStep::next_impl",
+            "repository": "ripgrep",
+            "include_evidence": true,
+            "response_format": "detailed"
+          },
+          "pid": 67605
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "LineIter::next"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 67605
+        },
+        {
+          "reply": "get_source",
+          "error": "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualified_name of the one you mean: lines::impl::LineIter<'b>::Iterator::next (ripgrep:crates/searcher/src/lines.rs:34)",
+          "preview": "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it wit"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "lines::impl::LineIter<'b>::Iterator::next",
+                "path": "crates/searcher/src/lines.rs"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 67605
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 1  1 bodies  context 0\n@ ripgrep crates/searcher/src/lines.rs:34-36 method lines:"
+        }
+      ],
+      "errors": [
+        "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualified_name of the one you mean: lines::impl::LineIter<'b>::Iterator::next (ripgrep:crates/searcher/src/lines.rs:34)"
+      ],
+      "host_errors": [
+        "Error: SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualifie"
+      ],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "qualified_name": "LineStep::next_impl",
+            "repository": "ripgrep",
+            "include_evidence": true,
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "LineIter::next"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "lines::impl::LineIter<'b>::Iterator::next",
+                "path": "crates/searcher/src/lines.rs"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        }
+      ],
+      "answer": "**Direct callers of `LineStep::next_impl`** (`crates/searcher/src/lines.rs:85-107`). The index reports two `CALLS_DIRECT` edges, `EXACT_TYPECHECKED`, completeness `COMPLETE`:\n\n- **`LineStep::next`**, `lines.rs:74-76`: `self.next_impl(bytes)`. It **preserves the offset pair**: it returns `Option<(usize, usize)>` unchanged.\n- **`LineStep::next_match`**, `lines.rs:80-82`: `self.next_impl(bytes).map(|(s, e)| Match::new(s, e))`. It **converts the pair to a `Match`** via `Match::new`.\n\n**`LineIter::next` does not call `next_impl` directly.** It is the `Iterator::next` impl at `crates/searcher/src/lines.rs:34-36`, and its body is `self.stepper.next_match(self.bytes).map(|m| &self.bytes[m])`. The path is therefore `LineIter::next` → `LineStep::next_match` (`lines.rs:80`) → `LineStep::next_impl` (`lines.rs:85`).\n\nThe call graph shows no other direct callers, so `next_impl` is reached only through these two wrappers.",
+      "corpus": "ripgrep",
+      "question_set": "typed",
+      "block": 8,
+      "other_tools": [],
+      "rpc_calls": 3,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 742,
+      "final_output": 505,
+      "post_s": 5.9864172909999995,
+      "ttft_s": 4.552582709,
+      "call_text_chars": 193,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "old",
+      "model": "claude-haiku-5-5",
+      "turns": 4,
+      "tokens": 185576,
+      "usage": {
+        "input": 10,
+        "cacheRead": 176794,
+        "cacheWrite": 6866,
+        "output": 1906
+      },
+      "usd": 0.004095140000000001,
+      "wall_s": 12.166,
+      "rpc": [
+        {
+          "initialize": 70185
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "qualified_name": "LineStep::next_impl",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          },
+          "pid": 70191
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "LineIter::next"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 70191
+        },
+        {
+          "reply": "get_source",
+          "error": "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualified_name of the one you mean: lines::impl::LineIter<'b>::Iterator::next (ripgrep:crates/searcher/src/lines.rs:34)",
+          "preview": "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it wit"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "lines::impl::LineIter<'b>::Iterator::next"
+              }
+            ],
+            "response_format": "detailed"
+          },
+          "pid": 70191
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 1  1 bodies  context 0\n@ ripgrep crates/searcher/src/lines.rs:34-36 method lines:"
+        }
+      ],
+      "errors": [
+        "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualified_name of the one you mean: lines::impl::LineIter<'b>::Iterator::next (ripgrep:crates/searcher/src/lines.rs:34)"
+      ],
+      "host_errors": [
+        "Error: SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualifie"
+      ],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "qualified_name": "LineStep::next_impl",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "LineIter::next"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "lines::impl::LineIter<'b>::Iterator::next"
+              }
+            ],
+            "response_format": "detailed"
+          }
+        }
+      ],
+      "answer": "**Direct callers of `LineStep::next_impl`** (`find_references`, incoming, completeness COMPLETE, 2 exact `CALLS_DIRECT` edges, both in `crates/searcher/src/lines.rs`):\n\n1. **`LineStep::next`**, lines 74-76: `self.next_impl(bytes)`. It returns the `(usize, usize)` pair unchanged, so it preserves the offset pair.\n2. **`LineStep::next_match`**, lines 80-82: `self.next_impl(bytes).map(|(s, e)| Match::new(s, e))`. It converts the pair into a `Match`.\n\n**`LineIter::next`** does not call `next_impl` directly. Its body at `crates/searcher/src/lines.rs:34-36` is `self.stepper.next_match(self.bytes).map(|m| &self.bytes[m])`. It goes through `LineStep::next_match`, which calls `next_impl`. The chain is `LineIter::next` → `LineStep::next_match` (lines 80-82) → `LineStep::next_impl` (lines 85-107).\n\nScope: I used only `find_references` and `get_source`. I did not run `graph_status`, so index freshness was not checked. The `LineIter::next` symbol had to be addressed by its exact qualified name, `lines::impl::LineIter<'b>::Iterator::next`, because the short form did not resolve.",
+      "corpus": "ripgrep",
+      "question_set": "typed",
+      "block": 9,
+      "other_tools": [],
+      "rpc_calls": 3,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 1148,
+      "final_output": 758,
+      "post_s": 8.552977541999999,
+      "ttft_s": 3.5300224580000004,
+      "call_text_chars": 198,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "new",
+      "model": "claude-haiku-5-5",
+      "turns": 4,
+      "tokens": 184293,
+      "usage": {
+        "input": 10,
+        "cacheRead": 176467,
+        "cacheWrite": 6531,
+        "output": 1285
+      },
+      "usd": 0.0037143700000000003,
+      "wall_s": 10.667,
+      "rpc": [
+        {
+          "initialize": 70598
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "LineStep::next_impl",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          },
+          "pid": 70604
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "LineIter::next"
+              }
+            ]
+          },
+          "pid": 70604
+        },
+        {
+          "reply": "get_source",
+          "error": "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualified_name of the one you mean: lines::impl::LineIter<'b>::Iterator::next (ripgrep:crates/searcher/src/lines.rs:34)",
+          "preview": "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it wit"
+        },
+        {
+          "call": "get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "lines::impl::LineIter<'b>::Iterator::next",
+                "path": "crates/searcher/src/lines.rs"
+              }
+            ]
+          },
+          "pid": 70604
+        },
+        {
+          "reply": "get_source",
+          "error": null,
+          "preview": "snapshot 1  1 bodies  context 0\n@ ripgrep crates/searcher/src/lines.rs:34-36 method lines:"
+        }
+      ],
+      "errors": [
+        "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualified_name of the one you mean: lines::impl::LineIter<'b>::Iterator::next (ripgrep:crates/searcher/src/lines.rs:34)"
+      ],
+      "host_errors": [
+        "Error: SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualifie"
+      ],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "LineStep::next_impl",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "LineIter::next"
+              }
+            ]
+          }
+        },
+        {
+          "tool": "mcp__bench_get_source",
+          "args": {
+            "symbols": [
+              {
+                "repository": "ripgrep",
+                "qualified_name": "lines::impl::LineIter<'b>::Iterator::next",
+                "path": "crates/searcher/src/lines.rs"
+              }
+            ]
+          }
+        }
+      ],
+      "answer": "**Direct callers of `LineStep::next_impl`** (`crates/searcher/src/lines.rs`, definition at lines 85-107). The graph lists exactly two, and the result is marked complete:\n\n- **Preserves the offset pair:** `LineStep::next`, lines 74-76. It returns `self.next_impl(bytes)` unchanged, so the `Option<(usize, usize)>` is passed through.\n- **Converts to `Match`:** `LineStep::next_match`, lines 80-82. It calls `self.next_impl(bytes).map(|(s, e)| Match::new(s, e))`.\n\n**`LineIter::next`** does not call `next_impl` directly. It is at `crates/searcher/src/lines.rs:34-36` and calls `self.stepper.next_match(self.bytes)` (line 35). That is the `Match`-producing path, which calls `next_impl` at line 81. The lookup for `LineIter::next` failed, so I resolved the method by its qualified name, `lines::impl::LineIter<'b>::Iterator::next`.\n\nChain: `LineIter::next` (34-36) → `LineStep::next_match` (80-82) → `LineStep::next_impl` (85-107).",
+      "corpus": "ripgrep",
+      "question_set": "typed",
+      "block": 9,
+      "other_tools": [],
+      "rpc_calls": 3,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references"
+        ],
+        [
+          "bench_get_source"
+        ],
+        [
+          "bench_get_source"
+        ],
+        []
+      ],
+      "call_output": 744,
+      "final_output": 541,
+      "post_s": 6.238989749999999,
+      "ttft_s": 4.351010250000001,
+      "call_text_chars": 0,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "new",
+      "model": "claude-haiku-5-5",
+      "turns": 3,
+      "tokens": 138601,
+      "usage": {
+        "input": 8,
+        "cacheRead": 130456,
+        "cacheWrite": 6792,
+        "output": 1345
+      },
+      "usd": 0.00333626,
+      "wall_s": 8.304,
+      "rpc": [
+        {
+          "initialize": 70998
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "qualified_name": "LineIter::next",
+            "repository": "ripgrep",
+            "direction": "outgoing",
+            "response_format": "detailed"
+          },
+          "pid": 71007
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "qualified_name": "LineStep::next_impl",
+            "repository": "ripgrep",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          },
+          "pid": 71007
+        },
+        {
+          "reply": "find_references",
+          "error": "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualified_name of the one you mean: lines::impl::LineIter<'b>::Iterator::next (ripgrep:crates/searcher/src/lines.rs:34)",
+          "preview": "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it wit"
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "qualified_name": "lines::impl::LineIter<'b>::Iterator::next",
+            "repository": "ripgrep",
+            "direction": "outgoing",
+            "response_format": "detailed",
+            "include_evidence": false
+          },
+          "pid": 71007
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":4,\"returned\":4,\"coverage\":{\"exact\":4},\"completeness\":{\"verdict\":\""
+        }
+      ],
+      "errors": [
+        "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualified_name of the one you mean: lines::impl::LineIter<'b>::Iterator::next (ripgrep:crates/searcher/src/lines.rs:34)"
+      ],
+      "host_errors": [
+        "Error: SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualifie"
+      ],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "qualified_name": "LineStep::next_impl",
+            "repository": "ripgrep",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "qualified_name": "LineIter::next",
+            "repository": "ripgrep",
+            "direction": "outgoing",
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "qualified_name": "lines::impl::LineIter<'b>::Iterator::next",
+            "repository": "ripgrep",
+            "direction": "outgoing",
+            "response_format": "detailed",
+            "include_evidence": false
+          }
+        }
+      ],
+      "answer": "**Direct callers of `LineStep::next_impl`** (`crates/searcher/src/lines.rs`, definition at lines 85–107, `CALLS_DIRECT`, `EXACT_TYPECHECKED`; the index reports the lookup as COMPLETE with 2 results):\n\n- **`LineStep::next`**, lines 74–76: `self.next_impl(bytes)`. It returns the raw `Option<(usize, usize)>` offset pair unchanged.\n- **`LineStep::next_match`**, lines 80–82: `self.next_impl(bytes).map(|(s, e)| Match::new(s, e))`. It converts the pair into a `Match`.\n\n**`LineIter::next`:** it does not call `next_impl` directly. Its outgoing edges (`lines.rs:34`, `lines::impl::LineIter<'b>::Iterator::next`) include a `CALLS_DIRECT` to `lines::impl::LineStep::next_match@80-82`, reached through the `stepper` field (`lines::LineIter::stepper@19`). So the path is `LineIter::next` → `LineStep::next_match` → `LineStep::next_impl`.\n\nCaveat: I did not open the body of `LineIter::next`. The call edge comes from the graph index, not from reading its source.",
+      "corpus": "ripgrep",
+      "question_set": "typed",
+      "block": 10,
+      "other_tools": [],
+      "rpc_calls": 3,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references",
+          "bench_find_references"
+        ],
+        [
+          "bench_find_references"
+        ],
+        []
+      ],
+      "call_output": 687,
+      "final_output": 658,
+      "post_s": 5.483925499000001,
+      "ttft_s": 2.746074501,
+      "call_text_chars": 0,
+      "lexical_missing": [],
+      "correct": true
+    },
+    {
+      "arm": "old",
+      "model": "claude-haiku-5-5",
+      "turns": 3,
+      "tokens": 138989,
+      "usage": {
+        "input": 8,
+        "cacheRead": 130469,
+        "cacheWrite": 6908,
+        "output": 1604
+      },
+      "usd": 0.0034890900000000002,
+      "wall_s": 10.687,
+      "rpc": [
+        {
+          "initialize": 71390
+        },
+        {
+          "tools": [
+            "find_references",
+            "find_symbol",
+            "get_source"
+          ]
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "LineIter::next",
+            "direction": "outgoing",
+            "response_format": "detailed"
+          },
+          "pid": 71400
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "LineStep::next_impl",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          },
+          "pid": 71400
+        },
+        {
+          "reply": "find_references",
+          "error": "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualified_name of the one you mean: lines::impl::LineIter<'b>::Iterator::next (ripgrep:crates/searcher/src/lines.rs:34)",
+          "preview": "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it wit"
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":2,\"returned\":2,\"coverage\":{\"exact\":2},\"completeness\":{\"verdict\":\""
+        },
+        {
+          "call": "find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "lines::impl::LineIter<'b>::Iterator::next",
+            "direction": "outgoing",
+            "response_format": "detailed"
+          },
+          "pid": 71400
+        },
+        {
+          "reply": "find_references",
+          "error": null,
+          "preview": "{\"snapshot_id\":1,\"total\":4,\"returned\":4,\"coverage\":{\"exact\":4},\"completeness\":{\"verdict\":\""
+        }
+      ],
+      "errors": [
+        "SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualified_name of the one you mean: lines::impl::LineIter<'b>::Iterator::next (ripgrep:crates/searcher/src/lines.rs:34)"
+      ],
+      "host_errors": [
+        "Error: SYMBOL_NOT_FOUND: qualified name \"LineIter::next\" was not found under ripgrep; call it without repository and path to search the whole graph; the index pairs none of these with a declared Rust type, so they are unproven -- repeat with the exact qualifie"
+      ],
+      "calls": [
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "LineStep::next_impl",
+            "direction": "incoming",
+            "include_evidence": true,
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "LineIter::next",
+            "direction": "outgoing",
+            "response_format": "detailed"
+          }
+        },
+        {
+          "tool": "mcp__bench_find_references",
+          "args": {
+            "repository": "ripgrep",
+            "qualified_name": "lines::impl::LineIter<'b>::Iterator::next",
+            "direction": "outgoing",
+            "response_format": "detailed"
+          }
+        }
+      ],
+      "answer": "**Direct callers of `LineStep::next_impl`** (`crates/searcher/src/lines.rs:85-107`, the definition). The graph reports exactly two incoming `CALLS_DIRECT` edges, and completeness is `COMPLETE`:\n\n- **`LineStep::next`** (`lines.rs:74-76`) calls `self.next_impl(bytes)` and returns it unchanged. It **preserves the `(usize, usize)` offset pair**.\n- **`LineStep::next_match`** (`lines.rs:80-82`) calls `self.next_impl(bytes).map(|(s, e)| Match::new(s, e))`. It **converts the pair to a `Match`**.\n\n**`LineIter::next`** does not call `next_impl` directly. The outgoing references from `lines::impl::LineIter<'b>::Iterator::next` (`lines.rs:34`) show one `CALLS_DIRECT` edge into `LineStep::next_match` (`lines.rs:80-82`), reached through the `stepper` field (`lines.rs:19`). So the chain is `LineIter::next` → `LineStep::next_match` → `LineStep::next_impl`.\n\nTwo notes:\n- `LineIter::next` was not found under that bare name. The graph needed the canonical `lines::impl::LineIter<'b>::Iterator::next`.\n- I did not open the body of `LineIter::next`. The call path above comes from the graph's outgoing edges, not from reading that function's source.",
+      "corpus": "ripgrep",
+      "question_set": "typed",
+      "block": 10,
+      "other_tools": [],
+      "rpc_calls": 3,
+      "initializations": 1,
+      "route": [
+        [
+          "bench_find_references",
+          "bench_find_references"
+        ],
+        [
+          "bench_find_references"
+        ],
+        []
+      ],
+      "call_output": 900,
+      "final_output": 704,
+      "post_s": 7.597716124999999,
+      "ttft_s": 3.0282838750000005,
+      "call_text_chars": 0,
+      "lexical_missing": [],
+      "correct": true
+    }
+  ]
+}

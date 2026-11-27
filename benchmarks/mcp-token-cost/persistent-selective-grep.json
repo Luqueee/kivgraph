@@ -1,0 +1,3074 @@
+{
+  "server_build": "de7a74e0",
+  "environment": "darwin/arm64; rg 15.2.0; OMP scout",
+  "corpora": {
+    "cobra": "88b30ab89da2d0d0abb153818746c5a2d30eccec",
+    "ky": "3541888878c4d303a8bc2ad61815f4e048f55a5d",
+    "ripgrep": "4649aa9700619f94cf9c66876e9549d83420e16c"
+  },
+  "protocol": "2025-06-18",
+  "design": "Two fresh agents per task and arm. Per graph agent: one initialized stdio server, no reconnect or preloaded answer; warm launch excluded. Sequential RPC IDs checked against a single PID. Text arm: rg plus host range reads. Concurrent sessions; uncontrolled prompt cache. Source checks score required facts, not incidental claims.",
+  "replay": {
+    "order": "replayPersistenceP(): cobra, ky, ripgrep; control then typed in each corpus. For each selector, brokerQueryP(path, 'find_references', args) warms and supplies the expected rows. Time isolatedRPC(corpus, 'find_references', args) and brokerQueryP(path, 'find_references', args) in six pairs. Restart first in pairs 1, 3, 5; persistent first in pairs 2, 4, 6. Restart includes startup and shutdown; persistent includes the local socket bridge.",
+    "find_references_arguments": {
+      "cobra/typed": {
+        "repository": "cobra",
+        "path": "shell_completions.go",
+        "qualified_name": "MarkFlagRequired"
+      },
+      "ky/typed": {
+        "repository": "ky",
+        "path": "source/types/options.ts",
+        "qualified_name": "KyOptions.retry"
+      },
+      "ripgrep/typed": {
+        "repository": "ripgrep",
+        "path": "crates/searcher/src/line_buffer.rs",
+        "qualified_name": "line_buffer::Config"
+      },
+      "cobra/control": {
+        "name": "ExactArgs",
+        "direction": "incoming"
+      },
+      "ky/control": {
+        "repository": "ky",
+        "path": "source/utils/merge.ts",
+        "qualified_name": "mergeHeaders",
+        "direction": "incoming"
+      },
+      "ripgrep/control": {
+        "name": "Replacer",
+        "direction": "incoming"
+      }
+    },
+    "milliseconds": {
+      "persistent": [
+        1.372583,
+        0.60975,
+        0.709083,
+        0.7105,
+        0.571167,
+        0.2685,
+        0.730917,
+        0.205875,
+        4.034375,
+        0.266791,
+        0.79575,
+        0.353375,
+        0.574375,
+        0.203875,
+        0.632,
+        0.288041,
+        0.425833,
+        0.212709,
+        0.3335,
+        0.165,
+        0.538958,
+        0.166625,
+        0.477625,
+        0.3045,
+        1.255125,
+        0.351291,
+        0.656167,
+        0.405792,
+        0.638917,
+        0.596125,
+        0.667167,
+        0.334333,
+        0.992583,
+        0.394,
+        0.584292,
+        0.434167
+      ],
+      "restart": [
+        37.750958,
+        29.449167,
+        27.517167,
+        27.411625,
+        26.907375,
+        25.400291,
+        24.044917,
+        24.196041,
+        26.370042,
+        23.860709,
+        24.815708,
+        24.854208,
+        28.753708,
+        22.999334,
+        27.10325,
+        23.6285,
+        22.216792,
+        26.418833,
+        27.599625,
+        23.169333,
+        23.333583,
+        25.902959,
+        29.297375,
+        26.597542,
+        45.828,
+        46.309458,
+        37.072459,
+        38.473375,
+        38.985584,
+        40.989,
+        40.860917,
+        47.833375,
+        44.469458,
+        44.269209,
+        45.211542,
+        41.587583
+      ]
+    }
+  },
+  "runs": [
+    {
+      "block": 1,
+      "corpus": "cobra",
+      "arm": "graph",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 232134,
+      "input": 16,
+      "cache_read": 175579,
+      "cache_write": 53524,
+      "output": 3015,
+      "wall_seconds": 17.951,
+      "model_turns": 6,
+      "reported_usd": 0.01397,
+      "evidence_calls": [
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1controlcobragraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"ExactArgs\",\"repository\":\"cobra\"}",
+            "i": "Locating ExactArgs declaration in cobra"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1controlcobragraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"ExactArgs\",\"repository\":\"cobra\"}",
+            "i": "Finding ExactArgs references in cobra"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1controlcobragraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"cobra\",\"path\":\"args.go\",\"qualified_name\":\"ExactArgs\"},{\"repository\":\"cobra\",\"path\":\"args_test.go\",\"qualified_name\":\"TestExactArgs_WithInvalidCount\"},{\"repository\":\"cobra\",\"path\":\"args_test.go\",\"qualified_name\":\"TestExactArgs\"}]}",
+            "i": "Reading ExactArgs source and the invalid-count test"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1controlcobragraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"exactArgsWithInvalidCount\"}",
+            "i": "Locating the exactArgsWithInvalidCount assertion helper"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1controlcobragraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"cobra\",\"path\":\"args_test.go\",\"qualified_name\":\"exactArgsWithInvalidCount\"}]}",
+            "i": "Reading the exactArgsWithInvalidCount helper body"
+          }
+        }
+      ],
+      "set": "control",
+      "prompt": "Your graph session ID is Stay1controlcobragraph, repository cobra. Answer the following maintainer question with evidence from the frozen cobra repository. Choose your searches and what to read; you may search again or batch needed reads. Cite file and line(s). Keep the answer to the question asked. Use only persistent_graph as evidence; no other tools, files, web, tests or edits. Starting symbol: ExactArgs.\nWhen validating a command with ExactArgs, what happens if the argument count is wrong? Show one existing test that exercises this failure, including the concrete counts or expected error.",
+      "answer_summary": "When ExactArgs(n) validates a command and the argument count is wrong, the returned validator returns an error and the command does not run. The error text is \"accepts %d arg(s), received %d\" with the expected and actual counts. The check is a strict != comparison, so too few and too many arguments both fail. Existing test TestExactArgs_WithInvalidCount calls ExactArgs(2) with three arguments (\"a\",\"b\",\"c\") and asserts the error is exactly \"accepts 2 arg(s), received 3\".",
+      "citations": [
+        {
+          "path": "args.go:94-101",
+          "description": "ExactArgs(n) returns a PositionalArgs validator. If len(args) != n it returns fmt.Errorf(\"accepts %d arg(s), received %d\", n, len(args)); otherwise nil."
+        },
+        {
+          "path": "args_test.go:308-312",
+          "description": "TestExactArgs_WithInvalidCount: getCommand(ExactArgs(2), false), executeCommand(c, \"a\", \"b\", \"c\"), then exactArgsWithInvalidCount(err, t). Exercises the wrong-count failure with concrete counts 2 expected and 3 received."
+        },
+        {
+          "path": "args_test.go:88-97",
+          "description": "exactArgsWithInvalidCount helper: fails if err is nil, and fails unless err.Error() equals \"accepts 2 arg(s), received 3\"."
+        },
+        {
+          "path": "args_test.go:284-288",
+          "description": "TestExactArgs: the success counterpart, ExactArgs(3) with three arguments, expectSuccess."
+        }
+      ],
+      "protocol_errors": {
+        "SCHEMA_VALIDATION": 1
+      },
+      "transport": {
+        "initializations": 1,
+        "server_pid": 74989,
+        "calls": 5
+      }
+    },
+    {
+      "block": 1,
+      "corpus": "cobra",
+      "arm": "grep",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 165516,
+      "input": 12,
+      "cache_read": 138551,
+      "cache_write": 24331,
+      "output": 2622,
+      "wall_seconds": 16.425,
+      "model_turns": 4,
+      "reported_usd": 0.007564,
+      "evidence_calls": [
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "cobra",
+            "pattern": "func ExactArgs|ExactArgs\\(",
+            "i": "Locating ExactArgs definition and uses",
+            "context": 3
+          }
+        },
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "cobra",
+            "pattern": "func exactArgsWithInvalidCount|func expectSuccess|func expectErr|ValidateArgs\\(|func \\(c \\*Command\\) ValidateArgs|Args\\(c, argWoFlags\\)|accepts %d arg",
+            "i": "Finding helper and call site",
+            "context": 6
+          }
+        },
+        {
+          "tool": "text_read",
+          "args": {
+            "corpus": "cobra",
+            "ranges": [
+              "args.go:93-100"
+            ],
+            "i": "Reading ExactArgs body"
+          }
+        }
+      ],
+      "set": "control",
+      "prompt": "The corpus argument is exactly cobra. Answer the following maintainer question with evidence from the frozen cobra repository. Choose your searches and what to read; you may search again or batch needed reads. Cite file and line(s). Keep the answer to the question asked. Use only text_search, text_read as evidence; no other tools, files, web, tests or edits. Starting symbol: ExactArgs.\nWhen validating a command with ExactArgs, what happens if the argument count is wrong? Show one existing test that exercises this failure, including the concrete counts or expected error.",
+      "answer_summary": "When the argument count is wrong, ExactArgs returns an error and the command does not run. The error text is `accepts N arg(s), received M`, where N is the expected count and M is the actual count. Enforcement happens in Command.execute before any hooks or Run. Existing test: TestExactArgs_WithInvalidCount uses ExactArgs(2) with three args (a, b, c) and expects the error \"accepts 2 arg(s), received 3\".",
+      "citations": [
+        {
+          "path": "args.go:93-101",
+          "description": "ExactArgs(n) definition. Returns a PositionalArgs closure that compares len(args) to n and, on mismatch, returns fmt.Errorf(\"accepts %d arg(s), received %d\", n, len(args))."
+        },
+        {
+          "path": "command.go:962-970",
+          "description": "execute path: argWoFlags is taken from c.Flags().Args() (or the raw args when DisableFlagParsing is set), then c.ValidateArgs(argWoFlags) runs; a non-nil error returns immediately, before the PersistentPreRun loop and Run."
+        },
+        {
+          "path": "command.go:1172-1177",
+          "description": "ValidateArgs: calls c.Args(c, args) when Args is set, otherwise ArbitraryArgs(c, args)."
+        },
+        {
+          "path": "args_test.go:308-312",
+          "description": "TestExactArgs_WithInvalidCount: getCommand(ExactArgs(2), false), executeCommand(c, \"a\", \"b\", \"c\"), then exactArgsWithInvalidCount(err, t)."
+        },
+        {
+          "path": "args_test.go:88-96",
+          "description": "exactArgsWithInvalidCount helper: fails if err is nil, and requires err.Error() == \"accepts 2 arg(s), received 3\"."
+        }
+      ],
+      "protocol_errors": {}
+    },
+    {
+      "block": 1,
+      "corpus": "ky",
+      "arm": "graph",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 455313,
+      "input": 24,
+      "cache_read": 362472,
+      "cache_write": 87904,
+      "output": 4913,
+      "wall_seconds": 34.945,
+      "model_turns": 10,
+      "reported_usd": 0.023664,
+      "evidence_calls": [
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1controlkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"mergeHeaders\",\"repository\":\"ky\"}",
+            "i": "Locating mergeHeaders declaration in ky"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1controlkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"mergeHeaders\"}",
+            "i": "Locating mergeHeaders declaration"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1controlkygraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ky\",\"path\":\"source/utils/merge.ts\",\"qualified_name\":\"mergeHeaders#2\"}]}",
+            "i": "Reading mergeHeaders source"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1controlkygraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ky\",\"path\":\"source/utils/merge.ts\",\"qualified_name\":\"mergeHeaders\"}]}",
+            "i": "Reading full mergeHeaders body"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1controlkygraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"mergeHeaders\"}",
+            "i": "Finding mergeHeaders callers"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1controlkygraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ky\",\"path\":\"source/core/Ky.ts\",\"qualified_name\":\"Ky.userProvidedContentType\"}]}",
+            "i": "Reading userProvidedContentType implementation"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1controlkygraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"userProvidedContentType\"}",
+            "i": "Finding userProvidedContentType references"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1controlkygraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ky\",\"path\":\"source/core/Ky.ts\",\"qualified_name\":\"Ky\"}]}",
+            "i": "Reading Ky class to see how the flag is used"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1controlkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"constructor\",\"path_prefix\":\"source/core/Ky.ts\"}",
+            "i": "Locating Ky constructor line range for citations"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1controlkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"Ky.constructor\"}",
+            "i": "Locating Ky constructor range for citation"
+          }
+        }
+      ],
+      "set": "control",
+      "prompt": "Your graph session ID is Stay1controlkygraph, repository ky. Answer the following maintainer question with evidence from the frozen ky repository. Choose your searches and what to read; you may search again or batch needed reads. Cite file and line(s). Keep the answer to the question asked. Use only persistent_graph as evidence; no other tools, files, web, tests or edits. Starting symbol: mergeHeaders.\nHow does Ky decide whether the user supplied Content-Type, and what header inputs does it consult for that decision? Cite the implementation, including the exact predicate.",
+      "answer_summary": "Ky decides whether the user supplied Content-Type from one value: whether `options.headers`, after normalization through `mergeHeaders`, contains a `content-type` entry. The `input` Request's headers and `json`/`body` are not consulted for this decision. Predicate (source/core/Ky.ts:525, inside class Ky at 348-1376): `const userProvidedContentType = options.headers !== undefined && mergeHeaders({}, options.headers).has('content-type');`. Header inputs consulted: only `options.headers`. It is skipped when undefined. `mergeHeaders` (source/utils/merge.ts:73-86) copies the base `{}`, then applies `options.headers` via `toHeaderObject`, skipping entries whose value is `undefined` (deletion markers). `.has` on the resulting `Headers` is case-insensitive. The flag is then used in the constructor: (a) when `options.json` is set, Ky sets `content-type: application/json` only if `!userProvidedContentType`; (b) when the input is a `Request` and the body is FormData or URLSearchParams, Ky deletes the inherited `content-type` only if `!userProvidedContentType`, so the multipart boundary is regenerated. A source comment states that a `Request` input's headers are already merged into `this.#options.headers` before this check, which is why only `options.headers` counts as user-provided.",
+      "citations": [
+        {
+          "path": "source/core/Ky.ts:525",
+          "description": "Predicate `userProvidedContentType` = `options.headers !== undefined && mergeHeaders({}, options.headers).has('content-type')`, with the comment that a Request input's headers are already merged in."
+        },
+        {
+          "path": "source/utils/merge.ts:73-86",
+          "description": "`mergeHeaders(source1, source2)`: builds a `Headers` from source1 and applies source2 entries via `toHeaderObject`; `undefined` values delete the key, others set it."
+        },
+        {
+          "path": "source/core/Ky.ts (Ky constructor, line numbers not returned by graph)",
+          "description": "Consumers of the flag: the `options.json` branch sets `application/json` only when not user-provided; the Request + FormData/URLSearchParams branch deletes the inherited content-type only when not user-provided."
+        }
+      ],
+      "protocol_errors": {
+        "SCHEMA_VALIDATION": 1
+      },
+      "transport": {
+        "initializations": 1,
+        "server_pid": 75007,
+        "calls": 10
+      }
+    },
+    {
+      "block": 1,
+      "corpus": "ky",
+      "arm": "grep",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 208422,
+      "input": 12,
+      "cache_read": 151994,
+      "cache_write": 53072,
+      "output": 3344,
+      "wall_seconds": 19.955,
+      "model_turns": 4,
+      "reported_usd": 0.013808,
+      "evidence_calls": [
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "ky",
+            "pattern": "mergeHeaders|content-type|Content-Type",
+            "i": "Locating mergeHeaders and Content-Type handling",
+            "context": 2
+          }
+        },
+        {
+          "tool": "text_read",
+          "args": {
+            "corpus": "ky",
+            "ranges": [
+              "source/utils/merge.ts:60-100",
+              "source/core/Ky.ts:478-545"
+            ],
+            "i": "Reading mergeHeaders and Content-Type decision in Ky.ts"
+          }
+        }
+      ],
+      "set": "control",
+      "prompt": "The corpus argument is exactly ky. Answer the following maintainer question with evidence from the frozen ky repository. Choose your searches and what to read; you may search again or batch needed reads. Cite file and line(s). Keep the answer to the question asked. Use only text_search, text_read as evidence; no other tools, files, web, tests or edits. Starting symbol: mergeHeaders.\nHow does Ky decide whether the user supplied Content-Type, and what header inputs does it consult for that decision? Cite the implementation, including the exact predicate.",
+      "answer_summary": "Ky decides whether the user supplied a Content-Type by checking only the `options.headers` argument passed to the constructor, normalized through `mergeHeaders({}, options.headers).has('content-type')`. A `Request` input's own headers are excluded, because the constructor merges them into `this.#options.headers` first. The flag gates two behaviors: the automatic `application/json` header for `json` bodies, and deletion of the inherited Content-Type when a `Request` input is rebuilt with a FormData or URLSearchParams body.\n\nPredicate (source/core/Ky.ts:524-525):\n```ts\n// A `Request` input's headers are already merged in, so only a content-type from `options.headers` counts as user-provided.\nconst userProvidedContentType = options.headers !== undefined && mergeHeaders({}, options.headers).has('content-type');\n```\n\nInputs consulted:\n- `options.headers` (the constructor's options argument, not `this.#options.headers`). When it is `undefined`, the predicate is `false`.\n- The `Request` input's headers are not consulted. They are merged into `this.#options.headers` at Ky.ts:486 (`mergeHeaders((input as Request).headers, options.headers)`), which is why the raw `options.headers` is read instead.\n\nNormalization (source/utils/merge.ts:73-86): `mergeHeaders` copies the base source into a new `Headers`, then applies each entry of the second source. A value of `undefined` (or the string `'undefined'` in a `Headers` instance) is a deletion marker and calls `.delete`. `Headers.has` is case-insensitive, so `Content-Type` and `content-type` both match.\n\nUses of the flag:\n- Ky.ts:527-532: when `json` is set, `body` is stringified and `content-type: application/json` is set only if `!userProvidedContentType`.\n- Ky.ts:536-542: when `input` is a `Request` and the body is `FormData` or `URLSearchParams`, the inherited `content-type` is deleted (so `Request` regenerates it with the boundary) only if `!userProvidedContentType`.",
+      "citations": [
+        {
+          "path": "source/core/Ky.ts",
+          "description": "Lines 524-525: the `userProvidedContentType` predicate. Lines 484-498: `this.#options` assembly with `mergeHeaders((input as Request).headers, options.headers)` at 486. Lines 527-532: JSON content-type default gated by the flag. Lines 536-542: Request-input content-type deletion gated by the flag."
+        },
+        {
+          "path": "source/utils/merge.ts",
+          "description": "Lines 73-86: `mergeHeaders`, which builds a fresh Headers from source1 and applies source2 entries, treating `undefined` values as deletions."
+        },
+        {
+          "path": "readme.md",
+          "description": "Lines 191, 1457, 1514: documented behavior that a caller's `headers` Content-Type takes precedence over the automatic JSON and FormData types."
+        },
+        {
+          "path": "test/request-construction.ts",
+          "description": "Lines 299-323: tests for URLSearchParams replacing a Request input's content-type and for a headers-option content-type being kept for FormData."
+        }
+      ],
+      "protocol_errors": {}
+    },
+    {
+      "block": 1,
+      "corpus": "ripgrep",
+      "arm": "graph",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 196089,
+      "input": 14,
+      "cache_read": 136914,
+      "cache_write": 55809,
+      "output": 3352,
+      "wall_seconds": 18.795,
+      "model_turns": 5,
+      "reported_usd": 0.014208,
+      "evidence_calls": [
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1controlripgrepgraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"Replacer\"}",
+            "i": "Locating Replacer declarations"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1controlripgrepgraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"Standard\"}",
+            "i": "Locating Standard declarations"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1controlripgrepgraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"Replacer\"}",
+            "i": "Finding Replacer references"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1controlripgrepgraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ripgrep\",\"path\":\"crates/printer/src/util.rs\",\"qualified_name\":\"util::Replacer\"},{\"repository\":\"ripgrep\",\"path\":\"crates/printer/src/standard.rs\",\"qualified_name\":\"standard::Standard\"}]}",
+            "i": "Reading Replacer and Standard sources"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1controlripgrepgraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ripgrep\",\"path\":\"crates/printer/src/standard.rs\",\"qualified_name\":\"standard::impl::Standard<W>::sink\"},{\"repository\":\"ripgrep\",\"path\":\"crates/printer/src/standard.rs\",\"qualified_name\":\"standard::impl::Standard<W>::sink_with_path\"},{\"repository\":\"ripgrep\",\"path\":\"crates/printer/src/util.rs\",\"qualified_name\":\"util::impl::Replacer<M>::new\"},{\"repository\":\"ripgrep\",\"path\":\"crates/printer/src/standard.rs\",\"qualified_name\":\"standard::StandardSink\"}]}",
+            "i": "Reading sink constructors, Replacer::new, StandardSink"
+          }
+        }
+      ],
+      "set": "control",
+      "prompt": "Your graph session ID is Stay1controlripgrepgraph, repository ripgrep. Answer the following maintainer question with evidence from the frozen ripgrep repository. Choose your searches and what to read; you may search again or batch needed reads. Cite file and line(s). Keep the answer to the question asked. Use only persistent_graph as evidence; no other tools, files, web, tests or edits. Starting symbol: Replacer.\nWhen Standard builds its searcher sink with and without a path, how is its replacement helper initialized? Compare both construction sites and describe the initial internal state of the helper.",
+      "answer_summary": "Both `Standard` sink constructors initialize the replacer the same way: `replacer: Replacer::new()`, which yields `Replacer { space: None }`. The only difference between the two sites is the `path` field: `sink` sets `path: None`, while `sink_with_path` sets `path: Some(PrinterPath)` when path printing is enabled. When path printing is disabled, `sink_with_path` delegates to `sink`, so the replacer comes from the same call. The helper starts with no allocated `Space`.",
+      "citations": [
+        {
+          "path": "crates/printer/src/standard.rs:528-549",
+          "description": "`Standard::sink` builds `StandardSink` with `replacer: Replacer::new()` and `path: None`."
+        },
+        {
+          "path": "crates/printer/src/standard.rs:555-586",
+          "description": "`Standard::sink_with_path` returns `self.sink(matcher)` when `!self.config.path`. Otherwise it builds `StandardSink` with `replacer: Replacer::new()` and `path: Some(ppath)`, where `ppath` is `PrinterPath::new(path.as_ref()).with_separator(self.config.separator_path)`."
+        },
+        {
+          "path": "crates/printer/src/util.rs:14-16",
+          "description": "`pub(crate) struct Replacer<M: Matcher> { space: Option<Space<M>> }`, the helper's only field."
+        },
+        {
+          "path": "crates/printer/src/util.rs:42-44",
+          "description": "`Replacer::new()` returns `Replacer { space: None }`, so the initial internal state has no `Space`."
+        },
+        {
+          "path": "crates/printer/src/standard.rs:654-666",
+          "description": "`StandardSink` declares `replacer: Replacer<M>` (field at line 657) alongside `matcher`, `standard`, `interpolator`, `path`, and counters."
+        }
+      ],
+      "protocol_errors": {},
+      "transport": {
+        "initializations": 1,
+        "server_pid": 75091,
+        "calls": 5
+      }
+    },
+    {
+      "block": 1,
+      "corpus": "ripgrep",
+      "arm": "grep",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 378122,
+      "input": 20,
+      "cache_read": 320665,
+      "cache_write": 54218,
+      "output": 3219,
+      "wall_seconds": 25.477,
+      "model_turns": 7,
+      "reported_usd": 0.015662,
+      "evidence_calls": [
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "ripgrep",
+            "pattern": "Replacer|struct Standard|fn new|fn build|Standard::new|SinkPath|with_path|path:",
+            "i": "Locating Replacer and Standard construction sites"
+          }
+        },
+        {
+          "tool": "text_read",
+          "args": {
+            "corpus": "ripgrep",
+            "ranges": [
+              "crates/printer/src/util.rs:1-60",
+              "crates/printer/src/standard.rs:500-600"
+            ],
+            "i": "Reading Replacer and Standard sink constructors"
+          }
+        },
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "ripgrep",
+            "pattern": "self\\.space|space = Some|fn replacement|fn replacement_mut|get_or_insert|Space \\{",
+            "i": "Confirming where Replacer.space is first populated"
+          }
+        },
+        {
+          "tool": "text_read",
+          "args": {
+            "corpus": "ripgrep",
+            "ranges": [
+              "crates/printer/src/util.rs:106-148"
+            ],
+            "i": "Reading lazy space allocation in Replacer"
+          }
+        }
+      ],
+      "set": "control",
+      "prompt": "The corpus argument is exactly ripgrep. Answer the following maintainer question with evidence from the frozen ripgrep repository. Choose your searches and what to read; you may search again or batch needed reads. Cite file and line(s). Keep the answer to the question asked. Use only text_search, text_read as evidence; no other tools, files, web, tests or edits. Starting symbol: Replacer.\nWhen Standard builds its searcher sink with and without a path, how is its replacement helper initialized? Compare both construction sites and describe the initial internal state of the helper.",
+      "answer_summary": "Both Standard sink constructors initialize the replacer identically with Replacer::new(), which sets space: None. The path only changes the StandardSink.path field. Replacer's internal space (capture locations, dst buffer, match vector) is allocated lazily on first replacement via allocate().",
+      "citations": [
+        {
+          "path": "crates/printer/src/standard.rs:536-541",
+          "description": "Standard::sink (no path): builds StandardSink with replacer: Replacer::new() and path: None."
+        },
+        {
+          "path": "crates/printer/src/standard.rs:564-578",
+          "description": "Standard::sink_with_path: returns self.sink(matcher) when !config.path; otherwise builds StandardSink with replacer: Replacer::new() and path: Some(PrinterPath::new(path).with_separator(...))."
+        },
+        {
+          "path": "crates/printer/src/util.rs:14-25",
+          "description": "Replacer<M> has one field, space: Option<Space<M>>; Space holds caps: M::Captures, dst: Vec<u8>, matches: Vec<Match>."
+        },
+        {
+          "path": "crates/printer/src/util.rs:40-43",
+          "description": "Replacer::new() returns Replacer { space: None } and does not allocate."
+        },
+        {
+          "path": "crates/printer/src/util.rs:109-133",
+          "description": "replacement() returns None when space is None; clear() is a no-op when space is None."
+        },
+        {
+          "path": "crates/printer/src/util.rs:140-146",
+          "description": "allocate(&mut self, matcher) is the only place space becomes Some: calls matcher.new_captures() and stores Space { caps, dst: vec![], matches: vec![] }."
+        }
+      ],
+      "protocol_errors": {}
+    },
+    {
+      "block": 1,
+      "corpus": "cobra",
+      "arm": "graph",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 404857,
+      "input": 24,
+      "cache_read": 336049,
+      "cache_write": 61543,
+      "output": 7241,
+      "wall_seconds": 38.431,
+      "model_turns": 10,
+      "reported_usd": 0.019292,
+      "evidence_calls": [
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedcobragraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"MarkFlagRequired\",\"repository\":\"cobra\"}",
+            "i": "Locating MarkFlagRequired declarations in cobra"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedcobragraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"MarkFlagRequired\",\"repository\":\"cobra\"}",
+            "i": "Finding references to MarkFlagRequired in cobra"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedcobragraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"MarkFlagRequired\"}",
+            "i": "Locating MarkFlagRequired declarations"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedcobragraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"MarkFlagRequired\",\"path\":\"shell_completions.go\",\"repository\":\"cobra\"}",
+            "i": "Finding references to package-level MarkFlagRequired"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedcobragraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"MarkFlagRequired\",\"kind\":\"func\",\"path\":\"shell_completions.go\"}",
+            "i": "Finding references to the package-level function"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedcobragraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"cobra\",\"path\":\"shell_completions.go\",\"qualified_name\":\"MarkFlagRequired\"},{\"repository\":\"cobra\",\"path\":\"shell_completions.go\",\"qualified_name\":\"Command.MarkFlagRequired\"}]}",
+            "i": "Reading both MarkFlagRequired definitions"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedcobragraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"MarkFlagRequired\",\"path\":\"shell_completions.go:38\"}",
+            "i": "Finding references to function at shell_completions.go:38"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedcobragraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"Command.MarkFlagRequired\"}",
+            "i": "Finding references to Command.MarkFlagRequired method"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedcobragraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"MarkFlagRequired\",\"repository\":\"cobra\",\"path\":\"shell_completions.go:38\"}",
+            "i": "Finding references to package-level MarkFlagRequired at line 38"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedcobragraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"MarkFlagRequired\",\"repository\":\"cobra\",\"path\":\"shell_completions.go:24\"}",
+            "i": "Finding references to Command method MarkFlagRequired at line 24"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedcobragraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"MarkFlagRequired\",\"qualified_name\":\"MarkFlagRequired\",\"repository\":\"cobra\",\"path\":\"shell_completions.go\"}",
+            "i": "Finding references to package-level MarkFlagRequired by qualified name"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedcobragraph",
+            "operation": "get_symbol",
+            "arguments": "{\"repository\":\"cobra\",\"path\":\"shell_completions.go\",\"qualified_name\":\"MarkFlagRequired\"}",
+            "i": "Getting package-level MarkFlagRequired symbol key"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedcobragraph",
+            "operation": "find_references",
+            "arguments": "{\"qualified_name\":\"MarkFlagRequired\",\"repository\":\"cobra\",\"path\":\"shell_completions.go\"}",
+            "i": "Finding references to package-level MarkFlagRequired by qualified name"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedcobragraph",
+            "operation": "find_references",
+            "arguments": "{\"qualified_name\":\"Command.MarkFlagRequired\",\"repository\":\"cobra\",\"path\":\"shell_completions.go\"}",
+            "i": "Finding references to Command.MarkFlagRequired method by qualified name"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedcobragraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"cobra\",\"path\":\"shell_completions.go\",\"qualified_name\":\"Command.MarkPersistentFlagRequired\"},{\"repository\":\"cobra\",\"path\":\"flag_groups.go\",\"qualified_name\":\"Command.enforceFlagGroupsForCompletion\"}]}",
+            "i": "Reading persistent-flag caller and production Command.MarkFlagRequired caller"
+          }
+        }
+      ],
+      "set": "typed",
+      "prompt": "Your graph session ID is Stay1typedcobragraph, repository cobra. Answer the following maintainer question with evidence from the frozen cobra repository. Choose your searches and what to read; you may search again or batch needed reads. Cite file and line(s). Keep the answer to the question asked. Use only persistent_graph as evidence; no other tools, files, web, tests or edits. Starting symbol: MarkFlagRequired.\nWhich non-test methods directly call the package-level MarkFlagRequired function (not the identically named Command method), and which flag set does each pass? Identify one production caller of the Command method instead and cite the evidence.",
+      "answer_summary": "Two non-test methods directly call the package-level MarkFlagRequired (shell_completions.go:38-40). Command.MarkFlagRequired passes c.Flags(); Command.MarkPersistentFlagRequired passes c.PersistentFlags(). The graph reports this as complete, with exact typechecked CALLS_DIRECT edges. Production caller of the Command method: Command.enforceFlagGroupsForCompletion (flag_groups.go:225-290) calls c.MarkFlagRequired at flag_groups.go:247 and :267. Test callers are excluded.",
+      "citations": [
+        {
+          "path": "shell_completions.go:24-26",
+          "description": "Command.MarkFlagRequired: return MarkFlagRequired(c.Flags(), name). Passes the regular flag set."
+        },
+        {
+          "path": "shell_completions.go:31-33",
+          "description": "Command.MarkPersistentFlagRequired: return MarkFlagRequired(c.PersistentFlags(), name). Passes the persistent flag set."
+        },
+        {
+          "path": "shell_completions.go:38-40",
+          "description": "Package-level func MarkFlagRequired(flags *pflag.FlagSet, name string) error. Sets BashCompOneRequiredFlag annotation on the given flag set."
+        },
+        {
+          "path": "flag_groups.go:225-290",
+          "description": "Command.enforceFlagGroupsForCompletion, the production caller of Command.MarkFlagRequired. Calls c.MarkFlagRequired(fName) at line 247 (required-group loop) and line 267 (one-required-group loop)."
+        }
+      ],
+      "protocol_errors": {
+        "SCHEMA_VALIDATION": 2,
+        "AMBIGUOUS_SYMBOL": 2,
+        "INVALID_ARGUMENT": 2,
+        "SYMBOL_NOT_FOUND": 3
+      },
+      "transport": {
+        "initializations": 1,
+        "server_pid": 75160,
+        "calls": 14
+      }
+    },
+    {
+      "block": 1,
+      "corpus": "cobra",
+      "arm": "grep",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 202030,
+      "input": 14,
+      "cache_read": 164127,
+      "cache_write": 34540,
+      "output": 3349,
+      "wall_seconds": 20.808,
+      "model_turns": 5,
+      "reported_usd": 0.010225,
+      "evidence_calls": [
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "cobra",
+            "pattern": "MarkFlagRequired\\(",
+            "i": "Locating MarkFlagRequired call sites",
+            "context": 2
+          }
+        },
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "cobra",
+            "pattern": "(^|[^.\\w])MarkFlagRequired\\s*\\(|cobra\\.MarkFlagRequired|MarkPersistentFlagRequired\\(",
+            "i": "Finding package-level MarkFlagRequired calls",
+            "context": 1
+          }
+        },
+        {
+          "tool": "text_read",
+          "args": {
+            "corpus": "cobra",
+            "ranges": [
+              "flag_groups.go:225-272"
+            ],
+            "i": "Reading flag group caller context"
+          }
+        }
+      ],
+      "set": "typed",
+      "prompt": "The corpus argument is exactly cobra. Answer the following maintainer question with evidence from the frozen cobra repository. Choose your searches and what to read; you may search again or batch needed reads. Cite file and line(s). Keep the answer to the question asked. Use only text_search, text_read as evidence; no other tools, files, web, tests or edits. Starting symbol: MarkFlagRequired.\nWhich non-test methods directly call the package-level MarkFlagRequired function (not the identically named Command method), and which flag set does each pass? Identify one production caller of the Command method instead and cite the evidence.",
+      "answer_summary": "Only two non-test methods call the package-level MarkFlagRequired(flags *pflag.FlagSet, name string) function. Command.MarkFlagRequired passes c.Flags(), and Command.MarkPersistentFlagRequired passes c.PersistentFlags(). Production code calls the Command method, not the package function: (*Command).enforceFlagGroupsForCompletion in flag_groups.go calls c.MarkFlagRequired at lines 247 and 268. Test files and docs use the Command methods only.",
+      "citations": [
+        {
+          "path": "shell_completions.go:24-26",
+          "description": "(*Command).MarkFlagRequired calls package-level MarkFlagRequired(c.Flags(), name). Passes the local flag set."
+        },
+        {
+          "path": "shell_completions.go:31-33",
+          "description": "(*Command).MarkPersistentFlagRequired calls package-level MarkFlagRequired(c.PersistentFlags(), name). Passes the persistent flag set."
+        },
+        {
+          "path": "shell_completions.go:38-40",
+          "description": "Package-level MarkFlagRequired definition. Calls flags.SetAnnotation(name, BashCompOneRequiredFlag, []string{\"true\"})."
+        },
+        {
+          "path": "flag_groups.go:225-290",
+          "description": "(*Command).enforceFlagGroupsForCompletion, the production caller of the Command method. Line 247 marks the other flags of a required-together group. Line 268 marks all flags of a one-required group when none is set. Both use c.MarkFlagRequired, which passes c.Flags()."
+        },
+        {
+          "path": "command_test.go:856-883, 874-903; completions_test.go:860-870, 3402; bash_completions_test.go:92, 101",
+          "description": "Test-only calls. They use the Command methods, not the package-level function. Excluded from the answer."
+        },
+        {
+          "path": "site/content/completions/_index.md:280-281; site/content/user_guide.md:323, 330",
+          "description": "Documentation examples that use the Command methods. Not Go production code."
+        }
+      ],
+      "protocol_errors": {}
+    },
+    {
+      "block": 1,
+      "corpus": "ky",
+      "arm": "graph",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 1196855,
+      "input": 54,
+      "cache_read": 1093537,
+      "cache_write": 87488,
+      "output": 15776,
+      "wall_seconds": 96.475,
+      "model_turns": 25,
+      "reported_usd": 0.036326,
+      "evidence_calls": [
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"KyOptions\",\"repository\":\"ky\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"retry\",\"repository\":\"ky\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"KyOptions\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"retry\",\"repository\":\"ky\",\"path\":\"source/core/constants.ts\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ky\",\"path\":\"source/types/options.ts\",\"qualified_name\":\"KyOptions.retry\"},{\"repository\":\"ky\",\"path\":\"source/core/constants.ts\",\"qualified_name\":\"retry\"}]}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"retry\",\"repository\":\"ky\",\"path\":\"source/types/options.ts\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"retry\",\"repository\":\"ky\",\"path\":\"source/types/options.ts:209\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "get_file_outline",
+            "arguments": "{\"paths\":[\"source/core/Ky.ts\",\"source/core/constants.ts\",\"source/utils/merge.ts\"]}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"KyOptions.retry\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"retry\",\"path_prefix\":\"source/core\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_by_intent",
+            "arguments": "{\"intent\":\"init hook options clone retry nested array copy\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_by_intent",
+            "arguments": "{\"intent\":\"list of recognized option keys constant\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"KyOptions\",\"repository\":\"ky\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"Option\",\"path_prefix\":\"source/core\",\"repository\":\"ky\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"clone\",\"repository\":\"ky\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"init\",\"repository\":\"ky\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"retry\",\"repository\":\"ky\",\"path\":\"source/types/options.ts:527\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"clone\",\"path_prefix\":\"source\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"KyOptions\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"normalize\",\"path_prefix\":\"source\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"merge\",\"path_prefix\":\"source\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"beforeRequest\",\"path_prefix\":\"source\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"init\",\"path_prefix\":\"source\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"Hooks\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"Ky\",\"path_prefix\":\"source/core\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"InitOptions\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"InitOptions\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"merge\",\"path_prefix\":\"source/utils/merge.ts\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ky\",\"path\":\"source/core/Ky.ts\",\"qualified_name\":\"cloneInitHookOptions\"},{\"repository\":\"ky\",\"path\":\"source/types/options.ts\",\"qualified_name\":\"InitOptions\"},{\"repository\":\"ky\",\"path\":\"source/types/options.ts\",\"qualified_name\":\"InitOptions.retry\"}]}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"Keys\",\"path_prefix\":\"source\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"ky\",\"path_prefix\":\"source/core/constants.ts\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"Option\",\"path_prefix\":\"source/core\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"options\",\"path_prefix\":\"source/core\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"cloneInitHookOptions\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"keys\",\"path_prefix\":\"source\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"Known\",\"path_prefix\":\"source\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"Recognized\",\"path_prefix\":\"source\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ky\",\"path\":\"source/core/Ky.ts\",\"qualified_name\":\"Ky.create\"}]}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"ky\",\"path_prefix\":\"source/core/constants.ts\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"valid\",\"path_prefix\":\"source\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"allowed\",\"path_prefix\":\"source\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"Set\",\"path_prefix\":\"source/core\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"Key\",\"path_prefix\":\"source\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"Options\",\"path_prefix\":\"source/core\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"constants\",\"path_prefix\":\"source\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"KyOptionsRegistry\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"KyOptionsRegistry\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ky\",\"path\":\"source/core/constants.ts\",\"qualified_name\":\"kyOptionKeys\"}]}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"cloneDeep\",\"repository\":\"ky\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"cloneDeep\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedkygraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ky\",\"path\":\"source/utils/merge.ts\",\"qualified_name\":\"cloneDeep\"}]}"
+          }
+        }
+      ],
+      "set": "typed",
+      "prompt": "Your graph session ID is Stay1typedkygraph, repository ky. Answer the following maintainer question with evidence from the frozen ky repository. Choose your searches and what to read; you may search again or batch needed reads. Cite file and line(s). Keep the answer to the question asked. Use only persistent_graph as evidence; no other tools, files, web, tests or edits. Starting symbol: KyOptions.retry.\nTrace the retry property of KyOptions, not the retry helper or retry hook. Which init-hook options clone reads it, how is the property copied (including nested arrays), and which constant lists this option as a recognized key? Cite the code.",
+      "answer_summary": "Only one init-hook clone reads KyOptions.retry: cloneInitHookOptions. It copies the value with cloneDeep, which recursively copies arrays, so nested retry arrays are not shared with the caller's options. The recognized-key constant is kyOptionKeys, which lists retry: true.",
+      "citations": [
+        {
+          "path": "source/core/Ky.ts",
+          "description": "cloneInitHookOptions (312-327) reads options.retry at line 323 and copies it with cloneDeep(options.retry), with a comment saying nested arrays are cloned. Ky.create (349-436) calls it only when init hooks exist (initHooks.length > 0, line 351), and passes the original options otherwise."
+        },
+        {
+          "path": "source/types/options.ts",
+          "description": "KyOptions.retry is declared at line 209 as RetryOptions | number | undefined. InitOptions (515-518) redefines retry as MutableRetryOptions | number | undefined at line 516, the type init hooks receive. KyOptionsRegistry is declared at line 445."
+        },
+        {
+          "path": "source/utils/merge.ts",
+          "description": "cloneDeep (129-167) recursively copies arrays element by element (copy.push(cloneDeep(item))), copies enumerable own keys of objects, preserves null prototypes, and tracks seen values in a WeakMap to handle cycles. Primitives are returned as is."
+        },
+        {
+          "path": "source/core/constants.ts",
+          "description": "kyOptionKeys (268-285) is typed as KyOptionsRegistry and sets retry: true at line 275. It is the only recognized-key list the graph returned for this option."
+        }
+      ],
+      "protocol_errors": {
+        "SCHEMA_VALIDATION": 5,
+        "AMBIGUOUS_SYMBOL": 2,
+        "SYMBOL_NOT_FOUND": 3
+      },
+      "transport": {
+        "initializations": 1,
+        "server_pid": 75348,
+        "calls": 48
+      }
+    },
+    {
+      "block": 1,
+      "corpus": "ky",
+      "arm": "grep",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 555003,
+      "input": 20,
+      "cache_read": 440253,
+      "cache_write": 109493,
+      "output": 5237,
+      "wall_seconds": 36.14,
+      "model_turns": 8,
+      "reported_usd": 0.028922,
+      "evidence_calls": [
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "ky",
+            "pattern": "retry",
+            "path": "."
+          }
+        },
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "ky",
+            "pattern": "KyOptions",
+            "path": "."
+          }
+        },
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "ky",
+            "pattern": "retry",
+            "path": "source"
+          }
+        },
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "ky",
+            "pattern": "kyOptionKeys|init",
+            "path": "source"
+          }
+        },
+        {
+          "tool": "text_read",
+          "args": {
+            "corpus": "ky",
+            "ranges": [
+              "source/core/Ky.ts:308:360",
+              "source/utils/merge.ts:126:160",
+              "source/core/constants.ts:266:300",
+              "source/types/options.ts:196:212",
+              "source/types/options.ts:508:530"
+            ]
+          }
+        },
+        {
+          "tool": "text_read",
+          "args": {
+            "corpus": "ky",
+            "ranges": [
+              "source/core/Ky.ts:308-360"
+            ]
+          }
+        },
+        {
+          "tool": "text_read",
+          "args": {
+            "corpus": "ky",
+            "ranges": [
+              "source/utils/merge.ts:126-160"
+            ]
+          }
+        },
+        {
+          "tool": "text_read",
+          "args": {
+            "corpus": "ky",
+            "ranges": [
+              "source/core/constants.ts:266-300"
+            ]
+          }
+        },
+        {
+          "tool": "text_read",
+          "args": {
+            "corpus": "ky",
+            "ranges": [
+              "source/types/options.ts:196-212",
+              "source/types/options.ts:508-530"
+            ]
+          }
+        },
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "ky",
+            "pattern": "isMergeable = |const isNonArrayObject|const isPlainObject",
+            "path": "source/utils"
+          }
+        },
+        {
+          "tool": "text_read",
+          "args": {
+            "corpus": "ky",
+            "ranges": [
+              "source/utils/merge.ts:86-98"
+            ]
+          }
+        }
+      ],
+      "set": "typed",
+      "prompt": "The corpus argument is exactly ky. Answer the following maintainer question with evidence from the frozen ky repository. Choose your searches and what to read; you may search again or batch needed reads. Cite file and line(s). Keep the answer to the question asked. Use only text_search, text_read as evidence; no other tools, files, web, tests or edits. Starting symbol: KyOptions.retry.\nTrace the retry property of KyOptions, not the retry helper or retry hook. Which init-hook options clone reads it, how is the property copied (including nested arrays), and which constant lists this option as a recognized key? Cite the code.",
+      "answer_summary": "KyOptions.retry is read by one init-hook clone, cloneInitHookOptions, which deep-clones it with cloneDeep. cloneDeep copies arrays element by element, so nested methods, statusCodes and afterStatusCodes arrays are copied too. retry is also listed as true in kyOptionKeys, the registry of recognized option keys.",
+      "citations": [
+        {
+          "path": "source/core/Ky.ts:312-327",
+          "description": "cloneInitHookOptions. Line 323 `retry: cloneDeep(options.retry),` is the only init-hook clone that reads options.retry. The comment at line 322 says nested arrays are cloned so init hooks can mutate retry config without leaking state."
+        },
+        {
+          "path": "source/core/Ky.ts:350-357",
+          "description": "Ky.create calls cloneInitHookOptions only when options.hooks?.init is non-empty (line 351). Otherwise the original options object is passed to the init hooks and retry is not copied."
+        },
+        {
+          "path": "source/utils/merge.ts:128-167",
+          "description": "cloneDeep. Non-mergeable values are returned by reference (130-132). A seen WeakMap keeps shared and cyclic references (134-137). Arrays are copied element by element with recursive cloneDeep (139-147). Plain objects copy enumerable own keys via Reflect.ownKeys and Object.defineProperty, and preserve null prototypes (150-164)."
+        },
+        {
+          "path": "source/utils/merge.ts:88-98",
+          "description": "isPlainObject and isMergeable. Mergeable means a plain object (null or Object.prototype prototype) or an array."
+        },
+        {
+          "path": "source/core/constants.ts:268-285",
+          "description": "kyOptionKeys, typed KyOptionsRegistry. Line 275 sets `retry: true`."
+        },
+        {
+          "path": "source/types/options.ts:445",
+          "description": "KyOptionsRegistry = {[K in keyof KyOptions]-?: true}, so the registry must list every KyOptions key, including retry."
+        },
+        {
+          "path": "source/utils/options.ts:18",
+          "description": "Key check: a key is a known option if it is in requestOptionsRegistry or kyOptionKeys."
+        },
+        {
+          "path": "test/hooks.ts:6248-6381",
+          "description": "Tests for the init-hook clone: function values such as shouldRetry and delay stay by reference (6248-6280); a frozen retry config can be changed by an init hook without changing the source (6285-6317); in-place mutations of nested retry.methods, statusCodes and afterStatusCodes do not leak across requests (6320-6381)."
+        }
+      ],
+      "protocol_errors": {}
+    },
+    {
+      "block": 1,
+      "corpus": "ripgrep",
+      "arm": "graph",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 318877,
+      "input": 20,
+      "cache_read": 253730,
+      "cache_write": 59415,
+      "output": 5712,
+      "wall_seconds": 33.597,
+      "model_turns": 8,
+      "reported_usd": 0.017278,
+      "evidence_calls": [
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedripgrepgraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"Config\",\"repository\":\"ripgrep\",\"path_prefix\":\"crates/searcher/src/line_buffer.rs\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedripgrepgraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"line_buffer::Config\",\"repository\":\"ripgrep\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedripgrepgraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"Config\",\"path_prefix\":\"crates/searcher/src/line_buffer.rs\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedripgrepgraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"line_buffer\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedripgrepgraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"Config\",\"path_prefix\":\"crates/searcher/src/line_buffer.rs\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedripgrepgraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ripgrep\",\"path\":\"crates/searcher/src/line_buffer.rs\",\"qualified_name\":\"line_buffer::Config\"}]}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedripgrepgraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"line_buffer::Config\",\"repository\":\"ripgrep\",\"direction\":\"incoming\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedripgrepgraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"Config\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedripgrepgraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"Config\",\"repository\":\"ripgrep\",\"path\":\"crates/searcher/src/line_buffer.rs\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedripgrepgraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ripgrep\",\"path\":\"crates/searcher/src/line_buffer.rs\",\"qualified_name\":\"line_buffer::LineBuffer::new\"},{\"repository\":\"ripgrep\",\"path\":\"crates/searcher/src/line_buffer.rs\",\"qualified_name\":\"line_buffer::impl::Default::default\"},{\"repository\":\"ripgrep\",\"path\":\"crates/searcher/src/line_buffer.rs\",\"qualified_name\":\"line_buffer::LineBufferBuilder::new\"}]}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay1typedripgrepgraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ripgrep\",\"path\":\"crates/searcher/src/line_buffer.rs\",\"qualified_name\":\"line_buffer::impl::LineBufferBuilder::new\"},{\"repository\":\"ripgrep\",\"path\":\"crates/searcher/src/line_buffer.rs\",\"qualified_name\":\"line_buffer::impl::Config::Default::default\"},{\"repository\":\"ripgrep\",\"path\":\"crates/searcher/src/line_buffer.rs\",\"qualified_name\":\"line_buffer::LineBufferBuilder\"},{\"repository\":\"ripgrep\",\"path\":\"crates/searcher/src/line_buffer.rs\",\"qualified_name\":\"line_buffer::LineBuffer\"}]}"
+          }
+        }
+      ],
+      "set": "typed",
+      "prompt": "Your graph session ID is Stay1typedripgrepgraph, repository ripgrep. Answer the following maintainer question with evidence from the frozen ripgrep repository. Choose your searches and what to read; you may search again or batch needed reads. Cite file and line(s). Keep the answer to the question asked. Use only persistent_graph as evidence; no other tools, files, web, tests or edits. Starting symbol: line_buffer::Config.\nFor the private line_buffer::Config, not the searcher or printer Config, which two structs store this exact type in a field, and which constructor explicitly calls its Default implementation? Give one default field value and cite the source.",
+      "answer_summary": "Two private structs store the private line_buffer::Config in a field: LineBufferBuilder (crates/searcher/src/line_buffer.rs:110-112, field config at line 111) and LineBuffer (crates/searcher/src/line_buffer.rs:294-323, field config at line 296). The constructor that explicitly calls Config's Default implementation is LineBufferBuilder::new (crates/searcher/src/line_buffer.rs:116-118, body `LineBufferBuilder { config: Config::default() }`). One default field value is lineterm: b'\\n', set in impl Default for Config at crates/searcher/src/line_buffer.rs:98-105, on line 101. Correction: my previous answer cited line 102 for lineterm; the correct line is 101 (line 102 is buffer_alloc).",
+      "citations": [
+        {
+          "path": "crates/searcher/src/line_buffer.rs:86-95",
+          "description": "Private struct Config with fields capacity, lineterm, buffer_alloc, binary."
+        },
+        {
+          "path": "crates/searcher/src/line_buffer.rs:98-105",
+          "description": "impl Default for Config; lineterm: b'\\n' at line 101; capacity: DEFAULT_BUFFER_CAPACITY; buffer_alloc and binary use their Default impls."
+        },
+        {
+          "path": "crates/searcher/src/line_buffer.rs:110-112",
+          "description": "LineBufferBuilder struct; field config: Config at line 111 (incoming reference)."
+        },
+        {
+          "path": "crates/searcher/src/line_buffer.rs:116-118",
+          "description": "LineBufferBuilder::new calls Config::default() (incoming CALLS_DIRECT reference)."
+        },
+        {
+          "path": "crates/searcher/src/line_buffer.rs:294-323",
+          "description": "LineBuffer struct; field config: Config at line 296 (incoming reference)."
+        }
+      ],
+      "protocol_errors": {
+        "SCHEMA_VALIDATION": 2,
+        "SYMBOL_NOT_FOUND": 3,
+        "AMBIGUOUS_SYMBOL": 1
+      },
+      "transport": {
+        "initializations": 1,
+        "server_pid": 75539,
+        "calls": 11
+      }
+    },
+    {
+      "block": 1,
+      "corpus": "ripgrep",
+      "arm": "grep",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 197193,
+      "input": 12,
+      "cache_read": 134970,
+      "cache_write": 59347,
+      "output": 2864,
+      "wall_seconds": 21.25,
+      "model_turns": 4,
+      "reported_usd": 0.014652,
+      "evidence_calls": [
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "ripgrep",
+            "pattern": "line_buffer::Config|Config::default\\(\\)|struct Config|: Config,|: Config\\b",
+            "context": 2
+          }
+        },
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "ripgrep",
+            "pattern": "impl Default for Config|fn default\\(\\) -> Config|buffer_capacity|max_line_len|heap_limit",
+            "context": 3
+          }
+        },
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "ripgrep",
+            "pattern": "config: |Config::default|DEFAULT_BUFFER_CAPACITY: |Config \\{",
+            "path": "crates/searcher/src/line_buffer.rs",
+            "context": 1
+          }
+        },
+        {
+          "tool": "text_read",
+          "args": {
+            "corpus": "ripgrep",
+            "ranges": [
+              "crates/searcher/src/line_buffer.rs:80-125",
+              "crates/searcher/src/line_buffer.rs:290-320"
+            ]
+          }
+        }
+      ],
+      "set": "typed",
+      "prompt": "The corpus argument is exactly ripgrep. Answer the following maintainer question with evidence from the frozen ripgrep repository. Choose your searches and what to read; you may search again or batch needed reads. Cite file and line(s). Keep the answer to the question asked. Use only text_search, text_read as evidence; no other tools, files, web, tests or edits. Starting symbol: line_buffer::Config.\nFor the private line_buffer::Config, not the searcher or printer Config, which two structs store this exact type in a field, and which constructor explicitly calls its Default implementation? Give one default field value and cite the source.",
+      "answer_summary": "Two private structs store line_buffer::Config in a field: LineBufferBuilder and LineBuffer. The constructor that explicitly calls Config::default() is LineBufferBuilder::new(). The default capacity field is capacity: DEFAULT_BUFFER_CAPACITY, which is 64 KB.",
+      "citations": [
+        {
+          "path": "crates/searcher/src/line_buffer.rs:85-95",
+          "description": "Private struct Config with fields capacity, lineterm, buffer_alloc and binary."
+        },
+        {
+          "path": "crates/searcher/src/line_buffer.rs:97-106",
+          "description": "impl Default for Config. Sets capacity: DEFAULT_BUFFER_CAPACITY (line 100), lineterm: b'\\n', buffer_alloc and binary to their defaults."
+        },
+        {
+          "path": "crates/searcher/src/line_buffer.rs:109-118",
+          "description": "LineBufferBuilder { config: Config } at line 111 (derives Default at line 109). LineBufferBuilder::new() at lines 116-117 returns LineBufferBuilder { config: Config::default() }."
+        },
+        {
+          "path": "crates/searcher/src/line_buffer.rs:121-131",
+          "description": "LineBufferBuilder::build() copies self.config into LineBuffer (line 123) and does not call Config::default()."
+        },
+        {
+          "path": "crates/searcher/src/line_buffer.rs:293-296",
+          "description": "LineBuffer { config: Config } at line 296, the second struct that stores the type."
+        },
+        {
+          "path": "crates/searcher/src/line_buffer.rs:5-6",
+          "description": "DEFAULT_BUFFER_CAPACITY = 64 * (1 << 10), which is 64 KB."
+        }
+      ],
+      "protocol_errors": {}
+    },
+    {
+      "block": 2,
+      "corpus": "ripgrep",
+      "arm": "grep",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 155003,
+      "input": 12,
+      "cache_read": 122933,
+      "cache_write": 30018,
+      "output": 2040,
+      "wall_seconds": 17.858,
+      "model_turns": 4,
+      "reported_usd": 0.008254,
+      "evidence_calls": [
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "ripgrep",
+            "pattern": "line_buffer::Config|\\bConfig::default\\(\\)|struct Config|impl Default for Config|config: Config|: Config,",
+            "i": "Finding Config type uses and constructors in line_buffer scope",
+            "path": "."
+          }
+        },
+        {
+          "tool": "text_read",
+          "args": {
+            "corpus": "ripgrep",
+            "ranges": [
+              "crates/searcher/src/line_buffer.rs:84-120",
+              "crates/searcher/src/line_buffer.rs:290-300"
+            ],
+            "i": "Reading line_buffer Config, builder, and buffer struct"
+          }
+        }
+      ],
+      "set": "typed",
+      "prompt": "The corpus argument is exactly ripgrep. Answer the following maintainer question with evidence from the frozen ripgrep repository. Choose your searches and what to read; you may search again or batch needed reads. Cite file and line(s). Keep the answer to the question asked. Use only text_search, text_read as evidence; no other tools, files, web, tests or edits. Starting symbol: line_buffer::Config.\nFor the private line_buffer::Config, not the searcher or printer Config, which two structs store this exact type in a field, and which constructor explicitly calls its Default implementation? Give one default field value and cite the source.",
+      "answer_summary": "Two private structs in crates/searcher/src/line_buffer.rs store line_buffer::Config in a field: LineBufferBuilder (line 111) and LineBuffer (line 296). The constructor that explicitly calls Config::default() is LineBufferBuilder::new() at line 117. The default field value is lineterm: b'\\n' (line 101).",
+      "citations": [
+        {
+          "path": "crates/searcher/src/line_buffer.rs:85-106",
+          "description": "Private struct Config (fields capacity, lineterm, buffer_alloc, binary) and its impl Default. Default sets capacity to DEFAULT_BUFFER_CAPACITY (line 100), lineterm to b'\\n' (line 101), and buffer_alloc and binary to their own defaults."
+        },
+        {
+          "path": "crates/searcher/src/line_buffer.rs:109-118",
+          "description": "LineBufferBuilder with field config: Config (line 111). LineBufferBuilder::new() at lines 116-118 calls Config::default() at line 117."
+        },
+        {
+          "path": "crates/searcher/src/line_buffer.rs:293-296",
+          "description": "LineBuffer with field config: Config (line 296). LineBufferBuilder::build() copies it via config: self.config (line 123). LineBuffer has no constructor calling Config::default()."
+        }
+      ],
+      "protocol_errors": {}
+    },
+    {
+      "block": 2,
+      "corpus": "ripgrep",
+      "arm": "graph",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 234036,
+      "input": 16,
+      "cache_read": 198755,
+      "cache_write": 31487,
+      "output": 3778,
+      "wall_seconds": 20.621,
+      "model_turns": 6,
+      "reported_usd": 0.010176,
+      "evidence_calls": [
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedripgrepgraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"Config\",\"repository\":\"ripgrep\"}",
+            "i": "Locating Config symbols in ripgrep"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedripgrepgraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"Config\",\"repository\":\"ripgrep\"}",
+            "i": "Finding Config references in ripgrep"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedripgrepgraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ripgrep\",\"path\":\"crates/searcher/src/line_buffer.rs\",\"qualified_name\":\"Config\"}]}",
+            "i": "Reading private line_buffer Config source"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedripgrepgraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"Config\",\"path\":\"crates/searcher/src/line_buffer.rs\"}",
+            "i": "Finding references to line_buffer Config"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedripgrepgraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"Config\",\"repository\":\"ripgrep\",\"path\":\"crates/searcher/src/line_buffer.rs\"}",
+            "i": "Finding references to line_buffer Config"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedripgrepgraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ripgrep\",\"path\":\"crates/searcher/src/line_buffer.rs\",\"qualified_name\":\"Config\"}]}",
+            "i": "Reading line_buffer Config source"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedripgrepgraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ripgrep\",\"path\":\"crates/searcher/src/line_buffer.rs\",\"qualified_name\":\"line_buffer::Config\"},{\"repository\":\"ripgrep\",\"path\":\"crates/searcher/src/line_buffer.rs\",\"qualified_name\":\"line_buffer::impl::Config::Default::default\"},{\"repository\":\"ripgrep\",\"path\":\"crates/searcher/src/line_buffer.rs\",\"qualified_name\":\"line_buffer::impl::LineBufferBuilder::new\"},{\"repository\":\"ripgrep\",\"path\":\"crates/searcher/src/line_buffer.rs\",\"qualified_name\":\"line_buffer::LineBufferBuilder::config\"},{\"repository\":\"ripgrep\",\"path\":\"crates/searcher/src/line_buffer.rs\",\"qualified_name\":\"line_buffer::LineBuffer::config\"}]}",
+            "i": "Reading Config, Default, constructor and field sources"
+          }
+        }
+      ],
+      "set": "typed",
+      "prompt": "Your graph session ID is Stay2typedripgrepgraph, repository ripgrep. Answer the following maintainer question with evidence from the frozen ripgrep repository. Choose your searches and what to read; you may search again or batch needed reads. Cite file and line(s). Keep the answer to the question asked. Use only persistent_graph as evidence; no other tools, files, web, tests or edits. Starting symbol: line_buffer::Config.\nFor the private line_buffer::Config, not the searcher or printer Config, which two structs store this exact type in a field, and which constructor explicitly calls its Default implementation? Give one default field value and cite the source.",
+      "answer_summary": "Two structs store the private line_buffer::Config in a field: LineBuffer (config field, crates/searcher/src/line_buffer.rs:296) and LineBufferBuilder (config field, line 111). LineBufferBuilder::new (lines 116-118) explicitly calls Config::default(). One default field value: lineterm: b'\\n' (Default impl, lines 98-105). The find_references result on line_buffer::Config was exact, typechecked and complete, with 6 incoming references.",
+      "citations": [
+        {
+          "path": "crates/searcher/src/line_buffer.rs:86-95",
+          "description": "struct Config (private) with fields capacity: usize, lineterm: u8, buffer_alloc: BufferAllocation, binary: BinaryDetection."
+        },
+        {
+          "path": "crates/searcher/src/line_buffer.rs:98-105",
+          "description": "impl Default for Config: capacity = DEFAULT_BUFFER_CAPACITY, lineterm = b'\\n', buffer_alloc = BufferAllocation::default(), binary = BinaryDetection::default()."
+        },
+        {
+          "path": "crates/searcher/src/line_buffer.rs:111",
+          "description": "LineBufferBuilder.config: Config field (one of the two structs storing the type)."
+        },
+        {
+          "path": "crates/searcher/src/line_buffer.rs:116-118",
+          "description": "LineBufferBuilder::new() returns LineBufferBuilder { config: Config::default() }, the constructor that explicitly calls Default."
+        },
+        {
+          "path": "crates/searcher/src/line_buffer.rs:296",
+          "description": "LineBuffer.config: Config field (the other struct storing the type)."
+        }
+      ],
+      "protocol_errors": {
+        "SCHEMA_VALIDATION": 1,
+        "AMBIGUOUS_SYMBOL": 1,
+        "SYMBOL_NOT_FOUND": 2,
+        "INVALID_ARGUMENT": 1
+      },
+      "transport": {
+        "initializations": 1,
+        "server_pid": 77541,
+        "calls": 7
+      }
+    },
+    {
+      "block": 2,
+      "corpus": "ky",
+      "arm": "grep",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 466883,
+      "input": 18,
+      "cache_read": 359742,
+      "cache_write": 101886,
+      "output": 5237,
+      "wall_seconds": 33.839,
+      "model_turns": 7,
+      "reported_usd": 0.026595,
+      "evidence_calls": [
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "ky",
+            "pattern": "retry",
+            "i": "Locating retry option references",
+            "context": 2
+          }
+        },
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "ky",
+            "pattern": "KyOptions|Options\\b.*=|interface\\s+\\w*Options",
+            "i": "Locating KyOptions definitions"
+          }
+        },
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "ky",
+            "pattern": "cloneInitHookOptions|kyOptionKeys|userDataOptions|retry: |\\bretry\\b.*(\\[\\.\\.\\.|structuredClone|slice|map\\()",
+            "path": "source",
+            "i": "Finding clone and registry sites in source",
+            "context": 3
+          }
+        },
+        {
+          "tool": "text_read",
+          "args": {
+            "corpus": "ky",
+            "ranges": [
+              "source/types/options.ts:45-60",
+              "source/core/constants.ts:262-300"
+            ],
+            "i": "Reading KyOptions type and kyOptionKeys registry"
+          }
+        },
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "ky",
+            "pattern": "retry\\?:|cloneDeep|cloneSearchParameters|cloneInitHookOptions|init: |InitHook",
+            "path": "source",
+            "i": "Locating retry key type and clone helpers",
+            "context": 1
+          }
+        },
+        {
+          "tool": "text_read",
+          "args": {
+            "corpus": "ky",
+            "ranges": [
+              "source/core/Ky.ts:280-330",
+              "source/core/Ky.ts:346-358"
+            ],
+            "i": "Reading init-hook clone implementation"
+          }
+        },
+        {
+          "tool": "text_read",
+          "args": {
+            "corpus": "ky",
+            "ranges": [
+              "source/utils/merge.ts:128-165",
+              "source/utils/merge.ts:100-123"
+            ],
+            "i": "Reading cloneDeep and isMergeable"
+          }
+        },
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "ky",
+            "pattern": "isMergeable",
+            "path": "source/utils/merge.ts",
+            "i": "Checking isMergeable to close the open caveat",
+            "context": 6
+          }
+        }
+      ],
+      "set": "typed",
+      "prompt": "The corpus argument is exactly ky. Answer the following maintainer question with evidence from the frozen ky repository. Choose your searches and what to read; you may search again or batch needed reads. Cite file and line(s). Keep the answer to the question asked. Use only text_search, text_read as evidence; no other tools, files, web, tests or edits. Starting symbol: KyOptions.retry.\nTrace the retry property of KyOptions, not the retry helper or retry hook. Which init-hook options clone reads it, how is the property copied (including nested arrays), and which constant lists this option as a recognized key? Cite the code.",
+      "answer_summary": "KyOptions.retry (source/types/options.ts:209, typed `RetryOptions | number | undefined`) is read by one init-hook clone, `cloneInitHookOptions`, which copies it with `cloneDeep`. That copy recursively clones arrays and plain objects. `kyOptionKeys` is the only constant that lists `retry` as a recognized Ky option.",
+      "citations": [
+        {
+          "path": "source/core/Ky.ts:312-327",
+          "description": "cloneInitHookOptions: spreads options, then sets `retry: cloneDeep(options.retry)` at line 323 (comment at 322 says nested arrays are cloned so init hooks can mutate retry without leaking). This is the only init-hook clone that reads `retry`."
+        },
+        {
+          "path": "source/core/Ky.ts:349-355",
+          "description": "Ky.create calls cloneInitHookOptions only when `hooks.init` is non-empty (line 351); otherwise the original options object, including `retry`, is passed on uncloned. Hooks receive the copy at lines 353-355."
+        },
+        {
+          "path": "source/utils/merge.ts:128-167",
+          "description": "cloneDeep: non-mergeable values returned by reference (130-132); arrays copied element by element and recursed (139-147), so methods/statusCodes/afterStatusCodes become new arrays with cloned items; plain objects copied key by key via Reflect.ownKeys (152-164); a `seen` WeakMap preserves shared/cyclic refs (134-141)."
+        },
+        {
+          "path": "source/utils/merge.ts:90-98",
+          "description": "isPlainObject / isMergeable: only plain objects (prototype Object.prototype or null) and arrays are cloned; class instances and functions (e.g. shouldRetry, delay) are kept by reference. A numeric `retry` is returned as-is."
+        },
+        {
+          "path": "source/types/options.ts:209",
+          "description": "KyOptions.retry declaration: `RetryOptions | number | undefined`."
+        },
+        {
+          "path": "source/types/options.ts:515-516",
+          "description": "InitOptions types retry as `MutableRetryOptions | number | undefined`, the form hooks see."
+        },
+        {
+          "path": "source/core/constants.ts:268-285",
+          "description": "kyOptionKeys: `retry: true` at line 275. Typed KyOptionsRegistry (source/types/options.ts:445), which requires every KyOptions key to appear. requestOptionsRegistry (line 292) does not list retry."
+        },
+        {
+          "path": "source/utils/options.ts:18",
+          "description": "findUnknownOptions uses Object.hasOwn(kyOptionKeys, key) to exclude recognized Ky options from the fetch init; retry is therefore never forwarded to fetch."
+        },
+        {
+          "path": "test/hooks.ts:6222-6393",
+          "description": "Tests covering the retry clone: flat limit (6222), frozen retry with array copied (6285), nested methods (6320), statusCodes (6345), afterStatusCodes (6370); function values kept by reference (6248)."
+        }
+      ],
+      "protocol_errors": {}
+    },
+    {
+      "block": 2,
+      "corpus": "ky",
+      "arm": "graph",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 934301,
+      "input": 42,
+      "cache_read": 862577,
+      "cache_write": 60291,
+      "output": 11391,
+      "wall_seconds": 84.927,
+      "model_turns": 19,
+      "reported_usd": 0.026384,
+      "evidence_calls": [
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"KyOptions\",\"repository\":\"ky\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedkygraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"KyOptions.retry\",\"repository\":\"ky\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"KyOptions\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedkygraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"retry\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedkygraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ky\",\"path\":\"source/types/options.ts\",\"qualified_name\":\"KyOptions\"}]}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedkygraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"retry\",\"path\":\"source/types/options.ts\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedkygraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"retry\",\"repository\":\"ky\",\"path\":\"source/types/options.ts\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedkygraph",
+            "operation": "find_by_intent",
+            "arguments": "{\"intent\":\"init hook options clone retry option copy nested arrays\",\"repository\":\"ky\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"retry\",\"repository\":\"ky\",\"path_prefix\":\"source/core\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedkygraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"retry\",\"repository\":\"ky\",\"path\":\"source/types/options.ts:209\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"retry\",\"path_prefix\":\"source/core\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedkygraph",
+            "operation": "find_by_intent",
+            "arguments": "{\"intent\":\"clone options for init hook retry\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedkygraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ky\",\"path\":\"source/core/constants.ts\",\"qualified_name\":\"retry#2\"}]}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"clone\",\"path_prefix\":\"source\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedkygraph",
+            "operation": "get_file_outline",
+            "arguments": "{\"path\":\"source/core/constants.ts\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"Options\",\"path_prefix\":\"source/core\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedkygraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"KyOptions\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"Keys\",\"mode\":\"substring\",\"path_prefix\":\"source\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedkygraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ky\",\"path\":\"source/core/constants.ts\",\"qualified_name\":\"kyOptionKeys#2\"},{\"repository\":\"ky\",\"path\":\"source/core/constants.ts\",\"qualified_name\":\"beforeRetryOptionKeys#2\"}]}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"init\",\"mode\":\"substring\",\"path_prefix\":\"source\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedkygraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ky\",\"path\":\"source/core/constants.ts\",\"qualified_name\":\"kyOptionKeys\"},{\"repository\":\"ky\",\"path\":\"source/core/Ky.ts\",\"qualified_name\":\"Ky.create.initHookOptions\"},{\"repository\":\"ky\",\"path\":\"source/core/Ky.ts\",\"qualified_name\":\"Ky.create.initHooks\"}]}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedkygraph",
+            "operation": "get_symbol",
+            "arguments": "{\"repository\":\"ky\",\"path\":\"source/core/constants.ts\",\"qualified_name\":\"kyOptionKeys\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"cloneInitHookOptions\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedkygraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"cloneInitHookOptions\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedkygraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ky\",\"path\":\"source/core/Ky.ts\",\"qualified_name\":\"cloneInitHookOptions\"}]}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"cloneDeep\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedkygraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ky\",\"path\":\"source/utils/merge.ts\",\"qualified_name\":\"cloneDeep\"}]}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"isMergeable\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedkygraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ky\",\"path\":\"source/utils/merge.ts\",\"qualified_name\":\"isMergeable\"}]}"
+          }
+        }
+      ],
+      "set": "typed",
+      "prompt": "Your graph session ID is Stay2typedkygraph, repository ky. Answer the following maintainer question with evidence from the frozen ky repository. Choose your searches and what to read; you may search again or batch needed reads. Cite file and line(s). Keep the answer to the question asked. Use only persistent_graph as evidence; no other tools, files, web, tests or edits. Starting symbol: KyOptions.retry.\nTrace the retry property of KyOptions, not the retry helper or retry hook. Which init-hook options clone reads it, how is the property copied (including nested arrays), and which constant lists this option as a recognized key? Cite the code.",
+      "answer_summary": "Only cloneInitHookOptions reads KyOptions.retry among the init-hook clones. It copies retry with cloneDeep, which copies arrays element by element and recursively. kyOptionKeys lists retry as a recognized key.",
+      "citations": [
+        {
+          "path": "source/core/Ky.ts:312-327",
+          "description": "cloneInitHookOptions. Line 323 is `retry: cloneDeep(options.retry),`, with the comment on lines 322-323 saying nested arrays are cloned so init hooks can mutate retry config without leaking state across requests."
+        },
+        {
+          "path": "source/core/Ky.ts:350-351",
+          "description": "Ky.create. Line 350 reads `options.hooks?.init ?? []`. Line 351 runs `initHooks.length > 0 ? cloneInitHookOptions(options) : options`, so the clone only happens when init hooks exist."
+        },
+        {
+          "path": "source/utils/merge.ts:98",
+          "description": "isMergeable: true only for plain objects and arrays. Other values are returned by reference."
+        },
+        {
+          "path": "source/utils/merge.ts:129-167",
+          "description": "cloneDeep. Lines 139-147 handle arrays: a new array is registered in `seen` and each item is pushed as cloneDeep(item, seen), so nested arrays are copied recursively. Plain objects are copied key by key with Object.defineProperty (from about line 150)."
+        },
+        {
+          "path": "source/core/constants.ts:268-285",
+          "description": "kyOptionKeys: KyOptionsRegistry. The `retry: true` entry is at line 275."
+        },
+        {
+          "path": "source/core/constants.ts:263",
+          "description": "Exported `retry` helper, which returns `new RetryMarker(options)`. It is not the recognized-key list."
+        },
+        {
+          "path": "source/core/constants.ts:266",
+          "description": "beforeRetryOptionKeys. It does not include `retry`."
+        },
+        {
+          "path": "source/types/options.ts:45-438",
+          "description": "KyOptions type. The graph places the `retry?: RetryOptions | number | undefined` property inside this range, but I did not read the exact line in the file."
+        }
+      ],
+      "protocol_errors": {
+        "SCHEMA_VALIDATION": 2,
+        "SYMBOL_NOT_FOUND": 2,
+        "AMBIGUOUS_SYMBOL": 2,
+        "INVALID_ARGUMENT": 1
+      },
+      "transport": {
+        "initializations": 1,
+        "server_pid": 77588,
+        "calls": 25
+      }
+    },
+    {
+      "block": 2,
+      "corpus": "cobra",
+      "arm": "grep",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 118584,
+      "input": 8,
+      "cache_read": 98942,
+      "cache_write": 17051,
+      "output": 2583,
+      "wall_seconds": 23.02,
+      "model_turns": 3,
+      "reported_usd": 0.005692,
+      "evidence_calls": [
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "cobra",
+            "pattern": "MarkFlagRequired",
+            "context": 2
+          }
+        },
+        {
+          "tool": "text_read",
+          "args": {
+            "corpus": "cobra",
+            "ranges": [
+              "shell_completions.go:20-41",
+              "flag_groups.go:225-272"
+            ]
+          }
+        }
+      ],
+      "set": "typed",
+      "prompt": "The corpus argument is exactly cobra. Answer the following maintainer question with evidence from the frozen cobra repository. Choose your searches and what to read; you may search again or batch needed reads. Cite file and line(s). Keep the answer to the question asked. Use only text_search, text_read as evidence; no other tools, files, web, tests or edits. Starting symbol: MarkFlagRequired.\nWhich non-test methods directly call the package-level MarkFlagRequired function (not the identically named Command method), and which flag set does each pass? Identify one production caller of the Command method instead and cite the evidence.",
+      "answer_summary": "Two non-test Command methods directly call the package-level MarkFlagRequired(flags *pflag.FlagSet, name string) error. Command.MarkFlagRequired passes c.Flags() (shell_completions.go:25). Command.MarkPersistentFlagRequired passes c.PersistentFlags() (shell_completions.go:32). No other non-test code calls the package-level function; all other non-test hits are the Command method. Production caller of the Command method: enforceFlagGroupsForCompletion in flag_groups.go calls c.MarkFlagRequired at lines 247 and 268, discarding the error with `_ =`.",
+      "citations": [
+        {
+          "path": "shell_completions.go:24-26",
+          "description": "func (c *Command) MarkFlagRequired(name string) error { return MarkFlagRequired(c.Flags(), name) }. Calls the package-level function with the regular flag set c.Flags()."
+        },
+        {
+          "path": "shell_completions.go:31-33",
+          "description": "func (c *Command) MarkPersistentFlagRequired(name string) error { return MarkFlagRequired(c.PersistentFlags(), name) }. Calls the package-level function with c.PersistentFlags()."
+        },
+        {
+          "path": "shell_completions.go:38-40",
+          "description": "Definition of the package-level func MarkFlagRequired(flags *pflag.FlagSet, name string) error, which calls flags.SetAnnotation(name, BashCompOneRequiredFlag, []string{\"true\"}). Not a caller."
+        },
+        {
+          "path": "flag_groups.go:225-271",
+          "description": "Production caller of the Command method (not the package function). enforceFlagGroupsForCompletion calls c.MarkFlagRequired(fName) at line 247 for set members of requiredAsGroup groups and at line 268 for one-required groups with no member set. Errors are ignored."
+        },
+        {
+          "path": "flag_groups.go:247",
+          "description": "_ = c.MarkFlagRequired(fName) inside the requiredAsGroup loop."
+        },
+        {
+          "path": "flag_groups.go:268",
+          "description": "_ = c.MarkFlagRequired(fName) inside the oneRequired loop."
+        }
+      ],
+      "protocol_errors": {}
+    },
+    {
+      "block": 2,
+      "corpus": "cobra",
+      "arm": "graph",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 235676,
+      "input": 14,
+      "cache_read": 212887,
+      "cache_write": 18457,
+      "output": 4318,
+      "wall_seconds": 25.302,
+      "model_turns": 6,
+      "reported_usd": 0.007981,
+      "evidence_calls": [
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedcobragraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"MarkFlagRequired\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedcobragraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"MarkFlagRequired\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedcobragraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"MarkFlagRequired\",\"repository\":\"cobra\",\"path\":\"shell_completions.go\",\"direction\":\"incoming\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedcobragraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"cobra\",\"path\":\"shell_completions.go\",\"qualified_name\":\"MarkFlagRequired\"},{\"repository\":\"cobra\",\"path\":\"shell_completions.go\",\"qualified_name\":\"Command.MarkFlagRequired\"}]}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedcobragraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"MarkFlagRequired\",\"repository\":\"cobra\",\"path\":\"shell_completions.go:38\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedcobragraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"MarkFlagRequired\",\"repository\":\"cobra\",\"path\":\"shell_completions.go\",\"qualified_name\":\"MarkFlagRequired\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedcobragraph",
+            "operation": "find_references",
+            "arguments": "{\"qualified_name\":\"MarkFlagRequired\",\"repository\":\"cobra\",\"path\":\"shell_completions.go\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedcobragraph",
+            "operation": "find_references",
+            "arguments": "{\"qualified_name\":\"Command.MarkFlagRequired\",\"repository\":\"cobra\",\"path\":\"shell_completions.go\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedcobragraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"cobra\",\"path\":\"shell_completions.go\",\"qualified_name\":\"Command.MarkPersistentFlagRequired\"},{\"repository\":\"cobra\",\"path\":\"flag_groups.go\",\"qualified_name\":\"Command.enforceFlagGroupsForCompletion\"}]}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2typedcobragraph",
+            "operation": "find_references",
+            "arguments": "{\"qualified_name\":\"Command.MarkPersistentFlagRequired\",\"repository\":\"cobra\",\"path\":\"shell_completions.go\"}"
+          }
+        }
+      ],
+      "set": "typed",
+      "prompt": "Your graph session ID is Stay2typedcobragraph, repository cobra. Answer the following maintainer question with evidence from the frozen cobra repository. Choose your searches and what to read; you may search again or batch needed reads. Cite file and line(s). Keep the answer to the question asked. Use only persistent_graph as evidence; no other tools, files, web, tests or edits. Starting symbol: MarkFlagRequired.\nWhich non-test methods directly call the package-level MarkFlagRequired function (not the identically named Command method), and which flag set does each pass? Identify one production caller of the Command method instead and cite the evidence.",
+      "answer_summary": "Only two non-test methods directly call the package-level MarkFlagRequired(flags *pflag.FlagSet, name string) error (shell_completions.go:38-40). Both are Command methods in shell_completions.go: Command.MarkFlagRequired (lines 24-26) passes c.Flags(); Command.MarkPersistentFlagRequired (lines 31-33) passes c.PersistentFlags(). The graph reports the package function's incoming references as COMPLETE with EXACT_TYPECHECKED confidence. Production caller of the Command method: Command.enforceFlagGroupsForCompletion in flag_groups.go (method range 225-290), which calls c.MarkFlagRequired(fName) in two loops. Its only production caller of the Command method; MarkPersistentFlagRequired has no production callers (its only references are in test functions).",
+      "citations": [
+        {
+          "path": "shell_completions.go:38-40",
+          "description": "Package-level func MarkFlagRequired(flags *pflag.FlagSet, name string) error; body calls flags.SetAnnotation(name, BashCompOneRequiredFlag, []string{\"true\"}). Callers: Command.MarkFlagRequired and Command.MarkPersistentFlagRequired only."
+        },
+        {
+          "path": "shell_completions.go:24-26",
+          "description": "Method (c *Command) MarkFlagRequired(name string) error; body `return MarkFlagRequired(c.Flags(), name)`. Passes the command's local Flags() set. Calls the package func directly."
+        },
+        {
+          "path": "shell_completions.go:31-33",
+          "description": "Method (c *Command) MarkPersistentFlagRequired(name string) error; body `return MarkFlagRequired(c.PersistentFlags(), name)`. Passes the PersistentFlags() set. Calls the package func directly. Graph lists references to it only in bash_completions_test.go (TestBashCompletions), completions_test.go (TestRequiredFlagNameCompletionInGo), and command_test.go (TestPersistentRequiredFlags, TestPersistentRequiredFlagsWithDisableFlagParsing)."
+        },
+        {
+          "path": "flag_groups.go:225-290",
+          "description": "Production caller of Command.MarkFlagRequired: method Command.enforceFlagGroupsForCompletion. Inside, `_ = c.MarkFlagRequired(fName)` runs for required-as-group flags (loop over groupStatus) and for one-required groups with no member set (loop over oneRequiredGroupStatus). The graph gives the enclosing method range only, not the exact call line numbers; I did not read the file to confirm them."
+        }
+      ],
+      "protocol_errors": {
+        "AMBIGUOUS_SYMBOL": 2,
+        "SYMBOL_NOT_FOUND": 1,
+        "INVALID_ARGUMENT": 1
+      },
+      "transport": {
+        "initializations": 1,
+        "server_pid": 77670,
+        "calls": 10
+      }
+    },
+    {
+      "block": 2,
+      "corpus": "ripgrep",
+      "arm": "grep",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 211447,
+      "input": 14,
+      "cache_read": 181663,
+      "cache_write": 27691,
+      "output": 2079,
+      "wall_seconds": 17.329,
+      "model_turns": 5,
+      "reported_usd": 0.008396,
+      "evidence_calls": [
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "ripgrep",
+            "pattern": "Replacer|struct Standard|Standard::|fn sink_with_path|fn sink\\b",
+            "i": "Locating Replacer and Standard sink code",
+            "context": 2
+          }
+        },
+        {
+          "tool": "text_read",
+          "args": {
+            "corpus": "ripgrep",
+            "ranges": [
+              "crates/printer/src/standard.rs:526-590",
+              "crates/printer/src/util.rs:1-60"
+            ],
+            "i": "Reading both sink constructors and Replacer definition"
+          }
+        },
+        {
+          "tool": "text_read",
+          "args": {
+            "corpus": "ripgrep",
+            "ranges": [
+              "crates/printer/src/util.rs:76-148"
+            ],
+            "i": "Checking how Replacer space is lazily allocated"
+          }
+        }
+      ],
+      "set": "control",
+      "prompt": "The corpus argument is exactly ripgrep. Answer the following maintainer question with evidence from the frozen ripgrep repository. Choose your searches and what to read; you may search again or batch needed reads. Cite file and line(s). Keep the answer to the question asked. Use only text_search, text_read as evidence; no other tools, files, web, tests or edits. Starting symbol: Replacer.\nWhen Standard builds its searcher sink with and without a path, how is its replacement helper initialized? Compare both construction sites and describe the initial internal state of the helper.",
+      "answer_summary": "Both Standard::sink and Standard::sink_with_path initialize the replacement helper identically with Replacer::new(), which sets space: None. The path argument does not affect the helper's initial state; the only difference is whether path: None or path: Some(PrinterPath) is stored in the sink.",
+      "citations": [
+        {
+          "path": "crates/printer/src/standard.rs",
+          "description": "sink (528-549) builds StandardSink with replacer: Replacer::new() and path: None. sink_with_path (555-586) returns self.sink(matcher) when !config.path, otherwise builds the same struct with replacer: Replacer::new() and path: Some(ppath)."
+        },
+        {
+          "path": "crates/printer/src/util.rs",
+          "description": "Replacer<M> { space: Option<Space<M>> } (14-16). Replacer::new() returns space: None (42-44), no allocation. Space holds caps, dst: Vec<u8>, matches: Vec<Match> (18-25). allocate() creates Space lazily on first use (140-147). replacement() returns None while space is None (109-113); clear() is a no-op while space is None (128-132)."
+        }
+      ],
+      "protocol_errors": {}
+    },
+    {
+      "block": 2,
+      "corpus": "ripgrep",
+      "arm": "graph",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 153169,
+      "input": 12,
+      "cache_read": 121190,
+      "cache_write": 29452,
+      "output": 2515,
+      "wall_seconds": 15.054,
+      "model_turns": 4,
+      "reported_usd": 0.008361,
+      "evidence_calls": [
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2controlripgrepgraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"Replacer\",\"repository\":\"ripgrep\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2controlripgrepgraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"Replacer\",\"repository\":\"ripgrep\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2controlripgrepgraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ripgrep\",\"path\":\"crates/printer/src/util.rs\",\"qualified_name\":\"util::impl::Replacer<M>::new\"},{\"repository\":\"ripgrep\",\"path\":\"crates/printer/src/util.rs\",\"qualified_name\":\"util::Replacer\"},{\"repository\":\"ripgrep\",\"path\":\"crates/printer/src/standard.rs\",\"qualified_name\":\"standard::impl::Standard<W>::sink\"},{\"repository\":\"ripgrep\",\"path\":\"crates/printer/src/standard.rs\",\"qualified_name\":\"standard::impl::Standard<W>::sink_with_path\"}]}"
+          }
+        }
+      ],
+      "set": "control",
+      "prompt": "Your graph session ID is Stay2controlripgrepgraph, repository ripgrep. Answer the following maintainer question with evidence from the frozen ripgrep repository. Choose your searches and what to read; you may search again or batch needed reads. Cite file and line(s). Keep the answer to the question asked. Use only persistent_graph as evidence; no other tools, files, web, tests or edits. Starting symbol: Replacer.\nWhen Standard builds its searcher sink with and without a path, how is its replacement helper initialized? Compare both construction sites and describe the initial internal state of the helper.",
+      "answer_summary": "Both Standard construction sites initialize the replacer identically: Replacer::new(), which produces Replacer { space: None }. The only difference is the path field: sink sets path: None, and sink_with_path sets path: Some(PrinterPath) when path printing is enabled. When path printing is disabled, sink_with_path delegates to sink.",
+      "citations": [
+        {
+          "path": "crates/printer/src/util.rs:14-16",
+          "description": "Replacer<M: Matcher> struct definition; single field space: Option<Space<M>>."
+        },
+        {
+          "path": "crates/printer/src/util.rs:42-44",
+          "description": "Replacer::new() constructor, returns Replacer { space: None }. The only constructor."
+        },
+        {
+          "path": "crates/printer/src/standard.rs:528-549",
+          "description": "Standard<W>::sink: builds StandardSink with replacer: Replacer::new() and path: None."
+        },
+        {
+          "path": "crates/printer/src/standard.rs:555-586",
+          "description": "Standard<W>::sink_with_path: returns self.sink(matcher) when !config.path; otherwise builds StandardSink with replacer: Replacer::new() and path: Some(PrinterPath) built from the given path and separator_path."
+        },
+        {
+          "path": "crates/printer/src/standard.rs:657",
+          "description": "StandardSink.replacer field typed as Replacer."
+        }
+      ],
+      "protocol_errors": {
+        "SCHEMA_VALIDATION": 1
+      },
+      "transport": {
+        "initializations": 1,
+        "server_pid": 77720,
+        "calls": 3
+      }
+    },
+    {
+      "block": 2,
+      "corpus": "ky",
+      "arm": "grep",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 269387,
+      "input": 14,
+      "cache_read": 209438,
+      "cache_write": 56352,
+      "output": 3583,
+      "wall_seconds": 27.945,
+      "model_turns": 5,
+      "reported_usd": 0.015158,
+      "evidence_calls": [
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "ky",
+            "pattern": "mergeHeaders|content-type|Content-Type",
+            "i": "Locating mergeHeaders and Content-Type logic",
+            "context": 2
+          }
+        },
+        {
+          "tool": "text_read",
+          "args": {
+            "corpus": "ky",
+            "ranges": [
+              "source/utils/merge.ts:60-100",
+              "source/core/Ky.ts:478-545"
+            ],
+            "i": "Reading mergeHeaders and content-type decision code"
+          }
+        },
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "ky",
+            "pattern": "toHeaderObject|KyHeadersInit",
+            "i": "Locating header normalization helpers",
+            "context": 1
+          }
+        }
+      ],
+      "set": "control",
+      "prompt": "The corpus argument is exactly ky. Answer the following maintainer question with evidence from the frozen ky repository. Choose your searches and what to read; you may search again or batch needed reads. Cite file and line(s). Keep the answer to the question asked. Use only text_search, text_read as evidence; no other tools, files, web, tests or edits. Starting symbol: mergeHeaders.\nHow does Ky decide whether the user supplied Content-Type, and what header inputs does it consult for that decision? Cite the implementation, including the exact predicate.",
+      "answer_summary": "Ky decides whether the user supplied Content-Type with one predicate, computed once in the Ky constructor from the per-call `options.headers` only. It does not consult the Request input's headers, the merged `#options.headers`, or hooks. Predicate (source/core/Ky.ts:524-525): `const userProvidedContentType = options.headers !== undefined && mergeHeaders({}, options.headers).has('content-type');`. It is true only when `options.headers` is defined and its normalized header map contains `content-type` (Headers.has is case-insensitive). `mergeHeaders` (source/utils/merge.ts:73-86) builds a fresh Headers from the second argument and deletes keys whose value is `undefined`, so `{'content-type': undefined}` counts as not supplied. `toHeaderObject` (merge.ts:170) normalizes the input first; for a Headers instance the string 'undefined' is a deletion marker. The predicate gates two behaviors: (1) when `json` is set, `application/json` is written only if `!userProvidedContentType` (Ky.ts:527-531); (2) when the input is a Request and the body is FormData or URLSearchParams, the inherited content-type is deleted so Request regenerates it with the correct boundary, only if `!userProvidedContentType` (Ky.ts:536-542). The merged headers are built at Ky.ts:486 as `mergeHeaders((input as Request).headers, options.headers)`, which is why the comment at Ky.ts:524 excludes Request-input headers from the predicate. Docs agree that an explicit headers content-type always wins (readme.md:191, readme.md:1457, source/types/options.ts:51). Relevant tests: test/headers.ts:887-897, test/headers.ts:911-920, test/request-construction.ts:299-323. Not verified: how an init hook that sets content-type interacts with this predicate. test/hooks.ts:6960-6966 suggests the hook value wins, but I did not trace the code that produces that result.",
+      "citations": [
+        {
+          "path": "source/core/Ky.ts",
+          "description": "Predicate `userProvidedContentType` at lines 524-525; json default at 527-532; FormData/URLSearchParams Request-input deletion at 534-542; merged headers construction at 486."
+        },
+        {
+          "path": "source/utils/merge.ts",
+          "description": "`mergeHeaders` at lines 73-86 (undefined values delete keys); `toHeaderObject` at line 170 (Headers 'undefined' string as deletion marker); `mergeHeaderContainers` at line 188."
+        },
+        {
+          "path": "source/types/options.ts",
+          "description": "`KyHeadersInit` type at line 39; `headers` option at line 502; json docs stating explicit Content-Type takes precedence at line 51."
+        },
+        {
+          "path": "readme.md",
+          "description": "Docs for precedence of explicit Content-Type: line 191 (json), line 1457 (FormData), line 1514 (custom Content-Type)."
+        },
+        {
+          "path": "test/headers.ts",
+          "description": "Tests at 887-897 (json replaces Request-input content-type) and 911-920 (undefined removes automatic content-type)."
+        },
+        {
+          "path": "test/request-construction.ts",
+          "description": "Tests at 299-323 for URLSearchParams replacing a Request content-type and an explicit header kept for FormData on a Request input."
+        }
+      ],
+      "protocol_errors": {}
+    },
+    {
+      "block": 2,
+      "corpus": "ky",
+      "arm": "graph",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 412288,
+      "input": 20,
+      "cache_read": 376033,
+      "cache_write": 32178,
+      "output": 4057,
+      "wall_seconds": 31.05,
+      "model_turns": 9,
+      "reported_usd": 0.012226,
+      "evidence_calls": [
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2controlkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"mergeHeaders\",\"repository\":\"ky\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2controlkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"mergeHeaders\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2controlkygraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ky\",\"path\":\"source/utils/merge.ts\",\"qualified_name\":\"mergeHeaders\"}]}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2controlkygraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"mergeHeaders\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2controlkygraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ky\",\"path\":\"source/core/Ky.ts\",\"qualified_name\":\"Ky.userProvidedContentType\"}]}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2controlkygraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"userProvidedContentType\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2controlkygraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"ky\",\"path\":\"source/core/Ky.ts\",\"qualified_name\":\"Ky\"}]}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2controlkygraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"constructor\",\"path_prefix\":\"source/core/Ky.ts\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2controlkygraph",
+            "operation": "get_symbol",
+            "arguments": "{\"repository\":\"ky\",\"path\":\"source/core/Ky.ts\",\"qualified_name\":\"Ky.constructor\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2controlkygraph",
+            "operation": "get_symbol",
+            "arguments": "{\"repository\":\"ky\",\"path\":\"source/core/Ky.ts\",\"qualified_name\":\"Ky.userProvidedContentType\"}"
+          }
+        }
+      ],
+      "set": "control",
+      "prompt": "Your graph session ID is Stay2controlkygraph, repository ky. Answer the following maintainer question with evidence from the frozen ky repository. Choose your searches and what to read; you may search again or batch needed reads. Cite file and line(s). Keep the answer to the question asked. Use only persistent_graph as evidence; no other tools, files, web, tests or edits. Starting symbol: mergeHeaders.\nHow does Ky decide whether the user supplied Content-Type, and what header inputs does it consult for that decision? Cite the implementation, including the exact predicate.",
+      "answer_summary": "Ky decides \"user supplied Content-Type\" with one predicate in the Ky constructor: `options.headers !== undefined && mergeHeaders({}, options.headers).has('content-type')` (source/core/Ky.ts:525). The only header input it consults is the caller's `options.headers` (the init/options argument). The input Request's headers are deliberately excluded, as the comment at the predicate says. `mergeHeaders` (source/utils/merge.ts:73-86) is used only to normalize `options.headers` into a `Headers` object so the lookup is case-insensitive and honors deletion markers. Note: the graph returned no line numbers for the consuming branches inside the constructor, so they are cited by code excerpt below, not by line.",
+      "citations": [
+        {
+          "path": "source/core/Ky.ts:525",
+          "description": "Defines the predicate: `const userProvidedContentType = options.headers !== undefined && mergeHeaders({}, options.headers).has('content-type');`, preceded by the comment \"A `Request` input's headers are already merged in, so only a content-type from `options.headers` counts as user-provided.\" `options` is the constructor parameter, after init hooks ran in `Ky.create`."
+        },
+        {
+          "path": "source/core/Ky.ts (Ky constructor, same block, line numbers not returned by graph)",
+          "description": "Consumers of the flag: (1) `if (this.#options.json !== undefined) { ... if (!userProvidedContentType) this.#options.headers.set('content-type', 'application/json'); }`; (2) when `input` is a `Request` and the body is FormData or URLSearchParams and `!userProvidedContentType`, it calls `this.#options.headers.delete('content-type')` so the native Request sets the multipart boundary."
+        },
+        {
+          "path": "source/utils/merge.ts:73-86",
+          "description": "`mergeHeaders(source1, source2)`: copies source1 into a `new Headers(...)`, then for each entry of `toHeaderObject(source2)` deletes the key when the value is `undefined`, otherwise sets it. Called as `mergeHeaders({}, options.headers)` for the predicate, so only `options.headers` is evaluated; a `content-type: undefined` entry yields false."
+        }
+      ],
+      "protocol_errors": {
+        "SCHEMA_VALIDATION": 1
+      },
+      "transport": {
+        "initializations": 1,
+        "server_pid": 77875,
+        "calls": 8
+      }
+    },
+    {
+      "block": 2,
+      "corpus": "cobra",
+      "arm": "grep",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 213041,
+      "input": 14,
+      "cache_read": 182485,
+      "cache_write": 28116,
+      "output": 2426,
+      "wall_seconds": 17.876,
+      "model_turns": 5,
+      "reported_usd": 0.008662,
+      "evidence_calls": [
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "cobra",
+            "pattern": "ExactArgs",
+            "i": "Locating ExactArgs definition and uses",
+            "context": 3
+          }
+        },
+        {
+          "tool": "text_search",
+          "args": {
+            "corpus": "cobra",
+            "pattern": "func exactArgsWithInvalidCount|func getCommand|func executeCommand|func expectSuccess|accepts 2 arg|ValidateArgs\\(|c\\.Args\\(|cmd\\.Args\\(",
+            "i": "Locating test helper and arg validation call site",
+            "context": 6
+          }
+        },
+        {
+          "tool": "text_read",
+          "args": {
+            "corpus": "cobra",
+            "ranges": [
+              "command.go:1150-1170",
+              "args_test.go:93-96",
+              "args_test.go:308-312"
+            ],
+            "i": "Reading error propagation and expected message"
+          }
+        }
+      ],
+      "set": "control",
+      "prompt": "The corpus argument is exactly cobra. Answer the following maintainer question with evidence from the frozen cobra repository. Choose your searches and what to read; you may search again or batch needed reads. Cite file and line(s). Keep the answer to the question asked. Use only text_search, text_read as evidence; no other tools, files, web, tests or edits. Starting symbol: ExactArgs.\nWhen validating a command with ExactArgs, what happens if the argument count is wrong? Show one existing test that exercises this failure, including the concrete counts or expected error.",
+      "answer_summary": "With ExactArgs(n), a wrong argument count makes validation fail with `accepts N arg(s), received M`. Execution stops before the command's Run runs, and ExecuteC returns that error to the caller. The test TestExactArgs_WithInvalidCount uses ExactArgs(2) with three arguments and expects exactly `accepts 2 arg(s), received 3`.",
+      "citations": [
+        {
+          "path": "args.go:93-97",
+          "description": "ExactArgs(n) compares len(args) to n and returns fmt.Errorf(\"accepts %d arg(s), received %d\", n, len(args)) on mismatch."
+        },
+        {
+          "path": "command.go:1172-1177",
+          "description": "ValidateArgs returns c.Args(c, args), or ArbitraryArgs when Args is nil."
+        },
+        {
+          "path": "command.go:966-970",
+          "description": "The execute path calls ValidateArgs and returns the error immediately, so run hooks and Run are not reached."
+        },
+        {
+          "path": "command.go:1149-1169",
+          "description": "ExecuteC prints the error unless SilenceErrors is set, prints usage unless SilenceUsage is set, and returns the error to the caller."
+        },
+        {
+          "path": "args_test.go:308-312",
+          "description": "TestExactArgs_WithInvalidCount: ExactArgs(2) invoked with a, b, c, then checked by exactArgsWithInvalidCount."
+        },
+        {
+          "path": "args_test.go:88-97",
+          "description": "exactArgsWithInvalidCount requires a non-nil error whose message equals \"accepts 2 arg(s), received 3\"."
+        }
+      ],
+      "protocol_errors": {}
+    },
+    {
+      "block": 2,
+      "corpus": "cobra",
+      "arm": "graph",
+      "model": "claude-haiku-5-5",
+      "total_tokens": 469353,
+      "input": 28,
+      "cache_read": 430343,
+      "cache_write": 34024,
+      "output": 4958,
+      "wall_seconds": 36.273,
+      "model_turns": 12,
+      "reported_usd": 0.01359,
+      "evidence_calls": [
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2controlcobragraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"ExactArgs\",\"repository\":\"cobra\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2controlcobragraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"ExactArgs\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2controlcobragraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"cobra\",\"path\":\"args.go\",\"qualified_name\":\"ExactArgs\"}]}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2controlcobragraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"ExactArgs\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2controlcobragraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"cobra\",\"path\":\"args_test.go\",\"qualified_name\":\"TestExactArgs_WithInvalidCount\"},{\"repository\":\"cobra\",\"path\":\"args_test.go\",\"qualified_name\":\"TestExactArgs\"}]}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2controlcobragraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"exactArgsWithInvalidCount\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2controlcobragraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"ValidateArgs\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2controlcobragraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"cobra\",\"path\":\"args_test.go\",\"qualified_name\":\"exactArgsWithInvalidCount\"},{\"repository\":\"cobra\",\"path\":\"command.go\",\"qualified_name\":\"Command.ValidateArgs\"}]}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2controlcobragraph",
+            "operation": "find_symbol",
+            "arguments": "{\"name\":\"executeCommand\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2controlcobragraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"cobra\",\"path\":\"command_test.go\",\"qualified_name\":\"executeCommand\"},{\"repository\":\"cobra\",\"path\":\"command_test.go\",\"qualified_name\":\"executeCommandC\"}]}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2controlcobragraph",
+            "operation": "find_references",
+            "arguments": "{\"name\":\"ValidateArgs\"}"
+          }
+        },
+        {
+          "tool": "persistent_graph",
+          "args": {
+            "session": "Stay2controlcobragraph",
+            "operation": "get_source",
+            "arguments": "{\"symbols\":[{\"repository\":\"cobra\",\"path\":\"command.go\",\"qualified_name\":\"Command.execute\"}]}"
+          }
+        }
+      ],
+      "set": "control",
+      "prompt": "Your graph session ID is Stay2controlcobragraph, repository cobra. Answer the following maintainer question with evidence from the frozen cobra repository. Choose your searches and what to read; you may search again or batch needed reads. Cite file and line(s). Keep the answer to the question asked. Use only persistent_graph as evidence; no other tools, files, web, tests or edits. Starting symbol: ExactArgs.\nWhen validating a command with ExactArgs, what happens if the argument count is wrong? Show one existing test that exercises this failure, including the concrete counts or expected error.",
+      "answer_summary": "A wrong argument count makes ExactArgs return an error with the text \"accepts N arg(s), received M\" (N = count given to ExactArgs, M = count supplied). Command.execute calls ValidateArgs before any pre/run/post hook, so the command body does not run. Example test: TestExactArgs_WithInvalidCount (args_test.go:308-312) uses ExactArgs(2) with 3 args and expects \"accepts 2 arg(s), received 3\". Not verified: ExecuteC and getCommand were not read.",
+      "citations": [
+        {
+          "path": "args.go",
+          "description": "ExactArgs closure at 94-101; the count check and error format are at 96-97."
+        },
+        {
+          "path": "command.go",
+          "description": "Command.ValidateArgs at 1172-1177; Command.execute at 905-1045 calls ValidateArgs before PersistentPreRun, PreRun, RunE/Run and post-run hooks."
+        },
+        {
+          "path": "args_test.go",
+          "description": "TestExactArgs_WithInvalidCount at 308-312 exercises ExactArgs(2) with three args; exactArgsWithInvalidCount at 88-97 checks the exact error text."
+        },
+        {
+          "path": "command_test.go",
+          "description": "executeCommand at 32-35 and executeCommandC at 48-57 are the test helpers that drive ExecuteC into execute."
+        }
+      ],
+      "protocol_errors": {
+        "SCHEMA_VALIDATION": 1
+      },
+      "transport": {
+        "initializations": 1,
+        "server_pid": 77923,
+        "calls": 12
+      }
+    }
+  ]
+}

@@ -1,0 +1,436 @@
+{
+  "binaries": {
+    "0e1e61b89624bda22b87e10c75742504b530015dea1261a894b5d5ca5c858f94": {
+      "dirty": true,
+      "go": "go1.26.11",
+      "revision": "43d1a11cfff138f65b4f7d81a7bf4e85df95046b"
+    },
+    "12d18c225198fbd0a0772dc8855044fd42c635c1b416b2bb9b3c9ca0f85bf197": {
+      "dirty": true,
+      "go": "go1.26.11",
+      "revision": "43d1a11cfff138f65b4f7d81a7bf4e85df95046b"
+    },
+    "23a03addcc7397ec659d2e44ca37d863ab15ab9d6e025e22c2abf146d28bebb3": {
+      "dirty": true,
+      "go": "go1.26.11",
+      "revision": "43d1a11cfff138f65b4f7d81a7bf4e85df95046b"
+    },
+    "259c78228aff77a4a60ddec415af9be195f84f1a9387eeaa64899001b670084a": {
+      "dirty": true,
+      "go": "go1.26.11",
+      "revision": "43d1a11cfff138f65b4f7d81a7bf4e85df95046b"
+    },
+    "4a93e9e4587a2e3c3cd97849783f748f85d1967d857a46d99648f8a5ee22bb38": {
+      "dirty": false,
+      "go": "go1.26.11",
+      "revision": "de7a74e024b0963e902bb4ae086bba471d399615"
+    },
+    "4bed47eae5dbe352a2eac41200a88f7ccf403fbaee67458c8a5bc06f6025c6ef": {
+      "dirty": true,
+      "go": "go1.26.11",
+      "revision": "43d1a11cfff138f65b4f7d81a7bf4e85df95046b"
+    },
+    "6dcdab2913baa38012bc87dede98da9063c4734cf489f4a9e59148bbf3f34f62": {
+      "dirty": true,
+      "go": "go1.26.11",
+      "revision": "43d1a11cfff138f65b4f7d81a7bf4e85df95046b"
+    },
+    "75ca9f3b1819f860822d37e883b98bc5ca0391e846dc1049fb189c62c462c86a": {
+      "dirty": true,
+      "go": "go1.26.11",
+      "revision": "43d1a11cfff138f65b4f7d81a7bf4e85df95046b"
+    },
+    "8270f07709f03ec126d526838c6a31e03ae3522978c47aa5d3e7a8105b3e7728": {
+      "dirty": true,
+      "go": "go1.26.11",
+      "revision": "43d1a11cfff138f65b4f7d81a7bf4e85df95046b"
+    },
+    "89a64071b6df6507cddb9be54316d1e5b2d27a9e37e0c059e2eef47b290a1a3c": {
+      "dirty": true,
+      "go": "go1.26.11",
+      "revision": "43d1a11cfff138f65b4f7d81a7bf4e85df95046b"
+    },
+    "ba82c71df3dacd2797b2d1ee369b763157ede5049ca4ffe13d1b568be40b49f6": {
+      "dirty": true,
+      "go": "go1.26.11",
+      "revision": "43d1a11cfff138f65b4f7d81a7bf4e85df95046b"
+    },
+    "be27728edb05a89f41e9def6de08f31441a3cc70d8d95965ba11b38e007dff69": {
+      "dirty": true,
+      "go": "go1.26.11",
+      "revision": "43d1a11cfff138f65b4f7d81a7bf4e85df95046b"
+    },
+    "c4b6876a62dc8054968b090aa7ca1cfbff7b49de945f9cc84905910c27a16077": {
+      "dirty": true,
+      "go": "go1.26.11",
+      "revision": "43d1a11cfff138f65b4f7d81a7bf4e85df95046b"
+    },
+    "ddabe5a2174ee7b1007407813d5870fd806d277a3da3af34f4e8ea5559425927": {
+      "dirty": true,
+      "go": "go1.26.11",
+      "revision": "43d1a11cfff138f65b4f7d81a7bf4e85df95046b"
+    },
+    "dfb033b7ff3d2bdd36f7cd32fcfd29eb4d08fb05c5138696be6c20aa3251c596": {
+      "dirty": true,
+      "go": "go1.26.11",
+      "revision": "43d1a11cfff138f65b4f7d81a7bf4e85df95046b"
+    },
+    "e0cba1151a12528e434e4a26e73ffc5c0be1122e29edfc58ffd480cf50c1824b": {
+      "dirty": true,
+      "go": "go1.26.11",
+      "revision": "43d1a11cfff138f65b4f7d81a7bf4e85df95046b"
+    },
+    "e3f3aa6112d9897a0fa35e69318dc4009a94bd881116c5da5bca8e6a70f7b3e1": {
+      "dirty": true,
+      "go": "go1.26.11",
+      "revision": "43d1a11cfff138f65b4f7d81a7bf4e85df95046b"
+    },
+    "e9a8d3efe18b995e17d5e9d1b9f343235df01bfb78e1dbad1e1f06c01eae1e98": {
+      "dirty": true,
+      "go": "go1.26.11",
+      "revision": "43d1a11cfff138f65b4f7d81a7bf4e85df95046b"
+    },
+    "f6945a9b7ae79b293abdc38d2e1541b3cfc2c5f728b824801dd13ee570d4623b": {
+      "dirty": true,
+      "go": "go1.26.11",
+      "revision": "43d1a11cfff138f65b4f7d81a7bf4e85df95046b"
+    }
+  },
+  "method": "Binary identity from SHA-256 equality with a retained executable and go version -m on those exact bytes. Unmatched reports are not assigned a build by date or proximity. A dirty VCS revision is the build base, not the patch. A matching capture session UUID establishes the launcher, not the identities of other binaries.",
+  "reports": {
+    "cobra-body-first-guide-ab-ten.json": {
+      "matched_binary_digests": [
+        "dfb033b7ff3d2bdd36f7cd32fcfd29eb4d08fb05c5138696be6c20aa3251c596"
+      ]
+    },
+    "cobra-doc-context-guide-ab-ten.json": {
+      "matched_binary_digests": [
+        "e3f3aa6112d9897a0fa35e69318dc4009a94bd881116c5da5bca8e6a70f7b3e1"
+      ]
+    },
+    "cobra-go-package-direct-stop-off-ab-ten.json": {
+      "launch": "headless command in agent-runs.md; recovered launcher matched by session UUID",
+      "matched_binary_digests": [
+        "e3f3aa6112d9897a0fa35e69318dc4009a94bd881116c5da5bca8e6a70f7b3e1"
+      ]
+    },
+    "cobra-outgoing-guide-ab-ten.json": {
+      "matched_binary_digests": [
+        "8270f07709f03ec126d526838c6a31e03ae3522978c47aa5d3e7a8105b3e7728"
+      ]
+    },
+    "ky-get-content-length-caller-guide-ab-ten.json": {
+      "matched_binary_digests": [
+        "8270f07709f03ec126d526838c6a31e03ae3522978c47aa5d3e7a8105b3e7728"
+      ]
+    },
+    "ky-get-content-length-caller-guide-vs-grep-ten.json": {
+      "matched_binary_digests": [
+        "8270f07709f03ec126d526838c6a31e03ae3522978c47aa5d3e7a8105b3e7728"
+      ]
+    },
+    "ky-get-content-length-context-lines-ab-ten.json": {
+      "matched_binary_digests": [
+        "0e1e61b89624bda22b87e10c75742504b530015dea1261a894b5d5ca5c858f94",
+        "6dcdab2913baa38012bc87dede98da9063c4734cf489f4a9e59148bbf3f34f62"
+      ]
+    },
+    "ky-get-content-length-context-schema-vs-grep-ten.json": {
+      "matched_binary_digests": [
+        "0e1e61b89624bda22b87e10c75742504b530015dea1261a894b5d5ca5c858f94"
+      ]
+    },
+    "ky-get-content-length-final-mcp-vs-grep-ten.json": {
+      "matched_binary_digests": [
+        "6dcdab2913baa38012bc87dede98da9063c4734cf489f4a9e59148bbf3f34f62"
+      ]
+    },
+    "ky-get-content-length-line-schema-ab-ten.json": {
+      "matched_binary_digests": [
+        "23a03addcc7397ec659d2e44ca37d863ab15ab9d6e025e22c2abf146d28bebb3",
+        "6dcdab2913baa38012bc87dede98da9063c4734cf489f4a9e59148bbf3f34f62"
+      ]
+    },
+    "ky-get-content-length-position-ab-ten.json": {
+      "matched_binary_digests": [
+        "e9a8d3efe18b995e17d5e9d1b9f343235df01bfb78e1dbad1e1f06c01eae1e98"
+      ]
+    },
+    "ky-get-content-length-predicate-guide-off-ab-ten.json": {
+      "launch": "headless command in agent-runs.md; recovered launcher matched by session UUID",
+      "matched_binary_digests": [
+        "12d18c225198fbd0a0772dc8855044fd42c635c1b416b2bb9b3c9ca0f85bf197"
+      ]
+    },
+    "ky-get-content-length-predicate-guide-off-replication-ab-ten.json": {
+      "launch": "headless command in agent-runs.md; recovered launcher matched by session UUID",
+      "matched_binary_digests": [
+        "12d18c225198fbd0a0772dc8855044fd42c635c1b416b2bb9b3c9ca0f85bf197"
+      ]
+    },
+    "ky-get-content-length-predicate-preview-off-ab-ten.json": {
+      "launch": "headless command in agent-runs.md; recovered launcher matched by session UUID",
+      "matched_binary_digests": [
+        "12d18c225198fbd0a0772dc8855044fd42c635c1b416b2bb9b3c9ca0f85bf197"
+      ]
+    },
+    "ky-get-content-length-predicate-preview-off-replication-ab-ten.json": {
+      "launch": "headless command in agent-runs.md; recovered launcher matched by session UUID",
+      "matched_binary_digests": [
+        "12d18c225198fbd0a0772dc8855044fd42c635c1b416b2bb9b3c9ca0f85bf197"
+      ]
+    },
+    "ky-get-content-length-reference-evidence-ab-ten.json": {
+      "matched_binary_digests": [
+        "ba82c71df3dacd2797b2d1ee369b763157ede5049ca4ffe13d1b568be40b49f6",
+        "be27728edb05a89f41e9def6de08f31441a3cc70d8d95965ba11b38e007dff69"
+      ]
+    },
+    "ky-get-content-length-shown-range-ab-ten.json": {
+      "matched_binary_digests": [
+        "0e1e61b89624bda22b87e10c75742504b530015dea1261a894b5d5ca5c858f94",
+        "ba82c71df3dacd2797b2d1ee369b763157ede5049ca4ffe13d1b568be40b49f6"
+      ]
+    },
+    "ky-get-content-length-shown-range-vs-grep-ten.json": {
+      "matched_binary_digests": [
+        "ba82c71df3dacd2797b2d1ee369b763157ede5049ca4ffe13d1b568be40b49f6"
+      ]
+    },
+    "ky-get-content-length-subject-definition-ab-ten.json": {
+      "matched_binary_digests": [
+        "8270f07709f03ec126d526838c6a31e03ae3522978c47aa5d3e7a8105b3e7728",
+        "ddabe5a2174ee7b1007407813d5870fd806d277a3da3af34f4e8ea5559425927"
+      ]
+    },
+    "ky-get-content-length-subject-definition-vs-grep-ten.json": {
+      "matched_binary_digests": [
+        "8270f07709f03ec126d526838c6a31e03ae3522978c47aa5d3e7a8105b3e7728"
+      ]
+    },
+    "ky-get-content-length-whole-callable-ab-ten.json": {
+      "matched_binary_digests": [
+        "be27728edb05a89f41e9def6de08f31441a3cc70d8d95965ba11b38e007dff69",
+        "ddabe5a2174ee7b1007407813d5870fd806d277a3da3af34f4e8ea5559425927"
+      ]
+    },
+    "ky-get-content-length-whole-callable-vs-grep-ten.json": {
+      "matched_binary_digests": [
+        "ddabe5a2174ee7b1007407813d5870fd806d277a3da3af34f4e8ea5559425927"
+      ]
+    },
+    "ky-native-tools.json": {
+      "matched_binary_digests": []
+    },
+    "persistent-selective-grep.json": {
+      "matched_binary_digests": []
+    },
+    "rust-checked-short-name-off-ab-ten.json": {
+      "launch": "headless command in agent-runs.md; recovered launcher matched by session UUID",
+      "matched_binary_digests": [
+        "89a64071b6df6507cddb9be54316d1e5b2d27a9e37e0c059e2eef47b290a1a3c",
+        "e3f3aa6112d9897a0fa35e69318dc4009a94bd881116c5da5bca8e6a70f7b3e1"
+      ]
+    },
+    "rust-inverse-caller-guide-ab-ten.json": {
+      "matched_binary_digests": [
+        "e3f3aa6112d9897a0fa35e69318dc4009a94bd881116c5da5bca8e6a70f7b3e1"
+      ]
+    },
+    "rust-inverse-caller-result-ab-ten.json": {
+      "matched_binary_digests": [
+        "e3f3aa6112d9897a0fa35e69318dc4009a94bd881116c5da5bca8e6a70f7b3e1",
+        "f6945a9b7ae79b293abdc38d2e1541b3cfc2c5f728b824801dd13ee570d4623b"
+      ]
+    },
+    "rust-narrow-selectors-ten.json": {
+      "matched_binary_digests": []
+    },
+    "rust-next-impl-automatic-local-edges-off-ab-ten.json": {
+      "launch": "headless command in agent-runs.md; recovered launcher matched by session UUID",
+      "matched_binary_digests": [
+        "12d18c225198fbd0a0772dc8855044fd42c635c1b416b2bb9b3c9ca0f85bf197",
+        "c4b6876a62dc8054968b090aa7ca1cfbff7b49de945f9cc84905910c27a16077"
+      ]
+    },
+    "rust-next-impl-frozen-edge-off-ab-ten.json": {
+      "launch": "headless command in agent-runs.md; recovered launcher matched by session UUID",
+      "matched_binary_digests": [
+        "12d18c225198fbd0a0772dc8855044fd42c635c1b416b2bb9b3c9ca0f85bf197"
+      ]
+    },
+    "rust-next-impl-live-caller-guide-off-ab-ten.json": {
+      "launch": "headless command in agent-runs.md; recovered launcher matched by session UUID",
+      "matched_binary_digests": [
+        "4bed47eae5dbe352a2eac41200a88f7ccf403fbaee67458c8a5bc06f6025c6ef"
+      ]
+    },
+    "rust-next-impl-live-caller-option-off-ab-ten.json": {
+      "launch": "headless command in agent-runs.md; recovered launcher matched by session UUID",
+      "matched_binary_digests": [
+        "12d18c225198fbd0a0772dc8855044fd42c635c1b416b2bb9b3c9ca0f85bf197",
+        "4bed47eae5dbe352a2eac41200a88f7ccf403fbaee67458c8a5bc06f6025c6ef"
+      ]
+    },
+    "rust-outgoing-evidence-schema-ab-ten.json": {
+      "matched_binary_digests": [
+        "dfb033b7ff3d2bdd36f7cd32fcfd29eb4d08fb05c5138696be6c20aa3251c596",
+        "e3f3aa6112d9897a0fa35e69318dc4009a94bd881116c5da5bca8e6a70f7b3e1"
+      ]
+    },
+    "rust-receiver-selector-ab-ten.json": {
+      "matched_binary_digests": [
+        "8270f07709f03ec126d526838c6a31e03ae3522978c47aa5d3e7a8105b3e7728",
+        "dfb033b7ff3d2bdd36f7cd32fcfd29eb4d08fb05c5138696be6c20aa3251c596"
+      ]
+    },
+    "rust-required-inverse-wrappers-off-ab-ten.json": {
+      "launch": "headless command in agent-runs.md; recovered launcher matched by session UUID",
+      "matched_binary_digests": [
+        "e3f3aa6112d9897a0fa35e69318dc4009a94bd881116c5da5bca8e6a70f7b3e1"
+      ]
+    },
+    "rust-required-inverse-wrappers-off-replication-ab-ten.json": {
+      "launch": "headless command in agent-runs.md; recovered launcher matched by session UUID",
+      "matched_binary_digests": [
+        "e3f3aa6112d9897a0fa35e69318dc4009a94bd881116c5da5bca8e6a70f7b3e1"
+      ]
+    },
+    "rust-required-scoped-hybrid-off-ab-ten.json": {
+      "launch": "headless command in agent-runs.md; recovered launcher matched by session UUID",
+      "matched_binary_digests": [
+        "e3f3aa6112d9897a0fa35e69318dc4009a94bd881116c5da5bca8e6a70f7b3e1"
+      ]
+    },
+    "rust-scoped-hybrid-off-ab-ten.json": {
+      "launch": "headless command in agent-runs.md; recovered launcher matched by session UUID",
+      "matched_binary_digests": [
+        "e3f3aa6112d9897a0fa35e69318dc4009a94bd881116c5da5bca8e6a70f7b3e1"
+      ]
+    },
+    "rust-selectors-ab-ten.json": {
+      "launch": "native after wrappers: six-visible-zvsc8c8i/ripgrep-after.py launched /tmp/kv-selector-v2; 40 report RPC arrays match rust-selector-ab-64uazudg session logs; retained-byte digest, not launch-time attestation",
+      "matched_binary_digests": [
+        "e0cba1151a12528e434e4a26e73ffc5c0be1122e29edfc58ffd480cf50c1824b"
+      ]
+    },
+    "rust-short-name-first-off-ab-ten.json": {
+      "launch": "headless command in agent-runs.md; recovered launcher matched by session UUID",
+      "matched_binary_digests": [
+        "e3f3aa6112d9897a0fa35e69318dc4009a94bd881116c5da5bca8e6a70f7b3e1"
+      ]
+    },
+    "selective-grep.json": {
+      "matched_binary_digests": []
+    },
+    "selector-schema-ab.json": {
+      "launch": "visible-selector arms: six-visible-zvsc8c8i native after wrappers launched /tmp/kv-selector-v2 and forwarded its descriptions; retained-byte digest, not launch-time attestation",
+      "matched_binary_digests": [
+        "e0cba1151a12528e434e4a26e73ffc5c0be1122e29edfc58ffd480cf50c1824b"
+      ]
+    },
+    "selector-vs-stop-ten.json": {
+      "session_evidence": {
+        "ky/control/selector/7": {"uuid": "01a20d88-deb4-7644-8bc1-61dd6eb1faaf", "call_pid": 93902},
+        "cobra/typed/base/3": {"uuid": "01a20d84-5f5b-753a-85de-908da6216ced", "call_pid": 79985},
+        "interpretation": "Both session headers and first-user timestamps match distinct captured sessions. Each call PID is unique to that run. Both RPC logs start at tools and contain no initialize event; fresh model sessions are verified, the reason for the missing initialization record is not. Neither pair is excluded."
+      },
+      "matched_binary_digests": []
+    },
+    "six-body-first-direction-vs-grep-ten.json": {
+      "matched_binary_digests": [
+        "e3f3aa6112d9897a0fa35e69318dc4009a94bd881116c5da5bca8e6a70f7b3e1"
+      ]
+    },
+    "six-checked-short-name-off-vs-grep-replication-ten.json": {
+      "launch": "headless command in agent-runs.md; recovered launcher matched by session UUID",
+      "matched_binary_digests": [
+        "12d18c225198fbd0a0772dc8855044fd42c635c1b416b2bb9b3c9ca0f85bf197"
+      ]
+    },
+    "six-checked-short-name-off-vs-grep-ten.json": {
+      "launch": "headless command in agent-runs.md; recovered launcher matched by session UUID",
+      "matched_binary_digests": [
+        "12d18c225198fbd0a0772dc8855044fd42c635c1b416b2bb9b3c9ca0f85bf197"
+      ]
+    },
+    "six-concise-guide-ten.json": {
+      "matched_binary_digests": []
+    },
+    "six-concise-guide.json": {
+      "launch": "six-visible-zvsc8c8i/*-after.py wrapper launching /tmp/kv-selector-v2; retained-byte match, not a per-start attestation",
+      "matched_binary_digests": [
+        "e0cba1151a12528e434e4a26e73ffc5c0be1122e29edfc58ffd480cf50c1824b"
+      ]
+    },
+    "six-current-short-name-guide-off-vs-grep-ten.json": {
+      "launch": "headless command in agent-runs.md; recovered launcher matched by session UUID",
+      "matched_binary_digests": [
+        "e3f3aa6112d9897a0fa35e69318dc4009a94bd881116c5da5bca8e6a70f7b3e1"
+      ]
+    },
+    "six-explicit-router-vs-grep-mcp-ten.json": {
+      "matched_binary_digests": []
+    },
+    "six-final-mcp-vs-grep.json": {
+      "matched_binary_digests": [
+        "e0cba1151a12528e434e4a26e73ffc5c0be1122e29edfc58ffd480cf50c1824b"
+      ]
+    },
+    "six-guided-mcp-vs-grep.json": {
+      "launch": "six-visible-zvsc8c8i/*-after.py wrapper launching /tmp/kv-selector-v2; retained-byte match, not a per-start attestation",
+      "matched_binary_digests": [
+        "e0cba1151a12528e434e4a26e73ffc5c0be1122e29edfc58ffd480cf50c1824b"
+      ]
+    },
+    "six-held-out-caller-guide-vs-grep-ten.json": {
+      "matched_binary_digests": [
+        "8270f07709f03ec126d526838c6a31e03ae3522978c47aa5d3e7a8105b3e7728"
+      ]
+    },
+    "six-hybrid-vs-grep-mcp-ten.json": {
+      "matched_binary_digests": []
+    },
+    "six-manual-inverse-doc-context-vs-grep-ten.json": {
+      "matched_binary_digests": [
+        "e3f3aa6112d9897a0fa35e69318dc4009a94bd881116c5da5bca8e6a70f7b3e1"
+      ]
+    },
+    "six-narrow-rust-vs-grep-ten.json": {
+      "matched_binary_digests": []
+    },
+    "six-native-vs-grep.json": {
+      "launch": "/tmp/kv-main comparator; retained-byte match, not a per-start attestation",
+      "matched_binary_digests": [
+        "4a93e9e4587a2e3c3cd97849783f748f85d1967d857a46d99648f8a5ee22bb38"
+      ]
+    },
+    "six-new-explicit-router-vs-grep-mcp-ten.json": {
+      "matched_binary_digests": []
+    },
+    "six-output-format-ab-ten.json": {
+      "matched_binary_digests": [
+        "e3f3aa6112d9897a0fa35e69318dc4009a94bd881116c5da5bca8e6a70f7b3e1"
+      ]
+    },
+    "six-output-thinking-ab-ten.json": {
+      "matched_binary_digests": [
+        "e3f3aa6112d9897a0fa35e69318dc4009a94bd881116c5da5bca8e6a70f7b3e1"
+      ]
+    },
+    "six-rust-receiver-outgoing-vs-grep-ten.json": {
+      "matched_binary_digests": [
+        "dfb033b7ff3d2bdd36f7cd32fcfd29eb4d08fb05c5138696be6c20aa3251c596"
+      ]
+    },
+    "six-rust-selectors-vs-grep-ten.json": {
+      "matched_binary_digests": []
+    },
+    "six-thinking-off-mcp-vs-grep-ten.json": {
+      "launch": "headless command in agent-runs.md; recovered launcher matched by session UUID",
+      "matched_binary_digests": [
+        "e3f3aa6112d9897a0fa35e69318dc4009a94bd881116c5da5bca8e6a70f7b3e1"
+      ]
+    }
+  }
+}
