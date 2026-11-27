@@ -91,6 +91,7 @@ func ExtractUses(ctx context.Context, result Result, options UseOptions) ([]Use,
 		return nil, err
 	}
 	modules := modulesByPackagePath(result.Packages)
+	owners := newFieldOwnerIndex(result.Packages)
 	local := make(map[string]struct{}, len(result.Packages))
 	for _, loaded := range result.Packages {
 		local[loaded.PkgPath] = struct{}{}
@@ -109,7 +110,7 @@ func ExtractUses(ctx context.Context, result Result, options UseOptions) ([]Use,
 			modulePath = loaded.Module.Path
 		}
 		for _, file := range loaded.Syntax {
-			uses = append(uses, extractFileUses(result.Fset, loaded, file, modulePath, modules, local, options)...)
+			uses = append(uses, extractFileUses(result.Fset, loaded, file, modulePath, modules, local, owners, options)...)
 		}
 	}
 	sort.Slice(uses, func(left, right int) bool {
@@ -131,6 +132,7 @@ func extractFileUses(
 	modulePath string,
 	modules map[string]string,
 	localPackages map[string]struct{},
+	owners *fieldOwnerIndex,
 	options UseOptions,
 ) []Use {
 	qualifier := packageQualifier(loaded.Types)
@@ -201,6 +203,7 @@ func extractFileUses(
 				object,
 				selection,
 				compositeLiteralOwner(loaded, stack),
+				owners,
 			),
 			TargetKind:  kind,
 			Offset:      position.Offset,
@@ -238,13 +241,16 @@ func selectionKind(kind types.SelectionKind) SelectionKind {
 
 // useTargetQualifiedName names the target as Owner.Name for members.
 //
-// A field object does not know the type that declares it. The owner comes
-// from the selection the checker resolved, or from the type of the composite
-// literal being written, never from the spelling.
+// A field object does not know the type that declares it, and the spelling of
+// the use is not that type either. The owner is read from the declaration when
+// its package was loaded (see fieldOwnerIndex), and otherwise comes from the
+// selection the checker resolved, or from the type of the composite literal
+// being written.
 func useTargetQualifiedName(
 	object types.Object,
 	selection *types.Selection,
 	literalOwner string,
+	owners *fieldOwnerIndex,
 ) string {
 	switch typed := object.(type) {
 	case *types.Func:
@@ -257,8 +263,11 @@ func useTargetQualifiedName(
 		if !typed.IsField() {
 			break
 		}
+		if owner, declared := owners.ownerOf(typed); declared {
+			return qualifiedName(owner, typed.Name())
+		}
 		if selection != nil {
-			if owner := receiverTypeName(selection.Recv()); owner != "" {
+			if owner := fieldDeclarerName(selection); owner != "" {
 				return owner + "." + typed.Name()
 			}
 		}
@@ -267,6 +276,38 @@ func useTargetQualifiedName(
 		}
 	}
 	return object.Name()
+}
+
+// fieldDeclarerName names the type whose declaration holds the field a
+// selection resolved, which is where the provider's facts name it.
+//
+// `selection.Recv()` is the type of the expression that was written, and the
+// field may not live there: an embedded struct promotes its fields to the type
+// that embeds it, and a type alias spells another name for the type it stands
+// for. The index path of the selection says which struct holds the field, and
+// an alias is followed to the type it declares. An alias of an unnamed type has
+// no declared name, so its own name stays.
+func fieldDeclarerName(selection *types.Selection) string {
+	holder := selection.Recv()
+	path := selection.Index()
+	for _, position := range path[:len(path)-1] {
+		structure, isStruct := types.Unalias(dereference(holder)).Underlying().(*types.Struct)
+		if !isStruct || position >= structure.NumFields() {
+			return receiverTypeName(selection.Recv())
+		}
+		holder = structure.Field(position).Type()
+	}
+	if name := receiverTypeName(types.Unalias(dereference(holder))); name != "" {
+		return name
+	}
+	return receiverTypeName(holder)
+}
+
+func dereference(typ types.Type) types.Type {
+	if pointer, isPointer := types.Unalias(typ).(*types.Pointer); isPointer {
+		return pointer.Elem()
+	}
+	return typ
 }
 
 // compositeLiteralOwner names the type of the composite literal a field key

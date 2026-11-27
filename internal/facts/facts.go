@@ -534,7 +534,7 @@ func (set Set) Validate() error {
 		symbolNames[symbol.Key] = symbol.QualifiedName
 	}
 
-	evidence := make(map[string]struct{}, len(set.Evidence))
+	evidence := make(map[string]Evidence, len(set.Evidence))
 	for _, entry := range set.Evidence {
 		if entry.Key == "" {
 			return fmt.Errorf("%w: evidence without key", ErrInvalidFacts)
@@ -542,7 +542,7 @@ func (set Set) Validate() error {
 		if _, known := files[entry.FileKey]; !known {
 			return fmt.Errorf("%w: evidence %q references unknown file %q", ErrInvalidFacts, entry.Key, entry.FileKey)
 		}
-		evidence[entry.Key] = struct{}{}
+		evidence[entry.Key] = entry
 	}
 
 	for _, edge := range set.Edges {
@@ -553,10 +553,10 @@ func (set Set) Validate() error {
 			return fmt.Errorf("%w: edge %s claims %s from %s", ErrInvalidFacts, edge.Kind, edge.Confidence, edge.Provenance)
 		}
 		if !known(edge.SourceKey, symbols, packages, files, repositories) {
-			return fmt.Errorf("%w: edge %s has unknown source %q", ErrInvalidFacts, edge.Kind, edge.SourceKey)
+			return fmt.Errorf("%w: edge %s has unknown source %q%s", ErrInvalidFacts, edge.Kind, edge.SourceKey, set.edgeSite(edge, symbolNames, evidence))
 		}
 		if !known(edge.TargetKey, symbols, packages, files, repositories) {
-			return fmt.Errorf("%w: edge %s has unknown target %q", ErrInvalidFacts, edge.Kind, edge.TargetKey)
+			return fmt.Errorf("%w: edge %s has unknown target %q%s", ErrInvalidFacts, edge.Kind, edge.TargetKey, set.edgeSite(edge, symbolNames, evidence))
 		}
 		if edge.EvidenceKey != "" {
 			if _, exists := evidence[edge.EvidenceKey]; !exists {
@@ -654,6 +654,27 @@ func (set Set) packageName(key string) string {
 		}
 	}
 	return key
+}
+
+// edgeSite says where an edge was observed, for the error that rejects it: the
+// key of a symbol that is nowhere in the set sends a reader to base32 that
+// appears in no source file, but the symbol on the other end and the line that
+// holds the evidence can be opened.
+func (set Set) edgeSite(edge Edge, symbolNames map[string]string, evidence map[string]Evidence) string {
+	var site []string
+	if name, named := symbolNames[edge.SourceKey]; named {
+		site = append(site, "source "+name)
+	}
+	if name, named := symbolNames[edge.TargetKey]; named {
+		site = append(site, "target "+name)
+	}
+	if entry, observed := evidence[edge.EvidenceKey]; observed {
+		site = append(site, fmt.Sprintf("at %s:%d:%d", set.filePath(entry.FileKey), entry.Start.Line, entry.Start.Column+1))
+	}
+	if len(site) == 0 {
+		return ""
+	}
+	return " (" + strings.Join(site, ", ") + ")"
 }
 
 func known(key string, indexes ...map[string]struct{}) bool {

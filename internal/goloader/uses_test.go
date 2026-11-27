@@ -88,7 +88,8 @@ func TestExtractUsesResolvesTargetsThroughTheTypeChecker(t *testing.T) {
 	byTarget := make(map[string][]Use)
 	for _, use := range filtered {
 		byTarget[use.TargetPackagePath+"."+use.TargetQualifiedName] = append(
-			byTarget[use.TargetPackagePath+"."+use.TargetQualifiedName], use)
+			byTarget[use.TargetPackagePath+"."+use.TargetQualifiedName], use,
+		)
 	}
 
 	compute := byTarget["example.com/module/provider.Compute"]
@@ -150,6 +151,67 @@ func TestExtractUsesRecordsSelections(t *testing.T) {
 	}
 	if methodExpression == nil || methodExpression.ReceiverType != "*example.com/module/provider.Shape" {
 		t.Fatalf("method expression selection = %#v", methodExpression)
+	}
+}
+
+// TestExtractUsesNamesTheTypeThatDeclaresAField pins the owner of a field a
+// use reaches through a type alias, through an embedded struct or through an
+// unnamed struct. The provider declares `Envelope.Errors` and
+// `Envelope.Data.Acknowledged`, and those are the only names its facts carry:
+// a consumer that wrote `BadRequest.Errors` for the alias, `Wrapper.Errors` for
+// the promoted field or a bare `Acknowledged` named a symbol that is nowhere,
+// and the edge to it failed the whole pass at validation.
+func TestExtractUsesNamesTheTypeThatDeclaresAField(t *testing.T) {
+	root := testsupport.TempDir(t)
+	module := filepath.Join(root, "module")
+	writeFiles(t, module, map[string]string{
+		"go.mod": "module example.com/module\n\ngo 1.24\n",
+		"provider/provider.go": `package provider
+
+type Envelope struct {
+	Errors []string
+	Data   struct{ Acknowledged bool }
+}
+`,
+		"consumer/consumer.go": `package consumer
+
+import "example.com/module/provider"
+
+type BadRequest = provider.Envelope
+
+type Wrapper struct{ *provider.Envelope }
+
+func ViaAlias(response *BadRequest) int { return len(response.Errors) }
+
+func Promoted(wrapper Wrapper) int { return len(wrapper.Errors) }
+
+func Nested(response *BadRequest) bool { return response.Data.Acknowledged }
+`,
+	})
+	result, err := Load(context.Background(), Options{Directory: module})
+	if err != nil || len(result.Errors) != 0 {
+		t.Fatalf("Load() = %v, %#v", err, result.Errors)
+	}
+	uses, err := ExtractUses(context.Background(), result, UseOptions{Repository: "fixture"})
+	if err != nil {
+		t.Fatalf("ExtractUses() error = %v", err)
+	}
+	reads := map[string]string{}
+	for _, use := range consumerUses(uses) {
+		if use.Selection == SelectionField {
+			reads[use.SourceQualifiedName+"."+use.Name] = use.TargetQualifiedName
+		}
+	}
+	want := map[string]string{
+		"ViaAlias.Errors":     "Envelope.Errors",
+		"Promoted.Errors":     "Envelope.Errors",
+		"Nested.Data":         "Envelope.Data",
+		"Nested.Acknowledged": "Envelope.Data.Acknowledged",
+	}
+	for source, target := range want {
+		if reads[source] != target {
+			t.Fatalf("field reads = %v, want %v", reads, want)
+		}
 	}
 }
 

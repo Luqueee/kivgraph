@@ -29,6 +29,10 @@ import (
 type bodyStripper struct {
 	directories []string
 	stripped    sync.Map
+	// remapped holds the names a stripped file gives its own lines through
+	// `//line` directives. A generated parser reports its errors under the .y
+	// file it came from, not under the .go file that lost its bodies.
+	remapped sync.Map
 }
 
 func newBodyStripper(directory string) *bodyStripper {
@@ -56,7 +60,53 @@ func (stripper *bodyStripper) parse(fileSet *token.FileSet, filename string, sou
 			stripper.stripped.Store(filename, struct{}{})
 		}
 	}
+	if _, lost := stripper.stripped.Load(filename); lost {
+		for _, name := range lineDirectiveFiles(file, filename) {
+			stripper.remapped.Store(name, struct{}{})
+		}
+	}
 	return file, err
+}
+
+// lineDirectiveFiles lists the file names the `//line filename:line[:column]`
+// directives of a file give its positions, as the checker spells them: a
+// relative name is relative to the directory of the file.
+func lineDirectiveFiles(file *ast.File, filename string) []string {
+	var names []string
+	for _, group := range file.Comments {
+		for _, comment := range group.List {
+			directive, isLine := strings.CutPrefix(comment.Text, "//line ")
+			if !isLine {
+				continue
+			}
+			name := directive
+			for range 2 {
+				if index := strings.LastIndexByte(name, ':'); index >= 0 && isDigits(name[index+1:]) {
+					name = name[:index]
+				}
+			}
+			if name == "" || name == directive {
+				continue
+			}
+			if !filepath.IsAbs(name) {
+				name = filepath.Join(filepath.Dir(filename), name)
+			}
+			names = append(names, filepath.Clean(name))
+		}
+	}
+	return names
+}
+
+func isDigits(text string) bool {
+	if text == "" {
+		return false
+	}
+	for _, character := range text {
+		if character < '0' || character > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func (stripper *bodyStripper) keeps(filename string) bool {
@@ -143,18 +193,31 @@ func (stripper *bodyStripper) forgive(roots []*packages.Package) {
 	})
 }
 
-// lostBodies says whether the position, `file:line:column`, is in a file whose
-// bodies were dropped.
+// lostBodies says whether the position, `file:line:column` or `file:line`, is
+// in a file whose bodies were dropped, or in a file such a file names with a
+// `//line` directive.
 func (stripper *bodyStripper) lostBodies(position string) bool {
-	for range 2 {
-		index := strings.LastIndexByte(position, ':')
-		if index < 0 {
-			return false
+	for segments := 2; segments > 0; segments-- {
+		name := position
+		for range segments {
+			index := strings.LastIndexByte(name, ':')
+			if index < 0 {
+				name = ""
+				break
+			}
+			name = name[:index]
 		}
-		position = position[:index]
+		if name == "" {
+			continue
+		}
+		if _, stripped := stripper.stripped.Load(name); stripped {
+			return true
+		}
+		if _, named := stripper.remapped.Load(name); named {
+			return true
+		}
 	}
-	_, stripped := stripper.stripped.Load(position)
-	return stripped
+	return false
 }
 
 // allAdvisories says whether every error is the toolchain-skew advisory, which
