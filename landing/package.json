@@ -31,13 +31,13 @@
     "@fontsource-variable/geist-mono": "5.3.0",
     "astro": "7.4.13",
     "gsap": "^3.15.1",
-    "posthog-js": "^1.453.2",
+    "posthog-js": "^1.454.7",
     "tailwindcss": "4.3.5",
     "zod": "4.6.7"
   },
   "devDependencies": {
     "@astrojs/check": "0.9.12",
-    "@biomejs/biome": "2.6.8",
+    "@biomejs/biome": "2.6.9",
     "@tailwindcss/vite": "4.3.5",
     "rehype-external-links": "^3.0.0",
     "typescript": "6.0.3"
